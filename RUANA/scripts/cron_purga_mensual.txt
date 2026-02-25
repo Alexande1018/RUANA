@@ -1,0 +1,9 @@
+# Purga mensual RUANA: primer día de cada mes a las 02:00
+# Añadir esta línea a tu crontab (crontab -e) o pegar el bloque completo.
+#
+# Reemplaza /Users/alex/Desktop/RUANA por la ruta real del proyecto.
+
+# Una sola línea para copiar (ajusta RUANA_DIR):
+# 0 2 1 * * RUANA_DIR=/Users/alex/Desktop/RUANA && /usr/bin/env python3 "$RUANA_DIR/scripts/purga_mensual.py" >> "$RUANA_DIR/logs/purga_mensual.log" 2>&1
+
+0 2 1 * * /usr/bin/env python3 /Users/alex/Desktop/RUANA/scripts/purga_mensual.py >> /Users/alex/Desktop/RUANA/logs/purga_mensual.log 2>&1

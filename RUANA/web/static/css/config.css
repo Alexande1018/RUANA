@@ -1,0 +1,195 @@
+/* ================================================
+   RUANA DASHBOARD - Archivo de Configuración CSS
+   
+   USAR ESTE ARCHIVO para customizar colores y estilos
+   sin tocar el archivo principal (styles.css)
+   
+   ================================================ */
+
+/* CONFIGURACIÓN DE COLORES */
+/* Descomenta y modifica según tu marca */
+
+/*
+:root {
+    --color-primary-green: #22c55e;
+    --color-secondary-yellow: #eab308;
+    --color-danger-red: #ef4444;
+    
+    --color-bg-dark: #0f0f1e;
+    --color-bg-mid: #1a1a2e;
+    --color-bg-light: #0f1419;
+    
+    --color-text-primary: #e0e0e0;
+    --color-text-secondary: #999;
+    --color-text-muted: #666;
+    
+    --color-border: rgba(255, 255, 255, 0.08);
+    --color-border-hover: rgba(255, 255, 255, 0.15);
+}
+*/
+
+/* EJEMPLOS DE TEMA ALTERNATIVO */
+
+/* Dark Blue Theme */
+/*
+:root {
+    --color-primary-green: #0ea5e9;  /* azul cielo */
+    --color-secondary-yellow: #f59e0b;  /* ámbar */
+    --color-danger-red: #f87171;  /* rojo coral */
+}
+*/
+
+/* Light Theme (próxima versión) */
+/*
+body {
+    background: linear-gradient(135deg, #f8f8f8 0%, #f3f3f3 50%, #f0f0f0 100%);
+    color: #1f2937;
+}
+
+:root {
+    --color-primary-green: #059669;  /* verde oscuro */
+    --color-secondary-yellow: #d97706;  /* ámbar oscuro */
+    --color-danger-red: #dc2626;  /* rojo oscuro */
+}
+*/
+
+/* CONFIGURACIÓN DE TYPOGRAPHY */
+/*
+:root {
+    --font-primary: 'Segoe UI', 'Helvetica Neue', sans-serif;
+    --font-mono: 'Courier New', monospace;
+    
+    --size-h1: 2.5rem;
+    --size-h2: 2rem;
+    --size-h3: 1.5rem;
+    --size-body: 0.9rem;
+    --size-small: 0.75rem;
+}
+*/
+
+/* CONFIGURACIÓN DE ESPACIADO */
+/*
+:root {
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 12px;
+    --spacing-lg: 16px;
+    --spacing-xl: 24px;
+    --spacing-2xl: 40px;
+    --spacing-3xl: 60px;
+}
+*/
+
+/* CONFIGURACIÓN DE TRANSICIONES */
+/*
+:root {
+    --transition-fast: 0.15s ease;
+    --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 0.6s ease;
+}
+*/
+
+/* CONFIGURACIÓN DE BORDES */
+/*
+:root {
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+}
+*/
+
+/* EJEMPLOS DE OVERRIDE */
+
+/* Hacer cards más grandes */
+/*
+.card {
+    padding: 32px;
+    border-radius: 16px;
+}
+*/
+
+/* Cambiar fuente */
+/*
+body {
+    font-family: 'Georgia', serif;
+}
+*/
+
+/* Desactivar efectos hover */
+/*
+.card:hover {
+    transform: none;
+    background: rgba(255, 255, 255, 0.05);
+}
+*/
+
+/* Hacer badges más grandes */
+/*
+.status-badge {
+    padding: 8px 16px;
+    font-size: 0.8rem;
+}
+*/
+
+/* Cambiar header de color */
+/*
+.logo h1 {
+    background: linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+*/
+
+/* Animaciones personalizadas */
+/*
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.status-dot {
+    animation: pulse 2s infinite;
+}
+*/
+
+/* NOTAS IMPORTANTES */
+
+/*
+1. NO EDITES styles.css directamente si planeas actualizar
+2. Crea tema en este archivo o en archivo nuevo
+3. Importa este archivo DESPUÉS de styles.css en index.html
+4. Los overrides aquí tendrán prioridad sobre styles.css
+
+ESTRUCTURA DE CARPETAS SUGERIDA:
+web/
+├── static/
+│   ├── css/
+│   │   ├── styles.css           (original, no tocar)
+│   │   ├── config.css           (este archivo)
+│   │   └── themes/
+│   │       ├── theme-dark.css   (tema oscuro, defecto)
+│   │       ├── theme-light.css  (tema claro)
+│   │       └── theme-company.css (tema corporativo)
+
+USO EN HTML:
+<link rel="stylesheet" href="/static/css/styles.css">
+<link rel="stylesheet" href="/static/css/config.css">
+<!-- O seleccionar tema: -->
+<!-- <link rel="stylesheet" href="/static/css/themes/theme-light.css"> -->
+
+*/
+
+/* CONFIGURACIÓN DE PRODUCCIÓN */
+
+/*
+Para producción, considera:
+1. Minificar CSS (eliminar comentarios, espacios)
+2. Usar CSS variables para temas dinámicos
+3. Agregar prefijos de navegadores (-webkit-, -moz-, etc)
+4. Optimizar media queries
+5. Considerar CSS Grid vs Flexbox para soporte
+
+*/
+
+/* FIN DEL ARCHIVO DE CONFIGURACIÓN */

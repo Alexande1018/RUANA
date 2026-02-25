@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RUANA - Panel Privado</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <script src="/static/js/motor-ruana.js"></script>
+    <style>
+        body { background: #0a0e27; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 40px 20px; }
+        h1 { color: #22c55e; margin-bottom: 30px; }
+        .block { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 24px; margin-bottom: 24px; }
+        .block-title { font-size: 14px; font-weight: 600; text-transform: uppercase; color: #999; margin-bottom: 16px; letter-spacing: 0.5px; }
+        .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-bottom: 16px; }
+        .metric-card { background: rgba(255, 255, 255, 0.03); padding: 16px; border-radius: 6px; text-align: center; }
+        .metric-number { font-size: 28px; font-weight: 700; color: #22c55e; margin-bottom: 8px; }
+        .metric-label { font-size: 12px; text-transform: uppercase; color: #999; }
+        button { padding: 12px 24px; background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; transition: all 0.3s; }
+        button:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(34,197,94,0.3); }
+        .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 1000; }
+        .modal.show { display: flex; }
+        .modal-content { background: #0a0e27; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 32px; width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto; }
+        .modal-title { font-size: 20px; font-weight: 600; margin-bottom: 20px; color: #22c55e; }
+        .prof-card { background: rgba(255, 255, 255, 0.05); padding: 16px; border-radius: 6px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; border-left: 3px solid #22c55e; }
+        .prof-info { flex: 1; }
+        .prof-name { font-weight: 600; margin-bottom: 4px; }
+        .prof-detail { font-size: 12px; color: #999; }
+        .prof-btn { padding: 8px 16px; font-size: 12px; background: #22c55e; color: white; border: none; border-radius: 4px; cursor: pointer; transition: all 0.3s; }
+        .prof-btn:hover { background: #16a34a; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Panel Privado</h1>
+
+        <div class="block">
+            <div class="block-title">Tu Perfil</div>
+            <div class="grid-2">
+                <div>
+                    <div style="font-size: 12px; color: #999; margin-bottom: 4px;">Nombre</div>
+                    <div style="font-size: 16px; font-weight: 600;" id="perfil-nombre">Juan Pérez</div>
+                </div>
+                <div>
+                    <div style="font-size: 12px; color: #999; margin-bottom: 4px;">Oficio</div>
+                    <div style="font-size: 16px; font-weight: 600;" id="perfil-oficio">Electricidad</div>
+                </div>
+                <div>
+                    <div style="font-size: 12px; color: #999; margin-bottom: 4px;">Zona</div>
+                    <div style="font-size: 16px; font-weight: 600;" id="perfil-zona">Bogotá - Centro</div>
+                </div>
+                <div>
+                    <div style="font-size: 12px; color: #999; margin-bottom: 4px;">Estado</div>
+                    <div style="font-size: 16px; font-weight: 600; color: #22c55e;" id="perfil-estado">Activo</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="block">
+            <div class="block-title">Métricas</div>
+            <div class="grid-2">
+                <div class="metric-card">
+                    <div class="metric-number" id="metric-solicitudes">12</div>
+                    <div class="metric-label">Solicitudes</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-number" id="metric-invitaciones">8</div>
+                    <div class="metric-label">Invitaciones</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-number" id="metric-aceptadas">6</div>
+                    <div class="metric-label">Aceptadas</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-number" id="metric-score">87</div>
+                    <div class="metric-label">Score</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="block">
+            <div class="block-title">Directorio de Profesionales</div>
+            <button onclick="abrirProfesionales()">🔍 Buscar Profesional</button>
+        </div>
+    </div>
+
+    <div class="modal" id="modal-profesionales">
+        <div class="modal-content">
+            <div class="modal-title">Directorio de Profesionales Activos</div>
+            <div id="profesionales-list"></div>
+            <div style="margin-top: 20px;">
+                <button style="width: 100%; background: rgba(255,255,255,0.1);" onclick="cerrarProfesionales()">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Estado de la aplicación
+        const app = {
+            aliadoId: 1,
+            motor: motorRUANA,
+
+            init() {
+                this.cargarPerfil();
+                this.cargarMetricas();
+            },
+
+            cargarPerfil() {
+                const result = this.motor.getAliadoState(this.aliadoId);
+                if (result.exito) {
+                    const aliado = result.data;
+                    document.getElementById('perfil-nombre').textContent = aliado.nombre;
+                    document.getElementById('perfil-oficio').textContent = aliado.oficio;
+                    document.getElementById('perfil-zona').textContent = aliado.zona;
+                    document.getElementById('perfil-estado').textContent = aliado.estado;
+                }
+            },
+
+            cargarMetricas() {
+                const result = this.motor.getAliadoMetrics(this.aliadoId);
+                if (result.exito) {
+                    const m = result.data;
+                    document.getElementById('metric-solicitudes').textContent = m.solicitudes_recibidas;
+                    document.getElementById('metric-invitaciones').textContent = m.invitaciones_generadas;
+                    document.getElementById('metric-aceptadas').textContent = m.aceptadas;
+                    document.getElementById('metric-score').textContent = m.score;
+                }
+            }
+        };
+
+        // Funciones globales
+        function abrirProfesionales() {
+            const result = app.motor.getProfesionalesActivos(app.aliadoId);
+            if (!result.exito) {
+                alert('Error al cargar profesionales');
+                return;
+            }
+
+            const lista = document.getElementById('profesionales-list');
+            lista.innerHTML = '';
+
+            if (result.data.length === 0) {
+                lista.innerHTML = '<p style="color: #999;">No hay profesionales disponibles</p>';
+                document.getElementById('modal-profesionales').classList.add('show');
+                return;
+            }
+
+            result.data.forEach(prof => {
+                const card = document.createElement('div');
+                card.className = 'prof-card';
+                card.innerHTML = `
+                    <div class="prof-info">
+                        <div class="prof-name">${prof.nombre}</div>
+                        <div class="prof-detail">${prof.oficio} • ${prof.zona}</div>
+                    </div>
+                    <button class="prof-btn" onclick="alert('Contactando a ${prof.nombre}...')">Contactar</button>
+                `;
+                lista.appendChild(card);
+            });
+
+            document.getElementById('modal-profesionales').classList.add('show');
+        }
+
+        function cerrarProfesionales() {
+            document.getElementById('modal-profesionales').classList.remove('show');
+        }
+
+        // Cerrar modal al hacer click fuera
+        document.getElementById('modal-profesionales').addEventListener('click', (e) => {
+            if (e.target.id === 'modal-profesionales') {
+                cerrarProfesionales();
+            }
+        });
+
+        // Inicializar cuando esté listo
+        document.addEventListener('DOMContentLoaded', () => {
+            app.init();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RUANA - Panel Privado del Aliado</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="/static/js/motor-ruana.js"></script>
+    <style>
+        /* Panel privado del aliado - Reutiliza estilos existentes */
+        .panel-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        /* BLOQUE 1: Perfil del Aliado */
+        .perfil-block {
+            padding: 32px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            margin-bottom: 32px;
+        }
+
+        .perfil-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+
+        .perfil-info {
+            flex: 1;
+        }
+
+        .perfil-titulo {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #777;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .perfil-main {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .perfil-nombre {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #e0e0e0;
+            margin: 0;
+        }
+
+        .perfil-marca {
+            font-size: 0.95rem;
+            color: #999;
+            font-weight: 400;
+        }
+
+        .perfil-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .perfil-status[data-status="activo"] {
+            background: rgba(34, 197, 94, 0.15);
+            color: #22c55e;
+        }
+
+        .perfil-status[data-status="observacion"] {
+            background: rgba(234, 179, 8, 0.15);
+            color: #eab308;
+        }
+
+        .perfil-status[data-status="riesgo"] {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .perfil-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 24px;
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .detail-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #777;
+            font-weight: 600;
+        }
+
+        .detail-value {
+            font-size: 1rem;
+            color: #e0e0e0;
+            font-weight: 500;
+        }
+
+        /* BLOQUE 2: Métricas Personales */
+        .metricas-block {
+            margin-bottom: 40px;
+        }
+
+        .metricas-title {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #bbb;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        .metricas-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .metrica-card {
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .metrica-card:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .metrica-numero {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #22c55e;
+            margin-bottom: 8px;
+        }
+
+        .metrica-label {
+            font-size: 0.85rem;
+            color: #999;
+            font-weight: 400;
+        }
+
+        /* Divisor visual */
+        .panel-divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            margin: 40px 0;
+        }
+
+        /* Bloque Buscar Profesional */
+        .buscar-profesional-block {
+            margin-bottom: 40px;
+        }
+
+        .btn-buscar-profesional {
+            width: 100%;
+            padding: 14px 24px;
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-buscar-profesional:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(34, 197, 94, 0.3);
+        }
+
+        .btn-buscar-profesional:active {
+            transform: translateY(0);
+        }
+
+        /* Modal de Profesionales */
+        .modal-profesionales {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1001;
+        }
+
+        .modal-profesionales.show {
+            display: flex;
+        }
+
+        .modal-profesionales-content {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 32px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            backdrop-filter: blur(10px);
+        }
+
+        .modal-profesionales-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #e0e0e0;
+            margin-bottom: 24px;
+        }
+
+        .profesionales-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .profesional-card {
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .profesional-card:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.15);
+            transform: translateX(4px);
+        }
+
+        .profesional-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+
+        .profesional-nombre {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #e0e0e0;
+        }
+
+        .profesional-badge {
+            padding: 4px 10px;
+            background: rgba(34, 197, 94, 0.2);
+            border-radius: 4px;
+            font-size: 0.7rem;
+            color: #22c55e;
+            font-weight: 600;
+        }
+
+        .profesional-badge.espera {
+            background: rgba(234, 179, 8, 0.2);
+            color: #eab308;
+        }
+
+        .profesional-descripcion {
+            font-size: 0.85rem;
+            color: #aaa;
+            line-height: 1.4;
+            margin-bottom: 12px;
+            padding: 10px 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .profesional-detalles {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            font-size: 0.85rem;
+            color: #999;
+            margin-bottom: 10px;
+        }
+
+        .profesional-detalle {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .profesional-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: #666;
+        }
+
+        .profesional-valor {
+            color: #bbb;
+            font-weight: 500;
+        }
+
+        .profesional-acciones {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-contactar {
+            flex: 1;
+            padding: 8px 12px;
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            border: none;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .btn-contactar:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(34, 197, 94, 0.2);
+        }
+
+        .modal-close {
+            display: flex;
+            gap: 8px;
+            margin-top: 24px;
+        }
+
+        .btn-cerrar-modal {
+            width: 100%;
+            padding: 10px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: #bbb;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-cerrar-modal:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .panel-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            align-items: start;
+        }
+
+        /* ZONA 1: Solicitudes activas - Secundaria */
+        .solicitudes-zone {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .zone-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #bbb;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0;
+        }
+
+        .solicitudes-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .solicitud-card {
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .solicitud-card:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .solicitud-texto {
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: #e0e0e0;
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+
+        .solicitud-meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 12px;
+            font-size: 0.8rem;
+            color: #999;
+        }
+
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .meta-label {
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 500;
+            color: #666;
+            font-size: 0.7rem;
+        }
+
+        .meta-value {
+            color: #bbb;
+            font-weight: 400;
+        }
+
+        .solicitud-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-conocer {
+            flex: 1;
+            padding: 8px 12px;
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            border: none;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .btn-conocer:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 12px rgba(34, 197, 94, 0.25);
+        }
+
+        .btn-conocer:active {
+            transform: translateY(0);
+        }
+
+        /* Modal para código de invitación */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 32px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .modal-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #e0e0e0;
+            margin-bottom: 16px;
+        }
+
+        .modal-text {
+            font-size: 0.9rem;
+            color: #bbb;
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+
+        .invite-code-box {
+            padding: 16px;
+            background: rgba(34, 197, 94, 0.1);
+            border: 2px solid rgba(34, 197, 94, 0.3);
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .invite-code-label {
+            font-size: 0.75rem;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .invite-code-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #22c55e;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 4px;
+        }
+
+        .invite-code-message {
+            font-size: 0.8rem;
+            color: #22c55e;
+            margin-top: 12px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-copy {
+            flex: 1;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-copy:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(34, 197, 94, 0.3);
+        }
+
+        .btn-close-modal {
+            flex: 1;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: #bbb;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-close-modal:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        /* ZONA 2: Crear solicitud */
+        .crear-solicitud-zone {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            position: sticky;
+            top: 40px;
+        }
+
+        .crear-card {
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+        }
+
+        .textarea-solicitud {
+            width: 100%;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: #e0e0e0;
+            font-size: 0.9rem;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 100px;
+            transition: all 0.3s ease;
+            margin-bottom: 12px;
+        }
+
+        .textarea-solicitud::placeholder {
+            color: #666;
+        }
+
+        .textarea-solicitud:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .textarea-solicitud:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #22c55e;
+            box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.1);
+        }
+
+        .btn-enviar-solicitud {
+            width: 100%;
+            padding: 10px 16px;
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .btn-enviar-solicitud:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 16px rgba(34, 197, 94, 0.25);
+        }
+
+        .btn-enviar-solicitud:active {
+            transform: translateY(0);
+        }
+
+        .solicitud-success {
+            padding: 10px;
+            background: rgba(34, 197, 94, 0.15);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            border-radius: 8px;
+            color: #22c55e;
+            font-size: 0.8rem;
+            text-align: center;
+            display: none;
+            margin-top: 10px;
+        }
+
+        .solicitud-success.show {
+            display: block;
+        }
+
+        @media (max-width: 1024px) {
+            .panel-content {
+                grid-template-columns: 1fr;
+            }
+
+            .crear-solicitud-zone {
+                position: static;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .panel-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 16px;
+            }
+
+            .solicitud-meta {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <a href="/dashboard" class="btn-back">← Atrás</a>
+    <div class="panel-container">
+        <!-- BLOQUE 1: Perfil del Aliado -->
+        <div class="perfil-block">
+            <div class="perfil-header">
+                <div class="perfil-info">
+                    <div class="perfil-titulo">Perfil del Aliado</div>
+                    <div class="perfil-main">
+                        <h1 class="perfil-nombre" id="perfil-nombre">Juan Pérez</h1>
+                        <div class="perfil-marca" id="perfil-marca">JP Instalaciones Eléctricas</div>
+                    </div>
+                </div>
+                <div class="perfil-status" id="perfil-status" data-status="activo">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Activo</span>
+                </div>
+            </div>
+
+            <div class="perfil-details">
+                <div class="detail-item">
+                    <span class="detail-label">Oficio</span>
+                    <span class="detail-value" id="detail-oficio">Electricidad</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Zona</span>
+                    <span class="detail-value" id="detail-zona">Bogotá - Centro</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Rol</span>
+                    <span class="detail-value" id="detail-rol">Titular</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Desde</span>
+                    <span class="detail-value" id="detail-fecha">3 meses</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- BLOQUE 2: Métricas Personales -->
+        <div class="metricas-block">
+            <h2 class="metricas-title">Métricas Personales</h2>
+            <div class="metricas-grid">
+                <div class="metrica-card">
+                    <div class="metrica-numero" id="metric-solicitudes">12</div>
+                    <div class="metrica-label">Solicitudes recibidas</div>
+                </div>
+                <div class="metrica-card">
+                    <div class="metrica-numero" id="metric-invitaciones">8</div>
+                    <div class="metrica-label">Invitaciones generadas</div>
+                </div>
+                <div class="metrica-card">
+                    <div class="metrica-numero" id="metric-aceptadas">6</div>
+                    <div class="metrica-label">Invitaciones aceptadas</div>
+                </div>
+                <div class="metrica-card">
+                    <div class="metrica-numero" id="metric-score">8.5</div>
+                    <div class="metrica-label">Score RUANA</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Divisor -->
+        <div class="panel-divider"></div>
+
+        <!-- BLOQUE 3: Buscar Profesional -->
+        <div class="buscar-profesional-block">
+            <h2 class="metricas-title">Directorio de profesionales</h2>
+            <button class="btn-buscar-profesional" id="btn-buscar-profesional">
+                Buscar Profesional
+            </button>
+        </div>
+
+        <!-- Contenido principal -->
+        <div class="panel-content">
+            <!-- ZONA 1: Solicitudes activas - Secundaria -->
+            <div class="solicitudes-zone">
+                <h2 class="zone-title">Solicitudes del grupo</h2>
+                <div class="solicitudes-list" id="solicitudes-list"></div>
+            </div>
+
+            <!-- ZONA 2: Crear solicitud - Terciaria -->
+            <div class="crear-solicitud-zone">
+                <div class="crear-card">
+                    <h2 class="zone-title">Nuevas conexiones</h2>
+                    <p class="crear-solicitud-aviso" style="margin: 0 0 12px 0; color: rgba(255,255,255,0.75); font-size: 0.9rem;">Antes de solicitar una nueva conexión, revisa si ya hay un Aliado del grupo que realice ese trabajo.</p>
+                    <label class="modal-importe-label" for="nueva-solicitud-oficio" style="display:block; margin-bottom:6px;">Oficio solicitado *</label>
+                    <input type="text" class="textarea-solicitud" id="nueva-solicitud-oficio" placeholder="Ej: Fontanería" required minlength="1" style="margin-bottom:10px;" />
+                    <label class="modal-importe-label" for="nueva-solicitud" style="display:block; margin-bottom:6px;">Descripción *</label>
+                    <textarea 
+                        class="textarea-solicitud" 
+                        id="nueva-solicitud" 
+                        placeholder="Qué necesitas: Ej: Busco fontanero para emergencia"
+                        required
+                        minlength="5"
+                    ></textarea>
+                    <button class="btn-enviar-solicitud" id="btn-enviar">Enviar solicitud</button>
+                    <div class="solicitud-success" id="solicitud-success">
+                        ✓ Solicitud enviada a todos los aliados
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Buscar Profesional -->
+    <div class="modal-profesionales" id="modal-profesionales">
+        <div class="modal-profesionales-content">
+            <h3 class="modal-profesionales-title">Directorio de Profesionales</h3>
+            <div class="profesionales-list" id="profesionales-list"></div>
+            <div class="modal-close">
+                <button class="btn-cerrar-modal" id="btn-cerrar-profesionales">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Código de invitación -->
+    <div class="modal-overlay" id="modal-code">
+        <div class="modal-content">
+            <h3 class="modal-title">Código de invitación</h3>
+            <p class="modal-text">Comparte este código único con la persona que quieras invitar:</p>
+            
+            <div class="invite-code-box">
+                <span class="invite-code-label">Tu código:</span>
+                <div class="invite-code-value" id="code-value">XXXXX</div>
+                <div class="invite-code-message">Válido para una solicitud</div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn-copy" id="btn-copy-code">Copiar código</button>
+                <button class="btn-close-modal" id="btn-close-code">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * RUANA - Panel Privado del Aliado
+         * Capa de Presentación - Consume datos del Motor RUANA
+         */
+
+        class PrivatePanel {
+            constructor() {
+                this.motor = motorRUANA; // Instancia global del motor
+                this.aliadoId = 1; // ID del aliado autenticado (mock)
+                
+                this.modalCode = document.getElementById('modal-code');
+                this.btnEnviar = document.getElementById('btn-enviar');
+                this.nuevaSolicitud = document.getElementById('nueva-solicitud');
+                this.nuevaSolicitudOficio = document.getElementById('nueva-solicitud-oficio');
+                this.solicitudSuccess = document.getElementById('solicitud-success');
+                this.btnCopyCode = document.getElementById('btn-copy-code');
+                this.btnCloseCode = document.getElementById('btn-close-code');
+                this.solicitudesList = document.getElementById('solicitudes-list');
+                
+                this.currentCode = null;
+                
+                this.init();
+            }
+
+            init() {
+                /**
+                 * Inicializa el panel consultando el motor
+                 */
+                this.autenticarAliado();
+                this.renderPerfil();
+                this.renderMetricas();
+                this.renderSolicitudes();
+                this.setupEventListeners();
+            }
+
+            autenticarAliado() {
+                /**
+                 * Autentica el aliado en el motor
+                 */
+                const result = this.motor.autenticarAliado(this.aliadoId);
+                if (result.exito) {
+                    console.log('[PANEL] Aliado autenticado:', result.aliado.nombre);
+                } else {
+                    console.error('[PANEL] Error de autenticación:', result.error);
+                }
+            }
+
+            renderPerfil() {
+                /**
+                 * Renderiza el perfil del aliado consultando el motor
+                 */
+                const result = this.motor.getAliadoState(this.aliadoId);
+                if (!result.exito) {
+                    console.error('Error obteniendo estado del aliado');
+                    return;
+                }
+
+                const aliado = result.data;
+                
+                // Actualizar elementos con IDs específicos
+                const nombreEl = document.getElementById('perfil-nombre');
+                const marcaEl = document.getElementById('perfil-marca');
+                const oficioEl = document.getElementById('detail-oficio');
+                const zonaEl = document.getElementById('detail-zona');
+                const rolEl = document.getElementById('detail-rol');
+                const fechaEl = document.getElementById('detail-fecha');
+                const statusEl = document.getElementById('perfil-status');
+                
+                if (nombreEl) nombreEl.textContent = aliado.nombre;
+                if (marcaEl) marcaEl.textContent = aliado.marca || 'N/A';
+                if (oficioEl) oficioEl.textContent = aliado.oficio;
+                if (zonaEl) zonaEl.textContent = aliado.zona;
+                if (rolEl) rolEl.textContent = aliado.rol;
+                if (fechaEl) fechaEl.textContent = aliado.desde;
+                if (statusEl) {
+                    statusEl.dataset.status = aliado.estado;
+                    const statusTexts = {
+                        'activo': 'Activo',
+                        'observacion': 'En observación',
+                        'riesgo': 'En riesgo'
+                    };
+                    const statusText = statusEl.querySelector('.status-text');
+                    if (statusText) {
+                        statusText.textContent = statusTexts[aliado.estado] || aliado.estado;
+                    }
+                }
+            }
+
+            renderMetricas() {
+                /**
+                 * Renderiza las métricas del aliado desde el motor
+                 */
+                const result = this.motor.getAliadoMetrics(this.aliadoId);
+                if (!result.exito) {
+                    console.error('Error obteniendo métricas del aliado');
+                    return;
+                }
+
+                const metricas = result.data;
+                const container = document.querySelector('.metricas-block');
+                
+                if (container) {
+                    const metricsHTML = container.querySelector('.metricas-grid');
+                    if (metricsHTML) {
+                        metricsHTML.innerHTML = `
+                            <div class="metrica-card">
+                                <div class="metrica-numero">${metricas.solicitudes_recibidas}</div>
+                                <div class="metrica-label">Solicitudes recibidas</div>
+                            </div>
+                            <div class="metrica-card">
+                                <div class="metrica-numero">${metricas.invitaciones_generadas}</div>
+                                <div class="metrica-label">Invitaciones generadas</div>
+                            </div>
+                            <div class="metrica-card">
+                                <div class="metrica-numero">${metricas.aceptadas}</div>
+                                <div class="metrica-label">Aceptadas</div>
+                            </div>
+                            <div class="metrica-card">
+                                <div class="metrica-numero">${metricas.score}</div>
+                                <div class="metrica-label">Score RUANA</div>
+                            </div>
+                        `;
+                    }
+                }
+            }
+
+            renderSolicitudes() {
+                /**
+                 * Renderiza las solicitudes visibles para el aliado desde el motor
+                 */
+                const result = this.motor.getSolicitudes(this.aliadoId);
+                if (!result.exito) {
+                    console.error('Error obteniendo solicitudes');
+                    return;
+                }
+
+                const solicitudes = result.data;
+                if (this.solicitudesList) {
+                    this.solicitudesList.innerHTML = solicitudes.map(sol => `
+                        <div class="solicitud-card">
+                            <div class="solicitud-header">
+                                <div class="solicitud-texto">${this.escapeHtml(sol.texto)}</div>
+                            </div>
+                            <div class="solicitud-meta">
+                                <span class="solicitud-por">${this.escapeHtml(sol.por)}</span>
+                                <span class="solicitud-zona">${this.escapeHtml(sol.zona)}</span>
+                            </div>
+                            <button class="btn-conocer" onclick="alert('Acción: Conozco a alguien')">Conozco a alguien</button>
+                        </div>
+                    `).join('');
+                }
+            }
+
+            abrirBuscarProfesional() {
+                this.renderProfesionales();
+                document.getElementById('modal-profesionales').classList.add('show');
+            }
+
+            cerrarBuscarProfesional() {
+                document.getElementById('modal-profesionales').classList.remove('show');
+            }
+
+            renderProfesionales() {
+                const listaProfesionales = document.getElementById('profesionales-list');
+                listaProfesionales.innerHTML = '';
+
+                // Obtener profesionales activos del motor
+                const result = this.motor.getProfesionalesActivos(this.aliadoId);
+                if (!result.exito) {
+                    listaProfesionales.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">Error al cargar profesionales</p>';
+                    return;
+                }
+
+                const profesionalesDisponibles = result.data;
+
+                if (profesionalesDisponibles.length === 0) {
+                    listaProfesionales.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">No hay profesionales disponibles en este momento</p>';
+                    return;
+                }
+
+                profesionalesDisponibles.forEach(prof => {
+                    const card = document.createElement('div');
+                    card.className = 'profesional-card';
+                    const descripcionServicio = (prof.descripcion_servicio || prof.descripcion || '').trim();
+
+                    card.innerHTML = `
+                        <div class="profesional-header">
+                            <div class="profesional-nombre">${this.escapeHtml(prof.nombre)}</div>
+                            <div class="profesional-badge">DISPONIBLE</div>
+                        </div>
+                        <div class="profesional-detalles">
+                            <div class="profesional-detalle">
+                                <span class="profesional-label">Oficio</span>
+                                <span class="profesional-valor">${this.escapeHtml(prof.oficio)}</span>
+                            </div>
+                            <div class="profesional-detalle">
+                                <span class="profesional-label">Zona</span>
+                                <span class="profesional-valor">${this.escapeHtml(prof.zona)}</span>
+                            </div>
+                        </div>
+                        ${descripcionServicio ? `<div class="profesional-descripcion">${this.escapeHtml(descripcionServicio)}</div>` : ''}
+                        <div class="profesional-acciones">
+                            <button class="btn-contactar" data-id="${prof.id}">Contactar</button>
+                        </div>
+                    `;
+
+                    listaProfesionales.appendChild(card);
+                });
+
+                // Agregar listeners a botones de contacto
+                document.querySelectorAll('.btn-contactar').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const proId = e.target.dataset.id;
+                        const result = this.motor.getProfesionalesActivos(this.aliadoId);
+                        if (result.exito) {
+                            const profesional = result.data.find(p => p.id == proId);
+                            if (profesional) {
+                                alert(`Contactando a ${profesional.nombre}...`);
+                            }
+                        }
+                    });
+                });
+            }
+
+            handleEnviarSolicitud() {
+                const oficioInput = this.nuevaSolicitudOficio || document.getElementById('nueva-solicitud-oficio');
+                const oficio = oficioInput ? oficioInput.value.trim() : '';
+                const descripcion = this.nuevaSolicitud ? this.nuevaSolicitud.value.trim() : '';
+
+                if (!oficio) {
+                    alert('El oficio es obligatorio');
+                    return;
+                }
+                if (!descripcion) {
+                    alert('La descripción es obligatoria');
+                    return;
+                }
+                if (descripcion.length < 5) {
+                    alert('La descripción debe tener al menos 5 caracteres');
+                    return;
+                }
+
+                // Simular envío (o llamar a API real cuando esté conectado)
+                this.btnEnviar.disabled = true;
+                this.btnEnviar.textContent = 'Enviando...';
+
+                setTimeout(() => {
+                    // Crear nueva solicitud en el panel
+                    const nuevaSolicitud = {
+                        id: this.solicitudesActivas.length + 1,
+                        oficio: oficio,
+                        texto: descripcion,
+                        por: this.aliado.nombre,
+                        zona: 'Tu zona',
+                        fecha: 'Ahora'
+                    };
+
+                    this.solicitudesActivas.unshift(nuevaSolicitud);
+                    this.renderSolicitudes();
+
+                    // Resetear formulario
+                    if (oficioInput) oficioInput.value = '';
+                    if (this.nuevaSolicitud) this.nuevaSolicitud.value = '';
+                    this.btnEnviar.disabled = false;
+                    this.btnEnviar.textContent = 'Enviar solicitud';
+
+                    // Mostrar mensaje de éxito
+                    this.solicitudSuccess.classList.add('show');
+                    setTimeout(() => {
+                        this.solicitudSuccess.classList.remove('show');
+                    }, 3000);
+                }, 600);
+            }
+
+            copyCode() {
+                navigator.clipboard.writeText(this.currentCode).then(() => {
+                    const originalText = this.btnCopyCode.textContent;
+                    this.btnCopyCode.textContent = '✓ Copiado';
+                    
+                    setTimeout(() => {
+                        this.btnCopyCode.textContent = originalText;
+                    }, 2000);
+                });
+            }
+
+            closeCodeModal() {
+                this.modalCode.classList.remove('show');
+            }
+
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+        }
+
+        // Inicializar cuando DOM esté listo
+        document.addEventListener('DOMContentLoaded', () => {
+            new PrivatePanel();
+        });
+    </script>
+</body>
+</html>

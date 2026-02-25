@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RUANA - Invitación</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Botón de volver atrás */
+        .btn-back {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            color: #bbb;
+            font-size: 0.85rem;
+            font-weight: 500;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+
+        .btn-back:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.15);
+            color: #e0e0e0;
+        }
+
+        .btn-back:active {
+            transform: translateY(1px);
+        }
+
+        /* Pantalla de invitación - Reutiliza estilos existentes */
+        .invite-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .invite-card {
+            width: 100%;
+            max-width: 420px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 48px 32px;
+            backdrop-filter: blur(10px);
+            text-align: center;
+        }
+
+        .invite-card h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #22c55e 0%, #86efac 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 24px;
+            letter-spacing: -0.02em;
+        }
+
+        .invite-card p {
+            font-size: 0.95rem;
+            color: #999;
+            margin-bottom: 32px;
+            line-height: 1.6;
+            font-weight: 300;
+        }
+
+        .invite-form {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .invite-input {
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: #e0e0e0;
+            font-size: 0.95rem;
+            font-family: inherit;
+            transition: all 0.3s ease;
+        }
+
+        .invite-input::placeholder {
+            color: #666;
+        }
+
+        .invite-input:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .invite-input:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #22c55e;
+            box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.1);
+        }
+
+        .invite-btn {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .invite-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(34, 197, 94, 0.3);
+        }
+
+        .invite-btn:active {
+            transform: translateY(0);
+        }
+
+        .invite-btn:disabled {
+            background: rgba(34, 197, 94, 0.5);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .invite-error {
+            font-size: 0.85rem;
+            color: #ef4444;
+            margin-top: 12px;
+            display: none;
+        }
+
+        .invite-error.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <a href="javascript:history.back()" class="btn-back">← Atrás</a>
+    <div class="invite-container">
+        <div class="invite-card">
+            <h1>RUANA</h1>
+            <p>Ingresa el código de invitación que recibiste de un aliado para crear tu cuenta.</p>
+            
+            <form class="invite-form" id="invite-form">
+                <input 
+                    type="text" 
+                    class="invite-input" 
+                    id="invite-code" 
+                    placeholder="Ej: ABC123XYZ"
+                    autocomplete="off"
+                    required
+                >
+                <button type="submit" class="invite-btn" id="invite-btn">Continuar</button>
+                <div class="invite-error" id="invite-error"></div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * RUANA Invite Screen - NUEVO FLUJO F03
+         * 
+         * Pantalla de acceso por código de invitación PARA NUEVOS USUARIOS
+         * 
+         * Flujo:
+         * 1. Usuario recibe código de invitación de un aliado existente
+         * 2. Ingresa código aquí
+         * 3. Se valida contra backend (tabla invitaciones)
+         * 4. Si es válido: redirige a register.html con ruana_invite_valid=true
+         * 5. register.html completa el registro usando el contexto de invitación
+         * 6. Después del registro: código se invalida automáticamente
+         */
+        
+        class RAUANAInvite {
+            constructor() {
+                this.form = document.getElementById('invite-form');
+                this.codeInput = document.getElementById('invite-code');
+                this.submitBtn = document.getElementById('invite-btn');
+                this.errorMsg = document.getElementById('invite-error');
+                
+                this.init();
+            }
+
+            init() {
+                this.form.addEventListener('submit', (e) => this.handleSubmit(e));
+                this.codeInput.addEventListener('input', () => this.clearError());
+                this.codeInput.focus();
+            }
+
+            handleSubmit(e) {
+                e.preventDefault();
+                const code = this.codeInput.value.trim().toUpperCase();
+
+                if (!code) {
+                    this.showError('El código de invitación es requerido');
+                    return;
+                }
+
+                // Códigos reales de invitación:
+                // - 5 dígitos numéricos (ej: 47604)
+                // - o 1 letra + 4 dígitos (legacy, ej: A0001)
+                if (code.length < 5) {
+                    this.showError('El código de invitación debe tener al menos 5 caracteres');
+                    return;
+                }
+
+                // Validar código de invitación con el backend
+                this.validateInviteCode(code);
+            }
+
+            validateInviteCode(code) {
+                this.submitBtn.disabled = true;
+                this.submitBtn.textContent = 'Verificando...';
+
+                // Llamar al backend para validar el código de invitación
+                // Este endpoint verifica que:
+                // 1. El código existe en la tabla de invitaciones
+                // 2. No ha sido usado aún
+                // 3. No ha expirado
+                const url = '/api/validar-invitacion?codigo=' + encodeURIComponent(code);
+                fetch(url, { method: 'GET' })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.status === 'success' && result.invitacion) {
+                        // Código válido y activo
+                        const invitacion = result.invitacion;
+                        
+                        // Guardar la información de la invitación
+                        sessionStorage.setItem('ruana_invite_valid', 'true');
+                        sessionStorage.setItem('ruana_invite_codigo', code);
+                        sessionStorage.setItem('ruana_invite_payload', JSON.stringify({
+                            codigo: code,
+                            zona: invitacion.zona || '',
+                            grupo: invitacion.grupo || '',
+                            invitado_por: invitacion.aliado_id || '',
+                            fecha_expiracion: invitacion.fecha_expiracion || null
+                        }));
+                        
+                        // Redirigir a register.html
+                        // register.html verificará ruana_invite_valid === 'true'
+                        window.location.href = 'register.html';
+                    } else {
+                        this.showError(result.message || 'Código de invitación inválido o expirado');
+                        this.submitBtn.disabled = false;
+                        this.submitBtn.textContent = 'Continuar';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error validando invitación:', error);
+                    this.showError('Error al validar el código. Por favor intenta de nuevo.');
+                    this.submitBtn.disabled = false;
+                    this.submitBtn.textContent = 'Continuar';
+                });
+            }
+
+            showError(message) {
+                this.errorMsg.textContent = message;
+                this.errorMsg.classList.add('show');
+            }
+
+            clearError() {
+                this.errorMsg.classList.remove('show');
+                this.errorMsg.textContent = '';
+            }
+        }
+
+        // Inicializar cuando DOM esté listo
+        document.addEventListener('DOMContentLoaded', () => {
+            new RAUANAInvite();
+        });
+    </script>
+</body>
+</html>

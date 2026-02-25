@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RUANA - Registro de Aliado</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Botón de volver atrás */
+        .btn-back {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            color: #bbb;
+            font-size: 0.85rem;
+            font-weight: 500;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+
+        .btn-back:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.15);
+            color: #e0e0e0;
+        }
+
+        .btn-back:active {
+            transform: translateY(1px);
+        }
+
+        /* Pantalla de registro - Reutiliza estilos existentes */
+        .register-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .register-card {
+            width: 100%;
+            max-width: 480px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 48px 32px;
+            backdrop-filter: blur(10px);
+        }
+
+        .register-card h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #22c55e 0%, #86efac 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+            letter-spacing: -0.02em;
+        }
+
+        .register-card .subtitle {
+            font-size: 0.9rem;
+            color: #999;
+            margin-bottom: 32px;
+            font-weight: 300;
+        }
+
+        .register-form {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-group label {
+            font-size: 0.85rem;
+            color: #bbb;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .register-input,
+        .register-select,
+        .register-textarea {
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: #e0e0e0;
+            font-size: 0.95rem;
+            font-family: inherit;
+            transition: all 0.3s ease;
+        }
+
+        .register-input::placeholder,
+        .register-select::placeholder,
+        .register-textarea::placeholder {
+            color: #666;
+        }
+
+        .register-input:hover,
+        .register-select:hover,
+        .register-textarea:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .register-input:focus,
+        .register-select:focus,
+        .register-textarea:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #22c55e;
+            box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.1);
+        }
+
+        .register-select {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23999' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 36px;
+        }
+
+        .register-select option {
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+
+        .register-textarea {
+            resize: vertical;
+            min-height: 80px;
+            font-family: inherit;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-top: 8px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin-top: 2px;
+            cursor: pointer;
+            accent-color: #22c55e;
+        }
+
+        .checkbox-group label {
+            font-size: 0.9rem;
+            color: #bbb;
+            font-weight: 400;
+            text-transform: none;
+            letter-spacing: normal;
+            cursor: pointer;
+            line-height: 1.4;
+            margin: 0;
+        }
+
+        /* Sección de oficios */
+        .oficios-section {
+            margin-top: 24px;
+        }
+
+        .oficios-title {
+            font-size: 0.85rem;
+            color: #bbb;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 16px;
+            display: block;
+        }
+
+        .oficios-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .oficio-card {
+            padding: 12px 14px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            min-height: 100px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 8px;
+            user-select: none;
+        }
+
+        .oficio-card.disponible {
+            border-color: rgba(34, 197, 94, 0.3);
+        }
+
+        .oficio-card.disponible:hover {
+            background: rgba(34, 197, 94, 0.1);
+            border-color: rgba(34, 197, 94, 0.6);
+            box-shadow: 0 0 12px rgba(34, 197, 94, 0.2);
+        }
+
+        .oficio-card.disponible.selected {
+            background: rgba(34, 197, 94, 0.2);
+            border-color: #22c55e;
+            box-shadow: 0 0 16px rgba(34, 197, 94, 0.3);
+        }
+
+        .oficio-card.espera {
+            border-color: rgba(234, 179, 8, 0.3);
+        }
+
+        .oficio-card.espera:hover {
+            background: rgba(234, 179, 8, 0.1);
+            border-color: rgba(234, 179, 8, 0.6);
+            box-shadow: 0 0 12px rgba(234, 179, 8, 0.2);
+        }
+
+        .oficio-card.espera.selected {
+            background: rgba(234, 179, 8, 0.2);
+            border-color: #eab308;
+            box-shadow: 0 0 16px rgba(234, 179, 8, 0.3);
+        }
+
+        .oficio-card.no_disponible {
+            border-color: rgba(239, 68, 68, 0.2);
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .oficio-card.no_disponible:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(239, 68, 68, 0.2);
+            box-shadow: none;
+        }
+
+        .oficio-nombre {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #e0e0e0;
+        }
+
+        .oficio-estado {
+            font-size: 0.75rem;
+            color: #999;
+            font-weight: 400;
+        }
+
+        .oficio-estado.disponible {
+            color: #22c55e;
+        }
+
+        .oficio-estado.espera {
+            color: #eab308;
+        }
+
+        .oficio-estado.no_disponible {
+            color: #ef4444;
+        }
+
+        .oficio-suplente-text {
+            font-size: 0.8rem;
+            color: #eab308;
+            font-weight: 400;
+            margin-top: 8px;
+            padding: 8px;
+            background: rgba(234, 179, 8, 0.1);
+            border-radius: 4px;
+            display: none;
+        }
+
+        .oficio-suplente-text.show {
+            display: block;
+        }
+        .oficio-otro-wrap {
+            margin-top: 12px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+        }
+        .oficio-otro-wrap label {
+            display: block;
+            margin-bottom: 4px;
+            color: #ccc;
+            font-size: 0.95rem;
+        }
+        .oficio-otro-wrap .oficio-otro-input {
+            width: 100%;
+            min-height: 44px;
+            padding: 10px 12px;
+            box-sizing: border-box;
+        }
+        .oficios-hint, .form-hint {
+            font-size: 0.85rem;
+            color: #888;
+            margin-bottom: 10px;
+            display: block;
+            margin-top: 4px;
+        }
+        .suboficios-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 220px;
+            overflow-y: auto;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+        }
+        .suboficios-container .checkbox-group {
+            margin-top: 0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 0;
+        }
+        .suboficios-container .checkbox-group input[type="checkbox"] {
+            cursor: pointer;
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+        .suboficios-container .checkbox-group label {
+            font-size: 0.9rem;
+            color: #ccc;
+            cursor: pointer;
+            flex: 1;
+            margin: 0;
+        }
+        select#oficio-principal {
+            cursor: pointer;
+        }
+        .suboficios-empty-msg,
+        .suboficios-max-hint {
+            font-size: 0.85rem;
+            color: #888;
+            margin-top: 8px;
+            font-style: italic;
+        }
+        .suboficios-max-hint {
+            color: #eab308;
+        }
+        .suboficio-otro-row {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .suboficio-otro-texto-wrap {
+            display: none;
+            margin-top: 8px;
+            width: 100%;
+        }
+        .suboficio-otro-texto-wrap.show {
+            display: block !important;
+        }
+        .suboficio-otro-texto-wrap input {
+            max-width: 100%;
+            display: block;
+        }
+        .especializaciones-checklist {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .especializaciones-checklist label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .especializaciones-checklist input[type="checkbox"] {
+            margin: 0;
+        }
+
+        .register-btn {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 8px;
+        }
+
+        .register-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(34, 197, 94, 0.3);
+        }
+
+        .register-btn:active {
+            transform: translateY(0);
+        }
+
+        .register-btn:disabled {
+            background: rgba(34, 197, 94, 0.5);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .form-error {
+            font-size: 0.85rem;
+            color: #ef4444;
+            margin-top: 12px;
+            display: none;
+        }
+
+        .form-error.show {
+            display: block;
+        }
+
+        .form-success {
+            font-size: 0.85rem;
+            color: #22c55e;
+            margin-top: 12px;
+            display: none;
+        }
+
+        .form-success.show {
+            display: block;
+        }
+
+        @media (max-width: 600px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .register-card {
+                padding: 32px 24px;
+            }
+
+            .register-card h1 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="btn-back">← Atrás</a>
+    <div class="register-container">
+        <div class="register-card">
+            <h1>RUANA</h1>
+            <p class="subtitle">Registro de aliado</p>
+            
+            <form class="register-form" id="register-form">
+                <!-- Nombre o marca -->
+                <div class="form-group">
+                    <label for="nombre">Nombre completo *</label>
+                    <input 
+                        type="text" 
+                        class="register-input" 
+                        id="nombre" 
+                        placeholder="Tu nombre completo"
+                        required
+                    >
+                </div>
+
+                <!-- Marca personal -->
+                <div class="form-group">
+                    <label for="marca">Marca personal / Nombre comercial *</label>
+                    <input 
+                        type="text" 
+                        class="register-input" 
+                        id="marca" 
+                        placeholder="Cómo prefieres ser identificado"
+                        required
+                    >
+                </div>
+
+                <!-- Código Postal (primero) -->
+                <div class="form-group">
+                    <label for="codigo-postal">Código Postal *</label>
+                    <input 
+                        type="number" 
+                        class="register-input" 
+                        id="codigo-postal" 
+                        placeholder="Tu código postal"
+                        min="0"
+                        required
+                    >
+                </div>
+
+                <!-- Oficio principal (obligatorio) - Catálogo jerárquico RUANA -->
+                <div class="oficios-section">
+                    <label class="oficios-title" for="oficio-principal">Oficio principal *</label>
+                    <select class="register-input" id="oficio-principal" required aria-label="Oficio principal del catálogo RUANA">
+                        <option value="">— Elige un oficio del catálogo —</option>
+                        <!-- Opción "Otro" se añade al final por JS (fillOficioPrincipalSelect) -->
+                    </select>
+                    <div class="oficio-otro-wrap" id="oficio-otro-wrap" style="display: none;">
+                        <label for="oficio-otro-texto">¿Cuál es tu oficio? *</label>
+                        <p class="oficios-hint" style="margin-bottom: 6px;">Escribe aquí tu oficio si no aparece en la lista. Un administrador lo validará antes de activar tu cuenta.</p>
+                        <input type="text" class="register-input oficio-otro-input" id="oficio-otro-texto" placeholder="Ej: Restauración de muebles, Tapicería, etc." required aria-required="true">
+                    </div>
+                </div>
+
+                <!-- Suboficios (checkboxes; máx. 3; obligatorio al menos 1) -->
+                <div class="oficios-section suboficios-section" id="suboficios-section" style="display: none;">
+                    <span class="oficios-title" id="suboficios-label">Suboficios *</span>
+                    <p class="oficios-hint">Elige entre 1 y 3 suboficios de tu oficio principal.</p>
+                    <div class="suboficios-container" id="suboficios-container" role="group" aria-labelledby="suboficios-label"></div>
+                    <p class="suboficios-empty-msg" id="suboficios-empty-msg" style="display: none;">Este oficio no tiene subcategorías.</p>
+                    <p class="suboficios-max-hint" id="suboficios-max-hint" style="display: none;">Máximo 3 suboficios.</p>
+                </div>
+
+                <!-- Descripción del servicio -->
+                <div class="form-group">
+                    <label for="descripcion">Descripción breve del servicio *</label>
+                    <textarea 
+                        class="register-textarea" 
+                        id="descripcion" 
+                        placeholder="Cuéntanos brevemente sobre tu servicio o especialidad"
+                        required
+                    ></textarea>
+                </div>
+
+                <!-- Email -->
+                <div class="form-group">
+                    <label for="email">Email *</label>
+                    <input 
+                        type="email" 
+                        class="register-input" 
+                        id="email" 
+                        placeholder="tu@email.com"
+                        required
+                    >
+                </div>
+
+                <!-- Teléfono -->
+                <div class="form-group">
+                    <label for="telefono">Teléfono *</label>
+                    <input 
+                        type="tel" 
+                        class="register-input" 
+                        id="telefono" 
+                        placeholder="+57 300 000 0000"
+                        required
+                    >
+                </div>
+
+                <!-- Checkbox de condiciones -->
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input 
+                            type="checkbox" 
+                            id="condiciones" 
+                            required
+                        >
+                        <label for="condiciones">
+                            Acepto que mi información será verificada y podré ser parte de la red RUANA
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Botón submit -->
+                <button type="submit" class="register-btn" id="submit-btn">Solicitar registro</button>
+                
+                <div class="form-error" id="form-error"></div>
+                <div class="form-success" id="form-success"></div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * RUANA Registro de Aliado
+         * Formulario de registro completo con selección de oficios
+         */
+        
+        class RAUANARegister {
+            constructor() {
+                this.form = document.getElementById('register-form');
+                this.submitBtn = document.getElementById('submit-btn');
+                this.errorMsg = document.getElementById('form-error');
+                this.successMsg = document.getElementById('form-success');
+                this.oficioPrincipalSelect = document.getElementById('oficio-principal');
+                this.oficioOtroWrap = document.getElementById('oficio-otro-wrap');
+                this.oficioOtroTexto = document.getElementById('oficio-otro-texto');
+                this.suboficiosSection = document.getElementById('suboficios-section');
+                this.suboficiosContainer = document.getElementById('suboficios-container');
+                this.suboficiosEmptyMsg = document.getElementById('suboficios-empty-msg');
+                this.suboficiosMaxHint = document.getElementById('suboficios-max-hint');
+                this.MAX_SUBOFICIOS = 3;
+                this.catalogoJerarquico = [];
+                this.checkAccess();
+                this.init();
+            }
+
+            checkAccess() {
+                /**
+                 * NUEVO FLUJO F03: Registro solo por invitación
+                 * 
+                 * Verifica que el usuario tenga una invitación válida
+                 * 1. Se genera en aliado.html (botón "Invitar" o "Yo conozco a alguien")
+                 * 2. Se obtiene y valida en invite.html
+                 * 3. Se guarda en sessionStorage como ruana_invite_valid
+                 * 4. register.html valida su existencia
+                 */
+                
+                const inviteValid = sessionStorage.getItem('ruana_invite_valid');
+                
+                if (inviteValid !== 'true') {
+                    // Sin invitación válida → redirigir a invite.html
+                    window.location.href = 'invite.html';
+                }
+            }
+
+            init() {
+                this.loadCatalogo();
+                this.form.addEventListener('submit', (e) => this.handleSubmit(e));
+                if (this.oficioPrincipalSelect) this.oficioPrincipalSelect.addEventListener('change', () => this.onOficioChange());
+            }
+
+            async loadCatalogo() {
+                let raw = [];
+                try {
+                    const resp = await fetch('/api/catalogo/oficios');
+                    const data = await resp.json();
+                    let list = data && data.oficios;
+                    if (list == null && Array.isArray(data)) list = data;
+                    if (typeof list === 'string') {
+                        try { list = JSON.parse(list); } catch (_) { list = []; }
+                    }
+                    if (Array.isArray(list) && list.length > 0) raw = list;
+                } catch (e) {
+                    console.warn('Catálogo principal no disponible, intentando fallback:', e.message || e);
+                }
+                if (!Array.isArray(raw) || raw.length === 0) {
+                    try {
+                        const resp = await fetch('/api/catalogo/oficios-raw');
+                        const data = await resp.json();
+                        const list = data && data.oficios;
+                        if (Array.isArray(list) && list.length > 0) raw = list;
+                    } catch (_) {}
+                }
+                this.catalogoJerarquico = this.normalizarCatalogo(Array.isArray(raw) ? raw : []);
+                this.fillOficioPrincipalSelect();
+                this.cargarSuboficios();
+            }
+
+            /** Asegura que cada oficio tenga nombre (string) y especializaciones (array de strings). */
+            normalizarCatalogo(lista) {
+                if (!Array.isArray(lista)) return [];
+                return lista.map(o => {
+                    if (!o || typeof o !== 'object') return null;
+                    const nombre = (o.nombre != null && typeof o.nombre === 'string') ? o.nombre.trim() : (String(o.nombre || '').trim());
+                    if (!nombre) return null;
+                    let esp = o.especializaciones;
+                    if (!Array.isArray(esp)) esp = esp != null ? [esp] : [nombre];
+                    const arr = esp.map(e => {
+                        if (typeof e === 'string') return e.trim();
+                        if (e && typeof e === 'object' && e.nombre != null) return String(e.nombre).trim();
+                        return String(e || '').trim();
+                    }).filter(Boolean);
+                    return { nombre, especializaciones: arr.length ? arr : [nombre] };
+                }).filter(Boolean);
+            }
+
+            /**
+             * Extrae SOLO el nombre del oficio para mostrar (nunca objeto ni repr tipo Python).
+             * Si el item viene como string tipo "{'nombre': 'X', 'especializaciones': [...]}", extrae "X".
+             */
+            getOficioDisplayName(item) {
+                if (item == null) return '';
+                if (typeof item === 'object' && item && item.nombre != null)
+                    return String(item.nombre).trim();
+                const s = String(item).trim();
+                if (!s) return '';
+                if (s.indexOf("'nombre'") !== -1 || s.indexOf('"nombre"') !== -1) {
+                    const m = s.match(/'nombre'\s*:\s*'([^']*)'/) || s.match(/"nombre"\s*:\s*"([^"]*)"/);
+                    if (m && m[1]) return m[1].trim();
+                }
+                if (s.startsWith('{') && s.includes('}')) return '';
+                return s;
+            }
+
+            fillOficioPrincipalSelect() {
+                if (!this.oficioPrincipalSelect) return;
+                const fragment = document.createDocumentFragment();
+                const opt0 = document.createElement('option');
+                opt0.value = '';
+                opt0.textContent = '— Elige un oficio del catálogo —';
+                fragment.appendChild(opt0);
+                const seen = new Set();
+                const catalog = Array.isArray(this.catalogoJerarquico) ? this.catalogoJerarquico : [];
+                catalog.forEach(item => {
+                    const nombre = this.getOficioDisplayName(item);
+                    if (!nombre || nombre.length > 120 || seen.has(nombre)) return;
+                    seen.add(nombre);
+                    const opt = document.createElement('option');
+                    opt.value = nombre;
+                    opt.textContent = nombre;
+                    fragment.appendChild(opt);
+                });
+                const optOtro = document.createElement('option');
+                optOtro.value = '__otro__';
+                optOtro.textContent = 'Otro (pendiente de validación por administrador)';
+                fragment.appendChild(optOtro);
+                this.oficioPrincipalSelect.innerHTML = '';
+                this.oficioPrincipalSelect.appendChild(fragment);
+                this.handleOtroOficio();
+            }
+
+            onOficioChange() {
+                this.handleOtroOficio();
+            }
+
+            handleOtroOficio() {
+                const isOtro = this.oficioPrincipalSelect && this.oficioPrincipalSelect.value === '__otro__';
+                if (this.oficioOtroWrap) this.oficioOtroWrap.style.display = isOtro ? 'block' : 'none';
+                if (this.oficioOtroTexto) {
+                    this.oficioOtroTexto.required = isOtro;
+                    if (!isOtro) this.oficioOtroTexto.value = '';
+                }
+                const oficioVal = this.oficioPrincipalSelect && (this.oficioPrincipalSelect.value || '').trim();
+                const mostrarSuboficios = !isOtro && oficioVal && oficioVal !== '';
+                if (this.suboficiosSection) this.suboficiosSection.style.display = mostrarSuboficios ? 'block' : 'none';
+                if (!mostrarSuboficios) {
+                    this.limpiarSuboficios();
+                    return;
+                }
+                this.cargarSuboficios();
+            }
+
+            limpiarSuboficios() {
+                if (this.suboficiosContainer) this.suboficiosContainer.innerHTML = '';
+                if (this.suboficiosEmptyMsg) this.suboficiosEmptyMsg.style.display = 'none';
+                if (this.suboficiosMaxHint) this.suboficiosMaxHint.style.display = 'none';
+            }
+
+            /** Obtiene el objeto oficio del catálogo por nombre seleccionado (para usar .especializaciones). */
+            getOficioObjetoDelCatalogo(oficioNombre) {
+                const val = (oficioNombre && String(oficioNombre).trim()) || '';
+                if (!val || val === '__otro__') return null;
+                const catalog = Array.isArray(this.catalogoJerarquico) ? this.catalogoJerarquico : [];
+                const norm = (s) => String(s).trim().toLowerCase().replace(/\s+/g, ' ');
+                return catalog.find(o => {
+                    if (!o || typeof o !== 'object') return false;
+                    const name = this.getOficioDisplayName(o) || (o.nombre != null ? String(o.nombre).trim() : '');
+                    return name && (name === val || norm(name) === norm(val));
+                }) || null;
+            }
+
+            /** Extrae el nombre para mostrar: solo string legible. Rechaza objeto, JSON o repr tipo Python. */
+            nombreSuboficio(item) {
+                let raw = '';
+                if (item == null) return '';
+                if (typeof item === 'string') raw = String(item).trim();
+                else if (typeof item === 'object' && item && item.nombre != null) raw = String(item.nombre).trim();
+                else if (typeof item === 'number' || typeof item === 'boolean') raw = String(item).trim();
+                else return '';
+                if (!raw || raw.length > 200) return '';
+                if (raw.indexOf('{') !== -1 || raw.indexOf('}') !== -1) return '';
+                if (raw.indexOf("'nombre'") !== -1 || raw.indexOf("'especializaciones'") !== -1) return '';
+                if (raw.indexOf('"nombre"') !== -1 || raw.indexOf('"especializaciones"') !== -1) return '';
+                return raw;
+            }
+
+            /** Renderiza suboficios: itera solo oficio.especializaciones y crea un checkbox por cada nombre. */
+            cargarSuboficios() {
+                if (!this.suboficiosContainer) return;
+                this.limpiarSuboficios();
+                const oficioVal = this.oficioPrincipalSelect && (this.oficioPrincipalSelect.value || '').trim();
+                if (!oficioVal || oficioVal === '__otro__') return;
+
+                let arrSuboficios = [];
+                const oficioObjeto = this.getOficioObjetoDelCatalogo(oficioVal);
+                let esp = oficioObjeto && oficioObjeto.especializaciones;
+                if (esp != null && typeof esp === 'string') {
+                    try { esp = JSON.parse(esp); } catch (_) { esp = null; }
+                }
+                if (Array.isArray(esp) && esp.length > 0) {
+                    esp.forEach(item => {
+                        const n = this.nombreSuboficio(item);
+                        if (n) arrSuboficios.push(n);
+                    });
+                }
+                if (arrSuboficios.length === 0 && oficioObjeto) {
+                    const nom = oficioObjeto.nombre;
+                    if (nom) arrSuboficios.push(String(nom).trim());
+                }
+                if (arrSuboficios.length === 0) {
+                    this.getListaEspecialidadesDelOficio(oficioVal).forEach(item => {
+                        const n = this.nombreSuboficio(item);
+                        if (n) arrSuboficios.push(n);
+                    });
+                }
+                if (arrSuboficios.length === 0) {
+                    if (this.suboficiosEmptyMsg) this.suboficiosEmptyMsg.style.display = 'block';
+                    return;
+                }
+                if (this.suboficiosEmptyMsg) this.suboficiosEmptyMsg.style.display = 'none';
+
+                this.suboficiosContainer.style.display = '';
+                arrSuboficios.forEach((nombre, index) => {
+                    const texto = typeof nombre === 'string' ? nombre.trim() : this.nombreSuboficio(nombre);
+                    if (!texto) return;
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'checkbox-group suboficio-item';
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.name = 'suboficio';
+                    checkbox.value = texto;
+                    checkbox.id = 'suboficio-' + index;
+                    checkbox.setAttribute('aria-label', texto);
+                    checkbox.addEventListener('change', (e) => this.onSuboficioChange(e));
+                    const label = document.createElement('label');
+                    label.htmlFor = checkbox.id;
+                    label.textContent = texto;
+                    wrapper.appendChild(checkbox);
+                    wrapper.appendChild(label);
+                    wrapper.addEventListener('click', (e) => {
+                        if (e.target === checkbox || e.target === label) return;
+                        e.preventDefault();
+                        checkbox.checked = !checkbox.checked;
+                        this.onSuboficioChange({ target: checkbox });
+                    });
+                    this.suboficiosContainer.appendChild(wrapper);
+                });
+
+                // Siempre añadir "Otro" al final de la lista de suboficios
+                const otroWrap = document.createElement('div');
+                otroWrap.className = 'checkbox-group suboficio-item suboficio-otro-row';
+                const otroCheck = document.createElement('input');
+                otroCheck.type = 'checkbox';
+                otroCheck.name = 'suboficio';
+                otroCheck.value = '__otro__';
+                otroCheck.id = 'suboficio-otro';
+                otroCheck.setAttribute('aria-label', 'Otro suboficio');
+                otroCheck.addEventListener('change', (e) => this.onSuboficioChange(e));
+                const otroLabel = document.createElement('label');
+                otroLabel.htmlFor = 'suboficio-otro';
+                otroLabel.textContent = 'Otro';
+                const otroTextWrap = document.createElement('div');
+                otroTextWrap.id = 'suboficio-otro-texto-wrap';
+                otroTextWrap.className = 'suboficio-otro-texto-wrap';
+                otroTextWrap.setAttribute('style', 'display: none; margin-top: 8px; margin-left: 0; width: 100%;');
+                const otroTextLabel = document.createElement('label');
+                otroTextLabel.setAttribute('for', 'suboficio-otro-texto');
+                otroTextLabel.textContent = '¿Cuál? ';
+                otroTextLabel.style.fontSize = '0.85rem';
+                otroTextLabel.style.color = '#999';
+                const otroInput = document.createElement('input');
+                otroInput.type = 'text';
+                otroInput.id = 'suboficio-otro-texto';
+                otroInput.className = 'register-input';
+                otroInput.placeholder = 'Escribe tu suboficio si no está en la lista';
+                otroInput.style.marginTop = '4px';
+                otroInput.style.width = '100%';
+                otroInput.style.boxSizing = 'border-box';
+                otroTextWrap.appendChild(otroTextLabel);
+                otroTextWrap.appendChild(otroInput);
+                otroWrap.appendChild(otroCheck);
+                otroWrap.appendChild(otroLabel);
+                otroWrap.appendChild(otroTextWrap);
+                otroWrap.addEventListener('click', (e) => {
+                    if (e.target === otroCheck || e.target === otroLabel || e.target === otroInput || e.target === otroTextLabel) return;
+                    e.preventDefault();
+                    otroCheck.checked = !otroCheck.checked;
+                    this.onSuboficioChange({ target: otroCheck });
+                });
+                this.suboficiosContainer.appendChild(otroWrap);
+            }
+
+            onSuboficioChange(ev) {
+                const target = ev && ev.target;
+                if (target && target.value === '__otro__') {
+                    const wrap = this.suboficiosContainer && (this.suboficiosContainer.querySelector('#suboficio-otro-texto-wrap') || this.suboficiosContainer.querySelector('.suboficio-otro-texto-wrap'));
+                    if (wrap) {
+                        if (target.checked) {
+                            wrap.classList.add('show');
+                            wrap.style.display = 'block';
+                            wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        } else {
+                            wrap.classList.remove('show');
+                            wrap.style.display = 'none';
+                        }
+                    }
+                }
+                const checked = this.suboficiosContainer && this.suboficiosContainer.querySelectorAll('input[name="suboficio"]:checked');
+                const n = checked ? checked.length : 0;
+                if (n > this.MAX_SUBOFICIOS && ev && ev.target && ev.target.checked) {
+                    ev.target.checked = false;
+                    if (target && target.value === '__otro__') {
+                        const w = this.suboficiosContainer && (this.suboficiosContainer.querySelector('#suboficio-otro-texto-wrap') || this.suboficiosContainer.querySelector('.suboficio-otro-texto-wrap'));
+                        if (w) { w.classList.remove('show'); w.style.display = 'none'; }
+                    }
+                }
+                const total = this.suboficiosContainer ? this.suboficiosContainer.querySelectorAll('input[name="suboficio"]:checked').length : 0;
+                if (this.suboficiosMaxHint) this.suboficiosMaxHint.style.display = total >= this.MAX_SUBOFICIOS ? 'block' : 'none';
+            }
+
+            /** True si es un nombre corto válido para mostrar (no objeto/repr). */
+            isNombreCortoValido(s) {
+                if (!s || typeof s !== 'string') return false;
+                const t = s.trim();
+                if (t.length > 120) return false;
+                if (t.indexOf('{') !== -1 || t.indexOf("'nombre'") !== -1 || t.indexOf('"especializaciones"') !== -1) return false;
+                return true;
+            }
+
+            /** Lista de especialidades/suboficios del oficio seleccionado. Siempre devuelve al menos [oficio] si hay oficio válido. */
+            getListaEspecialidadesDelOficio(oficioVal) {
+                const val = (oficioVal && String(oficioVal).trim()) || '';
+                if (!val || val === '__otro__') return [];
+                const catalog = Array.isArray(this.catalogoJerarquico) ? this.catalogoJerarquico : [];
+                const norm = (s) => String(s).trim().toLowerCase().replace(/\s+/g, ' ');
+                const oficioItem = catalog.find(o => {
+                    if (!o) return false;
+                    const name = this.getOficioDisplayName(o) || (o && o.nombre != null ? String(o.nombre).trim() : '');
+                    if (!name) return false;
+                    return name === val || norm(name) === norm(val);
+                });
+                if (!oficioItem) return [val];
+                if (typeof oficioItem === 'string') return [String(oficioItem).trim()];
+                const esp = oficioItem.especializaciones;
+                if (Array.isArray(esp) && esp.length > 0) {
+                    const names = esp.map(e => {
+                        const n = typeof e === 'object' && e && e.nombre != null ? String(e.nombre).trim() : String(e || '').trim();
+                        return this.isNombreCortoValido(n) ? n : (n ? n : '');
+                    }).filter(Boolean);
+                    if (names.length) return names;
+                }
+                const nombreOficio = oficioItem.nombre != null ? String(oficioItem.nombre).trim() : '';
+                return nombreOficio ? [nombreOficio] : [val];
+            }
+
+            /** Devuelve los suboficios seleccionados (valor de cada checkbox). Si "Otro" está marcado, usa el texto del cuadro. */
+            getSuboficiosSeleccionados() {
+                if (!this.suboficiosContainer) return [];
+                const checked = this.suboficiosContainer.querySelectorAll('input[name="suboficio"]:checked');
+                const otroInput = this.suboficiosContainer.querySelector('#suboficio-otro-texto');
+                return Array.from(checked).map(cb => {
+                    const val = (cb.value || '').trim();
+                    if (val === '__otro__') {
+                        const texto = otroInput ? otroInput.value.trim() : '';
+                        return texto || null;
+                    }
+                    return val || null;
+                }).filter(Boolean);
+            }
+
+            handleSubmit(e) {
+                e.preventDefault();
+
+                // Validar todos los campos
+                const nombre = document.getElementById('nombre').value.trim();
+                const marca = document.getElementById('marca').value.trim();
+                const descripcion = document.getElementById('descripcion').value.trim();
+                const codigoPostal = document.getElementById('codigo-postal').value.trim();
+                const email = document.getElementById('email').value.trim();
+                const telefono = document.getElementById('telefono').value.trim();
+                const condiciones = document.getElementById('condiciones').checked;
+
+                // Validaciones básicas
+                if (!nombre || nombre.length < 2) {
+                    this.showError('El nombre debe tener al menos 2 caracteres');
+                    return;
+                }
+
+                if (!marca || marca.length < 2) {
+                    this.showError('La marca personal debe tener al menos 2 caracteres');
+                    return;
+                }
+
+                const oficioPrincipalVal = this.oficioPrincipalSelect ? this.oficioPrincipalSelect.value : '';
+                if (!oficioPrincipalVal) {
+                    this.showError('Debes elegir un oficio principal');
+                    return;
+                }
+                let oficioEnviar = oficioPrincipalVal;
+                let especializacionEnviar = '';
+                const especializaciones = [];
+                if (oficioPrincipalVal === '__otro__') {
+                    const otroTexto = this.oficioOtroTexto ? this.oficioOtroTexto.value.trim() : '';
+                    if (!otroTexto) {
+                        this.showError('Indica tu oficio (pendiente de validación)');
+                        return;
+                    }
+                    oficioEnviar = otroTexto;
+                } else {
+                    const otroCheck = this.suboficiosContainer && this.suboficiosContainer.querySelector('input[name="suboficio"][value="__otro__"]');
+                    const otroTexto = this.suboficiosContainer && this.suboficiosContainer.querySelector('#suboficio-otro-texto');
+                    if (otroCheck && otroCheck.checked && otroTexto && !otroTexto.value.trim()) {
+                        this.showError('Si eliges "Otro" en suboficios, escribe cuál en el cuadro.');
+                        return;
+                    }
+                    const suboficios = this.getSuboficiosSeleccionados();
+                    if (suboficios.length === 0) {
+                        this.showError('Elige al menos un suboficio');
+                        return;
+                    }
+                    if (suboficios.length > this.MAX_SUBOFICIOS) {
+                        this.showError('Máximo ' + this.MAX_SUBOFICIOS + ' suboficios');
+                        return;
+                    }
+                    especializacionEnviar = suboficios[0];
+                    for (let i = 1; i < suboficios.length; i++) especializaciones.push(suboficios[i]);
+                }
+
+                if (!descripcion || descripcion.length < 10) {
+                    this.showError('La descripción debe tener al menos 10 caracteres');
+                    return;
+                }
+
+                if (!codigoPostal) {
+                    this.showError('Por favor ingresa tu código postal');
+                    return;
+                }
+
+                if (!/^\d+$/.test(codigoPostal)) {
+                    this.showError('El código postal debe contener solo números');
+                    return;
+                }
+
+                if (!this.isValidEmail(email)) {
+                    this.showError('Por favor ingresa un email válido');
+                    return;
+                }
+
+                if (!telefono || telefono.length < 7) {
+                    this.showError('Por favor ingresa un teléfono válido');
+                    return;
+                }
+
+                if (!condiciones) {
+                    this.showError('Debes aceptar los términos para continuar');
+                    return;
+                }
+
+                // Si todo es válido, procesar registro
+                this.submitRegistration({
+                    nombre,
+                    marca,
+                    oficio: oficioEnviar,
+                    oficio_principal: oficioPrincipalVal === '__otro__' ? oficioEnviar : oficioPrincipalVal,
+                    especializacion: especializacionEnviar,
+                    especializaciones,
+                    descripcion,
+                    codigo_postal: codigoPostal,
+                    email,
+                    telefono,
+                    codigo_invitacion: sessionStorage.getItem('ruana_invite_code') || sessionStorage.getItem('ruana_invite_codigo')
+                });
+            }
+
+            submitRegistration(data) {
+                this.submitBtn.disabled = true;
+                this.submitBtn.textContent = 'Procesando...';
+                this.clearMessages();
+
+                // Enviar a backend SQLite
+                fetch('/api/aliados/registrar', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        nombre: data.nombre,
+                        marca: data.marca,
+                        oficio: data.oficio,
+                        oficio_principal: data.oficio_principal || data.oficio,
+                        especializacion: data.especializacion || data.oficio,
+                        descripcion: data.descripcion || '',
+                        especializaciones: data.especializaciones || [],
+                        codigo_postal: data.codigo_postal,
+                        email: data.email,
+                        telefono: data.telefono,
+                        codigo_invitacion: data.codigo_invitacion || sessionStorage.getItem('ruana_invite_code') || sessionStorage.getItem('ruana_invite_codigo') || ''
+                    })
+                })
+                .then(response => response.json().then(result => ({ response, result })))
+                .then(({ response, result }) => {
+                    if (response.status === 409 && (result.code === 'plaza_ocupada' || (result.message && result.message.includes('disponible')))) {
+                        this.showError(result.message || 'La especialización ya no está disponible. Elige otra.');
+                        this.submitBtn.disabled = false;
+                        this.submitBtn.textContent = 'Solicitar registro';
+                        return;
+                    }
+                    if (result.status === 'success') {
+                        // El servidor generó el código
+                        const codigoAliado = result.codigo;
+                        const estadoBackend = result.estado || 'activo';
+                        const scoreBackend = (typeof result.score === 'number') ? result.score : 75;
+                        const creadoEn = result.creado_en || new Date().toISOString();
+
+                        const aliadoPayload = {
+                            ...data,
+                            codigo_aliado: codigoAliado,
+                            estado: estadoBackend,
+                            score: scoreBackend,
+                            descripcion_servicio: data.descripcion,
+                            creado_en: creadoEn,
+                            fecha_registro: creadoEn
+                        };
+                        
+                        // Guardar datos en localStorage (respaldo local)
+                        const aliadosRegistrados = JSON.parse(localStorage.getItem('ruana_aliados') || '{}');
+                        aliadosRegistrados[codigoAliado] = aliadoPayload;
+                        localStorage.setItem('ruana_aliados', JSON.stringify(aliadosRegistrados));
+                        
+                        // Guardar en sessionStorage solo si está activo (bloqueados no deben acceder al panel)
+                        if (estadoBackend !== 'pendiente_validacion') {
+                            sessionStorage.setItem('ruana_aliado_data', JSON.stringify(aliadoPayload));
+                            sessionStorage.setItem('ruana_codigo_aliado', codigoAliado);
+                        } else {
+                            sessionStorage.removeItem('ruana_aliado_data');
+                            sessionStorage.removeItem('ruana_codigo_aliado');
+                        }
+                        
+                        // IMPORTANTE: Invalidar la invitación después de registrarse
+                        // Evita reutilización
+                        sessionStorage.removeItem('ruana_invite_valid');
+                        sessionStorage.removeItem('ruana_invite_payload');
+                        sessionStorage.removeItem('ruana_invite_codigo');
+                        
+                        // Mostrar modal con el código (y aviso si pendiente de validación)
+                        this.mostrarModalCodigoAliado(codigoAliado, result.mensaje_pendiente_validacion);
+                    } else {
+                        this.showError(result.message || 'Error al registrar');
+                        this.submitBtn.disabled = false;
+                        this.submitBtn.textContent = 'Registrarse';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    this.showError('Error de conexión. Por favor intenta de nuevo.');
+                    this.submitBtn.disabled = false;
+                    this.submitBtn.textContent = 'Registrarse';
+                });
+            }
+                    
+            generarCodigoAliado() {
+                /**
+                 * ⚠️ DEPRECATED: Código ahora se genera en backend SQLite
+                 * Se mantiene solo como fallback para localStorage
+                 * Formato: 5 dígitos numéricos (10000-99999)
+                 */
+                let codigo;
+                let aliadosRegistrados = JSON.parse(localStorage.getItem('ruana_aliados') || '{}');
+                
+                // Generar código único localmente como fallback
+                do {
+                    codigo = String(Math.floor(Math.random() * 90000) + 10000);
+                } while (codigo in aliadosRegistrados);
+                
+                return codigo;
+            }
+
+            mostrarModalCodigoAliado(codigo, mensajePendienteValidacion) {
+                /**
+                 * Muestra modal con el código único del aliado.
+                 * Si mensajePendienteValidacion existe (oficio fuera de catálogo), se muestra el aviso.
+                 */
+                // Crear overlay
+                const overlay = document.createElement('div');
+                overlay.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0, 0, 0, 0.8);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 2000;
+                    backdrop-filter: blur(4px);
+                `;
+
+                // Crear modal
+                const modal = document.createElement('div');
+                modal.style.cssText = `
+                    background: rgba(255, 255, 255, 0.05);
+                    border: 2px solid rgba(34, 197, 94, 0.5);
+                    border-radius: 16px;
+                    padding: 48px;
+                    width: 90%;
+                    max-width: 480px;
+                    text-align: center;
+                    backdrop-filter: blur(10px);
+                    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+                `;
+
+                // Título
+                const titulo = document.createElement('h2');
+                titulo.style.cssText = `
+                    font-size: 1.8rem;
+                    font-weight: 700;
+                    color: #22c55e;
+                    margin-bottom: 16px;
+                    background: linear-gradient(135deg, #22c55e 0%, #86efac 100%);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    background-clip: text;
+                `;
+                titulo.textContent = '✓ ¡Registro Completado!';
+
+                // Descripción
+                const desc = document.createElement('p');
+                desc.style.cssText = `
+                    font-size: 0.95rem;
+                    color: #bbb;
+                    margin-bottom: 32px;
+                    line-height: 1.6;
+                `;
+                desc.textContent = mensajePendienteValidacion
+                    ? 'Guarda este código. Es tu identificación personal. Cuando un administrador active tu cuenta, entrarás con este mismo código.'
+                    : 'Tu código de 5 dígitos es tu identificación personal permanente. Úsalo para acceder rápidamente en futuras sesiones.';
+
+                let avisoPendiente = null;
+                if (mensajePendienteValidacion) {
+                    avisoPendiente = document.createElement('p');
+                    avisoPendiente.style.cssText = 'font-size: 0.9rem; color: #eab308; margin-bottom: 24px; padding: 12px; background: rgba(234, 179, 8, 0.15); border-radius: 8px; line-height: 1.5;';
+                    avisoPendiente.textContent = mensajePendienteValidacion;
+                }
+
+                // Caja de código
+                const cajaCodigoContainer = document.createElement('div');
+                cajaCodigoContainer.style.cssText = `
+                    padding: 24px;
+                    background: rgba(34, 197, 94, 0.1);
+                    border: 2px solid rgba(34, 197, 94, 0.4);
+                    border-radius: 12px;
+                    margin-bottom: 32px;
+                `;
+
+                const labelCodigo = document.createElement('div');
+                labelCodigo.style.cssText = `
+                    font-size: 0.75rem;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    color: #999;
+                    margin-bottom: 12px;
+                    font-weight: 600;
+                `;
+                labelCodigo.textContent = 'Tu Código de Aliado (Único e Irrepetible):';
+
+                const cajaCodigo = document.createElement('div');
+                cajaCodigo.style.cssText = `
+                    font-size: 2rem;
+                    font-weight: 700;
+                    color: #22c55e;
+                    font-family: 'Courier New', monospace;
+                    letter-spacing: 3px;
+                    word-break: break-all;
+                    padding: 16px;
+                    background: rgba(0, 0, 0, 0.3);
+                    border-radius: 8px;
+                `;
+                cajaCodigo.textContent = codigo;
+
+                const infoTexto = document.createElement('div');
+                infoTexto.style.cssText = `
+                    font-size: 0.8rem;
+                    color: #22c55e;
+                    margin-top: 12px;
+                    font-weight: 500;
+                `;
+                infoTexto.textContent = '✓ Código único, permanente y no reutilizable';
+
+                cajaCodigoContainer.appendChild(labelCodigo);
+                cajaCodigoContainer.appendChild(cajaCodigo);
+                cajaCodigoContainer.appendChild(infoTexto);
+
+                // Botón Aceptar
+                const btnAceptar = document.createElement('button');
+                btnAceptar.style.cssText = `
+                    width: 100%;
+                    padding: 14px 24px;
+                    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+                    border: none;
+                    border-radius: 8px;
+                    color: #fff;
+                    font-size: 0.95rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                `;
+                btnAceptar.textContent = mensajePendienteValidacion ? 'Entendido' : 'Aceptar y Continuar';
+
+                btnAceptar.addEventListener('mouseenter', () => {
+                    btnAceptar.style.transform = 'translateY(-2px)';
+                    btnAceptar.style.boxShadow = '0 10px 20px rgba(34, 197, 94, 0.3)';
+                });
+
+                btnAceptar.addEventListener('mouseleave', () => {
+                    btnAceptar.style.transform = 'translateY(0)';
+                    btnAceptar.style.boxShadow = 'none';
+                });
+
+                btnAceptar.addEventListener('click', async () => {
+                    overlay.remove();
+                    const codigoAliadoStored = sessionStorage.getItem('ruana_codigo_aliado');
+                    if (mensajePendienteValidacion) {
+                        window.location.href = '/';
+                        return;
+                    }
+                    if (codigoAliadoStored) {
+                        try {
+                            const r = await fetch('/api/aliado/login', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                credentials: 'same-origin',
+                                body: JSON.stringify({ codigo: codigoAliadoStored })
+                            });
+                            const data = await r.json().catch(() => ({}));
+                            if (r.ok && data.status === 'success' && data.session_id) {
+                                sessionStorage.setItem('ruana_session_id', data.session_id);
+                                window.location.href = '/aliado';
+                                return;
+                            }
+                            if (r.ok) {
+                                window.location.href = '/aliado';
+                                return;
+                            }
+                        } catch (_) {}
+                    }
+                    setTimeout(() => { window.location.href = '/aliado'; }, 300);
+                });
+
+                modal.appendChild(titulo);
+                modal.appendChild(desc);
+                if (avisoPendiente) modal.appendChild(avisoPendiente);
+                modal.appendChild(cajaCodigoContainer);
+                modal.appendChild(btnAceptar);
+
+                overlay.appendChild(modal);
+                document.body.appendChild(overlay);
+            }
+
+            isValidEmail(email) {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                return emailRegex.test(email);
+            }
+
+            showError(message) {
+                this.errorMsg.textContent = message;
+                this.errorMsg.classList.add('show');
+                this.successMsg.classList.remove('show');
+            }
+
+            showSuccess(message) {
+                this.successMsg.textContent = message;
+                this.successMsg.classList.add('show');
+                this.errorMsg.classList.remove('show');
+            }
+
+            clearMessages() {
+                this.errorMsg.classList.remove('show');
+                this.successMsg.classList.remove('show');
+            }
+        }
+
+        // Inicializar cuando DOM esté listo
+        document.addEventListener('DOMContentLoaded', () => {
+            new RAUANARegister();
+        });
+    </script>
+</body>
+</html>

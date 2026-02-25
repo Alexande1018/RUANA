@@ -1,0 +1,19 @@
+{
+  "version": "1.0",
+  "capital": 1000,
+  "risk_per_trade_pct": 1,
+  "umbral_competencia": 35,
+  "duracion_competencia_dias": 30,
+  "purga_mensual_meses_sin_ganar": 3,
+  "purga_score_bajo_umbral": 40,
+  "apoyo_pct": 15.0,
+  "posponer_horas": 24,
+  "motor_delta_verde": 5,
+  "motor_delta_amarillo": -3,
+  "motor_delta_rojo": -8,
+  "motor_severidad_critico_multiplicador": 1.5,
+  "reglas": [],
+  "description": "RUANA - Sistema modular de evaluaci\u00f3n",
+  "qr_paypal_path": "/static/images/PayPal.png",
+  "bizum_num": "642868261"
+}

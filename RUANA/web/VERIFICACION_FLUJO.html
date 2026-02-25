@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RUANA - Verificación de Flujo</title>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            color: #e0e0e0;
+            padding: 40px 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        h1 {
+            background: linear-gradient(135deg, #22c55e 0%, #86efac 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #999;
+            margin-bottom: 40px;
+            font-size: 1.1rem;
+        }
+        .section {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+        }
+        .section h2 {
+            color: #22c55e;
+            margin-top: 0;
+            font-size: 1.3rem;
+            margin-bottom: 12px;
+        }
+        .step {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 16px;
+            padding: 12px;
+            background: rgba(34, 197, 94, 0.08);
+            border-left: 3px solid #22c55e;
+            border-radius: 6px;
+        }
+        .step-number {
+            background: #22c55e;
+            color: #000;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        .step-content {
+            flex: 1;
+        }
+        .step-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: #e0e0e0;
+        }
+        .step-desc {
+            color: #bbb;
+            font-size: 0.9rem;
+            margin-bottom: 4px;
+        }
+        .step-code {
+            font-family: 'Courier New', monospace;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 4px 8px;
+            border-radius: 4px;
+            color: #4ade80;
+            font-size: 0.85rem;
+            display: inline-block;
+        }
+        .url {
+            font-family: 'Courier New', monospace;
+            background: rgba(34, 197, 94, 0.1);
+            padding: 4px 8px;
+            border-radius: 4px;
+            color: #86efac;
+        }
+        .button-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            margin-top: 20px;
+        }
+        .btn {
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            transition: all 0.3s ease;
+            font-size: 0.95rem;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(34, 197, 94, 0.3);
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+        .warning {
+            background: rgba(239, 68, 68, 0.1);
+            border-left-color: #ef4444;
+            color: #fca5a5;
+        }
+        .warning .step-number {
+            background: #ef4444;
+            color: #fff;
+        }
+        .checklist {
+            list-style: none;
+            padding: 0;
+        }
+        .checklist li {
+            padding: 8px 0;
+            padding-left: 30px;
+            position: relative;
+        }
+        .checklist li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #22c55e;
+            font-weight: 700;
+            font-size: 1.2rem;
+        }
+        .checklist li.warning:before {
+            content: "!";
+            color: #eab308;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>RUANA</h1>
+        <p class="subtitle">✅ Verificación de Flujo de Navegación</p>
+
+        <!-- Flujo Principal -->
+        <div class="section">
+            <h2>🚀 FLUJO PRINCIPAL DE NAVEGACIÓN</h2>
+            
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <div class="step-title">Pantalla de Invitación</div>
+                    <div class="step-desc">URL: <span class="url">http://localhost:8000</span> → <span class="step-code">index.html</span></div>
+                    <div class="step-desc">✓ Ingresa código: <span class="step-code">0000</span> (válido)</div>
+                    <div class="step-desc">→ Siguiente: Ir a <span class="step-code">register.html</span></div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <div class="step-title">Registro del Aliado</div>
+                    <div class="step-desc">URL: <span class="step-code">register.html</span></div>
+                    <div class="step-desc">✓ Rellena formulario con datos</div>
+                    <div class="step-desc">✓ Botón "Atrás" → <span class="step-code">index.html</span></div>
+                    <div class="step-desc">✓ Click "Solicitar registro" → <span class="step-code">aliado.html</span></div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <div class="step-title">Panel Privado del Aliado</div>
+                    <div class="step-desc">URL: <span class="step-code">aliado.html</span></div>
+                    <div class="step-desc">✓ Ver perfil, métricas y solicitudes</div>
+                    <div class="step-desc">✓ Botón "Atrás" → <span class="step-code">register.html</span></div>
+                    <div class="step-desc">Opcional: Acceder a <span class="step-code">admin.html</span></div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <div class="step-title">Panel Administrador (Opcional)</div>
+                    <div class="step-desc">URL: <span class="step-code">admin.html</span></div>
+                    <div class="step-desc">✓ Botón "Atrás" → <span class="step-code">aliado.html</span></div>
+                    <div class="step-desc">Regresa al panel del aliado</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Verificación de Archivos -->
+        <div class="section">
+            <h2>📁 ARCHIVOS Y RUTAS</h2>
+            <ul class="checklist">
+                <li><span class="step-code">index.html</span> → Pantalla de invitación (PUERTA)</li>
+                <li><span class="step-code">register.html</span> → Formulario de registro</li>
+                <li><span class="step-code">aliado.html</span> → Panel privado del aliado</li>
+                <li><span class="step-code">admin.html</span> → Panel administrador</li>
+                <li><span class="step-code">dashboard.html</span> → Redirección a aliado.html</li>
+                <li><span class="step-code">invite.html</span> → Preservado (original)</li>
+                <li><span class="step-code">private-panel.html</span> → Preservado (original)</li>
+            </ul>
+        </div>
+
+        <!-- Enlaces Actualizados -->
+        <div class="section">
+            <h2>🔗 ENLACES ACTUALIZADOS</h2>
+            <ul class="checklist">
+                <li><span class="step-code">index.html</span>: Redirige a <span class="step-code">register.html</span> ✓</li>
+                <li><span class="step-code">register.html</span>: Botón atrás → <span class="step-code">index.html</span> ✓</li>
+                <li><span class="step-code">register.html</span>: Redirige a <span class="step-code">aliado.html</span> ✓</li>
+                <li><span class="step-code">aliado.html</span>: Botón atrás → <span class="step-code">register.html</span> ✓</li>
+                <li><span class="step-code">admin.html</span>: Botón atrás → <span class="step-code">aliado.html</span> ✓</li>
+            </ul>
+        </div>
+
+        <!-- Botones de Prueba -->
+        <div class="section">
+            <h2>🧪 ACCIONES RÁPIDAS</h2>
+            <p>Haz click en cualquier botón para probar el flujo:</p>
+            <div class="button-group">
+                <a href="index.html" class="btn">Inicio (Invitación)</a>
+                <a href="register.html" class="btn">Registro</a>
+                <a href="aliado.html" class="btn">Panel Aliado</a>
+                <a href="admin.html" class="btn">Panel Admin</a>
+            </div>
+        </div>
+
+        <!-- Estado Final -->
+        <div class="section" style="background: rgba(34, 197, 94, 0.08); border-color: rgba(34, 197, 94, 0.3);">
+            <h2 style="color: #86efac;">✅ ESTADO: COMPLETADO</h2>
+            <p>La reorganización del flujo RUANA ha sido completada exitosamente.</p>
+            <ul class="checklist">
+                <li>Flujo lógico y profesional establecido</li>
+                <li>Pantalla de invitación como puerta principal</li>
+                <li>Navegación intuitiva y sin errores</li>
+                <li>Diseño visual preservado</li>
+                <li>Compatible con servidor estático</li>
+                <li>Todas las redirecciones funcionan correctamente</li>
+            </ul>
+        </div>
+
+        <!-- Instrucciones de Ejecución -->
+        <div class="section">
+            <h2>🚀 CÓMO EJECUTAR</h2>
+            <div style="background: rgba(0, 0, 0, 0.2); padding: 16px; border-radius: 8px; font-family: 'Courier New', monospace; color: #4ade80; font-size: 0.9rem;">
+                <div>cd /Users/alex/Desktop/RUANA/web</div>
+                <div style="margin-top: 8px;">python -m http.server 8000</div>
+                <div style="margin-top: 12px; color: #bbb;">Luego abre: <span style="color: #86efac;">http://localhost:8000</span></div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

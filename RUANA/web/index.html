@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RUANA - Invitación</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Botón de volver atrás */
+        .btn-back {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            color: #bbb;
+            font-size: 0.85rem;
+            font-weight: 500;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+
+        .btn-back:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.15);
+            color: #e0e0e0;
+        }
+
+        .btn-back:active {
+            transform: translateY(1px);
+        }
+
+        /* Pantalla de invitación - Reutiliza estilos existentes */
+        .invite-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .invite-card {
+            width: 100%;
+            max-width: 420px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 48px 32px;
+            backdrop-filter: blur(10px);
+            text-align: center;
+        }
+
+        .invite-card h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #22c55e 0%, #86efac 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 24px;
+            letter-spacing: -0.02em;
+        }
+
+        .invite-card p {
+            font-size: 0.95rem;
+            color: #999;
+            margin-bottom: 32px;
+            line-height: 1.6;
+            font-weight: 300;
+        }
+
+        .invite-form {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .invite-input {
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: #e0e0e0;
+            font-size: 0.95rem;
+            font-family: inherit;
+            transition: all 0.3s ease;
+        }
+
+        .invite-input::placeholder {
+            color: #666;
+        }
+
+        .invite-input:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .invite-input:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #22c55e;
+            box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.1);
+        }
+
+        .invite-btn {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .invite-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(34, 197, 94, 0.3);
+        }
+
+        .invite-btn:active {
+            transform: translateY(0);
+        }
+
+        .invite-btn:disabled {
+            background: rgba(34, 197, 94, 0.5);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .invite-error {
+            font-size: 0.85rem;
+            color: #ef4444;
+            margin-top: 12px;
+            display: none;
+        }
+
+        .invite-error.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="invite-container">
+        <div class="invite-card">
+            <h1>RUANA</h1>
+            <p>Elige cómo quieres entrar a RUANA.</p>
+
+            <!-- Selector de modo de acceso -->
+            <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+                <button type="button" id="btn-modo-ingreso" class="invite-btn" style="flex: 1; background: #16a34a;">
+                    Tengo código de ingreso
+                </button>
+                <button type="button" id="btn-modo-invitacion" class="invite-btn" style="flex: 1; background: #1d4ed8;">
+                    Tengo código de invitación
+                </button>
+            </div>
+            
+            <form class="invite-form" id="invite-form">
+                <input 
+                    type="text" 
+                    class="invite-input" 
+                    id="invite-code" 
+                    placeholder="Código de ingreso o invitación"
+                    autocomplete="off"
+                    required
+                >
+                <button type="submit" class="invite-btn" id="invite-btn">Continuar</button>
+                <div class="invite-error" id="invite-error"></div>
+            </form>
+
+            <p style="margin-top: 16px; font-size: 0.85rem; color: #aaa; line-height: 1.4;">
+                • <strong>Código de ingreso</strong>: ya eres aliado y quieres entrar a tu panel (ej: 85776, ALFA01).<br>
+                • <strong>Código de invitación</strong>: te lo pasó otro aliado para registrarte por primera vez.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * RUANA Access Screen
+         * - Modo 1: Código de ingreso (aliado ya registrado → panel)
+         * - Modo 2: Código de invitación (nuevo aliado → registro)
+         */
+        
+        class RAUANAAccess {
+            constructor() {
+                this.form = document.getElementById('invite-form');
+                this.codeInput = document.getElementById('invite-code');
+                this.submitBtn = document.getElementById('invite-btn');
+                this.errorMsg = document.getElementById('invite-error');
+                this.btnModoIngreso = document.getElementById('btn-modo-ingreso');
+                this.btnModoInvitacion = document.getElementById('btn-modo-invitacion');
+                
+                // Modo por defecto: ingreso de aliado ya registrado
+                this.mode = 'ingreso'; // 'ingreso' | 'invitacion'
+                
+                this.init();
+            }
+
+            init() {
+                this.form.addEventListener('submit', (e) => this.handleSubmit(e));
+                this.codeInput.addEventListener('input', () => this.clearError());
+                this.codeInput.focus();
+
+                // Listeners para cambiar de modo
+                this.btnModoIngreso.addEventListener('click', () => this.setMode('ingreso'));
+                this.btnModoInvitacion.addEventListener('click', () => this.setMode('invitacion'));
+
+                // Inicializar estilos de botones
+                this.setMode(this.mode);
+            }
+
+            setMode(mode) {
+                this.mode = mode;
+
+                if (mode === 'ingreso') {
+                    this.btnModoIngreso.style.opacity = '1';
+                    this.btnModoInvitacion.style.opacity = '0.6';
+                    this.codeInput.placeholder = 'Código de ingreso (aliado registrado)';
+                } else {
+                    this.btnModoIngreso.style.opacity = '0.6';
+                    this.btnModoInvitacion.style.opacity = '1';
+                    this.codeInput.placeholder = 'Código de invitación (nuevo aliado)';
+                }
+            }
+
+            handleSubmit(e) {
+                e.preventDefault();
+                const code = this.codeInput.value.trim();
+
+                if (!code) {
+                    this.showError('El código es requerido');
+                    return;
+                }
+
+                if (code.length < 4) {
+                    this.showError('El código debe tener al menos 4 caracteres');
+                    return;
+                }
+
+                // S-02: No existe bypass admin en el frontend. El acceso admin es solo desde /admin con credenciales de servidor.
+
+                // Auto-detectar: códigos RUANA-{grupo}-{oficio}-{4chars} siempre van a invitación → registro
+                const upper = code.toUpperCase();
+                if (/^RUANA-\d+-[A-Z0-9]+-[A-Z0-9]{4}$/.test(upper)) {
+                    this.authorizeInvitacion(code);
+                    return;
+                }
+
+                // Siempre intentar primero como invitación (5 dígitos pueden ser código "Conozco a alguien")
+                // Si es invitación válida → lleva a registro. Si no, se intenta como código de ingreso.
+                this.tryInvitacionThenIngreso(code);
+            }
+
+            /**
+             * Primero intenta validar como invitación (lleva a registro).
+             * Si no es invitación válida, intenta como código de ingreso (panel).
+             */
+            tryInvitacionThenIngreso(code) {
+                const upper = code.toUpperCase();
+                this.submitBtn.disabled = true;
+                this.submitBtn.textContent = 'Verificando...';
+                const urlInv = '/api/validar-invitacion?codigo=' + encodeURIComponent(upper);
+                fetch(urlInv, { method: 'GET' })
+                    .then(r => r.json())
+                    .then(result => {
+                        if (result.status === 'success' && result.invitacion) {
+                            // Es código de invitación → llevar a registro
+                            sessionStorage.setItem('ruana_invite_valid', 'true');
+                            sessionStorage.setItem('ruana_invite_codigo', upper);
+                            sessionStorage.setItem('ruana_invite_payload', JSON.stringify({
+                                codigo: upper,
+                                zona: result.invitacion.zona || '',
+                                grupo: result.invitacion.grupo || '',
+                                invitado_por: result.invitacion.aliado_id || '',
+                                fecha_expiracion: result.invitacion.fecha_expiracion || null
+                            }));
+                            window.location.href = 'register.html';
+                            return;
+                        }
+                        // No es invitación → intentar como código de ingreso
+                        this.authorizeIngreso(code);
+                    })
+                    .catch(() => this.authorizeIngreso(code));
+            }
+
+            authorizeIngreso(code) {
+                console.log(`[RUANA] Autorizando código de ingreso: ${code}`);
+                this.submitBtn.disabled = true;
+                this.submitBtn.textContent = 'Verificando...';
+
+                // S-01: Login server-side (sesión cookie httpOnly). No confiar en ?codigo= en URL.
+                fetch('/api/aliado/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ codigo: code })
+                })
+                .then(response => response.json().then(result => ({ response, result })))
+                .then(({ response, result }) => {
+                    if (response.ok && result.status === 'success' && result.codigo) {
+                        if (result.session_id) sessionStorage.setItem('ruana_session_id', result.session_id);
+                        window.location.href = '/aliado';
+                    } else {
+                        let msg = (result && result.message) || 'Código inválido o aliado no encontrado';
+                        if (response.status === 404) {
+                            msg = 'Servidor no reconoce la ruta de login. Usa la app desde el mismo servidor (ej. http://localhost:5000) y reinicia el servidor Flask.';
+                        }
+                        this.showError(msg);
+                        this.submitBtn.disabled = false;
+                        this.submitBtn.textContent = 'Continuar';
+                    }
+                })
+                .catch(error => {
+                    console.error('[RUANA] Error de conexión:', error);
+                    this.showError('Error de conexión. Comprueba que el servidor esté en marcha y que entras desde la misma dirección (ej. http://localhost:5000).');
+                    this.submitBtn.disabled = false;
+                    this.submitBtn.textContent = 'Continuar';
+                });
+            }
+
+            authorizeInvitacion(code) {
+                const upper = code.toUpperCase();
+                console.log(`[RUANA] Validando código de invitación: ${upper}`);
+                this.submitBtn.disabled = true;
+                this.submitBtn.textContent = 'Verificando invitación...';
+
+                // Usar query param para evitar problemas de path en algunos entornos
+                const url = '/api/validar-invitacion?codigo=' + encodeURIComponent(upper);
+                fetch(url, { method: 'GET' })
+                .then(response => response.json())
+                .then(result => {
+                    console.log('[RUANA] Resultado validación invitación:', result);
+                    if (result.status === 'success' && result.invitacion) {
+                        const invitacion = result.invitacion;
+
+                        // Guardar contexto de invitación para register.html
+                        sessionStorage.setItem('ruana_invite_valid', 'true');
+                        sessionStorage.setItem('ruana_invite_codigo', upper);
+                        sessionStorage.setItem('ruana_invite_payload', JSON.stringify({
+                            codigo: upper,
+                            zona: invitacion.zona || '',
+                            grupo: invitacion.grupo || '',
+                            invitado_por: invitacion.aliado_id || '',
+                            fecha_expiracion: invitacion.fecha_expiracion || null
+                        }));
+
+                        // Redirigir a registro de nuevo aliado
+                        window.location.href = 'register.html';
+                    } else {
+                        this.showError(result.message || 'Código de invitación inválido o expirado');
+                        this.submitBtn.disabled = false;
+                        this.submitBtn.textContent = 'Continuar';
+                    }
+                })
+                .catch(error => {
+                    console.error('[RUANA] Error al validar invitación:', error);
+                    this.showError('Error de conexión al validar la invitación. Intenta de nuevo.');
+                    this.submitBtn.disabled = false;
+                    this.submitBtn.textContent = 'Continuar';
+                });
+            }
+
+            showError(message) {
+                this.errorMsg.textContent = message;
+                this.errorMsg.classList.add('show');
+            }
+
+            clearError() {
+                this.errorMsg.classList.remove('show');
+                this.errorMsg.textContent = '';
+            }
+        }
+
+        // Inicializar cuando DOM esté listo
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('[RUANA] Inicializando pantalla de acceso...');
+            try {
+                new RAUANAAccess();
+                console.log('[RUANA] ✅ RAUANAAccess inicializado correctamente');
+            } catch (error) {
+                console.error('[RUANA] ❌ Error al inicializar:', error);
+            }
+        });
+    </script>
+</body>
+</html>

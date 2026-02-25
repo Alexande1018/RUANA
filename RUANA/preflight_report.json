@@ -1,0 +1,31 @@
+{
+  "timestamp": "2026-02-12T00:30:38.473084",
+  "tests": {
+    "A1_config_file": {
+      "status": "OK",
+      "message": "config/ruana_reglas_v1.json existente"
+    },
+    "A2_logs_dir": {
+      "status": "OK",
+      "message": "logs/ existente"
+    },
+    "A3_core_modules": {
+      "status": "OK",
+      "message": "M\u00f3dulos core presentes"
+    },
+    "B1_config_json": {
+      "status": "OK",
+      "message": "JSON v\u00e1lido"
+    },
+    "B2_config_fields": {
+      "status": "OK",
+      "message": "Estructura v\u00e1lida"
+    },
+    "C1_directories": {
+      "status": "OK",
+      "message": "Todos los directorios presentes"
+    }
+  },
+  "warnings": [],
+  "authorization": "READY"
+}

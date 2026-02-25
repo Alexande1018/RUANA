@@ -1,0 +1,20 @@
+[2026-02-12 01:30:38] [INFO] [preflight_validator] 
+[2026-02-12 01:30:38] [INFO] [preflight_validator] ================================================================================
+[2026-02-12 01:30:38] [INFO] [preflight_validator] 🚀 PREFLIGHT VALIDATOR - RUANA
+[2026-02-12 01:30:38] [INFO] [preflight_validator] ================================================================================
+[2026-02-12 01:30:38] [INFO] [preflight_validator] 
+[2026-02-12 01:30:38] [INFO] [preflight_validator] 📁 A. Validando estructura de archivos...
+[2026-02-12 01:30:38] [INFO] [preflight_validator]   ✅ A1_config_file: config/ruana_reglas_v1.json existente
+[2026-02-12 01:30:38] [INFO] [preflight_validator]   ✅ A2_logs_dir: logs/ existente
+[2026-02-12 01:30:38] [INFO] [preflight_validator]   ✅ A3_core_modules: Módulos core presentes
+[2026-02-12 01:30:38] [INFO] [preflight_validator] ⚙️  B. Validando configuración...
+[2026-02-12 01:30:38] [INFO] [preflight_validator]   ✅ B1_config_json: JSON válido
+[2026-02-12 01:30:38] [INFO] [preflight_validator]   ✅ B2_config_fields: Estructura válida
+[2026-02-12 01:30:38] [INFO] [preflight_validator] 📂 C. Validando directorios...
+[2026-02-12 01:30:38] [INFO] [preflight_validator]   ✅ C1_directories: Todos los directorios presentes
+[2026-02-12 01:30:38] [INFO] [preflight_validator] 📄 Reporte generado: /Users/alex/Desktop/RUANA/preflight_report.json
+[2026-02-12 01:30:38] [INFO] [preflight_validator] 
+[2026-02-12 01:30:38] [INFO] [preflight_validator] ================================================================================
+[2026-02-12 01:30:38] [INFO] [preflight_validator] ✅ RUANA listo para ejecutar
+[2026-02-12 01:30:38] [INFO] [preflight_validator] ================================================================================
+[2026-02-12 01:30:38] [INFO] [preflight_validator] 
