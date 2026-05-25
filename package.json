@@ -1,0 +1,21 @@
+{
+  "name": "ruana-deploy",
+  "private": true,
+  "scripts": {
+    "firebase:login": "firebase login",
+    "firebase:deploy": "firebase deploy --project ruana-4293f --only hosting",
+    "supabase:login": "supabase login",
+    "supabase:link": "supabase link --project-ref qqlxgwbmtzcfrrobrfzy",
+    "supabase:push": "supabase db push",
+    "verify:supabase": "cd RUANA && python scripts/verify_supabase.py",
+    "verify:runtime": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify_runtime.ps1",
+    "gcp:secrets": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/set_gcp_secrets.ps1",
+    "cloudrun:build": "gcloud builds submit --tag europe-west1-docker.pkg.dev/ruana-4293f/ruana/ruana",
+    "cloudrun:deploy": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy_cloudrun.ps1",
+    "deploy:hosting": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy_firebase_hosting.ps1"
+  },
+  "devDependencies": {
+    "firebase-tools": "^15.18.0",
+    "supabase": "^2.0.0"
+  }
+}

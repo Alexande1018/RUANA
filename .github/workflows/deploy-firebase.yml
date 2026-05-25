@@ -1,0 +1,80 @@
+name: Deploy to Firebase
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: firebase-production
+  cancel-in-progress: false
+
+env:
+  PROJECT_ID: ruana-4293f
+  REGION: europe-west1
+  SERVICE: ruana
+  REPOSITORY: ruana
+  RUNTIME_SERVICE_ACCOUNT: ruana-runner@ruana-4293f.iam.gserviceaccount.com
+  SUPABASE_URL: https://qqlxgwbmtzcfrrobrfzy.supabase.co
+  FIREBASE_HOSTING_URL: https://ruana-4293f.web.app
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/288784334163/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: ruana-firebase-deployer@ruana-4293f.iam.gserviceaccount.com
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install Firebase CLI
+        run: npm ci --no-audit --no-fund
+
+      - name: Build container image
+        env:
+          IMAGE: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:${{ github.sha }}
+        run: gcloud builds submit --tag "$IMAGE" --project "$PROJECT_ID"
+
+      - name: Deploy Cloud Run
+        env:
+          IMAGE: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:${{ github.sha }}
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --image "$IMAGE" \
+            --region "$REGION" \
+            --project "$PROJECT_ID" \
+            --allow-unauthenticated \
+            --max-instances 3 \
+            --service-account "$RUNTIME_SERVICE_ACCOUNT" \
+            --set-env-vars "FIREBASE_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_REGION=$REGION,SUPABASE_URL=$SUPABASE_URL" \
+            --set-secrets "DATABASE_URL=ruana-database-url:latest,SUPABASE_SERVICE_ROLE_KEY=ruana-supabase-service-role-key:latest,SUPABASE_ANON_KEY=ruana-supabase-anon-key:latest,FLASK_SECRET_KEY=ruana-flask-secret-key:latest"
+
+      - name: Deploy Firebase Hosting
+        run: npx firebase-tools@15.18.0 deploy --project "$PROJECT_ID" --only hosting --non-interactive
+
+      - name: Verify public runtime
+        run: |
+          curl --fail --retry 5 --retry-delay 5 "$FIREBASE_HOSTING_URL/api/health"
+          curl --fail --retry 5 --retry-delay 5 "$FIREBASE_HOSTING_URL/api/contactos/metricas"

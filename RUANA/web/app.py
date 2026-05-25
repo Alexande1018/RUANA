@@ -26,16 +26,18 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Importar gestor de base de datos (y ruta ?nica de SQLite)
 from core.db_manager import get_db, DB_PATH, RUANA_CODIGO_INVITACION_REGEX
+from core.settings import get_settings
 
 # Obtener ruta absoluta de la carpeta web
 web_dir = Path(__file__).parent.absolute()
+settings = get_settings()
 
 app = Flask(__name__, 
             static_folder=str(web_dir / 'static'),
             static_url_path='/static',
             template_folder=str(web_dir))
 
-app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'ruana_secret_key_dev')
+app.secret_key = settings.flask_secret_key
 
 # Cookie de sesi?n segura (aliado y admin): httpOnly evita acceso desde JS (XSS), SameSite limita CSRF
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -217,9 +219,12 @@ def require_aliado(f):
 # Instrumentaci?n de arranque: confirmar ruta de BD usada por Flask
 try:
     from pathlib import Path as _PathCheck
-    _db_exists = _PathCheck(DB_PATH).exists()
-    print(f"[RUANA][BOOT] Flask usando base de datos en: {DB_PATH}")
-    print(f"[RUANA][BOOT] ruana.db existe? {'s?' if _db_exists else 'NO'}")
+    if settings.postgres_configured:
+        print("[RUANA][BOOT] Flask usando backend Postgres/Supabase")
+    else:
+        _db_exists = _PathCheck(DB_PATH).exists()
+        print(f"[RUANA][BOOT] Flask usando base de datos SQLite en: {DB_PATH}")
+        print(f"[RUANA][BOOT] ruana.db existe? {'si' if _db_exists else 'NO'}")
 except Exception as _e:
     print(f"[RUANA][BOOT] Error comprobando BD: {_e}")
 
@@ -2244,6 +2249,7 @@ def validar_invitacion_path(codigo):
 
 
 @app.route('/api/invitaciones/crear', methods=['POST'])
+@require_aliado
 def crear_invitacion():
     """
     POST /api/invitaciones/crear
@@ -2258,7 +2264,6 @@ def crear_invitacion():
     
     Body JSON:
     {
-        "aliado_id": 123,
         "zona": "080001",
         "solicitud_id": 456
     }
@@ -2267,7 +2272,20 @@ def crear_invitacion():
         data = request.get_json() or {}
         
         db = get_db()
-        
+
+        # La identidad del invitador sale siempre de la sesion de aliado.
+        codigo_sesion = _aliado_codigo()
+        aliado_sesion = db.obtener_aliado_por_codigo(codigo_sesion) if codigo_sesion else None
+        if not aliado_sesion:
+            return jsonify({'status': 'error', 'message': 'Aliado invitador no encontrado'}), 403
+        estado_aliado = (aliado_sesion.get('estado') or '').strip().lower()
+        if estado_aliado != 'activo':
+            return jsonify({'status': 'error', 'message': 'Aliado no autorizado para crear invitaciones'}), 403
+
+        aliado_invitador_id = aliado_sesion.get('id')
+        zona = data.get('zona', '').strip()
+        solicitud_id = data.get('solicitud_id')
+
         # Generar c?digo ?nico de 5 d?gitos num?ricos
         # Formato: 00000-99999 (asegura compatibilidad con validaci?n del backend)
         import random
@@ -2276,17 +2294,6 @@ def crear_invitacion():
             # Verificar que no existe
             if not db.codigo_existe(codigo):
                 break
-        
-        # Extraer datos (aliado_id: quien genera la invitación; fallback desde sesión si no viene en body)
-        aliado_invitador_id = data.get('aliado_id')
-        if aliado_invitador_id is None:
-            codigo_sesion = _aliado_codigo()
-            if codigo_sesion:
-                aliado_sesion = db.obtener_aliado_por_codigo(codigo_sesion)
-                if aliado_sesion:
-                    aliado_invitador_id = aliado_sesion.get('id')
-        zona = data.get('zona', '').strip()
-        solicitud_id = data.get('solicitud_id')
         
         # Crear aliado "placeholder" (pre-registrado) con el c?digo
         # Este aliado puede ser completado por el nuevo usuario
@@ -2339,6 +2346,7 @@ def crear_invitacion():
 
 
 @app.route('/api/competencia/finalizar-vencidas', methods=['POST'])
+@require_admin_escritura
 def finalizar_competencia_vencidas():
     """
     POST /api/competencia/finalizar-vencidas
@@ -2359,6 +2367,7 @@ def finalizar_competencia_vencidas():
 
 
 @app.route('/api/purga/mensual', methods=['POST'])
+@require_admin_escritura
 def purga_mensual():
     """
     POST /api/purga/mensual

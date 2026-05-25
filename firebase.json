@@ -1,0 +1,21 @@
+{
+  "hosting": {
+    "site": "ruana-4293f",
+    "public": "firebase-public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "ruana",
+          "region": "europe-west1",
+          "pinTag": true
+        }
+      }
+    ]
+  }
+}

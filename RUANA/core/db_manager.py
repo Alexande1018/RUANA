@@ -5,12 +5,16 @@ Maneja toda la persistencia de datos usando SQLite
 
 import sqlite3
 import json
+import os
 import random
 import string
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any, Tuple
 import threading
+
+from core.postgres_compat import connect as pg_compat_connect
+from core.settings import get_settings
 
 
 # Ruta ABSOLUTA única a la base de datos de RUANA.
@@ -25,7 +29,14 @@ SUFIJOS_GRUPO = (
 MAX_GRUPOS_POR_CP = 5
 # IMPORTANTE: Todos los componentes (Flask, scripts, motores) deben usar
 # EXCLUSIVAMENTE este valor como fuente de verdad para `ruana.db`.
-DB_PATH = str(Path("/Users/alex/Desktop/RUANA/ruana.db").resolve())
+DB_PATH = str(
+    Path(
+        os.environ.get(
+            "RUANA_DB_PATH",
+            Path(__file__).resolve().parent.parent / "ruana.db",
+        )
+    ).resolve()
+)
 
 # Formato de código RUANA invitación oficio: RUANA-{grupo_id}-{OFICIO_NORM}-{4chars}
 # Usado por generar_invitacion_oficio y validar_invitacion_oficio para consistencia.
@@ -51,14 +62,24 @@ class DBManager:
         
         self.db_path = str(db_path)
         self._lock = threading.RLock()  # Para operaciones thread-safe
+        self.settings = get_settings()
+        self.backend = "postgres" if self.settings.postgres_configured else "sqlite"
         
         # Inicializar base de datos
-        self._init_db()
+        if self.backend == "sqlite":
+            self._init_db()
+
+    def _connect(self):
+        """Open a database connection for the configured backend."""
+        if self.backend == "postgres":
+            return pg_compat_connect(self.settings.database_url)
+        return sqlite3.connect(self.db_path)
     
     def _init_db(self):
         """Inicializa la base de datos con tablas si no existen"""
         with self._lock:
-            conn = sqlite3.connect(self.db_path)
+            Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+            conn = self._connect()
             cursor = conn.cursor()
             
             try:
@@ -392,10 +413,10 @@ class DBManager:
                 self._migrar_contacto_panel_oculto(conn, cursor)
 
                 conn.commit()
-                print(f"✓ Base de datos inicializada en: {self.db_path}")
+                print(f"[RUANA][DB] Base de datos inicializada en: {self.db_path}")
                 
             except Exception as e:
-                print(f"✗ Error inicializando BD: {e}")
+                print(f"[RUANA][DB] Error inicializando BD: {e}")
                 conn.rollback()
                 raise
             finally:
@@ -740,7 +761,7 @@ class DBManager:
         """Lista grupos activos en el código postal (datos desde BD, sin listas abstractas)."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute(
@@ -784,7 +805,7 @@ class DBManager:
             return False
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 return self._grupo_tiene_plaza(cursor, grupo_id, oficio_principal.strip(), (especializacion or '').strip() or None)
             except Exception:
@@ -798,7 +819,7 @@ class DBManager:
             return set()
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
                     """SELECT COALESCE(NULLIF(TRIM(especializacion), ''), oficio) AS esp
@@ -817,7 +838,7 @@ class DBManager:
             return None
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute(
@@ -843,7 +864,7 @@ class DBManager:
         """Cuenta grupos activos en el código postal (límite máximo MAX_GRUPOS_POR_CP)."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT COUNT(*) FROM grupos WHERE codigo_postal = ? AND estado = 'activo'",
@@ -859,7 +880,7 @@ class DBManager:
         """Crea siempre un nuevo grupo en el CP (nombre automático). No comprueba límite; llamador debe asegurar < MAX_GRUPOS_POR_CP."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 nombre = self._generar_nombre_grupo(cursor)
@@ -886,7 +907,7 @@ class DBManager:
         prefijo = codigo_postal[:2]
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute("""
                     SELECT codigo_postal FROM grupos
@@ -908,7 +929,7 @@ class DBManager:
         """
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute(
@@ -944,7 +965,7 @@ class DBManager:
         """Obtiene un grupo por su id."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute(
@@ -962,7 +983,7 @@ class DBManager:
         """Cuenta aliados activos en el grupo. Grupo viable = mínimo 2."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT COUNT(*) FROM aliados WHERE grupo_id = ? AND estado = 'activo'",
@@ -978,7 +999,7 @@ class DBManager:
         """Devuelve el conjunto de oficios presentes en el grupo (aliados activos)."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT DISTINCT oficio FROM aliados WHERE grupo_id = ? AND estado = 'activo' AND oficio IS NOT NULL AND oficio != ''",
@@ -1011,7 +1032,7 @@ class DBManager:
             pass
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT DISTINCT oficio FROM aliados WHERE oficio IS NOT NULL AND oficio != '' ORDER BY oficio"
@@ -1123,7 +1144,7 @@ class DBManager:
         """
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
 
@@ -1197,7 +1218,7 @@ class DBManager:
                 nuevo = self.crear_grupo_en_cp(codigo_postal, ciudad, provincia)
                 if isinstance(nuevo, dict) and nuevo.get('id'):
                     with self._lock:
-                        conn2 = sqlite3.connect(self.db_path)
+                        conn2 = self._connect()
                         cursor2 = conn2.cursor()
                         cursor2.execute("UPDATE aliados SET grupo_id = ? WHERE id = ?", (nuevo['id'], aliado_id))
                         cursor2.execute("UPDATE grupos SET estado = 'disuelto' WHERE id = ?", (grupo_id,))
@@ -1206,7 +1227,7 @@ class DBManager:
                     return {'status': 'ok', 'accion': 'reasignado_nuevo_grupo', 'nuevo_grupo_id': nuevo['id'], 'disuelto_id': grupo_id}
 
                 with self._lock:
-                    conn2 = sqlite3.connect(self.db_path)
+                    conn2 = self._connect()
                     cursor2 = conn2.cursor()
                     cursor2.execute("UPDATE grupos SET estado = 'disuelto' WHERE id = ?", (grupo_id,))
                     conn2.commit()
@@ -1225,7 +1246,7 @@ class DBManager:
         """Ejecuta procesar_viabilidad_grupo para todos los grupos activos con exactamente 1 aliado activo."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
                     """SELECT g.id FROM grupos g
@@ -1263,7 +1284,7 @@ class DBManager:
         """
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 
                 # Verificar unicidad del código
@@ -1461,7 +1482,7 @@ class DBManager:
         """
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
 
                 # Verificar unicidad del código (independiente de su formato)
@@ -1568,7 +1589,7 @@ class DBManager:
             return None
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 # Comparar como string para que 85776 y "85776" coincidan (codigo en BD suele ser TEXT)
@@ -1593,7 +1614,7 @@ class DBManager:
         """Obtiene aliado por ID interno"""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 
@@ -1632,7 +1653,7 @@ class DBManager:
                 return {'status': 'error', 'message': 'No fields to update'}
 
             try:
-                with sqlite3.connect(self.db_path) as conn:
+                with self._connect() as conn:
                     cursor = conn.cursor()
                     # Obtener grupo_id anterior por si hay que revisar viabilidad
                     cursor.execute("SELECT grupo_id FROM aliados WHERE codigo = ?", (codigo,))
@@ -1705,7 +1726,7 @@ class DBManager:
             return {'status': 'success', 'aplicado': 0, 'score_final': None}
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute("SELECT score FROM aliados WHERE codigo = ?", (codigo_aliado,))
                 row = cursor.fetchone()
@@ -1836,7 +1857,7 @@ class DBManager:
         """Devuelve la competencia activa para ese grupo y oficio, o None."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("""
@@ -1855,7 +1876,7 @@ class DBManager:
         """True si el grupo tiene al menos una competencia activa."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute("SELECT 1 FROM competencia WHERE grupo_id = ? AND estado = 'activa' LIMIT 1", (grupo_id,))
                 return cursor.fetchone() is not None
@@ -1872,7 +1893,7 @@ class DBManager:
         """
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("""
@@ -1975,7 +1996,7 @@ class DBManager:
         oficio = oficio.strip()
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 # Aliados activos, mismo oficio, score > score_actual, no sea él ni esté ya en este grupo
@@ -2032,7 +2053,7 @@ class DBManager:
         """Inicia competencia si el aliado tiene grupo, oficio y existe un suplente. No mostrar scores individuales."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("""
@@ -2096,7 +2117,7 @@ class DBManager:
         """Finaliza competencias cuya fecha_fin_prevista ha pasado. Mayor score permanece, el otro sale del grupo."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("""
@@ -2124,7 +2145,7 @@ class DBManager:
         """
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute("SELECT score FROM aliados WHERE codigo = ?", (aliado_original_codigo,))
                 s1 = cursor.fetchone()
@@ -2149,7 +2170,7 @@ class DBManager:
                         grupo_nuevo = self.buscar_grupo_sin_oficio(codigo_postal, oficio)
                         if not grupo_nuevo and self.contar_grupos_activos_por_cp(codigo_postal) < MAX_GRUPOS_POR_CP:
                             grupo_nuevo = self.crear_grupo_en_cp(codigo_postal, ciudad, provincia)
-                    conn2 = sqlite3.connect(self.db_path)
+                    conn2 = self._connect()
                     cur2 = conn2.cursor()
                     if grupo_nuevo and isinstance(grupo_nuevo, dict) and grupo_nuevo.get('id'):
                         cur2.execute(
@@ -2172,7 +2193,7 @@ class DBManager:
                     conn2.commit()
                     conn2.close()
                     self.procesar_viabilidad_grupo(grupo_id)
-                    conn = sqlite3.connect(self.db_path)
+                    conn = self._connect()
                     cursor = conn.cursor()
                 else:
                     cursor.execute("UPDATE aliados SET grupo_id = ? WHERE codigo = ?", (suplente_grupo_anterior_id, suplente_codigo))
@@ -2198,7 +2219,7 @@ class DBManager:
         """Avisos del grupo (ej. competencia). No incluye scores individuales."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 if tipo:
@@ -2215,7 +2236,7 @@ class DBManager:
         """Aliados en pool = activos con exactamente 1 derrota en competencia (segunda oportunidad)."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("""
@@ -2237,7 +2258,7 @@ class DBManager:
             return False
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute("""
                     SELECT 1 FROM competencia
@@ -2278,7 +2299,7 @@ class DBManager:
         if expulsados_temporal:
             with self._lock:
                 try:
-                    conn = sqlite3.connect(self.db_path)
+                    conn = self._connect()
                     cursor = conn.cursor()
                     for item in expulsados_temporal:
                         cursor.execute(
@@ -2318,7 +2339,7 @@ class DBManager:
         """
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 # Contactos abiertos donde el aliado es solicitante o profesional
                 cursor.execute("""
@@ -2363,7 +2384,7 @@ class DBManager:
         """Cuenta aliados referidos válidos por este aliado (para métrica 'Aliados referidos por mí')."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT COUNT(*) FROM referidos WHERE codigo_invitador = ?",
@@ -2379,7 +2400,7 @@ class DBManager:
         """Registra que este código de invitación fue creado por el aliado invitador (para +5 al completar)."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute("""
                     INSERT OR REPLACE INTO invitaciones (codigo, invitador_aliado_id, usado)
@@ -2393,7 +2414,7 @@ class DBManager:
         """Lista las últimas invitaciones generadas (para panel admin). Incluye código, invitador, fecha, usado."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("PRAGMA table_info(invitaciones)")
@@ -2424,7 +2445,7 @@ class DBManager:
             return None
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute(
@@ -2460,7 +2481,7 @@ class DBManager:
         """
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT invitador_aliado_id FROM invitaciones WHERE codigo = ? AND usado = 0",
@@ -2501,7 +2522,7 @@ class DBManager:
 
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
 
@@ -2559,7 +2580,7 @@ class DBManager:
             return None
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute(
@@ -2596,7 +2617,7 @@ class DBManager:
             return False
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT id, aliado_id FROM invitaciones_oficio WHERE codigo = ? AND estado = 'pendiente'",
@@ -2638,7 +2659,7 @@ class DBManager:
         """
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
 
@@ -2770,7 +2791,7 @@ class DBManager:
 
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 # Incluir activo y pendiente_validacion para mostrar a todos los del grupo/zona
@@ -2827,7 +2848,7 @@ class DBManager:
         """Verifica si un código ya existe"""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 
                 cursor.execute("SELECT 1 FROM aliados WHERE codigo = ?", (codigo,))
@@ -2843,7 +2864,7 @@ class DBManager:
         """Lista aliados con estado pendiente_validacion (oficio fuera de catálogo, requieren activación manual)."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("""
@@ -2866,7 +2887,7 @@ class DBManager:
             return []
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("""
@@ -2900,7 +2921,7 @@ class DBManager:
             return {'status': 'error', 'message': 'Código requerido'}
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
                     "UPDATE notificaciones_aliado SET leida = 1 WHERE id = ? AND TRIM(CAST(aliado_codigo AS TEXT)) = ?",
@@ -2922,7 +2943,7 @@ class DBManager:
             return {'status': 'error', 'message': 'Código requerido'}
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
                     "UPDATE notificaciones_aliado SET leida = 1 WHERE TRIM(CAST(aliado_codigo AS TEXT)) = ? AND leida = 0",
@@ -2939,7 +2960,7 @@ class DBManager:
         """Activa aliado por ID numérico (pendiente_validacion → activo)."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
                     "UPDATE aliados SET estado = 'activo', actualizado_en = CURRENT_TIMESTAMP WHERE id = ? AND LOWER(TRIM(COALESCE(estado, ''))) = 'pendiente_validacion'",
@@ -2961,7 +2982,7 @@ class DBManager:
         """Cambia estado de pendiente_validacion a activo. Requiere que el aliado exista y esté pendiente."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
                     "UPDATE aliados SET estado = 'activo', actualizado_en = CURRENT_TIMESTAMP WHERE codigo = ? AND estado = 'pendiente_validacion'",
@@ -2980,7 +3001,7 @@ class DBManager:
         """Rechaza un aliado en pendiente_validacion: estado pasa a rechazado. No podrá entrar al panel."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
                     "UPDATE aliados SET estado = 'rechazado', actualizado_en = CURRENT_TIMESTAMP WHERE codigo = ? AND estado = 'pendiente_validacion'",
@@ -3003,7 +3024,7 @@ class DBManager:
         """Crea solicitud: obtiene aliado por código, inserta en solicitudes con estado pendiente."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute("SELECT grupo_id, nombre FROM aliados WHERE codigo = ?", (codigo.strip(),))
                 row = cursor.fetchone()
@@ -3036,7 +3057,7 @@ class DBManager:
         """Solo mismo grupo, estado pendiente, excluye las propias. GET /api/solicitudes?codigo=."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("SELECT grupo_id FROM aliados WHERE codigo = ?", (codigo.strip(),))
@@ -3064,7 +3085,7 @@ class DBManager:
         """Solicitudes creadas por el aliado (sus propias solicitudes). Mismo grupo, cualquier estado (pendiente/atendida)."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("SELECT grupo_id FROM aliados WHERE codigo = ?", (codigo.strip(),))
@@ -3093,7 +3114,7 @@ class DBManager:
         """Historial de solicitudes del grupo (todas: pendiente y atendidas). Ordenado por fecha descendente."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("SELECT grupo_id FROM aliados WHERE codigo = ?", (codigo.strip(),))
@@ -3125,7 +3146,7 @@ class DBManager:
             return []
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("PRAGMA table_info(solicitudes)")
@@ -3150,7 +3171,7 @@ class DBManager:
         """Marca solicitud como atendida y registra quién atendió. Solo mismo grupo."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute("SELECT grupo_id, estado FROM solicitudes WHERE id = ?", (solicitud_id,))
                 row = cursor.fetchone()
@@ -3184,7 +3205,7 @@ class DBManager:
         """Marca la solicitud como atendida y registra al admin como 'Atendido por' y 'Atendido at'. Si ya estaba atendida pero con columnas vacías, las rellena."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute("PRAGMA table_info(solicitudes)")
                 cols = [r[1] for r in cursor.fetchall()]
@@ -3224,7 +3245,7 @@ class DBManager:
         """Marca la solicitud como atendida/contestada (p. ej. desde 'Conozco a alguien'). Opcional: invitador_aliado_id para registrar quién contestó."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute("PRAGMA table_info(solicitudes)")
                 cols = [r[1] for r in cursor.fetchall()]
@@ -3255,7 +3276,7 @@ class DBManager:
         """Todas las solicitudes para el panel admin. Orden created_at DESC."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("PRAGMA table_info(solicitudes)")
@@ -3298,7 +3319,7 @@ class DBManager:
                         'message': 'Solicitante y profesional son obligatorios'
                     }
 
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
 
                 cursor.execute("SELECT codigo FROM aliados WHERE codigo = ?", (solicitante_codigo,))
@@ -3353,7 +3374,7 @@ class DBManager:
         """Obtiene un contacto RUANA por su ID interno"""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
 
@@ -3376,7 +3397,7 @@ class DBManager:
         """
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
 
@@ -3426,7 +3447,7 @@ class DBManager:
         """Transición a estado 'trabajo_en_progreso' desde 'aceptado' o 'iniciado'."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
 
@@ -3489,7 +3510,7 @@ class DBManager:
         sol = prof = None
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute(
@@ -3545,7 +3566,7 @@ class DBManager:
         with self._lock:
             conn = None
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT id, estado FROM contactos_ruana WHERE id = ?",
@@ -3607,7 +3628,7 @@ class DBManager:
         with self._lock:
             conn = None
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute("SELECT id, solicitante_codigo, profesional_codigo FROM contactos_ruana WHERE id = ?", (contacto_id,))
                 row = cursor.fetchone()
@@ -3641,7 +3662,7 @@ class DBManager:
         """
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute(
@@ -3705,7 +3726,7 @@ class DBManager:
         las dos partes confirmaron el valor y se envió la alerta de pago)."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("SELECT id, estado FROM contactos_ruana WHERE id = ?", (contacto_id,))
@@ -3749,7 +3770,7 @@ class DBManager:
 
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
 
@@ -3847,7 +3868,7 @@ class DBManager:
         """Lista contactos recientes con número de mensajes y fecha del último mensaje (para admin)."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("PRAGMA table_info(contactos_ruana)")
@@ -3877,7 +3898,7 @@ class DBManager:
         offset = max(0, offset)
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("""
@@ -3960,7 +3981,7 @@ class DBManager:
         """Lista mensajes de chat para admin. Un solo source of truth: chat_mensajes + JOIN aliados."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("""
@@ -4017,7 +4038,7 @@ class DBManager:
                 if parte not in ("solicitante", "profesional"):
                     return {'status': 'error', 'message': "Parte debe ser 'solicitante' o 'profesional'"}
 
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
 
@@ -4191,7 +4212,7 @@ class DBManager:
         """
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
 
                 cursor.execute("""
@@ -4241,7 +4262,7 @@ class DBManager:
         """Lista los códigos de todos los aliados con estado activo (para motor de evaluación)."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT codigo FROM aliados WHERE estado = 'activo' AND codigo IS NOT NULL AND TRIM(codigo) != '' ORDER BY id"
@@ -4261,7 +4282,7 @@ class DBManager:
         """
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 codigo = (codigo_aliado or '').strip()
                 if not codigo:
@@ -4324,7 +4345,7 @@ class DBManager:
         horas_vigencia = self.CHAT_HORAS_VIGENCIA
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
 
@@ -4393,7 +4414,7 @@ class DBManager:
         """
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
 
@@ -4438,7 +4459,7 @@ class DBManager:
         """Lista contactos donde importe_A != importe_B (estado importe_en_disputa)."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("""
@@ -4461,7 +4482,7 @@ class DBManager:
         """Lista conflictos de payment_conflicts con nombres, orden created_at DESC."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='payment_conflicts'")
@@ -4490,7 +4511,7 @@ class DBManager:
         """Obtiene el conflicto abierto para un trabajo; codigo_aliado debe ser contratante o profesional."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='payment_conflicts'")
@@ -4522,7 +4543,7 @@ class DBManager:
         """Detalle de un conflicto por id."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='payment_conflicts'")
@@ -4552,7 +4573,7 @@ class DBManager:
         """Solo contratante: guarda prueba_url y pasa estado a EN_REVISION."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute("SELECT id, contratante_id FROM payment_conflicts WHERE id = ?", (conflict_id,))
                 row = cursor.fetchone()
@@ -4585,7 +4606,7 @@ class DBManager:
         resultado = {'status': 'error', 'message': 'unknown'}
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("""
@@ -4689,7 +4710,7 @@ class DBManager:
         imp = apoyo = 0.0
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute(
@@ -4778,7 +4799,7 @@ class DBManager:
         """Lista contactos con trabajo_cerrado e importe_final (Apoyo RUANA generado) para gestión de estado de pago."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("""
@@ -4810,7 +4831,7 @@ class DBManager:
         """Lista contactos con estado_pago = 'en_revision' (comprobante subido, pendiente de aprobar/rechazar)."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("""
@@ -4856,7 +4877,7 @@ class DBManager:
             return {'status': 'error', 'message': 'El motivo de rechazo es obligatorio'}
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute("""
                     SELECT id, estado, importe_final, estado_pago, pendiente_pago, profesional_codigo
@@ -4933,7 +4954,7 @@ class DBManager:
             return False
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute("""
                     SELECT 1 FROM contactos_ruana
@@ -4954,7 +4975,7 @@ class DBManager:
             return []
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("""
@@ -4991,7 +5012,7 @@ class DBManager:
         """
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute("""
                     SELECT id, profesional_codigo, estado_pago, apoyo_ruana
@@ -5034,7 +5055,7 @@ class DBManager:
         """Exporta toda la BD a JSON (para respaldos o migraciones)"""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 
@@ -5090,7 +5111,7 @@ class DBManager:
         """
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 
                 # Verificar si ya existe evaluación
@@ -5150,7 +5171,7 @@ class DBManager:
         """Obtiene la evaluación más reciente de un aliado"""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 
@@ -5191,7 +5212,7 @@ class DBManager:
         """
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 
@@ -5227,7 +5248,7 @@ class DBManager:
         """Obtiene el histórico de cambios de evaluación de un aliado"""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 
@@ -5251,7 +5272,7 @@ class DBManager:
         """Obtiene estadísticas generales de las evaluaciones"""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 
                 # Contar por estado
@@ -5348,7 +5369,7 @@ class DBManager:
         """
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 self._insert_evento_sistema(cursor, tipo, descripcion, actor_tipo, actor_codigo, metadata)
                 conn.commit()
@@ -5364,7 +5385,7 @@ class DBManager:
         """Obtiene los últimos N eventos de sistema para el panel admin."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 try:
@@ -5423,7 +5444,7 @@ class DBManager:
         """
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 oficio_s = (oficio or '').strip()
                 if not oficio_s:
@@ -5467,7 +5488,7 @@ class DBManager:
         """Marca la plaza (grupo + oficio) como cerrada; no se asignan nuevos aliados a esa plaza."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 oficio_s = (oficio or '').strip()
                 if not oficio_s:
@@ -5503,7 +5524,7 @@ class DBManager:
         """Reabre la plaza (quita el cierre de grupo + oficio)."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 oficio_s = (oficio or '').strip()
                 if not oficio_s:
@@ -5535,7 +5556,7 @@ class DBManager:
             return []
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT oficio FROM grupo_oficio_cerrado WHERE grupo_id = ? ORDER BY oficio",
@@ -5552,7 +5573,7 @@ class DBManager:
         conn = None
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute("SELECT COUNT(*) FROM aliados")
                 total_aliados = cursor.fetchone()[0] or 0
@@ -5638,7 +5659,7 @@ class DBManager:
         """
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
 
                 cursor.execute(
@@ -5720,7 +5741,7 @@ class DBManager:
         """Cuenta aliados que están actuando como suplente en una competencia activa."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT COUNT(DISTINCT suplente_codigo) FROM competencia WHERE estado = 'activa'"
@@ -5735,7 +5756,7 @@ class DBManager:
         """Cuenta aliados activos con estado RUANA 'EN RIESGO' (35 <= score < 60)."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute("""
                     SELECT COUNT(*) FROM aliados
@@ -5752,7 +5773,7 @@ class DBManager:
         """Cuenta solicitudes en estado pendiente (activas)."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT COUNT(*) FROM solicitudes WHERE estado = 'pendiente'"
@@ -5769,7 +5790,7 @@ class DBManager:
             return 0
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute("PRAGMA table_info(solicitudes)")
                 cols = [r[1] for r in cursor.fetchall()]
@@ -5794,7 +5815,7 @@ class DBManager:
         conn = None
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute("SELECT COUNT(*) FROM grupos")
                 total = cursor.fetchone()[0] or 0
@@ -5823,7 +5844,7 @@ class DBManager:
         """Cuenta oficios distintos cubiertos por aliados activos (oficio principal)."""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute("""
                     SELECT COUNT(DISTINCT oficio) FROM aliados
@@ -5849,7 +5870,7 @@ class DBManager:
         conn = None
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 col_ts_sol = "created_at"
                 try:
@@ -5944,7 +5965,7 @@ class DBManager:
         """
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 limite = "datetime('now', '-1 day')"
 
@@ -6036,7 +6057,7 @@ class DBManager:
         """
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 # Ventana 24h (solicitudes: compatible tabla unificada)
                 try:
@@ -6155,7 +6176,7 @@ class DBManager:
 
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 try:
                     cursor.execute("PRAGMA table_info(solicitudes)")
@@ -6242,7 +6263,7 @@ class DBManager:
         """
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
 
                 # Totales básicos
@@ -6352,7 +6373,7 @@ class DBManager:
         conn = None
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
 
                 # Totales
@@ -6381,7 +6402,7 @@ class DBManager:
                     SELECT oficio, COUNT(DISTINCT suplente_codigo) as n
                     FROM competencia WHERE estado = 'activa'
                     GROUP BY oficio
-                    HAVING n > ?
+                    HAVING COUNT(DISTINCT suplente_codigo) > ?
                 """, (umbral_suplentes,))
                 oficios_saturados = len(cursor.fetchall())
 
@@ -6457,7 +6478,7 @@ class DBManager:
         """⚠️ PELIGRO: Limpia completamente la BD (solo para testing)"""
         with self._lock:
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = self._connect()
                 cursor = conn.cursor()
                 
                 cursor.execute("DELETE FROM evaluaciones_historico")

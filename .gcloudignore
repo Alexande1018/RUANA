@@ -1,0 +1,17 @@
+.git
+.gitignore
+.env
+.env.*
+.local-secrets
+.firebaserc
+firebase-public
+node_modules
+RUANA/.venv
+RUANA/__pycache__
+RUANA/**/__pycache__
+RUANA/**/*.pyc
+RUANA/logs/*
+RUANA/web/static/uploads/*
+RUANA/ruana.db
+*.db
+*.log
