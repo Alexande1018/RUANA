@@ -57,7 +57,9 @@ def test_crear_invitacion_authenticated_aliado_uses_session_inviter(client, fake
     assert data["status"] == "success"
     assert data["tipo"] == "invitacion"
     assert ("obtener_aliado_por_codigo", "A0001") in fake_db.calls
-    assert any(call[0] == "_registrar_invitacion" and call[2] == 42 for call in fake_db.calls)
+    registrar_calls = [call for call in fake_db.calls if call[0] == "_registrar_invitacion"]
+    assert len(registrar_calls) == 1
+    assert registrar_calls[0][2] == 42
 
 
 def test_finalizar_competencia_allows_write_admin(client, fake_db):
