@@ -28,6 +28,10 @@ class Hito2AFakeDB:
     def marcar_solicitud_contestada(self, solicitud_id, invitador_aliado_id=None):
         self.calls.append(("marcar_solicitud_contestada", solicitud_id, invitador_aliado_id))
 
+    def atender_solicitud_por_id(self, solicitud_id, codigo):
+        self.calls.append(("atender_solicitud_por_id", solicitud_id, codigo))
+        return {"status": "success", "ok": True}
+
     def finalizar_competencia_activas_vencidas(self):
         self.calls.append(("finalizar_competencia_activas_vencidas",))
         return [{"grupo_id": 1, "resultado": "finalizada"}]

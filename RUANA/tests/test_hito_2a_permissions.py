@@ -90,6 +90,20 @@ def test_crear_invitacion_authenticated_aliado_uses_session_inviter(client, fake
     assert registrar_calls[0][2] == 42
 
 
+def test_crear_invitacion_with_solicitud_uses_session_scoped_attendance(client, fake_db, session_headers):
+    headers = session_headers("aliado", "A0001")
+
+    response = client.post(
+        "/api/invitaciones/crear",
+        json={"zona": "08001", "solicitud_id": 456},
+        headers=headers,
+    )
+
+    assert response.status_code == 201
+    assert ("atender_solicitud_por_id", 456, "A0001") in fake_db.calls
+    assert all(call[0] != "marcar_solicitud_contestada" for call in fake_db.calls)
+
+
 def test_crear_invitacion_rejects_pending_aliado_without_writes(client, fake_db, session_headers):
     fake_db.aliado_estado = "pendiente_completar"
     headers = session_headers("aliado", "A0001")

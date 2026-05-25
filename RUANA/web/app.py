@@ -2326,7 +2326,7 @@ def crear_invitacion():
         # Si esta invitaci?n viene de "Conozco a alguien", marcar la solicitud como contestada
         if solicitud_id is not None:
             try:
-                db.marcar_solicitud_contestada(int(solicitud_id), invitador_aliado_id=aliado_invitador_id)
+                db.atender_solicitud_por_id(int(solicitud_id), codigo_sesion)
             except (TypeError, ValueError):
                 pass
         
