@@ -38,10 +38,14 @@ class Hito2AFakeDB:
 
 @pytest.fixture(autouse=True)
 def clear_ruana_sessions():
-    app_module._RUANA_SESSION_STORE.clear()
+    previous_testing = app_module.app.config.get("TESTING")
+    with app_module._RUANA_SESSION_LOCK:
+        app_module._RUANA_SESSION_STORE.clear()
     app_module.app.config.update(TESTING=True)
     yield
-    app_module._RUANA_SESSION_STORE.clear()
+    with app_module._RUANA_SESSION_LOCK:
+        app_module._RUANA_SESSION_STORE.clear()
+    app_module.app.config.update(TESTING=previous_testing)
 
 
 @pytest.fixture
@@ -64,3 +68,8 @@ def make_session_headers(tipo, codigo, permisos=None):
         permisos=permisos or [],
     )
     return {app_module.RUANA_SESSION_HEADER: session_id}
+
+
+@pytest.fixture
+def session_headers():
+    return make_session_headers

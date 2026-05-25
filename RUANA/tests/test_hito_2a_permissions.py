@@ -1,6 +1,3 @@
-from RUANA.tests.conftest import make_session_headers
-
-
 def test_crear_invitacion_rejects_anonymous_request_without_touching_db(client, fake_db):
     response = client.post(
         "/api/invitaciones/crear",
@@ -25,8 +22,21 @@ def test_purga_mensual_rejects_anonymous_request_without_touching_db(client, fak
     assert fake_db.calls == []
 
 
-def test_finalizar_competencia_rejects_read_only_admin_without_touching_db(client, fake_db):
-    headers = make_session_headers("admin", "0000", permisos=["leer"])
+def test_crear_invitacion_rejects_admin_session_without_touching_db(client, fake_db, session_headers):
+    headers = session_headers("admin", "ADMIN001", permisos=["leer", "escribir"])
+
+    response = client.post(
+        "/api/invitaciones/crear",
+        json={"zona": "08001", "aliado_id": 999},
+        headers=headers,
+    )
+
+    assert response.status_code == 401
+    assert fake_db.calls == []
+
+
+def test_finalizar_competencia_rejects_read_only_admin_without_touching_db(client, fake_db, session_headers):
+    headers = session_headers("admin", "0000", permisos=["leer"])
 
     response = client.post("/api/competencia/finalizar-vencidas", headers=headers)
 
@@ -34,8 +44,8 @@ def test_finalizar_competencia_rejects_read_only_admin_without_touching_db(clien
     assert fake_db.calls == []
 
 
-def test_purga_mensual_rejects_read_only_admin_without_touching_db(client, fake_db):
-    headers = make_session_headers("admin", "0000", permisos=["leer"])
+def test_purga_mensual_rejects_read_only_admin_without_touching_db(client, fake_db, session_headers):
+    headers = session_headers("admin", "0000", permisos=["leer"])
 
     response = client.post("/api/purga/mensual", headers=headers)
 
@@ -43,8 +53,26 @@ def test_purga_mensual_rejects_read_only_admin_without_touching_db(client, fake_
     assert fake_db.calls == []
 
 
-def test_crear_invitacion_authenticated_aliado_uses_session_inviter(client, fake_db):
-    headers = make_session_headers("aliado", "A0001")
+def test_finalizar_competencia_rejects_aliado_session_without_touching_db(client, fake_db, session_headers):
+    headers = session_headers("aliado", "A0001")
+
+    response = client.post("/api/competencia/finalizar-vencidas", headers=headers)
+
+    assert response.status_code == 401
+    assert fake_db.calls == []
+
+
+def test_purga_mensual_rejects_aliado_session_without_touching_db(client, fake_db, session_headers):
+    headers = session_headers("aliado", "A0001")
+
+    response = client.post("/api/purga/mensual", headers=headers)
+
+    assert response.status_code == 401
+    assert fake_db.calls == []
+
+
+def test_crear_invitacion_authenticated_aliado_uses_session_inviter(client, fake_db, session_headers):
+    headers = session_headers("aliado", "A0001")
 
     response = client.post(
         "/api/invitaciones/crear",
@@ -62,8 +90,8 @@ def test_crear_invitacion_authenticated_aliado_uses_session_inviter(client, fake
     assert registrar_calls[0][2] == 42
 
 
-def test_finalizar_competencia_allows_write_admin(client, fake_db):
-    headers = make_session_headers("admin", "ADMIN001", permisos=["leer", "escribir"])
+def test_finalizar_competencia_allows_write_admin(client, fake_db, session_headers):
+    headers = session_headers("admin", "ADMIN001", permisos=["leer", "escribir"])
 
     response = client.post("/api/competencia/finalizar-vencidas", headers=headers)
 
@@ -74,8 +102,8 @@ def test_finalizar_competencia_allows_write_admin(client, fake_db):
     assert ("finalizar_competencia_activas_vencidas",) in fake_db.calls
 
 
-def test_purga_mensual_allows_write_admin(client, fake_db):
-    headers = make_session_headers("admin", "ADMIN001", permisos=["leer", "escribir"])
+def test_purga_mensual_allows_write_admin(client, fake_db, session_headers):
+    headers = session_headers("admin", "ADMIN001", permisos=["leer", "escribir"])
 
     response = client.post("/api/purga/mensual", headers=headers)
 
