@@ -90,6 +90,25 @@ def test_crear_invitacion_authenticated_aliado_uses_session_inviter(client, fake
     assert registrar_calls[0][2] == 42
 
 
+def test_crear_invitacion_rejects_pending_aliado_without_writes(client, fake_db, session_headers):
+    fake_db.aliado_estado = "pendiente_completar"
+    headers = session_headers("aliado", "A0001")
+
+    response = client.post(
+        "/api/invitaciones/crear",
+        json={"zona": "08001"},
+        headers=headers,
+    )
+
+    assert response.status_code == 403
+    data = response.get_json()
+    assert data["status"] == "error"
+    assert data["message"] == "Aliado no autorizado para crear invitaciones"
+    assert ("obtener_aliado_por_codigo", "A0001") in fake_db.calls
+    assert all(call[0] != "crear_aliado" for call in fake_db.calls)
+    assert all(call[0] != "_registrar_invitacion" for call in fake_db.calls)
+
+
 def test_finalizar_competencia_allows_write_admin(client, fake_db, session_headers):
     headers = session_headers("admin", "ADMIN001", permisos=["leer", "escribir"])
 

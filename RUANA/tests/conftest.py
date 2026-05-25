@@ -8,6 +8,7 @@ from RUANA.web import app as app_module
 class Hito2AFakeDB:
     def __init__(self):
         self.calls = []
+        self.aliado_estado = "activo"
 
     def codigo_existe(self, codigo):
         self.calls.append(("codigo_existe", codigo))
@@ -15,7 +16,7 @@ class Hito2AFakeDB:
 
     def obtener_aliado_por_codigo(self, codigo):
         self.calls.append(("obtener_aliado_por_codigo", codigo))
-        return {"id": 42, "codigo": codigo, "estado": "activo"}
+        return {"id": 42, "codigo": codigo, "estado": self.aliado_estado}
 
     def crear_aliado(self, **kwargs):
         self.calls.append(("crear_aliado", kwargs))
