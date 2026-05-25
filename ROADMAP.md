@@ -307,6 +307,6 @@ Estado para reanudar:
 
 - Hito activo: Hito 2 - Cierre de superficie critica.
 - Tarea terminada: Hito 2A protege `POST /api/invitaciones/crear`, `POST /api/competencia/finalizar-vencidas` y `POST /api/purga/mensual` con pruebas pytest de permisos.
-- Verificacion ejecutada: `python -m pytest RUANA/tests/test_hito_2a_permissions.py -v` y `python -m pytest RUANA/tests -v` (12 passed en ambos).
+- Verificacion ejecutada: `python -m pytest RUANA/tests/test_hito_2a_permissions.py -v` y `python -m pytest RUANA/tests -v` (13 passed en ambos).
 - Siguiente tarea: Hito 2B, cerrar lectura publica de datos personales en `/api/aliados*`.
 - Bloqueos: ninguno documentado.
