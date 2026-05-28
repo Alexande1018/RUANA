@@ -2248,6 +2248,31 @@ def validar_invitacion_path(codigo):
     return _validar_invitacion_impl(codigo)
 
 
+def _crear_aliado_placeholder_para_invitacion(db, zona=""):
+    """Crea un aliado temporal que el invitado completara al usar el codigo."""
+    import random
+
+    for _ in range(100):
+        codigo = str(random.randint(10000, 99999))
+        if not db.codigo_existe(codigo):
+            break
+    else:
+        raise RuntimeError("No se pudo generar codigo unico despues de 100 intentos")
+
+    result = db.crear_aliado(
+        codigo=codigo,
+        nombre=f"Nuevo Aliado - {codigo}",
+        marca="",
+        oficio="Pendiente",
+        codigo_postal=(zona or "").strip(),
+        email=f"placeholder-{codigo}@ruana.local",
+        telefono=f"+34 600 {codigo}",
+        estado="pendiente_completar",
+        score=75,
+    )
+    return codigo, result
+
+
 @app.route('/api/invitaciones/crear', methods=['POST'])
 @require_aliado
 def crear_invitacion():
@@ -2286,31 +2311,7 @@ def crear_invitacion():
         zona = data.get('zona', '').strip()
         solicitud_id = data.get('solicitud_id')
 
-        # Generar c?digo ?nico de 5 d?gitos num?ricos
-        # Formato: 00000-99999 (asegura compatibilidad con validaci?n del backend)
-        import random
-        while True:
-            codigo = str(random.randint(10000, 99999))
-            # Verificar que no existe
-            if not db.codigo_existe(codigo):
-                break
-        
-        # Crear aliado "placeholder" (pre-registrado) con el c?digo
-        # Este aliado puede ser completado por el nuevo usuario
-        # Usar un tel?fono ?nico derivado del c?digo para evitar duplicados
-        telefono_placeholder = f"+34 600 {codigo}"
-        
-        result = db.crear_aliado(
-            codigo=codigo,
-            nombre=f"Nuevo Aliado - {codigo}",  # Nombre temporal
-            marca="",
-            oficio="Pendiente",
-            codigo_postal=zona,
-            email=f"placeholder-{codigo}@ruana.local",  # Email temporal
-            telefono=telefono_placeholder,  # Tel?fono ?nico derivado del c?digo
-            estado="pendiente_completar",  # Estado especial
-            score=75  # Todo aliado nuevo (incl. placeholder) empieza con 75
-        )
+        codigo, result = _crear_aliado_placeholder_para_invitacion(db, zona)
         
         if result['status'] != 'success':
             return jsonify(result), 400
@@ -2343,6 +2344,33 @@ def crear_invitacion():
             'status': 'error',
             'message': str(e)
         }), 500
+
+
+@app.route('/api/admin/invitaciones/crear', methods=['POST'])
+@require_admin_escritura
+def admin_crear_invitacion():
+    """
+    POST /api/admin/invitaciones/crear
+    Crea un codigo de aliado placeholder desde el panel admin.
+    """
+    try:
+        data = request.get_json() or {}
+        zona = (data.get('zona') or data.get('codigo_postal') or '').strip()
+        db = get_db()
+        codigo, result = _crear_aliado_placeholder_para_invitacion(db, zona)
+
+        if result['status'] != 'success':
+            return jsonify(result), 400
+
+        return jsonify({
+            'status': 'success',
+            'message': 'Codigo de aliado creado desde admin',
+            'codigo': codigo,
+            'tipo': 'invitacion_admin',
+            'timestamp': datetime.now().isoformat()
+        }), 201
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 @app.route('/api/competencia/finalizar-vencidas', methods=['POST'])
