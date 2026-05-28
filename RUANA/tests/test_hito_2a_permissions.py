@@ -123,6 +123,46 @@ def test_crear_invitacion_rejects_pending_aliado_without_writes(client, fake_db,
     assert all(call[0] != "_registrar_invitacion" for call in fake_db.calls)
 
 
+def test_admin_crear_invitacion_rejects_read_only_admin_without_writes(client, fake_db, session_headers):
+    headers = session_headers("admin", "0000", permisos=["leer"])
+
+    response = client.post(
+        "/api/admin/invitaciones/crear",
+        json={"zona": "08001"},
+        headers=headers,
+    )
+
+    assert response.status_code == 403
+    assert fake_db.calls == []
+
+
+def test_admin_crear_invitacion_creates_placeholder(client, fake_db, session_headers):
+    headers = session_headers("admin", "ADMIN001", permisos=["leer", "escribir"])
+
+    response = client.post(
+        "/api/admin/invitaciones/crear",
+        json={"zona": "08001"},
+        headers=headers,
+    )
+
+    assert response.status_code == 201
+    data = response.get_json()
+    assert data["status"] == "success"
+    assert data["tipo"] == "invitacion_admin"
+    assert data["codigo"].isdigit()
+    assert len(data["codigo"]) == 5
+
+    crear_calls = [call for call in fake_db.calls if call[0] == "crear_aliado"]
+    assert len(crear_calls) == 1
+    placeholder = crear_calls[0][1]
+    assert placeholder["codigo"] == data["codigo"]
+    assert placeholder["codigo_postal"] == "08001"
+    assert placeholder["estado"] == "pendiente_completar"
+    assert placeholder["nombre"] == f"Nuevo Aliado - {data['codigo']}"
+    assert placeholder["email"] == f"placeholder-{data['codigo']}@ruana.local"
+    assert all(call[0] != "_registrar_invitacion" for call in fake_db.calls)
+
+
 def test_finalizar_competencia_allows_write_admin(client, fake_db, session_headers):
     headers = session_headers("admin", "ADMIN001", permisos=["leer", "escribir"])
 
