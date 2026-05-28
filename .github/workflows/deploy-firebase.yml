@@ -52,10 +52,15 @@ jobs:
       - name: Install Firebase CLI
         run: npm ci --no-audit --no-fund
 
-      - name: Build container image
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Build and push container image
         env:
           IMAGE: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:${{ github.sha }}
-        run: gcloud builds submit --tag "$IMAGE" --project "$PROJECT_ID"
+        run: |
+          docker build --tag "$IMAGE" .
+          docker push "$IMAGE"
 
       - name: Deploy Cloud Run
         env:
