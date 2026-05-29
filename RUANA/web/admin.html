@@ -21,6 +21,24 @@
             display: flex !important;
         }
 
+        select,
+        select option,
+        select optgroup {
+            color-scheme: dark;
+        }
+
+        select {
+            background-color: rgba(17, 24, 39, 0.94);
+            color: #e5e7eb;
+            border-color: rgba(255, 255, 255, 0.14);
+        }
+
+        select option,
+        select optgroup {
+            background-color: #111827;
+            color: #e5e7eb;
+        }
+
         .admin-header {
             margin-bottom: 40px;
         }
@@ -850,12 +868,12 @@
 
     <!-- Modal de login administrador (visible cuando no hay sesión) -->
     <div class="admin-login-modal hidden" id="adminLoginModal">
-        <div class="admin-login-card">
+        <div class="admin-login-card ruana-auth-card">
             <h1>RUANA Admin</h1>
             <p class="subtitle">Introduce el código de administrador</p>
             <form class="admin-login-form" id="adminLoginForm">
-                <input type="text" class="admin-login-input" id="adminLoginCodigo" placeholder="Código admin" autocomplete="off" maxlength="20">
-                <button type="submit" class="admin-login-btn" id="adminLoginBtn">Entrar</button>
+                <input type="text" class="admin-login-input ruana-form-control" id="adminLoginCodigo" placeholder="Código admin" autocomplete="off" maxlength="20">
+                <button type="submit" class="admin-login-btn ruana-button" id="adminLoginBtn">Entrar</button>
                 <p class="admin-login-error" id="adminLoginError" style="display:none;"></p>
             </form>
             <p class="admin-login-tip">Acceso solo con código de administrador configurado en el servidor.</p>
@@ -863,7 +881,19 @@
     </div>
 
     <div class="admin-container" id="admin-main-content">
-        <div class="admin-loader" id="admin-loader" style="display: flex; align-items: center; justify-content: center; min-height: 200px; color: #999;">Cargando datos...</div>
+        <div class="admin-loader ruana-page-loader compact" id="admin-loader">
+            <div class="ruana-loader-orbit" aria-hidden="true">
+                <div class="ruana-loader-ring"></div>
+                <div class="ruana-loader-line line-a"></div>
+                <div class="ruana-loader-line line-b"></div>
+                <div class="ruana-loader-line line-c"></div>
+                <div class="ruana-loader-node node-a"></div>
+                <div class="ruana-loader-node node-b"></div>
+                <div class="ruana-loader-node node-c"></div>
+                <div class="ruana-loader-core"></div>
+            </div>
+            <div class="ruana-loader-title">Cargando datos...</div>
+        </div>
         <!-- Header -->
         <div class="admin-header">
             <h1 class="admin-title">RUANA</h1>
@@ -1164,14 +1194,14 @@
         <div class="solicitudes-admin-wrap" id="solicitudes-admin-wrap">
             <h2 class="seccion-titulo">Solicitudes (Nuevas conexiones)</h2>
             <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Historial completo. Filtros: estado, grupo, fecha.</p>
-            <div class="filtros-solicitudes-admin" style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
+            <div class="filtros-solicitudes-admin admin-filter-row">
                 <select id="filtro-solicitudes-estado">
                     <option value="">Todos los estados</option>
                     <option value="pendiente">Pendiente</option>
                     <option value="atendida">Atendida</option>
                     <option value="cancelada">Cancelada</option>
                 </select>
-                <input type="number" id="filtro-solicitudes-grupo" placeholder="ID grupo" style="width: 90px;" />
+                <input type="number" id="filtro-solicitudes-grupo" class="admin-filter-small" placeholder="ID grupo" />
                 <input type="date" id="filtro-solicitudes-desde" placeholder="Desde" />
                 <input type="date" id="filtro-solicitudes-hasta" placeholder="Hasta" />
                 <button type="button" class="btn-admin-action" id="btn-filtrar-solicitudes">Filtrar</button>

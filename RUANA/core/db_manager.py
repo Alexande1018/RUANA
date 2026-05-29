@@ -9,7 +9,7 @@ import os
 import random
 import string
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any, Tuple
 import threading
 
@@ -3683,16 +3683,69 @@ class DBManager:
             finally:
                 conn.close()
 
+    def _chat_now(self) -> datetime:
+        """Ahora UTC naive para comparar timestamps SQLite y Postgres normalizados."""
+        return datetime.now(timezone.utc).replace(tzinfo=None)
+
     def _parse_timestamp(self, value) -> Optional[datetime]:
         """Convierte valor SQLite (str/datetime) a datetime para cálculos de vigencia."""
         if not value:
             return None
         try:
-            if isinstance(value, str):
-                return datetime.strptime(value[:19], '%Y-%m-%d %H:%M:%S')
-            return value
+            dt = None
+            if isinstance(value, datetime):
+                dt = value
+            elif isinstance(value, str):
+                raw = value.strip()
+                if not raw:
+                    return None
+                normalized = raw.replace("Z", "+00:00")
+                try:
+                    dt = datetime.fromisoformat(normalized)
+                except ValueError:
+                    dt = datetime.strptime(raw[:19].replace("T", " "), '%Y-%m-%d %H:%M:%S')
+            if not isinstance(dt, datetime):
+                return None
+            if dt.tzinfo is not None:
+                return dt.astimezone(timezone.utc).replace(tzinfo=None)
+            return dt
         except Exception:
             return None
+
+    def _chat_expiry_metadata(self, ref: Optional[datetime]) -> Dict[str, Any]:
+        ref = self._parse_timestamp(ref)
+        if not ref:
+            return {
+                'chat_referencia_en': None,
+                'chat_expira_en': None,
+                'chat_horas_restantes': self.CHAT_HORAS_VIGENCIA,
+                'chat_horas_vigencia': self.CHAT_HORAS_VIGENCIA,
+            }
+        expira_en = ref + timedelta(hours=self.CHAT_HORAS_VIGENCIA)
+        segundos_restantes = (expira_en - self._chat_now()).total_seconds()
+        horas_restantes = max(0, int((segundos_restantes + 3599) // 3600))
+        return {
+            'chat_referencia_en': ref.isoformat(),
+            'chat_expira_en': expira_en.isoformat(),
+            'chat_horas_restantes': horas_restantes,
+            'chat_horas_vigencia': self.CHAT_HORAS_VIGENCIA,
+        }
+
+    def _chat_esta_expirado(self, ref: Optional[datetime]) -> bool:
+        ref = self._parse_timestamp(ref)
+        if not ref:
+            return False
+        return (self._chat_now() - ref).total_seconds() > self.CHAT_HORAS_VIGENCIA * 3600
+
+    def _chat_estado_cerrado(self) -> Dict[str, Any]:
+        return {
+            'chat_expirado': True,
+            'mensajes_restantes': 0,
+            'chat_referencia_en': None,
+            'chat_expira_en': None,
+            'chat_horas_restantes': 0,
+            'chat_horas_vigencia': self.CHAT_HORAS_VIGENCIA,
+        }
 
     def _chat_referencia_ts(self, cursor, contacto_id: int) -> Optional[datetime]:
         """
@@ -3732,24 +3785,35 @@ class DBManager:
                 cursor.execute("SELECT id, estado FROM contactos_ruana WHERE id = ?", (contacto_id,))
                 row = cursor.fetchone()
                 if not row:
-                    return {'chat_expirado': True, 'mensajes_restantes': 0}
+                    return self._chat_estado_cerrado()
                 estado = (row[1] or '').strip()
                 if estado in self._ESTADOS_FINALES_CONTACTO:
-                    return {'chat_expirado': True, 'mensajes_restantes': 0}
-                ref = self._chat_referencia_ts(cursor, contacto_id)
-                expirado = False
-                if ref:
-                    if (datetime.now() - ref).total_seconds() > self.CHAT_HORAS_VIGENCIA * 3600:
-                        expirado = True
+                    return self._chat_estado_cerrado()
+                ref = self._parse_timestamp(self._chat_referencia_ts(cursor, contacto_id))
+                expirado = self._chat_esta_expirado(ref)
                 cursor.execute(
                     "SELECT COUNT(*) FROM chat_mensajes WHERE contacto_id = ? AND emisor_codigo = ?",
                     (contacto_id, codigo)
                 )
                 count = (cursor.fetchone() or [0])[0]
                 restantes = max(0, self.CHAT_MAX_MENSAJES_POR_USUARIO - count)
-                return {'chat_expirado': expirado, 'mensajes_restantes': restantes}
-            except Exception:
-                return {'chat_expirado': True, 'mensajes_restantes': 0}
+                estado_chat = {
+                    'chat_expirado': expirado,
+                    'mensajes_restantes': restantes,
+                }
+                estado_chat.update(self._chat_expiry_metadata(ref))
+                if expirado:
+                    estado_chat['mensajes_restantes'] = 0
+                    estado_chat['chat_horas_restantes'] = 0
+                return estado_chat
+            except Exception as e:
+                print(f"Error estado_chat_contacto: {e}")
+                estado_chat = {
+                    'chat_expirado': False,
+                    'mensajes_restantes': self.CHAT_MAX_MENSAJES_POR_USUARIO,
+                }
+                estado_chat.update(self._chat_expiry_metadata(None))
+                return estado_chat
             finally:
                 conn.close()
 
@@ -3796,8 +3860,8 @@ class DBManager:
                     return {'status': 'error', 'message': 'Contacto cerrado; no se pueden enviar más mensajes.'}
 
                 # --- 4. Validar vigencia: no expirado (48h desde último mensaje o aceptación/creación) ---
-                ref = self._chat_referencia_ts(cursor, contacto_id)
-                if ref and (datetime.now() - ref).total_seconds() > self.CHAT_HORAS_VIGENCIA * 3600:
+                ref = self._parse_timestamp(self._chat_referencia_ts(cursor, contacto_id))
+                if self._chat_esta_expirado(ref):
                     return {
                         'status': 'error',
                         'message': 'Este chat ha expirado (48h desde la última actividad). Cierra el contacto desde el panel para resolver.'
@@ -4348,6 +4412,57 @@ class DBManager:
                 conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
+
+                if self.backend == "postgres":
+                    cutoff = datetime.now(timezone.utc) - timedelta(hours=horas_vigencia)
+                    cursor.execute("""
+                    SELECT *
+                    FROM (
+                        SELECT
+                            c.id,
+                            c.solicitante_codigo,
+                            c.profesional_codigo,
+                            c.servicio,
+                            c.estado,
+                            c.pendiente_resolucion,
+                            COALESCE(c.posponer_recordatorio, 0) AS posponer_recordatorio,
+                            c.fecha_pospuesto_hasta,
+                            c.fecha_aceptacion,
+                            c.fecha_trabajo_en_progreso,
+                            c.fecha_cierre,
+                            c.fecha_disputa,
+                            c.creado_en,
+                            c.actualizado_en,
+                            (SELECT COUNT(*) FROM chat_mensajes m WHERE m.contacto_id = c.id) AS num_mensajes,
+                            (SELECT 1 FROM confirmaciones_trabajo ct INNER JOIN aliados a ON a.id = ct.aliado_id WHERE ct.contacto_id = c.id AND TRIM(CAST(a.codigo AS TEXT)) = ?) AS ya_declaraste_importe,
+                            COALESCE(
+                                (SELECT MAX(m.creado_en) FROM chat_mensajes m WHERE m.contacto_id = c.id),
+                                (SELECT MAX(ts) FROM (VALUES (c.fecha_aceptacion), (c.creado_en)) AS refs(ts) WHERE ts IS NOT NULL)
+                            ) AS chat_ref
+                        FROM contactos_ruana c
+                        WHERE (TRIM(COALESCE(c.solicitante_codigo, '')) = ? OR TRIM(COALESCE(c.profesional_codigo, '')) = ?)
+                          AND c.estado IN ('iniciado', 'aceptado', 'trabajo_en_progreso', 'importe_en_disputa', 'en_conversacion', 'chat_agotado')
+                          AND (
+                              (COALESCE(c.posponer_recordatorio, 0) = 0)
+                              OR (c.fecha_pospuesto_hasta IS NOT NULL AND c.fecha_pospuesto_hasta <= now())
+                          )
+                          AND NOT EXISTS (
+                              SELECT 1 FROM contacto_panel_oculto o
+                              WHERE o.contacto_id = c.id AND TRIM(COALESCE(o.codigo_aliado, '')) = ?
+                          )
+                    ) abierto
+                    WHERE abierto.chat_ref IS NULL OR abierto.chat_ref >= ?
+                    ORDER BY abierto.creado_en DESC
+                    """, (codigo_aliado, codigo_aliado, codigo_aliado, codigo_aliado, cutoff))
+
+                    rows = cursor.fetchall()
+                    result = []
+                    for row in rows:
+                        d = dict(row)
+                        d['num_mensajes'] = d.get('num_mensajes') or 0
+                        d['ya_declaraste_importe'] = d.get('ya_declaraste_importe') is not None
+                        result.append(d)
+                    return result
 
                 # Referencia de vigencia: último mensaje del chat o, si no hay mensajes, el más reciente de fecha_aceptacion/creado_en
                 cursor.execute("""

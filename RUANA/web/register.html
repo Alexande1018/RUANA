@@ -80,6 +80,18 @@
             gap: 16px;
         }
 
+        select,
+        select option,
+        select optgroup {
+            color-scheme: dark;
+        }
+
+        select option,
+        select optgroup {
+            background-color: #111827;
+            color: #e5e7eb;
+        }
+
         .form-group {
             display: flex;
             flex-direction: column;
@@ -477,8 +489,8 @@
 </head>
 <body>
     <a href="/" class="btn-back">← Atrás</a>
-    <div class="register-container">
-        <div class="register-card">
+    <div class="register-container ruana-auth-container">
+        <div class="register-card ruana-auth-card">
             <h1>RUANA</h1>
             <p class="subtitle">Registro de aliado</p>
             
@@ -523,7 +535,7 @@
                 <!-- Oficio principal (obligatorio) - Catálogo jerárquico RUANA -->
                 <div class="oficios-section">
                     <label class="oficios-title" for="oficio-principal">Oficio principal *</label>
-                    <select class="register-input" id="oficio-principal" required aria-label="Oficio principal del catálogo RUANA">
+                    <select class="register-select" id="oficio-principal" required aria-label="Oficio principal del catálogo RUANA">
                         <option value="">— Elige un oficio del catálogo —</option>
                         <!-- Opción "Otro" se añade al final por JS (fillOficioPrincipalSelect) -->
                     </select>

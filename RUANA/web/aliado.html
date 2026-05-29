@@ -16,6 +16,48 @@
             padding: 40px 20px;
         }
 
+        select,
+        select option,
+        select optgroup {
+            color-scheme: dark;
+        }
+
+        select {
+            background-color: rgba(17, 24, 39, 0.94);
+            color: #e5e7eb;
+            border-color: rgba(255, 255, 255, 0.14);
+        }
+
+        select option,
+        select optgroup {
+            background-color: #111827;
+            color: #e5e7eb;
+        }
+
+        body.panel-loading #btn-logout,
+        body.panel-loading .panel-container > :not(#error-bootstrap):not(#panel-loading) {
+            display: none !important;
+        }
+
+        #btn-logout {
+            position: sticky;
+            top: 16px;
+            left: auto;
+            margin: 16px 20px 0 auto;
+            width: max-content;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 90;
+        }
+
+        @media (max-width: 600px) {
+            #btn-logout {
+                top: 10px;
+                margin: 12px 12px 0 auto;
+            }
+        }
+
         /* BLOQUE 1: Perfil del Aliado */
         .perfil-block {
             padding: 32px;
@@ -1396,11 +1438,25 @@
         }
     </style>
 </head>
-<body>
+<body class="panel-loading">
     <button id="btn-logout" class="btn-back">Cerrar sesión</button>
     <div class="panel-container">
         <!-- CONTENEDOR DE ERROR F06 -->
         <div id="error-bootstrap" style="display:none; margin-bottom:24px; padding:16px; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); border-radius:8px; color:#ef4444; font-weight:500; text-align:center;"></div>
+        <div id="panel-loading" class="panel-loading-state ruana-page-loader" role="status" aria-live="polite">
+            <div class="ruana-loader-orbit" aria-hidden="true">
+                <div class="ruana-loader-ring"></div>
+                <div class="ruana-loader-line line-a"></div>
+                <div class="ruana-loader-line line-b"></div>
+                <div class="ruana-loader-line line-c"></div>
+                <div class="ruana-loader-node node-a"></div>
+                <div class="ruana-loader-node node-b"></div>
+                <div class="ruana-loader-node node-c"></div>
+                <div class="ruana-loader-core"></div>
+            </div>
+            <div class="panel-loading-text ruana-loader-title">Preparando tu panel...</div>
+            <p class="panel-loading-subtext ruana-loader-copy">Estamos cargando tu sesión y sincronizando tus datos de RUANA.</p>
+        </div>
 
         <!-- Banner: Tienes un mensaje nuevo de RUANA -->
         <div id="banner-mensaje-nuevo-ruana" style="display:none; margin-bottom:20px; padding:16px 20px; background:rgba(234,179,8,0.2); border:1px solid rgba(234,179,8,0.5); border-radius:8px; color:#eab308; font-weight:600; text-align:center;">
@@ -1461,8 +1517,8 @@
                 <div class="perfil-info">
                     <div class="perfil-titulo">Perfil del Aliado</div>
                     <div class="perfil-main">
-                        <h1 class="perfil-nombre" id="perfil-nombre">Juan Pérez</h1>
-                        <div class="perfil-marca" id="perfil-marca">JP Instalaciones Eléctricas</div>
+                        <h1 class="perfil-nombre" id="perfil-nombre">Cargando...</h1>
+                        <div class="perfil-marca" id="perfil-marca">---</div>
                     </div>
                 </div>
                 <div class="perfil-status" id="perfil-status" data-status="activo">
@@ -1478,7 +1534,7 @@
                 </div>
                 <div class="detail-item">
                     <span class="detail-label">Oficio</span>
-                    <span class="detail-value" id="detail-oficio">Electricidad</span>
+                    <span class="detail-value" id="detail-oficio">---</span>
                 </div>
                 <div class="detail-item">
                     <span class="detail-label">Código Postal</span>
@@ -1936,6 +1992,11 @@
                 this.contactoActual = null;
                 this.profesionalSeleccionado = null;
                 this.chatContactoId = null;
+                this.chatExpirado = false;
+                this.mensajesRestantes = 5;
+                this.chatHorasRestantes = null;
+                this.chatHorasVigencia = 48;
+                this.chatExpiraEn = null;
                 this._chatPollingIntervalId = null;
                 this.notificaciones = [];
                 this.contactosPagoPendiente = [];
@@ -1963,6 +2024,13 @@
                 // Finalmente, renderizar y evaluar banners según estado actual
                 this.render();
                 this.renderAlertas();
+                this.setPanelLoading(false);
+            }
+
+            setPanelLoading(isLoading) {
+                document.body.classList.toggle('panel-loading', Boolean(isLoading));
+                const loadingEl = document.getElementById('panel-loading');
+                if (loadingEl) loadingEl.style.display = isLoading ? '' : 'none';
             }
 
             /**
@@ -3857,12 +3925,18 @@
                     }
                     this.chatExpirado = !!data.chat_expirado;
                     this.mensajesRestantes = data.mensajes_restantes != null ? data.mensajes_restantes : 5;
+                    this.chatHorasRestantes = data.chat_horas_restantes != null ? Number(data.chat_horas_restantes) : null;
+                    this.chatHorasVigencia = data.chat_horas_vigencia != null ? Number(data.chat_horas_vigencia) : 48;
+                    this.chatExpiraEn = data.chat_expira_en || null;
                     this.actualizarUIEstadoChat();
                 } catch (e) {
                     console.error('Error cargando mensajes:', e);
                     if (list && !silent) list.innerHTML = '<p class="chat-loading" style="color:#ef4444;">Error de conexión. Revisa que el servidor esté en marcha.</p>';
                     this.chatExpirado = false;
                     this.mensajesRestantes = 5;
+                    this.chatHorasRestantes = null;
+                    this.chatHorasVigencia = 48;
+                    this.chatExpiraEn = null;
                     this.actualizarUIEstadoChat();
                 }
             }
@@ -3875,10 +3949,15 @@
                 const tieneTexto = input && (input.value || '').trim().length > 0;
                 if (restantesEl) {
                     if (this.chatExpirado) {
-                        restantesEl.textContent = 'Chat expirado (48h). Cierra el contacto desde el panel para resolver.';
+                        restantesEl.textContent = 'Chat caducado. Cierra el contacto desde el panel para resolver.';
                         restantesEl.classList.add('expirado');
                     } else {
-                        restantesEl.textContent = 'Mensajes restantes: ' + this.mensajesRestantes + ' de 5';
+                        const partesEstado = ['Mensajes restantes: ' + this.mensajesRestantes + ' de 5'];
+                        const horas = Number(this.chatHorasRestantes);
+                        if (!isNaN(horas)) {
+                            partesEstado.push(horas <= 0 ? 'Disponible menos de 1 h' : 'Disponible ' + horas + ' h');
+                        }
+                        restantesEl.textContent = partesEstado.join(' · ');
                         restantesEl.classList.remove('expirado');
                     }
                 }
@@ -4229,6 +4308,9 @@
             }
             const datos = await PrivatePanel.fetchAliadoDatos(sesionData.codigo);
             if (!datos || !datos.aliado) {
+                document.body.classList.remove('panel-loading');
+                const loadingEl = document.getElementById('panel-loading');
+                if (loadingEl) loadingEl.style.display = 'none';
                 if (errorContainer) {
                     errorContainer.textContent = 'No se pudieron cargar tus datos. Intenta de nuevo desde el inicio.';
                     errorContainer.style.display = 'block';

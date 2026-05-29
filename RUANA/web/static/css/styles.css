@@ -3,6 +3,30 @@
    Dark Mode + Glassmorphism Minimalista
    ================================================ */
 
+:root {
+    --ruana-bg: #0b1120;
+    --ruana-bg-soft: #111827;
+    --ruana-surface: rgba(255, 255, 255, 0.05);
+    --ruana-surface-strong: rgba(17, 24, 39, 0.94);
+    --ruana-surface-hover: rgba(255, 255, 255, 0.08);
+    --ruana-border: rgba(255, 255, 255, 0.12);
+    --ruana-border-strong: rgba(255, 255, 255, 0.18);
+    --ruana-text: #e5e7eb;
+    --ruana-text-soft: #cbd5e1;
+    --ruana-text-muted: #94a3b8;
+    --ruana-text-subtle: #64748b;
+    --ruana-accent: #22c55e;
+    --ruana-accent-strong: #16a34a;
+    --ruana-info: #38bdf8;
+    --ruana-warning: #eab308;
+    --ruana-danger: #ef4444;
+    --ruana-radius-sm: 6px;
+    --ruana-radius-md: 8px;
+    --ruana-radius-lg: 12px;
+    --ruana-focus-ring: 0 0 0 3px rgba(34, 197, 94, 0.16);
+    --ruana-shadow-soft: 0 18px 50px rgba(0, 0, 0, 0.28);
+}
+
 /* Botón de volver atrás (global) */
 .btn-back {
     position: fixed;
@@ -44,11 +68,384 @@ html {
 body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     background: linear-gradient(135deg, #0f0f1e 0%, #1a1a2e 50%, #0f1419 100%);
-    color: #e0e0e0;
+    color: var(--ruana-text);
     line-height: 1.6;
     min-height: 100vh;
     position: relative;
     overflow-x: hidden;
+}
+
+/* ================================================
+   SISTEMA VISUAL BASE
+   ================================================ */
+.ruana-auth-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: clamp(16px, 4vw, 32px);
+}
+
+.ruana-auth-card {
+    width: min(100%, 460px);
+    background: var(--ruana-surface);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--ruana-radius-lg);
+    padding: clamp(28px, 6vw, 48px) clamp(20px, 5vw, 32px);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--ruana-shadow-soft);
+}
+
+.ruana-form-control {
+    width: 100%;
+    min-height: 44px;
+    padding: 11px 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--ruana-border);
+    border-radius: var(--ruana-radius-md);
+    color: var(--ruana-text);
+    font: inherit;
+    transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ruana-form-control::placeholder {
+    color: var(--ruana-text-subtle);
+}
+
+.ruana-form-control:hover {
+    background: var(--ruana-surface-hover);
+    border-color: var(--ruana-border-strong);
+}
+
+.ruana-form-control:focus {
+    outline: none;
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--ruana-accent);
+    box-shadow: var(--ruana-focus-ring);
+}
+
+textarea.ruana-form-control {
+    min-height: 88px;
+    resize: vertical;
+}
+
+.ruana-button {
+    min-height: 44px;
+    padding: 11px 18px;
+    border: 1px solid transparent;
+    border-radius: var(--ruana-radius-md);
+    background: linear-gradient(135deg, var(--ruana-accent) 0%, var(--ruana-accent-strong) 100%);
+    color: #fff;
+    font: inherit;
+    font-size: 0.92rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, opacity 0.2s ease;
+}
+
+.ruana-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px rgba(34, 197, 94, 0.24);
+}
+
+.ruana-button:focus-visible {
+    outline: none;
+    box-shadow: var(--ruana-focus-ring);
+}
+
+.ruana-button:disabled,
+.ruana-button.is-loading {
+    opacity: 0.65;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.ruana-button.secondary {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: var(--ruana-border);
+    color: var(--ruana-text-soft);
+}
+
+.ruana-button.secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--ruana-border-strong);
+    box-shadow: none;
+}
+
+.access-mode-switch {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.access-mode-button {
+    min-width: 0;
+    white-space: normal;
+    line-height: 1.2;
+}
+
+.access-mode-button.is-muted {
+    opacity: 0.62;
+}
+
+.access-mode-button.invitation {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+}
+
+.invite-helper {
+    margin-top: 16px;
+    font-size: 0.85rem;
+    color: var(--ruana-text-muted);
+    line-height: 1.45;
+}
+
+.ruana-page-loader {
+    min-height: 220px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    color: var(--ruana-text-muted);
+    text-align: center;
+}
+
+.ruana-page-loader.compact {
+    min-height: 140px;
+}
+
+.ruana-loader-orbit {
+    position: relative;
+    width: 116px;
+    height: 116px;
+    display: grid;
+    place-items: center;
+    filter: drop-shadow(0 18px 34px rgba(0, 0, 0, 0.32));
+}
+
+.ruana-loader-core {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background:
+        radial-gradient(circle at 34% 30%, rgba(255,255,255,0.92), rgba(255,255,255,0.08) 18%, transparent 36%),
+        linear-gradient(135deg, var(--ruana-accent) 0%, #14b8a6 54%, var(--ruana-info) 100%);
+    box-shadow:
+        0 0 0 10px rgba(34, 197, 94, 0.08),
+        0 0 32px rgba(34, 197, 94, 0.35);
+    animation: ruana-loader-core-pulse 1.8s ease-in-out infinite;
+    z-index: 3;
+}
+
+.ruana-loader-ring {
+    position: absolute;
+    inset: 13px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 50%;
+    animation: ruana-loader-ring-spin 5.5s linear infinite;
+}
+
+.ruana-loader-ring::before,
+.ruana-loader-ring::after {
+    content: "";
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--ruana-info);
+    box-shadow: 0 0 18px rgba(56, 189, 248, 0.7);
+}
+
+.ruana-loader-ring::before {
+    top: 5px;
+    left: 18px;
+}
+
+.ruana-loader-ring::after {
+    right: 7px;
+    bottom: 15px;
+    background: #facc15;
+    box-shadow: 0 0 18px rgba(250, 204, 21, 0.55);
+}
+
+.ruana-loader-node {
+    position: absolute;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: var(--ruana-accent);
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.72);
+    animation: ruana-loader-node-breathe 1.8s ease-in-out infinite;
+    z-index: 2;
+}
+
+.ruana-loader-node.node-a {
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.ruana-loader-node.node-b {
+    right: 8px;
+    bottom: 28px;
+    animation-delay: 0.24s;
+}
+
+.ruana-loader-node.node-c {
+    left: 8px;
+    bottom: 28px;
+    animation-delay: 0.48s;
+}
+
+.ruana-loader-line {
+    position: absolute;
+    height: 2px;
+    width: 74px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, transparent, rgba(34, 197, 94, 0.72), transparent);
+    opacity: 0.78;
+    transform-origin: center;
+    animation: ruana-loader-line-flow 1.8s ease-in-out infinite;
+}
+
+.ruana-loader-line.line-a {
+    top: 41px;
+    left: 21px;
+    transform: rotate(31deg);
+}
+
+.ruana-loader-line.line-b {
+    right: 19px;
+    bottom: 40px;
+    transform: rotate(90deg);
+    animation-delay: 0.22s;
+}
+
+.ruana-loader-line.line-c {
+    left: 20px;
+    bottom: 40px;
+    transform: rotate(-31deg);
+    animation-delay: 0.44s;
+}
+
+.ruana-loader-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #f4f4f5;
+}
+
+.ruana-loader-copy {
+    max-width: 320px;
+    margin: -8px 0 0;
+    color: rgba(224, 224, 224, 0.58);
+    font-size: 0.88rem;
+    line-height: 1.45;
+}
+
+@keyframes ruana-loader-core-pulse {
+    0%, 100% { transform: scale(0.94); opacity: 0.9; }
+    50% { transform: scale(1.08); opacity: 1; }
+}
+
+@keyframes ruana-loader-ring-spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes ruana-loader-node-breathe {
+    0%, 100% { opacity: 0.64; box-shadow: 0 0 14px rgba(34, 197, 94, 0.42); }
+    50% { opacity: 1; box-shadow: 0 0 24px rgba(34, 197, 94, 0.78); }
+}
+
+@keyframes ruana-loader-line-flow {
+    0%, 100% { opacity: 0.28; }
+    50% { opacity: 0.88; }
+}
+
+.admin-filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.admin-filter-row input,
+.admin-filter-row select {
+    min-height: 40px;
+    padding: 9px 12px;
+    background: rgba(17, 24, 39, 0.94);
+    border: 1px solid var(--ruana-border);
+    border-radius: var(--ruana-radius-md);
+    color: var(--ruana-text);
+    font: inherit;
+}
+
+.admin-filter-row input:focus,
+.admin-filter-row select:focus {
+    outline: none;
+    border-color: var(--ruana-accent);
+    box-shadow: var(--ruana-focus-ring);
+}
+
+.admin-filter-row .admin-filter-small {
+    width: 96px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ruana-loader-core,
+    .ruana-loader-ring,
+    .ruana-loader-node,
+    .ruana-loader-line {
+        animation: none;
+    }
+
+    .ruana-button,
+    .filter-select,
+    .filter-input {
+        transition: none;
+    }
+}
+
+@media (max-width: 640px) {
+    .ruana-auth-container {
+        align-items: stretch;
+        min-height: 100svh;
+        padding: 16px;
+    }
+
+    .ruana-auth-card {
+        align-self: center;
+        padding: 28px 18px;
+    }
+
+    .ruana-auth-card.invite-card,
+    .ruana-auth-card.register-card,
+    .ruana-auth-card.admin-login-card {
+        padding: 28px 18px;
+        border-radius: var(--ruana-radius-lg);
+    }
+
+    .access-mode-switch {
+        grid-template-columns: 1fr;
+    }
+
+    .ruana-button,
+    .invite-btn,
+    .register-btn,
+    .btn-admin-action {
+        width: 100%;
+    }
+
+    .admin-filter-row {
+        flex-direction: column;
+    }
+
+    .admin-filter-row input,
+    .admin-filter-row select,
+    .admin-filter-row .admin-filter-small {
+        width: 100%;
+    }
 }
 
 /* Fondo animado sutil */
@@ -198,6 +595,24 @@ body::before {
 .filter-select option {
     background: #1a1a2e;
     color: #e0e0e0;
+}
+
+select,
+select option,
+select optgroup {
+    color-scheme: dark;
+}
+
+select {
+    background-color: rgba(17, 24, 39, 0.94);
+    color: #e5e7eb;
+    border-color: rgba(255, 255, 255, 0.14);
+}
+
+select option,
+select optgroup {
+    background-color: #111827;
+    color: #e5e7eb;
 }
 
 .btn-reset {
