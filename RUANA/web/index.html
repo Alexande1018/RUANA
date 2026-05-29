@@ -151,17 +151,17 @@
     </style>
 </head>
 <body>
-    <div class="invite-container">
-        <div class="invite-card">
+    <div class="invite-container ruana-auth-container">
+        <div class="invite-card ruana-auth-card">
             <h1>RUANA</h1>
             <p>Elige cómo quieres entrar a RUANA.</p>
 
             <!-- Selector de modo de acceso -->
-            <div style="display: flex; gap: 8px; margin-bottom: 16px;">
-                <button type="button" id="btn-modo-ingreso" class="invite-btn" style="flex: 1; background: #16a34a;">
+            <div class="access-mode-switch">
+                <button type="button" id="btn-modo-ingreso" class="invite-btn ruana-button access-mode-button">
                     Tengo código de ingreso
                 </button>
-                <button type="button" id="btn-modo-invitacion" class="invite-btn" style="flex: 1; background: #1d4ed8;">
+                <button type="button" id="btn-modo-invitacion" class="invite-btn ruana-button access-mode-button invitation">
                     Tengo código de invitación
                 </button>
             </div>
@@ -169,17 +169,17 @@
             <form class="invite-form" id="invite-form">
                 <input 
                     type="text" 
-                    class="invite-input" 
+                    class="invite-input ruana-form-control"
                     id="invite-code" 
                     placeholder="Código de ingreso o invitación"
                     autocomplete="off"
                     required
                 >
-                <button type="submit" class="invite-btn" id="invite-btn">Continuar</button>
+                <button type="submit" class="invite-btn ruana-button" id="invite-btn">Continuar</button>
                 <div class="invite-error" id="invite-error"></div>
             </form>
 
-            <p style="margin-top: 16px; font-size: 0.85rem; color: #aaa; line-height: 1.4;">
+            <p class="invite-helper">
                 • <strong>Código de ingreso</strong>: ya eres aliado y quieres entrar a tu panel (ej: 85776, ALFA01).<br>
                 • <strong>Código de invitación</strong>: te lo pasó otro aliado para registrarte por primera vez.
             </p>
@@ -223,14 +223,12 @@
 
             setMode(mode) {
                 this.mode = mode;
+                this.btnModoIngreso.classList.toggle('is-muted', mode !== 'ingreso');
+                this.btnModoInvitacion.classList.toggle('is-muted', mode !== 'invitacion');
 
                 if (mode === 'ingreso') {
-                    this.btnModoIngreso.style.opacity = '1';
-                    this.btnModoInvitacion.style.opacity = '0.6';
                     this.codeInput.placeholder = 'Código de ingreso (aliado registrado)';
                 } else {
-                    this.btnModoIngreso.style.opacity = '0.6';
-                    this.btnModoInvitacion.style.opacity = '1';
                     this.codeInput.placeholder = 'Código de invitación (nuevo aliado)';
                 }
             }

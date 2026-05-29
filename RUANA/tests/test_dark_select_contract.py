@@ -1,0 +1,22 @@
+from pathlib import Path
+
+
+def test_global_selects_use_dark_color_scheme():
+    styles = Path(__file__).resolve().parents[1] / "web" / "static" / "css" / "styles.css"
+    text = styles.read_text(encoding="utf-8")
+
+    assert "select," in text
+    assert "select option" in text
+    assert "color-scheme: dark" in text
+    assert "background-color: #111827" in text
+    assert "color: #e5e7eb" in text
+
+
+def test_pages_with_selects_include_dark_select_fallback_for_file_preview():
+    web_dir = Path(__file__).resolve().parents[1] / "web"
+
+    for filename in ("admin.html", "aliado.html", "register.html"):
+        text = (web_dir / filename).read_text(encoding="utf-8")
+        assert "color-scheme: dark" in text
+        assert "select option" in text
+        assert "background-color: #111827" in text

@@ -152,21 +152,21 @@
 </head>
 <body>
     <a href="javascript:history.back()" class="btn-back">← Atrás</a>
-    <div class="invite-container">
-        <div class="invite-card">
+    <div class="invite-container ruana-auth-container">
+        <div class="invite-card ruana-auth-card">
             <h1>RUANA</h1>
             <p>Ingresa el código de invitación que recibiste de un aliado para crear tu cuenta.</p>
             
             <form class="invite-form" id="invite-form">
-                <input 
+                <input
                     type="text" 
-                    class="invite-input" 
+                    class="invite-input ruana-form-control"
                     id="invite-code" 
                     placeholder="Ej: ABC123XYZ"
                     autocomplete="off"
                     required
                 >
-                <button type="submit" class="invite-btn" id="invite-btn">Continuar</button>
+                <button type="submit" class="invite-btn ruana-button" id="invite-btn">Continuar</button>
                 <div class="invite-error" id="invite-error"></div>
             </form>
         </div>

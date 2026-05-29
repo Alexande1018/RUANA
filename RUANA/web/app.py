@@ -1044,6 +1044,10 @@ def chat_mensajes_get():
             'mensajes': mensajes,
             'chat_expirado': estado.get('chat_expirado', False),
             'mensajes_restantes': estado.get('mensajes_restantes', 0),
+            'chat_referencia_en': estado.get('chat_referencia_en'),
+            'chat_expira_en': estado.get('chat_expira_en'),
+            'chat_horas_restantes': estado.get('chat_horas_restantes'),
+            'chat_horas_vigencia': estado.get('chat_horas_vigencia'),
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -1284,6 +1288,10 @@ def api_contactos_mensajes(contacto_id):
                 'mensajes': mensajes,
                 'chat_expirado': estado.get('chat_expirado', False),
                 'mensajes_restantes': estado.get('mensajes_restantes', 0),
+                'chat_referencia_en': estado.get('chat_referencia_en'),
+                'chat_expira_en': estado.get('chat_expira_en'),
+                'chat_horas_restantes': estado.get('chat_horas_restantes'),
+                'chat_horas_vigencia': estado.get('chat_horas_vigencia'),
             })
         except Exception as e:
             return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -1325,6 +1333,10 @@ def chat_get_mensajes():
             'mensajes': mensajes,
             'chat_expirado': estado.get('chat_expirado', False),
             'mensajes_restantes': estado.get('mensajes_restantes', 0),
+            'chat_referencia_en': estado.get('chat_referencia_en'),
+            'chat_expira_en': estado.get('chat_expira_en'),
+            'chat_horas_restantes': estado.get('chat_horas_restantes'),
+            'chat_horas_vigencia': estado.get('chat_horas_vigencia'),
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
