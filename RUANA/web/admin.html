@@ -1517,7 +1517,7 @@
                         return r.json().catch(() => null);
                     }
                     const idx12 = responses[12];
-                    const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, solicitudesData, chatsData, competenciasData, stats24hData, invitacionesRecData] = await Promise.all([
+                    const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, solicitudesData, chatsData, competenciasData, stats24hData, invitacionesRecData] = await Promise.all([
                         parseResponse(responses[0], false),
                         parseResponse(responses[1], false),
                         parseResponse(responses[2], false),
