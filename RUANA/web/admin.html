@@ -13,12 +13,25 @@
         .admin-container {
             max-width: 1400px;
             margin: 0 auto;
-            padding: 40px 20px;
+            padding: 96px 20px 40px;
             position: relative;
             z-index: 1;
         }
-        .admin-loader-overlay {
+        .admin-is-loading .admin-data-content {
+            visibility: hidden;
+            pointer-events: none;
+        }
+        .admin-is-loading #admin-loader {
             display: flex !important;
+            position: fixed;
+            inset: 64px 0 0;
+            min-height: 0;
+            z-index: 80;
+            background: rgba(11, 17, 32, 0.96);
+            backdrop-filter: blur(12px);
+        }
+        #admin-loader {
+            display: none;
         }
 
         select,
@@ -56,16 +69,68 @@
             font-weight: 400;
         }
 
-        .admin-header-bar {
+        .admin-topbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 120;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 12px 20px;
-            background: rgba(0,0,0,0.2);
+            gap: 16px;
+            min-height: 64px;
+            padding: 10px 20px;
+            background: rgba(11, 17, 32, 0.94);
             border-bottom: 1px solid rgba(255,255,255,0.08);
+            backdrop-filter: blur(14px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.22);
+        }
+        .admin-topbar-brand {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            min-width: 0;
+        }
+        .admin-topbar-title {
+            color: #f8fafc;
+            font-weight: 700;
+            letter-spacing: 0;
+        }
+        .admin-topbar-subtitle {
+            color: #94a3b8;
+            font-size: 0.82rem;
+            white-space: nowrap;
+        }
+        .admin-topbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+        .admin-topbar-link {
+            min-height: 38px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px 14px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 8px;
+            color: #dbeafe;
+            font-size: 0.85rem;
+            text-decoration: none;
+            cursor: pointer;
+            transition: background 0.2s ease, border-color 0.2s ease;
+        }
+        .admin-topbar-link:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
         }
         .btn-admin-logout {
-            padding: 8px 16px;
+            min-height: 38px;
+            padding: 8px 14px;
             background: rgba(239, 68, 68, 0.2);
             border: 1px solid rgba(239, 68, 68, 0.4);
             border-radius: 8px;
@@ -75,6 +140,26 @@
         }
         .btn-admin-logout:hover {
             background: rgba(239, 68, 68, 0.3);
+        }
+        @media (max-width: 640px) {
+            .admin-container {
+                padding: 112px 14px 28px;
+            }
+            .admin-topbar {
+                align-items: flex-start;
+                min-height: 88px;
+                padding: 10px 14px;
+            }
+            .admin-topbar-brand {
+                flex-direction: column;
+                gap: 2px;
+            }
+            .admin-topbar-subtitle {
+                white-space: normal;
+            }
+            .admin-is-loading #admin-loader {
+                inset: 88px 0 0;
+            }
         }
 
         /* ============================================
@@ -829,7 +914,7 @@
         }
     </style>
 </head>
-<body>
+<body class="admin-is-loading">
     <!-- Modal Detalle Aliado -->
     <div class="admin-login-modal hidden" id="aliadoDetalleModal">
         <div class="admin-login-card aliado-detalle-card">
@@ -861,9 +946,15 @@
         </div>
     </div>
 
-    <div class="admin-header-bar">
-        <a href="/" class="btn-back">← Inicio</a>
-        <button type="button" id="admin-logout-btn" class="btn-admin-logout">Cerrar sesión admin</button>
+    <div class="admin-topbar">
+        <div class="admin-topbar-brand">
+            <span class="admin-topbar-title">RUANA Admin</span>
+            <span class="admin-topbar-subtitle">Sala de Control</span>
+        </div>
+        <div class="admin-topbar-actions">
+            <a href="/" class="admin-topbar-link">← Inicio</a>
+            <button type="button" id="admin-logout-btn" class="btn-admin-logout">Cerrar sesión admin</button>
+        </div>
     </div>
 
     <!-- Modal de login administrador (visible cuando no hay sesión) -->
@@ -894,6 +985,7 @@
             </div>
             <div class="ruana-loader-title">Cargando datos...</div>
         </div>
+        <div class="admin-data-content">
         <!-- Header -->
         <div class="admin-header">
             <h1 class="admin-title">RUANA</h1>
@@ -993,6 +1085,22 @@
                             <tbody id="admin-invitaciones-recientes-tbody"></tbody>
                         </table>
                     </div>
+                </div>
+
+                <div class="movimiento-card" id="admin-campanas-invitacion-panel" style="grid-column: 1 / -1;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px;">
+                        <h4 style="margin-bottom:0;">Códigos de invitación multiuso</h4>
+                        <button type="button" class="btn-admin-action" data-action="crear-campana-invitacion">Crear Invitacion Multiuso</button>
+                    </div>
+                    <div class="movimiento-24h-tabla-scroll" style="max-height: 240px;">
+                        <table class="movimiento-24h-tabla">
+                            <thead>
+                                <tr><th>Código</th><th>Zona</th><th>Usos</th><th>Estado</th><th>Acción</th></tr>
+                            </thead>
+                            <tbody id="admin-campanas-invitacion-tbody"></tbody>
+                        </table>
+                    </div>
+                    <div id="admin-campana-invitacion-result" style="display:none; margin-top:14px; padding:14px; border:1px solid rgba(34,197,94,0.35); background:rgba(34,197,94,0.08); color:#d1fae5; border-radius:8px;"></div>
                 </div>
 
                 <div class="movimiento-card">
@@ -1374,6 +1482,7 @@
             </div>
             <div id="admin-codigo-aliado-result" style="display:none; margin-top:14px; padding:14px; border:1px solid rgba(34,197,94,0.35); background:rgba(34,197,94,0.08); color:#d1fae5; border-radius:8px;"></div>
         </div>
+        </div>
     </div>
 
     <!-- Modal reutilizable para acciones de administrador (formulario + confirmación) -->
@@ -1481,6 +1590,7 @@
                 this._conversacionesList = [];
                 this._conversacionesHasMore = false;
                 this._conversacionesOffset = 0;
+                this._campanasInvitacion = [];
                 window._ruanaAdminPanel = this;
                 this.init();
             }
@@ -1496,6 +1606,7 @@
 
             async cargarDesdeApi() {
                 const loader = document.getElementById('admin-loader');
+                document.body.classList.add('admin-is-loading');
                 if (loader) loader.style.display = 'flex';
                 const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
                 const fetchOpts = { method: 'GET', credentials: 'same-origin', headers: authHeaders };
@@ -1529,12 +1640,13 @@
                         fetch('/api/admin/chats?limite=10&offset=0', fetchOpts),
                         fetch('/api/admin/competencias-activas', fetchOpts),
                         stats24hFetch,
-                        fetch('/api/admin/invitaciones-recientes?limite=15', fetchOpts)
+                        fetch('/api/admin/invitaciones-recientes?limite=15', fetchOpts),
+                        fetch('/api/admin/invitacion-campanas?limite=30', fetchOpts)
                     ];
                     const settled = await Promise.allSettled(fetchPromises);
                     const responses = settled.map((r, i) => (r.status === 'fulfilled' ? r.value : null));
 
-                    const any401 = responses.slice(0, 10).some(r => r && typeof r.status === 'number' && r.status === 401);
+                    const any401 = responses.some(r => r && typeof r.status === 'number' && r.status === 401);
                     if (any401) {
                         this._adminSessionExpired();
                         return;
@@ -1547,7 +1659,7 @@
                         return r.json().catch(() => null);
                     }
                     const idx12 = responses[12];
-                    const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, solicitudesData, chatsData, competenciasData, stats24hData, invitacionesRecData] = await Promise.all([
+                    const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, solicitudesData, chatsData, competenciasData, stats24hData, invitacionesRecData, campanasData] = await Promise.all([
                         parseResponse(responses[0], false),
                         parseResponse(responses[1], false),
                         parseResponse(responses[2], false),
@@ -1561,7 +1673,8 @@
                         parseResponse(responses[10], false),
                         parseResponse(responses[11], false),
                         Promise.resolve(idx12),
-                        parseResponse(responses[13], false)
+                        parseResponse(responses[13], false),
+                        parseResponse(responses[14], false)
                     ]);
 
                     // Pendientes de validación (unir API + lista por código)
@@ -1634,6 +1747,7 @@
                     this.renderPagosEnRevision((pagosEnRevisionData && pagosEnRevisionData.status === 'success' && Array.isArray(pagosEnRevisionData.pagos)) ? pagosEnRevisionData.pagos : []);
                     this.renderSolicitudesAdmin(Array.isArray(solicitudesData) ? solicitudesData : (solicitudesData && Array.isArray(solicitudesData.solicitudes) ? solicitudesData.solicitudes : []));
                     this.renderInvitacionesRecientes(invitacionesRecData && invitacionesRecData.status === 'success' && Array.isArray(invitacionesRecData.invitaciones) ? invitacionesRecData.invitaciones : []);
+                    this.renderCampanasInvitacion(campanasData && campanasData.status === 'success' && Array.isArray(campanasData.campanas) ? campanasData.campanas : []);
                     this.renderCompetenciasActivas((competenciasData && competenciasData.status === 'success' && Array.isArray(competenciasData.competencias)) ? competenciasData.competencias : []);
                     let conversaciones = (chatsData && chatsData.status === 'success' && Array.isArray(chatsData.conversaciones)) ? chatsData.conversaciones : [];
                     this._conversacionesList = conversaciones;
@@ -1654,6 +1768,7 @@
                     this.cargarChatsFallback();
                 } finally {
                     if (loader) loader.style.display = 'none';
+                    document.body.classList.remove('admin-is-loading');
                 }
             }
 
@@ -1969,6 +2084,92 @@
                 }).join('');
             }
 
+            renderCampanasInvitacion(campanas) {
+                const tbody = document.getElementById('admin-campanas-invitacion-tbody');
+                if (!tbody) return;
+                this._campanasInvitacion = Array.isArray(campanas) ? campanas : [];
+                const n = (v) => (v == null || v === '') ? '—' : String(v);
+                if (!Array.isArray(campanas) || campanas.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5">No hay códigos multiuso creados</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = campanas.map(campana => {
+                    const codigoValor = n(campana.codigo);
+                    const codigoSeguro = this.escapeHtml(codigoValor);
+                    const codigo = `<button type="button" class="btn-admin-action btn-ver-campana" data-codigo="${codigoSeguro}">${codigoSeguro}</button>`;
+                    const maxUsos = Number(campana.max_usos || 0);
+                    const usosActuales = Number(campana.usos_actuales || 0);
+                    const activo = Number(campana.activo || 0) === 1 && (!maxUsos || usosActuales < maxUsos);
+                    const estado = Number(campana.activo || 0) !== 1 ? 'Desactivado' : (maxUsos && usosActuales >= maxUsos ? 'Agotado' : 'Activo');
+                    const accion = activo
+                        ? `<button type="button" class="btn-admin-action danger btn-desactivar-campana" data-codigo="${codigoSeguro}">Desactivar</button>`
+                        : '<span style="color:#94a3b8;">—</span>';
+                    return `<tr><td>${codigo}</td><td>${n(campana.codigo_postal)}</td><td>${usosActuales}/${maxUsos || '∞'}</td><td>${estado}</td><td>${accion}</td></tr>`;
+                }).join('');
+            }
+
+            async cargarCampanasInvitacion() {
+                try {
+                    const r = await fetch('/api/admin/invitacion-campanas?limite=30', {
+                        method: 'GET',
+                        credentials: 'same-origin',
+                        headers: AdminAuthenticator.getAdminAuthHeaders()
+                    });
+                    if (r.status === 401) { this._adminSessionExpired(); return; }
+                    const data = await (r.ok ? r.json().catch(() => null) : null);
+                    this.renderCampanasInvitacion(data && data.status === 'success' && Array.isArray(data.campanas) ? data.campanas : []);
+                } catch (_) {
+                    this.showToast('No se pudieron recargar los codigos multiuso.', 'error');
+                }
+            }
+
+            buildCampanaRegistroUrl(codigo) {
+                const origin = window.location.origin || '';
+                return `${origin}/invite.html?codigo=${encodeURIComponent(codigo || '')}`;
+            }
+
+            buildCampanaQrUrl(registroUrl) {
+                return 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(registroUrl || '');
+            }
+
+            verDetalleCampanaInvitacion(codigo) {
+                const campana = (this._campanasInvitacion || []).find(c => String(c.codigo || '') === String(codigo || ''));
+                if (!campana) {
+                    this.showToast('No se encontro el codigo multiuso.', 'error');
+                    return;
+                }
+                const registroUrl = campana.registro_url || this.buildCampanaRegistroUrl(campana.codigo || codigo);
+                this.renderCampanaInvitacionCreada({
+                    campana,
+                    registro_url: registroUrl,
+                    qr_url: campana.qr_url || this.buildCampanaQrUrl(registroUrl),
+                    modo: 'detalle'
+                });
+            }
+
+            async desactivarCampanaInvitacion(codigo) {
+                if (!codigo) return;
+                if (!confirm(`¿Desactivar el código multiuso ${codigo}? Dejará de validar inmediatamente.`)) return;
+                try {
+                    const r = await fetch('/api/admin/invitacion-campanas/' + encodeURIComponent(codigo) + '/desactivar', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: this.getAuthHeaders()
+                    });
+                    if (r.status === 401) { this._adminSessionExpired(); return; }
+                    if (r.status === 403) { this.showToast('Sin permiso de escritura (solo lectura).', 'error'); return; }
+                    const data = await r.json().catch(() => ({}));
+                    if (r.ok && data.status === 'success') {
+                        this.showToast('Código multiuso desactivado.', 'success');
+                        this.cargarDesdeApi();
+                    } else {
+                        this.showToast(data.message || 'No se pudo desactivar el código.', 'error');
+                    }
+                } catch (_) {
+                    this.showToast('Error de conexión al desactivar el código.', 'error');
+                }
+            }
+
             showToast(message, type = 'success') {
                 const container = document.getElementById('adminToastContainer');
                 if (!container) return;
@@ -1993,7 +2194,8 @@
                 document.querySelectorAll('.btn-admin-action[data-action]').forEach(btn => {
                     btn.addEventListener('click', function() {
                         const action = this.getAttribute('data-action');
-                        if (action === 'crear-codigo-aliado') self.accionCrearCodigoAliado();
+                        if (action === 'crear-campana-invitacion') self.accionCrearCampanaInvitacion();
+                        else if (action === 'crear-codigo-aliado') self.accionCrearCodigoAliado();
                         else if (action === 'pausar-aliado') self.accionPausarAliado();
                         else if (action === 'forzar-suplencia') self.accionForzarSuplencia();
                         else if (action === 'cerrar-oficio') self.accionCerrarOficio();
@@ -2002,6 +2204,19 @@
                         else if (action === 'cambiar-reglas') self.accionCambiarReglas();
                     });
                 });
+                const campanasTbody = document.getElementById('admin-campanas-invitacion-tbody');
+                if (campanasTbody) {
+                    campanasTbody.addEventListener('click', (event) => {
+                        const target = event.target && event.target.closest ? event.target : null;
+                        const btnVer = target ? target.closest('.btn-ver-campana') : null;
+                        if (btnVer) {
+                            this.verDetalleCampanaInvitacion(btnVer.getAttribute('data-codigo') || '');
+                            return;
+                        }
+                        const btn = target ? target.closest('.btn-desactivar-campana') : null;
+                        if (btn) this.desactivarCampanaInvitacion(btn.getAttribute('data-codigo') || '');
+                    });
+                }
                 this._setupModalAccionAdmin();
             }
 
@@ -2067,6 +2282,91 @@
                     }
                     this._cerrarModalAccion();
                 }
+            }
+
+            accionCrearCampanaInvitacion() {
+                this._abrirModalAccionAdmin({
+                    title: 'Crear invitacion multiuso',
+                    bodyHtml: `
+                        <label class="modal-importe-label" style="display:block; margin-bottom:6px;">Nombre interno</label>
+                        <input type="text" id="accion-campana-nombre" placeholder="Ej: Campana barrio norte" style="width:100%; padding:8px; margin-bottom:12px; box-sizing:border-box;" />
+                        <label class="modal-importe-label" style="display:block; margin-bottom:6px;">Codigo publico (opcional)</label>
+                        <input type="text" id="accion-campana-codigo" placeholder="Ej: RUANA-NORTE" style="width:100%; padding:8px; margin-bottom:12px; box-sizing:border-box;" />
+                        <label class="modal-importe-label" style="display:block; margin-bottom:6px;">Codigo postal inicial (opcional)</label>
+                        <input type="text" id="accion-campana-zona" placeholder="Ej: 03014" style="width:100%; padding:8px; margin-bottom:12px; box-sizing:border-box;" />
+                        <label class="modal-importe-label" style="display:block; margin-bottom:6px;">Maximo de usos</label>
+                        <input type="number" id="accion-campana-max-usos" value="25" min="1" max="10000" style="width:100%; padding:8px; box-sizing:border-box;" />
+                    `,
+                    getPayload: () => ({
+                        nombre: (document.getElementById('accion-campana-nombre')?.value || '').trim(),
+                        codigo: (document.getElementById('accion-campana-codigo')?.value || '').trim(),
+                        codigo_postal: (document.getElementById('accion-campana-zona')?.value || '').trim(),
+                        max_usos: parseInt(document.getElementById('accion-campana-max-usos')?.value || '25', 10)
+                    }),
+                    validate: (p) => {
+                        if (!p.max_usos || p.max_usos < 1) return 'Indica un maximo de usos valido.';
+                        return null;
+                    },
+                    getConfirmSummary: (p) => {
+                        const codigo = p.codigo ? ` con codigo <strong>${this.escapeHtml(p.codigo.toUpperCase())}</strong>` : ' con codigo generado automaticamente';
+                        const zona = p.codigo_postal ? ` para codigo postal <strong>${this.escapeHtml(p.codigo_postal)}</strong>` : '';
+                        return `Se creara una invitacion multiuso${codigo}${zona}, limitada a <strong>${p.max_usos}</strong> registros.`;
+                    },
+                    execute: async (p) => {
+                        const r = await fetch('/api/admin/invitacion-campanas', {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: this.getAuthHeaders(),
+                            body: JSON.stringify(p)
+                        });
+                        if (r.status === 401) { this._adminSessionExpired(); return; }
+                        if (r.status === 403) { this.showToast('Sin permiso de escritura (solo lectura).', 'error'); return; }
+                        const data = await r.json().catch(() => ({}));
+                        if (r.ok && data.status === 'success' && data.campana) {
+                            this.renderCampanaInvitacionCreada(data);
+                            this.showToast('Invitacion multiuso creada.', 'success');
+                            this.cargarCampanasInvitacion();
+                        } else {
+                            this.showToast(data.message || 'Error al crear invitacion multiuso.', 'error');
+                        }
+                    }
+                });
+            }
+
+            renderCampanaInvitacionCreada(data) {
+                const result = document.getElementById('admin-campana-invitacion-result');
+                if (!result) return;
+                const campana = data.campana || {};
+                const codigo = campana.codigo || '';
+                const registroUrl = data.registro_url || '';
+                const qrUrl = data.qr_url || '';
+                const usosActuales = Number(campana.usos_actuales || 0);
+                const maxUsos = campana.max_usos || '';
+                const titulo = data.modo === 'detalle' ? 'Informacion del codigo multiuso' : 'Invitacion multiuso creada';
+                result.style.display = 'block';
+                result.innerHTML = `
+                    <div style="display:grid; gap:14px; grid-template-columns:minmax(0,1fr) auto; align-items:center;">
+                        <div>
+                            <div style="font-size:0.78rem; color:#a7f3d0; text-transform:uppercase; letter-spacing:0.04em;">${titulo}</div>
+                            <div style="font-size:1.8rem; font-weight:700; color:#ffffff; margin-top:2px;">${this.escapeHtml(codigo)}</div>
+                            <div style="font-size:0.86rem; color:#cbd5e1; margin-top:8px; overflow-wrap:anywhere;">${this.escapeHtml(registroUrl)}</div>
+                            <div style="font-size:0.82rem; color:#94a3b8; margin-top:6px;">Usos: ${usosActuales}/${this.escapeHtml(String(maxUsos))}</div>
+                        </div>
+                        ${qrUrl ? `<img src="${this.escapeHtml(qrUrl)}" alt="QR invitacion" style="width:112px; height:112px; border-radius:8px; background:#fff; padding:6px;">` : ''}
+                    </div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;">
+                        <button type="button" class="btn-admin-action" id="admin-copiar-campana-codigo">Copiar codigo</button>
+                        <button type="button" class="btn-admin-action" id="admin-copiar-campana-url">Copiar enlace</button>
+                    </div>
+                `;
+                document.getElementById('admin-copiar-campana-codigo')?.addEventListener('click', async () => {
+                    try { await navigator.clipboard.writeText(codigo); this.showToast('Codigo copiado.', 'success'); }
+                    catch (_) { this.showToast('No se pudo copiar automaticamente.', 'error'); }
+                });
+                document.getElementById('admin-copiar-campana-url')?.addEventListener('click', async () => {
+                    try { await navigator.clipboard.writeText(registroUrl); this.showToast('Enlace copiado.', 'success'); }
+                    catch (_) { this.showToast('No se pudo copiar automaticamente.', 'error'); }
+                });
             }
 
             accionCrearCodigoAliado() {

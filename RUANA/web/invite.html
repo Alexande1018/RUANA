@@ -200,6 +200,13 @@
             init() {
                 this.form.addEventListener('submit', (e) => this.handleSubmit(e));
                 this.codeInput.addEventListener('input', () => this.clearError());
+                const params = new URLSearchParams(window.location.search);
+                const codeFromUrl = (params.get('codigo') || params.get('code') || '').trim();
+                if (codeFromUrl) {
+                    this.codeInput.value = codeFromUrl.toUpperCase();
+                    this.validateInviteCode(this.codeInput.value);
+                    return;
+                }
                 this.codeInput.focus();
             }
 
