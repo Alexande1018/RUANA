@@ -2446,7 +2446,7 @@ def admin_crear_invitacion():
 
 
 def _registro_url_para_invitacion(codigo):
-    base = request.host_url.rstrip('/')
+    base = (getattr(settings, 'public_app_url', '') or request.host_url).rstrip('/')
     return f"{base}/invite.html?codigo={codigo}"
 
 

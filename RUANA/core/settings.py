@@ -29,6 +29,7 @@ def _load_env_files() -> None:
 @dataclass(frozen=True)
 class Settings:
     firebase_project_id: str = os.environ.get("FIREBASE_PROJECT_ID", "ruana-4293f")
+    public_app_url: str = os.environ.get("RUANA_PUBLIC_APP_URL", "")
     google_cloud_region: str = os.environ.get("GOOGLE_CLOUD_REGION", "europe-west1")
     supabase_url: str = os.environ.get("SUPABASE_URL", "")
     supabase_anon_key: str = os.environ.get("SUPABASE_ANON_KEY", "")
@@ -48,8 +49,15 @@ class Settings:
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     _load_env_files()
+    firebase_project_id = os.environ.get("FIREBASE_PROJECT_ID", "ruana-4293f")
+    public_app_url = (
+        os.environ.get("RUANA_PUBLIC_APP_URL", "")
+        or os.environ.get("PUBLIC_APP_URL", "")
+        or f"https://{firebase_project_id}.web.app"
+    )
     return Settings(
-        firebase_project_id=os.environ.get("FIREBASE_PROJECT_ID", "ruana-4293f"),
+        firebase_project_id=firebase_project_id,
+        public_app_url=public_app_url.rstrip("/"),
         google_cloud_region=os.environ.get("GOOGLE_CLOUD_REGION", "europe-west1"),
         supabase_url=os.environ.get("SUPABASE_URL", ""),
         supabase_anon_key=os.environ.get("SUPABASE_ANON_KEY", ""),

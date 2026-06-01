@@ -49,6 +49,7 @@ def test_admin_campaign_code_validates_and_is_consumed_on_registration(
     assert create_data["campana"]["codigo"] == "RUANA-TEST"
     assert create_data["campana"]["max_usos"] == 1
     assert create_data["registro_url"].endswith("/invite.html?codigo=RUANA-TEST")
+    assert create_data["registro_url"].startswith("https://ruana-4293f.web.app/")
 
     validation = client.get("/api/validar-invitacion?codigo=RUANA-TEST")
     assert validation.status_code == 200

@@ -2124,7 +2124,7 @@
             }
 
             buildCampanaRegistroUrl(codigo) {
-                const origin = window.location.origin || '';
+                const origin = window.RUANA_PUBLIC_APP_URL || 'https://ruana-4293f.web.app';
                 return `${origin}/invite.html?codigo=${encodeURIComponent(codigo || '')}`;
             }
 
