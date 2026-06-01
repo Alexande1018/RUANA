@@ -68,12 +68,49 @@ class DBManager:
         # Inicializar base de datos
         if self.backend == "sqlite":
             self._init_db()
+        else:
+            self._init_postgres_invitation_campaigns()
 
     def _connect(self):
         """Open a database connection for the configured backend."""
         if self.backend == "postgres":
             return pg_compat_connect(self.settings.database_url)
         return sqlite3.connect(self.db_path)
+
+    def _init_postgres_invitation_campaigns(self):
+        """Crea las tablas nuevas de campanas cuando el backend es Supabase/Postgres."""
+        conn = None
+        try:
+            conn = self._connect()
+            cursor = conn.cursor()
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS invitacion_campanas (
+                    codigo TEXT PRIMARY KEY,
+                    nombre TEXT NOT NULL,
+                    codigo_postal TEXT DEFAULT '',
+                    max_usos INTEGER NOT NULL,
+                    usos_actuales INTEGER DEFAULT 0,
+                    activo INTEGER DEFAULT 1,
+                    creado_por_admin_codigo TEXT DEFAULT '',
+                    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    desactivado_en TIMESTAMP
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS invitacion_campana_usos (
+                    id SERIAL PRIMARY KEY,
+                    codigo_campana TEXT NOT NULL REFERENCES invitacion_campanas(codigo),
+                    codigo_aliado TEXT NOT NULL REFERENCES aliados(codigo),
+                    usado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(codigo_campana, codigo_aliado)
+                )
+            """)
+            conn.commit()
+        except Exception as e:
+            print(f"[RUANA][DB] Error inicializando campanas en Postgres: {e}")
+        finally:
+            if conn:
+                conn.close()
     
     def _init_db(self):
         """Inicializa la base de datos con tablas si no existen"""
@@ -267,6 +304,30 @@ class DBManager:
                         creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         usado INTEGER DEFAULT 0,
                         FOREIGN KEY(invitador_aliado_id) REFERENCES aliados(id)
+                    )
+                """)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS invitacion_campanas (
+                        codigo TEXT PRIMARY KEY,
+                        nombre TEXT NOT NULL,
+                        codigo_postal TEXT DEFAULT '',
+                        max_usos INTEGER NOT NULL,
+                        usos_actuales INTEGER DEFAULT 0,
+                        activo INTEGER DEFAULT 1,
+                        creado_por_admin_codigo TEXT DEFAULT '',
+                        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        desactivado_en TIMESTAMP
+                    )
+                """)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS invitacion_campana_usos (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        codigo_campana TEXT NOT NULL,
+                        codigo_aliado TEXT NOT NULL,
+                        usado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(codigo_campana, codigo_aliado),
+                        FOREIGN KEY(codigo_campana) REFERENCES invitacion_campanas(codigo),
+                        FOREIGN KEY(codigo_aliado) REFERENCES aliados(codigo)
                     )
                 """)
                 # Referidos: aliado referido por otro (para métrica "Aliados referidos por mí")
@@ -1451,6 +1512,166 @@ class DBManager:
             finally:
                 conn.close()
 
+    def completar_aliado_pendiente(self, codigo: str, nombre: str, marca: str = "",
+                                   oficio: str = "", codigo_postal: str = "",
+                                   email: str = "", telefono: str = "",
+                                   estado: str = "activo", score: int = 75,
+                                   especializaciones: Optional[List[str]] = None,
+                                   especializacion: Optional[str] = None,
+                                   descripcion_servicio: Optional[str] = None,
+                                   grupo_id_invitacion: Optional[int] = None) -> Dict[str, Any]:
+        """Completa un aliado placeholder creado por invitacion y conserva su codigo."""
+        codigo = (codigo or "").strip()
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+
+                cursor.execute("SELECT id, estado FROM aliados WHERE codigo = ?", (codigo,))
+                row = cursor.fetchone()
+                if not row:
+                    return {'status': 'error', 'message': 'Codigo de invitacion no encontrado'}
+                aliado_id = row[0]
+                estado_actual = (row[1] or '').strip()
+                if estado_actual != 'pendiente_completar':
+                    return {'status': 'error', 'message': 'Codigo de invitacion ya usado'}
+
+                cursor.execute("SELECT id FROM aliados WHERE email = ? AND codigo != ?", (email, codigo))
+                if cursor.fetchone():
+                    return {'status': 'error', 'message': f'El email {email} ya esta registrado'}
+
+                cursor.execute("SELECT id FROM aliados WHERE telefono = ? AND codigo != ?", (telefono, codigo))
+                if cursor.fetchone():
+                    return {'status': 'error', 'message': f'El telefono {telefono} ya esta registrado'}
+
+                if not codigo or len(codigo) != 5 or not codigo.isdigit():
+                    return {'status': 'error', 'message': 'El codigo de invitacion debe ser un numero de 5 digitos'}
+                if not nombre or len(nombre) < 3:
+                    return {'status': 'error', 'message': 'El nombre es obligatorio y debe tener al menos 3 caracteres'}
+                if not email or '@' not in email:
+                    return {'status': 'error', 'message': 'El email es obligatorio y debe ser valido'}
+
+                import re
+                digitos_telefono = re.sub(r'\D', '', telefono)
+                if not telefono or len(digitos_telefono) < 7:
+                    return {'status': 'error', 'message': 'El telefono es obligatorio y debe tener al menos 7 digitos'}
+
+                oficio_stripped = str(oficio).strip() if oficio else ''
+                en_catalogo = self.oficio_en_catalogo(oficio_stripped) if oficio_stripped else False
+                estado_final = estado
+                if oficio_stripped and not en_catalogo:
+                    estado_final = 'pendiente_validacion'
+
+                esp_plaza = (especializacion or '').strip() or oficio_stripped
+                catalogo_jer = self.get_catalogo_oficios_jerarquico()
+                oficio_info = next((o for o in catalogo_jer if (o.get('nombre') or '').strip() == oficio_stripped), None)
+                allowed_esp = set()
+                if oficio_info and oficio_info.get('especializaciones'):
+                    allowed_esp = {str(e).strip() for e in oficio_info['especializaciones'] if str(e).strip()}
+                if en_catalogo and oficio_stripped and esp_plaza and esp_plaza not in allowed_esp:
+                    estado_final = 'pendiente_validacion'
+
+                esp_list = list(especializaciones) if especializaciones is not None else []
+                esp_filtradas = []
+                for e in esp_list:
+                    s = str(e).strip()
+                    if s and s in allowed_esp and s != esp_plaza and s not in esp_filtradas:
+                        esp_filtradas.append(s)
+                        if len(esp_filtradas) >= 2:
+                            break
+                especializaciones_json = json.dumps(esp_filtradas, ensure_ascii=False) if esp_filtradas else None
+
+                grupo_preferido_id = None
+                if en_catalogo and oficio_stripped:
+                    if grupo_id_invitacion:
+                        if not self._grupo_tiene_plaza(cursor, grupo_id_invitacion, oficio_stripped, esp_plaza or None):
+                            grupo_pref = self.obtener_grupo_por_id(grupo_id_invitacion)
+                            if grupo_pref and (grupo_pref.get('estado') or '') == 'activo':
+                                grupo_preferido_id = grupo_id_invitacion
+                    if grupo_preferido_id is None and codigo_postal:
+                        grupos_activos = self.obtener_grupos_activos_por_cp(codigo_postal)
+                        grupo_sin_oficio = self.buscar_grupo_sin_oficio(codigo_postal, oficio_stripped, esp_plaza or None)
+                        if grupo_sin_oficio is None and len(grupos_activos) >= MAX_GRUPOS_POR_CP:
+                            cp_adyacente = self.sugerir_cp_adyacente(codigo_postal)
+                            msg = 'Limite de 5 grupos alcanzado para este codigo postal. Por favor use un codigo postal adyacente.'
+                            if cp_adyacente:
+                                msg += f' Sugerencia: {cp_adyacente}'
+                            return {
+                                'status': 'error',
+                                'message': msg,
+                                'redirect_to_codigo_postal': cp_adyacente or ''
+                            }
+
+                cursor.execute("""
+                    UPDATE aliados
+                    SET nombre = ?,
+                        marca = ?,
+                        oficio = ?,
+                        codigo_postal = ?,
+                        email = ?,
+                        telefono = ?,
+                        estado = ?,
+                        score = ?,
+                        grupo_id = NULL,
+                        especializaciones = ?,
+                        especializacion = ?,
+                        descripcion_servicio = ?,
+                        actualizado_en = CURRENT_TIMESTAMP
+                    WHERE id = ? AND estado = 'pendiente_completar'
+                """, (
+                    nombre, marca, oficio_stripped or oficio, codigo_postal, email, telefono,
+                    estado_final, score, especializaciones_json, esp_plaza or None,
+                    descripcion_servicio, aliado_id
+                ))
+                if cursor.rowcount != 1:
+                    conn.rollback()
+                    return {'status': 'error', 'message': 'Codigo de invitacion ya usado'}
+                conn.commit()
+
+                if en_catalogo and oficio_stripped:
+                    if grupo_preferido_id:
+                        cursor.execute("UPDATE aliados SET grupo_id = ? WHERE id = ?", (grupo_preferido_id, aliado_id))
+                        conn.commit()
+                    elif codigo_postal:
+                        grupo_asignar = self.buscar_grupo_sin_oficio(codigo_postal, oficio_stripped, esp_plaza or None)
+                        if grupo_asignar:
+                            cursor.execute("UPDATE aliados SET grupo_id = ? WHERE id = ?", (grupo_asignar['id'], aliado_id))
+                        elif self.contar_grupos_activos_por_cp(codigo_postal) < MAX_GRUPOS_POR_CP:
+                            nuevo_grupo = self.crear_grupo_en_cp(codigo_postal)
+                            if isinstance(nuevo_grupo, dict) and 'id' in nuevo_grupo:
+                                cursor.execute("UPDATE aliados SET grupo_id = ? WHERE id = ?", (nuevo_grupo['id'], aliado_id))
+                        if cursor.rowcount:
+                            conn.commit()
+
+                cursor.execute(
+                    "SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, email, telefono, estado, score, descripcion_servicio, especializacion, creado_en, actualizado_en FROM aliados WHERE id = ?",
+                    (aliado_id,)
+                )
+                row = cursor.fetchone()
+                if row and hasattr(row, 'keys'):
+                    aliado_row = dict(row)
+                elif row and isinstance(row, (list, tuple)):
+                    cols = ('id', 'codigo', 'nombre', 'marca', 'oficio', 'codigo_postal', 'grupo_id', 'email', 'telefono', 'estado', 'score', 'descripcion_servicio', 'especializacion', 'creado_en', 'actualizado_en')
+                    aliado_row = dict(zip(cols, row))
+                else:
+                    aliado_row = {
+                        'id': aliado_id, 'codigo': codigo, 'nombre': nombre, 'marca': marca, 'oficio': oficio,
+                        'codigo_postal': codigo_postal, 'grupo_id': None, 'email': email, 'telefono': telefono,
+                        'estado': estado_final, 'score': score, 'creado_en': datetime.now().isoformat(), 'actualizado_en': None
+                    }
+
+                out = {'status': 'success', **aliado_row}
+                out['especializaciones'] = esp_filtradas
+                return out
+            except sqlite3.IntegrityError as e:
+                return {'status': 'error', 'message': f'Error de integridad: {e}'}
+            except Exception as e:
+                return {'status': 'error', 'message': str(e)}
+            finally:
+                if conn:
+                    conn.close()
+
     def crear_aliado_seed(self, codigo: str, nombre: str, marca: str = "",
                           oficio: str = "", codigo_postal: str = "",
                           email: str = "", telefono: str = "",
@@ -2409,6 +2630,189 @@ class DBManager:
                 conn.commit()
             finally:
                 conn.close()
+
+    def crear_campana_invitacion(self, codigo: str = "", nombre: str = "",
+                                  codigo_postal: str = "", max_usos: int = 100,
+                                  creado_por_admin_codigo: str = "") -> Dict[str, Any]:
+        """Crea un codigo multiuso administrado para registros por invitacion."""
+        import random
+        import re
+        codigo = (codigo or "").strip().upper()
+        nombre = (nombre or "").strip() or "Campana de invitacion"
+        codigo_postal = (codigo_postal or "").strip()
+        try:
+            max_usos_int = int(max_usos)
+        except (TypeError, ValueError):
+            max_usos_int = 100
+        max_usos_int = max(1, min(max_usos_int, 10000))
+
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+
+                if not codigo:
+                    for _ in range(100):
+                        codigo = "RUANA-" + "".join(random.choice("ABCDEFGHJKLMNPQRSTUVWXYZ23456789") for _ in range(6))
+                        cursor.execute("SELECT codigo FROM invitacion_campanas WHERE codigo = ?", (codigo,))
+                        if not cursor.fetchone():
+                            break
+                    else:
+                        return {'status': 'error', 'message': 'No se pudo generar codigo de campana unico'}
+
+                if not re.match(r'^[A-Z0-9][A-Z0-9_-]{3,39}$', codigo):
+                    return {'status': 'error', 'message': 'El codigo debe tener 4-40 caracteres alfanumericos, guion o guion bajo'}
+
+                cursor.execute("SELECT codigo FROM invitacion_campanas WHERE codigo = ?", (codigo,))
+                if cursor.fetchone():
+                    return {'status': 'error', 'message': f'El codigo {codigo} ya existe'}
+
+                cursor.execute("""
+                    INSERT INTO invitacion_campanas
+                    (codigo, nombre, codigo_postal, max_usos, usos_actuales, activo, creado_por_admin_codigo)
+                    VALUES (?, ?, ?, ?, 0, 1, ?)
+                """, (codigo, nombre, codigo_postal, max_usos_int, (creado_por_admin_codigo or "").strip()))
+                conn.commit()
+
+                cursor.execute("SELECT * FROM invitacion_campanas WHERE codigo = ?", (codigo,))
+                row = cursor.fetchone()
+                return {'status': 'success', 'campana': dict(row)}
+            except Exception as e:
+                return {'status': 'error', 'message': str(e)}
+            finally:
+                if conn:
+                    conn.close()
+
+    def listar_campanas_invitacion(self, limite: int = 50) -> List[Dict[str, Any]]:
+        """Lista campanas de invitacion multiuso para el panel admin."""
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                limite = max(1, min(int(limite or 50), 200))
+                cursor.execute("""
+                    SELECT codigo, nombre, codigo_postal, max_usos, usos_actuales, activo,
+                           creado_por_admin_codigo, creado_en, desactivado_en
+                    FROM invitacion_campanas
+                    ORDER BY creado_en DESC
+                    LIMIT ?
+                """, (limite,))
+                return [dict(r) for r in cursor.fetchall()]
+            except Exception:
+                return []
+            finally:
+                if conn:
+                    conn.close()
+
+    def validar_campana_invitacion(self, codigo: str) -> Optional[Dict[str, Any]]:
+        """Devuelve la campana si existe, esta activa y aun tiene usos disponibles."""
+        codigo = (codigo or "").strip().upper()
+        if not codigo:
+            return None
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM invitacion_campanas WHERE codigo = ?", (codigo,))
+                row = cursor.fetchone()
+                if not row:
+                    return None
+                campana = dict(row)
+                if int(campana.get('activo') or 0) != 1:
+                    return None
+                max_usos = int(campana.get('max_usos') or 0)
+                usos_actuales = int(campana.get('usos_actuales') or 0)
+                if max_usos > 0 and usos_actuales >= max_usos:
+                    return None
+                campana['usos_restantes'] = max(0, max_usos - usos_actuales)
+                return campana
+            except Exception:
+                return None
+            finally:
+                if conn:
+                    conn.close()
+
+    def obtener_campana_invitacion(self, codigo: str) -> Optional[Dict[str, Any]]:
+        """Devuelve una campana por codigo aunque este agotada o desactivada."""
+        codigo = (codigo or "").strip().upper()
+        if not codigo:
+            return None
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM invitacion_campanas WHERE codigo = ?", (codigo,))
+                row = cursor.fetchone()
+                return dict(row) if row else None
+            except Exception:
+                return None
+            finally:
+                if conn:
+                    conn.close()
+
+    def consumir_campana_invitacion(self, codigo: str, nuevo_aliado_codigo: str) -> bool:
+        """Marca un uso de campana si aun queda cupo disponible."""
+        codigo = (codigo or "").strip().upper()
+        nuevo_aliado_codigo = (nuevo_aliado_codigo or "").strip()
+        if not codigo or not nuevo_aliado_codigo:
+            return False
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE invitacion_campanas
+                    SET usos_actuales = usos_actuales + 1
+                    WHERE codigo = ?
+                      AND activo = 1
+                      AND usos_actuales < max_usos
+                """, (codigo,))
+                if cursor.rowcount != 1:
+                    conn.rollback()
+                    return False
+                cursor.execute("""
+                    INSERT OR IGNORE INTO invitacion_campana_usos (codigo_campana, codigo_aliado)
+                    VALUES (?, ?)
+                """, (codigo, nuevo_aliado_codigo))
+                conn.commit()
+                return True
+            except Exception:
+                return False
+            finally:
+                if conn:
+                    conn.close()
+
+    def desactivar_campana_invitacion(self, codigo: str) -> Dict[str, Any]:
+        """Desactiva una campana multiuso para que deje de validar."""
+        codigo = (codigo or "").strip().upper()
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE invitacion_campanas
+                    SET activo = 0, desactivado_en = CURRENT_TIMESTAMP
+                    WHERE codigo = ?
+                """, (codigo,))
+                conn.commit()
+                if cursor.rowcount != 1:
+                    return {'status': 'error', 'message': 'Campana no encontrada'}
+                return {'status': 'success', 'codigo': codigo}
+            except Exception as e:
+                return {'status': 'error', 'message': str(e)}
+            finally:
+                if conn:
+                    conn.close()
 
     def listar_invitaciones_recientes(self, limite: int = 20) -> List[Dict[str, Any]]:
         """Lista las últimas invitaciones generadas (para panel admin). Incluye código, invitador, fecha, usado."""

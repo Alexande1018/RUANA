@@ -188,10 +188,23 @@ class PostgresCompatCursor:
             if translated.lstrip().upper().startswith("INSERT"):
                 try:
                     with self.conn._conn.cursor() as c:
+                        c.execute("savepoint ruana_lastval_probe")
                         c.execute("select lastval()")
                         self.lastrowid = c.fetchone()["lastval"]
                 except Exception:
+                    try:
+                        with self.conn._conn.cursor() as c:
+                            c.execute("rollback to savepoint ruana_lastval_probe")
+                            c.execute("release savepoint ruana_lastval_probe")
+                    except Exception:
+                        pass
                     self.lastrowid = None
+                else:
+                    try:
+                        with self.conn._conn.cursor() as c:
+                            c.execute("release savepoint ruana_lastval_probe")
+                    except Exception:
+                        pass
             return self
         except psycopg.IntegrityError as exc:
             raise sqlite3.IntegrityError(str(exc)) from exc

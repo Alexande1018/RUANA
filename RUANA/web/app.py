@@ -15,6 +15,7 @@ import secrets
 import threading
 import jwt
 from functools import wraps
+from urllib.parse import quote
 
 try:
     from flask_cors import CORS
@@ -1650,17 +1651,30 @@ def registrar_aliado():
         else:
             especializaciones = []
 
-        # Generar código único (5 dígitos)
-        codigo = _generar_codigo_unico()
 
         # Si viene con código de invitación "Conozco a alguien", intentar asignar al grupo del invitador si cumple reglas
         grupo_id_invitacion = None
         codigo_postal = (data.get('codigo_postal') or '').strip()
         codigo_invitacion_raw = (data.get('codigo_invitacion') or '').strip()
+        codigo_placeholder = None
+        codigo_campana_invitacion = None
         if codigo_invitacion_raw and not re.match(RUANA_CODIGO_INVITACION_REGEX, codigo_invitacion_raw.upper()):
-            grupo_inv = db.obtener_grupo_invitador_por_codigo_invitacion(codigo_invitacion_raw)
-            if grupo_inv and grupo_inv.get('grupo_id'):
-                grupo_id_invitacion = grupo_inv['grupo_id']
+            campana = db.validar_campana_invitacion(codigo_invitacion_raw.upper()) if hasattr(db, 'validar_campana_invitacion') else None
+            if campana:
+                codigo_campana_invitacion = (campana.get('codigo') or codigo_invitacion_raw).strip().upper()
+                if not codigo_postal and campana.get('codigo_postal'):
+                    codigo_postal = (campana.get('codigo_postal') or '').strip()
+            else:
+                aliado_invitacion = db.obtener_aliado_por_codigo(codigo_invitacion_raw)
+                if not aliado_invitacion or (aliado_invitacion.get('estado') or '').strip() != 'pendiente_completar':
+                    return jsonify({
+                        'status': 'error',
+                        'message': f'Codigo de invitacion {codigo_invitacion_raw} no encontrado o ya usado.'
+                    }), 404
+                codigo_placeholder = (aliado_invitacion.get('codigo') or codigo_invitacion_raw).strip()
+                grupo_inv = db.obtener_grupo_invitador_por_codigo_invitacion(codigo_invitacion_raw)
+                if grupo_inv and grupo_inv.get('grupo_id'):
+                    grupo_id_invitacion = grupo_inv['grupo_id']
 
         # Validar disponibilidad de la plaza antes de confirmar (evitar condición de carrera)
         if grupo_id_invitacion:
@@ -1681,21 +1695,40 @@ def registrar_aliado():
 
         # Crear aliado: si oficio no está en catálogo → estado pendiente_validacion (validación manual)
         descripcion_servicio = (data.get('descripcion') or data.get('descripcion_servicio') or '').strip() or None
-        result = db.crear_aliado(
-            codigo=codigo,
-            nombre=nombre,
-            marca=data.get('marca', '').strip(),
-            oficio=oficio,
-            codigo_postal=codigo_postal,
-            email=email,
-            telefono=telefono,
-            estado='activo',
-            score=75,
-            especializaciones=especializaciones,
-            especializacion=especializacion_plaza,
-            descripcion_servicio=descripcion_servicio,
-            grupo_id_invitacion=grupo_id_invitacion
-        )
+        if codigo_placeholder:
+            result = db.completar_aliado_pendiente(
+                codigo=codigo_placeholder,
+                nombre=nombre,
+                marca=data.get('marca', '').strip(),
+                oficio=oficio,
+                codigo_postal=codigo_postal,
+                email=email,
+                telefono=telefono,
+                estado='activo',
+                score=75,
+                especializaciones=especializaciones,
+                especializacion=especializacion_plaza,
+                descripcion_servicio=descripcion_servicio,
+                grupo_id_invitacion=grupo_id_invitacion
+            )
+        else:
+            # Generar codigo unico (5 digitos) solo si no estamos completando un placeholder.
+            codigo = _generar_codigo_unico()
+            result = db.crear_aliado(
+                codigo=codigo,
+                nombre=nombre,
+                marca=data.get('marca', '').strip(),
+                oficio=oficio,
+                codigo_postal=codigo_postal,
+                email=email,
+                telefono=telefono,
+                estado='activo',
+                score=75,
+                especializaciones=especializaciones,
+                especializacion=especializacion_plaza,
+                descripcion_servicio=descripcion_servicio,
+                grupo_id_invitacion=grupo_id_invitacion
+            )
         
         if result['status'] == 'error':
             return jsonify(result), 400
@@ -1715,6 +1748,8 @@ def registrar_aliado():
             # C?digo RUANA-XXX-OFICIO-XXXX: invitaci?n por oficio (una sola vez)
             if re.match(RUANA_CODIGO_INVITACION_REGEX, codigo_inv_upper):
                 db.consumir_invitacion_oficio(codigo_inv_upper, result['codigo'])
+            elif codigo_campana_invitacion:
+                db.consumir_campana_invitacion(codigo_campana_invitacion, result['codigo'])
             else:
                 db.consumir_invitacion_y_recompensar(codigo_invitacion, result['codigo'])
 
@@ -2188,6 +2223,31 @@ def _validar_invitacion_impl(codigo_raw):
                 }
             }), 200
 
+        campana = None
+        if hasattr(db, 'validar_campana_invitacion'):
+            campana = db.validar_campana_invitacion(codigo_upper)
+        if campana:
+            return jsonify({
+                'status': 'success',
+                'message': 'Codigo valido',
+                'invitacion': {
+                    'tipo': 'campana',
+                    'codigo': campana.get('codigo'),
+                    'zona': campana.get('codigo_postal') or '',
+                    'grupo': None,
+                    'aliado_id': None,
+                    'fecha_expiracion': None,
+                    'max_usos': campana.get('max_usos'),
+                    'usos_actuales': campana.get('usos_actuales'),
+                    'usos_restantes': campana.get('usos_restantes'),
+                }
+            }), 200
+        if hasattr(db, 'obtener_campana_invitacion') and db.obtener_campana_invitacion(codigo_upper):
+            return jsonify({
+                'status': 'error',
+                'message': 'Codigo de invitacion agotado o desactivado.'
+            }), 404
+
         # Formato aliado: 5 d?gitos, A0001, ALFA01
         if not (
             re.match(r'^\d{5}$', codigo) or
@@ -2381,6 +2441,69 @@ def admin_crear_invitacion():
             'tipo': 'invitacion_admin',
             'timestamp': datetime.now().isoformat()
         }), 201
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+def _registro_url_para_invitacion(codigo):
+    base = request.host_url.rstrip('/')
+    return f"{base}/invite.html?codigo={codigo}"
+
+
+@app.route('/api/admin/invitacion-campanas', methods=['GET'])
+@require_admin
+def admin_listar_campanas_invitacion():
+    """GET /api/admin/invitacion-campanas - Lista codigos multiuso de invitacion."""
+    try:
+        limite = request.args.get('limite', type=int) or 50
+        db = get_db()
+        campanas = db.listar_campanas_invitacion(limite=limite)
+        for campana in campanas:
+            campana['registro_url'] = _registro_url_para_invitacion(campana.get('codigo', ''))
+        return jsonify({'status': 'success', 'campanas': campanas})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/invitacion-campanas', methods=['POST'])
+@require_admin_escritura
+def admin_crear_campana_invitacion():
+    """POST /api/admin/invitacion-campanas - Crea un codigo multiuso para QR/registro."""
+    try:
+        data = request.get_json() or {}
+        db = get_db()
+        result = db.crear_campana_invitacion(
+            codigo=(data.get('codigo') or '').strip(),
+            nombre=(data.get('nombre') or '').strip(),
+            codigo_postal=(data.get('codigo_postal') or data.get('zona') or '').strip(),
+            max_usos=data.get('max_usos') or 100,
+            creado_por_admin_codigo=_admin_codigo() or ''
+        )
+        if result.get('status') != 'success':
+            return jsonify(result), 400
+        campana = result.get('campana') or {}
+        registro_url = _registro_url_para_invitacion(campana.get('codigo', ''))
+        return jsonify({
+            'status': 'success',
+            'campana': campana,
+            'registro_url': registro_url,
+            'qr_url': 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + quote(registro_url, safe=''),
+            'timestamp': datetime.now().isoformat()
+        }), 201
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/invitacion-campanas/<path:codigo>/desactivar', methods=['POST'])
+@require_admin_escritura
+def admin_desactivar_campana_invitacion(codigo):
+    """POST /api/admin/invitacion-campanas/<codigo>/desactivar - Da de baja un codigo multiuso."""
+    try:
+        db = get_db()
+        result = db.desactivar_campana_invitacion(codigo)
+        if result.get('status') != 'success':
+            return jsonify(result), 404
+        return jsonify(result), 200
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 

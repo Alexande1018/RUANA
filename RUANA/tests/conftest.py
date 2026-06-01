@@ -25,6 +25,38 @@ class Hito2AFakeDB:
     def _registrar_invitacion(self, codigo, aliado_id):
         self.calls.append(("_registrar_invitacion", codigo, aliado_id))
 
+    def validar_campana_invitacion(self, codigo):
+        self.calls.append(("validar_campana_invitacion", codigo))
+        return None
+
+    def obtener_campana_invitacion(self, codigo):
+        self.calls.append(("obtener_campana_invitacion", codigo))
+        return None
+
+    def consumir_campana_invitacion(self, codigo, nuevo_aliado_codigo):
+        self.calls.append(("consumir_campana_invitacion", codigo, nuevo_aliado_codigo))
+        return True
+
+    def crear_campana_invitacion(self, **kwargs):
+        self.calls.append(("crear_campana_invitacion", kwargs))
+        campana = {
+            "codigo": (kwargs.get("codigo") or "RUANA-TEST").upper(),
+            "nombre": kwargs.get("nombre") or "Campana",
+            "codigo_postal": kwargs.get("codigo_postal") or "",
+            "max_usos": kwargs.get("max_usos") or 100,
+            "usos_actuales": 0,
+            "activo": 1,
+        }
+        return {"status": "success", "campana": campana}
+
+    def listar_campanas_invitacion(self, limite=50):
+        self.calls.append(("listar_campanas_invitacion", limite))
+        return []
+
+    def desactivar_campana_invitacion(self, codigo):
+        self.calls.append(("desactivar_campana_invitacion", codigo))
+        return {"status": "success", "codigo": codigo}
+
     def marcar_solicitud_contestada(self, solicitud_id, invitador_aliado_id=None):
         self.calls.append(("marcar_solicitud_contestada", solicitud_id, invitador_aliado_id))
 
