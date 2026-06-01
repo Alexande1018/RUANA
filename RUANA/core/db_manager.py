@@ -430,7 +430,7 @@ class DBManager:
                 """)
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_confirmaciones_contacto ON confirmaciones_trabajo(contacto_id)")
 
-                # Ingresos RUANA: apoyo 2% cuando contacto se cierra con importes coincidentes
+                # Ingresos RUANA: apoyo configurado cuando contacto se cierra con importes coincidentes.
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS ingresos_ruana (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2037,16 +2037,16 @@ class DBManager:
         return 40
 
     def _get_apoyo_pct(self) -> float:
-        """Lee apoyo_pct desde config/ruana_reglas_v1.json. Por defecto 15.0 (%)."""
+        """Lee apoyo_pct desde config/ruana_reglas_v1.json. Por defecto 12.0 (%)."""
         try:
             config_path = Path(__file__).resolve().parent.parent / 'config' / 'ruana_reglas_v1.json'
             if config_path.exists():
                 with open(config_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                return float(data.get('apoyo_pct', 15.0))
+                return float(data.get('apoyo_pct', 12.0))
         except Exception:
             pass
-        return 15.0
+        return 12.0
 
     def _get_ruana_pago_defaults(self) -> Tuple[Optional[str], Optional[str]]:
         """Lee qr_paypal_path y bizum_num por defecto de RUANA desde config (para notificaciones Apoyo RUANA)."""
@@ -3705,8 +3705,9 @@ class DBManager:
     # OPERACIONES CONTACTOS RUANA
     # ===============================================
 
-    # Límites chat RUANA: 5 mensajes por usuario, 48h de vigencia
-    CHAT_MAX_MENSAJES_POR_USUARIO = 5
+    # Limites chat RUANA: 30 mensajes totales por conversacion, 48h de vigencia.
+    CHAT_MAX_MENSAJES_TOTAL = 30
+    CHAT_MAX_MENSAJES_POR_USUARIO = CHAT_MAX_MENSAJES_TOTAL
     CHAT_HORAS_VIGENCIA = 48
 
     def crear_contacto_ruana(self, solicitante_codigo: str, profesional_codigo: str,
@@ -4149,6 +4150,7 @@ class DBManager:
             'chat_expira_en': None,
             'chat_horas_restantes': 0,
             'chat_horas_vigencia': self.CHAT_HORAS_VIGENCIA,
+            'chat_max_mensajes': self.CHAT_MAX_MENSAJES_TOTAL,
         }
 
     def _chat_referencia_ts(self, cursor, contacto_id: int) -> Optional[datetime]:
@@ -4195,15 +4197,13 @@ class DBManager:
                     return self._chat_estado_cerrado()
                 ref = self._parse_timestamp(self._chat_referencia_ts(cursor, contacto_id))
                 expirado = self._chat_esta_expirado(ref)
-                cursor.execute(
-                    "SELECT COUNT(*) FROM chat_mensajes WHERE contacto_id = ? AND emisor_codigo = ?",
-                    (contacto_id, codigo)
-                )
+                cursor.execute("SELECT COUNT(*) FROM chat_mensajes WHERE contacto_id = ?", (contacto_id,))
                 count = (cursor.fetchone() or [0])[0]
-                restantes = max(0, self.CHAT_MAX_MENSAJES_POR_USUARIO - count)
+                restantes = max(0, self.CHAT_MAX_MENSAJES_TOTAL - count)
                 estado_chat = {
                     'chat_expirado': expirado,
                     'mensajes_restantes': restantes,
+                    'chat_max_mensajes': self.CHAT_MAX_MENSAJES_TOTAL,
                 }
                 estado_chat.update(self._chat_expiry_metadata(ref))
                 if expirado:
@@ -4214,7 +4214,8 @@ class DBManager:
                 print(f"Error estado_chat_contacto: {e}")
                 estado_chat = {
                     'chat_expirado': False,
-                    'mensajes_restantes': self.CHAT_MAX_MENSAJES_POR_USUARIO,
+                    'mensajes_restantes': self.CHAT_MAX_MENSAJES_TOTAL,
+                    'chat_max_mensajes': self.CHAT_MAX_MENSAJES_TOTAL,
                 }
                 estado_chat.update(self._chat_expiry_metadata(None))
                 return estado_chat
@@ -4225,7 +4226,7 @@ class DBManager:
         """
         Envía un mensaje al chat interno RUANA. Confiable y bilateral: emisor y receptor
         lo ven inmediatamente vía GET /api/chat_mensajes (listar_mensajes_contacto devuelve todos).
-        Límites: 5 mensajes por usuario, 48h de vigencia desde última actividad.
+        Limites: 30 mensajes totales por conversacion, 48h de vigencia desde ultima actividad.
         """
         # --- Validación previa: texto no vacío ---
         texto_clean = (texto or "").strip()
@@ -4271,16 +4272,16 @@ class DBManager:
                         'message': 'Este chat ha expirado (48h desde la última actividad). Cierra el contacto desde el panel para resolver.'
                     }
 
-                # --- 5. Validar que el emisor no supera 5 mensajes ---
+                # --- 5. Validar que el chat no supera el limite total de mensajes ---
                 cursor.execute(
-                    "SELECT COUNT(*) FROM chat_mensajes WHERE contacto_id = ? AND emisor_codigo = ?",
-                    (contacto_id, emisor_norm)
+                    "SELECT COUNT(*) FROM chat_mensajes WHERE contacto_id = ?",
+                    (contacto_id,)
                 )
-                count_emisor = (cursor.fetchone() or [0])[0]
-                if count_emisor >= self.CHAT_MAX_MENSAJES_POR_USUARIO:
+                count_total = (cursor.fetchone() or [0])[0]
+                if count_total >= self.CHAT_MAX_MENSAJES_TOTAL:
                     return {
                         'status': 'error',
-                        'message': 'Has llegado al límite de 5 mensajes. Usa el chat para coordinar el servicio e intercambiar datos de contacto.'
+                        'message': 'Este chat ha llegado al limite de 30 mensajes. Usa el panel para cerrar el contacto o resolverlo.'
                     }
 
                 # --- 6. Inserción: guardar mensaje (visible para ambos aliados vía listar_mensajes_contacto) ---
@@ -4299,18 +4300,8 @@ class DBManager:
                     )
                 msg_id = cursor.lastrowid
 
-                # --- 7. Actualización de estado: si ambos llegan a 5 mensajes → chat_agotado ---
-                cursor.execute(
-                    "SELECT COUNT(*) FROM chat_mensajes WHERE contacto_id = ? AND emisor_codigo = ?",
-                    (contacto_id, sol)
-                )
-                count_sol = (cursor.fetchone() or [0])[0]
-                cursor.execute(
-                    "SELECT COUNT(*) FROM chat_mensajes WHERE contacto_id = ? AND emisor_codigo = ?",
-                    (contacto_id, pro)
-                )
-                count_pro = (cursor.fetchone() or [0])[0]
-                if count_sol >= self.CHAT_MAX_MENSAJES_POR_USUARIO and count_pro >= self.CHAT_MAX_MENSAJES_POR_USUARIO:
+                # --- 7. Actualizacion de estado: si el chat llega al limite total -> chat_agotado ---
+                if count_total + 1 >= self.CHAT_MAX_MENSAJES_TOTAL:
                     cursor.execute(
                         """UPDATE contactos_ruana SET estado = 'chat_agotado', actualizado_en = CURRENT_TIMESTAMP
                            WHERE id = ? AND estado IN ('iniciado', 'aceptado', 'trabajo_en_progreso', 'en_conversacion')""",
@@ -4487,7 +4478,7 @@ class DBManager:
         """
         Registra la declaración de importe por parte de solicitante o profesional.
         - Evita doble declaración (tabla confirmaciones_trabajo).
-        - Apoyo RUANA 2% (no 5%). +8 / -1 según coincidencia.
+        - Apoyo RUANA segun apoyo_pct configurado. +8 / -1 segun coincidencia.
         - Coinciden → trabajo_cerrado, ingresos_ruana, audit_log.
         - No coinciden → importe_en_disputa, audit_log.
         """
@@ -5223,7 +5214,7 @@ class DBManager:
     def resolver_conflicto_pago(self, contacto_id: int, importe_valido: float,
                                 admin_codigo: str = "") -> Dict[str, Any]:
         """
-        Admin resuelve conflicto: define importe válido, se aplica apoyo_pct (15%), cierra contacto, +8 a ambos, audit.
+        Admin resuelve conflicto: define importe valido, se aplica apoyo_pct, cierra contacto, +8 a ambos, audit.
         """
         sol = prof = None
         imp = apoyo = 0.0

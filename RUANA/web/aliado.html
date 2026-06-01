@@ -1766,7 +1766,7 @@
                 <!-- Mensaje retirado: el botón "Volver al panel" cierra el modal sin necesidad de refrescar -->
             </div>
             <div class="chat-aviso-límites" id="chat-aviso-limites">
-                Máximo 5 mensajes por usuario. Usa el chat para coordinar el servicio e intercambiar datos de contacto. Válido 48h.
+                Máximo 30 mensajes por chat. Usa el chat para coordinar el servicio e intercambiar datos de contacto. Válido 48h.
             </div>
             <div class="chat-mensajes-restantes" id="chat-mensajes-restantes"></div>
             <div class="chat-mensajes-wrap">
@@ -1993,7 +1993,8 @@
                 this.profesionalSeleccionado = null;
                 this.chatContactoId = null;
                 this.chatExpirado = false;
-                this.mensajesRestantes = 5;
+                this.chatMaxMensajes = 30;
+                this.mensajesRestantes = this.chatMaxMensajes;
                 this.chatHorasRestantes = null;
                 this.chatHorasVigencia = 48;
                 this.chatExpiraEn = null;
@@ -3924,7 +3925,8 @@
                         if (list && !silent) list.innerHTML = '<p class="chat-loading" style="color:#eab308;">' + (data.message || 'No se pudieron cargar los mensajes.') + '</p>';
                     }
                     this.chatExpirado = !!data.chat_expirado;
-                    this.mensajesRestantes = data.mensajes_restantes != null ? data.mensajes_restantes : 5;
+                    this.chatMaxMensajes = data.chat_max_mensajes != null ? Number(data.chat_max_mensajes) : this.chatMaxMensajes;
+                    this.mensajesRestantes = data.mensajes_restantes != null ? data.mensajes_restantes : this.chatMaxMensajes;
                     this.chatHorasRestantes = data.chat_horas_restantes != null ? Number(data.chat_horas_restantes) : null;
                     this.chatHorasVigencia = data.chat_horas_vigencia != null ? Number(data.chat_horas_vigencia) : 48;
                     this.chatExpiraEn = data.chat_expira_en || null;
@@ -3933,7 +3935,7 @@
                     console.error('Error cargando mensajes:', e);
                     if (list && !silent) list.innerHTML = '<p class="chat-loading" style="color:#ef4444;">Error de conexión. Revisa que el servidor esté en marcha.</p>';
                     this.chatExpirado = false;
-                    this.mensajesRestantes = 5;
+                    this.mensajesRestantes = this.chatMaxMensajes;
                     this.chatHorasRestantes = null;
                     this.chatHorasVigencia = 48;
                     this.chatExpiraEn = null;
@@ -3952,7 +3954,7 @@
                         restantesEl.textContent = 'Chat caducado. Cierra el contacto desde el panel para resolver.';
                         restantesEl.classList.add('expirado');
                     } else {
-                        const partesEstado = ['Mensajes restantes: ' + this.mensajesRestantes + ' de 5'];
+                        const partesEstado = ['Mensajes restantes: ' + this.mensajesRestantes + ' de ' + this.chatMaxMensajes];
                         const horas = Number(this.chatHorasRestantes);
                         if (!isNaN(horas)) {
                             partesEstado.push(horas <= 0 ? 'Disponible menos de 1 h' : 'Disponible ' + horas + ' h');
@@ -4158,7 +4160,7 @@
 
                     resumenEl.innerHTML = `
                         <strong>Importe acordado:</strong> ${importe}<br>
-                        <strong>Apoyo RUANA (2%):</strong> ${apoyoStr}<br>
+                        <strong>Apoyo RUANA (12%):</strong> ${apoyoStr}<br>
                         <strong>Estado del pago:</strong> ${estadoPago}
                     `;
                     resumenEl.style.display = 'block';
