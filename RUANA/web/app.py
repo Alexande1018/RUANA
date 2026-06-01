@@ -1049,6 +1049,7 @@ def chat_mensajes_get():
             'chat_expira_en': estado.get('chat_expira_en'),
             'chat_horas_restantes': estado.get('chat_horas_restantes'),
             'chat_horas_vigencia': estado.get('chat_horas_vigencia'),
+            'chat_max_mensajes': estado.get('chat_max_mensajes'),
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -1293,6 +1294,7 @@ def api_contactos_mensajes(contacto_id):
                 'chat_expira_en': estado.get('chat_expira_en'),
                 'chat_horas_restantes': estado.get('chat_horas_restantes'),
                 'chat_horas_vigencia': estado.get('chat_horas_vigencia'),
+                'chat_max_mensajes': estado.get('chat_max_mensajes'),
             })
         except Exception as e:
             return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -1338,6 +1340,7 @@ def chat_get_mensajes():
             'chat_expira_en': estado.get('chat_expira_en'),
             'chat_horas_restantes': estado.get('chat_horas_restantes'),
             'chat_horas_vigencia': estado.get('chat_horas_vigencia'),
+            'chat_max_mensajes': estado.get('chat_max_mensajes'),
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -3268,7 +3271,7 @@ def admin_resolver_conflicto_pago(contacto_id):
     """
     PATCH /api/admin/payment/<id>/resolve  o  POST /api/admin/conflictos-pago/<id>/resolver
     Body: { "importe_valido": float }
-    Admin define importe v?lido, se calcula 15% (apoyo_pct), se cierra contacto y +8 a ambos.
+    Admin define importe valido, se calcula apoyo_pct, se cierra contacto y +8 a ambos.
     """
     try:
         data = request.get_json() or {}

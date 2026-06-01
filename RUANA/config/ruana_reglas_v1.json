@@ -6,7 +6,7 @@
   "duracion_competencia_dias": 30,
   "purga_mensual_meses_sin_ganar": 3,
   "purga_score_bajo_umbral": 40,
-  "apoyo_pct": 15.0,
+  "apoyo_pct": 12.0,
   "posponer_horas": 24,
   "motor_delta_verde": 5,
   "motor_delta_amarillo": -3,

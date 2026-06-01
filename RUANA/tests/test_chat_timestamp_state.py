@@ -55,6 +55,7 @@ def test_estado_chat_contacto_uses_recent_timezone_aware_reference(sqlite_db):
 
     assert estado["chat_expirado"] is False
     assert estado["mensajes_restantes"] == sqlite_db.CHAT_MAX_MENSAJES_POR_USUARIO
+    assert estado["chat_max_mensajes"] == 30
 
 
 def test_enviar_mensaje_chat_accepts_recent_timezone_aware_reference(sqlite_db):
@@ -66,6 +67,46 @@ def test_enviar_mensaje_chat_accepts_recent_timezone_aware_reference(sqlite_db):
     result = sqlite_db.enviar_mensaje_chat(contacto_id, "SOL", "Hola, seguimos por aqui")
 
     assert result["status"] == "success"
+
+
+def test_chat_limit_is_30_total_messages_per_contact(sqlite_db):
+    contacto_id = _crear_contacto_basico(sqlite_db)
+    sqlite_db._chat_referencia_ts = (
+        lambda cursor, contacto_id: datetime.now(timezone.utc) - timedelta(minutes=5)
+    )
+
+    for i in range(30):
+        emisor = "SOL" if i % 2 == 0 else "PRO"
+        result = sqlite_db.enviar_mensaje_chat(contacto_id, emisor, f"Mensaje {i + 1}")
+        assert result["status"] == "success"
+
+    estado = sqlite_db.estado_chat_contacto(contacto_id, "SOL")
+    assert estado["mensajes_restantes"] == 0
+    assert estado["chat_max_mensajes"] == 30
+
+    blocked = sqlite_db.enviar_mensaje_chat(contacto_id, "SOL", "Mensaje extra")
+    assert blocked["status"] == "error"
+    assert "30 mensajes" in blocked["message"]
+
+
+def test_apoyo_ruana_default_is_12_percent_when_closing_contact(sqlite_db):
+    contacto_id = _crear_contacto_basico(sqlite_db)
+
+    first = sqlite_db.registrar_importe_contacto(
+        contacto_id, "solicitante", 100.0, usuario="SOL"
+    )
+    second = sqlite_db.registrar_importe_contacto(
+        contacto_id, "profesional", 100.0, usuario="PRO"
+    )
+
+    assert first["status"] == "success"
+    assert second["status"] == "success"
+    assert second["estado"] == "trabajo_cerrado"
+
+    contacto = sqlite_db.obtener_contacto_por_id(contacto_id)
+    assert contacto["apoyo_ruana"] == 12.0
+    assert contacto["comision"] == 12.0
+    assert contacto["comision_porcentaje"] == 0.12
 
 
 def test_postgres_contactos_abiertos_query_does_not_use_sqlite_datetime():
