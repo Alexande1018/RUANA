@@ -3739,6 +3739,11 @@ class DBManager:
                         'status': 'error',
                         'message': f'Profesional {profesional_codigo} no existe como aliado'
                     }
+                if self.tiene_pagos_ruana_pendientes(profesional_codigo):
+                    return {
+                        'status': 'error',
+                        'message': 'El profesional tiene pagos pendientes con RUANA y no puede recibir nuevos encargos hasta regularizar la situación.'
+                    }
 
                 cursor.execute("PRAGMA table_info(contactos_ruana)")
                 columnas = [row[1] for row in cursor.fetchall()]
@@ -4525,6 +4530,14 @@ class DBManager:
                     conn.close()
                     return {'status': 'error', 'message': 'Aliado no encontrado'}
 
+                solicitante_codigo = str(contacto.get('solicitante_codigo') or '').strip()
+                if usuario_str != solicitante_codigo or parte != 'solicitante':
+                    conn.close()
+                    return {
+                        'status': 'error',
+                        'message': 'El importe solo puede confirmarlo el aliado que contrató el encargo.'
+                    }
+
                 # No permitir doble declaración por el mismo aliado
                 cursor.execute(
                     "SELECT 1 FROM confirmaciones_trabajo WHERE contacto_id = ? AND aliado_id = ?",
@@ -4566,9 +4579,9 @@ class DBManager:
                 importe_sol = contacto.get('importe_solicitante')
                 importe_prof = contacto.get('importe_profesional')
 
-                if importe_sol is not None and importe_prof is not None:
+                if importe_sol is not None:
                     # Comparar con redondeo a 2 decimales para evitar diferencias de precisión (100.0 vs 100.00)
-                    if round(float(importe_sol), 2) == round(float(importe_prof), 2):
+                    if importe_prof is None or round(float(importe_sol), 2) == round(float(importe_prof), 2):
                         pct = self._get_apoyo_pct()
                         apoyo_ruana = round(float(importe_sol) * pct / 100.0, 2)
                         comision_pct = pct / 100.0
@@ -4847,7 +4860,9 @@ class DBManager:
                           )
                     ) abierto
                     WHERE abierto.chat_ref IS NULL OR abierto.chat_ref >= ?
-                    ORDER BY abierto.creado_en DESC
+                    ORDER BY CASE WHEN abierto.num_mensajes > 0 THEN 0 ELSE 1 END,
+                             abierto.chat_ref DESC,
+                             abierto.creado_en DESC
                     """, (codigo_aliado, codigo_aliado, codigo_aliado, codigo_aliado, cutoff))
 
                     rows = cursor.fetchall()
@@ -4899,7 +4914,12 @@ class DBManager:
                           SELECT 1 FROM contacto_panel_oculto o
                           WHERE o.contacto_id = c.id AND TRIM(COALESCE(o.codigo_aliado, '')) = ?
                       )
-                    ORDER BY c.creado_en DESC
+                    ORDER BY CASE WHEN num_mensajes > 0 THEN 0 ELSE 1 END,
+                             COALESCE(
+                                 (SELECT MAX(m.creado_en) FROM chat_mensajes m WHERE m.contacto_id = c.id),
+                                 (SELECT MAX(ts) FROM (SELECT c.fecha_aceptacion AS ts UNION ALL SELECT c.creado_en) WHERE ts IS NOT NULL)
+                             ) DESC,
+                             c.creado_en DESC
                 """, (codigo_aliado, codigo_aliado, codigo_aliado, f'-{horas_vigencia} hours', codigo_aliado))
 
                 rows = cursor.fetchall()
@@ -5478,6 +5498,89 @@ class DBManager:
             finally:
                 conn.close()
 
+    def impugnar_apoyo_ruana(self, contacto_id: int, profesional_codigo: str,
+                             motivo: str = "") -> Dict[str, Any]:
+        """El profesional impugna el importe declarado por el contratante y solicita prueba."""
+        prof_norm = str(profesional_codigo or "").strip()
+        if not prof_norm:
+            return {'status': 'error', 'message': 'Código de profesional requerido'}
+        with self._lock:
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id, solicitante_codigo, profesional_codigo, estado, importe_final,
+                           estado_pago, pendiente_pago
+                    FROM contactos_ruana
+                    WHERE id = ?
+                """, (contacto_id,))
+                row = cursor.fetchone()
+                if not row:
+                    return {'status': 'error', 'message': 'Contacto no encontrado'}
+                contacto = dict(row)
+                if str(contacto.get('profesional_codigo') or '').strip() != prof_norm:
+                    return {'status': 'error', 'message': 'Solo el profesional del contacto puede impugnar este Apoyo RUANA'}
+                if contacto.get('estado') != 'trabajo_cerrado' or contacto.get('importe_final') is None:
+                    return {'status': 'error', 'message': 'Este contacto no tiene un Apoyo RUANA pendiente impugnable'}
+                if (contacto.get('estado_pago') or '') != 'pendiente_pago':
+                    return {'status': 'error', 'message': 'Este Apoyo RUANA no está pendiente de pago'}
+
+                importe_final = float(contacto['importe_final'])
+                solicitante_codigo = str(contacto.get('solicitante_codigo') or '').strip()
+                cursor.execute("SELECT id FROM aliados WHERE codigo = ?", (solicitante_codigo,))
+                r_sol = cursor.fetchone()
+                cursor.execute("SELECT id FROM aliados WHERE codigo = ?", (prof_norm,))
+                r_prof = cursor.fetchone()
+                if not r_sol or not r_prof:
+                    return {'status': 'error', 'message': 'No se pudo identificar a las partes del contacto'}
+
+                cursor.execute("""
+                    UPDATE contactos_ruana
+                    SET estado = 'importe_en_disputa', pendiente_resolucion = 1,
+                        estado_pago = 'no_generado', pendiente_pago = 0,
+                        fecha_disputa = COALESCE(fecha_disputa, CURRENT_TIMESTAMP),
+                        actualizado_en = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                """, (contacto_id,))
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='payment_conflicts'")
+                if cursor.fetchone():
+                    cursor.execute("SELECT id FROM payment_conflicts WHERE trabajo_id = ?", (contacto_id,))
+                    existing = cursor.fetchone()
+                    if existing:
+                        cursor.execute("""
+                            UPDATE payment_conflicts
+                            SET contratante_id = ?, profesional_id = ?, importe_contratante = ?,
+                                importe_profesional = 0, estado = 'PENDIENTE_PRUEBA',
+                                prueba_url = NULL, comentario_admin = ?, updated_at = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                        """, (r_sol[0], r_prof[0], importe_final, (motivo or "").strip()[:2000] or None, existing[0]))
+                    else:
+                        cursor.execute("""
+                            INSERT INTO payment_conflicts (trabajo_id, contratante_id, profesional_id,
+                                importe_contratante, importe_profesional, estado, comentario_admin,
+                                created_at, updated_at)
+                            VALUES (?, ?, ?, ?, 0, 'PENDIENTE_PRUEBA', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """, (contacto_id, r_sol[0], r_prof[0], importe_final, (motivo or "").strip()[:2000] or None))
+
+                self._audit_log(cursor, 'contacto', contacto_id, 'apoyo_impugnado',
+                                'aliado', prof_norm, (motivo or 'importe impugnado')[:500])
+                mensaje = (
+                    f"El profesional ha impugnado el importe declarado para el contacto #{contacto_id}. "
+                    "Adjunta documentación o comprobantes para que RUANA pueda validarlo."
+                )
+                meta = json.dumps({'contacto_id': contacto_id, 'importe_declarado': importe_final}, ensure_ascii=False)
+                cursor.execute("""
+                    INSERT INTO notificaciones_aliado (aliado_codigo, tipo, titulo, mensaje, metadata, leida)
+                    VALUES (?, 'importe_impugnado', 'Importe impugnado', ?, ?, 0)
+                """, (solicitante_codigo, mensaje, meta))
+                conn.commit()
+                return {'status': 'success', 'contacto_id': contacto_id, 'estado': 'importe_en_disputa'}
+            except Exception as e:
+                return {'status': 'error', 'message': str(e)}
+            finally:
+                conn.close()
+
     def listar_contactos_pago_pendiente_profesional(self, codigo_aliado: str) -> List[Dict[str, Any]]:
         """Contactos donde el aliado es profesional y tiene Apoyo RUANA pendiente de pago (estado_pago = pendiente_pago)."""
         codigo_norm = str(codigo_aliado or '').strip()
@@ -5833,7 +5936,7 @@ class DBManager:
             """
             SELECT creado_en FROM eventos_sistema
             WHERE tipo = ? AND descripcion = ?
-              AND ((? IS NULL AND actor_codigo IS NULL) OR (actor_codigo = ?))
+              AND ((CAST(? AS TEXT) IS NULL AND actor_codigo IS NULL) OR (actor_codigo = ?))
             ORDER BY id DESC LIMIT 1
             """,
             (tipo, descripcion, actor_codigo, actor_codigo),
