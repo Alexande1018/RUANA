@@ -1021,6 +1021,36 @@ def health():
 
 
 # ========== Chat RUANA (path de un solo segmento para evitar 404) ==========
+def _chat_payload_from_messages(mensajes, estado):
+    """Construye una respuesta de chat coherente entre lista visible y contador."""
+    mensajes_list = mensajes if isinstance(mensajes, list) else []
+    chat_max = int(estado.get('chat_max_mensajes') or 30)
+    chat_expirado = bool(estado.get('chat_expirado', False))
+    mensajes_restantes = 0 if chat_expirado else max(0, chat_max - len(mensajes_list))
+    return {
+        'status': 'success',
+        'mensajes': mensajes_list,
+        'chat_expirado': chat_expirado,
+        'mensajes_restantes': mensajes_restantes,
+        'chat_referencia_en': estado.get('chat_referencia_en'),
+        'chat_expira_en': estado.get('chat_expira_en'),
+        'chat_horas_restantes': 0 if chat_expirado else estado.get('chat_horas_restantes'),
+        'chat_horas_vigencia': estado.get('chat_horas_vigencia'),
+        'chat_max_mensajes': chat_max,
+    }
+
+
+def _priorizar_contactos_con_mensajes(contactos):
+    """Evita que un contacto abierto vacío tape una conversación activa en el banner."""
+    def tiene_mensajes(contacto):
+        try:
+            return int(contacto.get('num_mensajes') or 0) > 0
+        except (TypeError, ValueError):
+            return False
+
+    return sorted(contactos or [], key=lambda c: 0 if tiene_mensajes(c) else 1)
+
+
 @app.route('/api/chat_mensajes', methods=['GET'])
 @require_aliado
 def chat_mensajes_get():
@@ -1040,17 +1070,7 @@ def chat_mensajes_get():
             return jsonify({'status': 'error', 'message': 'No tienes permiso para ver este chat'}), 403
         mensajes = db.listar_mensajes_contacto(contacto_id)
         estado = db.estado_chat_contacto(contacto_id, codigo)
-        return jsonify({
-            'status': 'success',
-            'mensajes': mensajes,
-            'chat_expirado': estado.get('chat_expirado', False),
-            'mensajes_restantes': estado.get('mensajes_restantes', 0),
-            'chat_referencia_en': estado.get('chat_referencia_en'),
-            'chat_expira_en': estado.get('chat_expira_en'),
-            'chat_horas_restantes': estado.get('chat_horas_restantes'),
-            'chat_horas_vigencia': estado.get('chat_horas_vigencia'),
-            'chat_max_mensajes': estado.get('chat_max_mensajes'),
-        })
+        return jsonify(_chat_payload_from_messages(mensajes, estado))
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
@@ -1285,17 +1305,7 @@ def api_contactos_mensajes(contacto_id):
                 return jsonify({'status': 'error', 'message': 'No tienes permiso para ver este chat'}), 403
             mensajes = db.listar_mensajes_contacto(contacto_id)
             estado = db.estado_chat_contacto(contacto_id, codigo)
-            return jsonify({
-                'status': 'success',
-                'mensajes': mensajes,
-                'chat_expirado': estado.get('chat_expirado', False),
-                'mensajes_restantes': estado.get('mensajes_restantes', 0),
-                'chat_referencia_en': estado.get('chat_referencia_en'),
-                'chat_expira_en': estado.get('chat_expira_en'),
-                'chat_horas_restantes': estado.get('chat_horas_restantes'),
-                'chat_horas_vigencia': estado.get('chat_horas_vigencia'),
-                'chat_max_mensajes': estado.get('chat_max_mensajes'),
-            })
+            return jsonify(_chat_payload_from_messages(mensajes, estado))
         except Exception as e:
             return jsonify({'status': 'error', 'message': str(e)}), 500
 
@@ -1331,17 +1341,7 @@ def chat_get_mensajes():
             return jsonify({'status': 'error', 'message': 'No tienes permiso para ver este chat'}), 403
         mensajes = db.listar_mensajes_contacto(contacto_id)
         estado = db.estado_chat_contacto(contacto_id, codigo)
-        return jsonify({
-            'status': 'success',
-            'mensajes': mensajes,
-            'chat_expirado': estado.get('chat_expirado', False),
-            'mensajes_restantes': estado.get('mensajes_restantes', 0),
-            'chat_referencia_en': estado.get('chat_referencia_en'),
-            'chat_expira_en': estado.get('chat_expira_en'),
-            'chat_horas_restantes': estado.get('chat_horas_restantes'),
-            'chat_horas_vigencia': estado.get('chat_horas_vigencia'),
-            'chat_max_mensajes': estado.get('chat_max_mensajes'),
-        })
+        return jsonify(_chat_payload_from_messages(mensajes, estado))
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
@@ -1470,6 +1470,7 @@ def contactos_abiertos_por_codigo(codigo_aliado):
 
         db = get_db()
         contactos = db.obtener_contactos_abiertos_por_codigo(codigo_aliado)
+        contactos = _priorizar_contactos_con_mensajes(contactos)
 
         return jsonify({
             'status': 'success',
@@ -1572,6 +1573,27 @@ def subir_comprobante_apoyo(contacto_id):
         if result.get('status') != 'success':
             return jsonify(result), 400
         return jsonify(result), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/contactos/<int:contacto_id>/impugnar-apoyo', methods=['POST'])
+@require_aliado
+def impugnar_apoyo(contacto_id):
+    """
+    POST /api/contactos/<id>/impugnar-apoyo
+    El profesional impugna el importe declarado por el contratante.
+    """
+    try:
+        codigo = _aliado_codigo()
+        if not codigo:
+            return jsonify({'status': 'error', 'message': 'Sesi?n expirada'}), 401
+        data = request.get_json(silent=True) or {}
+        motivo = (data.get('motivo') or '').strip()
+        db = get_db()
+        result = db.impugnar_apoyo_ruana(contacto_id, codigo, motivo)
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 

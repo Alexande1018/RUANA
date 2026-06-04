@@ -3206,18 +3206,18 @@
                     div.innerHTML = `
                         <span style="flex:1; min-width:200px;">Contacto #${c.id} · ${servicio} · Apoyo RUANA: <strong>${apoyo}</strong></span>
                         <div class="pago-apoyo-botones" style="display:flex; flex-wrap:wrap; gap:8px;">
-                            <button type="button" class="contacto-aviso-btn btn-pagar-paypal">Pagar con PayPal</button>
-                            <button type="button" class="contacto-aviso-btn btn-pagar-bizum">Pagar con Bizum</button>
+                            <button type="button" class="contacto-aviso-btn btn-aceptar-pagar">Aceptar y pagar</button>
+                            <button type="button" class="contacto-aviso-btn btn-impugnar-apoyo">Impugnar o reclamar</button>
                             <button type="button" class="contacto-aviso-btn btn-enviar-comprobante" data-contacto-id="${c.id}">Enviar comprobante de pago a RUANA</button>
                         </div>
                     `;
                     const btnComprobante = div.querySelector('.btn-enviar-comprobante');
-                    const btnPayPal = div.querySelector('.btn-pagar-paypal');
-                    const btnBizum = div.querySelector('.btn-pagar-bizum');
+                    const btnAceptarPagar = div.querySelector('.btn-aceptar-pagar');
+                    const btnImpugnar = div.querySelector('.btn-impugnar-apoyo');
                     if (btnComprobante) btnComprobante.addEventListener('click', () => this.abrirModalComprobanteApoyo(c.id));
                     const importeParaModal = (apoyoNum != null && Number.isFinite(apoyoNum)) ? apoyoNum : 0;
-                    if (btnPayPal) btnPayPal.addEventListener('click', () => this.abrirModalPayPalApoyo(c.id, importeParaModal, c.servicio || 'Contacto'));
-                    if (btnBizum) btnBizum.addEventListener('click', () => this.abrirModalBizumApoyo(c.id, importeParaModal, c.servicio || 'Contacto'));
+                    if (btnAceptarPagar) btnAceptarPagar.addEventListener('click', () => this.abrirModalPayPalApoyo(c.id, importeParaModal, c.servicio || 'Contacto'));
+                    if (btnImpugnar) btnImpugnar.addEventListener('click', () => this.impugnarApoyoRuana(c.id));
                     listaEl.appendChild(div);
                 });
             }
@@ -3667,7 +3667,37 @@
             }
 
             /**
-             * Mostrar modal previo a contactar (impacto en métricas)
+             * Impugnar el importe declarado para el Apoyo RUANA pendiente.
+             */
+            async impugnarApoyoRuana(contactoId) {
+                if (!contactoId) return;
+                const motivo = window.prompt('Indica brevemente el motivo de la reclamacion:', '') || '';
+                const confirmado = window.confirm('RUANA solicitara comprobantes al aliado que contrato el servicio para validar el importe declarado. Quieres continuar?');
+                if (!confirmado) return;
+                try {
+                    const resp = await fetch(`/api/contactos/${contactoId}/impugnar-apoyo`, {
+                        method: 'POST',
+                        headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ motivo })
+                    });
+                    const data = await resp.json().catch(() => ({}));
+                    if (resp.ok && data.status === 'success') {
+                        alert('Reclamacion enviada. RUANA pedira la documentacion al aliado contratante.');
+                        await this.cargarPagosApoyoPendientes();
+                        await this.cargarContactosPendientes();
+                        await this.actualizarEstadoAlertas();
+                    } else {
+                        alert(data.message || 'No se pudo registrar la reclamacion.');
+                    }
+                } catch (e) {
+                    console.error('Error impugnando Apoyo RUANA:', e);
+                    alert('Error de conexion al registrar la reclamacion.');
+                }
+            }
+
+            /**
+             * Mostrar modal previo a contactar.
              */
             mostrarAvisoPrevioContacto(profesional) {
                 this.profesionalSeleccionado = profesional;
@@ -4034,11 +4064,17 @@
             handleAvisoSiHuboTrabajo() {
                 if (!this.contactoActual) return;
                 if (this.contactoActual.estado === 'trabajo_cerrado') {
-                    alert('Este contacto ya está cerrado. El importe fue acordado por ambas partes.');
+                    alert('Este contacto ya esta cerrado. Revisa el bloque de Apoyo RUANA si tienes pago pendiente.');
+                    return;
+                }
+                const codigo = String(this.codigoAliado || (this.aliado && this.aliado.codigo) || '').trim();
+                const solCodigo = String(this.contactoActual.solicitante_codigo || '').trim();
+                if (codigo !== solCodigo) {
+                    alert('El importe lo confirma el aliado que contrato el encargo. Si el importe declarado no es correcto, usa Impugnar o reclamar en el bloque de Apoyo RUANA.');
                     return;
                 }
                 if (this.contactoActual.ya_declaraste_importe === true) {
-                    alert('Ya declaraste tu importe para este contacto. La otra parte debe declarar el suyo desde su panel con su cuenta.');
+                    alert('Ya confirmaste el importe para este contacto.');
                     return;
                 }
                 const modal = document.getElementById('modal-contacto-importe');

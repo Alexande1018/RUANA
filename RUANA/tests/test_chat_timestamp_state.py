@@ -89,24 +89,166 @@ def test_chat_limit_is_30_total_messages_per_contact(sqlite_db):
     assert "30 mensajes" in blocked["message"]
 
 
-def test_apoyo_ruana_default_is_12_percent_when_closing_contact(sqlite_db):
+def test_chat_messages_endpoint_uses_returned_messages_for_remaining_counter(
+    client, sqlite_db, monkeypatch, session_headers
+):
+    from RUANA.web import app as app_module
+
+    contacto_id = _crear_contacto_basico(sqlite_db)
+    sqlite_db._chat_referencia_ts = (
+        lambda cursor, contacto_id: datetime.now(timezone.utc) - timedelta(minutes=5)
+    )
+    for i in range(4):
+        emisor = "SOL" if i % 2 == 0 else "PRO"
+        result = sqlite_db.enviar_mensaje_chat(contacto_id, emisor, f"Mensaje {i + 1}")
+        assert result["status"] == "success"
+
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    monkeypatch.setattr(sqlite_db, "listar_mensajes_contacto", lambda _contacto_id: [])
+
+    resp = client.get(
+        f"/api/chat_mensajes?contacto_id={contacto_id}",
+        headers=session_headers("aliado", "SOL"),
+    )
+    data = resp.get_json()
+
+    assert resp.status_code == 200
+    assert data["mensajes"] == []
+    assert data["mensajes_restantes"] == 30
+
+
+def test_open_contacts_prioritize_conversations_with_messages(sqlite_db):
+    conn = sqlite_db._connect()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO aliados (codigo, nombre) VALUES (?, ?)", ("SOL", "Solicitante"))
+    cursor.execute("INSERT INTO aliados (codigo, nombre) VALUES (?, ?)", ("PRO", "Profesional"))
+    cursor.execute(
+        """
+        INSERT INTO contactos_ruana (
+            solicitante_codigo, profesional_codigo, servicio, estado, pendiente_resolucion, creado_en
+        ) VALUES (?, ?, ?, 'iniciado', 1, datetime('now', '-1 hour'))
+        """,
+        ("SOL", "PRO", "Con mensajes"),
+    )
+    contacto_con_mensajes = cursor.lastrowid
+    cursor.execute(
+        "INSERT INTO chat_mensajes (contacto_id, emisor_codigo, texto) VALUES (?, ?, ?)",
+        (contacto_con_mensajes, "SOL", "Hola"),
+    )
+    cursor.execute(
+        """
+        INSERT INTO contactos_ruana (
+            solicitante_codigo, profesional_codigo, servicio, estado, pendiente_resolucion, creado_en
+        ) VALUES (?, ?, ?, 'iniciado', 1, datetime('now'))
+        """,
+        ("SOL", "PRO", "Sin mensajes mas nuevo"),
+    )
+    contacto_sin_mensajes = cursor.lastrowid
+    conn.commit()
+    conn.close()
+
+    abiertos = sqlite_db.obtener_contactos_abiertos_por_codigo("SOL")
+
+    assert [c["id"] for c in abiertos[:2]] == [contacto_con_mensajes, contacto_sin_mensajes]
+
+
+def test_api_contact_priority_keeps_message_threads_first():
+    from RUANA.web import app as app_module
+
+    contactos = [
+        {"id": 9, "num_mensajes": 0},
+        {"id": 8, "num_mensajes": 2},
+    ]
+
+    ordenados = app_module._priorizar_contactos_con_mensajes(contactos)
+
+    assert [c["id"] for c in ordenados] == [8, 9]
+
+
+def test_contratante_amount_closes_contact_and_generates_pending_support(sqlite_db):
     contacto_id = _crear_contacto_basico(sqlite_db)
 
-    first = sqlite_db.registrar_importe_contacto(
+    result = sqlite_db.registrar_importe_contacto(
         contacto_id, "solicitante", 100.0, usuario="SOL"
     )
-    second = sqlite_db.registrar_importe_contacto(
-        contacto_id, "profesional", 100.0, usuario="PRO"
-    )
 
-    assert first["status"] == "success"
-    assert second["status"] == "success"
-    assert second["estado"] == "trabajo_cerrado"
+    assert result["status"] == "success"
+    assert result["estado"] == "trabajo_cerrado"
 
     contacto = sqlite_db.obtener_contacto_por_id(contacto_id)
+    assert contacto["importe_final"] == 100.0
+    assert contacto["importe_profesional"] is None
     assert contacto["apoyo_ruana"] == 12.0
     assert contacto["comision"] == 12.0
     assert contacto["comision_porcentaje"] == 0.12
+    assert contacto["estado_pago"] == "pendiente_pago"
+    assert contacto["pendiente_pago"] == 1
+
+    pendientes = sqlite_db.listar_contactos_pago_pendiente_profesional("PRO")
+    assert len(pendientes) == 1
+    assert pendientes[0]["id"] == contacto_id
+    assert pendientes[0]["apoyo_ruana"] == 12.0
+
+
+def test_profesional_with_pending_support_cannot_receive_new_contact(sqlite_db):
+    contacto_id = _crear_contacto_basico(sqlite_db)
+    result = sqlite_db.registrar_importe_contacto(
+        contacto_id, "solicitante", 100.0, usuario="SOL"
+    )
+    assert result["estado"] == "trabajo_cerrado"
+
+    conn = sqlite_db._connect()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO aliados (codigo, nombre) VALUES (?, ?)", ("SOL2", "Otro solicitante"))
+    conn.commit()
+    conn.close()
+
+    nuevo = sqlite_db.crear_contacto_ruana("SOL2", "PRO", "Otro servicio", "Encargo")
+
+    assert nuevo["status"] == "error"
+    assert "pagos pendientes" in nuevo["message"]
+
+
+def test_profesional_can_dispute_pending_support_and_request_contratante_proof(sqlite_db):
+    contacto_id = _crear_contacto_basico(sqlite_db)
+    result = sqlite_db.registrar_importe_contacto(
+        contacto_id, "solicitante", 100.0, usuario="SOL"
+    )
+    assert result["estado"] == "trabajo_cerrado"
+
+    disputa = sqlite_db.impugnar_apoyo_ruana(contacto_id, "PRO", "Importe incorrecto")
+
+    assert disputa["status"] == "success"
+    assert disputa["estado"] == "importe_en_disputa"
+    contacto = sqlite_db.obtener_contacto_por_id(contacto_id)
+    assert contacto["estado"] == "importe_en_disputa"
+    assert contacto["estado_pago"] == "no_generado"
+    assert contacto["pendiente_pago"] == 0
+
+    conflicto = sqlite_db.obtener_payment_conflict_por_trabajo(contacto_id, "SOL")
+    assert conflicto is not None
+    assert conflicto["estado"] == "PENDIENTE_PRUEBA"
+    assert conflicto["importe_contratante"] == 100.0
+    assert conflicto["importe_profesional"] == 0.0
+
+
+def test_evento_sistema_casts_nullable_actor_parameter_for_postgres():
+    class FakeCursor:
+        def __init__(self):
+            self.executed = []
+
+        def execute(self, sql, params=None):
+            self.executed.append((sql, params))
+
+        def fetchone(self):
+            return None
+
+    db = object.__new__(db_module.DBManager)
+    cursor = FakeCursor()
+
+    db._insert_evento_sistema(cursor, "apoyo_generado", "descripcion")
+
+    assert "CAST(? AS TEXT) IS NULL" in cursor.executed[0][0]
 
 
 def test_postgres_contactos_abiertos_query_does_not_use_sqlite_datetime():
