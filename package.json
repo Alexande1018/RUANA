@@ -7,6 +7,9 @@
     "supabase:login": "supabase login",
     "supabase:link": "supabase link --project-ref qqlxgwbmtzcfrrobrfzy",
     "supabase:push": "supabase db push",
+    "qa:e2e": "playwright test",
+    "qa:e2e:headed": "playwright test --headed",
+    "qa:report": "playwright show-report qa-artifacts/playwright-report",
     "verify:supabase": "cd RUANA && python scripts/verify_supabase.py",
     "verify:runtime": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify_runtime.ps1",
     "gcp:secrets": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/set_gcp_secrets.ps1",
@@ -15,6 +18,7 @@
     "deploy:hosting": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy_firebase_hosting.ps1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.44.0",
     "firebase-tools": "^15.18.0",
     "supabase": "^2.0.0"
   }

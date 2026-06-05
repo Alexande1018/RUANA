@@ -21,6 +21,24 @@ def test_aliado_panel_does_not_ship_demo_profile_values():
     aliado_html = Path(__file__).resolve().parents[1] / "web" / "aliado.html"
     text = aliado_html.read_text(encoding="utf-8")
 
-    assert "Juan Pérez" not in text
-    assert "JP Instalaciones Eléctricas" not in text
+    assert "Juan P" not in text
+    assert "JP Instalaciones" not in text
     assert 'id="detail-oficio">Electricidad<' not in text
+
+
+def test_aliado_solicitudes_initial_load_sends_auth_headers():
+    aliado_html = Path(__file__).resolve().parents[1] / "web" / "aliado.html"
+    text = aliado_html.read_text(encoding="utf-8")
+    start = text.index("fetch(apiBase + '/api/solicitudes?codigo='")
+    snippet = text[start : start + 260]
+
+    assert "credentials: 'same-origin'" in snippet
+    assert "headers: getRuanaAuthHeaders()" in snippet
+
+
+def test_aceptar_y_pagar_warns_about_paypal_redirect_and_receipt():
+    aliado_html = Path(__file__).resolve().parents[1] / "web" / "aliado.html"
+    text = aliado_html.read_text(encoding="utf-8")
+
+    assert "Se te va a redirigir a PayPal" in text
+    assert "Guarda el comprobante de pago" in text
