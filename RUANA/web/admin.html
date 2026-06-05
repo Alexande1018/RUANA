@@ -1792,10 +1792,10 @@
                 const container = document.querySelector('.acciones-admin');
                 if (container) {
                     container.classList.toggle('solo-lectura', !puedeEscribir);
-                    container.querySelectorAll('.btn-admin-action[data-action]').forEach(btn => {
-                        btn.disabled = !puedeEscribir;
-                    });
                 }
+                document.querySelectorAll('.btn-admin-action[data-action]').forEach(btn => {
+                    btn.disabled = !puedeEscribir;
+                });
                 document.querySelectorAll('.btn-activar-pendiente').forEach(btn => {
                     btn.disabled = !puedeEscribir;
                 });

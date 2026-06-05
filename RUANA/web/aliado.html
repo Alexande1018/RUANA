@@ -1839,7 +1839,10 @@
             <div class="modal-contacto-title">Pagar con PayPal</div>
             <div class="modal-contacto-text">
                 <p id="paypal-apoyo-info" style="margin-bottom:12px;"></p>
-                <p><strong>Link de pago PayPal:</strong></p>
+                <p style="margin-top:14px; padding:10px; background:rgba(234,179,8,0.12); border-radius:8px; font-size:0.92rem;">
+                    <strong>Se te va a redirigir a PayPal.</strong> Realiza el pago manualmente y <strong>Guarda el comprobante de pago</strong>; lo necesitarás para subirlo después a RUANA.
+                </p>
+                <p><strong>Continuar al pago:</strong></p>
                 <a id="paypal-apoyo-link" href="#" target="_blank" rel="noopener noreferrer" style="color:#22c55e; word-break:break-all; display:block; margin:8px 0;">—</a>
                 <p style="margin-top:14px; padding:10px; background:rgba(34,197,94,0.1); border-radius:8px; font-size:0.9rem;">
                     <strong>Instrucciones:</strong> Realiza el pago en PayPal y, una vez completado, <strong>sube el comprobante en RUANA</strong> usando el botón "Enviar comprobante de pago a RUANA". RUANA validará el pago manualmente.
@@ -2099,7 +2102,10 @@
                         }
 
                         try {
-                            const respSol = await fetch(apiBase + '/api/solicitudes?codigo=' + encodeURIComponent(this.codigoAliado));
+                            const respSol = await fetch(apiBase + '/api/solicitudes?codigo=' + encodeURIComponent(this.codigoAliado), {
+                                credentials: 'same-origin',
+                                headers: getRuanaAuthHeaders()
+                            });
                             if (respSol.ok) {
                                 const dataSol = await respSol.json();
                                 if (dataSol && typeof dataSol === 'object' && !Array.isArray(dataSol)) {
@@ -3602,7 +3608,7 @@
                 const amountForUrl = importe != null ? importe.toFixed(2) : '0';
                 const paypalUrl = `https://www.paypal.com/send?email=${encodeURIComponent(email)}&amount=${amountForUrl}`;
                 linkEl.href = paypalUrl;
-                linkEl.textContent = email;
+                linkEl.textContent = 'Continuar a PayPal';
                 linkEl.setAttribute('title', 'Abrir PayPal para enviar pago a ' + email);
                 modal.classList.add('show');
             }
@@ -3650,7 +3656,7 @@
                 fd.append('archivo', file);
                 if (comentarioEl && comentarioEl.value.trim()) fd.append('comentario', comentarioEl.value.trim());
                 try {
-                    const r = await fetch(`/api/contactos/${contactoId}/comprobante-apoyo`, { method: 'POST', body: fd, credentials: 'same-origin' });
+                    const r = await fetch(`/api/contactos/${contactoId}/comprobante-apoyo`, { method: 'POST', body: fd, credentials: 'same-origin', headers: getRuanaAuthHeaders() });
                     const data = await r.json();
                     if (data.status === 'success') {
                         if (resultadoEl) resultadoEl.textContent = 'Comprobante enviado. RUANA lo revisará.';
