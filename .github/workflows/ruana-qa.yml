@@ -6,6 +6,8 @@ on:
 permissions:
   actions: write
   contents: read
+  pages: write
+  id-token: write
 
 concurrency:
   group: ruana-qa-latest
@@ -16,6 +18,9 @@ jobs:
     name: Ejecutar pruebas RUANA
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy-pages.outputs.page_url }}
 
     env:
       CI: "true"
@@ -76,6 +81,19 @@ jobs:
         if: always()
         shell: bash
         run: |
+          mkdir -p qa-artifacts/playwright-report
+          if [ ! -f qa-artifacts/playwright-report/index.html ]; then
+            cat > qa-artifacts/playwright-report/index.html <<'HTML'
+          <!doctype html>
+          <html lang="es">
+            <head><meta charset="utf-8"><title>RUANA QA</title></head>
+            <body>
+              <h1>RUANA QA</h1>
+              <p>La ejecucion no genero reporte Playwright. Revisa los logs del workflow.</p>
+            </body>
+          </html>
+          HTML
+          fi
           {
             echo "# RUANA QA manual"
             echo
@@ -84,6 +102,7 @@ jobs:
             echo "- BBDD: SQLite temporal local del runner"
             echo "- Reporte HTML: qa-artifacts/playwright-report/index.html"
             echo "- Videos: qa-artifacts/test-results/**/video.webm"
+            echo "- En GitHub Pages se publica siempre el ultimo reporte disponible."
             echo
             echo "El runner se destruye al finalizar; no quedan datos de prueba persistidos."
           } > qa-artifacts/README_QA.md
@@ -117,3 +136,35 @@ jobs:
           path: qa-artifacts
           if-no-files-found: warn
           retention-days: 1
+
+      - name: Configurar GitHub Pages
+        if: always()
+        continue-on-error: true
+        uses: actions/configure-pages@v5
+
+      - name: Preparar reporte para GitHub Pages
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: qa-artifacts/playwright-report
+
+      - name: Publicar reporte en GitHub Pages
+        id: deploy-pages
+        if: always()
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      - name: Mostrar enlace directo al reporte
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Reporte HTML"
+            echo
+            if [ -n "${{ steps.deploy-pages.outputs.page_url }}" ]; then
+              echo "Reporte publicado: ${{ steps.deploy-pages.outputs.page_url }}"
+            else
+              echo "No se pudo publicar en GitHub Pages. Revisa que Pages este configurado para GitHub Actions en Settings > Pages."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
