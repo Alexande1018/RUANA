@@ -1833,41 +1833,64 @@
         </div>
     </div>
 
-    <!-- Modal Pagar con PayPal (instrucciones + link; el pago es manual, se sube comprobante después) -->
-    <div class="modal-contacto-overlay modal-importe-overlay" id="modal-paypal-apoyo">
-        <div class="modal-importe-content modal-importe-elegante">
-            <div class="modal-contacto-title">Pagar con PayPal</div>
+    <!-- Modal pago manual Apoyo RUANA (Bizum, QR Revolut y transferencia) -->
+    <div class="modal-contacto-overlay modal-importe-overlay" id="modal-pago-apoyo">
+        <div class="modal-importe-content modal-importe-elegante" id="modal-pago-apoyo-content">
+            <div class="modal-contacto-title">Pagar tributo a RUANA</div>
             <div class="modal-contacto-text">
-                <p id="paypal-apoyo-info" style="margin-bottom:12px;"></p>
-                <p style="margin-top:14px; padding:10px; background:rgba(234,179,8,0.12); border-radius:8px; font-size:0.92rem;">
-                    <strong>Se te va a redirigir a PayPal.</strong> Realiza el pago manualmente y <strong>Guarda el comprobante de pago</strong>; lo necesitarás para subirlo después a RUANA.
-                </p>
-                <p><strong>Continuar al pago:</strong></p>
-                <a id="paypal-apoyo-link" href="#" target="_blank" rel="noopener noreferrer" style="color:#22c55e; word-break:break-all; display:block; margin:8px 0;">—</a>
-                <p style="margin-top:14px; padding:10px; background:rgba(34,197,94,0.1); border-radius:8px; font-size:0.9rem;">
-                    <strong>Instrucciones:</strong> Realiza el pago en PayPal y, una vez completado, <strong>sube el comprobante en RUANA</strong> usando el botón "Enviar comprobante de pago a RUANA". RUANA validará el pago manualmente.
-                </p>
+                <p id="pago-apoyo-info" style="margin-bottom:12px;"></p>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; margin:10px 0 14px;">
+                    <button type="button" id="btn-pago-apoyo-tab-bizum" class="modal-contacto-btn confirm" style="flex:1; min-width:120px;">Bizum</button>
+                    <button type="button" id="btn-pago-apoyo-tab-revolut" class="modal-contacto-btn cancel" style="flex:1; min-width:120px;">QR Revolut</button>
+                    <button type="button" id="btn-pago-apoyo-tab-transferencia" class="modal-contacto-btn cancel" style="flex:1; min-width:120px;">Transferencia</button>
+                </div>
+                <div id="pago-apoyo-bizum-panel">
+                    <p><strong>Numero Bizum:</strong> <span id="pago-apoyo-bizum-numero" style="font-size:1.2rem; font-weight:bold; color:#22c55e;">642868261</span></p>
+                    <p style="margin-top:8px;"><strong>Importe exacto:</strong> <span id="pago-apoyo-bizum-importe" style="font-size:1.1rem; font-weight:bold;">-</span></p>
+                    <p style="margin-top:8px;"><strong>Concepto:</strong> <span id="pago-apoyo-concepto">-</span></p>
+                    <p style="margin-top:14px; padding:10px; background:rgba(34,197,94,0.1); border-radius:8px; font-size:0.9rem;">
+                        Haz el Bizum desde tu app bancaria y sube el comprobante despues. RUANA validara el pago manualmente.
+                    </p>
+                </div>
+                <div id="pago-apoyo-revolut-panel" style="display:none;">
+                    <p style="margin-bottom:10px;"><strong>QR Revolut:</strong></p>
+                    <img id="pago-apoyo-revolut-qr" src="/static/images/PayPal.png" alt="QR Revolut RUANA" style="display:block; max-width:180px; width:100%; height:auto; margin:8px auto 12px; border-radius:8px; background:#fff; padding:8px;">
+                    <p style="margin-top:8px;"><strong>Importe exacto:</strong> <span id="pago-apoyo-revolut-importe" style="font-size:1.1rem; font-weight:bold;">-</span></p>
+                    <p style="margin-top:14px; padding:10px; background:rgba(234,179,8,0.12); border-radius:8px; font-size:0.9rem;">
+                        Escanea el QR de Revolut, guarda el justificante y subelo en RUANA.
+                    </p>
+                </div>
+                <div id="pago-apoyo-transferencia-panel" style="display:none;">
+                    <p><strong>IBAN:</strong> <span id="pago-apoyo-iban" style="font-size:1.05rem; font-weight:bold; color:#22c55e; word-break:break-all;">ES8915830001119028625152</span></p>
+                    <p style="margin-top:8px;"><strong>Importe exacto:</strong> <span id="pago-apoyo-transferencia-importe" style="font-size:1.1rem; font-weight:bold;">-</span></p>
+                    <p style="margin-top:8px;"><strong>Concepto:</strong> <span id="pago-apoyo-transferencia-concepto">-</span></p>
+                    <p style="margin-top:14px; padding:10px; background:rgba(34,197,94,0.1); border-radius:8px; font-size:0.9rem;">
+                        Haz la transferencia con el concepto indicado y sube el comprobante despues.
+                    </p>
+                </div>
             </div>
             <div class="modal-contacto-actions" style="margin-top: 12px;">
-                <button type="button" id="btn-paypal-apoyo-cerrar" class="modal-contacto-btn cancel">Cerrar</button>
+                <button type="button" id="btn-pago-apoyo-comprobante" class="modal-contacto-btn confirm">Subir comprobante</button>
+                <button type="button" id="btn-pago-apoyo-cerrar" class="modal-contacto-btn cancel">Cerrar</button>
             </div>
         </div>
     </div>
 
-    <!-- Modal Pagar con Bizum (número + importe; el pago es manual, se sube comprobante después) -->
-    <div class="modal-contacto-overlay modal-importe-overlay" id="modal-bizum-apoyo">
-        <div class="modal-importe-content modal-importe-elegante">
-            <div class="modal-contacto-title">Pagar con Bizum</div>
+    <div class="modal-contacto-overlay modal-importe-overlay" id="modal-impugnar-apoyo">
+        <div class="modal-importe-content modal-importe-elegante" id="modal-impugnar-apoyo-content">
+            <div class="modal-contacto-title">Impugnar Apoyo RUANA</div>
             <div class="modal-contacto-text">
-                <p id="bizum-apoyo-info" style="margin-bottom:12px;"></p>
-                <p><strong>Número Bizum:</strong> <span id="bizum-apoyo-numero" style="font-size:1.2rem; font-weight:bold; color:#22c55e;">642868261</span></p>
-                <p style="margin-top:8px;"><strong>Importe exacto a pagar:</strong> <span id="bizum-apoyo-importe" style="font-size:1.1rem; font-weight:bold;">—</span></p>
-                <p style="margin-top:14px; padding:10px; background:rgba(34,197,94,0.1); border-radius:8px; font-size:0.9rem;">
-                    <strong>Instrucciones:</strong> Realiza el pago por Bizum y, una vez completado, <strong>sube el comprobante en RUANA</strong> usando el botón "Enviar comprobante de pago a RUANA". RUANA validará el pago manualmente.
+                <p id="impugnar-apoyo-info" style="margin-bottom:12px;"></p>
+                <label for="input-motivo-impugnar-apoyo" style="display:block; font-weight:600; margin-bottom:6px;">Motivo de la reclamacion</label>
+                <textarea id="input-motivo-impugnar-apoyo" rows="4" placeholder="Ejemplo: el importe declarado no coincide con lo acordado..." style="width:100%; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.3); color:#e0e0e0; resize:vertical;"></textarea>
+                <p style="margin-top:12px; padding:10px; background:rgba(234,179,8,0.12); border-radius:8px; font-size:0.9rem;">
+                    RUANA pedira documentacion al aliado contratante y el cobro quedara en disputa hasta que admin lo revise.
                 </p>
+                <p id="impugnar-apoyo-resultado" style="margin-top:10px; font-size:0.92rem;"></p>
             </div>
             <div class="modal-contacto-actions" style="margin-top: 12px;">
-                <button type="button" id="btn-bizum-apoyo-cerrar" class="modal-contacto-btn cancel">Cerrar</button>
+                <button type="button" id="btn-impugnar-apoyo-confirmar" class="modal-contacto-btn confirm">Enviar reclamacion</button>
+                <button type="button" id="btn-impugnar-apoyo-cancelar" class="modal-contacto-btn cancel">Cancelar</button>
             </div>
         </div>
     </div>
@@ -1882,9 +1905,14 @@
             // Por defecto, usa el mismo origen del panel para evitar desajustes (ej. panel en :5001 → API en :5001).
             window.RUANA_API_BASE = window.location.origin;
         }
-        // Email PayPal para envío de pago Apoyo RUANA (link: paypal.com/send?email=...)
-        if (typeof window.RUANA_PAYPAL_EMAIL === 'undefined') {
-            window.RUANA_PAYPAL_EMAIL = 'acerotrade.signal@gmail.com';
+        if (typeof window.RUANA_BIZUM_NUM === 'undefined') {
+            window.RUANA_BIZUM_NUM = '642868261';
+        }
+        if (typeof window.RUANA_IBAN === 'undefined') {
+            window.RUANA_IBAN = 'ES8915830001119028625152';
+        }
+        if (typeof window.RUANA_QR_REVOLUT_PATH === 'undefined') {
+            window.RUANA_QR_REVOLUT_PATH = '/static/images/PayPal.png';
         }
 
         function getApiBase() {
@@ -2005,6 +2033,12 @@
                 this.notificaciones = [];
                 this.contactosPagoPendiente = [];
                 this.tienePagosPendientes = false;
+                this._contactoIdImpugnarApoyo = null;
+                this.metodosPagoRuana = {
+                    bizum_num: window.RUANA_BIZUM_NUM || '642868261',
+                    iban: window.RUANA_IBAN || 'ES8915830001119028625152',
+                    qr_revolut_path: window.RUANA_QR_REVOLUT_PATH || '/static/images/PayPal.png'
+                };
 
                 // ==================================================
                 // FLUJO: init → setupEventListeners → loadData → render
@@ -2023,6 +2057,7 @@
                 
                 // Luego, cargar datos estrictamente desde la API real
                 await this.loadData();
+                await this.cargarMetodosPagoRuana();
                 await this.cargarContactosPendientes();
                 
                 // Finalmente, renderizar y evaluar banners según estado actual
@@ -2712,34 +2747,58 @@
                     });
                 }
 
-                // Modal PayPal Apoyo RUANA
-                const modalPayPal = document.getElementById('modal-paypal-apoyo');
-                const btnPayPalCerrar = document.getElementById('btn-paypal-apoyo-cerrar');
-                if (btnPayPalCerrar && modalPayPal) {
-                    btnPayPalCerrar.addEventListener('click', () => modalPayPal.classList.remove('show'));
+                // Modal pago manual Apoyo RUANA (Bizum, QR Revolut y transferencia)
+                const modalPagoApoyo = document.getElementById('modal-pago-apoyo');
+                const modalPagoApoyoContent = document.getElementById('modal-pago-apoyo-content');
+                const btnPagoApoyoCerrar = document.getElementById('btn-pago-apoyo-cerrar');
+                const btnPagoApoyoComprobante = document.getElementById('btn-pago-apoyo-comprobante');
+                const btnPagoTabBizum = document.getElementById('btn-pago-apoyo-tab-bizum');
+                const btnPagoTabRevolut = document.getElementById('btn-pago-apoyo-tab-revolut');
+                const btnPagoTabTransferencia = document.getElementById('btn-pago-apoyo-tab-transferencia');
+                if (modalPagoApoyoContent) {
+                    modalPagoApoyoContent.addEventListener('click', (e) => e.stopPropagation());
                 }
-                if (modalPayPal) {
-                    modalPayPal.addEventListener('click', (e) => {
-                        if (e.target === modalPayPal) {
+                if (btnPagoApoyoCerrar && modalPagoApoyo) {
+                    btnPagoApoyoCerrar.addEventListener('click', () => modalPagoApoyo.classList.remove('show'));
+                }
+                if (btnPagoApoyoComprobante && modalPagoApoyo) {
+                    btnPagoApoyoComprobante.addEventListener('click', () => {
+                        modalPagoApoyo.classList.remove('show');
+                        if (this._contactoIdPagoActual) this.abrirModalComprobanteApoyo(this._contactoIdPagoActual);
+                    });
+                }
+                if (btnPagoTabBizum) btnPagoTabBizum.addEventListener('click', () => this.setPagoApoyoMetodo('bizum'));
+                if (btnPagoTabRevolut) btnPagoTabRevolut.addEventListener('click', () => this.setPagoApoyoMetodo('revolut'));
+                if (btnPagoTabTransferencia) btnPagoTabTransferencia.addEventListener('click', () => this.setPagoApoyoMetodo('transferencia'));
+                if (modalPagoApoyo) {
+                    modalPagoApoyo.addEventListener('click', (e) => {
+                        if (e.target === modalPagoApoyo) {
                             e.preventDefault();
                             e.stopPropagation();
-                            modalPayPal.classList.remove('show');
+                            modalPagoApoyo.classList.remove('show');
                         }
                     });
                 }
 
-                // Modal Bizum Apoyo RUANA
-                const modalBizum = document.getElementById('modal-bizum-apoyo');
-                const btnBizumCerrar = document.getElementById('btn-bizum-apoyo-cerrar');
-                if (btnBizumCerrar && modalBizum) {
-                    btnBizumCerrar.addEventListener('click', () => modalBizum.classList.remove('show'));
+                const modalImpugnarApoyo = document.getElementById('modal-impugnar-apoyo');
+                const modalImpugnarContent = document.getElementById('modal-impugnar-apoyo-content');
+                const btnImpugnarConfirmar = document.getElementById('btn-impugnar-apoyo-confirmar');
+                const btnImpugnarCancelar = document.getElementById('btn-impugnar-apoyo-cancelar');
+                if (modalImpugnarContent) {
+                    modalImpugnarContent.addEventListener('click', (e) => e.stopPropagation());
                 }
-                if (modalBizum) {
-                    modalBizum.addEventListener('click', (e) => {
-                        if (e.target === modalBizum) {
+                if (btnImpugnarConfirmar) {
+                    btnImpugnarConfirmar.addEventListener('click', () => this.impugnarApoyoRuana(this._contactoIdImpugnarApoyo));
+                }
+                if (btnImpugnarCancelar && modalImpugnarApoyo) {
+                    btnImpugnarCancelar.addEventListener('click', () => modalImpugnarApoyo.classList.remove('show'));
+                }
+                if (modalImpugnarApoyo) {
+                    modalImpugnarApoyo.addEventListener('click', (e) => {
+                        if (e.target === modalImpugnarApoyo) {
                             e.preventDefault();
                             e.stopPropagation();
-                            modalBizum.classList.remove('show');
+                            modalImpugnarApoyo.classList.remove('show');
                         }
                     });
                 }
@@ -3150,6 +3209,22 @@
                 if (bannerPagos) bannerPagos.style.display = hayPagosPendientes ? 'block' : 'none';
             }
 
+            async cargarMetodosPagoRuana() {
+                try {
+                    const resp = await fetch('/api/metodos-pago', { credentials: 'same-origin', headers: getRuanaAuthHeaders() });
+                    if (!resp.ok) return;
+                    const data = await resp.json();
+                    if (data.status === 'success' && data.metodos) {
+                        this.metodosPagoRuana = {
+                            ...this.metodosPagoRuana,
+                            ...data.metodos
+                        };
+                    }
+                } catch (e) {
+                    console.error('Error cargando metodos de pago RUANA:', e);
+                }
+            }
+
             /**
              * Recarga notificaciones y pagos pendientes desde el backend, actualiza estado y re-renderiza alertas.
              * Llamar tras carga inicial, visibilitychange o cuando se necesite refrescar el estado de alertas.
@@ -3222,8 +3297,8 @@
                     const btnImpugnar = div.querySelector('.btn-impugnar-apoyo');
                     if (btnComprobante) btnComprobante.addEventListener('click', () => this.abrirModalComprobanteApoyo(c.id));
                     const importeParaModal = (apoyoNum != null && Number.isFinite(apoyoNum)) ? apoyoNum : 0;
-                    if (btnAceptarPagar) btnAceptarPagar.addEventListener('click', () => this.abrirModalPayPalApoyo(c.id, importeParaModal, c.servicio || 'Contacto'));
-                    if (btnImpugnar) btnImpugnar.addEventListener('click', () => this.impugnarApoyoRuana(c.id));
+                    if (btnAceptarPagar) btnAceptarPagar.addEventListener('click', () => this.abrirModalPagoApoyo(c.id, importeParaModal, c.servicio || 'Contacto'));
+                    if (btnImpugnar) btnImpugnar.addEventListener('click', () => this.abrirModalImpugnarApoyo(c.id));
                     listaEl.appendChild(div);
                 });
             }
@@ -3595,6 +3670,72 @@
              * El pago es manual; el aliado debe subir comprobante después.
              * Link: https://www.paypal.com/send?email=... (configurable via window.RUANA_PAYPAL_EMAIL)
              */
+            abrirModalPagoApoyo(contactoId, apoyoRuana, servicio) {
+                const modal = document.getElementById('modal-pago-apoyo');
+                const infoEl = document.getElementById('pago-apoyo-info');
+                const bizumEl = document.getElementById('pago-apoyo-bizum-numero');
+                const importeEl = document.getElementById('pago-apoyo-bizum-importe');
+                const conceptoEl = document.getElementById('pago-apoyo-concepto');
+                const qrRevolutEl = document.getElementById('pago-apoyo-revolut-qr');
+                const revolutImporteEl = document.getElementById('pago-apoyo-revolut-importe');
+                const ibanEl = document.getElementById('pago-apoyo-iban');
+                const transferenciaImporteEl = document.getElementById('pago-apoyo-transferencia-importe');
+                const transferenciaConceptoEl = document.getElementById('pago-apoyo-transferencia-concepto');
+                if (!modal || !infoEl || !bizumEl || !importeEl || !conceptoEl || !qrRevolutEl || !revolutImporteEl || !ibanEl || !transferenciaImporteEl || !transferenciaConceptoEl) return;
+
+                const importe = (apoyoRuana != null && !Number.isNaN(Number(apoyoRuana)) && Number(apoyoRuana) > 0)
+                    ? Number(apoyoRuana) : null;
+                const importeStr = importe != null ? importe.toFixed(2) + ' EUR' : 'Pendiente de calculo';
+                const concepto = `RUANA contacto #${contactoId}`;
+                const metodos = this.metodosPagoRuana || {};
+                const bizumNum = metodos.bizum_num || window.RUANA_BIZUM_NUM || '642868261';
+                const iban = metodos.iban || window.RUANA_IBAN || 'ES8915830001119028625152';
+                const qrRevolut = metodos.qr_revolut_path || window.RUANA_QR_REVOLUT_PATH || '/static/images/PayPal.png';
+
+                this._contactoIdPagoActual = contactoId;
+                infoEl.textContent = `Contacto #${contactoId} - ${servicio || 'Contacto'} - Apoyo RUANA: ${importeStr}`;
+                bizumEl.textContent = bizumNum;
+                importeEl.textContent = importeStr;
+                conceptoEl.textContent = concepto;
+                qrRevolutEl.src = qrRevolut;
+                revolutImporteEl.textContent = importeStr;
+                ibanEl.textContent = iban;
+                transferenciaImporteEl.textContent = importeStr;
+                transferenciaConceptoEl.textContent = concepto;
+                this.setPagoApoyoMetodo('bizum');
+                modal.classList.add('show');
+            }
+
+            setPagoApoyoMetodo(metodo) {
+                const bizumPanel = document.getElementById('pago-apoyo-bizum-panel');
+                const revolutPanel = document.getElementById('pago-apoyo-revolut-panel');
+                const transferenciaPanel = document.getElementById('pago-apoyo-transferencia-panel');
+                const btnBizum = document.getElementById('btn-pago-apoyo-tab-bizum');
+                const btnRevolut = document.getElementById('btn-pago-apoyo-tab-revolut');
+                const btnTransferencia = document.getElementById('btn-pago-apoyo-tab-transferencia');
+                const usaBizum = metodo === 'bizum';
+                const usaRevolut = metodo === 'revolut';
+                const usaTransferencia = metodo === 'transferencia';
+                if (bizumPanel) bizumPanel.style.display = usaBizum ? 'block' : 'none';
+                if (revolutPanel) revolutPanel.style.display = usaRevolut ? 'block' : 'none';
+                if (transferenciaPanel) transferenciaPanel.style.display = usaTransferencia ? 'block' : 'none';
+                if (btnBizum) {
+                    btnBizum.classList.toggle('confirm', usaBizum);
+                    btnBizum.classList.toggle('cancel', !usaBizum);
+                    btnBizum.setAttribute('aria-pressed', String(usaBizum));
+                }
+                if (btnRevolut) {
+                    btnRevolut.classList.toggle('confirm', usaRevolut);
+                    btnRevolut.classList.toggle('cancel', !usaRevolut);
+                    btnRevolut.setAttribute('aria-pressed', String(usaRevolut));
+                }
+                if (btnTransferencia) {
+                    btnTransferencia.classList.toggle('confirm', usaTransferencia);
+                    btnTransferencia.classList.toggle('cancel', !usaTransferencia);
+                    btnTransferencia.setAttribute('aria-pressed', String(usaTransferencia));
+                }
+            }
+
             abrirModalPayPalApoyo(contactoId, apoyoRuana, servicio) {
                 const modal = document.getElementById('modal-paypal-apoyo');
                 const infoEl = document.getElementById('paypal-apoyo-info');
@@ -3675,11 +3816,50 @@
             /**
              * Impugnar el importe declarado para el Apoyo RUANA pendiente.
              */
+            abrirModalImpugnarApoyo(contactoId) {
+                const modal = document.getElementById('modal-impugnar-apoyo');
+                const infoEl = document.getElementById('impugnar-apoyo-info');
+                const input = document.getElementById('input-motivo-impugnar-apoyo');
+                const resultadoEl = document.getElementById('impugnar-apoyo-resultado');
+                const btn = document.getElementById('btn-impugnar-apoyo-confirmar');
+                if (!modal || !contactoId) return;
+                this._contactoIdImpugnarApoyo = contactoId;
+                if (infoEl) infoEl.textContent = `Contacto #${contactoId}. Explica brevemente por que reclamas este Apoyo RUANA.`;
+                if (input) input.value = '';
+                if (resultadoEl) {
+                    resultadoEl.textContent = '';
+                    resultadoEl.style.color = '';
+                }
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'Enviar reclamacion';
+                }
+                modal.classList.add('show');
+                if (input) input.focus();
+            }
+
             async impugnarApoyoRuana(contactoId) {
                 if (!contactoId) return;
-                const motivo = window.prompt('Indica brevemente el motivo de la reclamacion:', '') || '';
-                const confirmado = window.confirm('RUANA solicitara comprobantes al aliado que contrato el servicio para validar el importe declarado. Quieres continuar?');
-                if (!confirmado) return;
+                const modal = document.getElementById('modal-impugnar-apoyo');
+                const input = document.getElementById('input-motivo-impugnar-apoyo');
+                const resultadoEl = document.getElementById('impugnar-apoyo-resultado');
+                const btn = document.getElementById('btn-impugnar-apoyo-confirmar');
+                const motivo = input && input.value ? input.value.trim() : '';
+                if (!motivo) {
+                    if (resultadoEl) {
+                        resultadoEl.textContent = 'Indica un motivo para enviar la reclamacion.';
+                        resultadoEl.style.color = '#fbbf24';
+                    }
+                    return;
+                }
+                if (btn) {
+                    btn.disabled = true;
+                    btn.textContent = 'Enviando...';
+                }
+                if (resultadoEl) {
+                    resultadoEl.textContent = 'Enviando reclamacion...';
+                    resultadoEl.style.color = '#93c5fd';
+                }
                 try {
                     const resp = await fetch(`/api/contactos/${contactoId}/impugnar-apoyo`, {
                         method: 'POST',
@@ -3689,16 +3869,37 @@
                     });
                     const data = await resp.json().catch(() => ({}));
                     if (resp.ok && data.status === 'success') {
-                        alert('Reclamacion enviada. RUANA pedira la documentacion al aliado contratante.');
+                        if (resultadoEl) {
+                            resultadoEl.textContent = 'Reclamacion enviada. RUANA pedira la documentacion al aliado contratante.';
+                            resultadoEl.style.color = '#4ade80';
+                        }
                         await this.cargarPagosApoyoPendientes();
                         await this.cargarContactosPendientes();
                         await this.actualizarEstadoAlertas();
+                        setTimeout(() => {
+                            if (modal) modal.classList.remove('show');
+                            this._contactoIdImpugnarApoyo = null;
+                        }, 900);
                     } else {
-                        alert(data.message || 'No se pudo registrar la reclamacion.');
+                        if (resultadoEl) {
+                            resultadoEl.textContent = data.message || 'No se pudo registrar la reclamacion.';
+                            resultadoEl.style.color = '#f87171';
+                        }
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.textContent = 'Enviar reclamacion';
+                        }
                     }
                 } catch (e) {
                     console.error('Error impugnando Apoyo RUANA:', e);
-                    alert('Error de conexion al registrar la reclamacion.');
+                    if (resultadoEl) {
+                        resultadoEl.textContent = 'Error de conexion al registrar la reclamacion.';
+                        resultadoEl.style.color = '#f87171';
+                    }
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.textContent = 'Enviar reclamacion';
+                    }
                 }
             }
 
@@ -4246,6 +4447,7 @@
                         const subirPruebaEl = document.getElementById('contacto-aviso-subir-prueba');
                         if (subirPruebaEl) subirPruebaEl.style.display = 'none';
                         await this.cargarContactosPendientes();
+                        await this.actualizarEstadoAlertas();
                     } else {
                         if (resultadoEl) resultadoEl.textContent = data.message || 'Error al subir.';
                     }

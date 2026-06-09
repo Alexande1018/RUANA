@@ -36,9 +36,10 @@ def test_aliado_solicitudes_initial_load_sends_auth_headers():
     assert "headers: getRuanaAuthHeaders()" in snippet
 
 
-def test_aceptar_y_pagar_warns_about_paypal_redirect_and_receipt():
+def test_aceptar_y_pagar_offers_manual_methods_and_receipt_upload():
     aliado_html = Path(__file__).resolve().parents[1] / "web" / "aliado.html"
     text = aliado_html.read_text(encoding="utf-8")
 
-    assert "Se te va a redirigir a PayPal" in text
-    assert "Guarda el comprobante de pago" in text
+    assert "QR Revolut" in text
+    assert "Transferencia" in text
+    assert "Subir comprobante" in text

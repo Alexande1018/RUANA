@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Importar gestor de base de datos (y ruta ?nica de SQLite)
 from core.db_manager import get_db, DB_PATH, RUANA_CODIGO_INVITACION_REGEX
 from core.settings import get_settings
+from core.storage_manager import upload_ruana_file
 
 # Obtener ruta absoluta de la carpeta web
 web_dir = Path(__file__).parent.absolute()
@@ -1556,23 +1557,104 @@ def subir_comprobante_apoyo(contacto_id):
         if not file or not file.filename:
             return jsonify({'status': 'error', 'message': 'Archivo vac?o'}), 400
         comentario = (request.form.get('comentario') or '').strip()[:500]
-        from werkzeug.utils import secure_filename
-        import uuid
         ext = (Path(file.filename).suffix or '.bin').lower()
         if ext not in ('.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp'):
             return jsonify({'status': 'error', 'message': 'Formato no permitido. Usa imagen (jpg, png, gif, webp) o PDF.'}), 400
-        safe = secure_filename(file.filename) or 'comprobante'
-        name = f"{contacto_id}_{uuid.uuid4().hex[:12]}_{safe}"[:120]
-        upload_dir = web_dir / 'static' / 'uploads' / 'pagos_ruana'
-        upload_dir.mkdir(parents=True, exist_ok=True)
-        path = upload_dir / name
-        file.save(str(path))
-        comprobante_ruta = f'/static/uploads/pagos_ruana/{name}'
+        storage_result = upload_ruana_file(
+            file_obj=file.stream,
+            original_filename=file.filename,
+            bucket='ruana-comprobantes',
+            folder='pagos_ruana',
+            prefix=str(contacto_id),
+            content_type=file.mimetype,
+        )
+        comprobante_ruta = storage_result['url']
         db = get_db()
         result = db.subir_comprobante_apoyo_ruana(contacto_id, codigo, comprobante_ruta, comentario or None)
         if result.get('status') != 'success':
             return jsonify(result), 400
         return jsonify(result), 200
+    except ValueError as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/metodos-pago', methods=['GET'])
+@require_aliado
+def metodos_pago_ruana():
+    """Devuelve los metodos de pago RUANA visibles para aliados autenticados."""
+    try:
+        db = get_db()
+        return jsonify({'status': 'success', 'metodos': db.obtener_metodos_pago_ruana()}), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/metodos-pago', methods=['GET'])
+@require_admin
+def admin_obtener_metodos_pago():
+    """Admin lee la configuracion actual de metodos de pago."""
+    try:
+        db = get_db()
+        return jsonify({'status': 'success', 'metodos': db.obtener_metodos_pago_ruana()}), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/metodos-pago', methods=['POST'])
+@require_admin_escritura
+def admin_actualizar_metodos_pago():
+    """Admin actualiza Bizum e IBAN de cobro RUANA."""
+    try:
+        data = request.get_json() or {}
+        valores = {}
+        for clave in ('bizum_num', 'iban'):
+            if clave in data:
+                valores[clave] = (data.get(clave) or '').strip()
+        if 'iban' in valores and valores['iban']:
+            iban_limpio = valores['iban'].replace(' ', '').upper()
+            if not iban_limpio.startswith('ES') or len(iban_limpio) != 24:
+                return jsonify({'status': 'error', 'message': 'IBAN espanol no valido'}), 400
+            valores['iban'] = iban_limpio
+        db = get_db()
+        result = db.actualizar_metodos_pago_ruana(valores, admin_codigo=_admin_codigo() or None)
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/metodos-pago/qr-revolut', methods=['POST'])
+@require_admin_escritura
+def admin_subir_qr_revolut():
+    """Admin sube el QR Revolut a Supabase Storage y actualiza la configuracion."""
+    try:
+        if 'archivo' not in request.files and 'file' not in request.files:
+            return jsonify({'status': 'error', 'message': 'Falta el archivo (archivo o file)'}), 400
+        file = request.files.get('archivo') or request.files.get('file')
+        if not file or not file.filename:
+            return jsonify({'status': 'error', 'message': 'Archivo vacio'}), 400
+        ext = (Path(file.filename).suffix or '.bin').lower()
+        if ext not in ('.jpg', '.jpeg', '.png', '.webp'):
+            return jsonify({'status': 'error', 'message': 'Formato no permitido. Usa jpg, png o webp.'}), 400
+        storage_result = upload_ruana_file(
+            file_obj=file.stream,
+            original_filename=file.filename,
+            bucket='ruana-public',
+            folder='metodos_pago',
+            prefix='revolut',
+            content_type=file.mimetype,
+        )
+        db = get_db()
+        result = db.actualizar_metodos_pago_ruana(
+            {'qr_revolut_path': storage_result['url']},
+            admin_codigo=_admin_codigo() or None,
+        )
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
+    except ValueError as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
@@ -3112,21 +3194,25 @@ def subir_prueba_conflicto(conflict_id):
         file = request.files.get('archivo') or request.files.get('file')
         if not file or not file.filename:
             return jsonify({'status': 'error', 'message': 'Archivo vac?o'}), 400
-        from werkzeug.utils import secure_filename
-        import uuid
-        ext = (Path(file.filename).suffix or '.bin')[:20]
-        safe = secure_filename(file.filename) or 'prueba'
-        name = f"{conflict_id}_{uuid.uuid4().hex[:12]}_{safe}"[:120]
-        upload_dir = web_dir / 'static' / 'uploads' / 'conflictos'
-        upload_dir.mkdir(parents=True, exist_ok=True)
-        path = upload_dir / name
-        file.save(str(path))
-        prueba_url = f'/static/uploads/conflictos/{name}'
+        ext = (Path(file.filename).suffix or '.bin').lower()
+        if ext not in ('.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp'):
+            return jsonify({'status': 'error', 'message': 'Formato no permitido. Usa imagen (jpg, png, gif, webp) o PDF.'}), 400
+        storage_result = upload_ruana_file(
+            file_obj=file.stream,
+            original_filename=file.filename,
+            bucket='ruana-comprobantes',
+            folder='conflictos',
+            prefix=str(conflict_id),
+            content_type=file.mimetype,
+        )
+        prueba_url = storage_result['url']
         db = get_db()
         result = db.subir_prueba_conflicto(conflict_id, codigo, prueba_url)
         if result.get('status') != 'success':
             return jsonify(result), 400
         return jsonify(result), 200
+    except ValueError as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
