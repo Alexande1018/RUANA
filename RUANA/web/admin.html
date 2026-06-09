@@ -1469,6 +1469,25 @@
         </div>
 
         <!-- CAPA 6: Acciones de Administrador -->
+        <div class="acciones-admin" id="metodos-pago-admin-wrap">
+            <h2 class="seccion-titulo">Metodos de Pago RUANA</h2>
+            <div class="acciones-grid">
+                <div class="stat-card">
+                    <span class="stat-label">Bizum</span>
+                    <span class="stat-value" id="admin-metodo-bizum">-</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">IBAN</span>
+                    <span class="stat-value" id="admin-metodo-iban" style="font-size:0.95rem; word-break:break-all;">-</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">QR Revolut</span>
+                    <span class="stat-value" id="admin-metodo-qr">-</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- CAPA 7: Acciones de Administrador -->
         <div class="acciones-admin">
             <h2 class="seccion-titulo">Acciones de Administrador</h2>
             <div class="acciones-grid">
@@ -1478,6 +1497,7 @@
                 <button type="button" class="btn-admin-action" data-action="cerrar-oficio">Cerrar Oficio</button>
                 <button type="button" class="btn-admin-action" data-action="abrir-plaza">Abrir Plaza</button>
                 <button type="button" class="btn-admin-action" data-action="generar-reporte">Generar Reporte</button>
+                <button type="button" class="btn-admin-action" data-action="editar-metodos-pago">Editar Metodos de Pago</button>
                 <button type="button" class="btn-admin-action danger" data-action="cambiar-reglas">Cambiar Reglas</button>
             </div>
             <div id="admin-codigo-aliado-result" style="display:none; margin-top:14px; padding:14px; border:1px solid rgba(34,197,94,0.35); background:rgba(34,197,94,0.08); color:#d1fae5; border-radius:8px;"></div>
@@ -1574,7 +1594,9 @@
             static getAdminAuthHeaders(extra) {
                 const sessionId = sessionStorage.getItem('admin_session_id');
                 const h = { ...(extra || {}) };
-                if (!h['Content-Type']) h['Content-Type'] = 'application/json';
+                const skipContentType = Boolean(h._skipContentType);
+                delete h._skipContentType;
+                if (!skipContentType && !h['Content-Type']) h['Content-Type'] = 'application/json';
                 if (sessionId) h['X-Ruana-Session-Id'] = sessionId;
                 return h;
             }
@@ -1641,7 +1663,8 @@
                         fetch('/api/admin/competencias-activas', fetchOpts),
                         stats24hFetch,
                         fetch('/api/admin/invitaciones-recientes?limite=15', fetchOpts),
-                        fetch('/api/admin/invitacion-campanas?limite=30', fetchOpts)
+                        fetch('/api/admin/invitacion-campanas?limite=30', fetchOpts),
+                        fetch('/api/admin/metodos-pago', fetchOpts)
                     ];
                     const settled = await Promise.allSettled(fetchPromises);
                     const responses = settled.map((r, i) => (r.status === 'fulfilled' ? r.value : null));
@@ -1659,7 +1682,7 @@
                         return r.json().catch(() => null);
                     }
                     const idx12 = responses[12];
-                    const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, solicitudesData, chatsData, competenciasData, stats24hData, invitacionesRecData, campanasData] = await Promise.all([
+                    const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, solicitudesData, chatsData, competenciasData, stats24hData, invitacionesRecData, campanasData, metodosPagoData] = await Promise.all([
                         parseResponse(responses[0], false),
                         parseResponse(responses[1], false),
                         parseResponse(responses[2], false),
@@ -1674,7 +1697,8 @@
                         parseResponse(responses[11], false),
                         Promise.resolve(idx12),
                         parseResponse(responses[13], false),
-                        parseResponse(responses[14], false)
+                        parseResponse(responses[14], false),
+                        parseResponse(responses[15], false)
                     ]);
 
                     // Pendientes de validación (unir API + lista por código)
@@ -1748,6 +1772,7 @@
                     this.renderSolicitudesAdmin(Array.isArray(solicitudesData) ? solicitudesData : (solicitudesData && Array.isArray(solicitudesData.solicitudes) ? solicitudesData.solicitudes : []));
                     this.renderInvitacionesRecientes(invitacionesRecData && invitacionesRecData.status === 'success' && Array.isArray(invitacionesRecData.invitaciones) ? invitacionesRecData.invitaciones : []);
                     this.renderCampanasInvitacion(campanasData && campanasData.status === 'success' && Array.isArray(campanasData.campanas) ? campanasData.campanas : []);
+                    this.renderMetodosPago((metodosPagoData && metodosPagoData.status === 'success' && metodosPagoData.metodos) ? metodosPagoData.metodos : null);
                     this.renderCompetenciasActivas((competenciasData && competenciasData.status === 'success' && Array.isArray(competenciasData.competencias)) ? competenciasData.competencias : []);
                     let conversaciones = (chatsData && chatsData.status === 'success' && Array.isArray(chatsData.conversaciones)) ? chatsData.conversaciones : [];
                     this._conversacionesList = conversaciones;
@@ -2201,6 +2226,7 @@
                         else if (action === 'cerrar-oficio') self.accionCerrarOficio();
                         else if (action === 'abrir-plaza') self.accionAbrirPlaza();
                         else if (action === 'generar-reporte') self.accionGenerarReporte();
+                        else if (action === 'editar-metodos-pago') self.accionEditarMetodosPago();
                         else if (action === 'cambiar-reglas') self.accionCambiarReglas();
                     });
                 });
@@ -2670,6 +2696,76 @@
                 });
             }
 
+            renderMetodosPago(metodos) {
+                this._metodosPago = metodos || this._metodosPago || {};
+                const bizumEl = document.getElementById('admin-metodo-bizum');
+                const ibanEl = document.getElementById('admin-metodo-iban');
+                const qrEl = document.getElementById('admin-metodo-qr');
+                if (bizumEl) bizumEl.textContent = this._metodosPago.bizum_num || '-';
+                if (ibanEl) ibanEl.textContent = this._metodosPago.iban || '-';
+                if (qrEl) {
+                    qrEl.innerHTML = this._metodosPago.qr_revolut_path
+                        ? `<a href="${this.escapeHtml(this._metodosPago.qr_revolut_path)}" target="_blank" rel="noopener">Ver QR</a>`
+                        : '-';
+                }
+            }
+
+            accionEditarMetodosPago() {
+                const metodos = this._metodosPago || {};
+                this._abrirModalAccionAdmin({
+                    title: 'Editar metodos de pago',
+                    bodyHtml: `
+                        <label class="modal-importe-label" style="display:block; margin-bottom:6px;">Telefono Bizum *</label>
+                        <input type="text" id="accion-mp-bizum" value="${this.escapeHtml(metodos.bizum_num || '')}" style="width:100%; padding:8px; margin-bottom:12px; box-sizing:border-box;" />
+                        <label class="modal-importe-label" style="display:block; margin-bottom:6px;">IBAN *</label>
+                        <input type="text" id="accion-mp-iban" value="${this.escapeHtml(metodos.iban || 'ES8915830001119028625152')}" style="width:100%; padding:8px; margin-bottom:12px; box-sizing:border-box;" />
+                        <label class="modal-importe-label" style="display:block; margin-bottom:6px;">QR Revolut</label>
+                        <input type="file" id="accion-mp-qr" accept=".jpg,.jpeg,.png,.webp" style="width:100%; padding:8px; box-sizing:border-box;" />
+                        <p style="margin-top:8px; color:#aaa; font-size:0.85rem;">Maximo 2 MB. Si no eliges archivo, se mantiene el QR actual.</p>
+                    `,
+                    getPayload: () => ({
+                        bizum_num: (document.getElementById('accion-mp-bizum')?.value || '').trim(),
+                        iban: (document.getElementById('accion-mp-iban')?.value || '').replace(/\s+/g, '').trim().toUpperCase(),
+                        qrFile: document.getElementById('accion-mp-qr')?.files?.[0] || null
+                    }),
+                    validate: (p) => {
+                        if (!p.bizum_num) return 'El telefono Bizum es obligatorio.';
+                        if (!p.iban || !p.iban.startsWith('ES') || p.iban.length !== 24) return 'El IBAN espanol debe tener 24 caracteres y empezar por ES.';
+                        if (p.qrFile && p.qrFile.size > 2 * 1024 * 1024) return 'El QR no puede superar 2 MB.';
+                        return null;
+                    },
+                    getConfirmSummary: (p) => `Confirmar metodos de pago: Bizum <strong>${this.escapeHtml(p.bizum_num)}</strong>, IBAN <strong>${this.escapeHtml(p.iban)}</strong>${p.qrFile ? ', con nuevo QR Revolut' : ''}.`,
+                    execute: async (p) => {
+                        const r = await fetch('/api/admin/metodos-pago', {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: this.getAuthHeaders(),
+                            body: JSON.stringify({ bizum_num: p.bizum_num, iban: p.iban })
+                        });
+                        if (r.status === 401) { this._adminSessionExpired(); return; }
+                        if (r.status === 403) { this.showToast('Sin permiso de escritura (solo lectura).', 'error'); return; }
+                        const data = await r.json().catch(() => ({}));
+                        if (data.status !== 'success') { this.showToast(data.message || 'Error actualizando metodos.', 'error'); return; }
+                        if (p.qrFile) {
+                            const fd = new FormData();
+                            fd.append('archivo', p.qrFile);
+                            const qrResp = await fetch('/api/admin/metodos-pago/qr-revolut', {
+                                method: 'POST',
+                                credentials: 'same-origin',
+                                headers: AdminAuthenticator.getAdminAuthHeaders({ _skipContentType: true }),
+                                body: fd
+                            });
+                            if (qrResp.status === 401) { this._adminSessionExpired(); return; }
+                            if (qrResp.status === 403) { this.showToast('Sin permiso de escritura (solo lectura).', 'error'); return; }
+                            const qrData = await qrResp.json().catch(() => ({}));
+                            if (qrData.status !== 'success') { this.showToast(qrData.message || 'Error subiendo QR.', 'error'); return; }
+                        }
+                        this.showToast('Metodos de pago actualizados.', 'success');
+                        this.cargarDesdeApi();
+                    }
+                });
+            }
+
             async logout() {
                 try {
                     await fetch('/api/admin/logout', {
@@ -3031,6 +3127,7 @@
                         const tbody = document.getElementById('tbody-conflictos-pago');
                         const emptyEl = document.getElementById('conflictos-pago-empty');
                         if (emptyEl && tbody && !tbody.querySelector('tr')) emptyEl.style.display = 'block';
+                        await this.cargarDesdeApi();
                     } else {
                         this.showToast(data.message || 'Error al resolver.', 'error');
                     }

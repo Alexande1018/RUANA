@@ -13,7 +13,9 @@
   "motor_delta_rojo": -8,
   "motor_severidad_critico_multiplicador": 1.5,
   "reglas": [],
-  "description": "RUANA - Sistema modular de evaluaci\u00f3n",
+  "description": "RUANA - Sistema modular de evaluación",
   "qr_paypal_path": "/static/images/PayPal.png",
-  "bizum_num": "642868261"
+  "qr_revolut_path": "https://qqlxgwbmtzcfrrobrfzy.supabase.co/storage/v1/object/public/ruana-public/metodos_pago/revolut_2b84ed29a492_QR_Revolut_RUANA.jpeg?",
+  "bizum_num": "642868261",
+  "iban": "ES8915830001119028625152"
 }
