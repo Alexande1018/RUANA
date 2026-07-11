@@ -4,27 +4,33 @@
    ================================================ */
 
 :root {
-    --ruana-bg: #0b1120;
-    --ruana-bg-soft: #111827;
-    --ruana-surface: rgba(255, 255, 255, 0.05);
-    --ruana-surface-strong: rgba(17, 24, 39, 0.94);
-    --ruana-surface-hover: rgba(255, 255, 255, 0.08);
-    --ruana-border: rgba(255, 255, 255, 0.12);
-    --ruana-border-strong: rgba(255, 255, 255, 0.18);
-    --ruana-text: #e5e7eb;
+    --ruana-bg: #0e1020;
+    --ruana-bg-soft: #141827;
+    --ruana-panel: #141827;
+    --ruana-surface: rgba(20, 24, 39, 0.72);
+    --ruana-surface-strong: rgba(20, 24, 39, 0.94);
+    --ruana-surface-hover: rgba(255, 255, 255, 0.06);
+    --ruana-border: rgba(255, 255, 255, 0.08);
+    --ruana-border-strong: rgba(255, 255, 255, 0.14);
+    --ruana-text: #f1f5f9;
     --ruana-text-soft: #cbd5e1;
     --ruana-text-muted: #94a3b8;
     --ruana-text-subtle: #64748b;
     --ruana-accent: #22c55e;
     --ruana-accent-strong: #16a34a;
+    --ruana-accent-glow: rgba(34, 197, 94, 0.28);
     --ruana-info: #38bdf8;
     --ruana-warning: #eab308;
     --ruana-danger: #ef4444;
-    --ruana-radius-sm: 6px;
-    --ruana-radius-md: 8px;
-    --ruana-radius-lg: 12px;
-    --ruana-focus-ring: 0 0 0 3px rgba(34, 197, 94, 0.16);
-    --ruana-shadow-soft: 0 18px 50px rgba(0, 0, 0, 0.28);
+    --ruana-radius-sm: 10px;
+    --ruana-radius-md: 14px;
+    --ruana-radius-lg: 18px;
+    --ruana-radius-xl: 20px;
+    --ruana-focus-ring: 0 0 0 3px rgba(34, 197, 94, 0.2);
+    --ruana-shadow-soft: 0 20px 50px rgba(0, 0, 0, 0.35);
+    --ruana-shadow-card: 0 4px 24px rgba(0, 0, 0, 0.22);
+    --ruana-transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    --ruana-glass: blur(16px) saturate(140%);
 }
 
 /* Botón de volver atrás (global) */
@@ -67,12 +73,16 @@ html {
 
 body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: linear-gradient(135deg, #0f0f1e 0%, #1a1a2e 50%, #0f1419 100%);
+    background: var(--ruana-bg);
+    background-image:
+        radial-gradient(ellipse 80% 60% at 10% 0%, rgba(34, 197, 94, 0.06) 0%, transparent 55%),
+        radial-gradient(ellipse 60% 50% at 90% 100%, rgba(56, 189, 248, 0.04) 0%, transparent 50%);
     color: var(--ruana-text);
-    line-height: 1.6;
+    line-height: 1.65;
     min-height: 100vh;
     position: relative;
     overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
 }
 
 /* ================================================
@@ -88,24 +98,24 @@ body {
 
 .ruana-auth-card {
     width: min(100%, 460px);
-    background: var(--ruana-surface);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: var(--ruana-radius-lg);
-    padding: clamp(28px, 6vw, 48px) clamp(20px, 5vw, 32px);
-    backdrop-filter: blur(10px);
+    background: linear-gradient(165deg, rgba(20, 24, 39, 0.92) 0%, rgba(14, 16, 32, 0.88) 100%);
+    border: 1px solid var(--ruana-border);
+    border-radius: var(--ruana-radius-xl);
+    padding: clamp(32px, 6vw, 52px) clamp(24px, 5vw, 36px);
+    backdrop-filter: var(--ruana-glass);
     box-shadow: var(--ruana-shadow-soft);
 }
 
 .ruana-form-control {
     width: 100%;
-    min-height: 44px;
-    padding: 11px 14px;
-    background: rgba(255, 255, 255, 0.05);
+    min-height: 48px;
+    padding: 13px 16px;
+    background: rgba(14, 16, 32, 0.6);
     border: 1px solid var(--ruana-border);
     border-radius: var(--ruana-radius-md);
     color: var(--ruana-text);
     font: inherit;
-    transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    transition: background var(--ruana-transition), border-color var(--ruana-transition), box-shadow var(--ruana-transition), transform var(--ruana-transition);
 }
 
 .ruana-form-control::placeholder {
@@ -130,22 +140,28 @@ textarea.ruana-form-control {
 }
 
 .ruana-button {
-    min-height: 44px;
-    padding: 11px 18px;
+    min-height: 48px;
+    padding: 13px 22px;
     border: 1px solid transparent;
-    border-radius: var(--ruana-radius-md);
+    border-radius: 14px;
     background: linear-gradient(135deg, var(--ruana-accent) 0%, var(--ruana-accent-strong) 100%);
     color: #fff;
     font: inherit;
     font-size: 0.92rem;
-    font-weight: 700;
+    font-weight: 600;
+    letter-spacing: 0.01em;
     cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, opacity 0.2s ease;
+    transition: transform var(--ruana-transition), box-shadow var(--ruana-transition), background var(--ruana-transition), opacity var(--ruana-transition);
+    box-shadow: 0 2px 12px var(--ruana-accent-glow);
 }
 
 .ruana-button:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 10px 24px rgba(34, 197, 94, 0.24);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 28px var(--ruana-accent-glow), 0 0 20px rgba(34, 197, 94, 0.12);
+}
+
+.ruana-button:active {
+    transform: translateY(0) scale(0.98);
 }
 
 .ruana-button:focus-visible {
@@ -604,14 +620,14 @@ select optgroup {
 }
 
 select {
-    background-color: rgba(17, 24, 39, 0.94);
+    background-color: rgba(20, 24, 39, 0.94);
     color: #e5e7eb;
     border-color: rgba(255, 255, 255, 0.14);
 }
 
 select option,
 select optgroup {
-    background-color: #111827;
+    background-color: #141827;
     color: #e5e7eb;
 }
 
@@ -1081,4 +1097,261 @@ select optgroup {
 
 ::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.2);
+}
+
+/* ================================================
+   RUANA PREMIUM UI — Toast, Diálogos, Badges
+   ================================================ */
+.ruana-toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 20000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+    max-width: min(420px, calc(100vw - 32px));
+}
+
+.ruana-toast {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: var(--ruana-radius-lg);
+    border: 1px solid var(--ruana-border);
+    background: linear-gradient(165deg, rgba(20, 24, 39, 0.96) 0%, rgba(14, 16, 32, 0.94) 100%);
+    backdrop-filter: var(--ruana-glass);
+    box-shadow: var(--ruana-shadow-card);
+    color: var(--ruana-text);
+    font-size: 0.9rem;
+    line-height: 1.45;
+    pointer-events: auto;
+    animation: ruana-toast-in 220ms ease forwards;
+}
+
+.ruana-toast.is-leaving {
+    animation: ruana-toast-out 180ms ease forwards;
+}
+
+.ruana-toast-icon {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    margin-top: 1px;
+}
+
+.ruana-toast-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.ruana-toast-close {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--ruana-text-muted);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: background var(--ruana-transition), color var(--ruana-transition);
+}
+
+.ruana-toast-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--ruana-text);
+}
+
+.ruana-toast.success { border-color: rgba(34, 197, 94, 0.35); }
+.ruana-toast.success .ruana-toast-icon { color: var(--ruana-accent); }
+.ruana-toast.error { border-color: rgba(239, 68, 68, 0.35); }
+.ruana-toast.error .ruana-toast-icon { color: var(--ruana-danger); }
+.ruana-toast.warning { border-color: rgba(234, 179, 8, 0.35); }
+.ruana-toast.warning .ruana-toast-icon { color: var(--ruana-warning); }
+.ruana-toast.info { border-color: rgba(56, 189, 248, 0.35); }
+.ruana-toast.info .ruana-toast-icon { color: var(--ruana-info); }
+
+@keyframes ruana-toast-in {
+    from { opacity: 0; transform: translateX(16px) scale(0.96); }
+    to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes ruana-toast-out {
+    from { opacity: 1; transform: translateX(0); }
+    to { opacity: 0; transform: translateX(12px); }
+}
+
+.ruana-dialog-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 19000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(6, 8, 18, 0.72);
+    backdrop-filter: blur(8px);
+    animation: ruana-fade-in 200ms ease;
+}
+
+.ruana-dialog {
+    width: min(100%, 440px);
+    padding: 28px;
+    border-radius: var(--ruana-radius-xl);
+    border: 1px solid var(--ruana-border);
+    background: linear-gradient(165deg, rgba(20, 24, 39, 0.98) 0%, rgba(14, 16, 32, 0.96) 100%);
+    box-shadow: var(--ruana-shadow-soft);
+    animation: ruana-dialog-in 220ms ease;
+}
+
+.ruana-dialog-title {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--ruana-text);
+    margin-bottom: 10px;
+}
+
+.ruana-dialog-message {
+    font-size: 0.92rem;
+    color: var(--ruana-text-muted);
+    line-height: 1.55;
+    margin-bottom: 24px;
+}
+
+.ruana-dialog-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+}
+
+.ruana-dialog-actions .ruana-button.secondary {
+    min-height: 44px;
+}
+
+@keyframes ruana-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes ruana-dialog-in {
+    from { opacity: 0; transform: scale(0.96) translateY(8px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.ruana-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+
+.ruana-badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 8px currentColor;
+}
+
+.ruana-badge.disponible,
+.ruana-badge.activo,
+.ruana-badge.estable {
+    background: rgba(34, 197, 94, 0.12);
+    border-color: rgba(34, 197, 94, 0.28);
+    color: #4ade80;
+}
+
+.ruana-badge.prioritario {
+    background: rgba(22, 163, 74, 0.18);
+    border-color: rgba(22, 163, 74, 0.35);
+    color: #86efac;
+}
+
+.ruana-badge.pendiente {
+    background: rgba(56, 189, 248, 0.12);
+    border-color: rgba(56, 189, 248, 0.28);
+    color: #7dd3fc;
+}
+
+.ruana-badge.atendida {
+    background: rgba(34, 197, 94, 0.1);
+    border-color: rgba(34, 197, 94, 0.22);
+    color: #86efac;
+}
+
+.ruana-badge.urgente,
+.ruana-badge.riesgo {
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #fca5a5;
+}
+
+.ruana-badge.observacion,
+.ruana-badge.warning {
+    background: rgba(234, 179, 8, 0.12);
+    border-color: rgba(234, 179, 8, 0.28);
+    color: #fde047;
+}
+
+.ruana-badge.inactivo {
+    background: rgba(100, 116, 139, 0.15);
+    border-color: rgba(100, 116, 139, 0.25);
+    color: #94a3b8;
+}
+
+.ruana-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+}
+
+.ruana-input-wrap .ruana-input-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    color: var(--ruana-text-subtle);
+    pointer-events: none;
+}
+
+.ruana-input-wrap .ruana-form-control {
+    padding-left: 42px;
+}
+
+.ruana-card-premium {
+    background: linear-gradient(165deg, rgba(20, 24, 39, 0.88) 0%, rgba(14, 16, 32, 0.75) 100%);
+    border: 1px solid var(--ruana-border);
+    border-radius: var(--ruana-radius-xl);
+    backdrop-filter: var(--ruana-glass);
+    box-shadow: var(--ruana-shadow-card);
+    transition: transform var(--ruana-transition), border-color var(--ruana-transition), box-shadow var(--ruana-transition);
+}
+
+.ruana-card-premium:hover {
+    border-color: var(--ruana-border-strong);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.28);
+}
+
+@media (max-width: 640px) {
+    .ruana-toast-container {
+        top: 12px;
+        right: 12px;
+        left: 12px;
+        max-width: none;
+    }
 }
