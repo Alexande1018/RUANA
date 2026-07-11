@@ -1133,7 +1133,7 @@
                         // El servidor generó el código
                         const codigoAliado = result.codigo;
                         const estadoBackend = result.estado || 'activo';
-                        const scoreBackend = (typeof result.score === 'number') ? result.score : 75;
+                        const scoreBackend = (typeof result.score === 'number') ? result.score : 50;
                         const creadoEn = result.creado_en || new Date().toISOString();
 
                         const aliadoPayload = {

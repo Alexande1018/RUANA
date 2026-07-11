@@ -1812,7 +1812,7 @@ def registrar_aliado():
                 email=email,
                 telefono=telefono,
                 estado='activo',
-                score=75,
+                score=50,
                 especializaciones=especializaciones,
                 especializacion=especializacion_plaza,
                 descripcion_servicio=descripcion_servicio,
@@ -1830,7 +1830,7 @@ def registrar_aliado():
                 email=email,
                 telefono=telefono,
                 estado='activo',
-                score=75,
+                score=50,
                 especializaciones=especializaciones,
                 especializacion=especializacion_plaza,
                 descripcion_servicio=descripcion_servicio,
@@ -2447,7 +2447,7 @@ def _crear_aliado_placeholder_para_invitacion(db, zona=""):
         email=f"placeholder-{codigo}@ruana.local",
         telefono=f"+34 600 {codigo}",
         estado="pendiente_completar",
-        score=75,
+        score=50,
     )
     return codigo, result
 

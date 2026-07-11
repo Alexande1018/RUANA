@@ -1331,7 +1331,7 @@ class DBManager:
     def crear_aliado(self, codigo: str, nombre: str, marca: str = "",
                     oficio: str = "", codigo_postal: str = "",
                     email: str = "", telefono: str = "",
-                    estado: str = "activo", score: int = 75,
+                    estado: str = "activo", score: int = 50,
                     especializaciones: Optional[List[str]] = None,
                     especializacion: Optional[str] = None,
                     descripcion_servicio: Optional[str] = None,
@@ -1515,7 +1515,7 @@ class DBManager:
     def completar_aliado_pendiente(self, codigo: str, nombre: str, marca: str = "",
                                    oficio: str = "", codigo_postal: str = "",
                                    email: str = "", telefono: str = "",
-                                   estado: str = "activo", score: int = 75,
+                                   estado: str = "activo", score: int = 50,
                                    especializaciones: Optional[List[str]] = None,
                                    especializacion: Optional[str] = None,
                                    descripcion_servicio: Optional[str] = None,
@@ -1675,7 +1675,7 @@ class DBManager:
     def crear_aliado_seed(self, codigo: str, nombre: str, marca: str = "",
                           oficio: str = "", codigo_postal: str = "",
                           email: str = "", telefono: str = "",
-                          estado: str = "activo", score: int = 75) -> Dict[str, Any]:
+                          estado: str = "activo", score: int = 50) -> Dict[str, Any]:
         """
         Crea un aliado de *semilla* en la BD.
 
