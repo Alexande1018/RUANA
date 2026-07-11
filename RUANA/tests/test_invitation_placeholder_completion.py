@@ -38,7 +38,7 @@ def test_register_with_placeholder_invitation_completes_existing_ally(
         email="invitador@example.com",
         telefono="+34600111111",
         estado="activo",
-        score=75,
+        score=50,
     )
     assert invitador["status"] == "success"
 
@@ -51,7 +51,7 @@ def test_register_with_placeholder_invitation_completes_existing_ally(
         email="placeholder-12345@ruana.local",
         telefono="+34 600 12345",
         estado="pendiente_completar",
-        score=75,
+        score=50,
     )
     assert placeholder["status"] == "success"
     sqlite_db._registrar_invitacion("12345", invitador["id"])

@@ -1331,7 +1331,7 @@ class DBManager:
     def crear_aliado(self, codigo: str, nombre: str, marca: str = "",
                     oficio: str = "", codigo_postal: str = "",
                     email: str = "", telefono: str = "",
-                    estado: str = "activo", score: int = 75,
+                    estado: str = "activo", score: int = 50,
                     especializaciones: Optional[List[str]] = None,
                     especializacion: Optional[str] = None,
                     descripcion_servicio: Optional[str] = None,
@@ -1515,7 +1515,7 @@ class DBManager:
     def completar_aliado_pendiente(self, codigo: str, nombre: str, marca: str = "",
                                    oficio: str = "", codigo_postal: str = "",
                                    email: str = "", telefono: str = "",
-                                   estado: str = "activo", score: int = 75,
+                                   estado: str = "activo", score: int = 50,
                                    especializaciones: Optional[List[str]] = None,
                                    especializacion: Optional[str] = None,
                                    descripcion_servicio: Optional[str] = None,
@@ -1675,7 +1675,7 @@ class DBManager:
     def crear_aliado_seed(self, codigo: str, nombre: str, marca: str = "",
                           oficio: str = "", codigo_postal: str = "",
                           email: str = "", telefono: str = "",
-                          estado: str = "activo", score: int = 75) -> Dict[str, Any]:
+                          estado: str = "activo", score: int = 50) -> Dict[str, Any]:
         """
         Crea un aliado de *semilla* en la BD.
 
@@ -2407,7 +2407,7 @@ class DBManager:
         """
         Compara scores (sin exponerlos); el mayor permanece, el otro sale.
         Primera derrota (original pierde): no eliminar perfil, no desactivar código;
-        crear o asignar a un grupo REAL (RUANA-XXX), reiniciar score a 75. Grupo normal: solicitudes, score, 1 oficio.
+        crear o asignar a un grupo REAL (RUANA-XXX), reiniciar score a 50. Grupo normal: solicitudes, score, 1 oficio.
         """
         with self._lock:
             try:
@@ -2440,14 +2440,14 @@ class DBManager:
                     cur2 = conn2.cursor()
                     if grupo_nuevo and isinstance(grupo_nuevo, dict) and grupo_nuevo.get('id'):
                         cur2.execute(
-                            """UPDATE aliados SET grupo_id = ?, score = 75,
+                            """UPDATE aliados SET grupo_id = ?, score = 50,
                                derrotas_competencia = COALESCE(derrotas_competencia, 0) + 1,
                                actualizado_en = CURRENT_TIMESTAMP WHERE codigo = ?""",
                             (grupo_nuevo['id'], aliado_original_codigo)
                         )
                     else:
                         cur2.execute(
-                            """UPDATE aliados SET grupo_id = NULL, score = 75,
+                            """UPDATE aliados SET grupo_id = NULL, score = 50,
                                derrotas_competencia = COALESCE(derrotas_competencia, 0) + 1,
                                actualizado_en = CURRENT_TIMESTAMP WHERE codigo = ?""",
                             (aliado_original_codigo,)
