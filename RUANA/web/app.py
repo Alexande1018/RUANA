@@ -218,6 +218,25 @@ def require_aliado(f):
         return f(*args, **kwargs)
     return wrapped
 
+
+def _forbidden_unless_admin_or_aliado_self(codigo):
+    """None si admin autenticado o aliado consultando su propio código; si no, (response, status_code)."""
+    codigo = (codigo or '').strip()
+    if _admin_session_valid() or (_admin_jwt_payload() and _admin_jwt_payload().get('admin_codigo')):
+        return None
+    aliado = _aliado_codigo()
+    if aliado:
+        if aliado == codigo:
+            return None
+        return jsonify({'status': 'error', 'message': 'No autorizado'}), 403
+    return jsonify({'status': 'error', 'message': 'Sesi?n expirada o no autorizado. Inicia sesi?n con tu c?digo.'}), 401
+
+
+_ALIADO_SELF_EDITABLE_FIELDS = frozenset({
+    'nombre', 'marca', 'oficio', 'codigo_postal', 'email',
+    'telefono', 'descripcion_servicio', 'qr_paypal_path', 'bizum_num',
+})
+
 # Instrumentaci?n de arranque: confirmar ruta de BD usada por Flask
 try:
     from pathlib import Path as _PathCheck
@@ -632,6 +651,7 @@ def static_files(path):
 # ================================================
 
 @app.route('/api/aliados', methods=['GET'])
+@require_admin
 def get_aliados():
     """
     GET /api/aliados
@@ -679,6 +699,7 @@ def get_aliados_directorio():
 
 
 @app.route('/api/aliados/<int:aliado_id>', methods=['GET'])
+@require_admin
 def get_aliado(aliado_id):
     """
     GET /api/aliados/<id>
@@ -1325,13 +1346,14 @@ def api_contactos_mensajes(contacto_id):
 
 # ========== Chat RUANA (rutas simples: Aliado y Profesional) ==========
 @app.route('/api/chat/mensajes', methods=['GET'])
+@require_aliado
 def chat_get_mensajes():
-    """GET /api/chat/mensajes?contacto_id=1&codigo=12345  ? lista mensajes del chat."""
+    """GET /api/chat/mensajes?contacto_id=1  ? lista mensajes del chat (codigo desde sesi?n)."""
     try:
         contacto_id = request.args.get('contacto_id', type=int)
-        codigo = (request.args.get('codigo') or '').strip()
+        codigo = _aliado_codigo()
         if not contacto_id or not codigo:
-            return jsonify({'status': 'error', 'message': 'contacto_id y codigo son obligatorios'}), 400
+            return jsonify({'status': 'error', 'message': 'contacto_id es obligatorio'}), 400
         db = get_db()
         contacto = db.obtener_contacto_resumen(contacto_id)
         if not contacto:
@@ -1348,8 +1370,9 @@ def chat_get_mensajes():
 
 
 @app.route('/api/chat/enviar', methods=['POST'])
+@require_aliado
 def chat_enviar():
-    """POST /api/chat/enviar  body: { contacto_id, emisor_codigo, texto }  ? env?a mensaje. Aliado y Profesional."""
+    """POST /api/chat/enviar  body: { contacto_id, texto }  ? env?a mensaje (emisor = sesi?n)."""
     try:
         data = request.get_json() or {}
         contacto_id = data.get('contacto_id')
@@ -1358,12 +1381,12 @@ def chat_enviar():
                 contacto_id = int(contacto_id)
             except (TypeError, ValueError):
                 contacto_id = None
-        emisor_codigo = (data.get('emisor_codigo') or '').strip()
+        emisor_codigo = _aliado_codigo()
         texto = data.get('texto')
         if not contacto_id:
             return jsonify({'status': 'error', 'message': 'contacto_id es obligatorio'}), 400
         if not emisor_codigo:
-            return jsonify({'status': 'error', 'message': 'emisor_codigo es obligatorio'}), 400
+            return jsonify({'status': 'error', 'message': 'Sesi?n expirada'}), 401
         db = get_db()
         result = db.enviar_mensaje_chat(contacto_id, emisor_codigo, texto or '')
         if result.get('status') != 'success':
@@ -1880,6 +1903,9 @@ def obtener_aliado_codigo(codigo):
     """
     try:
         codigo = codigo.strip()
+        auth_err = _forbidden_unless_admin_or_aliado_self(codigo)
+        if auth_err:
+            return auth_err
         
         # F08: Validaci?n de formato para compatibilidad legacy
         # Aceptar:
@@ -1951,6 +1977,7 @@ def obtener_aliado_codigo(codigo):
 
 
 @app.route('/api/aliados/verificar-codigo/<codigo>', methods=['GET'])
+@require_admin
 def verificar_codigo_existe(codigo):
     """
     GET /api/aliados/verificar-codigo/XXXXX
@@ -2048,6 +2075,7 @@ def actualizar_aliado_db(codigo):
         if codigo != _aliado_codigo():
             return jsonify({'status': 'error', 'message': 'No autorizado a actualizar otro aliado'}), 403
         data = request.get_json() or {}
+        data = {k: v for k, v in data.items() if k in _ALIADO_SELF_EDITABLE_FIELDS}
         db = get_db()
         result = db.actualizar_aliado(codigo, **data)
         
@@ -2160,6 +2188,7 @@ def obtener_evaluacion(codigo_aliado):
 
 
 @app.route('/api/evaluaciones', methods=['GET'])
+@require_admin
 def listar_evaluaciones():
     """
     GET /api/evaluaciones
@@ -2196,6 +2225,9 @@ def obtener_historico_evaluacion(codigo_aliado):
     """
     try:
         codigo_aliado = codigo_aliado.strip()
+        auth_err = _forbidden_unless_admin_or_aliado_self(codigo_aliado)
+        if auth_err:
+            return auth_err
         db = get_db()
         
         historico = db.obtener_historico_evaluaciones(codigo_aliado)
@@ -2215,6 +2247,7 @@ def obtener_historico_evaluacion(codigo_aliado):
 
 
 @app.route('/api/evaluaciones/estadisticas', methods=['GET'])
+@require_admin
 def estadisticas_evaluaciones():
     """
     GET /api/evaluaciones/estadisticas

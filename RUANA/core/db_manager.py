@@ -1865,7 +1865,7 @@ class DBManager:
             # Campos permitidos para actualizar (qr_paypal_path, bizum_num para notificaciones Apoyo RUANA)
             campos_permitidos = {
                 'nombre', 'marca', 'oficio', 'codigo_postal', 'email',
-                'telefono', 'estado', 'score', 'grupo_id', 'descripcion_servicio',
+                'telefono', 'descripcion_servicio',
                 'qr_paypal_path', 'bizum_num'
             }
             campos_update = {k: v for k, v in kwargs.items()

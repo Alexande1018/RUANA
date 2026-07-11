@@ -3529,7 +3529,10 @@
                         })
                         .catch(() => {});
 
-                    fetch(`/api/evaluaciones/${encodeURIComponent(aliado.codigo)}/historico`, { credentials: 'same-origin' })
+                    fetch(`/api/evaluaciones/${encodeURIComponent(aliado.codigo)}/historico`, {
+                        credentials: 'same-origin',
+                        headers: AdminAuthenticator.getAdminAuthHeaders(),
+                    })
                         .then(r => r.ok ? r.json() : null)
                         .then(data => {
                             const cont = document.getElementById('det-historico');
