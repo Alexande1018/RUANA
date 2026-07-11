@@ -1437,6 +1437,9 @@
             }
         }
     </style>
+    <link rel="stylesheet" href="/static/css/panel-premium.css">
+    <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
+    <script src="/static/js/ruana-ui.js" defer></script>
 </head>
 <body class="panel-loading">
     <button id="btn-logout" class="btn-back">Cerrar sesión</button>
@@ -1512,8 +1515,11 @@
         </div>
 
         <!-- BLOQUE 1: Perfil del Aliado -->
-        <div class="perfil-block">
+        <div class="perfil-block ruana-card-premium">
             <div class="perfil-header">
+                <div class="perfil-avatar-wrap">
+                    <div class="perfil-avatar" id="perfil-avatar" aria-hidden="true">RU</div>
+                </div>
                 <div class="perfil-info">
                     <div class="perfil-titulo">Perfil del Aliado</div>
                     <div class="perfil-main">
@@ -1603,16 +1609,31 @@
             <h2 class="metricas-title">Métricas Personales</h2>
             <div class="metricas-grid">
                 <div class="metrica-card">
+                    <div class="metrica-card-header">
+                        <div class="metrica-icon"><i data-lucide="send"></i></div>
+                        <div class="metrica-sparkline" aria-hidden="true"><span style="height:40%"></span><span style="height:65%"></span><span style="height:50%"></span><span style="height:80%"></span><span style="height:60%"></span></div>
+                    </div>
                     <div class="metrica-numero" id="metric-solicitudes">0</div>
                     <div class="metrica-label">Solicitudes enviadas y contestadas</div>
+                    <div class="metrica-trend"><i data-lucide="activity" style="width:14px;height:14px"></i> Actividad del grupo</div>
                 </div>
                 <div class="metrica-card">
+                    <div class="metrica-card-header">
+                        <div class="metrica-icon"><i data-lucide="users"></i></div>
+                        <div class="metrica-sparkline" aria-hidden="true"><span style="height:30%"></span><span style="height:55%"></span><span style="height:70%"></span><span style="height:45%"></span><span style="height:75%"></span></div>
+                    </div>
                     <div class="metrica-numero" id="metric-invitaciones">0</div>
                     <div class="metrica-label">Aliados referidos por mí</div>
+                    <div class="metrica-trend"><i data-lucide="trending-up" style="width:14px;height:14px"></i> Red de confianza</div>
                 </div>
                 <div class="metrica-card" id="metrica-card-score">
+                    <div class="metrica-card-header">
+                        <div class="metrica-icon"><i data-lucide="gauge"></i></div>
+                        <div class="metrica-sparkline" aria-hidden="true"><span style="height:60%"></span><span style="height:75%"></span><span style="height:55%"></span><span style="height:90%"></span><span style="height:70%"></span></div>
+                    </div>
                     <div class="metrica-numero" id="metric-score">0</div>
                     <div class="metrica-label">Score RUANA</div>
+                    <div class="metrica-trend"><i data-lucide="shield" style="width:14px;height:14px"></i> Reputación personal</div>
                 </div>
             </div>
         </div>
@@ -1623,7 +1644,10 @@
         <!-- Panel Directorio de profesionales (todos los del grupo) -->
         <div class="directorio-panel" id="directorio-panel">
             <h2 class="metricas-title">Directorio de profesionales</h2>
-            <input type="text" class="directorio-search" id="directorio-search" placeholder="Buscar por nombre, oficio o zona..." autocomplete="off" />
+            <div class="directorio-search-wrap">
+                <i data-lucide="search" class="search-icon"></i>
+                <input type="text" class="directorio-search" id="directorio-search" placeholder="Buscar por nombre, oficio o zona..." autocomplete="off" />
+            </div>
             <div class="profesionales-list" id="profesionales-list"></div>
         </div>
 
@@ -1894,6 +1918,8 @@
             </div>
         </div>
     </div>
+
+    <div id="ruana-toast-container" class="ruana-toast-container" aria-live="polite"></div>
 
     <script>
         /**
@@ -2221,8 +2247,14 @@
                 const aliadoData = this.aliado || {};
                 
                 // Actualizar el DOM con los datos obtenidos (con valores por defecto)
-                document.getElementById('perfil-nombre').textContent = aliadoData.nombre || 'Nombre no disponible';
+                const nombre = aliadoData.nombre || 'Nombre no disponible';
+                document.getElementById('perfil-nombre').textContent = nombre;
                 document.getElementById('perfil-marca').textContent = aliadoData.marca || 'Marca no disponible';
+                const avatarEl = document.getElementById('perfil-avatar');
+                if (avatarEl) {
+                    const iniciales = nombre.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]).join('').toUpperCase() || 'RU';
+                    avatarEl.textContent = iniciales.slice(0, 2);
+                }
                 document.getElementById('detail-codigo').textContent = aliadoData.codigo || this.codigoAliado || '---';
                 document.getElementById('detail-oficio').textContent = aliadoData.oficio || '---';
                 const esp = aliadoData.especializaciones;
@@ -2401,6 +2433,7 @@
                 // Alerta automática cuando score < 50
                 const alerta = document.getElementById('score-alerta-panel');
                 if (alerta) alerta.classList.toggle('visible', score < 50);
+                if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons();
             }
 
             /**
@@ -2443,24 +2476,31 @@
                         historial.forEach(solicitud => this.appendSolicitudCard(this.solicitudesHistorialList, solicitud, false));
                     }
                 }
+                if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons(document.querySelector('.solicitudes-zone'));
             }
 
             appendSolicitudCard(container, solicitud, conBotonConocer) {
                 if (!container) return;
                 const card = document.createElement('div');
-                card.className = 'solicitud-card';
                 const texto = solicitud.descripcion || solicitud.texto || '(sin descripción)';
                 const por = solicitud.solicitante_nombre || solicitud.por || '(sin autor)';
                 const zona = solicitud.oficio || solicitud.zona || '(sin oficio)';
                 const estado = (solicitud.estado || 'pendiente').toLowerCase();
+                card.className = 'solicitud-card estado-' + estado;
                 const estadoLabel = estado === 'atendida' ? 'Atendida' : 'Pendiente';
+                const badgeClass = estado === 'atendida' ? 'ruana-badge atendida' : 'ruana-badge pendiente';
+                const fechaRaw = solicitud.creado_en || solicitud.fecha || solicitud.created_at || '';
+                const fechaFmt = fechaRaw ? new Date(fechaRaw).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' }) : '';
                 const atendidoPor = solicitud.atendido_por_nombre || solicitud.atendido_por_codigo || '';
-                const atendidoAt = solicitud.atendido_at ? new Date(solicitud.atendido_at).toLocaleString('es-ES') : '';
+                const atendidoAt = solicitud.atendido_at ? new Date(solicitud.atendido_at).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '';
                 const metaExtra = (estado === 'atendida' && (atendidoPor || atendidoAt))
-                    ? `<div class="meta-item"><span class="meta-label">Atendida por</span><span class="meta-value">${this.escapeHtml(atendidoPor || '—')}${atendidoAt ? ' · ' + atendidoAt : ''}</span></div>`
+                    ? `<div class="meta-item"><span class="meta-label">Atendida por</span><span class="meta-value"><span class="solicitud-timeline-dot"></span>${this.escapeHtml(atendidoPor || '—')}${atendidoAt ? ' · ' + atendidoAt : ''}</span></div>`
                     : '';
                 card.innerHTML = `
-                    <div class="solicitud-texto">${this.escapeHtml(texto)}</div>
+                    <div class="solicitud-card-header">
+                        <div class="solicitud-texto">${this.escapeHtml(texto)}</div>
+                        <span class="solicitud-estado-badge ${badgeClass}"><span class="ruana-badge-dot"></span>${estadoLabel}</span>
+                    </div>
                     <div class="solicitud-meta">
                         <div class="meta-item">
                             <span class="meta-label">Por</span>
@@ -2470,13 +2510,10 @@
                             <span class="meta-label">Oficio</span>
                             <span class="meta-value">${this.escapeHtml(zona)}</span>
                         </div>
-                        <div class="meta-item">
-                            <span class="meta-label">Estado</span>
-                            <span class="meta-value solicitud-estado solicitud-estado-${estado}">${estadoLabel}</span>
-                        </div>
+                        ${fechaFmt ? `<div class="meta-item"><span class="meta-label">Fecha</span><span class="meta-value">${fechaFmt}</span></div>` : ''}
                         ${metaExtra}
                     </div>
-                    ${conBotonConocer ? `<div class="solicitud-actions"><button class="btn-conocer" data-id="${solicitud.id || 0}">Conozco a alguien</button></div>` : ''}
+                    ${conBotonConocer ? `<div class="solicitud-actions"><button class="btn-conocer" data-id="${solicitud.id || 0}"><i data-lucide="user-plus" style="width:16px;height:16px;vertical-align:-2px;margin-right:6px"></i>Conozco a alguien</button></div>` : ''}
                 `;
                 container.appendChild(card);
             }
@@ -3055,7 +3092,10 @@
                 if (!inputEl || !btnGuardar) return;
                 const valor = (inputEl.value || '').trim();
                 if (!valor) {
-                    if (!confirm('¿Guardar sin descripción? Tu perfil mostrará "(sin descripción)" para el resto de aliados.')) {
+                    const ok = typeof RuanaUI !== 'undefined'
+                        ? await RuanaUI.confirm('¿Guardar sin descripción? Tu perfil mostrará "(sin descripción)" para el resto de aliados.', { title: 'Guardar perfil' })
+                        : confirm('¿Guardar sin descripción? Tu perfil mostrará "(sin descripción)" para el resto de aliados.');
+                    if (!ok) {
                         return;
                     }
                 }
@@ -3145,30 +3185,29 @@
                     const zona = prof.zona || prof.codigo_postal || '(sin zona)';
                     const descripcionServicio = (prof.descripcion_servicio || prof.descripcion || '').trim();
                     const badgeTexto = tieneConversacion ? 'Conversación activa' : (esIncompleto ? 'Perfil incompleto' : 'DISPONIBLE');
-                    const badgeClase = tieneConversacion ? 'profesional-badge conversacion-activa' : (esIncompleto ? 'profesional-badge perfil-incompleto' : 'profesional-badge');
+
+                    const iniciales = nombre.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]).join('').toUpperCase() || '?';
+                    const badgeRuana = tieneConversacion ? 'conversacion-activa' : (esIncompleto ? 'perfil-incompleto' : '');
+                    const badgeTipo = tieneConversacion ? 'ruana-badge pendiente' : (esIncompleto ? 'ruana-badge observacion' : 'ruana-badge disponible');
 
                     const card = document.createElement('div');
                     card.className = 'profesional-card' + (esIncompleto ? ' perfil-incompleto' : '');
                     card.innerHTML = `
                         <div class="profesional-header">
-                            <div class="profesional-nombre">${this.escapeHtml(nombre)}</div>
-                            <div class="${badgeClase}">${this.escapeHtml(badgeTexto)}</div>
-                        </div>
-                        <div class="profesional-detalles">
-                            <div class="profesional-detalle">
-                                <span class="profesional-label">Oficio</span>
-                                <span class="profesional-valor">${this.escapeHtml(oficio)}</span>
+                            <div class="profesional-identity">
+                                <div class="profesional-avatar" aria-hidden="true">${this.escapeHtml(iniciales.slice(0, 2))}</div>
+                                <div>
+                                    <div class="profesional-nombre">${this.escapeHtml(nombre)}</div>
+                                    <div class="profesional-oficio-sub">${this.escapeHtml(oficio)} · ${this.escapeHtml(zona)}</div>
+                                </div>
                             </div>
-                            <div class="profesional-detalle">
-                                <span class="profesional-label">Zona</span>
-                                <span class="profesional-valor">${this.escapeHtml(zona)}</span>
-                            </div>
+                            <div class="profesional-badge ${badgeRuana} ${badgeTipo}"><span class="ruana-badge-dot"></span>${this.escapeHtml(badgeTexto)}</div>
                         </div>
                         ${descripcionServicio ? `<div class="profesional-descripcion">${this.escapeHtml(descripcionServicio)}</div>` : ''}
                         <div class="profesional-acciones">
                             ${tieneConversacion
-                                ? `<button type="button" class="btn-abrir-chat" data-contacto-id="${contactoExistente.id}" data-id="${prof.id || 0}">Abrir conversación</button>`
-                                : `<button type="button" class="btn-contactar" data-id="${prof.id || 0}">Contactar</button>`
+                                ? `<button type="button" class="btn-abrir-chat" data-contacto-id="${contactoExistente.id}" data-id="${prof.id || 0}"><i data-lucide="message-circle" style="width:16px;height:16px;vertical-align:-2px;margin-right:4px"></i>Abrir conversación</button>`
+                                : `<button type="button" class="btn-contactar" data-id="${prof.id || 0}"><i data-lucide="handshake" style="width:16px;height:16px;vertical-align:-2px;margin-right:4px"></i>Contactar</button>`
                             }
                         </div>
                     `;
@@ -3191,6 +3230,7 @@
                         if (contactoId && profesional) this.abrirChatContacto(parseInt(contactoId, 10), profesional);
                     });
                 });
+                if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons(document.getElementById('profesionales-list'));
             }
 
             /**
@@ -3327,11 +3367,15 @@
                     const titulo = this.escapeHtml(n.titulo || 'Mensaje de RUANA');
                     const mensaje = this.escapeHtml(n.mensaje || '');
                     const noLeida = n.leida === 0 ? ' notif-no-leida' : '';
-                    return `<div class="contacto-aviso-texto notificacion-item${noLeida}" data-notif-id="${n.id || ''}" style="margin-bottom:12px; padding:12px; background:rgba(0,0,0,0.2); border-radius:8px; border-left:4px solid #eab308;">
-                        <strong>${titulo}</strong>${fecha ? ` <span style="color:#888; font-size:0.85rem;">${fecha}</span>` : ''}<br>
-                        <span style="white-space:pre-wrap;">${mensaje}</span>
+                    return `<div class="contacto-aviso-texto notificacion-item${noLeida}" data-notif-id="${n.id || ''}">
+                        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:6px;">
+                            <strong style="font-size:0.95rem;">${titulo}</strong>
+                            ${fecha ? `<span class="notif-fecha" style="color:var(--ruana-text-subtle); font-size:0.78rem; white-space:nowrap;">${fecha}</span>` : ''}
+                        </div>
+                        <span style="white-space:pre-wrap; color:var(--ruana-text-muted); font-size:0.88rem; line-height:1.5;">${mensaje}</span>
                     </div>`;
                 }).join('');
+                if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons(document.getElementById('notificaciones-ruana-lista'));
             }
 
             /**
@@ -4216,8 +4260,11 @@
                     const esMio = (m.emisor_codigo || '') === codigo;
                     const emisorNombre = m.emisor_nombre || m.emisor_codigo || 'Aliado';
                     const fecha = m.creado_en ? new Date(m.creado_en).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '';
-                    return `<div class="chat-msg ${esMio ? 'mio' : 'otro'}"><div class="chat-msg-remitente">Mensaje enviado por ${this.escapeHtml(emisorNombre)}</div><div>${this.escapeHtml(m.texto || '')}</div><div class="chat-msg-meta">${fecha}</div></div>`;
+                    const leido = m.leido === 1 || m.leido === true;
+                    const estadoLeido = esMio ? (leido ? '<span class="chat-leido" title="Leído">✓✓</span>' : '<span class="chat-leido pendiente" title="Enviado">✓</span>') : '';
+                    return `<div class="chat-msg ${esMio ? 'mio' : 'otro'}"><div class="chat-msg-remitente">${esMio ? 'Tú' : this.escapeHtml(emisorNombre)}</div><div class="chat-msg-texto">${this.escapeHtml(m.texto || '')}</div><div class="chat-msg-meta">${fecha} ${estadoLeido}</div></div>`;
                 }).join('');
+                if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons(list);
                 const wrap = list.closest('.chat-mensajes-wrap');
                 if (wrap) wrap.scrollTop = wrap.scrollHeight;
             }

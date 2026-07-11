@@ -1,0 +1,817 @@
+/* ================================================
+   RUANA Panel Premium — Aliado
+   Overrides visuales sin tocar lógica
+   ================================================ */
+
+body.panel-loading,
+body:not(.panel-loading) {
+    background: var(--ruana-bg);
+}
+
+.panel-container {
+    max-width: 1280px;
+    padding: 32px 24px 64px;
+}
+
+#btn-logout {
+    border-radius: 14px;
+    padding: 10px 18px;
+    background: rgba(20, 24, 39, 0.85);
+    border: 1px solid var(--ruana-border);
+    backdrop-filter: var(--ruana-glass);
+    font-weight: 500;
+    transition: all var(--ruana-transition);
+}
+
+#btn-logout:hover {
+    background: rgba(20, 24, 39, 0.95);
+    border-color: var(--ruana-border-strong);
+    color: var(--ruana-text);
+}
+
+/* ——— Perfil premium ——— */
+.perfil-block {
+    padding: 36px;
+    background: linear-gradient(165deg, rgba(20, 24, 39, 0.92) 0%, rgba(14, 16, 32, 0.82) 100%);
+    border: 1px solid var(--ruana-border);
+    border-radius: var(--ruana-radius-xl);
+    backdrop-filter: var(--ruana-glass);
+    box-shadow: var(--ruana-shadow-card);
+    margin-bottom: 40px;
+}
+
+.perfil-header {
+    gap: 24px;
+    align-items: center;
+}
+
+.perfil-avatar-wrap {
+    flex-shrink: 0;
+}
+
+.perfil-avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.25) 0%, rgba(56, 189, 248, 0.15) 100%);
+    border: 1px solid rgba(34, 197, 94, 0.25);
+    display: grid;
+    place-items: center;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--ruana-accent);
+    text-transform: uppercase;
+    letter-spacing: -0.02em;
+}
+
+.perfil-titulo {
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    color: var(--ruana-text-subtle);
+    margin-bottom: 10px;
+}
+
+.perfil-nombre {
+    font-size: clamp(1.75rem, 4vw, 2.25rem);
+    font-weight: 700;
+    color: var(--ruana-text);
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+}
+
+.perfil-marca {
+    font-size: 1rem;
+    color: var(--ruana-text-muted);
+    margin-top: 4px;
+}
+
+.perfil-status {
+    padding: 10px 18px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font-size: 0.82rem;
+    letter-spacing: 0.03em;
+}
+
+.perfil-details {
+    gap: 28px;
+    margin-top: 8px;
+    padding-top: 28px;
+    border-top: 1px solid var(--ruana-border);
+}
+
+.detail-label {
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    color: var(--ruana-text-subtle);
+}
+
+.detail-value {
+    font-size: 1.02rem;
+    color: var(--ruana-text-soft);
+}
+
+/* ——— Métricas dashboard ——— */
+.metricas-block {
+    margin-bottom: 48px;
+}
+
+.metricas-title,
+.zone-title,
+.directorio-panel .metricas-title {
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ruana-text-muted);
+    font-weight: 600;
+    margin-bottom: 20px;
+}
+
+.metricas-grid {
+    gap: 20px;
+}
+
+.metrica-card {
+    position: relative;
+    padding: 24px 24px 24px 28px;
+    text-align: left;
+    background: linear-gradient(165deg, rgba(20, 24, 39, 0.9) 0%, rgba(14, 16, 32, 0.75) 100%);
+    border: 1px solid var(--ruana-border);
+    border-radius: var(--ruana-radius-xl);
+    overflow: hidden;
+    transition: all var(--ruana-transition);
+}
+
+.metrica-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 100%;
+    background: linear-gradient(180deg, var(--ruana-accent), transparent);
+    opacity: 0.7;
+}
+
+.metrica-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--ruana-border-strong);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.25);
+}
+
+.metrica-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.metrica-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+    display: grid;
+    place-items: center;
+    color: var(--ruana-accent);
+}
+
+.metrica-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.metrica-sparkline {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 24px;
+    opacity: 0.5;
+}
+
+.metrica-sparkline span {
+    width: 4px;
+    border-radius: 2px;
+    background: var(--ruana-accent);
+}
+
+.metrica-numero {
+    font-size: 2.25rem;
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    margin-bottom: 6px;
+    line-height: 1;
+}
+
+.metrica-label {
+    font-size: 0.88rem;
+    color: var(--ruana-text-muted);
+    line-height: 1.4;
+}
+
+.metrica-trend {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 10px;
+    font-size: 0.75rem;
+    color: var(--ruana-text-subtle);
+}
+
+.score-alerta-panel {
+    border-radius: var(--ruana-radius-lg);
+    margin-bottom: 24px;
+    padding: 16px 20px;
+}
+
+/* ——— Directorio ——— */
+.directorio-panel {
+    margin-bottom: 48px;
+}
+
+.directorio-search-wrap {
+    position: relative;
+    max-width: 400px;
+    margin-bottom: 24px;
+}
+
+.directorio-search-wrap .search-icon {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    color: var(--ruana-text-subtle);
+    pointer-events: none;
+}
+
+.directorio-search {
+    max-width: none;
+    width: 100%;
+    min-height: 48px;
+    padding: 13px 16px 13px 44px;
+    border-radius: var(--ruana-radius-md);
+    background: rgba(14, 16, 32, 0.65);
+    border: 1px solid var(--ruana-border);
+    font-size: 0.95rem;
+    transition: all var(--ruana-transition);
+}
+
+.directorio-search:focus {
+    border-color: var(--ruana-accent);
+    box-shadow: var(--ruana-focus-ring);
+    outline: none;
+}
+
+.profesionales-list {
+    gap: 14px;
+}
+
+.profesional-card {
+    padding: 20px 22px;
+    background: linear-gradient(165deg, rgba(20, 24, 39, 0.88) 0%, rgba(14, 16, 32, 0.72) 100%);
+    border: 1px solid var(--ruana-border);
+    border-radius: var(--ruana-radius-lg);
+    transition: all var(--ruana-transition);
+}
+
+.profesional-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(34, 197, 94, 0.25);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
+}
+
+.profesional-header {
+    align-items: center;
+    gap: 14px;
+}
+
+.profesional-identity {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: 1;
+    min-width: 0;
+}
+
+.profesional-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(56, 189, 248, 0.12));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--ruana-accent);
+    flex-shrink: 0;
+}
+
+.profesional-nombre {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--ruana-text);
+}
+
+.profesional-oficio-sub {
+    font-size: 0.82rem;
+    color: var(--ruana-text-muted);
+    margin-top: 2px;
+}
+
+.profesional-badge {
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    letter-spacing: 0.05em;
+    border: 1px solid transparent;
+}
+
+.profesional-badge:not(.perfil-incompleto):not(.espera):not(.conversacion-activa) {
+    background: rgba(34, 197, 94, 0.12);
+    border-color: rgba(34, 197, 94, 0.28);
+}
+
+.btn-contactar,
+.btn-abrir-chat {
+    min-height: 44px;
+    border-radius: 14px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: none;
+    transition: all var(--ruana-transition);
+}
+
+.btn-contactar:active,
+.btn-abrir-chat:active {
+    transform: scale(0.98);
+}
+
+/* ——— Solicitudes (tickets) ——— */
+.solicitudes-zone,
+.crear-solicitud-zone {
+    background: linear-gradient(165deg, rgba(20, 24, 39, 0.6) 0%, rgba(14, 16, 32, 0.4) 100%);
+    border: 1px solid var(--ruana-border);
+    border-radius: var(--ruana-radius-xl);
+    padding: 28px;
+}
+
+.zone-title {
+    font-size: 1.1rem;
+    text-transform: none;
+    letter-spacing: -0.02em;
+    color: var(--ruana-text);
+    margin-bottom: 8px;
+}
+
+.solicitudes-subtitle {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--ruana-text-soft);
+    margin-bottom: 6px;
+}
+
+.solicitudes-desc {
+    font-size: 0.85rem;
+    color: var(--ruana-text-muted);
+    margin-bottom: 16px;
+}
+
+.solicitudes-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.solicitud-card {
+    position: relative;
+    padding: 20px 20px 20px 28px;
+    background: linear-gradient(165deg, rgba(20, 24, 39, 0.9) 0%, rgba(14, 16, 32, 0.78) 100%);
+    border: 1px solid var(--ruana-border);
+    border-radius: var(--ruana-radius-lg);
+    transition: all var(--ruana-transition);
+    animation: solicitud-fade-in 250ms ease;
+}
+
+.solicitud-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 16px;
+    bottom: 16px;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--ruana-info);
+}
+
+.solicitud-card.estado-atendida::before {
+    background: var(--ruana-accent);
+}
+
+.solicitud-card.estado-pendiente::before {
+    background: var(--ruana-warning);
+}
+
+.solicitud-card:hover {
+    border-color: var(--ruana-border-strong);
+    transform: translateX(2px);
+    box-shadow: var(--ruana-shadow-card);
+}
+
+.solicitud-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.solicitud-texto {
+    font-size: 0.95rem;
+    color: var(--ruana-text-soft);
+    line-height: 1.55;
+    flex: 1;
+}
+
+.solicitud-estado-badge {
+    flex-shrink: 0;
+}
+
+.solicitud-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    padding-top: 14px;
+    border-top: 1px solid var(--ruana-border);
+}
+
+.meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.meta-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ruana-text-subtle);
+}
+
+.meta-value {
+    font-size: 0.88rem;
+    color: var(--ruana-text-muted);
+}
+
+.solicitud-estado-pendiente { color: #7dd3fc; }
+.solicitud-estado-atendida { color: #4ade80; }
+
+.solicitud-timeline-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    display: inline-block;
+    margin-right: 6px;
+}
+
+.btn-conocer {
+    min-height: 44px;
+    padding: 10px 18px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, var(--ruana-accent), var(--ruana-accent-strong));
+    border: none;
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all var(--ruana-transition);
+    box-shadow: 0 2px 12px var(--ruana-accent-glow);
+}
+
+.btn-conocer:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px var(--ruana-accent-glow);
+}
+
+.solicitudes-empty {
+    padding: 32px 20px;
+    text-align: center;
+    color: var(--ruana-text-muted);
+    font-size: 0.9rem;
+    border: 1px dashed var(--ruana-border);
+    border-radius: var(--ruana-radius-lg);
+}
+
+@keyframes solicitud-fade-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ——— Nuevas conexiones ——— */
+.crear-card {
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+
+.textarea-solicitud {
+    min-height: 48px;
+    padding: 13px 16px;
+    border-radius: var(--ruana-radius-md);
+    background: rgba(14, 16, 32, 0.65);
+    border: 1px solid var(--ruana-border);
+    color: var(--ruana-text);
+    font-family: inherit;
+    font-size: 0.95rem;
+    width: 100%;
+    transition: all var(--ruana-transition);
+}
+
+.textarea-solicitud:focus {
+    outline: none;
+    border-color: var(--ruana-accent);
+    box-shadow: var(--ruana-focus-ring);
+}
+
+.btn-enviar-solicitud {
+    width: 100%;
+    min-height: 50px;
+    margin-top: 16px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, var(--ruana-accent), var(--ruana-accent-strong));
+    border: none;
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all var(--ruana-transition);
+    box-shadow: 0 2px 14px var(--ruana-accent-glow);
+}
+
+.btn-enviar-solicitud:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px var(--ruana-accent-glow);
+}
+
+.solicitud-success {
+    margin-top: 14px;
+    padding: 12px 16px;
+    border-radius: var(--ruana-radius-md);
+    background: rgba(34, 197, 94, 0.12);
+    border: 1px solid rgba(34, 197, 94, 0.28);
+    color: #86efac;
+    font-size: 0.88rem;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: all var(--ruana-transition);
+}
+
+.solicitud-success.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* ——— Alertas y notificaciones ——— */
+.contacto-aviso,
+#banner-mensaje-nuevo-ruana,
+#aviso-pagos-pendientes-banner {
+    border-radius: var(--ruana-radius-lg) !important;
+    border: 1px solid var(--ruana-border) !important;
+    background: linear-gradient(165deg, rgba(20, 24, 39, 0.92), rgba(14, 16, 32, 0.85)) !important;
+    backdrop-filter: var(--ruana-glass);
+    box-shadow: var(--ruana-shadow-card);
+}
+
+.contacto-aviso-titulo {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.contacto-aviso-btn {
+    min-height: 44px;
+    border-radius: 14px;
+    padding: 10px 16px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    transition: all var(--ruana-transition);
+}
+
+.notificacion-item {
+    border-radius: var(--ruana-radius-md) !important;
+    border: 1px solid var(--ruana-border) !important;
+    background: rgba(14, 16, 32, 0.6) !important;
+    border-left: 3px solid var(--ruana-warning) !important;
+    transition: all var(--ruana-transition);
+}
+
+.notificacion-item:hover {
+    border-color: var(--ruana-border-strong) !important;
+}
+
+.notificacion-item.notif-no-leida {
+    border-left-color: var(--ruana-warning) !important;
+    background: rgba(234, 179, 8, 0.06) !important;
+}
+
+.pago-apoyo-item {
+    border-radius: var(--ruana-radius-md) !important;
+    border: 1px solid var(--ruana-border) !important;
+    background: rgba(14, 16, 32, 0.55) !important;
+}
+
+/* ——— Chat premium ——— */
+.chat-modal-overlay.show,
+.modal-contacto-overlay.show,
+.modal-overlay.show {
+    backdrop-filter: blur(10px);
+    background: rgba(6, 8, 18, 0.78);
+}
+
+.chat-modal-content {
+    border-radius: var(--ruana-radius-xl);
+    border: 1px solid var(--ruana-border);
+    background: linear-gradient(180deg, rgba(20, 24, 39, 0.98) 0%, rgba(14, 16, 32, 0.96) 100%);
+    box-shadow: var(--ruana-shadow-soft);
+    overflow: hidden;
+}
+
+.chat-modal-header {
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--ruana-border);
+    background: rgba(14, 16, 32, 0.5);
+}
+
+.chat-modal-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+
+.chat-mensajes-wrap {
+    background: rgba(8, 10, 20, 0.45);
+}
+
+.chat-msg {
+    max-width: 78%;
+    padding: 12px 16px;
+    border-radius: 18px;
+    font-size: 0.92rem;
+    line-height: 1.5;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+    animation: chat-msg-in 200ms ease;
+}
+
+.chat-msg.mio {
+    margin-left: auto;
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.9), rgba(22, 163, 74, 0.85));
+    color: #fff;
+    border-bottom-right-radius: 6px;
+}
+
+.chat-msg.otro {
+    background: rgba(20, 24, 39, 0.95);
+    border: 1px solid var(--ruana-border);
+    color: var(--ruana-text-soft);
+    border-bottom-left-radius: 6px;
+}
+
+.chat-msg-remitente {
+    font-size: 0.68rem;
+    opacity: 0.75;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.chat-msg-meta {
+    font-size: 0.68rem;
+    opacity: 0.65;
+    margin-top: 6px;
+    text-align: right;
+}
+
+.chat-leido {
+    margin-left: 6px;
+    font-size: 0.72rem;
+    opacity: 0.85;
+}
+
+.chat-leido.pendiente {
+    opacity: 0.55;
+}
+
+.chat-input-wrap {
+    padding: 16px 18px;
+    border-top: 1px solid var(--ruana-border);
+    background: rgba(14, 16, 32, 0.6);
+    gap: 10px;
+}
+
+.chat-input-texto {
+    border-radius: var(--ruana-radius-md);
+    background: rgba(14, 16, 32, 0.8);
+    border: 1px solid var(--ruana-border);
+    min-height: 48px;
+    padding: 12px 16px;
+    transition: all var(--ruana-transition);
+}
+
+.chat-input-texto:focus {
+    border-color: var(--ruana-accent);
+    box-shadow: var(--ruana-focus-ring);
+    outline: none;
+}
+
+.chat-btn-enviar,
+.chat-btn-finalizar,
+.chat-btn-volver-panel {
+    border-radius: 14px;
+    min-height: 44px;
+    font-weight: 600;
+    transition: all var(--ruana-transition);
+}
+
+.chat-btn-enviar {
+    background: linear-gradient(135deg, var(--ruana-accent), var(--ruana-accent-strong));
+    box-shadow: 0 2px 10px var(--ruana-accent-glow);
+}
+
+@keyframes chat-msg-in {
+    from { opacity: 0; transform: translateY(6px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ——— Modales ——— */
+.modal-content,
+.modal-contacto-content,
+.modal-importe-elegante {
+    border-radius: var(--ruana-radius-xl);
+    border: 1px solid var(--ruana-border);
+    background: linear-gradient(165deg, rgba(20, 24, 39, 0.98), rgba(14, 16, 32, 0.96));
+    box-shadow: var(--ruana-shadow-soft);
+    animation: ruana-dialog-in 220ms ease;
+}
+
+.modal-contacto-btn.confirm,
+.btn-copy,
+.btn-guardar-campo {
+    border-radius: 14px;
+    min-height: 44px;
+}
+
+.modal-contacto-btn.cancel,
+.btn-cancelar-campo,
+.btn-close-modal {
+    border-radius: 14px;
+    min-height: 44px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--ruana-border);
+}
+
+.panel-content {
+    gap: 28px;
+}
+
+.panel-divider {
+    margin: 48px 0;
+    opacity: 0.6;
+}
+
+@media (max-width: 768px) {
+    .panel-container {
+        padding: 24px 16px 48px;
+    }
+
+    .perfil-block {
+        padding: 24px 20px;
+    }
+
+    .perfil-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .metrica-numero {
+        font-size: 1.85rem;
+    }
+
+    .solicitudes-zone,
+    .crear-solicitud-zone {
+        padding: 20px 16px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .solicitud-card,
+    .chat-msg,
+    .metrica-card,
+    .profesional-card {
+        animation: none;
+        transition: none;
+    }
+}
