@@ -2799,6 +2799,7 @@ class DBManager:
 
     def obtener_arbol_referidos(self, codigo_raiz: str, max_depth: int = 8) -> Optional[Dict[str, Any]]:
         """Construye árbol recursivo de referidos desde codigo_raiz."""
+        self.sincronizar_referidos_campanas_admin()
         codigo_raiz = (codigo_raiz or '').strip()
         if not codigo_raiz:
             return None
@@ -2828,6 +2829,7 @@ class DBManager:
 
     def obtener_bosques_referidos(self, max_depth: int = 5) -> List[Dict[str, Any]]:
         """Lista árboles raíz de toda la red de referidos."""
+        self.sincronizar_referidos_campanas_admin()
         raices = self.listar_raices_referidos()
         bosques: List[Dict[str, Any]] = []
         for codigo in raices:
@@ -2836,6 +2838,113 @@ class DBManager:
                 bosques.append(arbol)
         return bosques
     
+    def obtener_o_crear_invitador_admin(self, admin_codigo: str, nombre: str = "") -> Optional[str]:
+        """
+        Garantiza un aliado 'sistema' para representar al admin como invitador en referidos.
+        Necesario porque referidos.codigo_invitador tiene FK a aliados(codigo).
+        """
+        admin_codigo = (admin_codigo or "").strip() or "RUANA-ADMIN"
+        existente = self.obtener_aliado_por_codigo(admin_codigo)
+        if existente:
+            return admin_codigo
+        nombre_final = (nombre or "").strip() or f"Administrador ({admin_codigo})"
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT OR IGNORE INTO aliados (codigo, nombre, marca, oficio, estado, score)
+                    VALUES (?, ?, 'RUANA', 'Administración', 'sistema', 0)
+                """, (admin_codigo, nombre_final))
+                conn.commit()
+                return admin_codigo
+            except Exception:
+                return None
+            finally:
+                if conn:
+                    conn.close()
+
+    def _registrar_referido_campana_admin(self, codigo_campana: str, codigo_aliado: str) -> bool:
+        """Registra en referidos un aliado registrado por campaña admin."""
+        codigo_campana = (codigo_campana or "").strip().upper()
+        codigo_aliado = (codigo_aliado or "").strip()
+        if not codigo_campana or not codigo_aliado:
+            return False
+        campana = self.obtener_campana_invitacion(codigo_campana)
+        if not campana:
+            return False
+        admin_codigo = (campana.get('creado_por_admin_codigo') or "").strip() or "RUANA-ADMIN"
+        invitador = self.obtener_o_crear_invitador_admin(admin_codigo)
+        if not invitador:
+            return False
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT OR IGNORE INTO referidos (codigo_referido, codigo_invitador)
+                    VALUES (?, ?)
+                """, (codigo_aliado, invitador))
+                conn.commit()
+                return cursor.rowcount > 0
+            except Exception:
+                return False
+            finally:
+                if conn:
+                    conn.close()
+
+    def sincronizar_referidos_campanas_admin(self) -> int:
+        """
+        Backfill: crea filas referidos para usos de campaña admin que aún no están en referidos.
+        """
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT u.codigo_aliado, u.codigo_campana, c.creado_por_admin_codigo
+                    FROM invitacion_campana_usos u
+                    JOIN invitacion_campanas c ON c.codigo = u.codigo_campana
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM referidos r WHERE r.codigo_referido = u.codigo_aliado
+                    )
+                """)
+                pendientes = cursor.fetchall()
+            except Exception:
+                return 0
+            finally:
+                if conn:
+                    conn.close()
+        sincronizados = 0
+        for row in pendientes:
+            admin_codigo = (row['creado_por_admin_codigo'] or "").strip() or "RUANA-ADMIN"
+            invitador = self.obtener_o_crear_invitador_admin(admin_codigo)
+            if not invitador:
+                continue
+            codigo_aliado = row['codigo_aliado']
+            with self._lock:
+                conn = None
+                try:
+                    conn = self._connect()
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO referidos (codigo_referido, codigo_invitador)
+                        VALUES (?, ?)
+                    """, (codigo_aliado, invitador))
+                    if cursor.rowcount > 0:
+                        sincronizados += 1
+                    conn.commit()
+                except Exception:
+                    pass
+                finally:
+                    if conn:
+                        conn.close()
+        return sincronizados
+
     def _registrar_invitacion(self, codigo_invitacion: str, invitador_aliado_id: int) -> None:
         """Registra que este código de invitación fue creado por el aliado invitador (para +5 al completar)."""
         with self._lock:
@@ -3003,6 +3112,7 @@ class DBManager:
                     VALUES (?, ?)
                 """, (codigo, nuevo_aliado_codigo))
                 conn.commit()
+                self._registrar_referido_campana_admin(codigo, nuevo_aliado_codigo)
                 return True
             except Exception:
                 return False
@@ -3320,7 +3430,7 @@ class DBManager:
                         ) AS es_titular_en_competencia
                     FROM aliados a
                     LEFT JOIN evaluaciones e ON e.codigo_aliado = a.codigo
-                    WHERE (a.estado IS NULL OR (a.estado != 'expulsado' AND a.estado != 'suspendido_temporal'))
+                    WHERE (a.estado IS NULL OR (a.estado != 'expulsado' AND a.estado != 'suspendido_temporal' AND a.estado != 'sistema'))
                 """
 
                 params: Tuple[Any, ...] = ()

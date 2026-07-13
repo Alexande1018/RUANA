@@ -88,6 +88,16 @@ def test_admin_campaign_code_validates_and_is_consumed_on_registration(
     assert cursor.fetchone()[0] == 1
     conn.close()
 
+    cursor = sqlite_db._connect().cursor()
+    cursor.execute(
+        "SELECT codigo_invitador FROM referidos WHERE codigo_referido = ?",
+        ("54321",),
+    )
+    referido_row = cursor.fetchone()
+    assert referido_row is not None
+    assert referido_row[0] == "ADMIN001"
+    conn.close()
+
     second_validation = client.get("/api/validar-invitacion?codigo=RUANA-TEST")
     assert second_validation.status_code == 404
     assert second_validation.get_json()["status"] == "error"
