@@ -1438,8 +1438,10 @@
         }
     </style>
     <link rel="stylesheet" href="/static/css/panel-premium.css">
+    <link rel="stylesheet" href="/static/css/referidos-tree.css">
     <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
     <script src="/static/js/ruana-ui.js" defer></script>
+    <script src="/static/js/referidos-module.js" defer></script>
 </head>
 <body class="panel-loading">
     <button id="btn-logout" class="btn-back">Cerrar sesión</button>
@@ -1617,7 +1619,7 @@
                     <div class="metrica-label">Solicitudes enviadas y contestadas</div>
                     <div class="metrica-trend"><i data-lucide="activity" style="width:14px;height:14px"></i> Actividad del grupo</div>
                 </div>
-                <div class="metrica-card">
+                <div class="metrica-card referidos-metric-clickable" id="metrica-card-referidos" title="Ver red de aliados referidos">
                     <div class="metrica-card-header">
                         <div class="metrica-icon"><i data-lucide="users"></i></div>
                         <div class="metrica-sparkline" aria-hidden="true"><span style="height:30%"></span><span style="height:55%"></span><span style="height:70%"></span><span style="height:45%"></span><span style="height:75%"></span></div>
@@ -1634,6 +1636,22 @@
                     <div class="metrica-numero" id="metric-score">0</div>
                     <div class="metrica-label">Score RUANA</div>
                     <div class="metrica-trend"><i data-lucide="shield" style="width:14px;height:14px"></i> Reputación personal</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aliados referidos por mí (árbol genealógico) -->
+        <div class="referidos-aliado-panel referidos-section" id="referidos-aliado-wrap">
+            <div class="referidos-section-header">
+                <div>
+                    <h2 class="metricas-title">Aliados referidos por mí</h2>
+                    <p class="referidos-section-meta" id="referidos-aliado-meta">Tu red de invitaciones directas e indirectas</p>
+                </div>
+            </div>
+            <div class="referidos-layout referidos-aliado-layout">
+                <div class="referidos-tree-panel" id="referidos-aliado-tree"></div>
+                <div class="referidos-detail-panel empty" id="referidos-aliado-detail">
+                    <p>Selecciona un aliado en el árbol para ver su ficha.</p>
                 </div>
             </div>
         </div>
@@ -2042,6 +2060,7 @@
                 
                 this.currentCode = null;
                 this.isDataLoaded = false;
+                this._referidosTree = null;
 
                 // Contactos RUANA
                 this.codigoAliado = sessionStorage.getItem('ruana_codigo_aliado') || null;
@@ -2089,6 +2108,7 @@
                 // Finalmente, renderizar y evaluar banners según estado actual
                 this.render();
                 this.renderAlertas();
+                this.initReferidosArbol();
                 this.setPanelLoading(false);
             }
 
@@ -2237,6 +2257,25 @@
                 this.renderSolicitudes();
                 this.renderProfesionales();
                 this.renderNotificaciones();
+            }
+
+            initReferidosArbol() {
+                if (typeof RuanaReferidos === 'undefined') return;
+                const self = this;
+                this._referidosTree = new RuanaReferidos.RuanaReferidosTree({
+                    treeContainer: document.getElementById('referidos-aliado-tree'),
+                    detailContainer: document.getElementById('referidos-aliado-detail'),
+                    metaContainer: document.getElementById('referidos-aliado-meta'),
+                    fetchUrl: '/api/aliado/referidos',
+                    fetchOptions: { headers: getRuanaAuthHeaders() },
+                    mode: 'aliado'
+                });
+                this._referidosTree.load().catch(function () {
+                    var treeEl = document.getElementById('referidos-aliado-tree');
+                    if (treeEl) {
+                        treeEl.innerHTML = '<div class="referidos-empty-state">Aún no has referido aliados a RUANA.</div>';
+                    }
+                });
             }
 
             /**
@@ -2691,6 +2730,14 @@
                 const btnLogout = document.getElementById('btn-logout');
                 if (btnLogout) {
                     btnLogout.addEventListener('click', () => this.handleLogout());
+                }
+
+                const metricReferidos = document.getElementById('metrica-card-referidos');
+                if (metricReferidos) {
+                    metricReferidos.addEventListener('click', () => {
+                        const wrap = document.getElementById('referidos-aliado-wrap');
+                        if (wrap) wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    });
                 }
                 
                 // Botones de modal de código

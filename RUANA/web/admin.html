@@ -900,7 +900,9 @@
             border-top: 1px solid rgba(255, 255, 255, 0.05);
         }
     </style>
+    <link rel="stylesheet" href="/static/css/referidos-tree.css">
     <script src="/static/js/ruana-ui.js" defer></script>
+    <script src="/static/js/referidos-module.js" defer></script>
 </head>
 <body class="admin-is-loading">
     <!-- Modal Detalle Aliado -->
@@ -1450,6 +1452,29 @@
             </div>
         </div>
 
+        <!-- CAPA 4.5: Red de Referidos (árbol genealógico) -->
+        <div class="control-aliados referidos-section" id="referidos-admin-wrap">
+            <div class="referidos-section-header">
+                <div>
+                    <h2 class="seccion-titulo">Red de Referidos</h2>
+                    <p class="referidos-section-meta" id="referidos-admin-meta">Quién invitó a quién en la red RUANA</p>
+                </div>
+            </div>
+            <div class="referidos-toolbar">
+                <div class="referidos-search-wrap">
+                    <svg class="referidos-search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <input type="text" class="referidos-search" id="referidos-admin-search" placeholder="Buscar aliado por nombre, código u oficio…" autocomplete="off">
+                </div>
+                <button type="button" class="referidos-btn-secondary" id="referidos-admin-vista-bosque">Ver todas las cadenas</button>
+            </div>
+            <div class="referidos-layout">
+                <div class="referidos-tree-panel" id="referidos-admin-tree"></div>
+                <div class="referidos-detail-panel empty" id="referidos-admin-detail">
+                    <p>Selecciona un aliado en el árbol para ver su ficha.</p>
+                </div>
+            </div>
+        </div>
+
         <!-- CAPA 5: Eventos y Trazabilidad -->
         <div class="eventos-trazabilidad">
             <h2 class="seccion-titulo">Trazabilidad de Eventos (últimas 10 acciones)</h2>
@@ -1601,6 +1626,8 @@
                 this._conversacionesHasMore = false;
                 this._conversacionesOffset = 0;
                 this._campanasInvitacion = [];
+                this._referidosTree = null;
+                this._referidosModoBosque = true;
                 window._ruanaAdminPanel = this;
                 this.init();
             }
@@ -1771,6 +1798,7 @@
                     if (conversaciones.length === 0) {
                         this.cargarChatsFallback();
                     }
+                    this.initReferidosArbol();
                 } catch (e) {
                     this.showToast('Error de conexión. Comprueba la red.', 'error');
                     this._conversacionesList = [];
@@ -1956,6 +1984,8 @@
                 const btnVolverGrupos = document.getElementById('aliados-btn-volver-grupos');
                 if (btnVolverCPs) btnVolverCPs.addEventListener('click', () => { this.aliadosNivel = 'cps'; this.aliadosCPSeleccionado = null; this.aliadosGrupoSeleccionado = null; this.renderAliadosJerarquia(); });
                 if (btnVolverGrupos) btnVolverGrupos.addEventListener('click', () => { this.aliadosNivel = 'grupos'; this.aliadosGrupoSeleccionado = null; this.renderAliadosJerarquia(); });
+
+                this.setupReferidosEventListeners();
 
                 document.addEventListener('click', function ruanaConversacionesClick(e) {
                     var target = e.target;
@@ -3460,6 +3490,72 @@
                     }
 
                     lista.appendChild(card);
+                });
+            }
+
+            setupReferidosEventListeners() {
+                const searchInput = document.getElementById('referidos-admin-search');
+                const btnBosque = document.getElementById('referidos-admin-vista-bosque');
+                if (searchInput) {
+                    searchInput.addEventListener('keydown', (e) => {
+                        if (e.key !== 'Enter') return;
+                        e.preventDefault();
+                        const q = (searchInput.value || '').trim();
+                        if (!q) {
+                            this.cargarReferidosArbol(null, true);
+                            return;
+                        }
+                        if (this._referidosTree) {
+                            const found = this._referidosTree.findNodeBySearch(q);
+                            if (found) {
+                                this._referidosTree.selectNode(found.codigo);
+                                return;
+                            }
+                        }
+                        this.cargarReferidosArbol(q, false);
+                    });
+                }
+                if (btnBosque) {
+                    btnBosque.addEventListener('click', () => {
+                        if (searchInput) searchInput.value = '';
+                        this.cargarReferidosArbol(null, true);
+                    });
+                }
+            }
+
+            initReferidosArbol() {
+                if (typeof RuanaReferidos === 'undefined') return;
+                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+                const self = this;
+                this._referidosTree = new RuanaReferidos.RuanaReferidosTree({
+                    treeContainer: document.getElementById('referidos-admin-tree'),
+                    detailContainer: document.getElementById('referidos-admin-detail'),
+                    metaContainer: document.getElementById('referidos-admin-meta'),
+                    fetchUrl: '/api/admin/referidos/arbol',
+                    fetchOptions: { headers: authHeaders },
+                    mode: 'admin',
+                    onVerDetalleCompleto: (nodo) => {
+                        const full = (self._aliadosData || []).find(a => a.codigo === nodo.codigo);
+                        self.abrirModalDetalle(full || nodo);
+                    },
+                    onCentrarArbol: (codigo) => {
+                        self.cargarReferidosArbol(codigo, false);
+                    }
+                });
+                this.cargarReferidosArbol(null, true);
+            }
+
+            cargarReferidosArbol(codigo, bosque) {
+                if (!this._referidosTree) return;
+                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+                this._referidosModoBosque = !!bosque && !codigo;
+                let url = '/api/admin/referidos/arbol';
+                if (codigo) {
+                    url += '?codigo=' + encodeURIComponent(codigo);
+                }
+                this._referidosTree.fetchOptions = { headers: authHeaders };
+                this._referidosTree.load(url).catch(() => {
+                    this.showToast('No se pudo cargar la red de referidos', 'error');
                 });
             }
 
