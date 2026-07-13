@@ -681,6 +681,54 @@ def aliado_referidos_raiz():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+@app.route('/api/admin/referidos/cambios', methods=['GET'])
+@require_admin
+def admin_referidos_cambios():
+    """GET /api/admin/referidos/cambios?desde=<iso> — Nuevos referidos desde un momento."""
+    try:
+        desde = (request.args.get('desde') or '').strip()
+        db = get_db()
+        cambios = db.listar_referidos_desde(desde)
+        raices = db.listar_nodos_raiz_referidos()
+        total = db.contar_total_nodos_referidos_red()
+        return jsonify({
+            'status': 'success',
+            'cambios': cambios,
+            'raices': raices,
+            'total_nodos': total,
+            'total_raices': len(raices),
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/aliado/referidos/cambios', methods=['GET'])
+@require_aliado
+def aliado_referidos_cambios():
+    """GET /api/aliado/referidos/cambios?desde=<iso> — Nuevos referidos visibles para el aliado."""
+    try:
+        codigo_sesion = _aliado_codigo()
+        if not codigo_sesion:
+            return jsonify({'status': 'error', 'message': 'Sesión no válida'}), 401
+        desde = (request.args.get('desde') or '').strip()
+        db = get_db()
+        todos = db.listar_referidos_desde(desde)
+        cambios = [
+            c for c in todos
+            if db.aliado_puede_ver_nodo_referidos(codigo_sesion, c.get('codigo_referido') or '')
+        ]
+        nodo_raiz = db.obtener_nodo_referidos(codigo_sesion)
+        return jsonify({
+            'status': 'success',
+            'cambios': cambios,
+            'nodo_raiz': nodo_raiz,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
 def _contar_nodos_arbol(nodo: dict) -> int:
     """Cuenta nodos en un árbol de referidos (incluye la raíz)."""
     if not nodo or not isinstance(nodo, dict):

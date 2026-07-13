@@ -421,6 +421,17 @@
 
 @keyframes referidos-spin { to { transform: rotate(360deg); } }
 
+.referidos-node-card.is-new {
+    animation: referidos-node-enter 1.2s ease;
+    border-color: rgba(34, 197, 94, 0.75) !important;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.25);
+}
+
+@keyframes referidos-node-enter {
+    0% { opacity: 0; transform: translateY(-6px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
 .referidos-aliado-panel { margin-bottom: 40px; }
 
 .metrica-card.referidos-metric-clickable { cursor: pointer; }

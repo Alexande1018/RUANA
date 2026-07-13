@@ -138,6 +138,10 @@
         this.apiHijos = config.apiHijos || (this.mode === 'admin' ? '/api/admin/referidos/hijos/' : '/api/aliado/referidos/hijos/');
         this.apiRuta = config.apiRuta || '/api/admin/referidos/ruta/';
         this.apiBuscar = config.apiBuscar || '/api/admin/referidos/buscar';
+        this.apiCambios = config.apiCambios || (this.mode === 'admin'
+            ? '/api/admin/referidos/cambios'
+            : '/api/aliado/referidos/cambios');
+        this.pollIntervalMs = config.pollIntervalMs || 15000;
 
         this._nodosMap = {};
         this._invitadoresMap = {};
@@ -145,6 +149,10 @@
         this._expanded = {};
         this._selectedCodigo = null;
         this._totalNodos = 0;
+        this._knownReferidos = {};
+        this._lastSyncAt = null;
+        this._pollTimer = null;
+        this._pollInFlight = false;
     }
 
     RuanaReferidosTree.prototype._fetchJson = function (url) {
@@ -295,6 +303,218 @@
         }
     };
 
+    RuanaReferidosTree.prototype._nodeExistsInDom = function (codigo) {
+        return !!(this.treeContainer && this.treeContainer.querySelector('.referidos-row[data-codigo="' + codigo + '"]'));
+    };
+
+    RuanaReferidosTree.prototype._updateNodeBadge = function (codigo, referidosCount) {
+        var card = this.treeContainer && this.treeContainer.querySelector('.referidos-node-card[data-codigo="' + codigo + '"]');
+        if (!card) return;
+        var nodo = this._nodosMap[codigo];
+        if (nodo) nodo.referidos_count = referidosCount;
+        var badge = card.querySelector('.referidos-node-badge');
+        if (badge) {
+            var text = referidosCount > 0
+                ? referidosCount + ' referido' + (referidosCount !== 1 ? 's' : '')
+                : 'Sin referidos';
+            badge.textContent = text;
+            badge.classList.toggle('empty', referidosCount === 0);
+        }
+        var expandBtn = card.querySelector('.referidos-expand-btn');
+        var spacer = card.querySelector('.referidos-expand-spacer');
+        if (referidosCount > 0 && !expandBtn && spacer) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'referidos-expand-btn' + (this._expanded[codigo] ? ' expanded' : '');
+            btn.dataset.codigo = codigo;
+            btn.setAttribute('aria-label', 'Expandir referidos');
+            btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>';
+            spacer.replaceWith(btn);
+            var self = this;
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                self.toggleExpand(codigo);
+            });
+        }
+    };
+
+    RuanaReferidosTree.prototype._appendRootNode = function (nodo) {
+        if (!nodo || !nodo.codigo || this._nodeExistsInDom(nodo.codigo)) return;
+        indexarNodo(nodo, this._nodosMap, this._invitadoresMap, null);
+        var inner = this.treeContainer.querySelector('.referidos-lazy-tree');
+        if (!inner) return;
+        var empty = inner.querySelector('.referidos-empty-state');
+        if (empty) empty.remove();
+        var temp = document.createElement('div');
+        temp.innerHTML = this._buildCardHtml(nodo, { depth: 0, isRoot: true });
+        var row = temp.firstElementChild;
+        if (row) {
+            row.querySelector('.referidos-node-card').classList.add('is-new');
+            inner.appendChild(row);
+            this._bindTreeEvents(row);
+        }
+    };
+
+    RuanaReferidosTree.prototype._appendChildIfMissing = function (parentCodigo, hijo) {
+        if (!hijo || !hijo.codigo) return;
+        if (this.treeContainer.querySelector('.referidos-row[data-codigo="' + hijo.codigo + '"]')) return;
+
+        if (!this._childrenCache[parentCodigo]) this._childrenCache[parentCodigo] = [];
+        var exists = this._childrenCache[parentCodigo].some(function (h) { return h.codigo === hijo.codigo; });
+        if (!exists) this._childrenCache[parentCodigo].push(hijo);
+
+        var wrap = this.treeContainer.querySelector('.referidos-children-wrap[data-parent="' + parentCodigo + '"]');
+        if (!wrap) return;
+
+        var list = wrap.querySelector('.referidos-children-list');
+        if (!list) {
+            wrap.innerHTML = '<div class="referidos-children-list"></div>';
+            list = wrap.querySelector('.referidos-children-list');
+            wrap.classList.add('expanded');
+        }
+
+        var parentRow = this.treeContainer.querySelector('.referidos-row[data-codigo="' + parentCodigo + '"]');
+        var depth = parentRow ? parseInt(parentRow.dataset.depth || '0', 10) + 1 : 1;
+
+        var temp = document.createElement('div');
+        temp.innerHTML = this._buildCardHtml(hijo, { depth: depth });
+        var row = temp.firstElementChild;
+        if (row) {
+            row.querySelector('.referidos-node-card').classList.add('is-new');
+            list.appendChild(row);
+            this._bindTreeEvents(row);
+            setTimeout(function () {
+                var card = row.querySelector('.referidos-node-card.is-new');
+                if (card) card.classList.remove('is-new');
+            }, 2400);
+        }
+    };
+
+    RuanaReferidosTree.prototype._ensureInvitadorVisible = function (invitador) {
+        if (!invitador || !invitador.codigo) return;
+        if (this._nodeExistsInDom(invitador.codigo)) return;
+        if (this.mode === 'admin') {
+            this._appendRootNode(invitador);
+        }
+    };
+
+    RuanaReferidosTree.prototype._integrateCambio = function (cambio) {
+        var refCodigo = cambio.codigo_referido;
+        var invCodigo = cambio.codigo_invitador;
+        var hijo = cambio.nodo;
+        var invitador = cambio.invitador;
+        if (!refCodigo || !invCodigo || !hijo) return false;
+        if (this._knownReferidos[refCodigo]) return false;
+
+        this._knownReferidos[refCodigo] = true;
+        indexarNodo(hijo, this._nodosMap, this._invitadoresMap, invitador || null);
+        if (invitador) indexarNodo(invitador, this._nodosMap, this._invitadoresMap, null);
+
+        this._ensureInvitadorVisible(invitador);
+
+        var invCount = invitador && invitador.referidos_count != null
+            ? invitador.referidos_count
+            : ((this._nodosMap[invCodigo] && this._nodosMap[invCodigo].referidos_count) || 0);
+        if (invitador && invitador.referidos_count != null) {
+            this._updateNodeBadge(invCodigo, invitador.referidos_count);
+        } else if (this._nodosMap[invCodigo]) {
+            invCount = (this._nodosMap[invCodigo].referidos_count || 0) + 1;
+            this._nodosMap[invCodigo].referidos_count = invCount;
+            this._updateNodeBadge(invCodigo, invCount);
+        }
+
+        if (this._expanded[invCodigo]) {
+            this._appendChildIfMissing(invCodigo, hijo);
+        }
+
+        return true;
+    };
+
+    RuanaReferidosTree.prototype._mergeNewRaices = function (raices) {
+        var self = this;
+        (raices || []).forEach(function (n) {
+            if (!self._nodeExistsInDom(n.codigo)) {
+                self._appendRootNode(n);
+            } else {
+                indexarNodo(n, self._nodosMap, self._invitadoresMap, null);
+                self._updateNodeBadge(n.codigo, n.referidos_count || 0);
+            }
+        });
+    };
+
+    RuanaReferidosTree.prototype.startPolling = function () {
+        this.stopPolling();
+        this._lastSyncAt = new Date().toISOString();
+        var self = this;
+        this._pollTimer = setInterval(function () {
+            if (document.hidden) return;
+            self.pollCambios().catch(function () {});
+        }, this.pollIntervalMs);
+    };
+
+    RuanaReferidosTree.prototype.stopPolling = function () {
+        if (this._pollTimer) {
+            clearInterval(this._pollTimer);
+            this._pollTimer = null;
+        }
+    };
+
+    RuanaReferidosTree.prototype.pollCambios = function () {
+        var self = this;
+        if (this._pollInFlight || !this._lastSyncAt) return Promise.resolve();
+        this._pollInFlight = true;
+        var url = this.apiCambios + '?desde=' + encodeURIComponent(this._lastSyncAt);
+        return this._fetchJson(url).then(function (data) {
+            if (data.status !== 'success') return;
+            var nuevos = 0;
+            (data.cambios || []).forEach(function (c) {
+                if (self._integrateCambio(c)) nuevos += 1;
+            });
+
+            if (self.mode === 'admin') {
+                if (data.raices) self._mergeNewRaices(data.raices);
+                if (data.total_nodos != null) self._totalNodos = data.total_nodos;
+                self._updateMeta(
+                    (data.total_raices || 0) + ' raíz' + ((data.total_raices || 0) !== 1 ? 'es' : '') +
+                    ' · ' + (data.total_nodos || 0) + ' aliado' + ((data.total_nodos || 0) !== 1 ? 's' : '') +
+                    ' en la red · Se actualiza automáticamente'
+                );
+            } else if (data.nodo_raiz) {
+                indexarNodo(data.nodo_raiz, self._nodosMap, self._invitadoresMap, null);
+                self._updateNodeBadge(data.nodo_raiz.codigo, data.nodo_raiz.referidos_count || 0);
+                self._updateMeta(
+                    (data.nodo_raiz.referidos_count || 0) + ' referido' + ((data.nodo_raiz.referidos_count || 0) !== 1 ? 's' : '') +
+                    ' directo' + ((data.nodo_raiz.referidos_count || 0) !== 1 ? 's' : '') +
+                    ' · Se actualiza automáticamente'
+                );
+            }
+
+            if (nuevos > 0 && self._selectedCodigo && self._nodosMap[self._selectedCodigo]) {
+                self.selectNode(self._selectedCodigo);
+            }
+
+            Object.keys(self._expanded).forEach(function (codigo) {
+                if (!self._expanded[codigo]) return;
+                self._fetchJson(self.apiHijos + encodeURIComponent(codigo)).then(function (resp) {
+                    if (resp.status !== 'success') return;
+                    if (resp.nodo) self._updateNodeBadge(codigo, resp.nodo.referidos_count || 0);
+                    (resp.hijos || []).forEach(function (h) {
+                        self._integrateCambio({
+                            codigo_referido: h.codigo,
+                            codigo_invitador: codigo,
+                            nodo: h,
+                            invitador: resp.nodo
+                        });
+                    });
+                }).catch(function () {});
+            });
+
+            if (data.timestamp) self._lastSyncAt = data.timestamp;
+        }).finally(function () {
+            self._pollInFlight = false;
+        });
+    };
+
     RuanaReferidosTree.prototype.toggleExpand = function (codigo, forceOpen) {
         var self = this;
         if (!codigo) return Promise.resolve();
@@ -315,23 +535,22 @@
         var expandBtn = this.treeContainer.querySelector('.referidos-expand-btn[data-codigo="' + codigo + '"]');
         if (expandBtn) expandBtn.classList.add('expanded', 'loading');
 
-        if (this._childrenCache[codigo]) {
-            var parentRow = this.treeContainer.querySelector('.referidos-row[data-codigo="' + codigo + '"]');
-            var depth = parentRow ? parseInt(parentRow.dataset.depth || '0', 10) + 1 : 1;
-            this._renderChildren(codigo, this._childrenCache[codigo], depth);
-            if (expandBtn) expandBtn.classList.remove('loading');
-            return Promise.resolve();
-        }
-
         return this._fetchJson(this.apiHijos + encodeURIComponent(codigo))
             .then(function (data) {
                 if (data.status !== 'success') throw new Error(data.message || 'Error');
+                if (data.nodo) {
+                    self._nodosMap[codigo] = data.nodo;
+                    self._updateNodeBadge(codigo, data.nodo.referidos_count || 0);
+                }
                 if (data.invitador && data.nodo) {
                     self._invitadoresMap[data.nodo.codigo] = data.invitador;
                 }
                 var hijos = data.hijos || [];
                 self._childrenCache[codigo] = hijos;
-                hijos.forEach(function (h) { indexarNodo(h, self._nodosMap, self._invitadoresMap, data.nodo); });
+                hijos.forEach(function (h) {
+                    indexarNodo(h, self._nodosMap, self._invitadoresMap, data.nodo);
+                    self._knownReferidos[h.codigo] = true;
+                });
                 var parentRow = self.treeContainer.querySelector('.referidos-row[data-codigo="' + codigo + '"]');
                 var depth = parentRow ? parseInt(parentRow.dataset.depth || '0', 10) + 1 : 1;
                 self._renderChildren(codigo, hijos, depth);
@@ -350,6 +569,7 @@
             self._childrenCache = {};
             self._nodosMap = {};
             self._invitadoresMap = {};
+            self._knownReferidos = {};
             self._totalNodos = data.total_nodos || 0;
             (data.raices || []).forEach(function (n) { indexarNodo(n, self._nodosMap, self._invitadoresMap, null); });
             self.treeContainer.innerHTML = '<div class="referidos-lazy-tree"></div>';
@@ -358,13 +578,14 @@
             self._updateMeta(
                 (data.total_raices || 0) + ' raíz' + ((data.total_raices || 0) !== 1 ? 'es' : '') +
                 ' · ' + (data.total_nodos || 0) + ' aliado' + ((data.total_nodos || 0) !== 1 ? 's' : '') +
-                ' en la red · Clic para expandir referidos'
+                ' en la red · Clic para expandir · Se actualiza solo'
             );
             if (data.raices && data.raices.length) {
                 self.selectNode(data.raices[0].codigo);
             } else {
                 renderDetailPanel(self.detailContainer, null);
             }
+            self.startPolling();
             return data;
         }).catch(function (err) {
             self.treeContainer.innerHTML = '<div class="referidos-empty-state">' + escapeHtml(err.message || 'Error de conexión') + '</div>';
@@ -382,6 +603,7 @@
             self._childrenCache = {};
             self._nodosMap = {};
             self._invitadoresMap = {};
+            self._knownReferidos = {};
             var nodo = data.nodo;
             indexarNodo(nodo, self._nodosMap, self._invitadoresMap, data.invitador);
             self.treeContainer.innerHTML = '<div class="referidos-lazy-tree"></div>';
@@ -390,9 +612,10 @@
             self._updateMeta(
                 (nodo.referidos_count || 0) + ' referido' + ((nodo.referidos_count || 0) !== 1 ? 's' : '') +
                 ' directo' + ((nodo.referidos_count || 0) !== 1 ? 's' : '') +
-                ' · Clic en un aliado para ver a quién invitó'
+                ' · Clic para expandir · Se actualiza solo'
             );
             self.selectNode(nodo.codigo, data.invitador);
+            self.startPolling();
             return data;
         }).catch(function (err) {
             self.treeContainer.innerHTML = '<div class="referidos-empty-state">' + escapeHtml(err.message || 'Error de conexión') + '</div>';
@@ -437,6 +660,7 @@
             }
             return chain.then(function () {
                 self.selectNode(codigo);
+                self.startPolling();
             });
         });
     };

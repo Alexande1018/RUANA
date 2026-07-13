@@ -2849,6 +2849,57 @@ class DBManager:
                     conn.close()
         return [self._nodo_referido_resumen(c) for c in codigos if self._nodo_referido_resumen(c)]
 
+    def listar_referidos_desde(self, desde: str) -> List[Dict[str, Any]]:
+        """Referidos registrados después de un timestamp ISO (para actualización en vivo del árbol)."""
+        self.sincronizar_referidos_completo()
+        desde = (desde or '').strip()
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                if desde:
+                    cursor.execute("""
+                        SELECT r.codigo_referido, r.codigo_invitador, r.creado_en
+                        FROM referidos r
+                        WHERE datetime(r.creado_en) > datetime(?)
+                        ORDER BY r.creado_en ASC
+                    """, (desde,))
+                else:
+                    cursor.execute("""
+                        SELECT r.codigo_referido, r.codigo_invitador, r.creado_en
+                        FROM referidos r
+                        ORDER BY r.creado_en ASC
+                    """)
+                rows = cursor.fetchall()
+            except Exception:
+                return []
+            finally:
+                if conn:
+                    conn.close()
+        cambios: List[Dict[str, Any]] = []
+        for row in rows:
+            codigo_referido = row['codigo_referido']
+            codigo_invitador = row['codigo_invitador']
+            nodo = self._nodo_referido_resumen(codigo_referido)
+            if not nodo:
+                nodo = {
+                    'codigo': codigo_referido,
+                    'nombre': codigo_referido,
+                    'oficio': '—',
+                    'referidos_count': 0,
+                }
+            invitador = self._nodo_referido_resumen(codigo_invitador)
+            cambios.append({
+                'codigo_referido': codigo_referido,
+                'codigo_invitador': codigo_invitador,
+                'referido_en': row['creado_en'],
+                'nodo': nodo,
+                'invitador': invitador,
+            })
+        return cambios
+
     def listar_nodos_raiz_referidos(self) -> List[Dict[str, Any]]:
         """Nodos raíz de la red (invitadores que no fueron referidos)."""
         self.sincronizar_referidos_completo()
