@@ -547,13 +547,15 @@ def admin_referidos_raices():
     try:
         db = get_db()
         raices = db.listar_nodos_raiz_referidos()
-        total = db.contar_total_nodos_referidos_red()
+        resumen = db.obtener_resumen_referidos_red()
         return jsonify({
             'status': 'success',
             'modo': 'raices',
             'raices': raices,
-            'total_nodos': total,
+            'total_nodos': resumen.get('total_nodos', 0),
             'total_raices': len(raices),
+            'total_aliados_activos': resumen.get('total_aliados_activos', 0),
+            'aliados_fuera_red': resumen.get('aliados_fuera_red', 0),
             'timestamp': datetime.now().isoformat()
         })
     except Exception as e:
@@ -690,13 +692,15 @@ def admin_referidos_cambios():
         db = get_db()
         cambios = db.listar_referidos_desde(desde)
         raices = db.listar_nodos_raiz_referidos()
-        total = db.contar_total_nodos_referidos_red()
+        resumen = db.obtener_resumen_referidos_red()
         return jsonify({
             'status': 'success',
             'cambios': cambios,
             'raices': raices,
-            'total_nodos': total,
+            'total_nodos': resumen.get('total_nodos', 0),
             'total_raices': len(raices),
+            'total_aliados_activos': resumen.get('total_aliados_activos', 0),
+            'aliados_fuera_red': resumen.get('aliados_fuera_red', 0),
             'timestamp': datetime.now().isoformat()
         })
     except Exception as e:
@@ -2133,7 +2137,11 @@ def registrar_aliado():
             elif codigo_campana_invitacion:
                 db.consumir_campana_invitacion(codigo_campana_invitacion, result['codigo'])
             else:
-                db.consumir_invitacion_y_recompensar(codigo_invitacion, result['codigo'])
+                if not db.consumir_invitacion_y_recompensar(codigo_invitacion, result['codigo']):
+                    db.asegurar_referido_desde_invitacion(codigo_invitacion, result['codigo'])
+
+        # Asegurar red completa: invitaciones pendientes de sync y huérfanos bajo admin
+        db.sincronizar_referidos_completo()
 
         return jsonify(result), 201
         
@@ -2815,6 +2823,17 @@ def admin_crear_invitacion():
 
         if result['status'] != 'success':
             return jsonify(result), 400
+
+        # Vincular al admin como invitador para que el registro aparezca en la red de referidos.
+        admin_codigo = _admin_codigo() or 'RUANA-ADMIN'
+        db.obtener_o_crear_invitador_admin(admin_codigo)
+        admin_aliado = db.obtener_aliado_por_codigo(admin_codigo)
+        admin_id = admin_aliado.get('id') if admin_aliado else None
+        if admin_id is not None:
+            try:
+                db._registrar_invitacion(codigo, int(admin_id))
+            except Exception:
+                pass
 
         return jsonify({
             'status': 'success',

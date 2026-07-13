@@ -160,7 +160,10 @@ def test_admin_crear_invitacion_creates_placeholder(client, fake_db, session_hea
     assert placeholder["estado"] == "pendiente_completar"
     assert placeholder["nombre"] == f"Nuevo Aliado - {data['codigo']}"
     assert placeholder["email"] == f"placeholder-{data['codigo']}@ruana.local"
-    assert all(call[0] != "_registrar_invitacion" for call in fake_db.calls)
+    registrar_calls = [call for call in fake_db.calls if call[0] == "_registrar_invitacion"]
+    assert len(registrar_calls) == 1
+    assert registrar_calls[0][1] == data["codigo"]
+    assert registrar_calls[0][2] == 42
 
 
 def test_finalizar_competencia_allows_write_admin(client, fake_db, session_headers):

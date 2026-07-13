@@ -129,3 +129,46 @@ def test_admin_can_deactivate_campaign_code(client, sqlite_db, monkeypatch):
 
     inactive_validation = client.get("/api/validar-invitacion?codigo=RUANA-OFF")
     assert inactive_validation.status_code == 404
+
+
+def test_admin_placeholder_invitation_registers_referral_on_completion(
+    client, sqlite_db, monkeypatch
+):
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    sqlite_db.obtener_o_crear_invitador_admin("ADMIN001")
+
+    create_response = client.post(
+        "/api/admin/invitaciones/crear",
+        headers=_admin_headers(),
+        json={"zona": "28001"},
+    )
+    assert create_response.status_code == 201
+    codigo = create_response.get_json()["codigo"]
+
+    register_response = client.post(
+        "/api/aliados/registrar",
+        json={
+            "nombre": "Aliado Admin Placeholder",
+            "marca": "Marca Admin",
+            "oficio": "Electricidad",
+            "oficio_principal": "Electricidad",
+            "especializacion": "Averias y reparaciones electricas",
+            "codigo_postal": "28001",
+            "email": "aliado.admin.placeholder@example.com",
+            "telefono": "+34600111222",
+            "codigo_invitacion": codigo,
+        },
+    )
+    assert register_response.status_code == 201
+    assert register_response.get_json()["codigo"] == codigo
+
+    conn = sqlite_db._connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT codigo_invitador FROM referidos WHERE codigo_referido = ?",
+        (codigo,),
+    )
+    referido_row = cursor.fetchone()
+    conn.close()
+    assert referido_row is not None
+    assert referido_row[0] == "ADMIN001"

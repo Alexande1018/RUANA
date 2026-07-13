@@ -330,6 +330,25 @@
 
 .referidos-detail-invitador-link:hover { text-decoration: underline; }
 
+.referidos-detail-origen {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.referidos-origen-badge,
+.referidos-node-origen {
+    color: #c8b896;
+    font-size: 0.82rem;
+}
+
+.referidos-node-origen {
+    margin-top: 2px;
+    font-style: italic;
+}
+
 .referidos-detail-actions {
     margin-top: 16px;
     display: flex;
