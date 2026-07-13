@@ -2137,7 +2137,11 @@ def registrar_aliado():
             elif codigo_campana_invitacion:
                 db.consumir_campana_invitacion(codigo_campana_invitacion, result['codigo'])
             else:
-                db.consumir_invitacion_y_recompensar(codigo_invitacion, result['codigo'])
+                if not db.consumir_invitacion_y_recompensar(codigo_invitacion, result['codigo']):
+                    db.asegurar_referido_desde_invitacion(codigo_invitacion, result['codigo'])
+
+        # Asegurar red completa: invitaciones pendientes de sync y huérfanos bajo admin
+        db.sincronizar_referidos_completo()
 
         return jsonify(result), 201
         

@@ -29,6 +29,18 @@
         }
     }
 
+    function origenLabel(origen, origenLabelField) {
+        if (origenLabelField) return origenLabelField;
+        var map = {
+            aliado: 'Invitación de aliado',
+            oficio: 'Invitación por oficio',
+            campana: 'Campaña del administrador',
+            admin_invitacion: 'Código del administrador',
+            huerfano: 'Registro directo · asignado al admin'
+        };
+        return map[String(origen || '').toLowerCase()] || '';
+    }
+
     function estadoLabel(estado) {
         var e = String(estado || 'activo').toLowerCase();
         if (e === 'sistema') return 'Admin RUANA';
@@ -79,6 +91,11 @@
                 escapeHtml(invitador.nombre || invitador.codigo) + ' · ' + escapeHtml(invitador.oficio || '') +
                 '</button></div>';
         }
+        var origenTexto = origenLabel(nodo.origen, nodo.origen_label);
+        var origenHtml = origenTexto
+            ? '<div class="referidos-detail-origen"><span class="referidos-detail-invitador-label">Origen</span>' +
+              '<span class="referidos-origen-badge">' + escapeHtml(origenTexto) + '</span></div>'
+            : '';
 
         var adminActions = '';
         if (options.mode === 'admin' && typeof options.onVerDetalleCompleto === 'function') {
@@ -107,6 +124,7 @@
                 : '') +
             '</div>' +
             invitadorHtml +
+            origenHtml +
             adminActions;
 
         var invBtn = container.querySelector('.referidos-detail-invitador-link');
@@ -181,10 +199,9 @@
             raices + ' raíz' + (raices !== 1 ? 'es' : '') +
             ' · ' + nodos + ' aliado' + (nodos !== 1 ? 's' : '') + ' en la red';
         if (fuera != null && fuera > 0) {
-            base += ' · ' + fuera + ' activo' + (fuera !== 1 ? 's' : '') +
-                ' sin vínculo de invitación (no aparecen aquí)';
+            base += ' · ' + fuera + ' pendiente' + (fuera !== 1 ? 's' : '') + ' de completar registro';
         }
-        base += ' · Solo muestra quién invitó a quién, no el directorio completo';
+        base += ' · Todos los aliados registrados aparecen con su origen';
         return base;
     };
 
@@ -200,6 +217,13 @@
         var badgeCount = referidosCount > 0
             ? referidosCount + ' referido' + (referidosCount !== 1 ? 's' : '')
             : 'Sin referidos';
+
+        var origenTexto = origenLabel(nodo.origen, nodo.origen_label);
+        var origenLine = origenTexto
+            ? '<div class="referidos-node-meta referidos-node-origen">' + escapeHtml(origenTexto) + '</div>'
+            : (nodo.invitador_nombre
+                ? '<div class="referidos-node-meta referidos-node-origen">Invitado por ' + escapeHtml(nodo.invitador_nombre) + '</div>'
+                : '');
 
         return (
             '<div class="referidos-row" data-codigo="' + escapeHtml(nodo.codigo) + '" data-depth="' + depth + '">' +
@@ -217,6 +241,7 @@
             '</div>' +
             '<div class="referidos-node-meta"><span class="referidos-node-codigo">' + escapeHtml(nodo.codigo || '') + '</span> · ' + escapeHtml(nodo.oficio || '—') + ' · ' + escapeHtml(zona) + '</div>' +
             '<div class="referidos-node-meta">Marca: ' + escapeHtml(nodo.marca || '—') + ' · Score: ' + escapeHtml(String(nodo.score != null ? nodo.score : '—')) + '</div>' +
+            origenLine +
             '</div>' +
             '<span class="referidos-node-badge' + (referidosCount === 0 ? ' empty' : '') + '">' + escapeHtml(badgeCount) + '</span>' +
             '</div>' +
