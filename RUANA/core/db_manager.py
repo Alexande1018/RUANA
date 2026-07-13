@@ -2696,6 +2696,175 @@ class DBManager:
             'creado_en': aliado.get('creado_en') or '',
         }
 
+    def sincronizar_referidos_completo(self) -> Dict[str, int]:
+        """Sincroniza referidos desde campañas admin e invitaciones aliado usadas."""
+        campanas = self.sincronizar_referidos_campanas_admin()
+        invitaciones = self.sincronizar_referidos_invitaciones_usadas()
+        return {'campanas': campanas, 'invitaciones': invitaciones}
+
+    def sincronizar_referidos_invitaciones_usadas(self) -> int:
+        """Backfill: referidos desde invitaciones 5 dígitos marcadas como usadas."""
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT i.codigo AS codigo_referido, inv.codigo AS codigo_invitador
+                    FROM invitaciones i
+                    JOIN aliados inv ON inv.id = i.invitador_aliado_id
+                    WHERE i.usado = 1
+                      AND i.invitador_aliado_id IS NOT NULL
+                      AND EXISTS (SELECT 1 FROM aliados a WHERE a.codigo = i.codigo)
+                      AND NOT EXISTS (
+                          SELECT 1 FROM referidos r WHERE r.codigo_referido = i.codigo
+                      )
+                """)
+                pendientes = cursor.fetchall()
+            except Exception:
+                return 0
+            finally:
+                if conn:
+                    conn.close()
+        sincronizados = 0
+        for row in pendientes:
+            codigo_referido = row['codigo_referido']
+            codigo_invitador = row['codigo_invitador']
+            if not codigo_referido or not codigo_invitador:
+                continue
+            with self._lock:
+                conn = None
+                try:
+                    conn = self._connect()
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO referidos (codigo_referido, codigo_invitador)
+                        VALUES (?, ?)
+                    """, (codigo_referido, codigo_invitador))
+                    if cursor.rowcount > 0:
+                        sincronizados += 1
+                    conn.commit()
+                except Exception:
+                    pass
+                finally:
+                    if conn:
+                        conn.close()
+        return sincronizados
+
+    def contar_total_nodos_referidos_red(self) -> int:
+        """Total de aliados que participan en la red (como referido o invitador)."""
+        self.sincronizar_referidos_completo()
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT COUNT(DISTINCT codigo) FROM (
+                        SELECT codigo_referido AS codigo FROM referidos
+                        UNION
+                        SELECT codigo_invitador AS codigo FROM referidos
+                    )
+                """)
+                return cursor.fetchone()[0] or 0
+            except Exception:
+                return 0
+            finally:
+                if conn:
+                    conn.close()
+
+    def aliado_puede_ver_nodo_referidos(self, codigo_sesion: str, codigo_nodo: str) -> bool:
+        """True si el aliado de sesión es el nodo o un ancestro invitador suyo."""
+        codigo_sesion = (codigo_sesion or '').strip()
+        codigo_nodo = (codigo_nodo or '').strip()
+        if not codigo_sesion or not codigo_nodo:
+            return False
+        if codigo_sesion == codigo_nodo:
+            return True
+        current = codigo_nodo
+        visitados: set = set()
+        while current and current not in visitados:
+            invitador = self.obtener_invitador_de(current)
+            if not invitador:
+                return False
+            current = (invitador.get('codigo') or '').strip()
+            if current == codigo_sesion:
+                return True
+            visitados.add(current)
+        return False
+
+    def obtener_ruta_referidos_hacia_arriba(self, codigo: str) -> List[Dict[str, Any]]:
+        """Cadena desde la raíz hasta codigo (inclusive)."""
+        codigo = (codigo or '').strip()
+        if not codigo:
+            return []
+        cadena: List[Dict[str, Any]] = []
+        actual = codigo
+        visitados: set = set()
+        while actual and actual not in visitados:
+            nodo = self._nodo_referido_resumen(actual)
+            if nodo:
+                cadena.insert(0, nodo)
+            invitador = self.obtener_invitador_de(actual)
+            if not invitador:
+                break
+            actual = (invitador.get('codigo') or '').strip()
+            visitados.add(actual)
+        return cadena
+
+    def buscar_en_red_referidos(self, query: str, limite: int = 20) -> List[Dict[str, Any]]:
+        """Busca aliados presentes en la red de referidos."""
+        query = (query or '').strip()
+        if not query:
+            return []
+        self.sincronizar_referidos_completo()
+        like = f'%{query}%'
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT DISTINCT a.codigo
+                    FROM aliados a
+                    WHERE a.codigo IN (
+                        SELECT codigo_referido FROM referidos
+                        UNION
+                        SELECT codigo_invitador FROM referidos
+                    )
+                    AND (
+                        a.codigo LIKE ? OR a.nombre LIKE ? OR a.oficio LIKE ?
+                        OR a.marca LIKE ? OR a.codigo_postal LIKE ?
+                    )
+                    ORDER BY a.nombre
+                    LIMIT ?
+                """, (like, like, like, like, like, limite))
+                codigos = [row['codigo'] for row in cursor.fetchall() if row and row['codigo']]
+            except Exception:
+                return []
+            finally:
+                if conn:
+                    conn.close()
+        return [self._nodo_referido_resumen(c) for c in codigos if self._nodo_referido_resumen(c)]
+
+    def listar_nodos_raiz_referidos(self) -> List[Dict[str, Any]]:
+        """Nodos raíz de la red (invitadores que no fueron referidos)."""
+        self.sincronizar_referidos_completo()
+        raices = self.listar_raices_referidos()
+        nodos: List[Dict[str, Any]] = []
+        for codigo in raices:
+            nodo = self._nodo_referido_resumen(codigo)
+            if nodo:
+                nodos.append(nodo)
+        return nodos
+
+    def obtener_nodo_referidos(self, codigo: str) -> Optional[Dict[str, Any]]:
+        """Nodo individual con metadatos para el árbol."""
+        self.sincronizar_referidos_completo()
+        return self._nodo_referido_resumen(codigo)
+
     def listar_referidos_directos(self, codigo_invitador: str) -> List[Dict[str, Any]]:
         """Lista aliados referidos directamente por codigo_invitador."""
         codigo_invitador = (codigo_invitador or '').strip()
@@ -2708,11 +2877,20 @@ class DBManager:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT a.codigo, a.nombre, a.oficio, a.codigo_postal, a.marca,
-                           a.estado, a.score, a.telefono, a.email, a.especializaciones,
-                           a.creado_en, r.creado_en AS referido_en
+                    SELECT COALESCE(a.codigo, r.codigo_referido) AS codigo,
+                           COALESCE(a.nombre, r.codigo_referido) AS nombre,
+                           COALESCE(a.oficio, '—') AS oficio,
+                           COALESCE(a.codigo_postal, '') AS codigo_postal,
+                           COALESCE(a.marca, '') AS marca,
+                           COALESCE(a.estado, 'desconocido') AS estado,
+                           COALESCE(a.score, 0) AS score,
+                           COALESCE(a.telefono, '') AS telefono,
+                           COALESCE(a.email, '') AS email,
+                           a.especializaciones,
+                           COALESCE(a.creado_en, r.creado_en) AS creado_en,
+                           r.creado_en AS referido_en
                     FROM referidos r
-                    JOIN aliados a ON a.codigo = r.codigo_referido
+                    LEFT JOIN aliados a ON a.codigo = r.codigo_referido
                     WHERE r.codigo_invitador = ?
                     ORDER BY r.creado_en ASC
                 """, (codigo_invitador,))
@@ -2799,11 +2977,11 @@ class DBManager:
 
     def obtener_arbol_referidos(self, codigo_raiz: str, max_depth: int = 8) -> Optional[Dict[str, Any]]:
         """Construye árbol recursivo de referidos desde codigo_raiz."""
-        self.sincronizar_referidos_campanas_admin()
+        self.sincronizar_referidos_completo()
         codigo_raiz = (codigo_raiz or '').strip()
         if not codigo_raiz:
             return None
-        max_depth = max(1, min(int(max_depth or 8), 12))
+        max_depth = max(1, min(int(max_depth or 8), 50))
 
         def _build(codigo: str, depth: int) -> Optional[Dict[str, Any]]:
             nodo = self._nodo_referido_resumen(codigo)
@@ -2823,13 +3001,19 @@ class DBManager:
                 if sub:
                     sub['referido_en'] = hijo.get('referido_en') or ''
                     nodo['referidos'].append(sub)
+                else:
+                    hoja = dict(hijo)
+                    hoja['referidos'] = []
+                    hoja['referido_en'] = hijo.get('referido_en') or ''
+                    nodo['referidos'].append(hoja)
             return nodo
 
         return _build(codigo_raiz, 0)
 
     def obtener_bosques_referidos(self, max_depth: int = 5) -> List[Dict[str, Any]]:
         """Lista árboles raíz de toda la red de referidos."""
-        self.sincronizar_referidos_campanas_admin()
+        self.sincronizar_referidos_completo()
+        max_depth = max(1, min(int(max_depth or 8), 50))
         raices = self.listar_raices_referidos()
         bosques: List[Dict[str, Any]] = []
         for codigo in raices:
