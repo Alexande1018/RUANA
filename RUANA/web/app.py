@@ -526,7 +526,7 @@ def admin_referidos_arbol():
                 'total_nodos': _contar_nodos_arbol(arbol),
                 'timestamp': datetime.now().isoformat()
             })
-        bosques = db.obtener_bosques_referidos(max_depth=min(profundidad_int, 6))
+        bosques = db.obtener_bosques_referidos(max_depth=profundidad_int)
         total_nodos = sum(_contar_nodos_arbol(b) for b in bosques)
         return jsonify({
             'status': 'success',
@@ -534,6 +534,195 @@ def admin_referidos_arbol():
             'bosques': bosques,
             'total_nodos': total_nodos,
             'total_raices': len(bosques),
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/referidos/raices', methods=['GET'])
+@require_admin
+def admin_referidos_raices():
+    """GET /api/admin/referidos/raices — Nodos raíz de la red (carga inicial lazy)."""
+    try:
+        db = get_db()
+        raices = db.listar_nodos_raiz_referidos()
+        total = db.contar_total_nodos_referidos_red()
+        return jsonify({
+            'status': 'success',
+            'modo': 'raices',
+            'raices': raices,
+            'total_nodos': total,
+            'total_raices': len(raices),
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/referidos/hijos/<codigo>', methods=['GET'])
+@require_admin
+def admin_referidos_hijos(codigo):
+    """GET /api/admin/referidos/hijos/<codigo> — Referidos directos de un aliado."""
+    try:
+        codigo = (codigo or '').strip()
+        if not codigo:
+            return jsonify({'status': 'error', 'message': 'Código requerido'}), 400
+        db = get_db()
+        nodo = db.obtener_nodo_referidos(codigo)
+        if not nodo:
+            return jsonify({'status': 'error', 'message': 'Aliado no encontrado'}), 404
+        hijos = db.listar_referidos_directos(codigo)
+        invitador = db.obtener_invitador_de(codigo)
+        return jsonify({
+            'status': 'success',
+            'nodo': nodo,
+            'hijos': hijos,
+            'invitador': invitador,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/referidos/ruta/<codigo>', methods=['GET'])
+@require_admin
+def admin_referidos_ruta(codigo):
+    """GET /api/admin/referidos/ruta/<codigo> — Cadena desde raíz hasta el aliado."""
+    try:
+        codigo = (codigo or '').strip()
+        if not codigo:
+            return jsonify({'status': 'error', 'message': 'Código requerido'}), 400
+        db = get_db()
+        ruta = db.obtener_ruta_referidos_hacia_arriba(codigo)
+        if not ruta:
+            return jsonify({'status': 'error', 'message': 'Aliado no encontrado en la red'}), 404
+        return jsonify({
+            'status': 'success',
+            'ruta': ruta,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/referidos/buscar', methods=['GET'])
+@require_admin
+def admin_referidos_buscar():
+    """GET /api/admin/referidos/buscar?q=texto — Busca aliados en la red."""
+    try:
+        query = (request.args.get('q') or '').strip()
+        if not query:
+            return jsonify({'status': 'success', 'resultados': []})
+        db = get_db()
+        resultados = db.buscar_en_red_referidos(query, limite=25)
+        return jsonify({
+            'status': 'success',
+            'resultados': resultados,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/aliado/referidos/hijos/<codigo>', methods=['GET'])
+@require_aliado
+def aliado_referidos_hijos(codigo):
+    """GET /api/aliado/referidos/hijos/<codigo> — Referidos directos visibles para el aliado."""
+    try:
+        codigo_sesion = _aliado_codigo()
+        codigo = (codigo or '').strip()
+        if not codigo_sesion:
+            return jsonify({'status': 'error', 'message': 'Sesión no válida'}), 401
+        if not codigo:
+            return jsonify({'status': 'error', 'message': 'Código requerido'}), 400
+        db = get_db()
+        if not db.aliado_puede_ver_nodo_referidos(codigo_sesion, codigo):
+            return jsonify({'status': 'error', 'message': 'No autorizado'}), 403
+        nodo = db.obtener_nodo_referidos(codigo)
+        if not nodo:
+            return jsonify({'status': 'error', 'message': 'Aliado no encontrado'}), 404
+        hijos = db.listar_referidos_directos(codigo)
+        invitador = db.obtener_invitador_de(codigo) if codigo != codigo_sesion else db.obtener_invitador_de(codigo)
+        return jsonify({
+            'status': 'success',
+            'nodo': nodo,
+            'hijos': hijos,
+            'invitador': invitador,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/aliado/referidos/raiz', methods=['GET'])
+@require_aliado
+def aliado_referidos_raiz():
+    """GET /api/aliado/referidos/raiz — Nodo raíz del aliado autenticado."""
+    try:
+        codigo = _aliado_codigo()
+        if not codigo:
+            return jsonify({'status': 'error', 'message': 'Sesión no válida'}), 401
+        db = get_db()
+        nodo = db.obtener_nodo_referidos(codigo)
+        if not nodo:
+            return jsonify({'status': 'error', 'message': 'Aliado no encontrado'}), 404
+        invitador = db.obtener_invitador_de(codigo)
+        total_desc = db.contar_referidos_por_codigo(codigo)
+        return jsonify({
+            'status': 'success',
+            'modo': 'raiz',
+            'nodo': nodo,
+            'invitador': invitador,
+            'total_descendientes_directos': total_desc,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/referidos/cambios', methods=['GET'])
+@require_admin
+def admin_referidos_cambios():
+    """GET /api/admin/referidos/cambios?desde=<iso> — Nuevos referidos desde un momento."""
+    try:
+        desde = (request.args.get('desde') or '').strip()
+        db = get_db()
+        cambios = db.listar_referidos_desde(desde)
+        raices = db.listar_nodos_raiz_referidos()
+        total = db.contar_total_nodos_referidos_red()
+        return jsonify({
+            'status': 'success',
+            'cambios': cambios,
+            'raices': raices,
+            'total_nodos': total,
+            'total_raices': len(raices),
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/aliado/referidos/cambios', methods=['GET'])
+@require_aliado
+def aliado_referidos_cambios():
+    """GET /api/aliado/referidos/cambios?desde=<iso> — Nuevos referidos visibles para el aliado."""
+    try:
+        codigo_sesion = _aliado_codigo()
+        if not codigo_sesion:
+            return jsonify({'status': 'error', 'message': 'Sesión no válida'}), 401
+        desde = (request.args.get('desde') or '').strip()
+        db = get_db()
+        todos = db.listar_referidos_desde(desde)
+        cambios = [
+            c for c in todos
+            if db.aliado_puede_ver_nodo_referidos(codigo_sesion, c.get('codigo_referido') or '')
+        ]
+        nodo_raiz = db.obtener_nodo_referidos(codigo_sesion)
+        return jsonify({
+            'status': 'success',
+            'cambios': cambios,
+            'nodo_raiz': nodo_raiz,
             'timestamp': datetime.now().isoformat()
         })
     except Exception as e:

@@ -1465,7 +1465,7 @@
                     <svg class="referidos-search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                     <input type="text" class="referidos-search" id="referidos-admin-search" placeholder="Buscar aliado por nombre, código u oficio…" autocomplete="off">
                 </div>
-                <button type="button" class="referidos-btn-secondary" id="referidos-admin-vista-bosque">Ver todas las cadenas</button>
+                <button type="button" class="referidos-btn-secondary" id="referidos-admin-vista-bosque">Ver todas las raíces</button>
             </div>
             <div class="referidos-layout">
                 <div class="referidos-tree-panel" id="referidos-admin-tree"></div>
@@ -3501,24 +3501,26 @@
                         if (e.key !== 'Enter') return;
                         e.preventDefault();
                         const q = (searchInput.value || '').trim();
+                        if (!this._referidosTree) return;
                         if (!q) {
-                            this.cargarReferidosArbol(null, true);
+                            this._referidosTree.load().catch(() => {
+                                this.showToast('No se pudo cargar la red de referidos', 'error');
+                            });
                             return;
                         }
-                        if (this._referidosTree) {
-                            const found = this._referidosTree.findNodeBySearch(q);
-                            if (found) {
-                                this._referidosTree.selectNode(found.codigo);
-                                return;
-                            }
-                        }
-                        this.cargarReferidosArbol(q, false);
+                        this._referidosTree.searchAndFocus(q).catch((err) => {
+                            this.showToast(err.message || 'Sin resultados', 'error');
+                        });
                     });
                 }
                 if (btnBosque) {
                     btnBosque.addEventListener('click', () => {
                         if (searchInput) searchInput.value = '';
-                        this.cargarReferidosArbol(null, true);
+                        if (this._referidosTree) {
+                            this._referidosTree.load().catch(() => {
+                                this.showToast('No se pudo cargar la red de referidos', 'error');
+                            });
+                        }
                     });
                 }
             }
@@ -3531,7 +3533,6 @@
                     treeContainer: document.getElementById('referidos-admin-tree'),
                     detailContainer: document.getElementById('referidos-admin-detail'),
                     metaContainer: document.getElementById('referidos-admin-meta'),
-                    fetchUrl: '/api/admin/referidos/arbol',
                     fetchOptions: { headers: authHeaders },
                     mode: 'admin',
                     onVerDetalleCompleto: (nodo) => {
@@ -3539,22 +3540,14 @@
                         self.abrirModalDetalle(full || nodo);
                     },
                     onCentrarArbol: (codigo) => {
-                        self.cargarReferidosArbol(codigo, false);
+                        if (self._referidosTree) {
+                            self._referidosTree.focusOnCodigo(codigo).catch(() => {
+                                self.showToast('No se pudo centrar el árbol', 'error');
+                            });
+                        }
                     }
                 });
-                this.cargarReferidosArbol(null, true);
-            }
-
-            cargarReferidosArbol(codigo, bosque) {
-                if (!this._referidosTree) return;
-                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
-                this._referidosModoBosque = !!bosque && !codigo;
-                let url = '/api/admin/referidos/arbol';
-                if (codigo) {
-                    url += '?codigo=' + encodeURIComponent(codigo);
-                }
-                this._referidosTree.fetchOptions = { headers: authHeaders };
-                this._referidosTree.load(url).catch(() => {
+                this._referidosTree.load().catch(() => {
                     this.showToast('No se pudo cargar la red de referidos', 'error');
                 });
             }
