@@ -464,6 +464,92 @@ def get_aliado_datos():
         }), 500
 
 
+@app.route('/api/aliado/referidos', methods=['GET'])
+@require_aliado
+def aliado_referidos_arbol():
+    """
+    GET /api/aliado/referidos
+    Árbol de referidos del aliado autenticado (quién invitó a quién, hacia abajo).
+    """
+    try:
+        codigo = _aliado_codigo()
+        if not codigo:
+            return jsonify({'status': 'error', 'message': 'Sesión no válida'}), 401
+        profundidad = request.args.get('profundidad', 8)
+        try:
+            profundidad_int = int(profundidad)
+        except (TypeError, ValueError):
+            profundidad_int = 8
+        db = get_db()
+        arbol = db.obtener_arbol_referidos(codigo, max_depth=profundidad_int)
+        if not arbol:
+            return jsonify({'status': 'error', 'message': 'Aliado no encontrado'}), 404
+        invitador = db.obtener_invitador_de(codigo)
+        total_descendientes = _contar_nodos_arbol(arbol) - 1
+        return jsonify({
+            'status': 'success',
+            'arbol': arbol,
+            'invitador': invitador,
+            'total_descendientes': max(0, total_descendientes),
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/referidos/arbol', methods=['GET'])
+@require_admin
+def admin_referidos_arbol():
+    """
+    GET /api/admin/referidos/arbol
+    GET /api/admin/referidos/arbol?codigo=XXXXX&profundidad=8
+    Árbol de referidos para admin: bosque completo o subárbol desde un aliado.
+    """
+    try:
+        codigo = (request.args.get('codigo') or '').strip()
+        profundidad = request.args.get('profundidad', 8)
+        try:
+            profundidad_int = int(profundidad)
+        except (TypeError, ValueError):
+            profundidad_int = 8
+        db = get_db()
+        if codigo:
+            arbol = db.obtener_arbol_referidos(codigo, max_depth=profundidad_int)
+            if not arbol:
+                return jsonify({'status': 'error', 'message': f'Aliado {codigo} no encontrado'}), 404
+            invitador = db.obtener_invitador_de(codigo)
+            return jsonify({
+                'status': 'success',
+                'modo': 'subarbol',
+                'arbol': arbol,
+                'invitador': invitador,
+                'total_nodos': _contar_nodos_arbol(arbol),
+                'timestamp': datetime.now().isoformat()
+            })
+        bosques = db.obtener_bosques_referidos(max_depth=min(profundidad_int, 6))
+        total_nodos = sum(_contar_nodos_arbol(b) for b in bosques)
+        return jsonify({
+            'status': 'success',
+            'modo': 'bosque',
+            'bosques': bosques,
+            'total_nodos': total_nodos,
+            'total_raices': len(bosques),
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+def _contar_nodos_arbol(nodo: dict) -> int:
+    """Cuenta nodos en un árbol de referidos (incluye la raíz)."""
+    if not nodo or not isinstance(nodo, dict):
+        return 0
+    count = 1
+    for hijo in nodo.get('referidos') or []:
+        count += _contar_nodos_arbol(hijo)
+    return count
+
+
 @app.route('/api/aliados/por-codigo/<codigo>', methods=['GET'])
 @require_aliado
 def get_aliado_by_codigo(codigo):

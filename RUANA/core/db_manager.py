@@ -2661,6 +2661,180 @@ class DBManager:
                 return 0
             finally:
                 conn.close()
+
+    def _nodo_referido_resumen(self, codigo: str) -> Optional[Dict[str, Any]]:
+        """Resumen de aliado para nodos del árbol de referidos."""
+        aliado = self.obtener_aliado_por_codigo(codigo)
+        if not aliado:
+            return None
+        referidos_count = self.contar_referidos_por_codigo(codigo)
+        esp_raw = aliado.get('especializaciones')
+        especializaciones: List[str] = []
+        if esp_raw:
+            try:
+                especializaciones = json.loads(esp_raw) if isinstance(esp_raw, str) else list(esp_raw)
+            except Exception:
+                especializaciones = []
+        score = aliado.get('score')
+        try:
+            score_val = float(score) if score is not None else 0.0
+        except (TypeError, ValueError):
+            score_val = 0.0
+        return {
+            'codigo': aliado.get('codigo') or codigo,
+            'nombre': aliado.get('nombre') or '',
+            'oficio': aliado.get('oficio') or '',
+            'zona': aliado.get('codigo_postal') or '',
+            'codigo_postal': aliado.get('codigo_postal') or '',
+            'marca': aliado.get('marca') or '',
+            'estado': aliado.get('estado') or 'activo',
+            'score': score_val,
+            'telefono': aliado.get('telefono') or '',
+            'email': aliado.get('email') or '',
+            'especializaciones': especializaciones,
+            'referidos_count': referidos_count,
+            'creado_en': aliado.get('creado_en') or '',
+        }
+
+    def listar_referidos_directos(self, codigo_invitador: str) -> List[Dict[str, Any]]:
+        """Lista aliados referidos directamente por codigo_invitador."""
+        codigo_invitador = (codigo_invitador or '').strip()
+        if not codigo_invitador:
+            return []
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT a.codigo, a.nombre, a.oficio, a.codigo_postal, a.marca,
+                           a.estado, a.score, a.telefono, a.email, a.especializaciones,
+                           a.creado_en, r.creado_en AS referido_en
+                    FROM referidos r
+                    JOIN aliados a ON a.codigo = r.codigo_referido
+                    WHERE r.codigo_invitador = ?
+                    ORDER BY r.creado_en ASC
+                """, (codigo_invitador,))
+                rows = cursor.fetchall()
+                result: List[Dict[str, Any]] = []
+                for row in rows:
+                    item = dict(row)
+                    item['zona'] = item.get('codigo_postal') or ''
+                    item['referidos_count'] = self.contar_referidos_por_codigo(item['codigo'])
+                    esp_raw = item.get('especializaciones')
+                    if esp_raw:
+                        try:
+                            item['especializaciones'] = json.loads(esp_raw) if isinstance(esp_raw, str) else list(esp_raw)
+                        except Exception:
+                            item['especializaciones'] = []
+                    else:
+                        item['especializaciones'] = []
+                    try:
+                        item['score'] = float(item.get('score') or 0)
+                    except (TypeError, ValueError):
+                        item['score'] = 0.0
+                    result.append(item)
+                return result
+            except Exception:
+                return []
+            finally:
+                if conn:
+                    conn.close()
+
+    def obtener_invitador_de(self, codigo_aliado: str) -> Optional[Dict[str, Any]]:
+        """Obtiene el aliado invitador de codigo_aliado, si existe en referidos."""
+        codigo_aliado = (codigo_aliado or '').strip()
+        if not codigo_aliado:
+            return None
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT a.codigo, a.nombre, a.oficio, a.codigo_postal, a.marca,
+                           a.estado, a.score, r.creado_en AS referido_en
+                    FROM referidos r
+                    JOIN aliados a ON a.codigo = r.codigo_invitador
+                    WHERE r.codigo_referido = ?
+                """, (codigo_aliado,))
+                row = cursor.fetchone()
+                if not row:
+                    return None
+                item = dict(row)
+                item['zona'] = item.get('codigo_postal') or ''
+                item['referidos_count'] = self.contar_referidos_por_codigo(item['codigo'])
+                try:
+                    item['score'] = float(item.get('score') or 0)
+                except (TypeError, ValueError):
+                    item['score'] = 0.0
+                return item
+            except Exception:
+                return None
+            finally:
+                if conn:
+                    conn.close()
+
+    def listar_raices_referidos(self) -> List[str]:
+        """Códigos de aliados raíz: invitaron a alguien pero no fueron referidos."""
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT DISTINCT r.codigo_invitador
+                    FROM referidos r
+                    WHERE r.codigo_invitador NOT IN (SELECT codigo_referido FROM referidos)
+                    ORDER BY r.codigo_invitador
+                """)
+                return [row[0] for row in cursor.fetchall() if row and row[0]]
+            except Exception:
+                return []
+            finally:
+                if conn:
+                    conn.close()
+
+    def obtener_arbol_referidos(self, codigo_raiz: str, max_depth: int = 8) -> Optional[Dict[str, Any]]:
+        """Construye árbol recursivo de referidos desde codigo_raiz."""
+        codigo_raiz = (codigo_raiz or '').strip()
+        if not codigo_raiz:
+            return None
+        max_depth = max(1, min(int(max_depth or 8), 12))
+
+        def _build(codigo: str, depth: int) -> Optional[Dict[str, Any]]:
+            nodo = self._nodo_referido_resumen(codigo)
+            if not nodo:
+                return None
+            if depth >= max_depth:
+                nodo['referidos'] = []
+                nodo['truncado'] = True
+                return nodo
+            hijos = self.listar_referidos_directos(codigo)
+            nodo['referidos'] = []
+            for hijo in hijos:
+                hijo_codigo = hijo.get('codigo')
+                if not hijo_codigo:
+                    continue
+                sub = _build(hijo_codigo, depth + 1)
+                if sub:
+                    sub['referido_en'] = hijo.get('referido_en') or ''
+                    nodo['referidos'].append(sub)
+            return nodo
+
+        return _build(codigo_raiz, 0)
+
+    def obtener_bosques_referidos(self, max_depth: int = 5) -> List[Dict[str, Any]]:
+        """Lista árboles raíz de toda la red de referidos."""
+        raices = self.listar_raices_referidos()
+        bosques: List[Dict[str, Any]] = []
+        for codigo in raices:
+            arbol = self.obtener_arbol_referidos(codigo, max_depth=max_depth)
+            if arbol:
+                bosques.append(arbol)
+        return bosques
     
     def _registrar_invitacion(self, codigo_invitacion: str, invitador_aliado_id: int) -> None:
         """Registra que este código de invitación fue creado por el aliado invitador (para +5 al completar)."""
