@@ -2754,6 +2754,10 @@ class DBManager:
 
     def contar_total_nodos_referidos_red(self) -> int:
         """Total de aliados que participan en la red (como referido o invitador)."""
+        return self.obtener_resumen_referidos_red().get('total_nodos', 0)
+
+    def obtener_resumen_referidos_red(self) -> Dict[str, int]:
+        """Resumen de la red: nodos vinculados vs aliados activos fuera de la red."""
         self.sincronizar_referidos_completo()
         with self._lock:
             conn = None
@@ -2767,9 +2771,33 @@ class DBManager:
                         SELECT codigo_invitador AS codigo FROM referidos
                     )
                 """)
-                return cursor.fetchone()[0] or 0
+                total_nodos = cursor.fetchone()[0] or 0
+                cursor.execute("""
+                    SELECT COUNT(*) FROM aliados
+                    WHERE COALESCE(estado, '') = 'activo'
+                """)
+                total_aliados_activos = cursor.fetchone()[0] or 0
+                cursor.execute("""
+                    SELECT COUNT(*) FROM aliados a
+                    WHERE COALESCE(a.estado, '') = 'activo'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM referidos r
+                          WHERE r.codigo_referido = a.codigo
+                             OR r.codigo_invitador = a.codigo
+                      )
+                """)
+                aliados_fuera_red = cursor.fetchone()[0] or 0
+                return {
+                    'total_nodos': total_nodos,
+                    'total_aliados_activos': total_aliados_activos,
+                    'aliados_fuera_red': aliados_fuera_red,
+                }
             except Exception:
-                return 0
+                return {
+                    'total_nodos': 0,
+                    'total_aliados_activos': 0,
+                    'aliados_fuera_red': 0,
+                }
             finally:
                 if conn:
                     conn.close()

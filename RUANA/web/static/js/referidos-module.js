@@ -173,6 +173,21 @@
         }
     };
 
+    RuanaReferidosTree.prototype._adminMetaText = function (data) {
+        var raices = data.total_raices || 0;
+        var nodos = data.total_nodos || 0;
+        var fuera = data.aliados_fuera_red;
+        var base =
+            raices + ' raíz' + (raices !== 1 ? 'es' : '') +
+            ' · ' + nodos + ' aliado' + (nodos !== 1 ? 's' : '') + ' en la red';
+        if (fuera != null && fuera > 0) {
+            base += ' · ' + fuera + ' activo' + (fuera !== 1 ? 's' : '') +
+                ' sin vínculo de invitación (no aparecen aquí)';
+        }
+        base += ' · Solo muestra quién invitó a quién, no el directorio completo';
+        return base;
+    };
+
     RuanaReferidosTree.prototype._buildCardHtml = function (nodo, opts) {
         opts = opts || {};
         var depth = opts.depth || 0;
@@ -474,11 +489,7 @@
             if (self.mode === 'admin') {
                 if (data.raices) self._mergeNewRaices(data.raices);
                 if (data.total_nodos != null) self._totalNodos = data.total_nodos;
-                self._updateMeta(
-                    (data.total_raices || 0) + ' raíz' + ((data.total_raices || 0) !== 1 ? 'es' : '') +
-                    ' · ' + (data.total_nodos || 0) + ' aliado' + ((data.total_nodos || 0) !== 1 ? 's' : '') +
-                    ' en la red · Se actualiza automáticamente'
-                );
+                self._updateMeta(self._adminMetaText(data) + ' · Se actualiza automáticamente');
             } else if (data.nodo_raiz) {
                 indexarNodo(data.nodo_raiz, self._nodosMap, self._invitadoresMap, null);
                 self._updateNodeBadge(data.nodo_raiz.codigo, data.nodo_raiz.referidos_count || 0);
@@ -575,11 +586,7 @@
             self.treeContainer.innerHTML = '<div class="referidos-lazy-tree"></div>';
             var inner = self.treeContainer.querySelector('.referidos-lazy-tree');
             self._renderSubtree(data.raices || [], inner, 0);
-            self._updateMeta(
-                (data.total_raices || 0) + ' raíz' + ((data.total_raices || 0) !== 1 ? 'es' : '') +
-                ' · ' + (data.total_nodos || 0) + ' aliado' + ((data.total_nodos || 0) !== 1 ? 's' : '') +
-                ' en la red · Clic para expandir · Se actualiza solo'
-            );
+            self._updateMeta(self._adminMetaText(data) + ' · Clic para expandir · Se actualiza solo');
             if (data.raices && data.raices.length) {
                 self.selectNode(data.raices[0].codigo);
             } else {

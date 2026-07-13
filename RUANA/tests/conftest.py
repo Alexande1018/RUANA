@@ -72,6 +72,10 @@ class Hito2AFakeDB:
         self.calls.append(("purga_mensual",))
         return {"status": "success", "procesados": 1}
 
+    def obtener_o_crear_invitador_admin(self, admin_codigo, nombre=""):
+        self.calls.append(("obtener_o_crear_invitador_admin", admin_codigo, nombre))
+        return admin_codigo
+
 
 @pytest.fixture(autouse=True)
 def clear_ruana_sessions():
