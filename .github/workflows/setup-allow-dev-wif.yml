@@ -1,0 +1,51 @@
+name: Setup allow dev branch WIF
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: setup-allow-dev-wif
+  cancel-in-progress: false
+
+env:
+  PROJECT_ID: ruana-4293f
+  REPOSITORY: Alexande1018/RUANA
+
+jobs:
+  update-wif:
+    name: Allow GitHub Actions auth from dev
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/288784334163/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: ruana-firebase-deployer@ruana-4293f.iam.gserviceaccount.com
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Update Workload Identity attribute condition
+        run: |
+          ATTRIBUTE_CONDITION="assertion.repository=='${REPOSITORY}' && (assertion.ref=='refs/heads/main' || assertion.ref=='refs/heads/dev')"
+          gcloud iam workload-identity-pools providers update-oidc github \
+            --location=global \
+            --workload-identity-pool=github-actions \
+            --project "$PROJECT_ID" \
+            --attribute-condition="$ATTRIBUTE_CONDITION"
+          echo "Workload Identity actualizado para main y dev en ${REPOSITORY}."
+
+      - name: Show current provider config
+        run: |
+          gcloud iam workload-identity-pools providers describe github \
+            --location=global \
+            --workload-identity-pool=github-actions \
+            --project "$PROJECT_ID" \
+            --format="yaml(name,attributeCondition)"
