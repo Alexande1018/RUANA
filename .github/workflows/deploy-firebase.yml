@@ -30,6 +30,8 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
@@ -83,3 +85,5 @@ jobs:
         run: |
           curl --fail --retry 5 --retry-delay 5 "$FIREBASE_HOSTING_URL/api/health"
           curl --fail --retry 5 --retry-delay 5 "$FIREBASE_HOSTING_URL/api/contactos/metricas"
+          curl --fail --retry 5 --retry-delay 5 "$FIREBASE_HOSTING_URL/aliado" | grep -q "input-foto-perfil"
+          curl --fail --retry 5 --retry-delay 5 "$FIREBASE_HOSTING_URL/" | grep -q "ruana-brand-mark"
