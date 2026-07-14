@@ -1,6 +1,11 @@
 name: Setup allow dev branch WIF
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/setup-allow-dev-wif.yml
   workflow_dispatch:
 
 concurrency:
