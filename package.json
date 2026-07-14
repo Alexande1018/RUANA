@@ -15,7 +15,8 @@
     "gcp:secrets": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/set_gcp_secrets.ps1",
     "cloudrun:build": "gcloud builds submit --tag europe-west1-docker.pkg.dev/ruana-4293f/ruana/ruana",
     "cloudrun:deploy": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy_cloudrun.ps1",
-    "deploy:hosting": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy_firebase_hosting.ps1"
+    "deploy:hosting": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy_firebase_hosting.ps1",
+    "deploy:preview": "firebase hosting:channel:deploy dev --project ruana-4293f --only hosting --expires 30d"
   },
   "devDependencies": {
     "@playwright/test": "^1.44.0",
