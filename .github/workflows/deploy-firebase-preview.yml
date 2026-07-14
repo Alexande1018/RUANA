@@ -96,9 +96,15 @@ jobs:
             --expires 30d | tee /tmp/preview-deploy.log
 
           PREVIEW_URL=$(
-            npx firebase-tools@15.18.0 hosting:channel:open "$CHANNEL_ID" \
-              --project "$PROJECT_ID" 2>/dev/null | tail -1
+            grep -Eo 'https://[^ ]+' /tmp/preview-deploy.log | tail -1
           )
+          if [ -z "$PREVIEW_URL" ]; then
+            PREVIEW_URL=$(
+              npx firebase-tools@15.18.0 hosting:channel:open "$CHANNEL_ID" \
+                --project "$PROJECT_ID" 2>/dev/null \
+                | grep -Eo 'https://[^ ]+' | tail -1
+            )
+          fi
           echo "url=$PREVIEW_URL" >> "$GITHUB_OUTPUT"
 
       - name: Verify preview runtime
