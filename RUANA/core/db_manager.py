@@ -165,6 +165,7 @@ class DBManager:
                 self._migrar_aliados_especializaciones(conn, cursor)
                 self._migrar_aliados_descripcion_servicio(conn, cursor)
                 self._migrar_aliados_especializacion_singular(conn, cursor)
+                self._migrar_aliados_foto_perfil(conn, cursor)
 
                 # Tabla de solicitudes (schema unificado aplicado por _migrar_solicitudes_unificado)
                 cursor.execute("""
@@ -597,6 +598,14 @@ class DBManager:
         if 'descripcion_servicio' in columnas:
             return
         cursor.execute("ALTER TABLE aliados ADD COLUMN descripcion_servicio TEXT")
+
+    def _migrar_aliados_foto_perfil(self, conn, cursor) -> None:
+        """Añade foto_perfil_url (foto pública del aliado, editable solo por el propio aliado)."""
+        cursor.execute("PRAGMA table_info(aliados)")
+        columnas = [row[1] for row in cursor.fetchall()]
+        if 'foto_perfil_url' in columnas:
+            return
+        cursor.execute("ALTER TABLE aliados ADD COLUMN foto_perfil_url TEXT")
 
     def _migrar_aliados_especializacion_singular(self, conn, cursor) -> None:
         """Añade especializacion (una plaza por especialización por grupo; sub-oficio elegido)."""
@@ -1982,7 +1991,7 @@ class DBManager:
             campos_permitidos = {
                 'nombre', 'marca', 'oficio', 'codigo_postal', 'email',
                 'telefono', 'descripcion_servicio',
-                'qr_paypal_path', 'bizum_num'
+                'qr_paypal_path', 'bizum_num', 'foto_perfil_url',
             }
             campos_update = {k: v for k, v in kwargs.items()
                            if k in campos_permitidos}
@@ -4044,7 +4053,7 @@ class DBManager:
                 if grupo_id is not None and codigo_postal:
                     # Mismo grupo O mismo código postal (incluye aliados con grupo_id NULL en la zona)
                     cursor.execute("""
-                        SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, estado, score, descripcion_servicio, creado_en
+                        SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, estado, score, descripcion_servicio, foto_perfil_url, creado_en
                         FROM aliados
                         WHERE estado IN (?, ?) AND codigo != ?
                         AND (grupo_id = ? OR codigo_postal = ?)
@@ -4052,7 +4061,7 @@ class DBManager:
                     """, (estados_ok[0], estados_ok[1], codigo_excluir, grupo_id, codigo_postal))
                 elif grupo_id is not None:
                     cursor.execute("""
-                        SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, estado, score, descripcion_servicio, creado_en
+                        SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, estado, score, descripcion_servicio, foto_perfil_url, creado_en
                         FROM aliados
                         WHERE grupo_id = ? AND estado IN (?, ?) AND codigo != ?
                         ORDER BY nombre
@@ -4060,7 +4069,7 @@ class DBManager:
                 else:
                     # Sin grupo: mismo código postal (fallback)
                     cursor.execute("""
-                        SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, estado, score, descripcion_servicio, creado_en
+                        SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, estado, score, descripcion_servicio, foto_perfil_url, creado_en
                         FROM aliados
                         WHERE codigo_postal = ? AND estado IN (?, ?) AND codigo != ?
                         ORDER BY nombre

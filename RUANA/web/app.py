@@ -2346,6 +2346,66 @@ def pausar_aliado():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+@app.route('/api/aliados/<codigo>/foto-perfil', methods=['POST'])
+@require_aliado
+def subir_foto_perfil_aliado(codigo):
+    """
+    POST /api/aliados/<codigo>/foto-perfil
+    Sube o reemplaza la foto de perfil del aliado. Solo el propio aliado en sesión.
+    Form: archivo (o file). Formatos: jpg, png, gif, webp. Máx. 2 MB.
+    """
+    try:
+        codigo = (codigo or '').strip()
+        if codigo != _aliado_codigo():
+            return jsonify({'status': 'error', 'message': 'No autorizado a actualizar otro aliado'}), 403
+        if 'archivo' not in request.files and 'file' not in request.files:
+            return jsonify({'status': 'error', 'message': 'Falta el archivo (archivo o file)'}), 400
+        file = request.files.get('archivo') or request.files.get('file')
+        if not file or not file.filename:
+            return jsonify({'status': 'error', 'message': 'Archivo vacío'}), 400
+        ext = (Path(file.filename).suffix or '.bin').lower()
+        if ext not in ('.jpg', '.jpeg', '.png', '.gif', '.webp'):
+            return jsonify({'status': 'error', 'message': 'Formato no permitido. Usa imagen jpg, png, gif o webp.'}), 400
+        storage_result = upload_ruana_file(
+            file_obj=file.stream,
+            original_filename=file.filename,
+            bucket='ruana-public',
+            folder='fotos_perfil',
+            prefix=codigo,
+            content_type=file.mimetype,
+        )
+        db = get_db()
+        result = db.actualizar_aliado(codigo, foto_perfil_url=storage_result['url'])
+        if result.get('status') != 'success':
+            return jsonify(result), 400
+        return jsonify({
+            'status': 'success',
+            'message': 'Foto de perfil actualizada',
+            'foto_perfil_url': storage_result['url'],
+        }), 200
+    except ValueError as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/aliados/<codigo>/foto-perfil', methods=['DELETE'])
+@require_aliado
+def eliminar_foto_perfil_aliado(codigo):
+    """DELETE /api/aliados/<codigo>/foto-perfil — quita la foto y vuelve a mostrar iniciales."""
+    try:
+        codigo = (codigo or '').strip()
+        if codigo != _aliado_codigo():
+            return jsonify({'status': 'error', 'message': 'No autorizado a actualizar otro aliado'}), 403
+        db = get_db()
+        result = db.actualizar_aliado(codigo, foto_perfil_url=None)
+        if result.get('status') != 'success':
+            return jsonify(result), 400
+        return jsonify({'status': 'success', 'message': 'Foto de perfil eliminada'}), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
 @app.route('/api/aliados/<codigo>', methods=['PUT'])
 @require_aliado
 def actualizar_aliado_db(codigo):
