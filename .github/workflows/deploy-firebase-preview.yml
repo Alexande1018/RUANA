@@ -92,7 +92,6 @@ jobs:
           set -o pipefail
           npx firebase-tools@15.18.0 hosting:channel:deploy "$CHANNEL_ID" \
             --project "$PROJECT_ID" \
-            --only hosting \
             --non-interactive \
             --expires 30d | tee /tmp/preview-deploy.log
 
