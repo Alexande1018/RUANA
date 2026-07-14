@@ -2310,6 +2310,12 @@
             async subirFotoPerfil(file) {
                 const codigo = this.codigoAliado;
                 if (!codigo || !file) return;
+                const sid = sessionStorage.getItem('ruana_session_id');
+                if (!sid) {
+                    alert('Tu sesión expiró. Vuelve a iniciar sesión con tu código.');
+                    window.location.replace('/');
+                    return;
+                }
                 const maxBytes = 15 * 1024 * 1024;
                 if (file.size > maxBytes) {
                     const mb = (file.size / (1024 * 1024)).toFixed(1);
@@ -2322,13 +2328,19 @@
                 formData.append('archivo', file);
                 const inputEl = document.getElementById('input-foto-perfil');
                 if (inputEl) inputEl.disabled = true;
+                const apiBase = getApiBase();
                 try {
-                    const resp = await fetch(`/api/aliados/${encodeURIComponent(codigo)}/foto-perfil`, {
+                    const resp = await fetch(`${apiBase}/api/aliados/${encodeURIComponent(codigo)}/foto-perfil`, {
                         method: 'POST',
                         credentials: 'same-origin',
                         headers: getRuanaAuthHeaders(),
                         body: formData,
                     });
+                    if (resp.status === 401) {
+                        alert('Tu sesión expiró. Vuelve a iniciar sesión con tu código.');
+                        window.location.replace('/');
+                        return;
+                    }
                     const data = await resp.json();
                     if (data.status === 'success') {
                         if (!this.aliado) this.aliado = {};
@@ -2358,11 +2370,17 @@
                     : confirm('¿Quitar tu foto de perfil y volver a mostrar las iniciales?');
                 if (!ok) return;
                 try {
-                    const resp = await fetch(`/api/aliados/${encodeURIComponent(codigo)}/foto-perfil`, {
+                    const apiBase = getApiBase();
+                    const resp = await fetch(`${apiBase}/api/aliados/${encodeURIComponent(codigo)}/foto-perfil`, {
                         method: 'DELETE',
                         credentials: 'same-origin',
                         headers: getRuanaAuthHeaders(),
                     });
+                    if (resp.status === 401) {
+                        alert('Tu sesión expiró. Vuelve a iniciar sesión con tu código.');
+                        window.location.replace('/');
+                        return;
+                    }
                     const data = await resp.json();
                     if (data.status === 'success') {
                         if (!this.aliado) this.aliado = {};

@@ -56,39 +56,69 @@ ADMIN_SESSION_EXPIRES_SECONDS = int(os.environ.get('RUANA_ADMIN_SESSION_EXPIRES'
 ALIADO_SESSION_EXPIRES_SECONDS = int(os.environ.get('RUANA_ALIADO_SESSION_EXPIRES', 3600))
 
 # ---------- Store de sesiones server-side (evita sesiones cruzadas entre pestañas) ----------
-# Cada login genera un session_id único; el frontend envía X-Ruana-Session-Id por pestaña (sessionStorage).
-# No se usa cookie para identidad de sesión, así cada pestaña mantiene su usuario.
+# Cada login genera un session_id (JWT firmado) que el frontend envía en X-Ruana-Session-Id.
+# El JWT permite validar sesión en cualquier instancia de Cloud Run sin memoria compartida.
 _RUANA_SESSION_STORE = {}
+_RUANA_SESSION_REVOKED = set()
 _RUANA_SESSION_LOCK = threading.Lock()
 RUANA_SESSION_HEADER = 'X-Ruana-Session-Id'
 
 
+def _ruana_session_from_jwt(token):
+    """Decodifica un JWT de sesión RUANA. None si es inválido o expiró."""
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, app.secret_key, algorithms=['HS256'])
+        if float(payload.get('exp', 0)) <= time.time():
+            return None
+        return {
+            'tipo': payload.get('tipo'),
+            'codigo': (payload.get('codigo') or '').strip(),
+            'expires_at': float(payload.get('exp', 0)),
+            'permisos': list(payload.get('permisos') or []),
+        }
+    except Exception:
+        return None
+
+
 def _get_ruana_session():
     """
-    Lee X-Ruana-Session-Id del request y devuelve la sesión del store si existe y no expiró.
-    Retorna None si no hay header, no existe la sesión o está expirada.
+    Lee X-Ruana-Session-Id del request y devuelve la sesión si existe y no expiró.
+    Acepta JWT firmado (multi-instancia) o entradas legacy en memoria (tests).
     """
     sid = (request.headers.get(RUANA_SESSION_HEADER) or '').strip()
     if not sid:
         return None
     with _RUANA_SESSION_LOCK:
+        if sid in _RUANA_SESSION_REVOKED:
+            return None
         data = _RUANA_SESSION_STORE.get(sid)
-    if not data or float(data.get('expires_at', 0)) <= time.time():
-        return None
-    return data
+    if data and float(data.get('expires_at', 0)) > time.time():
+        return data
+    return _ruana_session_from_jwt(sid)
 
 
 def _ruana_session_create(tipo, codigo, expires_at, permisos=None):
-    """Crea una sesión en el store y devuelve session_id. Protección contra session fixation: id nuevo por login."""
-    sid = secrets.token_urlsafe(32)
+    """Crea una sesión y devuelve un JWT como session_id (nuevo id por login)."""
+    payload = {
+        'tipo': tipo,
+        'codigo': (codigo or '').strip(),
+        'exp': int(expires_at),
+    }
+    if permisos is not None:
+        payload['permisos'] = list(permisos)
+    token = jwt.encode(payload, app.secret_key, algorithm='HS256')
+    if isinstance(token, bytes):
+        token = token.decode('utf-8')
     with _RUANA_SESSION_LOCK:
-        _RUANA_SESSION_STORE[sid] = {
+        _RUANA_SESSION_STORE[token] = {
             'tipo': tipo,
             'codigo': (codigo or '').strip(),
             'expires_at': float(expires_at),
-            'permisos': list(permisos) if permisos is not None else []
+            'permisos': list(permisos) if permisos is not None else [],
         }
-    return sid
+    return token
 
 
 def _ruana_session_invalidate(session_id):
@@ -98,6 +128,7 @@ def _ruana_session_invalidate(session_id):
         return
     with _RUANA_SESSION_LOCK:
         _RUANA_SESSION_STORE.pop(sid, None)
+        _RUANA_SESSION_REVOKED.add(sid)
 
 
 def _admin_session_valid():
@@ -214,7 +245,7 @@ def require_aliado(f):
     @wraps(f)
     def wrapped(*args, **kwargs):
         if not _aliado_session_valid():
-            return jsonify({'status': 'error', 'message': 'Sesi?n expirada o no autorizado. Inicia sesi?n con tu c?digo.'}), 401
+            return jsonify({'status': 'error', 'message': 'Sesión expirada o no autorizado. Inicia sesión con tu código.'}), 401
         return f(*args, **kwargs)
     return wrapped
 
@@ -229,7 +260,7 @@ def _forbidden_unless_admin_or_aliado_self(codigo):
         if aliado == codigo:
             return None
         return jsonify({'status': 'error', 'message': 'No autorizado'}), 403
-    return jsonify({'status': 'error', 'message': 'Sesi?n expirada o no autorizado. Inicia sesi?n con tu c?digo.'}), 401
+    return jsonify({'status': 'error', 'message': 'Sesión expirada o no autorizado. Inicia sesión con tu código.'}), 401
 
 
 _ALIADO_SELF_EDITABLE_FIELDS = frozenset({
