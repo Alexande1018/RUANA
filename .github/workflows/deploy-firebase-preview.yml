@@ -18,16 +18,14 @@ concurrency:
 env:
   PROJECT_ID: ruana-4293f
   REGION: europe-west1
-  SERVICE: ruana
+  SERVICE: ruana-preview
   REPOSITORY: ruana
-  CHANNEL_ID: dev
   RUNTIME_SERVICE_ACCOUNT: ruana-runner@ruana-4293f.iam.gserviceaccount.com
   SUPABASE_URL: https://qqlxgwbmtzcfrrobrfzy.supabase.co
-  FIREBASE_CLI_EXPERIMENTS: pintags
 
 jobs:
   deploy-preview:
-    name: Build and deploy preview channel
+    name: Build and deploy preview service
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -52,28 +50,20 @@ jobs:
         with:
           project_id: ${{ env.PROJECT_ID }}
 
-      - name: Set up Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: npm
-
-      - name: Install Firebase CLI
-        run: npm ci --no-audit --no-fund
-
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 
       - name: Build and push container image
         run: |
           DEPLOY_SHA=$(git rev-parse HEAD)
-          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${SERVICE}:dev-${DEPLOY_SHA}"
+          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${SERVICE}:${DEPLOY_SHA}"
           echo "DEPLOY_SHA=${DEPLOY_SHA}" >> "$GITHUB_ENV"
           echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
           docker build --tag "$IMAGE" .
           docker push "$IMAGE"
 
-      - name: Deploy Cloud Run revision for preview
+      - name: Deploy Cloud Run preview service
+        id: preview
         run: |
           gcloud run deploy "$SERVICE" \
             --image "$IMAGE" \
@@ -84,30 +74,20 @@ jobs:
             --service-account "$RUNTIME_SERVICE_ACCOUNT" \
             --set-env-vars "FIREBASE_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_REGION=$REGION,SUPABASE_URL=$SUPABASE_URL" \
             --set-secrets "DATABASE_URL=ruana-database-url:latest,SUPABASE_SERVICE_ROLE_KEY=ruana-supabase-service-role-key:latest,SUPABASE_ANON_KEY=ruana-supabase-anon-key:latest,FLASK_SECRET_KEY=ruana-flask-secret-key:latest"
-          REVISION=$(gcloud run services describe "$SERVICE" --region "$REGION" --project "$PROJECT_ID" --format='value(status.latestReadyRevisionName)')
-          echo "PREVIEW_REVISION=${REVISION}" >> "$GITHUB_ENV"
-          echo "Preview revision: ${REVISION}"
 
-      - name: Deploy Firebase Hosting preview channel
-        id: preview
-        run: |
-          set -o pipefail
-          npx firebase-tools@15.18.0 hosting:channel:deploy "$CHANNEL_ID" \
+          PREVIEW_URL=$(gcloud run services describe "$SERVICE" \
+            --region "$REGION" \
             --project "$PROJECT_ID" \
-            --non-interactive \
-            --expires 30d | tee /tmp/preview-deploy.log
+            --format='value(status.url)')
+          REVISION=$(gcloud run services describe "$SERVICE" \
+            --region "$REGION" \
+            --project "$PROJECT_ID" \
+            --format='value(status.latestReadyRevisionName)')
 
-          PREVIEW_URL=$(
-            grep -Eo 'https://[^ ]+' /tmp/preview-deploy.log | tail -1
-          )
-          if [ -z "$PREVIEW_URL" ]; then
-            PREVIEW_URL=$(
-              npx firebase-tools@15.18.0 hosting:channel:open "$CHANNEL_ID" \
-                --project "$PROJECT_ID" 2>/dev/null \
-                | grep -Eo 'https://[^ ]+' | tail -1
-            )
-          fi
-          echo "url=$PREVIEW_URL" >> "$GITHUB_OUTPUT"
+          echo "url=${PREVIEW_URL}" >> "$GITHUB_OUTPUT"
+          echo "PREVIEW_REVISION=${REVISION}" >> "$GITHUB_ENV"
+          echo "Preview URL: ${PREVIEW_URL}"
+          echo "Preview revision: ${REVISION}"
 
       - name: Verify preview runtime
         env:
@@ -117,13 +97,11 @@ jobs:
           curl --fail --retry 8 --retry-delay 6 "$PREVIEW_URL/api/contactos/metricas"
           curl --fail --retry 8 --retry-delay 6 "$PREVIEW_URL/" | grep -q 'ruana-brand-mark'
           {
-            echo "## Preview channel (dev)"
+            echo "## Preview (dev)"
             echo
-            echo "- Canal: \`$CHANNEL_ID\`"
             echo "- URL: $PREVIEW_URL"
             echo "- Commit desplegado: \`$DEPLOY_SHA\`"
             echo "- Revisión Cloud Run: \`$PREVIEW_REVISION\`"
-            echo "- Caducidad del canal: 30 días desde este despliegue"
             echo
-            echo "Producción (\`main\`) no se modifica. Integra a \`main\` solo cuando apruebes los cambios."
+            echo "Producción (\`https://ruana-4293f.web.app\`) no se modifica."
           } >> "$GITHUB_STEP_SUMMARY"
