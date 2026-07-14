@@ -2212,26 +2212,6 @@
                                     this.profesionales = dataDirectorio.aliados;
                                 }
                             }
-                            // Fallback: si viene vacío, filtrar desde lista global por grupo/CP
-                            if (Array.isArray(this.profesionales) && this.profesionales.length === 0 && this.aliado) {
-                                const respAll = await fetch('/api/aliados', { credentials: 'same-origin', headers: getRuanaAuthHeaders() });
-                                if (respAll.ok) {
-                                    const dataAll = await respAll.json();
-                                    const lista = Array.isArray(dataAll.aliados) ? dataAll.aliados : [];
-                                    const miCodigo = (this.aliado.codigo || this.codigoAliado || '').toString();
-                                    const grupoId = this.aliado.grupo_id;
-                                    const cp = (this.aliado.codigo_postal || '').toString();
-                                    this.profesionales = lista.filter(a => {
-                                        if (!a) return false;
-                                        const est = (a.estado || '').toLowerCase();
-                                        if (est !== 'activo' && est !== 'pendiente_validacion') return false;
-                                        if ((a.codigo || '') === miCodigo) return false;
-                                        if (grupoId != null && a.grupo_id != null && a.grupo_id === grupoId) return true;
-                                        if (cp && (a.codigo_postal || '') === cp) return true;
-                                        return false;
-                                    });
-                                }
-                            }
                         } catch (e) {
                             console.error('Error cargando directorio de profesionales:', e);
                         }
