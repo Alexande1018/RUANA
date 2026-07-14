@@ -1530,7 +1530,7 @@
                         <span id="perfil-avatar-iniciales" class="perfil-avatar-iniciales ruana-avatar-iniciales" aria-hidden="true">RU</span>
                         <span class="perfil-avatar-edit-hint">Cambiar foto</span>
                     </label>
-                    <input type="file" id="input-foto-perfil" accept="image/jpeg,image/png,image/gif,image/webp" hidden>
+                    <input type="file" id="input-foto-perfil" accept="image/*,.heic,.heif" hidden>
                     <div class="perfil-avatar-actions">
                         <button type="button" id="btn-quitar-foto-perfil" class="perfil-avatar-remove" hidden>Quitar foto</button>
                     </div>
@@ -2310,6 +2310,14 @@
             async subirFotoPerfil(file) {
                 const codigo = this.codigoAliado;
                 if (!codigo || !file) return;
+                const maxBytes = 15 * 1024 * 1024;
+                if (file.size > maxBytes) {
+                    const mb = (file.size / (1024 * 1024)).toFixed(1);
+                    alert(`La foto pesa ${mb} MB. El máximo permitido es 15 MB. Prueba con otra imagen o reduce su tamaño.`);
+                    const inputEl = document.getElementById('input-foto-perfil');
+                    if (inputEl) inputEl.value = '';
+                    return;
+                }
                 const formData = new FormData();
                 formData.append('archivo', file);
                 const inputEl = document.getElementById('input-foto-perfil');

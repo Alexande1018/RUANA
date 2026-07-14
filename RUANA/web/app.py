@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Importar gestor de base de datos (y ruta ?nica de SQLite)
 from core.db_manager import get_db, DB_PATH, RUANA_CODIGO_INVITACION_REGEX
 from core.settings import get_settings
-from core.storage_manager import upload_ruana_file
+from core.storage_manager import upload_ruana_file, MAX_FOTO_PERFIL_BYTES
 
 # Obtener ruta absoluta de la carpeta web
 web_dir = Path(__file__).parent.absolute()
@@ -2352,7 +2352,7 @@ def subir_foto_perfil_aliado(codigo):
     """
     POST /api/aliados/<codigo>/foto-perfil
     Sube o reemplaza la foto de perfil del aliado. Solo el propio aliado en sesión.
-    Form: archivo (o file). Formatos: jpg, png, gif, webp. Máx. 2 MB.
+    Form: archivo (o file). Formatos: jpg, png, gif, webp, heic, heif. Máx. 15 MB.
     """
     try:
         codigo = (codigo or '').strip()
@@ -2364,8 +2364,8 @@ def subir_foto_perfil_aliado(codigo):
         if not file or not file.filename:
             return jsonify({'status': 'error', 'message': 'Archivo vacío'}), 400
         ext = (Path(file.filename).suffix or '.bin').lower()
-        if ext not in ('.jpg', '.jpeg', '.png', '.gif', '.webp'):
-            return jsonify({'status': 'error', 'message': 'Formato no permitido. Usa imagen jpg, png, gif o webp.'}), 400
+        if ext not in ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif'):
+            return jsonify({'status': 'error', 'message': 'Formato no permitido. Usa una imagen (jpg, png, gif, webp o heic).'}), 400
         storage_result = upload_ruana_file(
             file_obj=file.stream,
             original_filename=file.filename,
@@ -2373,6 +2373,7 @@ def subir_foto_perfil_aliado(codigo):
             folder='fotos_perfil',
             prefix=codigo,
             content_type=file.mimetype,
+            max_bytes=MAX_FOTO_PERFIL_BYTES,
         )
         db = get_db()
         result = db.actualizar_aliado(codigo, foto_perfil_url=storage_result['url'])

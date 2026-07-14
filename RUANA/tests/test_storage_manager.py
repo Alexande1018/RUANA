@@ -19,6 +19,57 @@ def test_upload_ruana_file_rejects_files_over_2mb():
         )
 
 
+def test_upload_ruana_file_allows_larger_foto_perfil_limit(monkeypatch):
+    from RUANA.core import storage_manager
+    from RUANA.core.storage_manager import MAX_FOTO_PERFIL_BYTES, MAX_UPLOAD_BYTES
+
+    class FakeBucket:
+        def upload(self, path, data, file_options=None):
+            return {"path": path}
+
+        def get_public_url(self, path):
+            return f"https://storage.example/{path}"
+
+    class FakeStorage:
+        def from_(self, bucket):
+            return FakeBucket()
+
+    class FakeClient:
+        storage = FakeStorage()
+
+    monkeypatch.setattr(storage_manager, "get_supabase_admin_client", lambda: FakeClient())
+
+    payload = b"x" * (MAX_UPLOAD_BYTES + 1)
+    result = storage_manager.upload_ruana_file(
+        file_obj=BytesIO(payload),
+        original_filename="selfie.jpg",
+        bucket="ruana-public",
+        folder="fotos_perfil",
+        prefix="A0001",
+        content_type="image/jpeg",
+        max_bytes=MAX_FOTO_PERFIL_BYTES,
+    )
+
+    assert result["size"] == str(len(payload))
+
+
+def test_upload_ruana_file_rejects_foto_perfil_over_15mb():
+    from RUANA.core.storage_manager import MAX_FOTO_PERFIL_BYTES, upload_ruana_file
+
+    oversized = BytesIO(b"x" * (MAX_FOTO_PERFIL_BYTES + 1))
+
+    with pytest.raises(ValueError, match="15 MB"):
+        upload_ruana_file(
+            file_obj=oversized,
+            original_filename="selfie.jpg",
+            bucket="ruana-public",
+            folder="fotos_perfil",
+            prefix="A0001",
+            content_type="image/jpeg",
+            max_bytes=MAX_FOTO_PERFIL_BYTES,
+        )
+
+
 def test_upload_ruana_file_uses_supabase_storage(monkeypatch):
     from RUANA.core import storage_manager
 

@@ -20,12 +20,18 @@ except Exception:  # pragma: no cover - app.py also imports core as top-level
 
 
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024
+MAX_FOTO_PERFIL_BYTES = 15 * 1024 * 1024
 
 
-def _read_limited(file_obj: BinaryIO) -> bytes:
-    data = file_obj.read(MAX_UPLOAD_BYTES + 1)
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise ValueError("El archivo supera el limite de 2 MB.")
+def _format_max_mb(max_bytes: int) -> str:
+    mb = max_bytes / (1024 * 1024)
+    return str(int(mb)) if mb == int(mb) else f"{mb:.1f}"
+
+
+def _read_limited(file_obj: BinaryIO, max_bytes: int = MAX_UPLOAD_BYTES) -> bytes:
+    data = file_obj.read(max_bytes + 1)
+    if len(data) > max_bytes:
+        raise ValueError(f"El archivo supera el limite de {_format_max_mb(max_bytes)} MB.")
     return data
 
 
@@ -37,13 +43,14 @@ def upload_ruana_file(
     folder: str,
     prefix: str,
     content_type: Optional[str] = None,
+    max_bytes: int = MAX_UPLOAD_BYTES,
 ) -> Dict[str, str]:
     """Upload a RUANA file to Supabase Storage and return its storage metadata."""
     safe_name = secure_filename(original_filename or "archivo") or "archivo"
     ext = (Path(safe_name).suffix or "").lower()
     generated = f"{prefix}_{uuid.uuid4().hex[:12]}_{safe_name}"[:120]
     object_path = f"{folder.strip('/')}/{generated}"
-    data = _read_limited(file_obj)
+    data = _read_limited(file_obj, max_bytes=max_bytes)
     guessed_type = content_type or mimetypes.guess_type(safe_name)[0] or "application/octet-stream"
 
     client = get_supabase_admin_client()

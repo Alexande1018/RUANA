@@ -87,6 +87,28 @@ def test_eliminar_foto_perfil_solo_propietario(client, fake_db):
     assert fake_db.calls == [("actualizar_aliado", "A0001", {"foto_perfil_url": None})]
 
 
+def test_subir_foto_perfil_acepta_imagen_grande(client, fake_db, monkeypatch):
+    from RUANA.core.storage_manager import MAX_UPLOAD_BYTES
+
+    uploads = []
+
+    def fake_upload(**kwargs):
+        uploads.append(kwargs)
+        return {"url": "https://example.com/foto-grande.jpg"}
+
+    monkeypatch.setattr(app_module, "upload_ruana_file", fake_upload)
+
+    payload = b"x" * (MAX_UPLOAD_BYTES + 1)
+    resp = client.post(
+        "/api/aliados/A0001/foto-perfil",
+        data={"archivo": (io.BytesIO(payload), "selfie.jpg")},
+        headers=_session_headers("A0001"),
+        content_type="multipart/form-data",
+    )
+    assert resp.status_code == 200
+    assert uploads[0]["max_bytes"] == 15 * 1024 * 1024
+
+
 def test_put_no_permite_foto_perfil_url(client, fake_db):
     resp = client.put(
         "/api/aliados/A0001",
