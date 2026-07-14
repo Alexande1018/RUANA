@@ -54,6 +54,9 @@
 
         .admin-header {
             margin-bottom: 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
         }
 
         .admin-title {
@@ -88,9 +91,10 @@
         }
         .admin-topbar-brand {
             display: flex;
-            align-items: baseline;
-            gap: 10px;
+            align-items: center;
+            gap: 12px;
             min-width: 0;
+            flex-wrap: wrap;
         }
         .admin-topbar-title {
             color: #f8fafc;
@@ -938,7 +942,11 @@
 
     <div class="admin-topbar">
         <div class="admin-topbar-brand">
-            <span class="admin-topbar-title">RUANA Admin</span>
+            <a href="/" class="ruana-brand ruana-brand-topbar" aria-label="RUANA inicio">
+                <img src="/static/images/ruana-logo.svg" alt="" class="ruana-brand-mark" width="28" height="28">
+                <span class="ruana-brand-word">RUANA</span>
+                <span class="ruana-brand-suffix">Admin</span>
+            </a>
             <span class="admin-topbar-subtitle">Sala de Control</span>
         </div>
         <div class="admin-topbar-actions">
@@ -950,7 +958,10 @@
     <!-- Modal de login administrador (visible cuando no hay sesión) -->
     <div class="admin-login-modal hidden" id="adminLoginModal">
         <div class="admin-login-card ruana-auth-card">
-            <h1>RUANA Admin</h1>
+            <div class="ruana-brand ruana-brand-center" aria-hidden="true">
+                <img src="/static/images/ruana-logo.svg" alt="" class="ruana-brand-mark" width="56" height="56">
+                <span class="ruana-brand-word">RUANA</span>
+            </div>
             <p class="subtitle">Introduce el código de administrador</p>
             <form class="admin-login-form" id="adminLoginForm">
                 <input type="text" class="admin-login-input ruana-form-control" id="adminLoginCodigo" placeholder="Código admin" autocomplete="off" maxlength="20">
@@ -978,7 +989,10 @@
         <div class="admin-data-content">
         <!-- Header -->
         <div class="admin-header">
-            <h1 class="admin-title">RUANA</h1>
+            <div class="ruana-brand ruana-brand-topbar" aria-hidden="true">
+                <img src="/static/images/ruana-logo.svg" alt="" class="ruana-brand-mark" width="28" height="28">
+                <span class="ruana-brand-word">RUANA</span>
+            </div>
             <p class="admin-subtitle">Panel de Administrador • Sala de Control</p>
         </div>
 
