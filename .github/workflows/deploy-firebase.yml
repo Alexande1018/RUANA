@@ -61,7 +61,7 @@ jobs:
         env:
           IMAGE: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:${{ github.sha }}
         run: |
-          docker build --tag "$IMAGE" .
+          docker build --no-cache --tag "$IMAGE" .
           docker push "$IMAGE"
 
       - name: Deploy Cloud Run
