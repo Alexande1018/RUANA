@@ -84,6 +84,7 @@ create table if not exists public.aliados (
   derrotas_competencia integer not null default 0,
   qr_paypal_path text,
   bizum_num text,
+  foto_perfil_url text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

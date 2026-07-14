@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" href="/static/images/ruana-logo.svg" type="image/svg+xml">
     <style>
         /* Panel privado del aliado - Reutiliza estilos existentes */
         .panel-container {
@@ -1444,6 +1445,10 @@
     <script src="/static/js/referidos-module.js" defer></script>
 </head>
 <body class="panel-loading">
+    <a href="/" class="ruana-brand ruana-brand-watermark" aria-label="RUANA inicio">
+        <svg class="ruana-brand-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="24" height="24" aria-hidden="true" focusable="false"><g fill="none" stroke="#A2FF00" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 24v7.5"/><path d="M32 31.5H18v7.5"/><path d="M32 31.5H46v7.5"/></g><rect x="22" y="8" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="8" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="36" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/></svg>
+        <span class="ruana-brand-word">RUANA</span>
+    </a>
     <button id="btn-logout" class="btn-back">Cerrar sesión</button>
     <div class="panel-container">
         <!-- CONTENEDOR DE ERROR F06 -->
@@ -1520,7 +1525,15 @@
         <div class="perfil-block ruana-card-premium">
             <div class="perfil-header">
                 <div class="perfil-avatar-wrap">
-                    <div class="perfil-avatar" id="perfil-avatar" aria-hidden="true">RU</div>
+                    <label class="perfil-avatar perfil-avatar-editable" for="input-foto-perfil" id="perfil-avatar" title="Cambiar foto de perfil">
+                        <img id="perfil-avatar-img" class="perfil-avatar-photo ruana-avatar-photo" alt="" hidden>
+                        <span id="perfil-avatar-iniciales" class="perfil-avatar-iniciales ruana-avatar-iniciales" aria-hidden="true">RU</span>
+                        <span class="perfil-avatar-edit-hint">Cambiar foto</span>
+                    </label>
+                    <input type="file" id="input-foto-perfil" accept="image/*,.heic,.heif" hidden>
+                    <div class="perfil-avatar-actions">
+                        <button type="button" id="btn-quitar-foto-perfil" class="perfil-avatar-remove" hidden>Quitar foto</button>
+                    </div>
                 </div>
                 <div class="perfil-info">
                     <div class="perfil-titulo">Perfil del Aliado</div>
@@ -2212,26 +2225,6 @@
                                     this.profesionales = dataDirectorio.aliados;
                                 }
                             }
-                            // Fallback: si viene vacío, filtrar desde lista global por grupo/CP
-                            if (Array.isArray(this.profesionales) && this.profesionales.length === 0 && this.aliado) {
-                                const respAll = await fetch('/api/aliados', { credentials: 'same-origin', headers: getRuanaAuthHeaders() });
-                                if (respAll.ok) {
-                                    const dataAll = await respAll.json();
-                                    const lista = Array.isArray(dataAll.aliados) ? dataAll.aliados : [];
-                                    const miCodigo = (this.aliado.codigo || this.codigoAliado || '').toString();
-                                    const grupoId = this.aliado.grupo_id;
-                                    const cp = (this.aliado.codigo_postal || '').toString();
-                                    this.profesionales = lista.filter(a => {
-                                        if (!a) return false;
-                                        const est = (a.estado || '').toLowerCase();
-                                        if (est !== 'activo' && est !== 'pendiente_validacion') return false;
-                                        if ((a.codigo || '') === miCodigo) return false;
-                                        if (grupoId != null && a.grupo_id != null && a.grupo_id === grupoId) return true;
-                                        if (cp && (a.codigo_postal || '') === cp) return true;
-                                        return false;
-                                    });
-                                }
-                            }
                         } catch (e) {
                             console.error('Error cargando directorio de profesionales:', e);
                         }
@@ -2277,6 +2270,130 @@
                 });
             }
 
+            getIniciales(nombre) {
+                const texto = (nombre || '').trim();
+                return texto.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]).join('').toUpperCase().slice(0, 2) || '?';
+            }
+
+            renderAvatarHtml(fotoUrl, nombre, className) {
+                const iniciales = this.getIniciales(nombre);
+                const foto = (fotoUrl || '').trim();
+                if (foto) {
+                    return `<div class="${className}"><img src="${this.escapeHtml(foto)}" alt="" class="ruana-avatar-photo"></div>`;
+                }
+                return `<div class="${className}" aria-hidden="true"><span class="ruana-avatar-iniciales">${this.escapeHtml(iniciales)}</span></div>`;
+            }
+
+            aplicarAvatarPerfil(aliadoData) {
+                const nombre = (aliadoData && aliadoData.nombre) || 'Nombre no disponible';
+                const fotoUrl = (aliadoData && (aliadoData.foto_perfil_url || aliadoData.foto_perfil)) || '';
+                const imgEl = document.getElementById('perfil-avatar-img');
+                const inicialesEl = document.getElementById('perfil-avatar-iniciales');
+                const btnQuitar = document.getElementById('btn-quitar-foto-perfil');
+                const iniciales = this.getIniciales(nombre);
+                if (inicialesEl) inicialesEl.textContent = iniciales;
+                if (imgEl) {
+                    if (fotoUrl) {
+                        imgEl.src = fotoUrl;
+                        imgEl.hidden = false;
+                        if (inicialesEl) inicialesEl.hidden = true;
+                        if (btnQuitar) btnQuitar.hidden = false;
+                    } else {
+                        imgEl.removeAttribute('src');
+                        imgEl.hidden = true;
+                        if (inicialesEl) inicialesEl.hidden = false;
+                        if (btnQuitar) btnQuitar.hidden = true;
+                    }
+                }
+            }
+
+            async subirFotoPerfil(file) {
+                const codigo = this.codigoAliado;
+                if (!codigo || !file) return;
+                const sid = sessionStorage.getItem('ruana_session_id');
+                if (!sid) {
+                    alert('Tu sesión expiró. Vuelve a iniciar sesión con tu código.');
+                    window.location.replace('/');
+                    return;
+                }
+                const maxBytes = 15 * 1024 * 1024;
+                if (file.size > maxBytes) {
+                    const mb = (file.size / (1024 * 1024)).toFixed(1);
+                    alert(`La foto pesa ${mb} MB. El máximo permitido es 15 MB. Prueba con otra imagen o reduce su tamaño.`);
+                    const inputEl = document.getElementById('input-foto-perfil');
+                    if (inputEl) inputEl.value = '';
+                    return;
+                }
+                const formData = new FormData();
+                formData.append('archivo', file);
+                const inputEl = document.getElementById('input-foto-perfil');
+                if (inputEl) inputEl.disabled = true;
+                const apiBase = getApiBase();
+                try {
+                    const resp = await fetch(`${apiBase}/api/aliados/${encodeURIComponent(codigo)}/foto-perfil`, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: getRuanaAuthHeaders(),
+                        body: formData,
+                    });
+                    if (resp.status === 401) {
+                        alert('Tu sesión expiró. Vuelve a iniciar sesión con tu código.');
+                        window.location.replace('/');
+                        return;
+                    }
+                    const data = await resp.json();
+                    if (data.status === 'success') {
+                        if (!this.aliado) this.aliado = {};
+                        this.aliado.foto_perfil_url = data.foto_perfil_url || null;
+                        this.aplicarAvatarPerfil(this.aliado);
+                        if (typeof RuanaUI !== 'undefined') {
+                            RuanaUI.toast('Foto de perfil actualizada', 'success');
+                        }
+                    } else {
+                        alert(data.message || 'No se pudo subir la foto.');
+                    }
+                } catch (e) {
+                    alert('Error de conexión al subir la foto.');
+                } finally {
+                    if (inputEl) {
+                        inputEl.value = '';
+                        inputEl.disabled = false;
+                    }
+                }
+            }
+
+            async quitarFotoPerfil() {
+                const codigo = this.codigoAliado;
+                if (!codigo) return;
+                const ok = typeof RuanaUI !== 'undefined'
+                    ? await RuanaUI.confirm('¿Quitar tu foto de perfil y volver a mostrar las iniciales?', { title: 'Quitar foto' })
+                    : confirm('¿Quitar tu foto de perfil y volver a mostrar las iniciales?');
+                if (!ok) return;
+                try {
+                    const apiBase = getApiBase();
+                    const resp = await fetch(`${apiBase}/api/aliados/${encodeURIComponent(codigo)}/foto-perfil`, {
+                        method: 'DELETE',
+                        credentials: 'same-origin',
+                        headers: getRuanaAuthHeaders(),
+                    });
+                    if (resp.status === 401) {
+                        alert('Tu sesión expiró. Vuelve a iniciar sesión con tu código.');
+                        window.location.replace('/');
+                        return;
+                    }
+                    const data = await resp.json();
+                    if (data.status === 'success') {
+                        if (!this.aliado) this.aliado = {};
+                        this.aliado.foto_perfil_url = null;
+                        this.aplicarAvatarPerfil(this.aliado);
+                    } else {
+                        alert(data.message || 'No se pudo quitar la foto.');
+                    }
+                } catch (e) {
+                    alert('Error de conexión.');
+                }
+            }
+
             /**
              * Renderizar perfil del aliado
              * - Protege contra this.aliado === null
@@ -2288,11 +2405,7 @@
                 const nombre = aliadoData.nombre || 'Nombre no disponible';
                 document.getElementById('perfil-nombre').textContent = nombre;
                 document.getElementById('perfil-marca').textContent = aliadoData.marca || 'Marca no disponible';
-                const avatarEl = document.getElementById('perfil-avatar');
-                if (avatarEl) {
-                    const iniciales = nombre.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]).join('').toUpperCase() || 'RU';
-                    avatarEl.textContent = iniciales.slice(0, 2);
-                }
+                this.aplicarAvatarPerfil(aliadoData);
                 document.getElementById('detail-codigo').textContent = aliadoData.codigo || this.codigoAliado || '---';
                 document.getElementById('detail-oficio').textContent = aliadoData.oficio || '---';
                 const esp = aliadoData.especializaciones;
@@ -3006,6 +3119,18 @@
                 if (btnGuardarDesc) btnGuardarDesc.addEventListener('click', () => this.guardarDescripcion());
                 if (btnCancelarDesc) btnCancelarDesc.addEventListener('click', () => this.cancelarEditarDescripcion());
 
+                const inputFotoPerfil = document.getElementById('input-foto-perfil');
+                const btnQuitarFotoPerfil = document.getElementById('btn-quitar-foto-perfil');
+                if (inputFotoPerfil) {
+                    inputFotoPerfil.addEventListener('change', (e) => {
+                        const file = e.target.files && e.target.files[0];
+                        if (file) this.subirFotoPerfil(file);
+                    });
+                }
+                if (btnQuitarFotoPerfil) {
+                    btnQuitarFotoPerfil.addEventListener('click', () => this.quitarFotoPerfil());
+                }
+
                 // Oficios faltantes: Ver todos / Ocultar / Buscador
                 const btnVerTodosOficios = document.getElementById('btn-ver-todos-oficios');
                 const btnOcultarOficios = document.getElementById('btn-ocultar-oficios');
@@ -3232,16 +3357,17 @@
                     const descripcionServicio = (prof.descripcion_servicio || prof.descripcion || '').trim();
                     const badgeTexto = tieneConversacion ? 'Conversación activa' : (esIncompleto ? 'Perfil incompleto' : 'DISPONIBLE');
 
-                    const iniciales = nombre.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]).join('').toUpperCase() || '?';
+                    const iniciales = this.getIniciales(nombre);
                     const badgeRuana = tieneConversacion ? 'conversacion-activa' : (esIncompleto ? 'perfil-incompleto' : '');
                     const badgeTipo = tieneConversacion ? 'ruana-badge pendiente' : (esIncompleto ? 'ruana-badge observacion' : 'ruana-badge disponible');
+                    const avatarHtml = this.renderAvatarHtml(prof.foto_perfil_url, nombre, 'profesional-avatar');
 
                     const card = document.createElement('div');
                     card.className = 'profesional-card' + (esIncompleto ? ' perfil-incompleto' : '');
                     card.innerHTML = `
                         <div class="profesional-header">
                             <div class="profesional-identity">
-                                <div class="profesional-avatar" aria-hidden="true">${this.escapeHtml(iniciales.slice(0, 2))}</div>
+                                ${avatarHtml}
                                 <div>
                                     <div class="profesional-nombre">${this.escapeHtml(nombre)}</div>
                                     <div class="profesional-oficio-sub">${this.escapeHtml(oficio)} · ${this.escapeHtml(zona)}</div>

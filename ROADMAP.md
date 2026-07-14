@@ -306,7 +306,7 @@ Estado para reanudar:
 ## 7. Estado para reanudar
 
 - Hito activo: Hito 2 - Cierre de superficie critica.
-- Tarea terminada: Hito 2A protege `POST /api/invitaciones/crear`, `POST /api/competencia/finalizar-vencidas` y `POST /api/purga/mensual` con pruebas pytest de permisos.
-- Verificacion ejecutada: `python -m pytest RUANA/tests/test_hito_2a_permissions.py -v` y `python -m pytest RUANA/tests -v` (13 passed en ambos).
-- Siguiente tarea: Hito 2B, cerrar lectura publica de datos personales en `/api/aliados*`.
+- Tarea terminada: Hito 2B cierra lectura publica de PII en `/api/aliados*`, protege chat legacy (`/api/chat/mensajes`, `/api/chat/enviar`), restringe campos editables por aliado (`score`, `estado`, `grupo_id`) y protege evaluaciones publicas.
+- Verificacion ejecutada: `python -m pytest RUANA/tests/test_hito_2b_permissions.py RUANA/tests/test_hito_2a_permissions.py -v` (38 passed).
+- Siguiente tarea: revisar criterios de salida del Hito 2 y cerrar el hito si no quedan endpoints publicos criticos abiertos.
 - Bloqueos: ninguno documentado.

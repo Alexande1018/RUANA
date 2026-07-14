@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Importar gestor de base de datos (y ruta ?nica de SQLite)
 from core.db_manager import get_db, DB_PATH, RUANA_CODIGO_INVITACION_REGEX
 from core.settings import get_settings
-from core.storage_manager import upload_ruana_file
+from core.storage_manager import upload_ruana_file, upload_foto_perfil_file
 
 # Obtener ruta absoluta de la carpeta web
 web_dir = Path(__file__).parent.absolute()
@@ -56,39 +56,69 @@ ADMIN_SESSION_EXPIRES_SECONDS = int(os.environ.get('RUANA_ADMIN_SESSION_EXPIRES'
 ALIADO_SESSION_EXPIRES_SECONDS = int(os.environ.get('RUANA_ALIADO_SESSION_EXPIRES', 3600))
 
 # ---------- Store de sesiones server-side (evita sesiones cruzadas entre pestañas) ----------
-# Cada login genera un session_id único; el frontend envía X-Ruana-Session-Id por pestaña (sessionStorage).
-# No se usa cookie para identidad de sesión, así cada pestaña mantiene su usuario.
+# Cada login genera un session_id (JWT firmado) que el frontend envía en X-Ruana-Session-Id.
+# El JWT permite validar sesión en cualquier instancia de Cloud Run sin memoria compartida.
 _RUANA_SESSION_STORE = {}
+_RUANA_SESSION_REVOKED = set()
 _RUANA_SESSION_LOCK = threading.Lock()
 RUANA_SESSION_HEADER = 'X-Ruana-Session-Id'
 
 
+def _ruana_session_from_jwt(token):
+    """Decodifica un JWT de sesión RUANA. None si es inválido o expiró."""
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, app.secret_key, algorithms=['HS256'])
+        if float(payload.get('exp', 0)) <= time.time():
+            return None
+        return {
+            'tipo': payload.get('tipo'),
+            'codigo': (payload.get('codigo') or '').strip(),
+            'expires_at': float(payload.get('exp', 0)),
+            'permisos': list(payload.get('permisos') or []),
+        }
+    except Exception:
+        return None
+
+
 def _get_ruana_session():
     """
-    Lee X-Ruana-Session-Id del request y devuelve la sesión del store si existe y no expiró.
-    Retorna None si no hay header, no existe la sesión o está expirada.
+    Lee X-Ruana-Session-Id del request y devuelve la sesión si existe y no expiró.
+    Acepta JWT firmado (multi-instancia) o entradas legacy en memoria (tests).
     """
     sid = (request.headers.get(RUANA_SESSION_HEADER) or '').strip()
     if not sid:
         return None
     with _RUANA_SESSION_LOCK:
+        if sid in _RUANA_SESSION_REVOKED:
+            return None
         data = _RUANA_SESSION_STORE.get(sid)
-    if not data or float(data.get('expires_at', 0)) <= time.time():
-        return None
-    return data
+    if data and float(data.get('expires_at', 0)) > time.time():
+        return data
+    return _ruana_session_from_jwt(sid)
 
 
 def _ruana_session_create(tipo, codigo, expires_at, permisos=None):
-    """Crea una sesión en el store y devuelve session_id. Protección contra session fixation: id nuevo por login."""
-    sid = secrets.token_urlsafe(32)
+    """Crea una sesión y devuelve un JWT como session_id (nuevo id por login)."""
+    payload = {
+        'tipo': tipo,
+        'codigo': (codigo or '').strip(),
+        'exp': int(expires_at),
+    }
+    if permisos is not None:
+        payload['permisos'] = list(permisos)
+    token = jwt.encode(payload, app.secret_key, algorithm='HS256')
+    if isinstance(token, bytes):
+        token = token.decode('utf-8')
     with _RUANA_SESSION_LOCK:
-        _RUANA_SESSION_STORE[sid] = {
+        _RUANA_SESSION_STORE[token] = {
             'tipo': tipo,
             'codigo': (codigo or '').strip(),
             'expires_at': float(expires_at),
-            'permisos': list(permisos) if permisos is not None else []
+            'permisos': list(permisos) if permisos is not None else [],
         }
-    return sid
+    return token
 
 
 def _ruana_session_invalidate(session_id):
@@ -98,6 +128,7 @@ def _ruana_session_invalidate(session_id):
         return
     with _RUANA_SESSION_LOCK:
         _RUANA_SESSION_STORE.pop(sid, None)
+        _RUANA_SESSION_REVOKED.add(sid)
 
 
 def _admin_session_valid():
@@ -214,9 +245,28 @@ def require_aliado(f):
     @wraps(f)
     def wrapped(*args, **kwargs):
         if not _aliado_session_valid():
-            return jsonify({'status': 'error', 'message': 'Sesi?n expirada o no autorizado. Inicia sesi?n con tu c?digo.'}), 401
+            return jsonify({'status': 'error', 'message': 'Sesión expirada o no autorizado. Inicia sesión con tu código.'}), 401
         return f(*args, **kwargs)
     return wrapped
+
+
+def _forbidden_unless_admin_or_aliado_self(codigo):
+    """None si admin autenticado o aliado consultando su propio código; si no, (response, status_code)."""
+    codigo = (codigo or '').strip()
+    if _admin_session_valid() or (_admin_jwt_payload() and _admin_jwt_payload().get('admin_codigo')):
+        return None
+    aliado = _aliado_codigo()
+    if aliado:
+        if aliado == codigo:
+            return None
+        return jsonify({'status': 'error', 'message': 'No autorizado'}), 403
+    return jsonify({'status': 'error', 'message': 'Sesión expirada o no autorizado. Inicia sesión con tu código.'}), 401
+
+
+_ALIADO_SELF_EDITABLE_FIELDS = frozenset({
+    'nombre', 'marca', 'oficio', 'codigo_postal', 'email',
+    'telefono', 'descripcion_servicio', 'qr_paypal_path', 'bizum_num',
+})
 
 # Instrumentaci?n de arranque: confirmar ruta de BD usada por Flask
 try:
@@ -911,6 +961,7 @@ def static_files(path):
 # ================================================
 
 @app.route('/api/aliados', methods=['GET'])
+@require_admin
 def get_aliados():
     """
     GET /api/aliados
@@ -958,6 +1009,7 @@ def get_aliados_directorio():
 
 
 @app.route('/api/aliados/<int:aliado_id>', methods=['GET'])
+@require_admin
 def get_aliado(aliado_id):
     """
     GET /api/aliados/<id>
@@ -1604,13 +1656,14 @@ def api_contactos_mensajes(contacto_id):
 
 # ========== Chat RUANA (rutas simples: Aliado y Profesional) ==========
 @app.route('/api/chat/mensajes', methods=['GET'])
+@require_aliado
 def chat_get_mensajes():
-    """GET /api/chat/mensajes?contacto_id=1&codigo=12345  ? lista mensajes del chat."""
+    """GET /api/chat/mensajes?contacto_id=1  ? lista mensajes del chat (codigo desde sesi?n)."""
     try:
         contacto_id = request.args.get('contacto_id', type=int)
-        codigo = (request.args.get('codigo') or '').strip()
+        codigo = _aliado_codigo()
         if not contacto_id or not codigo:
-            return jsonify({'status': 'error', 'message': 'contacto_id y codigo son obligatorios'}), 400
+            return jsonify({'status': 'error', 'message': 'contacto_id es obligatorio'}), 400
         db = get_db()
         contacto = db.obtener_contacto_resumen(contacto_id)
         if not contacto:
@@ -1627,8 +1680,9 @@ def chat_get_mensajes():
 
 
 @app.route('/api/chat/enviar', methods=['POST'])
+@require_aliado
 def chat_enviar():
-    """POST /api/chat/enviar  body: { contacto_id, emisor_codigo, texto }  ? env?a mensaje. Aliado y Profesional."""
+    """POST /api/chat/enviar  body: { contacto_id, texto }  ? env?a mensaje (emisor = sesi?n)."""
     try:
         data = request.get_json() or {}
         contacto_id = data.get('contacto_id')
@@ -1637,12 +1691,12 @@ def chat_enviar():
                 contacto_id = int(contacto_id)
             except (TypeError, ValueError):
                 contacto_id = None
-        emisor_codigo = (data.get('emisor_codigo') or '').strip()
+        emisor_codigo = _aliado_codigo()
         texto = data.get('texto')
         if not contacto_id:
             return jsonify({'status': 'error', 'message': 'contacto_id es obligatorio'}), 400
         if not emisor_codigo:
-            return jsonify({'status': 'error', 'message': 'emisor_codigo es obligatorio'}), 400
+            return jsonify({'status': 'error', 'message': 'Sesi?n expirada'}), 401
         db = get_db()
         result = db.enviar_mensaje_chat(contacto_id, emisor_codigo, texto or '')
         if result.get('status') != 'success':
@@ -2163,6 +2217,9 @@ def obtener_aliado_codigo(codigo):
     """
     try:
         codigo = codigo.strip()
+        auth_err = _forbidden_unless_admin_or_aliado_self(codigo)
+        if auth_err:
+            return auth_err
         
         # F08: Validaci?n de formato para compatibilidad legacy
         # Aceptar:
@@ -2234,6 +2291,7 @@ def obtener_aliado_codigo(codigo):
 
 
 @app.route('/api/aliados/verificar-codigo/<codigo>', methods=['GET'])
+@require_admin
 def verificar_codigo_existe(codigo):
     """
     GET /api/aliados/verificar-codigo/XXXXX
@@ -2319,6 +2377,69 @@ def pausar_aliado():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+@app.route('/api/aliados/<codigo>/foto-perfil', methods=['POST'])
+@require_aliado
+def subir_foto_perfil_aliado(codigo):
+    """
+    POST /api/aliados/<codigo>/foto-perfil
+    Sube o reemplaza la foto de perfil del aliado. Solo el propio aliado en sesión.
+    Form: archivo (o file). Formatos: jpg, png, gif, webp, heic, heif. Máx. 15 MB.
+    """
+    try:
+        codigo = (codigo or '').strip()
+        if codigo != _aliado_codigo():
+            return jsonify({'status': 'error', 'message': 'No autorizado a actualizar otro aliado'}), 403
+        if 'archivo' not in request.files and 'file' not in request.files:
+            return jsonify({'status': 'error', 'message': 'Falta el archivo (archivo o file)'}), 400
+        file = request.files.get('archivo') or request.files.get('file')
+        if not file or not file.filename:
+            return jsonify({'status': 'error', 'message': 'Archivo vacío'}), 400
+        ext = (Path(file.filename).suffix or '.bin').lower()
+        if ext not in ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif'):
+            return jsonify({'status': 'error', 'message': 'Formato no permitido. Usa una imagen (jpg, png, gif, webp o heic).'}), 400
+        storage_result = upload_foto_perfil_file(
+            file_obj=file.stream,
+            original_filename=file.filename,
+            prefix=codigo,
+        )
+        db = get_db()
+        result = db.actualizar_aliado(codigo, foto_perfil_url=storage_result['url'])
+        if result.get('status') != 'success':
+            return jsonify(result), 400
+        return jsonify({
+            'status': 'success',
+            'message': 'Foto de perfil actualizada',
+            'foto_perfil_url': storage_result['url'],
+        }), 200
+    except ValueError as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+    except Exception as e:
+        msg = str(e)
+        if '413' in msg or 'Payload too large' in msg or 'maximum allowed size' in msg:
+            return jsonify({
+                'status': 'error',
+                'message': 'La imagen es demasiado pesada para almacenarla. Prueba con otra foto.',
+            }), 400
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/aliados/<codigo>/foto-perfil', methods=['DELETE'])
+@require_aliado
+def eliminar_foto_perfil_aliado(codigo):
+    """DELETE /api/aliados/<codigo>/foto-perfil — quita la foto y vuelve a mostrar iniciales."""
+    try:
+        codigo = (codigo or '').strip()
+        if codigo != _aliado_codigo():
+            return jsonify({'status': 'error', 'message': 'No autorizado a actualizar otro aliado'}), 403
+        db = get_db()
+        result = db.actualizar_aliado(codigo, foto_perfil_url=None)
+        if result.get('status') != 'success':
+            return jsonify(result), 400
+        return jsonify({'status': 'success', 'message': 'Foto de perfil eliminada'}), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
 @app.route('/api/aliados/<codigo>', methods=['PUT'])
 @require_aliado
 def actualizar_aliado_db(codigo):
@@ -2331,6 +2452,7 @@ def actualizar_aliado_db(codigo):
         if codigo != _aliado_codigo():
             return jsonify({'status': 'error', 'message': 'No autorizado a actualizar otro aliado'}), 403
         data = request.get_json() or {}
+        data = {k: v for k, v in data.items() if k in _ALIADO_SELF_EDITABLE_FIELDS}
         db = get_db()
         result = db.actualizar_aliado(codigo, **data)
         
@@ -2443,6 +2565,7 @@ def obtener_evaluacion(codigo_aliado):
 
 
 @app.route('/api/evaluaciones', methods=['GET'])
+@require_admin
 def listar_evaluaciones():
     """
     GET /api/evaluaciones
@@ -2479,6 +2602,9 @@ def obtener_historico_evaluacion(codigo_aliado):
     """
     try:
         codigo_aliado = codigo_aliado.strip()
+        auth_err = _forbidden_unless_admin_or_aliado_self(codigo_aliado)
+        if auth_err:
+            return auth_err
         db = get_db()
         
         historico = db.obtener_historico_evaluaciones(codigo_aliado)
@@ -2498,6 +2624,7 @@ def obtener_historico_evaluacion(codigo_aliado):
 
 
 @app.route('/api/evaluaciones/estadisticas', methods=['GET'])
+@require_admin
 def estadisticas_evaluaciones():
     """
     GET /api/evaluaciones/estadisticas

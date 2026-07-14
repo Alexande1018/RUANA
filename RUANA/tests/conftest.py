@@ -82,10 +82,12 @@ def clear_ruana_sessions():
     previous_testing = app_module.app.config.get("TESTING")
     with app_module._RUANA_SESSION_LOCK:
         app_module._RUANA_SESSION_STORE.clear()
+        app_module._RUANA_SESSION_REVOKED.clear()
     app_module.app.config.update(TESTING=True)
     yield
     with app_module._RUANA_SESSION_LOCK:
         app_module._RUANA_SESSION_STORE.clear()
+        app_module._RUANA_SESSION_REVOKED.clear()
     app_module.app.config.update(TESTING=previous_testing)
 
 

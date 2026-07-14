@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import psycopg
 
+from core.db_manager import ALIADO_FOTO_PERFIL_COLUMN
 from core.settings import get_settings
 from core.supabase_client import get_supabase_admin_client
 
@@ -27,6 +28,11 @@ def main() -> int:
         with conn.cursor() as cur:
             checks = {
                 "public_tables": "select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE'",
+                "aliados_foto_perfil_url": (
+                    "select count(*) from information_schema.columns "
+                    "where table_schema='public' and table_name='aliados' "
+                    f"and column_name='{ALIADO_FOTO_PERFIL_COLUMN}'"
+                ),
                 "rls_enabled": "select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r' and c.relrowsecurity",
                 "policies": "select count(*) from pg_policies where schemaname='public'",
                 "realtime_tables": "select count(*) from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename in ('chat_mensajes','notificaciones_aliado','contactos_ruana')",

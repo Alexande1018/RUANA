@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" href="/static/images/ruana-logo.svg" type="image/svg+xml">
     <style>
         /* Panel de administrador */
         .admin-container {
@@ -54,6 +55,9 @@
 
         .admin-header {
             margin-bottom: 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
         }
 
         .admin-title {
@@ -88,9 +92,10 @@
         }
         .admin-topbar-brand {
             display: flex;
-            align-items: baseline;
-            gap: 10px;
+            align-items: center;
+            gap: 12px;
             min-width: 0;
+            flex-wrap: wrap;
         }
         .admin-topbar-title {
             color: #f8fafc;
@@ -938,7 +943,11 @@
 
     <div class="admin-topbar">
         <div class="admin-topbar-brand">
-            <span class="admin-topbar-title">RUANA Admin</span>
+            <a href="/" class="ruana-brand ruana-brand-topbar" aria-label="RUANA inicio">
+                <svg class="ruana-brand-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="28" height="28" aria-hidden="true" focusable="false"><g fill="none" stroke="#A2FF00" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 24v7.5"/><path d="M32 31.5H18v7.5"/><path d="M32 31.5H46v7.5"/></g><rect x="22" y="8" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="8" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="36" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/></svg>
+                <span class="ruana-brand-word">RUANA</span>
+                <span class="ruana-brand-suffix">Admin</span>
+            </a>
             <span class="admin-topbar-subtitle">Sala de Control</span>
         </div>
         <div class="admin-topbar-actions">
@@ -950,7 +959,10 @@
     <!-- Modal de login administrador (visible cuando no hay sesión) -->
     <div class="admin-login-modal hidden" id="adminLoginModal">
         <div class="admin-login-card ruana-auth-card">
-            <h1>RUANA Admin</h1>
+            <div class="ruana-brand ruana-brand-center" aria-hidden="true">
+                <svg class="ruana-brand-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="56" height="56" aria-hidden="true" focusable="false"><g fill="none" stroke="#A2FF00" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 24v7.5"/><path d="M32 31.5H18v7.5"/><path d="M32 31.5H46v7.5"/></g><rect x="22" y="8" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="8" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="36" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/></svg>
+                <span class="ruana-brand-word">RUANA</span>
+            </div>
             <p class="subtitle">Introduce el código de administrador</p>
             <form class="admin-login-form" id="adminLoginForm">
                 <input type="text" class="admin-login-input ruana-form-control" id="adminLoginCodigo" placeholder="Código admin" autocomplete="off" maxlength="20">
@@ -978,7 +990,10 @@
         <div class="admin-data-content">
         <!-- Header -->
         <div class="admin-header">
-            <h1 class="admin-title">RUANA</h1>
+            <div class="ruana-brand ruana-brand-topbar" aria-hidden="true">
+                <svg class="ruana-brand-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="28" height="28" aria-hidden="true" focusable="false"><g fill="none" stroke="#A2FF00" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 24v7.5"/><path d="M32 31.5H18v7.5"/><path d="M32 31.5H46v7.5"/></g><rect x="22" y="8" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="8" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="36" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/></svg>
+                <span class="ruana-brand-word">RUANA</span>
+            </div>
             <p class="admin-subtitle">Panel de Administrador • Sala de Control</p>
         </div>
 
@@ -3608,7 +3623,10 @@
                         })
                         .catch(() => {});
 
-                    fetch(`/api/evaluaciones/${encodeURIComponent(aliado.codigo)}/historico`, { credentials: 'same-origin' })
+                    fetch(`/api/evaluaciones/${encodeURIComponent(aliado.codigo)}/historico`, {
+                        credentials: 'same-origin',
+                        headers: AdminAuthenticator.getAdminAuthHeaders(),
+                    })
                         .then(r => r.ok ? r.json() : null)
                         .then(data => {
                             const cont = document.getElementById('det-historico');
