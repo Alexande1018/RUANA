@@ -53,7 +53,7 @@ def test_subir_foto_perfil_solo_propietario(client, fake_db, monkeypatch):
         uploads.append(kwargs)
         return {"url": "https://example.com/foto.jpg"}
 
-    monkeypatch.setattr(app_module, "upload_ruana_file", fake_upload)
+    monkeypatch.setattr(app_module, "upload_foto_perfil_file", fake_upload)
 
     denied = client.post(
         "/api/aliados/B0002/foto-perfil",
@@ -74,8 +74,8 @@ def test_subir_foto_perfil_solo_propietario(client, fake_db, monkeypatch):
     assert data["status"] == "success"
     assert data["foto_perfil_url"] == "https://example.com/foto.jpg"
     assert fake_db.calls == [("actualizar_aliado", "A0001", {"foto_perfil_url": "https://example.com/foto.jpg"})]
-    assert uploads[0]["bucket"] == "ruana-public"
-    assert uploads[0]["folder"] == "fotos_perfil"
+    assert uploads[0]["prefix"] == "A0001"
+    assert uploads[0]["original_filename"] == "foto.jpg"
 
 
 def test_eliminar_foto_perfil_solo_propietario(client, fake_db):
@@ -87,26 +87,52 @@ def test_eliminar_foto_perfil_solo_propietario(client, fake_db):
     assert fake_db.calls == [("actualizar_aliado", "A0001", {"foto_perfil_url": None})]
 
 
-def test_subir_foto_perfil_acepta_imagen_grande(client, fake_db, monkeypatch):
-    from RUANA.core.storage_manager import MAX_UPLOAD_BYTES
+def test_subir_foto_perfil_optimiza_antes_de_subir(client, fake_db, monkeypatch):
+    from io import BytesIO
+
+    from PIL import Image
+
+    import core.storage_manager as storage_manager
 
     uploads = []
 
-    def fake_upload(**kwargs):
-        uploads.append(kwargs)
-        return {"url": "https://example.com/foto-grande.jpg"}
+    class FakeBucket:
+        def upload(self, path, data, file_options=None):
+            uploads.append({
+                "path": path,
+                "size": len(data),
+                "content_type": file_options.get("content-type"),
+            })
+            return {"path": path}
 
-    monkeypatch.setattr(app_module, "upload_ruana_file", fake_upload)
+        def get_public_url(self, path):
+            return f"https://storage.example/{path}"
 
-    payload = b"x" * (MAX_UPLOAD_BYTES + 1)
+    class FakeStorage:
+        def from_(self, bucket):
+            return FakeBucket()
+
+    class FakeClient:
+        storage = FakeStorage()
+
+    monkeypatch.setattr(storage_manager, "get_supabase_admin_client", lambda: FakeClient())
+
+    img = Image.new("RGB", (3200, 2400), color=(90, 140, 210))
+    out = BytesIO()
+    img.save(out, format="JPEG", quality=95)
+    raw = out.getvalue()
+
     resp = client.post(
         "/api/aliados/A0001/foto-perfil",
-        data={"archivo": (io.BytesIO(payload), "selfie.jpg")},
+        data={"archivo": (io.BytesIO(raw), "selfie.jpg")},
         headers=_session_headers("A0001"),
         content_type="multipart/form-data",
     )
     assert resp.status_code == 200
-    assert uploads[0]["max_bytes"] == 15 * 1024 * 1024
+    assert uploads
+    assert uploads[0]["size"] < len(raw)
+    assert uploads[0]["size"] <= 1_800_000
+    assert uploads[0]["content_type"] == "image/jpeg"
 
 
 def test_put_no_permite_foto_perfil_url(client, fake_db):

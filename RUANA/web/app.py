@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Importar gestor de base de datos (y ruta ?nica de SQLite)
 from core.db_manager import get_db, DB_PATH, RUANA_CODIGO_INVITACION_REGEX
 from core.settings import get_settings
-from core.storage_manager import upload_ruana_file, MAX_FOTO_PERFIL_BYTES
+from core.storage_manager import upload_ruana_file, upload_foto_perfil_file
 
 # Obtener ruta absoluta de la carpeta web
 web_dir = Path(__file__).parent.absolute()
@@ -2366,14 +2366,10 @@ def subir_foto_perfil_aliado(codigo):
         ext = (Path(file.filename).suffix or '.bin').lower()
         if ext not in ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif'):
             return jsonify({'status': 'error', 'message': 'Formato no permitido. Usa una imagen (jpg, png, gif, webp o heic).'}), 400
-        storage_result = upload_ruana_file(
+        storage_result = upload_foto_perfil_file(
             file_obj=file.stream,
             original_filename=file.filename,
-            bucket='ruana-public',
-            folder='fotos_perfil',
             prefix=codigo,
-            content_type=file.mimetype,
-            max_bytes=MAX_FOTO_PERFIL_BYTES,
         )
         db = get_db()
         result = db.actualizar_aliado(codigo, foto_perfil_url=storage_result['url'])
@@ -2387,6 +2383,12 @@ def subir_foto_perfil_aliado(codigo):
     except ValueError as e:
         return jsonify({'status': 'error', 'message': str(e)}), 400
     except Exception as e:
+        msg = str(e)
+        if '413' in msg or 'Payload too large' in msg or 'maximum allowed size' in msg:
+            return jsonify({
+                'status': 'error',
+                'message': 'La imagen es demasiado pesada para almacenarla. Prueba con otra foto.',
+            }), 400
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 

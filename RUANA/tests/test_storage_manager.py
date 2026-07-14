@@ -70,6 +70,48 @@ def test_upload_ruana_file_rejects_foto_perfil_over_15mb():
         )
 
 
+def test_upload_foto_perfil_file_optimizes_before_storage(monkeypatch):
+    from io import BytesIO
+
+    from PIL import Image
+
+    from RUANA.core import storage_manager
+
+    uploads = []
+
+    class FakeBucket:
+        def upload(self, path, data, file_options=None):
+            uploads.append(len(data))
+            return {"path": path}
+
+        def get_public_url(self, path):
+            return f"https://storage.example/{path}"
+
+    class FakeStorage:
+        def from_(self, bucket):
+            return FakeBucket()
+
+    class FakeClient:
+        storage = FakeStorage()
+
+    monkeypatch.setattr(storage_manager, "get_supabase_admin_client", lambda: FakeClient())
+
+    img = Image.new("RGB", (4000, 3000), color=(200, 100, 50))
+    raw_io = BytesIO()
+    img.save(raw_io, format="JPEG", quality=95)
+    raw_io.seek(0)
+
+    result = storage_manager.upload_foto_perfil_file(
+        file_obj=raw_io,
+        original_filename="selfie.jpg",
+        prefix="A0001",
+    )
+
+    assert result["content_type"] == "image/jpeg"
+    assert uploads
+    assert uploads[0] <= 1_800_000
+
+
 def test_upload_ruana_file_uses_supabase_storage(monkeypatch):
     from RUANA.core import storage_manager
 
