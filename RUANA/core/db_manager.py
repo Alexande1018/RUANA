@@ -27,6 +27,8 @@ SUFIJOS_GRUPO = (
 )
 # Máximo de grupos activos por código postal (no crear más de este límite).
 MAX_GRUPOS_POR_CP = 5
+# Columna de foto pública de perfil en aliados (SQLite y Postgres deben mantenerla sincronizada).
+ALIADO_FOTO_PERFIL_COLUMN = "foto_perfil_url"
 # IMPORTANTE: Todos los componentes (Flask, scripts, motores) deben usar
 # EXCLUSIVAMENTE este valor como fuente de verdad para `ruana.db`.
 DB_PATH = str(
@@ -69,7 +71,7 @@ class DBManager:
         if self.backend == "sqlite":
             self._init_db()
         else:
-            self._init_postgres_invitation_campaigns()
+            self._init_postgres_schema()
 
     def _connect(self):
         """Open a database connection for the configured backend."""
@@ -77,8 +79,8 @@ class DBManager:
             return pg_compat_connect(self.settings.database_url)
         return sqlite3.connect(self.db_path)
 
-    def _init_postgres_invitation_campaigns(self):
-        """Crea las tablas nuevas de campanas cuando el backend es Supabase/Postgres."""
+    def _init_postgres_schema(self):
+        """Crea tablas/migraciones pendientes en Supabase/Postgres al arrancar."""
         conn = None
         try:
             conn = self._connect()
@@ -105,9 +107,11 @@ class DBManager:
                     UNIQUE(codigo_campana, codigo_aliado)
                 )
             """)
+            self._migrar_aliados_foto_perfil(conn, cursor)
             conn.commit()
+            print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil)")
         except Exception as e:
-            print(f"[RUANA][DB] Error inicializando campanas en Postgres: {e}")
+            print(f"[RUANA][DB] Error inicializando esquema Postgres: {e}")
         finally:
             if conn:
                 conn.close()
@@ -601,11 +605,12 @@ class DBManager:
 
     def _migrar_aliados_foto_perfil(self, conn, cursor) -> None:
         """Añade foto_perfil_url (foto pública del aliado, editable solo por el propio aliado)."""
+        col = ALIADO_FOTO_PERFIL_COLUMN
         cursor.execute("PRAGMA table_info(aliados)")
         columnas = [row[1] for row in cursor.fetchall()]
-        if 'foto_perfil_url' in columnas:
+        if col in columnas:
             return
-        cursor.execute("ALTER TABLE aliados ADD COLUMN foto_perfil_url TEXT")
+        cursor.execute(f"ALTER TABLE aliados ADD COLUMN {col} TEXT")
 
     def _migrar_aliados_especializacion_singular(self, conn, cursor) -> None:
         """Añade especializacion (una plaza por especialización por grupo; sub-oficio elegido)."""
@@ -1991,7 +1996,7 @@ class DBManager:
             campos_permitidos = {
                 'nombre', 'marca', 'oficio', 'codigo_postal', 'email',
                 'telefono', 'descripcion_servicio',
-                'qr_paypal_path', 'bizum_num', 'foto_perfil_url',
+                'qr_paypal_path', 'bizum_num', ALIADO_FOTO_PERFIL_COLUMN,
             }
             campos_update = {k: v for k, v in kwargs.items()
                            if k in campos_permitidos}
@@ -4052,24 +4057,24 @@ class DBManager:
                 estados_ok = ('activo', 'pendiente_validacion')
                 if grupo_id is not None and codigo_postal:
                     # Mismo grupo O mismo código postal (incluye aliados con grupo_id NULL en la zona)
-                    cursor.execute("""
-                        SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, estado, score, descripcion_servicio, foto_perfil_url, creado_en
+                    cursor.execute(f"""
+                        SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, estado, score, descripcion_servicio, {ALIADO_FOTO_PERFIL_COLUMN}, creado_en
                         FROM aliados
                         WHERE estado IN (?, ?) AND codigo != ?
                         AND (grupo_id = ? OR codigo_postal = ?)
                         ORDER BY nombre
                     """, (estados_ok[0], estados_ok[1], codigo_excluir, grupo_id, codigo_postal))
                 elif grupo_id is not None:
-                    cursor.execute("""
-                        SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, estado, score, descripcion_servicio, foto_perfil_url, creado_en
+                    cursor.execute(f"""
+                        SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, estado, score, descripcion_servicio, {ALIADO_FOTO_PERFIL_COLUMN}, creado_en
                         FROM aliados
                         WHERE grupo_id = ? AND estado IN (?, ?) AND codigo != ?
                         ORDER BY nombre
                     """, (grupo_id, estados_ok[0], estados_ok[1], codigo_excluir))
                 else:
                     # Sin grupo: mismo código postal (fallback)
-                    cursor.execute("""
-                        SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, estado, score, descripcion_servicio, foto_perfil_url, creado_en
+                    cursor.execute(f"""
+                        SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, estado, score, descripcion_servicio, {ALIADO_FOTO_PERFIL_COLUMN}, creado_en
                         FROM aliados
                         WHERE codigo_postal = ? AND estado IN (?, ?) AND codigo != ?
                         ORDER BY nombre
