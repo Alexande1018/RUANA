@@ -77,12 +77,13 @@ jobs:
             --image "$IMAGE" \
             --region "$REGION" \
             --project "$PROJECT_ID" \
-            --revision-suffix "${GITHUB_SHA::7}" \
+            --revision-suffix "$(echo "$GITHUB_SHA" | cut -c1-7)" \
             --allow-unauthenticated \
             --max-instances 3 \
             --service-account "$RUNTIME_SERVICE_ACCOUNT" \
-            --set-env-vars "FIREBASE_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_REGION=$REGION,SUPABASE_URL=$SUPABASE_URL" \
+            --set-env-vars "FIREBASE_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_REGION=$REGION,SUPABASE_URL=$SUPABASE_URL,DEPLOY_SHA=$GITHUB_SHA" \
             --set-secrets "DATABASE_URL=ruana-database-url:latest,SUPABASE_SERVICE_ROLE_KEY=ruana-supabase-service-role-key:latest,SUPABASE_ANON_KEY=ruana-supabase-anon-key:latest,FLASK_SECRET_KEY=ruana-flask-secret-key:latest"
+          gcloud run services describe "$SERVICE" --region "$REGION" --project "$PROJECT_ID" --format='value(status.latestReadyRevisionName,spec.template.spec.containers[0].image)'
 
       - name: Deploy Firebase Hosting
         run: npx firebase-tools@15.18.0 deploy --project "$PROJECT_ID" --only hosting --non-interactive
