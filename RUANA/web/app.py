@@ -1352,6 +1352,27 @@ def health():
     })
 
 
+@app.route('/api/build-info', methods=['GET'])
+def build_info():
+    """GET /api/build-info — metadatos del build desplegado (diagnóstico de releases)."""
+    aliado_path = web_dir / 'aliado.html'
+    try:
+        aliado_bytes = aliado_path.stat().st_size if aliado_path.exists() else 0
+        aliado_text = aliado_path.read_text(encoding='utf-8', errors='replace') if aliado_path.exists() else ''
+    except Exception:
+        aliado_bytes = 0
+        aliado_text = ''
+    foto_routes = [str(rule) for rule in app.url_map.iter_rules() if 'foto-perfil' in str(rule)]
+    return jsonify({
+        'status': 'ok',
+        'deploy_sha': os.environ.get('DEPLOY_SHA', ''),
+        'aliado_html_bytes': aliado_bytes,
+        'has_foto_ui': 'input-foto-perfil' in aliado_text,
+        'has_logo_ui': 'ruana-brand-mark' in (web_dir / 'index.html').read_text(encoding='utf-8', errors='replace') if (web_dir / 'index.html').exists() else '',
+        'foto_routes': foto_routes,
+    })
+
+
 # ========== Chat RUANA (path de un solo segmento para evitar 404) ==========
 def _chat_payload_from_messages(mensajes, estado):
     """Construye una respuesta de chat coherente entre lista visible y contador."""
