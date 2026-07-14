@@ -1,0 +1,120 @@
+name: Deploy preview (dev)
+
+on:
+  repository_dispatch:
+    types:
+      - deploy-preview-dev
+  workflow_dispatch:
+    inputs:
+      dev_sha:
+        description: Commit SHA de dev a desplegar (vacío = último commit de dev)
+        required: false
+        default: ""
+
+concurrency:
+  group: firebase-preview-dev
+  cancel-in-progress: true
+
+env:
+  PROJECT_ID: ruana-4293f
+  REGION: europe-west1
+  SERVICE: ruana
+  REPOSITORY: ruana
+  CHANNEL_ID: dev
+  RUNTIME_SERVICE_ACCOUNT: ruana-runner@ruana-4293f.iam.gserviceaccount.com
+  SUPABASE_URL: https://qqlxgwbmtzcfrrobrfzy.supabase.co
+  FIREBASE_CLI_EXPERIMENTS: pintags
+
+jobs:
+  deploy-preview:
+    name: Build and deploy preview channel
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Check out dev revision
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.client_payload.sha || inputs.dev_sha || 'dev' }}
+          fetch-depth: 0
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/288784334163/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: ruana-firebase-deployer@ruana-4293f.iam.gserviceaccount.com
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install Firebase CLI
+        run: npm ci --no-audit --no-fund
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Build and push container image
+        env:
+          IMAGE: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:dev-${{ github.sha }}
+        run: |
+          docker build --tag "$IMAGE" .
+          docker push "$IMAGE"
+
+      - name: Deploy Cloud Run revision for preview
+        env:
+          IMAGE: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:dev-${{ github.sha }}
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --image "$IMAGE" \
+            --region "$REGION" \
+            --project "$PROJECT_ID" \
+            --allow-unauthenticated \
+            --max-instances 3 \
+            --no-traffic \
+            --service-account "$RUNTIME_SERVICE_ACCOUNT" \
+            --set-env-vars "FIREBASE_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_REGION=$REGION,SUPABASE_URL=$SUPABASE_URL" \
+            --set-secrets "DATABASE_URL=ruana-database-url:latest,SUPABASE_SERVICE_ROLE_KEY=ruana-supabase-service-role-key:latest,SUPABASE_ANON_KEY=ruana-supabase-anon-key:latest,FLASK_SECRET_KEY=ruana-flask-secret-key:latest"
+
+      - name: Deploy Firebase Hosting preview channel
+        id: preview
+        run: |
+          set -o pipefail
+          npx firebase-tools@15.18.0 hosting:channel:deploy "$CHANNEL_ID" \
+            --project "$PROJECT_ID" \
+            --only hosting \
+            --non-interactive \
+            --expires 30d | tee /tmp/preview-deploy.log
+
+          PREVIEW_URL=$(
+            npx firebase-tools@15.18.0 hosting:channel:open "$CHANNEL_ID" \
+              --project "$PROJECT_ID" 2>/dev/null | tail -1
+          )
+          echo "url=$PREVIEW_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Verify preview runtime
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+        run: |
+          curl --fail --retry 5 --retry-delay 5 "$PREVIEW_URL/api/health"
+          curl --fail --retry 5 --retry-delay 5 "$PREVIEW_URL/api/contactos/metricas"
+          {
+            echo "## Preview channel (dev)"
+            echo
+            echo "- Canal: \`$CHANNEL_ID\`"
+            echo "- URL: $PREVIEW_URL"
+            echo "- Commit desplegado: \`$(git rev-parse HEAD)\`"
+            echo "- Caducidad del canal: 30 días desde este despliegue"
+            echo
+            echo "Producción (\`main\`) no se modifica. Integra a \`main\` solo cuando apruebes los cambios."
+          } >> "$GITHUB_STEP_SUMMARY"
