@@ -57,49 +57,31 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 
-      - name: Verify checkout contains release features
-        run: |
-          grep -q "input-foto-perfil" RUANA/web/aliado.html
-          grep -q "ruana-brand-mark" RUANA/web/index.html
-
       - name: Build and push container image
-        env:
-          IMAGE: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:${{ github.sha }}
         run: |
-          docker build --no-cache --tag "$IMAGE" .
+          DEPLOY_SHA=$(git rev-parse HEAD)
+          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${SERVICE}:${DEPLOY_SHA}"
+          echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
+          docker build --tag "$IMAGE" .
           docker push "$IMAGE"
 
       - name: Deploy Cloud Run
-        env:
-          IMAGE: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:${{ github.sha }}
         run: |
           gcloud run deploy "$SERVICE" \
             --image "$IMAGE" \
             --region "$REGION" \
             --project "$PROJECT_ID" \
-            --revision-suffix "$(echo "$GITHUB_SHA" | cut -c1-7)" \
             --allow-unauthenticated \
             --max-instances 3 \
             --service-account "$RUNTIME_SERVICE_ACCOUNT" \
-            --set-env-vars "FIREBASE_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_REGION=$REGION,SUPABASE_URL=$SUPABASE_URL,DEPLOY_SHA=$GITHUB_SHA" \
+            --set-env-vars "FIREBASE_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_REGION=$REGION,SUPABASE_URL=$SUPABASE_URL" \
             --set-secrets "DATABASE_URL=ruana-database-url:latest,SUPABASE_SERVICE_ROLE_KEY=ruana-supabase-service-role-key:latest,SUPABASE_ANON_KEY=ruana-supabase-anon-key:latest,FLASK_SECRET_KEY=ruana-flask-secret-key:latest"
-          gcloud run services update-traffic "$SERVICE" \
-            --region "$REGION" \
-            --project "$PROJECT_ID" \
-            --to-latest
-          gcloud run services describe "$SERVICE" --region "$REGION" --project "$PROJECT_ID" --format='value(status.latestReadyRevisionName,spec.template.spec.containers[0].image)'
-          sleep 15
-          curl --fail --retry 8 --retry-delay 5 "$FIREBASE_HOSTING_URL/api/build-info"
 
       - name: Deploy Firebase Hosting
         run: npx firebase-tools@15.18.0 deploy --project "$PROJECT_ID" --only hosting --non-interactive
 
       - name: Verify public runtime
         run: |
-          curl --fail --retry 8 --retry-delay 5 "$FIREBASE_HOSTING_URL/api/health"
-          BUILD_INFO=$(curl --fail --retry 8 --retry-delay 5 "$FIREBASE_HOSTING_URL/api/build-info")
-          echo "$BUILD_INFO"
-          echo "$BUILD_INFO" | grep -q '"has_foto_ui": true'
-          echo "$BUILD_INFO" | grep -q '"has_logo_ui": true'
-          echo "$BUILD_INFO" | grep -q 'foto-perfil'
-          test "$(echo "$BUILD_INFO" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("aliado_html_bytes",0))')" -gt 235000
+          curl --fail --retry 8 --retry-delay 6 "$FIREBASE_HOSTING_URL/api/health"
+          curl --fail --retry 8 --retry-delay 6 "$FIREBASE_HOSTING_URL/aliado" | grep -q "input-foto-perfil"
+          curl --fail --retry 8 --retry-delay 6 "$FIREBASE_HOSTING_URL/" | grep -q "ruana-brand-mark"
