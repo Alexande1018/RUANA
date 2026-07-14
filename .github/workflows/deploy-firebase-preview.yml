@@ -65,15 +65,15 @@ jobs:
         run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 
       - name: Build and push container image
-        env:
-          IMAGE: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:dev-${{ github.sha }}
         run: |
+          DEPLOY_SHA=$(git rev-parse HEAD)
+          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${SERVICE}:dev-${DEPLOY_SHA}"
+          echo "DEPLOY_SHA=${DEPLOY_SHA}" >> "$GITHUB_ENV"
+          echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
           docker build --tag "$IMAGE" .
           docker push "$IMAGE"
 
       - name: Deploy Cloud Run revision for preview
-        env:
-          IMAGE: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:dev-${{ github.sha }}
         run: |
           gcloud run deploy "$SERVICE" \
             --image "$IMAGE" \
@@ -81,10 +81,12 @@ jobs:
             --project "$PROJECT_ID" \
             --allow-unauthenticated \
             --max-instances 3 \
-            --no-traffic \
             --service-account "$RUNTIME_SERVICE_ACCOUNT" \
             --set-env-vars "FIREBASE_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_REGION=$REGION,SUPABASE_URL=$SUPABASE_URL" \
             --set-secrets "DATABASE_URL=ruana-database-url:latest,SUPABASE_SERVICE_ROLE_KEY=ruana-supabase-service-role-key:latest,SUPABASE_ANON_KEY=ruana-supabase-anon-key:latest,FLASK_SECRET_KEY=ruana-flask-secret-key:latest"
+          REVISION=$(gcloud run services describe "$SERVICE" --region "$REGION" --project "$PROJECT_ID" --format='value(status.latestReadyRevisionName)')
+          echo "PREVIEW_REVISION=${REVISION}" >> "$GITHUB_ENV"
+          echo "Preview revision: ${REVISION}"
 
       - name: Deploy Firebase Hosting preview channel
         id: preview
@@ -111,14 +113,16 @@ jobs:
         env:
           PREVIEW_URL: ${{ steps.preview.outputs.url }}
         run: |
-          curl --fail --retry 5 --retry-delay 5 "$PREVIEW_URL/api/health"
-          curl --fail --retry 5 --retry-delay 5 "$PREVIEW_URL/api/contactos/metricas"
+          curl --fail --retry 8 --retry-delay 6 "$PREVIEW_URL/api/health"
+          curl --fail --retry 8 --retry-delay 6 "$PREVIEW_URL/api/contactos/metricas"
+          curl --fail --retry 8 --retry-delay 6 "$PREVIEW_URL/" | grep -q 'ruana-brand-mark'
           {
             echo "## Preview channel (dev)"
             echo
             echo "- Canal: \`$CHANNEL_ID\`"
             echo "- URL: $PREVIEW_URL"
-            echo "- Commit desplegado: \`$(git rev-parse HEAD)\`"
+            echo "- Commit desplegado: \`$DEPLOY_SHA\`"
+            echo "- Revisión Cloud Run: \`$PREVIEW_REVISION\`"
             echo "- Caducidad del canal: 30 días desde este despliegue"
             echo
             echo "Producción (\`main\`) no se modifica. Integra a \`main\` solo cuando apruebes los cambios."
