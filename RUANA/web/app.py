@@ -2905,7 +2905,7 @@ def crear_invitacion():
         if result['status'] != 'success':
             return jsonify(result), 400
 
-        # Registrar qui?n invit? (para recompensa +5 cuando se complete el referido)
+        # Registrar quién invitó (para recompensa +3 cuando se complete el referido)
         aliado_id_invitador = aliado_invitador_id
         if aliado_id_invitador is not None:
             try:

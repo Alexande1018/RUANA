@@ -301,7 +301,7 @@ class DBManager:
                     )
                 """)
                 
-                # Invitaciones: quién invitó a cada código (para recompensa +5 al referir)
+                # Invitaciones: quién invitó a cada código (para recompensa +3 al referir)
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS invitaciones (
                         codigo TEXT PRIMARY KEY,
@@ -3431,7 +3431,7 @@ class DBManager:
         return sincronizados
 
     def _registrar_invitacion(self, codigo_invitacion: str, invitador_aliado_id: int) -> None:
-        """Registra que este código de invitación fue creado por el aliado invitador (para +5 al completar)."""
+        """Registra que este código de invitación fue creado por el aliado invitador (para +3 al completar)."""
         with self._lock:
             try:
                 conn = self._connect()
@@ -3694,7 +3694,7 @@ class DBManager:
 
     def consumir_invitacion_y_recompensar(self, codigo_invitacion: str, nuevo_aliado_codigo: str) -> bool:
         """
-        Registra el referido y da +5 al invitador si la invitación aún no estaba usada.
+        Registra el referido y da +3 al invitador si la invitación aún no estaba usada.
         Idempotente: si ya estaba usada pero faltaba el vínculo en referidos, lo crea sin duplicar score.
         """
         codigo_invitacion = (codigo_invitacion or '').strip()
@@ -3727,7 +3727,7 @@ class DBManager:
                 ya_registrado = cursor.fetchone() is not None
                 if not ya_registrado:
                     if usado == 0:
-                        self.aplicar_cambio_score(codigo_invitador, 5, 'aliado_referido_registro_valido')
+                        self.aplicar_cambio_score(codigo_invitador, 3, 'aliado_referido_registro_valido')
                     cursor.execute("""
                         INSERT OR IGNORE INTO referidos (codigo_referido, codigo_invitador, origen)
                         VALUES (?, ?, ?)
