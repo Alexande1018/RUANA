@@ -3682,6 +3682,54 @@ class DBManager:
                 if conn:
                     conn.close()
 
+    def _es_invitador_elegible_score(self, codigo: str, excluir: Optional[set] = None) -> bool:
+        """False para vacío, autoexclusión, códigos sistema/admin o aliados inexistentes."""
+        codigo = (codigo or '').strip()
+        if not codigo:
+            return False
+        if excluir and codigo in excluir:
+            return False
+        if codigo.upper().startswith('RUANA-ADMIN'):
+            return False
+        aliado = self.obtener_aliado_por_codigo(codigo)
+        if not aliado:
+            return False
+        if (aliado.get('estado') or '').strip() == 'sistema':
+            return False
+        return True
+
+    def ancestros_referidos_para_score(
+        self,
+        codigo_aliado: str,
+        max_generaciones: int = 2,
+        excluir: Optional[set] = None,
+    ) -> List[Tuple[str, int]]:
+        """
+        Sube por aliados.invitado_por_codigo hasta max_generaciones.
+        Devuelve [(codigo_ancestro, generacion), ...] (1 = padre, 2 = abuelo).
+        Omite sistema/admin y códigos en excluir (p. ej. participantes del contacto).
+        """
+        codigo_aliado = (codigo_aliado or '').strip()
+        if not codigo_aliado or max_generaciones < 1:
+            return []
+        excluir_set = set(excluir or set())
+        excluir_set.add(codigo_aliado)
+        resultado: List[Tuple[str, int]] = []
+        actual = codigo_aliado
+        vistos = {codigo_aliado}
+        for generacion in range(1, max_generaciones + 1):
+            aliado = self.obtener_aliado_por_codigo(actual)
+            if not aliado:
+                break
+            padre = (aliado.get('invitado_por_codigo') or '').strip()
+            if not padre or padre in vistos:
+                break
+            vistos.add(padre)
+            if self._es_invitador_elegible_score(padre, excluir_set):
+                resultado.append((padre, generacion))
+            actual = padre
+        return resultado
+
     def listar_raices_referidos(self) -> List[str]:
         """Códigos de aliados raíz: invitaron a alguien pero no fueron referidos."""
         with self._lock:
@@ -6771,7 +6819,8 @@ class DBManager:
         Admin actualiza estado_pago de un contacto (trabajo_cerrado con Apoyo RUANA).
         Estados permitidos: en_revision, pagado, rechazado.
         - pagado: pendiente_pago = 0, fecha_validacion_pago y admin_validacion_codigo;
-          Regla 2: +2 score al solicitante y al profesional (encargo completado).
+          Regla 2: +2 score al solicitante y al profesional (encargo completado);
+          Regla 3: +1 a ancestros 1ª/2ª generación de cada participante (linaje referidos).
         - rechazado: estado_pago → pendiente_pago, pendiente_pago = 1, motivo_rechazo_pago, comprobante_ruta=NULL;
           motivo_rechazo obligatorio; notifica al profesional.
         """
@@ -6780,11 +6829,14 @@ class DBManager:
             return {'status': 'error', 'message': f'estado_pago debe ser uno de: {", ".join(self.ESTADOS_PAGO_PERMITIDOS_ADMIN)}'}
         if nuevo_estado == 'rechazado' and not (motivo_rechazo or "").strip():
             return {'status': 'error', 'message': 'El motivo de rechazo es obligatorio'}
-        scores_aplicar = []
+        # (codigo, delta, motivo)
+        scores_aplicar: List[Tuple[str, int, str]] = []
+        participantes_regla2: List[str] = []
         resultado = {'status': 'error', 'message': 'unknown'}
         with self._lock:
             try:
                 conn = self._connect()
+                conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("""
                     SELECT id, estado, importe_final, estado_pago, pendiente_pago,
@@ -6825,9 +6877,9 @@ class DBManager:
                     if estado_anterior != 'pagado':
                         sol_codigo = str(r.get('solicitante_codigo') or '').strip()
                         if sol_codigo:
-                            scores_aplicar.append(sol_codigo)
+                            participantes_regla2.append(sol_codigo)
                         if prof_codigo:
-                            scores_aplicar.append(prof_codigo)
+                            participantes_regla2.append(prof_codigo)
                 elif nuevo_estado == 'rechazado':
                     motivo = (motivo_rechazo or "").strip()[:2000]
                     cursor.execute("""
@@ -6866,9 +6918,21 @@ class DBManager:
                 return {'status': 'error', 'message': str(e)}
             finally:
                 conn.close()
-        for codigo in scores_aplicar:
+        excluir_participantes = set(participantes_regla2)
+        for codigo in participantes_regla2:
+            scores_aplicar.append((codigo, 2, 'encargo_completado_apoyo_pagado'))
+            # Regla 3: +1 a padre (gen1) y abuelo (gen2) del participante
+            for ancestro, generacion in self.ancestros_referidos_para_score(
+                codigo, max_generaciones=2, excluir=excluir_participantes
+            ):
+                scores_aplicar.append((
+                    ancestro,
+                    1,
+                    f'referido_encargo_completado_gen{generacion}',
+                ))
+        for codigo, delta, motivo in scores_aplicar:
             try:
-                self.aplicar_cambio_score(codigo, 2, 'encargo_completado_apoyo_pagado')
+                self.aplicar_cambio_score(codigo, delta, motivo)
             except Exception:
                 pass
         return resultado
