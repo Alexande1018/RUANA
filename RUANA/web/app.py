@@ -1781,13 +1781,8 @@ def declarar_importe_contacto(contacto_id):
             if contacto:
                 sol = contacto.get('solicitante_codigo')
                 prof = contacto.get('profesional_codigo')
-                if estado == 'trabajo_cerrado':
-                    # +3 contacto cerrado + 5 importes coincidentes = +8 cada uno
-                    if sol:
-                        db.aplicar_cambio_score(sol, 8, 'contacto_cerrado_importe_coincidente')
-                    if prof:
-                        db.aplicar_cambio_score(prof, 8, 'contacto_cerrado_importe_coincidente')
-                elif estado == 'importe_en_disputa':
+                # El score por encargo completado (+2) se aplica al marcar Apoyo como pagado (Regla 2).
+                if estado == 'importe_en_disputa':
                     if sol:
                         db.aplicar_cambio_score(sol, -1, 'declaracion_discrepante')
                     if prof:
@@ -3853,7 +3848,8 @@ def admin_resolver_conflicto_pago(contacto_id):
     """
     PATCH /api/admin/payment/<id>/resolve  o  POST /api/admin/conflictos-pago/<id>/resolver
     Body: { "importe_valido": float }
-    Admin define importe valido, se calcula apoyo_pct, se cierra contacto y +8 a ambos.
+        Admin define importe valido, se calcula apoyo_pct, se cierra contacto (Apoyo pendiente).
+        El score +2 se aplica al confirmar el pago Apoyo como pagado (Regla 2).
     """
     try:
         data = request.get_json() or {}

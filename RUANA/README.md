@@ -170,15 +170,15 @@ Límites: máximo **5 grupos por código postal**; **un oficio principal por gru
 
 ### Eventos que modifican el score (ejemplos)
 
-- Contacto cerrado con importes coincidentes: +8 (solicitante y profesional).
-- Declaración contradictoria (importe en disputa): -5 cada uno.
+- **Regla 1**: Aliado referido se registra con código de invitación válido: +3 al invitador.
+- **Regla 2**: Encargo completado (Apoyo RUANA marcado como `pagado` por admin): +2 al solicitante y +2 al profesional.
+- Declaración contradictoria (importe en disputa): -1 cada uno.
 - Contacto no concretado: -2 cada uno.
 - Contacto abierto 7 días: -2 (una vez por contacto).
 - Contacto abierto 21 días: -5 (una vez por contacto).
-- Aliado referido se registra con código de invitación válido: +3 al invitador.
 
 Las penalizaciones por contactos abiertos se aplican al solicitar datos del aliado (p. ej. `GET /api/aliado/datos`) mediante `aplicar_penalizaciones_contactos_abiertos()`.
-
+El cierre del contacto con importe genera el Apoyo (`pendiente_pago`) pero **no** suma score; los puntos llegan al confirmar el pago.
 ---
 
 ## 7. Flujo de contactos RUANA

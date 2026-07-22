@@ -5827,8 +5827,8 @@ class DBManager:
         """
         Registra la declaración de importe por parte de solicitante o profesional.
         - Evita doble declaración (tabla confirmaciones_trabajo).
-        - Apoyo RUANA segun apoyo_pct configurado. +8 / -1 segun coincidencia.
-        - Coinciden → trabajo_cerrado, ingresos_ruana, audit_log.
+        - Apoyo RUANA segun apoyo_pct configurado. Disputa → -1; cierre no da score.
+        - Coinciden → trabajo_cerrado, ingresos_ruana, audit_log (score al marcar Apoyo pagado).
         - No coinciden → importe_en_disputa, audit_log.
         """
         with self._lock:
@@ -6504,7 +6504,6 @@ class DBManager:
             return {'status': 'error', 'message': 'decision debe ser contratante, profesional o rechazado'}
         if not (comentario or "").strip():
             return {'status': 'error', 'message': 'comentario es obligatorio'}
-        scores_aplicar = []
         resultado = {'status': 'error', 'message': 'unknown'}
         with self._lock:
             try:
@@ -6601,10 +6600,6 @@ class DBManager:
                                 INSERT INTO notificaciones_aliado (aliado_codigo, tipo, titulo, mensaje, metadata, leida)
                                 VALUES (?, 'apoyo_ruana', 'Apoyo a RUANA', ?, ?, 0)
                             """, (prof_codigo, mensaje, meta))
-                        if d.get('solicitante_codigo'):
-                            scores_aplicar.append(d['solicitante_codigo'])
-                        if d.get('profesional_codigo'):
-                            scores_aplicar.append(d['profesional_codigo'])
                 conn.commit()
                 resultado = {'status': 'success', 'conflict_id': conflict_id, 'estado': nuevo_estado,
                              'importe_final': importe_valido}
@@ -6612,19 +6607,14 @@ class DBManager:
                 resultado = {'status': 'error', 'message': str(e)}
             finally:
                 conn.close()
-        for codigo in scores_aplicar:
-            try:
-                self.aplicar_cambio_score(codigo, 8, 'contacto_cerrado_resolucion_admin')
-            except Exception:
-                pass
         return resultado
 
     def resolver_conflicto_pago(self, contacto_id: int, importe_valido: float,
                                 admin_codigo: str = "") -> Dict[str, Any]:
         """
-        Admin resuelve conflicto: define importe valido, se aplica apoyo_pct, cierra contacto, +8 a ambos, audit.
+        Admin resuelve conflicto: define importe valido, se aplica apoyo_pct, cierra contacto, audit.
+        El score por encargo completado se aplica al marcar Apoyo como pagado (Regla 2).
         """
-        sol = prof = None
         imp = apoyo = 0.0
         with self._lock:
             try:
@@ -6697,8 +6687,6 @@ class DBManager:
                         VALUES (?, 'apoyo_ruana', 'Apoyo a RUANA', ?, ?, 0)
                     """, (prof_codigo, mensaje, meta))
                 conn.commit()
-                sol = contacto.get('solicitante_codigo')
-                prof = contacto.get('profesional_codigo')
             except Exception as e:
                 return {'status': 'error', 'message': str(e)}
             finally:
@@ -6707,10 +6695,6 @@ class DBManager:
                 except Exception:
                     pass
 
-        if sol:
-            self.aplicar_cambio_score(sol, 8, 'contacto_cerrado_resolucion_admin')
-        if prof:
-            self.aplicar_cambio_score(prof, 8, 'contacto_cerrado_resolucion_admin')
         return {'status': 'success', 'contacto_id': contacto_id, 'importe_final': imp, 'apoyo_ruana': apoyo}
 
     def listar_contactos_pagos_apoyo(self) -> List[Dict[str, Any]]:
@@ -6786,7 +6770,8 @@ class DBManager:
         """
         Admin actualiza estado_pago de un contacto (trabajo_cerrado con Apoyo RUANA).
         Estados permitidos: en_revision, pagado, rechazado.
-        - pagado: pendiente_pago = 0, fecha_validacion_pago y admin_validacion_codigo.
+        - pagado: pendiente_pago = 0, fecha_validacion_pago y admin_validacion_codigo;
+          Regla 2: +2 score al solicitante y al profesional (encargo completado).
         - rechazado: estado_pago → pendiente_pago, pendiente_pago = 1, motivo_rechazo_pago, comprobante_ruta=NULL;
           motivo_rechazo obligatorio; notifica al profesional.
         """
@@ -6795,12 +6780,15 @@ class DBManager:
             return {'status': 'error', 'message': f'estado_pago debe ser uno de: {", ".join(self.ESTADOS_PAGO_PERMITIDOS_ADMIN)}'}
         if nuevo_estado == 'rechazado' and not (motivo_rechazo or "").strip():
             return {'status': 'error', 'message': 'El motivo de rechazo es obligatorio'}
+        scores_aplicar = []
+        resultado = {'status': 'error', 'message': 'unknown'}
         with self._lock:
             try:
                 conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT id, estado, importe_final, estado_pago, pendiente_pago, profesional_codigo
+                    SELECT id, estado, importe_final, estado_pago, pendiente_pago,
+                           solicitante_codigo, profesional_codigo
                     FROM contactos_ruana WHERE id = ?
                 """, (contacto_id,))
                 row = cursor.fetchone()
@@ -6809,6 +6797,7 @@ class DBManager:
                 r = dict(row)
                 if r['estado'] != 'trabajo_cerrado' or r['importe_final'] is None:
                     return {'status': 'error', 'message': 'El contacto no tiene Apoyo RUANA generado'}
+                estado_anterior = (r.get('estado_pago') or '').strip().lower()
                 if nuevo_estado == 'pagado':
                     cursor.execute("""
                         UPDATE contactos_ruana
@@ -6832,6 +6821,13 @@ class DBManager:
                             INSERT INTO notificaciones_aliado (aliado_codigo, tipo, titulo, mensaje, metadata, leida)
                             VALUES (?, 'pago_aceptado', 'Pago aceptado', ?, ?, 1)
                         """, (prof_codigo, mensaje, meta))
+                    # Regla 2: encargo completado al confirmar Apoyo pagado (+2 a ambos)
+                    if estado_anterior != 'pagado':
+                        sol_codigo = str(r.get('solicitante_codigo') or '').strip()
+                        if sol_codigo:
+                            scores_aplicar.append(sol_codigo)
+                        if prof_codigo:
+                            scores_aplicar.append(prof_codigo)
                 elif nuevo_estado == 'rechazado':
                     motivo = (motivo_rechazo or "").strip()[:2000]
                     cursor.execute("""
@@ -6865,12 +6861,17 @@ class DBManager:
                 self._audit_log(cursor, 'contacto', contacto_id, 'estado_pago_actualizado',
                                 'admin', admin_codigo, f'estado_pago={nuevo_estado}')
                 conn.commit()
-                return {'status': 'success', 'contacto_id': contacto_id, 'estado_pago': nuevo_estado}
+                resultado = {'status': 'success', 'contacto_id': contacto_id, 'estado_pago': nuevo_estado}
             except Exception as e:
                 return {'status': 'error', 'message': str(e)}
             finally:
                 conn.close()
-
+        for codigo in scores_aplicar:
+            try:
+                self.aplicar_cambio_score(codigo, 2, 'encargo_completado_apoyo_pagado')
+            except Exception:
+                pass
+        return resultado
     def tiene_pagos_ruana_pendientes(self, codigo_profesional: str) -> bool:
         """True si el profesional tiene al menos un contacto con Apoyo RUANA pendiente de pago (estado_pago = pendiente_pago)."""
         if not (codigo_profesional or "").strip():
