@@ -173,6 +173,7 @@ Límites: máximo **5 grupos por código postal**; **un oficio principal por gru
 - **Regla 1**: Aliado referido se registra con código de invitación válido: +3 al invitador.
 - **Regla 2**: Encargo completado (Apoyo RUANA marcado como `pagado` por admin): +2 al solicitante y +2 al profesional.
 - **Regla 3**: Al completar Regla 2, +1 al padre (1ª generación) y +1 al abuelo (2ª generación) de cada participante, según `invitado_por_codigo`. No aplica a admin/sistema. Si el mismo ancestro aparece por ambos participantes, suma por cada rama.
+- **Regla 4**: 4 encargos `pagado` en el mismo mes (datos de Pagos Apoyo RUANA) sin incidencias de pago (disputa/conflicto o rechazo de comprobante, aunque luego se pague) → +3 una vez por mes (`regla4_4_encargos_mes_limpio_YYYY-MM`).
 - Declaración contradictoria (importe en disputa): -1 cada uno.
 - Contacto no concretado: -2 cada uno.
 - Contacto abierto 7 días: -2 (una vez por contacto).

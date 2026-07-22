@@ -6811,6 +6811,165 @@ class DBManager:
                 conn.close()
 
     ESTADOS_PAGO_PERMITIDOS_ADMIN = ('en_revision', 'pagado', 'rechazado')
+    REGLA4_ENCARGOS_MES_UMBRAL = 4
+    REGLA4_ENCARGOS_MES_DELTA = 3
+
+    @staticmethod
+    def _anio_mes_de(fecha_val: Any) -> Optional[str]:
+        """Normaliza timestamp/fecha a 'YYYY-MM'."""
+        if fecha_val is None:
+            return None
+        if isinstance(fecha_val, datetime):
+            return fecha_val.strftime('%Y-%m')
+        s = str(fecha_val).strip()
+        if len(s) >= 7 and s[4] == '-':
+            return s[:7]
+        return None
+
+    def _motivo_regla4_mes(self, anio_mes: str) -> str:
+        return f'regla4_4_encargos_mes_limpio_{anio_mes}'
+
+    def _ya_aplicada_regla4_mes(self, codigo_aliado: str, anio_mes: str) -> bool:
+        codigo_aliado = (codigo_aliado or '').strip()
+        anio_mes = (anio_mes or '').strip()
+        if not codigo_aliado or not anio_mes:
+            return True
+        motivo = self._motivo_regla4_mes(anio_mes)
+        with self._lock:
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT 1 FROM score_movimientos WHERE codigo_aliado = ? AND motivo = ? LIMIT 1",
+                    (codigo_aliado, motivo),
+                )
+                return cursor.fetchone() is not None
+            except Exception:
+                return True
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+    def contacto_tiene_incidencia_pago(self, contacto_id: int) -> bool:
+        """
+        True si el contacto tuvo disputa/reclamación o rechazo de comprobante Apoyo,
+        aunque luego se resolviera y quedara pagado.
+        """
+        try:
+            contacto_id = int(contacto_id)
+        except (TypeError, ValueError):
+            return False
+        with self._lock:
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT id, fecha_disputa FROM contactos_ruana WHERE id = ?",
+                    (contacto_id,),
+                )
+                row = cursor.fetchone()
+                if not row:
+                    return False
+                if row['fecha_disputa'] is not None:
+                    return True
+                try:
+                    cursor.execute(
+                        "SELECT 1 FROM payment_conflicts WHERE trabajo_id = ? LIMIT 1",
+                        (contacto_id,),
+                    )
+                    if cursor.fetchone() is not None:
+                        return True
+                except Exception:
+                    pass
+                cursor.execute(
+                    """
+                    SELECT 1 FROM audit_log
+                    WHERE entidad = 'contacto' AND entidad_id = ?
+                      AND accion IN ('pago_apoyo_rechazado', 'conflicto_importe', 'apoyo_impugnado')
+                    LIMIT 1
+                    """,
+                    (contacto_id,),
+                )
+                return cursor.fetchone() is not None
+            except Exception:
+                return False
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+    def listar_encargos_pagados_mes(self, codigo_aliado: str, anio_mes: str) -> List[Dict[str, Any]]:
+        """
+        Contactos Pagos Apoyo RUANA del aliado (solicitante o profesional)
+        con estado_pago=pagado en el mes YYYY-MM (fecha_validacion_pago).
+        """
+        codigo_aliado = (codigo_aliado or '').strip()
+        anio_mes = (anio_mes or '').strip()
+        if not codigo_aliado or not anio_mes:
+            return []
+        with self._lock:
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT id, solicitante_codigo, profesional_codigo, estado_pago,
+                           fecha_validacion_pago, fecha_disputa
+                    FROM contactos_ruana
+                    WHERE estado = 'trabajo_cerrado'
+                      AND estado_pago = 'pagado'
+                      AND COALESCE(apoyo_ruana, 0) > 0
+                      AND (solicitante_codigo = ? OR profesional_codigo = ?)
+                      AND fecha_validacion_pago IS NOT NULL
+                    ORDER BY id ASC
+                    """,
+                    (codigo_aliado, codigo_aliado),
+                )
+                out = []
+                for row in cursor.fetchall():
+                    item = dict(row)
+                    if self._anio_mes_de(item.get('fecha_validacion_pago')) == anio_mes:
+                        out.append(item)
+                return out
+            except Exception:
+                return []
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+    def evaluar_regla4_encargos_mes_limpio(
+        self,
+        codigo_aliado: str,
+        anio_mes: Optional[str] = None,
+    ) -> Optional[Tuple[str, int, str]]:
+        """
+        Regla 4: 4 encargos pagados en el mismo mes sin incidencias de pago → +3 una vez.
+        Devuelve (codigo, delta, motivo) si debe aplicarse; None si no.
+        """
+        codigo_aliado = (codigo_aliado or '').strip()
+        if not codigo_aliado:
+            return None
+        anio_mes = (anio_mes or datetime.now().strftime('%Y-%m')).strip()
+        if self._ya_aplicada_regla4_mes(codigo_aliado, anio_mes):
+            return None
+        pagados = self.listar_encargos_pagados_mes(codigo_aliado, anio_mes)
+        if len(pagados) < self.REGLA4_ENCARGOS_MES_UMBRAL:
+            return None
+        for item in pagados:
+            if self.contacto_tiene_incidencia_pago(item['id']):
+                return None
+        return (
+            codigo_aliado,
+            self.REGLA4_ENCARGOS_MES_DELTA,
+            self._motivo_regla4_mes(anio_mes),
+        )
 
     def actualizar_estado_pago_contacto(self, contacto_id: int, nuevo_estado: str,
                                         admin_codigo: str = "",
@@ -6820,7 +6979,8 @@ class DBManager:
         Estados permitidos: en_revision, pagado, rechazado.
         - pagado: pendiente_pago = 0, fecha_validacion_pago y admin_validacion_codigo;
           Regla 2: +2 score al solicitante y al profesional (encargo completado);
-          Regla 3: +1 a ancestros 1ª/2ª generación de cada participante (linaje referidos).
+          Regla 3: +1 a ancestros 1ª/2ª generación de cada participante (linaje referidos);
+          Regla 4: +3 si el aliado completa 4 encargos pagados limpios en el mismo mes.
         - rechazado: estado_pago → pendiente_pago, pendiente_pago = 1, motivo_rechazo_pago, comprobante_ruta=NULL;
           motivo_rechazo obligatorio; notifica al profesional.
         """
@@ -6919,6 +7079,7 @@ class DBManager:
             finally:
                 conn.close()
         excluir_participantes = set(participantes_regla2)
+        anio_mes_actual = datetime.now().strftime('%Y-%m')
         for codigo in participantes_regla2:
             scores_aplicar.append((codigo, 2, 'encargo_completado_apoyo_pagado'))
             # Regla 3: +1 a padre (gen1) y abuelo (gen2) del participante
@@ -6930,6 +7091,10 @@ class DBManager:
                     1,
                     f'referido_encargo_completado_gen{generacion}',
                 ))
+            # Regla 4: 4 encargos pagados limpios en el mes → +3
+            hito_regla4 = self.evaluar_regla4_encargos_mes_limpio(codigo, anio_mes_actual)
+            if hito_regla4:
+                scores_aplicar.append(hito_regla4)
         for codigo, delta, motivo in scores_aplicar:
             try:
                 self.aplicar_cambio_score(codigo, delta, motivo)
