@@ -783,6 +783,54 @@ def aliado_referidos_cambios():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+@app.route('/api/admin/aliados/<codigo>/linaje', methods=['GET'])
+@require_admin
+def admin_aliado_linaje(codigo):
+    """
+    GET /api/admin/aliados/<codigo>/linaje
+    Linaje para Control de Aliados: padre, hijos directos y ruta.
+    """
+    try:
+        codigo = (codigo or '').strip()
+        if not codigo:
+            return jsonify({'status': 'error', 'message': 'Código requerido'}), 400
+        db = get_db()
+        linaje = db.obtener_linaje_aliado(codigo)
+        if not linaje:
+            return jsonify({'status': 'error', 'message': 'Aliado no encontrado'}), 404
+        return jsonify({
+            'status': 'success',
+            'linaje': linaje,
+            'timestamp': datetime.now().isoformat(),
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/aliado/linaje/hijos', methods=['GET'])
+@require_aliado
+def aliado_linaje_hijos():
+    """
+    GET /api/aliado/linaje/hijos
+    Hijos directos del aliado autenticado (modal panel aliado).
+    """
+    try:
+        codigo = _aliado_codigo()
+        if not codigo:
+            return jsonify({'status': 'error', 'message': 'Sesión no válida'}), 401
+        db = get_db()
+        hijos = db.listar_hijos_directos_linaje(codigo)
+        return jsonify({
+            'status': 'success',
+            'codigo': codigo,
+            'hijos': hijos,
+            'total': len(hijos),
+            'timestamp': datetime.now().isoformat(),
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
 def _contar_nodos_arbol(nodo: dict) -> int:
     """Cuenta nodos en un árbol de referidos (incluye la raíz)."""
     if not nodo or not isinstance(nodo, dict):

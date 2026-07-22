@@ -1439,10 +1439,8 @@
         }
     </style>
     <link rel="stylesheet" href="/static/css/panel-premium.css">
-    <link rel="stylesheet" href="/static/css/referidos-tree.css">
     <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
     <script src="/static/js/ruana-ui.js" defer></script>
-    <script src="/static/js/referidos-module.js" defer></script>
 </head>
 <body class="panel-loading">
     <a href="/" class="ruana-brand ruana-brand-watermark" aria-label="RUANA inicio">
@@ -1653,21 +1651,18 @@
             </div>
         </div>
 
-        <!-- Aliados referidos por mí (árbol genealógico) -->
-        <div class="referidos-aliado-panel referidos-section" id="referidos-aliado-wrap">
-            <div class="referidos-section-header">
-                <div>
-                    <h2 class="metricas-title">Aliados referidos por mí</h2>
-                    <p class="referidos-section-meta" id="referidos-aliado-meta">Tu red de invitaciones directas e indirectas</p>
-                </div>
-            </div>
-            <div class="referidos-layout referidos-aliado-layout">
-                <div class="referidos-tree-panel" id="referidos-aliado-tree"></div>
-                <div class="referidos-detail-panel empty" id="referidos-aliado-detail">
-                    <p>Selecciona un aliado en el árbol para ver su ficha.</p>
+        <!-- Modal: hijos directos del linaje -->
+        <div class="modal-overlay" id="modal-linaje-hijos" style="display:none; align-items:center; justify-content:center;">
+            <div class="modal-content" style="max-width:520px; width:92%;">
+                <h3 class="modal-title">Aliados referidos por mí</h3>
+                <p class="modal-text" id="modal-linaje-hijos-meta">Tus invitaciones directas</p>
+                <div id="modal-linaje-hijos-list" style="max-height:360px; overflow:auto; margin:12px 0;"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-admin-action" id="btn-cerrar-linaje-hijos">Cerrar</button>
                 </div>
             </div>
         </div>
+
 
         <!-- Divisor -->
         <div class="panel-divider"></div>
@@ -2121,7 +2116,6 @@
                 // Finalmente, renderizar y evaluar banners según estado actual
                 this.render();
                 this.renderAlertas();
-                this.initReferidosArbol();
                 this.setPanelLoading(false);
             }
 
@@ -2250,24 +2244,6 @@
                 this.renderSolicitudes();
                 this.renderProfesionales();
                 this.renderNotificaciones();
-            }
-
-            initReferidosArbol() {
-                if (typeof RuanaReferidos === 'undefined') return;
-                const self = this;
-                this._referidosTree = new RuanaReferidos.RuanaReferidosTree({
-                    treeContainer: document.getElementById('referidos-aliado-tree'),
-                    detailContainer: document.getElementById('referidos-aliado-detail'),
-                    metaContainer: document.getElementById('referidos-aliado-meta'),
-                    fetchOptions: { headers: getRuanaAuthHeaders() },
-                    mode: 'aliado'
-                });
-                this._referidosTree.load().catch(function () {
-                    var treeEl = document.getElementById('referidos-aliado-tree');
-                    if (treeEl) {
-                        treeEl.innerHTML = '<div class="referidos-empty-state">Aún no has referido aliados a RUANA.</div>';
-                    }
-                });
             }
 
             getIniciales(nombre) {
@@ -2846,9 +2822,17 @@
 
                 const metricReferidos = document.getElementById('metrica-card-referidos');
                 if (metricReferidos) {
-                    metricReferidos.addEventListener('click', () => {
-                        const wrap = document.getElementById('referidos-aliado-wrap');
-                        if (wrap) wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    metricReferidos.addEventListener('click', () => this.abrirModalLinajeHijos());
+                    metricReferidos.style.cursor = 'pointer';
+                }
+                const btnCerrarLinaje = document.getElementById('btn-cerrar-linaje-hijos');
+                const modalLinaje = document.getElementById('modal-linaje-hijos');
+                if (btnCerrarLinaje) {
+                    btnCerrarLinaje.addEventListener('click', () => this.cerrarModalLinajeHijos());
+                }
+                if (modalLinaje) {
+                    modalLinaje.addEventListener('click', (e) => {
+                        if (e.target === modalLinaje) this.cerrarModalLinajeHijos();
                     });
                 }
                 

@@ -108,8 +108,9 @@ class DBManager:
                 )
             """)
             self._migrar_aliados_foto_perfil(conn, cursor)
+            self._migrar_aliados_invitado_por(conn, cursor)
             conn.commit()
-            print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil)")
+            print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil + linaje)")
         except Exception as e:
             print(f"[RUANA][DB] Error inicializando esquema Postgres: {e}")
         finally:
@@ -479,6 +480,7 @@ class DBManager:
                 self._migrar_contacto_panel_oculto(conn, cursor)
                 self._migrar_referidos_origen(conn, cursor)
                 self._migrar_invitaciones_oficio_codigo_referido(conn, cursor)
+                self._migrar_aliados_invitado_por(conn, cursor)
 
                 conn.commit()
                 print(f"[RUANA][DB] Base de datos inicializada en: {self.db_path}")
@@ -836,11 +838,27 @@ class DBManager:
         if 'codigo_referido' not in columnas:
             cursor.execute("ALTER TABLE invitaciones_oficio ADD COLUMN codigo_referido TEXT DEFAULT ''")
 
+    def _migrar_aliados_invitado_por(self, conn, cursor) -> None:
+        """Añade invitado_por_codigo e invitado_origen en aliados (fuente del linaje)."""
+        cursor.execute("PRAGMA table_info(aliados)")
+        columnas = [row[1] for row in cursor.fetchall()]
+        if 'invitado_por_codigo' not in columnas:
+            cursor.execute("ALTER TABLE aliados ADD COLUMN invitado_por_codigo TEXT DEFAULT NULL")
+        if 'invitado_origen' not in columnas:
+            cursor.execute("ALTER TABLE aliados ADD COLUMN invitado_origen TEXT DEFAULT ''")
+        try:
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_aliados_invitado_por ON aliados(invitado_por_codigo)"
+            )
+        except Exception:
+            pass
+
     ORIGEN_REFERIDO_LABELS: Dict[str, str] = {
         'aliado': 'Invitación de aliado',
         'oficio': 'Invitación por oficio',
         'campana': 'Campaña del administrador',
         'admin_invitacion': 'Código del administrador',
+        'admin': 'Código del administrador',
         'huerfano': 'Registro directo · asignado al admin',
     }
 
@@ -852,8 +870,31 @@ class DBManager:
         codigo = self.obtener_o_crear_invitador_admin('RUANA-ADMIN')
         return codigo or 'RUANA-ADMIN'
 
-    def _insert_referido(self, codigo_referido: str, codigo_invitador: str, origen: str = '') -> bool:
-        """Inserta vínculo invitador→referido (idempotente) con origen opcional."""
+    def _referidos_tiene_origen(self, cursor) -> bool:
+        try:
+            cursor.execute("PRAGMA table_info(referidos)")
+            return 'origen' in [row[1] for row in cursor.fetchall()]
+        except Exception:
+            return False
+
+    def _aliados_tiene_invitado_por(self, cursor) -> bool:
+        try:
+            cursor.execute("PRAGMA table_info(aliados)")
+            return 'invitado_por_codigo' in [row[1] for row in cursor.fetchall()]
+        except Exception:
+            return False
+
+    def asignar_invitado_por(
+        self,
+        codigo_referido: str,
+        codigo_invitador: str,
+        origen: str = '',
+        overwrite: bool = False,
+    ) -> bool:
+        """
+        Fuente de verdad del linaje: escribe aliados.invitado_por_codigo
+        y mantiene referidos en paralelo por compatibilidad.
+        """
         codigo_referido = (codigo_referido or '').strip()
         codigo_invitador = (codigo_invitador or '').strip()
         origen = (origen or '').strip()
@@ -864,31 +905,296 @@ class DBManager:
             try:
                 conn = self._connect()
                 cursor = conn.cursor()
-                cursor.execute("""
-                    INSERT OR IGNORE INTO referidos (codigo_referido, codigo_invitador, origen)
-                    VALUES (?, ?, ?)
-                """, (codigo_referido, codigo_invitador, origen))
-                inserted = cursor.rowcount > 0
-                if origen and not inserted:
+                if not self._aliados_tiene_invitado_por(cursor):
+                    return False
+                if overwrite:
                     cursor.execute("""
-                        UPDATE referidos
-                        SET origen = ?
-                        WHERE codigo_referido = ?
-                          AND (origen IS NULL OR origen = '')
-                    """, (origen, codigo_referido))
+                        UPDATE aliados
+                        SET invitado_por_codigo = ?,
+                            invitado_origen = COALESCE(NULLIF(?, ''), invitado_origen),
+                            actualizado_en = CURRENT_TIMESTAMP
+                        WHERE codigo = ?
+                    """, (codigo_invitador, origen, codigo_referido))
+                else:
+                    cursor.execute("""
+                        UPDATE aliados
+                        SET invitado_por_codigo = ?,
+                            invitado_origen = CASE
+                                WHEN COALESCE(invitado_origen, '') = '' THEN ?
+                                ELSE invitado_origen
+                            END,
+                            actualizado_en = CURRENT_TIMESTAMP
+                        WHERE codigo = ?
+                          AND (invitado_por_codigo IS NULL OR TRIM(COALESCE(invitado_por_codigo, '')) = '')
+                    """, (codigo_invitador, origen, codigo_referido))
+                updated = cursor.rowcount > 0
+                if self._referidos_tiene_origen(cursor):
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO referidos (codigo_referido, codigo_invitador, origen)
+                        VALUES (?, ?, ?)
+                    """, (codigo_referido, codigo_invitador, origen))
+                    if origen:
+                        cursor.execute("""
+                            UPDATE referidos
+                            SET origen = ?
+                            WHERE codigo_referido = ?
+                              AND (origen IS NULL OR origen = '')
+                        """, (origen, codigo_referido))
+                else:
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO referidos (codigo_referido, codigo_invitador)
+                        VALUES (?, ?)
+                    """, (codigo_referido, codigo_invitador))
                 conn.commit()
-                return inserted or cursor.rowcount > 0
+                return updated or cursor.rowcount > 0
             except Exception:
                 return False
             finally:
                 if conn:
                     conn.close()
 
+    def _insert_referido(self, codigo_referido: str, codigo_invitador: str, origen: str = '') -> bool:
+        """Compatibilidad: delega en asignar_invitado_por (linaje en aliados + referidos)."""
+        return self.asignar_invitado_por(codigo_referido, codigo_invitador, origen=origen)
+
     def _origen_por_invitador(self, codigo_invitador: str, default: str = 'aliado') -> str:
         invitador = self.obtener_aliado_por_codigo(codigo_invitador)
         if invitador and (invitador.get('estado') or '').strip() == 'sistema':
             return 'admin_invitacion'
         return default
+
+    def backfill_invitado_por_linaje(self) -> Dict[str, int]:
+        """Rellena invitado_por_codigo desde referidos/invitaciones y huérfanos bajo admin."""
+        admin_codigo = self.obtener_codigo_admin_referidos()
+        stats = {'desde_referidos': 0, 'desde_invitaciones': 0, 'huerfanos': 0}
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                if not self._aliados_tiene_invitado_por(cursor):
+                    return stats
+                has_origen = self._referidos_tiene_origen(cursor)
+                if has_origen:
+                    cursor.execute("""
+                        SELECT r.codigo_referido, r.codigo_invitador,
+                               COALESCE(r.origen, '') AS origen
+                        FROM referidos r
+                        JOIN aliados a ON a.codigo = r.codigo_referido
+                        WHERE a.invitado_por_codigo IS NULL OR TRIM(COALESCE(a.invitado_por_codigo, '')) = ''
+                    """)
+                else:
+                    cursor.execute("""
+                        SELECT r.codigo_referido, r.codigo_invitador, '' AS origen
+                        FROM referidos r
+                        JOIN aliados a ON a.codigo = r.codigo_referido
+                        WHERE a.invitado_por_codigo IS NULL OR TRIM(COALESCE(a.invitado_por_codigo, '')) = ''
+                    """)
+                rows = cursor.fetchall()
+            except Exception:
+                rows = []
+            finally:
+                if conn:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+        for row in rows:
+            if self.asignar_invitado_por(row['codigo_referido'], row['codigo_invitador'], (row['origen'] or 'aliado')):
+                stats['desde_referidos'] += 1
+
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT i.codigo AS codigo_referido, inv.codigo AS codigo_invitador,
+                           inv.estado AS invitador_estado
+                    FROM invitaciones i
+                    JOIN aliados inv ON inv.id = i.invitador_aliado_id
+                    JOIN aliados ref ON ref.codigo = i.codigo
+                    WHERE COALESCE(ref.estado, '') NOT IN ('pendiente_completar', 'sistema')
+                      AND (ref.invitado_por_codigo IS NULL OR TRIM(COALESCE(ref.invitado_por_codigo, '')) = '')
+                """)
+                pendientes = cursor.fetchall()
+            except Exception:
+                pendientes = []
+            finally:
+                if conn:
+                    conn.close()
+        for row in pendientes:
+            origen = 'admin_invitacion' if (row['invitador_estado'] or '').strip() == 'sistema' else 'aliado'
+            if self.asignar_invitado_por(row['codigo_referido'], row['codigo_invitador'], origen):
+                stats['desde_invitaciones'] += 1
+
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT a.codigo
+                    FROM aliados a
+                    WHERE COALESCE(a.estado, '') NOT IN (
+                        'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
+                    )
+                      AND a.codigo != ?
+                      AND (a.invitado_por_codigo IS NULL OR TRIM(COALESCE(a.invitado_por_codigo, '')) = '')
+                """, (admin_codigo,))
+                huerfanos = [r['codigo'] for r in cursor.fetchall() if r and r['codigo']]
+            except Exception:
+                huerfanos = []
+            finally:
+                if conn:
+                    conn.close()
+        for codigo in huerfanos:
+            if self.asignar_invitado_por(codigo, admin_codigo, 'huerfano'):
+                stats['huerfanos'] += 1
+        return stats
+
+    def listar_hijos_directos_linaje(self, codigo_invitador: str) -> List[Dict[str, Any]]:
+        """Hijos directos según aliados.invitado_por_codigo."""
+        codigo_invitador = (codigo_invitador or '').strip()
+        if not codigo_invitador:
+            return []
+        self.backfill_invitado_por_linaje()
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT a.codigo, a.nombre, a.oficio, a.codigo_postal, a.marca,
+                           a.estado, a.score, a.telefono, a.email, a.especializaciones,
+                           a.creado_en, a.invitado_origen AS origen,
+                           (
+                               SELECT COUNT(*) FROM aliados h
+                               WHERE h.invitado_por_codigo = a.codigo
+                                 AND COALESCE(h.estado, '') NOT IN (
+                                     'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
+                                 )
+                           ) AS referidos_count
+                    FROM aliados a
+                    WHERE a.invitado_por_codigo = ?
+                      AND COALESCE(a.estado, '') NOT IN (
+                          'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
+                      )
+                    ORDER BY a.creado_en ASC
+                """, (codigo_invitador,))
+                result = []
+                for row in cursor.fetchall():
+                    item = dict(row)
+                    item['zona'] = item.get('codigo_postal') or ''
+                    esp_raw = item.get('especializaciones')
+                    if esp_raw:
+                        try:
+                            item['especializaciones'] = json.loads(esp_raw) if isinstance(esp_raw, str) else list(esp_raw)
+                        except Exception:
+                            item['especializaciones'] = []
+                    else:
+                        item['especializaciones'] = []
+                    try:
+                        item['score'] = float(item.get('score') or 0)
+                    except (TypeError, ValueError):
+                        item['score'] = 0.0
+                    origen = (item.get('origen') or '').strip()
+                    item['origen'] = origen
+                    item['origen_label'] = self.etiqueta_origen_referido(origen)
+                    result.append(item)
+                return result
+            except Exception:
+                return []
+            finally:
+                if conn:
+                    conn.close()
+
+    def obtener_ruta_linaje_hacia_arriba(self, codigo: str) -> List[Dict[str, Any]]:
+        """Cadena desde raíz hasta codigo usando invitado_por_codigo."""
+        codigo = (codigo or '').strip()
+        if not codigo:
+            return []
+        cadena = []
+        actual = codigo
+        visitados = set()
+        while actual and actual not in visitados:
+            nodo = self._nodo_referido_resumen(actual)
+            if nodo:
+                cadena.insert(0, nodo)
+            visitados.add(actual)
+            padre_codigo = None
+            with self._lock:
+                conn = None
+                try:
+                    conn = self._connect()
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "SELECT invitado_por_codigo FROM aliados WHERE codigo = ?",
+                        (actual,),
+                    )
+                    row = cursor.fetchone()
+                    if row and row[0]:
+                        padre_codigo = str(row[0]).strip()
+                except Exception:
+                    padre_codigo = None
+                finally:
+                    if conn:
+                        conn.close()
+            if not padre_codigo:
+                invitador = self.obtener_invitador_de(actual)
+                padre_codigo = (invitador or {}).get('codigo')
+            if not padre_codigo or padre_codigo in visitados:
+                break
+            actual = padre_codigo
+        return cadena
+
+    def obtener_linaje_aliado(self, codigo: str) -> Optional[Dict[str, Any]]:
+        """Padre, nodo, hijos directos y ruta hacia la raíz para Control de Aliados."""
+        codigo = (codigo or '').strip()
+        if not codigo:
+            return None
+        self.backfill_invitado_por_linaje()
+        nodo = self._nodo_referido_resumen(codigo)
+        if not nodo:
+            return None
+        padre = None
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT invitado_por_codigo, COALESCE(invitado_origen, '') AS origen FROM aliados WHERE codigo = ?",
+                    (codigo,),
+                )
+                row = cursor.fetchone()
+                if row and (row['invitado_por_codigo'] or '').strip():
+                    padre_codigo = (row['invitado_por_codigo'] or '').strip()
+                    padre = self._nodo_referido_resumen(padre_codigo)
+                    if padre:
+                        padre['origen'] = (row['origen'] or '').strip()
+                        padre['origen_label'] = self.etiqueta_origen_referido(padre['origen'])
+            except Exception:
+                padre = None
+            finally:
+                if conn:
+                    conn.close()
+        if not padre:
+            padre = self.obtener_invitador_de(codigo)
+        hijos = self.listar_hijos_directos_linaje(codigo)
+        ruta = self.obtener_ruta_linaje_hacia_arriba(codigo)
+        return {
+            'aliado': nodo,
+            'padre': padre,
+            'hijos': hijos,
+            'ruta': ruta,
+            'hijos_count': len(hijos),
+        }
 
     def _obtener_origen_referido(self, codigo_referido: str) -> str:
         codigo_referido = (codigo_referido or '').strip()
@@ -900,13 +1206,22 @@ class DBManager:
                 conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT origen FROM referidos WHERE codigo_referido = ?",
-                    (codigo_referido,),
-                )
-                row = cursor.fetchone()
-                if row and (row['origen'] or '').strip():
-                    return (row['origen'] or '').strip()
+                if self._aliados_tiene_invitado_por(cursor):
+                    cursor.execute(
+                        "SELECT COALESCE(invitado_origen, '') AS origen FROM aliados WHERE codigo = ?",
+                        (codigo_referido,),
+                    )
+                    row = cursor.fetchone()
+                    if row and (row['origen'] or '').strip():
+                        return (row['origen'] or '').strip()
+                if self._referidos_tiene_origen(cursor):
+                    cursor.execute(
+                        "SELECT origen FROM referidos WHERE codigo_referido = ?",
+                        (codigo_referido,),
+                    )
+                    row = cursor.fetchone()
+                    if row and (row['origen'] or '').strip():
+                        return (row['origen'] or '').strip()
                 cursor.execute(
                     "SELECT 1 FROM invitacion_campana_usos WHERE codigo_aliado = ? LIMIT 1",
                     (codigo_referido,),
@@ -929,7 +1244,9 @@ class DBManager:
                 inv_row = cursor.fetchone()
                 if inv_row and (inv_row['invitador_estado'] or '').strip() == 'sistema':
                     return 'huerfano'
-                return 'aliado'
+                if inv_row:
+                    return 'aliado'
+                return ''
             except Exception:
                 return ''
             finally:
@@ -2777,11 +3094,23 @@ class DBManager:
                 conn.close()
     
     def contar_referidos_por_codigo(self, codigo_aliado: str) -> int:
-        """Cuenta aliados referidos válidos por este aliado (para métrica 'Aliados referidos por mí')."""
+        """Cuenta hijos directos del linaje (invitado_por_codigo; fallback referidos)."""
+        codigo_aliado = (codigo_aliado or '').strip()
+        if not codigo_aliado:
+            return 0
         with self._lock:
             try:
                 conn = self._connect()
                 cursor = conn.cursor()
+                if self._aliados_tiene_invitado_por(cursor):
+                    cursor.execute("""
+                        SELECT COUNT(*) FROM aliados
+                        WHERE invitado_por_codigo = ?
+                          AND COALESCE(estado, '') NOT IN (
+                              'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
+                          )
+                    """, (codigo_aliado,))
+                    return cursor.fetchone()[0] or 0
                 cursor.execute(
                     "SELECT COUNT(*) FROM referidos WHERE codigo_invitador = ?",
                     (codigo_aliado,)
@@ -2833,16 +3162,18 @@ class DBManager:
         }
 
     def sincronizar_referidos_completo(self) -> Dict[str, int]:
-        """Sincroniza referidos: campañas, invitaciones aliado, oficio y huérfanos bajo admin."""
+        """Sincroniza referidos legacy + backfill de linaje en aliados.invitado_por_codigo."""
         campanas = self.sincronizar_referidos_campanas_admin()
         invitaciones = self.sincronizar_referidos_invitaciones_usadas()
         oficio = self.sincronizar_referidos_invitaciones_oficio_usadas()
         huerfanos = self.sincronizar_referidos_huerfanos_admin()
+        linaje = self.backfill_invitado_por_linaje()
         return {
             'campanas': campanas,
             'invitaciones': invitaciones,
             'oficio': oficio,
             'huerfanos': huerfanos,
+            'linaje': linaje,
         }
 
     def sincronizar_referidos_invitaciones_usadas(self) -> int:
@@ -3701,6 +4032,8 @@ class DBManager:
         nuevo_aliado_codigo = (nuevo_aliado_codigo or '').strip()
         if not codigo_invitacion or not nuevo_aliado_codigo:
             return False
+        codigo_invitador = None
+        origen = 'aliado'
         with self._lock:
             conn = None
             try:
@@ -3720,30 +4053,36 @@ class DBManager:
                 usado = int(row['usado'] or 0)
                 codigo_invitador = row['codigo_invitador']
                 origen = 'admin_invitacion' if (row['invitador_estado'] or '').strip() == 'sistema' else 'aliado'
+                ya_registrado = False
                 cursor.execute(
-                    "SELECT 1 FROM referidos WHERE codigo_referido = ?",
+                    "SELECT invitado_por_codigo FROM aliados WHERE codigo = ?",
                     (nuevo_aliado_codigo,),
                 )
-                ya_registrado = cursor.fetchone() is not None
+                row_aliado = cursor.fetchone()
+                if row_aliado and (row_aliado[0] or '').strip():
+                    ya_registrado = True
                 if not ya_registrado:
-                    if usado == 0:
-                        self.aplicar_cambio_score(codigo_invitador, 5, 'aliado_referido_registro_valido')
-                    cursor.execute("""
-                        INSERT OR IGNORE INTO referidos (codigo_referido, codigo_invitador, origen)
-                        VALUES (?, ?, ?)
-                    """, (nuevo_aliado_codigo, codigo_invitador, origen))
+                    cursor.execute(
+                        "SELECT 1 FROM referidos WHERE codigo_referido = ?",
+                        (nuevo_aliado_codigo,),
+                    )
+                    ya_registrado = cursor.fetchone() is not None
+                if not ya_registrado and usado == 0:
+                    self.aplicar_cambio_score(codigo_invitador, 5, 'aliado_referido_registro_valido')
                 if usado == 0:
                     cursor.execute(
                         "UPDATE invitaciones SET usado = 1 WHERE codigo = ?",
                         (codigo_invitacion,),
                     )
                 conn.commit()
-                return True
             except Exception:
                 return False
             finally:
                 if conn:
                     conn.close()
+        if not codigo_invitador:
+            return False
+        return self.asignar_invitado_por(nuevo_aliado_codigo, codigo_invitador, origen) or True
 
     def generar_invitacion_oficio(self, codigo_aliado: str, oficio: str) -> Dict[str, Any]:
         """
@@ -3852,6 +4191,7 @@ class DBManager:
         nuevo_aliado_codigo = (nuevo_aliado_codigo or '').strip()
         if not codigo or not nuevo_aliado_codigo:
             return False
+        codigo_invitador = None
         with self._lock:
             conn = None
             try:
@@ -3873,11 +4213,20 @@ class DBManager:
                 if not r2:
                     return False
                 codigo_invitador = r2[0]
+                ya_registrado = False
                 cursor.execute(
-                    "SELECT 1 FROM referidos WHERE codigo_referido = ?",
+                    "SELECT invitado_por_codigo FROM aliados WHERE codigo = ?",
                     (nuevo_aliado_codigo,),
                 )
-                ya_registrado = cursor.fetchone() is not None
+                row_aliado = cursor.fetchone()
+                if row_aliado and (row_aliado[0] or '').strip():
+                    ya_registrado = True
+                if not ya_registrado:
+                    cursor.execute(
+                        "SELECT 1 FROM referidos WHERE codigo_referido = ?",
+                        (nuevo_aliado_codigo,),
+                    )
+                    ya_registrado = cursor.fetchone() is not None
                 if estado == 'pendiente':
                     cursor.execute(
                         "UPDATE invitaciones_oficio SET estado = 'usado', codigo_referido = ? WHERE id = ?",
@@ -3885,26 +4234,20 @@ class DBManager:
                     )
                     if not ya_registrado:
                         self.aplicar_cambio_score(codigo_invitador, 5, 'invitacion_oficio_usada')
-                        cursor.execute("""
-                            INSERT OR IGNORE INTO referidos (codigo_referido, codigo_invitador, origen)
-                            VALUES (?, ?, 'oficio')
-                        """, (nuevo_aliado_codigo, codigo_invitador))
                 elif estado == 'usado' and not ya_registrado:
                     cursor.execute(
                         "UPDATE invitaciones_oficio SET codigo_referido = ? WHERE id = ? AND COALESCE(codigo_referido, '') = ''",
                         (nuevo_aliado_codigo, invitacion_id),
                     )
-                    cursor.execute("""
-                        INSERT OR IGNORE INTO referidos (codigo_referido, codigo_invitador, origen)
-                        VALUES (?, ?, 'oficio')
-                    """, (nuevo_aliado_codigo, codigo_invitador))
                 conn.commit()
-                return True
             except Exception:
                 return False
             finally:
                 if conn:
                     conn.close()
+        if not codigo_invitador:
+            return False
+        return self.asignar_invitado_por(nuevo_aliado_codigo, codigo_invitador, 'oficio') or True
 
     def listar_aliados(self, filtro_postal: str = None) -> List[Dict[str, Any]]:
         """
@@ -3916,6 +4259,10 @@ class DBManager:
         Returns:
             Lista de aliados
         """
+        try:
+            self.backfill_invitado_por_linaje()
+        except Exception:
+            pass
         with self._lock:
             try:
                 conn = self._connect()
@@ -3935,6 +4282,16 @@ class DBManager:
                         e.razones AS eval_razones,
                         e.severidad AS eval_severidad,
                         e.actualizado_en AS eval_actualizado_en,
+                        inv.nombre AS invitado_por_nombre,
+                        inv.codigo AS invitado_por_codigo_join,
+                        (
+                            SELECT COUNT(*)
+                            FROM aliados h
+                            WHERE h.invitado_por_codigo = a.codigo
+                              AND COALESCE(h.estado, '') NOT IN (
+                                  'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
+                              )
+                        ) AS hijos_directos_count,
                         (
                             SELECT COUNT(*)
                             FROM contactos_ruana c
@@ -3956,6 +4313,7 @@ class DBManager:
                         ) AS es_titular_en_competencia
                     FROM aliados a
                     LEFT JOIN evaluaciones e ON e.codigo_aliado = a.codigo
+                    LEFT JOIN aliados inv ON inv.codigo = a.invitado_por_codigo
                     WHERE (a.estado IS NULL OR (a.estado != 'expulsado' AND a.estado != 'suspendido_temporal' AND a.estado != 'sistema'))
                 """
 
@@ -3985,6 +4343,18 @@ class DBManager:
 
                     # Zona legible para el panel (usa código postal por ahora)
                     item['zona'] = item.get('codigo_postal') or ''
+
+                    # Linaje (padre / hijos) para Control de Aliados
+                    invitado_por = (item.get('invitado_por_codigo') or item.get('invitado_por_codigo_join') or '').strip()
+                    item['invitado_por_codigo'] = invitado_por or None
+                    item['invitado_por_nombre'] = (item.get('invitado_por_nombre') or '').strip()
+                    origen = (item.get('invitado_origen') or '').strip()
+                    item['invitado_origen'] = origen
+                    item['invitado_origen_label'] = self.etiqueta_origen_referido(origen)
+                    try:
+                        item['hijos_directos_count'] = int(item.get('hijos_directos_count') or 0)
+                    except (TypeError, ValueError):
+                        item['hijos_directos_count'] = 0
 
                     # Score de referencia para el panel (evaluación > aliado.score)
                     eval_score = item.get('eval_score')

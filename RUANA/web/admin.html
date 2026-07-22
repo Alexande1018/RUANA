@@ -897,6 +897,53 @@
             margin-top: 12px;
         }
 
+
+        .aliado-linaje-row {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255,255,255,0.08);
+            display: grid;
+            gap: 6px;
+            font-size: 0.85rem;
+            color: #cbd5e1;
+        }
+        .aliado-linaje-row strong { color: #e2e8f0; font-weight: 600; }
+        .btn-linaje {
+            background: rgba(162,255,0,0.12);
+            border: 1px solid rgba(162,255,0,0.35);
+            color: #d9ff8a;
+        }
+        .linaje-drawer-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+            display: none; align-items: stretch; justify-content: flex-end; z-index: 1200;
+        }
+        .linaje-drawer-overlay.show { display: flex; }
+        .linaje-drawer {
+            width: min(420px, 100%);
+            background: #111827;
+            border-left: 1px solid rgba(255,255,255,0.1);
+            padding: 20px;
+            overflow-y: auto;
+            color: #e5e7eb;
+        }
+        .linaje-drawer h3 { margin: 0 0 8px; color: #f8fafc; }
+        .linaje-meta { color: #94a3b8; font-size: 0.85rem; margin-bottom: 16px; }
+        .linaje-ruta { font-size: 0.8rem; color: #a3e635; margin-bottom: 14px; word-break: break-word; }
+        .linaje-block { margin-bottom: 16px; }
+        .linaje-block h4 { margin: 0 0 8px; font-size: 0.9rem; color: #cbd5e1; }
+        .linaje-card {
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            background: rgba(255,255,255,0.03);
+            cursor: pointer;
+        }
+        .linaje-card:hover { border-color: rgba(162,255,0,0.4); }
+        .linaje-card .nombre { font-weight: 600; color: #f1f5f9; }
+        .linaje-card .sub { font-size: 0.8rem; color: #94a3b8; margin-top: 2px; }
+        .linaje-empty { color: #64748b; font-size: 0.85rem; }
+
         .admin-login-tip {
             font-size: 0.75rem;
             color: #777;
@@ -905,9 +952,7 @@
             border-top: 1px solid rgba(255, 255, 255, 0.05);
         }
     </style>
-    <link rel="stylesheet" href="/static/css/referidos-tree.css">
     <script src="/static/js/ruana-ui.js" defer></script>
-    <script src="/static/js/referidos-module.js" defer></script>
 </head>
 <body class="admin-is-loading">
     <!-- Modal Detalle Aliado -->
@@ -1467,28 +1512,26 @@
             </div>
         </div>
 
-        <!-- CAPA 4.5: Red de Referidos (árbol genealógico) -->
-        <div class="control-aliados referidos-section" id="referidos-admin-wrap">
-            <div class="referidos-section-header">
-                <div>
-                    <h2 class="seccion-titulo">Red de Referidos</h2>
-                    <p class="referidos-section-meta" id="referidos-admin-meta">Árbol genealógico completo: origen de cada aliado e invitador directo</p>
+        <!-- Linaje drawer (Control de Aliados) -->
+        <div class="linaje-drawer-overlay" id="linaje-drawer-overlay" aria-hidden="true">
+            <div class="linaje-drawer" id="linaje-drawer" role="dialog" aria-labelledby="linaje-drawer-title">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:8px;">
+                    <h3 id="linaje-drawer-title">Linaje del aliado</h3>
+                    <button type="button" class="btn-accion" id="linaje-drawer-cerrar">Cerrar</button>
                 </div>
-            </div>
-            <div class="referidos-toolbar">
-                <div class="referidos-search-wrap">
-                    <svg class="referidos-search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                    <input type="text" class="referidos-search" id="referidos-admin-search" placeholder="Buscar aliado por nombre, código u oficio…" autocomplete="off">
+                <p class="linaje-meta" id="linaje-drawer-meta"></p>
+                <div class="linaje-ruta" id="linaje-drawer-ruta"></div>
+                <div class="linaje-block">
+                    <h4>Invitado por</h4>
+                    <div id="linaje-drawer-padre"></div>
                 </div>
-                <button type="button" class="referidos-btn-secondary" id="referidos-admin-vista-bosque">Ver todas las raíces</button>
-            </div>
-            <div class="referidos-layout">
-                <div class="referidos-tree-panel" id="referidos-admin-tree"></div>
-                <div class="referidos-detail-panel empty" id="referidos-admin-detail">
-                    <p>Selecciona un aliado en el árbol para ver su ficha.</p>
+                <div class="linaje-block">
+                    <h4>Invitó a</h4>
+                    <div id="linaje-drawer-hijos"></div>
                 </div>
             </div>
         </div>
+
 
         <!-- CAPA 5: Eventos y Trazabilidad -->
         <div class="eventos-trazabilidad">
@@ -1813,7 +1856,6 @@
                     if (conversaciones.length === 0) {
                         this.cargarChatsFallback();
                     }
-                    this.initReferidosArbol();
                 } catch (e) {
                     this.showToast('Error de conexión. Comprueba la red.', 'error');
                     this._conversacionesList = [];
@@ -2000,7 +2042,6 @@
                 if (btnVolverCPs) btnVolverCPs.addEventListener('click', () => { this.aliadosNivel = 'cps'; this.aliadosCPSeleccionado = null; this.aliadosGrupoSeleccionado = null; this.renderAliadosJerarquia(); });
                 if (btnVolverGrupos) btnVolverGrupos.addEventListener('click', () => { this.aliadosNivel = 'grupos'; this.aliadosGrupoSeleccionado = null; this.renderAliadosJerarquia(); });
 
-                this.setupReferidosEventListeners();
 
                 document.addEventListener('click', function ruanaConversacionesClick(e) {
                     var target = e.target;
@@ -2031,6 +2072,17 @@
                 const cerrarDetalleBtn = document.getElementById('aliadoDetalleCerrar');
                 if (cerrarDetalleBtn) {
                     cerrarDetalleBtn.addEventListener('click', () => this.cerrarModalDetalle());
+                }
+
+                const linajeCerrar = document.getElementById('linaje-drawer-cerrar');
+                const linajeOverlay = document.getElementById('linaje-drawer-overlay');
+                if (linajeCerrar) {
+                    linajeCerrar.addEventListener('click', () => this.cerrarLinajeDrawer());
+                }
+                if (linajeOverlay) {
+                    linajeOverlay.addEventListener('click', (e) => {
+                        if (e.target === linajeOverlay) this.cerrarLinajeDrawer();
+                    });
                 }
 
                 const btnResolverConfirm = document.getElementById('btn-resolver-conflicto-confirm');
@@ -3444,6 +3496,14 @@
                     const fechaRegistro = aliado.creado_en ? this.formatearHora(aliado.creado_en) : '—';
                     const totalContactos = aliado.total_contactos != null ? aliado.total_contactos : '—';
                     const contactos30d = aliado.contactos_30d != null ? aliado.contactos_30d : '—';
+                    const hijosCount = Number(aliado.hijos_directos_count || 0);
+                    const invitadoPorNombre = (aliado.invitado_por_nombre || '').trim();
+                    const invitadoPorCodigo = (aliado.invitado_por_codigo || '').trim();
+                    let invitadoPorTexto = 'Registro directo / Admin';
+                    if (invitadoPorCodigo) {
+                        invitadoPorTexto = this.escapeHtml(invitadoPorNombre || invitadoPorCodigo) +
+                            (invitadoPorNombre ? ' (' + this.escapeHtml(invitadoPorCodigo) + ')' : '');
+                    }
 
                     card.innerHTML = `
                         <div class="aliado-header-admin">
@@ -3488,8 +3548,13 @@
                                 <span class="info-value">Contactos: ${totalContactos} (30d: ${contactos30d})</span>
                             </div>
                         </div>
+                        <div class="aliado-linaje-row">
+                            <div><strong>Invitado por:</strong> ${invitadoPorTexto}</div>
+                            <div><strong>Invitó a:</strong> ${hijosCount} aliado${hijosCount === 1 ? '' : 's'}</div>
+                        </div>
                         <div class="aliado-acciones">
                             <button class="btn-accion btn-ver-detalle">Ver Detalle</button>
+                            <button class="btn-accion btn-linaje">Ver linaje</button>
                             <button class="btn-accion danger btn-pausar">Pausar</button>
                         </div>
                     `;
@@ -3497,6 +3562,11 @@
                     const verDetalleBtn = card.querySelector('.btn-ver-detalle');
                     if (verDetalleBtn) {
                         verDetalleBtn.addEventListener('click', () => this.abrirModalDetalle(aliado));
+                    }
+
+                    const linajeBtn = card.querySelector('.btn-linaje');
+                    if (linajeBtn) {
+                        linajeBtn.addEventListener('click', () => this.abrirLinajeDrawer(aliado));
                     }
 
                     const pausarBtn = card.querySelector('.btn-pausar');
@@ -3508,63 +3578,86 @@
                 });
             }
 
-            setupReferidosEventListeners() {
-                const searchInput = document.getElementById('referidos-admin-search');
-                const btnBosque = document.getElementById('referidos-admin-vista-bosque');
-                if (searchInput) {
-                    searchInput.addEventListener('keydown', (e) => {
-                        if (e.key !== 'Enter') return;
-                        e.preventDefault();
-                        const q = (searchInput.value || '').trim();
-                        if (!this._referidosTree) return;
-                        if (!q) {
-                            this._referidosTree.load().catch(() => {
-                                this.showToast('No se pudo cargar la red de referidos', 'error');
-                            });
+            abrirLinajeDrawer(aliado) {
+                if (!aliado || !aliado.codigo) return;
+                const overlay = document.getElementById('linaje-drawer-overlay');
+                const meta = document.getElementById('linaje-drawer-meta');
+                const rutaEl = document.getElementById('linaje-drawer-ruta');
+                const padreEl = document.getElementById('linaje-drawer-padre');
+                const hijosEl = document.getElementById('linaje-drawer-hijos');
+                const title = document.getElementById('linaje-drawer-title');
+                if (!overlay || !padreEl || !hijosEl) return;
+                if (title) title.textContent = 'Linaje · ' + (aliado.nombre || aliado.codigo);
+                if (meta) meta.textContent = 'Cargando genealogía…';
+                if (rutaEl) rutaEl.textContent = '';
+                padreEl.innerHTML = '<p class="linaje-empty">Cargando…</p>';
+                hijosEl.innerHTML = '<p class="linaje-empty">Cargando…</p>';
+                overlay.classList.add('show');
+                overlay.setAttribute('aria-hidden', 'false');
+                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+                fetch('/api/admin/aliados/' + encodeURIComponent(aliado.codigo) + '/linaje', {
+                    credentials: 'same-origin',
+                    headers: authHeaders,
+                })
+                    .then(r => r.ok ? r.json() : null)
+                    .then(data => {
+                        if (!data || data.status !== 'success' || !data.linaje) {
+                            if (meta) meta.textContent = 'No se pudo cargar el linaje.';
+                            padreEl.innerHTML = '<p class="linaje-empty">Sin datos</p>';
+                            hijosEl.innerHTML = '<p class="linaje-empty">Sin datos</p>';
                             return;
                         }
-                        this._referidosTree.searchAndFocus(q).catch((err) => {
-                            this.showToast(err.message || 'Sin resultados', 'error');
-                        });
-                    });
-                }
-                if (btnBosque) {
-                    btnBosque.addEventListener('click', () => {
-                        if (searchInput) searchInput.value = '';
-                        if (this._referidosTree) {
-                            this._referidosTree.load().catch(() => {
-                                this.showToast('No se pudo cargar la red de referidos', 'error');
+                        const linaje = data.linaje;
+                        const nodo = linaje.aliado || {};
+                        if (meta) {
+                            meta.textContent = (nodo.nombre || aliado.nombre || '') + ' · ' + (nodo.codigo || aliado.codigo || '');
+                        }
+                        const ruta = Array.isArray(linaje.ruta) ? linaje.ruta : [];
+                        if (rutaEl) {
+                            rutaEl.textContent = ruta.length
+                                ? ('Ruta: ' + ruta.map(n => (n.nombre || n.codigo)).join(' → '))
+                                : 'Ruta: (raíz)';
+                        }
+                        const padre = linaje.padre;
+                        if (!padre) {
+                            padreEl.innerHTML = '<p class="linaje-empty">Registro directo / raíz admin</p>';
+                        } else {
+                            padreEl.innerHTML = this._linajeCardHtml(padre);
+                            const card = padreEl.querySelector('.linaje-card');
+                            if (card) card.addEventListener('click', () => this.abrirLinajeDrawer(padre));
+                        }
+                        const hijos = Array.isArray(linaje.hijos) ? linaje.hijos : [];
+                        if (!hijos.length) {
+                            hijosEl.innerHTML = '<p class="linaje-empty">Aún no ha invitado a nadie.</p>';
+                        } else {
+                            hijosEl.innerHTML = hijos.map(h => this._linajeCardHtml(h)).join('');
+                            hijosEl.querySelectorAll('.linaje-card').forEach((el, idx) => {
+                                el.addEventListener('click', () => this.abrirLinajeDrawer(hijos[idx]));
                             });
                         }
+                    })
+                    .catch(() => {
+                        if (meta) meta.textContent = 'Error de red al cargar linaje.';
                     });
-                }
             }
 
-            initReferidosArbol() {
-                if (typeof RuanaReferidos === 'undefined') return;
-                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
-                const self = this;
-                this._referidosTree = new RuanaReferidos.RuanaReferidosTree({
-                    treeContainer: document.getElementById('referidos-admin-tree'),
-                    detailContainer: document.getElementById('referidos-admin-detail'),
-                    metaContainer: document.getElementById('referidos-admin-meta'),
-                    fetchOptions: { headers: authHeaders },
-                    mode: 'admin',
-                    onVerDetalleCompleto: (nodo) => {
-                        const full = (self._aliadosData || []).find(a => a.codigo === nodo.codigo);
-                        self.abrirModalDetalle(full || nodo);
-                    },
-                    onCentrarArbol: (codigo) => {
-                        if (self._referidosTree) {
-                            self._referidosTree.focusOnCodigo(codigo).catch(() => {
-                                self.showToast('No se pudo centrar el árbol', 'error');
-                            });
-                        }
-                    }
-                });
-                this._referidosTree.load().catch(() => {
-                    this.showToast('No se pudo cargar la red de referidos', 'error');
-                });
+            _linajeCardHtml(nodo) {
+                const nombre = this.escapeHtml(nodo.nombre || '(sin nombre)');
+                const codigo = this.escapeHtml(nodo.codigo || '');
+                const oficio = this.escapeHtml(nodo.oficio || '—');
+                const zona = this.escapeHtml(nodo.zona || nodo.codigo_postal || '—');
+                const hijos = nodo.referidos_count != null ? nodo.referidos_count : (nodo.hijos_directos_count || 0);
+                return '<div class="linaje-card" data-codigo="' + codigo + '">' +
+                    '<div class="nombre">' + nombre + '</div>' +
+                    '<div class="sub">' + codigo + ' · ' + oficio + ' · ' + zona + ' · ' + hijos + ' hijos</div>' +
+                    '</div>';
+            }
+
+            cerrarLinajeDrawer() {
+                const overlay = document.getElementById('linaje-drawer-overlay');
+                if (!overlay) return;
+                overlay.classList.remove('show');
+                overlay.setAttribute('aria-hidden', 'true');
             }
 
             abrirModalDetalle(aliado) {
