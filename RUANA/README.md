@@ -151,7 +151,7 @@ Límites: máximo **5 grupos por código postal**; **un oficio principal por gru
   4. **Final**: **mayor score permanece** en el grupo; el otro sale (suplente vuelve a su grupo anterior si pierde).
 - **Primera derrota** (el aliado original pierde): **no se elimina el perfil**, **no se desactiva el código**. Se **crea o asigna** a un grupo real (RUANA-XXX), **score se reinicia a 75**. Ese grupo funciona como grupo normal (recibe solicitudes, genera score, regla 1 oficio). Solo las **derrotas en competencia** cuentan (cambios involuntarios por disolución o reasignación no cuentan).
 - **Segunda derrota en competencia (expulsión definitiva)**: se **elimina el perfil** del acceso (estado = `expulsado`), se **desactiva el código** (el código ya no da acceso al panel ni vale como invitación). Para volver se **requiere nueva invitación** (registro con otro código de invitación).
-- **No se muestran scores individuales** cuando el grupo tiene competencia activa (el panel y las APIs omiten el campo `score` y exponen `competencia_activa: true`).
+- El score individual **sigue visible** durante competencia activa; las APIs exponen `competencia_activa: true` como indicador.
 - **Finalizar vencidas**: `POST /api/competencia/finalizar-vencidas` (para cron o ejecución periódica).
 
 ---
