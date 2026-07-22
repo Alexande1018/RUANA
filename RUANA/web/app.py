@@ -2953,13 +2953,17 @@ def crear_invitacion():
         if result['status'] != 'success':
             return jsonify(result), 400
 
-        # Registrar qui?n invit? (para recompensa +5 cuando se complete el referido)
-        aliado_id_invitador = aliado_invitador_id
-        if aliado_id_invitador is not None:
-            try:
-                db._registrar_invitacion(codigo, int(aliado_id_invitador))
-            except Exception:
-                pass
+        # Registrar quién invitó (para recompensa +5 y métrica de referidos al completar)
+        if aliado_invitador_id is None:
+            return jsonify({'status': 'error', 'message': 'No se pudo identificar al invitador'}), 500
+        try:
+            db._registrar_invitacion(codigo, int(aliado_invitador_id))
+        except Exception as e:
+            print(f"[RUANA] Error registrando invitacion {codigo}: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': 'No se pudo registrar la invitacion. Intenta de nuevo.',
+            }), 500
 
         # Si esta invitaci?n viene de "Conozco a alguien", marcar la solicitud como contestada
         if solicitud_id is not None:
@@ -3004,11 +3008,16 @@ def admin_crear_invitacion():
         db.obtener_o_crear_invitador_admin(admin_codigo)
         admin_aliado = db.obtener_aliado_por_codigo(admin_codigo)
         admin_id = admin_aliado.get('id') if admin_aliado else None
-        if admin_id is not None:
-            try:
-                db._registrar_invitacion(codigo, int(admin_id))
-            except Exception:
-                pass
+        if admin_id is None:
+            return jsonify({'status': 'error', 'message': 'No se pudo vincular invitacion al admin'}), 500
+        try:
+            db._registrar_invitacion(codigo, int(admin_id))
+        except Exception as e:
+            print(f"[RUANA] Error registrando invitacion admin {codigo}: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': 'No se pudo registrar la invitacion admin. Intenta de nuevo.',
+            }), 500
 
         return jsonify({
             'status': 'success',

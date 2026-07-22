@@ -538,6 +538,11 @@
             color: #eab308;
         }
 
+        .aliado-estado-badge.pendientes {
+            background: rgba(234, 179, 8, 0.18);
+            color: #fbbf24;
+        }
+
         .aliado-estado-badge.riesgo {
             background: rgba(239, 68, 68, 0.2);
             color: #ef4444;
@@ -3481,12 +3486,19 @@
                     const card = document.createElement('div');
                     card.className = 'aliado-admin-card';
 
+                    const estadoBd = (aliado.estado || '').toLowerCase();
                     const estadoPanel = aliado.estado_panel || aliado.estado || 'activos';
-                    const estadoBadgeClasses = `aliado-estado-badge ${estadoPanel}`;
+                    const badgeKey = (estadoBd === 'pendiente_validacion' || estadoBd === 'pendiente_completar')
+                        ? 'pendientes'
+                        : estadoPanel;
+                    const estadoBadgeClasses = `aliado-estado-badge ${badgeKey}`;
                     let estadoTexto = 'Activo';
-                    if (estadoPanel === 'observacion') estadoTexto = 'En Observación';
+                    if (badgeKey === 'pendientes' || estadoBd === 'pendiente_validacion') estadoTexto = 'Pendiente de validación';
+                    else if (estadoBd === 'pendiente_completar') estadoTexto = 'Pendiente de completar';
+                    else if (estadoPanel === 'observacion') estadoTexto = 'En Observación';
                     else if (estadoPanel === 'riesgo') estadoTexto = 'En Riesgo';
                     else if (estadoPanel === 'suspendido_temporal') estadoTexto = 'Pausado';
+                    else if (estadoPanel === 'rechazado') estadoTexto = 'Rechazado';
                     const badgeSuplente = aliado.es_suplente_activo ? '<span class="aliado-badge suplente">Suplente</span>' : '';
                     const badgeCompetencia = aliado.es_titular_en_competencia ? '<span class="aliado-badge competencia">En competencia</span>' : '';
 
