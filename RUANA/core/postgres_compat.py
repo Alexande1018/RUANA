@@ -70,6 +70,23 @@ def _translate_sql(sql: str) -> str:
     if re.match(r"INSERT\s+INTO\s+", translated, flags=re.IGNORECASE) and " OR IGNORE " in sql.upper():
         translated = f"{translated} ON CONFLICT DO NOTHING"
 
+    # INSERT OR REPLACE INTO t (a,b,...) VALUES (...) → upsert on primera columna (PK típica)
+    replace_match = re.match(
+        r"INSERT\s+OR\s+REPLACE\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)\s*;?\s*$",
+        translated,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if replace_match:
+        table, cols_raw, vals_raw = replace_match.groups()
+        cols = [c.strip() for c in cols_raw.split(",") if c.strip()]
+        if cols:
+            pk = cols[0]
+            updates = ", ".join(f"{c} = EXCLUDED.{c}" for c in cols[1:]) or f"{pk} = EXCLUDED.{pk}"
+            translated = (
+                f"INSERT INTO {table} ({cols_raw}) VALUES ({vals_raw}) "
+                f"ON CONFLICT ({pk}) DO UPDATE SET {updates}"
+            )
+
     translated = re.sub(
         r"datetime\('now',\s*'-([0-9]+)\s+day'\)",
         r"(now() - interval '\1 day')",

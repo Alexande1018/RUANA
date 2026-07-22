@@ -1253,13 +1253,35 @@ class DBManager:
                 if conn:
                     conn.close()
 
+    @staticmethod
+    def _normalizar_texto_catalogo(texto: str) -> str:
+        """Normaliza texto de catálogo: minúsculas, sin acentos ni espacios duplicados."""
+        import re
+        import unicodedata
+        raw = unicodedata.normalize("NFD", str(texto or "").strip().lower())
+        sin_acentos = "".join(c for c in raw if unicodedata.category(c) != "Mn")
+        return re.sub(r"\s+", " ", sin_acentos).strip()
+
+    def _resolver_en_conjunto_catalogo(self, valor: str, permitidos: set) -> Optional[str]:
+        """Devuelve la forma canónica del catálogo si valor coincide (exacto o sin acentos)."""
+        valor = (valor or "").strip()
+        if not valor or not permitidos:
+            return None
+        if valor in permitidos:
+            return valor
+        objetivo = self._normalizar_texto_catalogo(valor)
+        for item in permitidos:
+            if self._normalizar_texto_catalogo(item) == objetivo:
+                return item
+        return None
+
     def oficio_en_catalogo(self, oficio: str) -> bool:
         """True si el oficio está en el catálogo oficial RUANA (comparación normalizada)."""
         if not oficio or not str(oficio).strip():
             return False
         catalogo = self.get_catalogo_oficios_ruana()
-        oficio_norm = str(oficio).strip()
-        return oficio_norm in [str(o).strip() for o in catalogo if o]
+        permitidos = {str(o).strip() for o in catalogo if o and str(o).strip()}
+        return self._resolver_en_conjunto_catalogo(str(oficio).strip(), permitidos) is not None
 
     # ===============================================
     # OPERACIONES GRUPOS TERRITORIALES
@@ -1853,7 +1875,11 @@ class DBManager:
                 # Catálogo oficial: oficio fuera de catálogo → pendiente_validacion (requiere validación manual)
                 # Placeholder de invitación ("Conozco a alguien") mantiene pendiente_completar para que el código lleve a registro
                 oficio_stripped = str(oficio).strip() if oficio else ''
-                en_catalogo = self.oficio_en_catalogo(oficio_stripped) if oficio_stripped else False
+                catalogo_oficial = {str(o).strip() for o in self.get_catalogo_oficios_ruana() if o and str(o).strip()}
+                oficio_canonico = self._resolver_en_conjunto_catalogo(oficio_stripped, catalogo_oficial) if oficio_stripped else None
+                en_catalogo = oficio_canonico is not None
+                if oficio_canonico:
+                    oficio_stripped = oficio_canonico
                 estado_final = estado
                 if oficio_stripped and not en_catalogo and estado != 'pendiente_completar':
                     estado_final = 'pendiente_validacion'
@@ -1861,10 +1887,16 @@ class DBManager:
                 # Especializaciones: solo especialidades del mismo oficio (catálogo jerárquico), máx. 3 en total (plaza + lista)
                 esp_plaza = (especializacion or '').strip() or oficio_stripped
                 catalogo_jer = self.get_catalogo_oficios_jerarquico()
-                oficio_info = next((o for o in catalogo_jer if (o.get('nombre') or '').strip() == oficio_stripped), None)
+                oficio_info = next(
+                    (o for o in catalogo_jer if self._normalizar_texto_catalogo(o.get('nombre') or '') == self._normalizar_texto_catalogo(oficio_stripped)),
+                    None,
+                )
                 allowed_esp = set()
                 if oficio_info and oficio_info.get('especializaciones'):
                     allowed_esp = {str(e).strip() for e in oficio_info['especializaciones'] if str(e).strip()}
+                esp_canonica = self._resolver_en_conjunto_catalogo(esp_plaza, allowed_esp) if esp_plaza and allowed_esp else None
+                if esp_canonica:
+                    esp_plaza = esp_canonica
                 # Si eligió "Otro" en suboficio (especialización no está en catálogo) → pendiente de validación
                 if en_catalogo and oficio_stripped and estado_final != 'pendiente_completar' and esp_plaza:
                     if esp_plaza not in allowed_esp:
@@ -1873,8 +1905,8 @@ class DBManager:
                 # Filtrar solo las que pertenecen a este oficio y no repetir la plaza; máx. 2 adicionales (total 3)
                 esp_filtradas = []
                 for e in esp_list:
-                    s = str(e).strip()
-                    if s and s in allowed_esp and s != esp_plaza and s not in esp_filtradas:
+                    s = self._resolver_en_conjunto_catalogo(str(e).strip(), allowed_esp) if allowed_esp else None
+                    if s and s != esp_plaza and s not in esp_filtradas:
                         esp_filtradas.append(s)
                         if len(esp_filtradas) >= 2:  # plaza + 2 = 3 total
                             break
@@ -2005,25 +2037,35 @@ class DBManager:
                     return {'status': 'error', 'message': 'El telefono es obligatorio y debe tener al menos 7 digitos'}
 
                 oficio_stripped = str(oficio).strip() if oficio else ''
-                en_catalogo = self.oficio_en_catalogo(oficio_stripped) if oficio_stripped else False
+                catalogo_oficial = {str(o).strip() for o in self.get_catalogo_oficios_ruana() if o and str(o).strip()}
+                oficio_canonico = self._resolver_en_conjunto_catalogo(oficio_stripped, catalogo_oficial) if oficio_stripped else None
+                en_catalogo = oficio_canonico is not None
+                if oficio_canonico:
+                    oficio_stripped = oficio_canonico
                 estado_final = estado
                 if oficio_stripped and not en_catalogo:
                     estado_final = 'pendiente_validacion'
 
                 esp_plaza = (especializacion or '').strip() or oficio_stripped
                 catalogo_jer = self.get_catalogo_oficios_jerarquico()
-                oficio_info = next((o for o in catalogo_jer if (o.get('nombre') or '').strip() == oficio_stripped), None)
+                oficio_info = next(
+                    (o for o in catalogo_jer if self._normalizar_texto_catalogo(o.get('nombre') or '') == self._normalizar_texto_catalogo(oficio_stripped)),
+                    None,
+                )
                 allowed_esp = set()
                 if oficio_info and oficio_info.get('especializaciones'):
                     allowed_esp = {str(e).strip() for e in oficio_info['especializaciones'] if str(e).strip()}
+                esp_canonica = self._resolver_en_conjunto_catalogo(esp_plaza, allowed_esp) if esp_plaza and allowed_esp else None
+                if esp_canonica:
+                    esp_plaza = esp_canonica
                 if en_catalogo and oficio_stripped and esp_plaza and esp_plaza not in allowed_esp:
                     estado_final = 'pendiente_validacion'
 
                 esp_list = list(especializaciones) if especializaciones is not None else []
                 esp_filtradas = []
                 for e in esp_list:
-                    s = str(e).strip()
-                    if s and s in allowed_esp and s != esp_plaza and s not in esp_filtradas:
+                    s = self._resolver_en_conjunto_catalogo(str(e).strip(), allowed_esp) if allowed_esp else None
+                    if s and s != esp_plaza and s not in esp_filtradas:
                         esp_filtradas.append(s)
                         if len(esp_filtradas) >= 2:
                             break
@@ -3094,26 +3136,49 @@ class DBManager:
                 conn.close()
     
     def contar_referidos_por_codigo(self, codigo_aliado: str) -> int:
-        """Cuenta hijos directos del linaje (invitado_por_codigo; fallback referidos)."""
+        """Cuenta hijos directos del linaje (invitado_por_codigo; une referidos por compatibilidad)."""
         codigo_aliado = (codigo_aliado or '').strip()
         if not codigo_aliado:
             return 0
+        try:
+            self.backfill_invitado_por_linaje()
+        except Exception:
+            pass
         with self._lock:
             try:
                 conn = self._connect()
                 cursor = conn.cursor()
                 if self._aliados_tiene_invitado_por(cursor):
                     cursor.execute("""
-                        SELECT COUNT(*) FROM aliados
-                        WHERE invitado_por_codigo = ?
-                          AND COALESCE(estado, '') NOT IN (
-                              'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
-                          )
-                    """, (codigo_aliado,))
+                        SELECT COUNT(*) FROM (
+                            SELECT a.codigo AS codigo
+                            FROM aliados a
+                            WHERE a.invitado_por_codigo = ?
+                              AND COALESCE(a.estado, '') NOT IN (
+                                  'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
+                              )
+                            UNION
+                            SELECT r.codigo_referido AS codigo
+                            FROM referidos r
+                            JOIN aliados a ON a.codigo = r.codigo_referido
+                            WHERE r.codigo_invitador = ?
+                              AND COALESCE(a.estado, '') NOT IN (
+                                  'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
+                              )
+                        )
+                    """, (codigo_aliado, codigo_aliado))
                     return cursor.fetchone()[0] or 0
                 cursor.execute(
-                    "SELECT COUNT(*) FROM referidos WHERE codigo_invitador = ?",
-                    (codigo_aliado,)
+                    """
+                    SELECT COUNT(*)
+                    FROM referidos r
+                    JOIN aliados a ON a.codigo = r.codigo_referido
+                    WHERE r.codigo_invitador = ?
+                      AND COALESCE(a.estado, '') NOT IN (
+                          'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
+                      )
+                    """,
+                    (codigo_aliado,),
                 )
                 return cursor.fetchone()[0] or 0
             except Exception:
@@ -3763,17 +3828,37 @@ class DBManager:
 
     def _registrar_invitacion(self, codigo_invitacion: str, invitador_aliado_id: int) -> None:
         """Registra que este código de invitación fue creado por el aliado invitador (para +5 al completar)."""
+        codigo_invitacion = (codigo_invitacion or "").strip()
+        if not codigo_invitacion or invitador_aliado_id is None:
+            raise ValueError("codigo_invitacion e invitador_aliado_id son obligatorios")
         with self._lock:
+            conn = None
             try:
                 conn = self._connect()
                 cursor = conn.cursor()
-                cursor.execute("""
-                    INSERT OR REPLACE INTO invitaciones (codigo, invitador_aliado_id, usado)
-                    VALUES (?, ?, 0)
-                """, (codigo_invitacion, invitador_aliado_id))
+                if self.backend == "postgres":
+                    cursor.execute(
+                        """
+                        INSERT INTO invitaciones (codigo, invitador_aliado_id, usado)
+                        VALUES (?, ?, 0)
+                        ON CONFLICT (codigo) DO UPDATE SET
+                            invitador_aliado_id = EXCLUDED.invitador_aliado_id,
+                            usado = 0
+                        """,
+                        (codigo_invitacion, int(invitador_aliado_id)),
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        INSERT OR REPLACE INTO invitaciones (codigo, invitador_aliado_id, usado)
+                        VALUES (?, ?, 0)
+                        """,
+                        (codigo_invitacion, int(invitador_aliado_id)),
+                    )
                 conn.commit()
             finally:
-                conn.close()
+                if conn:
+                    conn.close()
 
     def crear_campana_invitacion(self, codigo: str = "", nombre: str = "",
                                   codigo_postal: str = "", max_usos: int = 100,
@@ -4367,11 +4452,16 @@ class DBManager:
                         score_panel = float(item.get('score') or 0)
                     item['score_panel'] = score_panel
 
-                    # Estado derivado desde score de evaluación para filtros del panel
-                    estado_bd = item.get('estado') or 'activo'
+                    # Estado de panel: prioriza estado real de BD (activo / pendiente_validacion).
+                    # El score de evaluación solo reclasifica a observación/riesgo cuando existe evaluación.
+                    estado_bd = (item.get('estado') or 'activo').strip().lower()
                     estado_panel = 'activos'
-                    if estado_bd in ('expulsado', 'suspendido_temporal'):
+                    if estado_bd in ('pendiente_validacion', 'pendiente_completar'):
+                        estado_panel = 'pendientes'
+                    elif estado_bd in ('expulsado', 'suspendido_temporal', 'rechazado'):
                         estado_panel = estado_bd
+                    elif estado_bd == 'activo' and eval_score is None:
+                        estado_panel = 'activos'
                     else:
                         if eval_score is not None:
                             try:
