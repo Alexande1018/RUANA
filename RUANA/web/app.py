@@ -481,11 +481,9 @@ def get_aliado_datos():
                 grupo_info = db.info_grupo_para_panel(grupo_id)
                 if grupo_info:
                     aliado_dict['grupo_info'] = grupo_info
-            if grupo_id and db.grupo_tiene_competencia_activa(grupo_id):
-                aliado_dict.pop('score', None)
-                aliado_dict['competencia_activa'] = True
-            else:
-                aliado_dict['competencia_activa'] = False
+            aliado_dict['competencia_activa'] = bool(
+                grupo_id and db.grupo_tiene_competencia_activa(grupo_id)
+            )
 
             # Notificaciones del aliado (ej. comprobante rechazado con mensaje de admin)
             notificaciones = db.listar_notificaciones_aliado(codigo, limite=50)
@@ -869,11 +867,9 @@ def get_aliado_by_codigo(codigo):
                 }), 403
             aliado_out = dict(aliado)
             grupo_id = aliado_out.get('grupo_id')
-            if grupo_id and db.grupo_tiene_competencia_activa(grupo_id):
-                aliado_out.pop('score', None)
-                aliado_out['competencia_activa'] = True
-            else:
-                aliado_out['competencia_activa'] = False
+            aliado_out['competencia_activa'] = bool(
+                grupo_id and db.grupo_tiene_competencia_activa(grupo_id)
+            )
             return jsonify({
                 'status': 'success',
                 'aliado': aliado_out,
@@ -2953,7 +2949,7 @@ def crear_invitacion():
         if result['status'] != 'success':
             return jsonify(result), 400
 
-        # Registrar quién invitó (para recompensa +5 y métrica de referidos al completar)
+        # Registrar quién invitó (para recompensa +3 y métrica de referidos al completar)
         if aliado_invitador_id is None:
             return jsonify({'status': 'error', 'message': 'No se pudo identificar al invitador'}), 500
         try:

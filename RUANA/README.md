@@ -104,7 +104,7 @@ El frontend presenta y recoge acciones; el backend y el motor RUANA orquestan, a
 | **contacto_penalizaciones_aplicadas** | contacto_id, tipo (7d, 21d). Evita aplicar dos veces la misma penalización por contacto abierto. |
 | **evaluaciones** | codigo_aliado, estado (verde/amarillo/rojo), score, intencion, tasa_respuesta, tasa_confirmacion, meses_sin_trabajo, ciclos_consecutivos, razones, severidad (normal/alerta/critico). |
 | **evaluaciones_historico** | Historial de cambios de evaluación por aliado. |
-| **invitaciones** | codigo (PK), invitador_aliado_id, usado, creado_en. Para recompensa +5 al invitador cuando se usa la invitación. |
+| **invitaciones** | codigo (PK), invitador_aliado_id, usado, creado_en. Para recompensa +3 al invitador cuando se usa la invitación. |
 | **referidos** | codigo_referido, codigo_invitador, creado_en. Cuenta “aliados referidos por mí”. |
 | **invitaciones_oficio** | id, codigo (único), grupo_id, oficio, aliado_id, estado, fecha_creacion. Invitaciones para cubrir oficios faltantes en un grupo (formato RUANA-{grupo_id}-{OFICIO_NORM}-{4chars}). |
 | **eventos_sistema** | id, tipo, descripcion, actor_tipo, actor_codigo, metadata, creado_en. Trazabilidad (incl. tipo **apoyo_generado**). |
@@ -151,7 +151,7 @@ Límites: máximo **5 grupos por código postal**; **un oficio principal por gru
   4. **Final**: **mayor score permanece** en el grupo; el otro sale (suplente vuelve a su grupo anterior si pierde).
 - **Primera derrota** (el aliado original pierde): **no se elimina el perfil**, **no se desactiva el código**. Se **crea o asigna** a un grupo real (RUANA-XXX), **score se reinicia a 75**. Ese grupo funciona como grupo normal (recibe solicitudes, genera score, regla 1 oficio). Solo las **derrotas en competencia** cuentan (cambios involuntarios por disolución o reasignación no cuentan).
 - **Segunda derrota en competencia (expulsión definitiva)**: se **elimina el perfil** del acceso (estado = `expulsado`), se **desactiva el código** (el código ya no da acceso al panel ni vale como invitación). Para volver se **requiere nueva invitación** (registro con otro código de invitación).
-- **No se muestran scores individuales** cuando el grupo tiene competencia activa (el panel y las APIs omiten el campo `score` y exponen `competencia_activa: true`).
+- El score individual **sigue visible** durante competencia activa; las APIs exponen `competencia_activa: true` como indicador.
 - **Finalizar vencidas**: `POST /api/competencia/finalizar-vencidas` (para cron o ejecución periódica).
 
 ---
@@ -175,7 +175,7 @@ Límites: máximo **5 grupos por código postal**; **un oficio principal por gru
 - Contacto no concretado: -2 cada uno.
 - Contacto abierto 7 días: -2 (una vez por contacto).
 - Contacto abierto 21 días: -5 (una vez por contacto).
-- Aliado referido se registra con código de invitación válido: +5 al invitador.
+- Aliado referido se registra con código de invitación válido: +3 al invitador.
 
 Las penalizaciones por contactos abiertos se aplican al solicitar datos del aliado (p. ej. `GET /api/aliado/datos`) mediante `aplicar_penalizaciones_contactos_abiertos()`.
 
@@ -229,7 +229,7 @@ Un **contacto** une a un solicitante (aliado que pide servicio) y un profesional
 - **Validación**: `GET /api/invitaciones/validar/<codigo>`, `GET /api/invitaciones/validar?codigo=XXX` o `GET /api/validar-invitacion?codigo=XXX` comprueban el código (aliado o RUANA-oficio) y devuelven `invitacion` con zona, grupo, oficio, etc. según el tipo.
 - **Crear invitación (aliado)**: `POST /api/invitaciones/crear` genera un código ligado al invitador; la tabla `invitaciones` vincula código con `invitador_aliado_id`.
 - **Generar invitación por oficio**: `POST /api/generar-invitacion` y `POST /api/aliado/generar-invitacion` generan códigos para invitar a un oficio faltante en el grupo (formato RUANA-…).
-- **Al registrarse con código de invitación**: si el registro incluye `codigo_invitacion` y existe en `invitaciones` sin usar, se llama a `consumir_invitacion_y_recompensar`: +5 al invitador, se inserta en `referidos` y se marca la invitación como usada.
+- **Al registrarse con código de invitación**: si el registro incluye `codigo_invitacion` y existe en `invitaciones` sin usar, se llama a `consumir_invitacion_y_recompensar`: +3 al invitador, se inserta en `referidos` y se marca la invitación como usada.
 
 ---
 
