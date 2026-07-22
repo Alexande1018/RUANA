@@ -97,3 +97,13 @@ def test_aliado_logout_button_does_not_use_fixed_overlay_position():
     assert "#btn-logout" in text
     assert "position: sticky" in text
     assert "margin: 16px 20px 0 auto" in text
+
+
+def test_aliado_perfil_tiene_boton_generar_codigo_invitacion():
+    text = _read(WEB / "aliado.html")
+
+    assert 'id="btn-invitar-aliado"' in text
+    assert "btn-invitar-aliado" in text
+    assert "Generar código de invitación" in text
+    assert "generarCodigoInvitacionPerfil" in text
+    assert "/api/invitaciones/crear" in text
