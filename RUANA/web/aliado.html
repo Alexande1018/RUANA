@@ -957,7 +957,8 @@
             gap: 8px;
         }
 
-        .btn-conocer {
+        .btn-conocer,
+        .btn-invitar-aliado {
             flex: 1;
             padding: 8px 12px;
             background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
@@ -972,13 +973,39 @@
             letter-spacing: 0.4px;
         }
 
-        .btn-conocer:hover {
+        .btn-invitar-aliado {
+            flex: 0 1 auto;
+            width: 100%;
+            max-width: 360px;
+            padding: 12px 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-conocer:hover,
+        .btn-invitar-aliado:hover {
             transform: translateY(-1px);
             box-shadow: 0 6px 12px rgba(34, 197, 94, 0.25);
         }
 
-        .btn-conocer:active {
+        .btn-conocer:active,
+        .btn-invitar-aliado:active {
             transform: translateY(0);
+        }
+
+        .btn-invitar-aliado:disabled {
+            opacity: 0.65;
+            cursor: wait;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .perfil-acciones {
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
         }
 
         /* Modal para código de invitación */
@@ -1577,6 +1604,13 @@
                     <span class="detail-label">Desde</span>
                     <span class="detail-value" id="detail-fecha">---</span>
                 </div>
+            </div>
+
+            <div class="perfil-acciones">
+                <button type="button" class="btn-invitar-aliado" id="btn-invitar-aliado" title="Generar código para que un nuevo aliado se registre">
+                    <i data-lucide="user-plus" style="width:16px;height:16px"></i>
+                    Generar código de invitación
+                </button>
             </div>
 
             <!-- Mi grupo: nombre, estado, oficios representados, oficios faltantes (sin scores ni métricas de otros) -->
@@ -2695,12 +2729,52 @@
             }
 
             /**
+             * Generar código de invitación libre desde el perfil del aliado
+             * (sin vincular a una solicitud del grupo).
+             */
+            async generarCodigoInvitacionPerfil() {
+                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
+                if (!codigo) {
+                    alert('Sesión no válida');
+                    return;
+                }
+                const btn = document.getElementById('btn-invitar-aliado');
+                if (btn) btn.disabled = true;
+                const zona = (this.aliado && this.aliado.codigo_postal) || '';
+                const apiBase = getApiBase();
+                try {
+                    const r = await fetch(apiBase + '/api/invitaciones/crear', {
+                        method: 'POST',
+                        headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
+                        body: JSON.stringify({ zona: zona }),
+                        credentials: 'same-origin'
+                    });
+                    const data = await r.json().catch(() => ({}));
+                    if (r.ok && data.status === 'success' && data.codigo) {
+                        this.currentCode = data.codigo;
+                        this.currentSolicitud = null;
+                        this.mostrarModalCodigoInvitacion(data.codigo, false);
+                        const modalText = document.querySelector('#modal-code .modal-text');
+                        if (modalText) {
+                            modalText.textContent = 'Comparte este código único con la persona que quieras invitar para que se registre como aliado:';
+                        }
+                    } else {
+                        alert(data.message || data.error || 'No se pudo generar el código. Intenta de nuevo.');
+                    }
+                } catch (e) {
+                    alert('Error de conexión: ' + (e.message || e));
+                } finally {
+                    if (btn) btn.disabled = false;
+                }
+            }
+
+            /**
              * NUEVO FLUJO F03: Generar código de invitación para nuevo aliado
-             * 
+             *
              * Este código se crea desde:
-             * 1. Botón "Invitar a otro aliado" (en sección de métricas)
+             * 1. Botón "Generar código de invitación" (perfil del aliado)
              * 2. Botón "Yo conozco a alguien" (dentro de una solicitud)
-             * 
+             *
              * Flujo "Conozco a alguien": primero se genera el código en el backend (y queda
              * registrado en invitaciones + panel admin), luego se muestra el modal con el código
              * para que el usuario lo copie antes de cerrar. La solicitud se marca como contestada.
@@ -2867,6 +2941,11 @@
                 const btnLogout = document.getElementById('btn-logout');
                 if (btnLogout) {
                     btnLogout.addEventListener('click', () => this.handleLogout());
+                }
+
+                const btnInvitarAliado = document.getElementById('btn-invitar-aliado');
+                if (btnInvitarAliado) {
+                    btnInvitarAliado.addEventListener('click', () => this.generarCodigoInvitacionPerfil());
                 }
 
                 const metricReferidos = document.getElementById('metrica-card-referidos');
