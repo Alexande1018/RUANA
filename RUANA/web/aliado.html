@@ -558,6 +558,65 @@
             color: #eab308;
         }
 
+        .profesional-score-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            margin: 0 0 12px;
+        }
+
+        .profesional-etiqueta {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            border: 1px solid transparent;
+        }
+        .profesional-etiqueta.destacado {
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.35) 0%, rgba(218, 165, 32, 0.45) 45%, rgba(255, 236, 150, 0.4) 100%);
+            color: #ffe566;
+            border-color: rgba(255, 215, 0, 0.65);
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.35);
+            text-shadow: 0 0 6px rgba(255, 215, 0, 0.55);
+        }
+        .profesional-etiqueta.estable {
+            background: rgba(34, 197, 94, 0.18);
+            color: #4ade80;
+            border-color: rgba(34, 197, 94, 0.35);
+        }
+        .profesional-etiqueta.en_riesgo {
+            background: rgba(234, 179, 8, 0.2);
+            color: #eab308;
+            border-color: rgba(234, 179, 8, 0.4);
+        }
+        .profesional-etiqueta.competencia {
+            background: rgba(239, 68, 68, 0.2);
+            color: #f87171;
+            border-color: rgba(239, 68, 68, 0.4);
+        }
+
+        .profesional-score {
+            font-size: 0.85rem;
+            color: #c4c4c4;
+            font-weight: 500;
+        }
+        .profesional-score strong {
+            color: #f5f5f5;
+            font-weight: 700;
+        }
+        .profesional-score.destacado strong {
+            color: #ffd700;
+            text-shadow: 0 0 6px rgba(255, 215, 0, 0.5);
+        }
+        .profesional-score.estable strong { color: #4ade80; }
+        .profesional-score.en_riesgo strong { color: #eab308; }
+        .profesional-score.competencia strong { color: #f87171; }
+
         .profesional-card.perfil-incompleto {
             border-color: rgba(234, 179, 8, 0.35);
             opacity: 0.92;
@@ -3488,6 +3547,35 @@
             }
 
             /**
+             * Meta de etiqueta/score RUANA para tarjetas del directorio.
+             * Bandas: DESTACADO ≥85, ESTABLE ≥50, EN RIESGO ≥15, COMPETENCIA <15.
+             */
+            _scoreEtiquetaMeta(score, estadoRuana) {
+                let s = 0;
+                try {
+                    s = score != null && score !== '' ? parseInt(score, 10) : 0;
+                    if (isNaN(s)) s = 0;
+                } catch (e) {
+                    s = 0;
+                }
+                const map = {
+                    'DESTACADO': { status: 'destacado', label: 'Destacado' },
+                    'PRIORITARIO': { status: 'destacado', label: 'Destacado' },
+                    'ESTABLE': { status: 'estable', label: 'Estable' },
+                    'EN RIESGO': { status: 'en_riesgo', label: 'En riesgo' },
+                    'COMPETENCIA': { status: 'competencia', label: 'Competencia' }
+                };
+                const key = (estadoRuana || '').toString().trim().toUpperCase();
+                if (map[key]) {
+                    return { score: s, status: map[key].status, label: map[key].label };
+                }
+                if (s >= 85) return { score: s, status: 'destacado', label: 'Destacado' };
+                if (s >= 50) return { score: s, status: 'estable', label: 'Estable' };
+                if (s >= 15) return { score: s, status: 'en_riesgo', label: 'En riesgo' };
+                return { score: s, status: 'competencia', label: 'Competencia' };
+            }
+
+            /**
              * Renderizar lista de profesionales del grupo (panel Directorio)
              * - Oculta "Contactar" y muestra "Conversación activa" / "Abrir chat" si ya hay contacto abierto con ese profesional.
              * - Filtra por buscador (nombre, oficio, zona).
@@ -3532,8 +3620,8 @@
                     const zona = prof.zona || prof.codigo_postal || '(sin zona)';
                     const descripcionServicio = (prof.descripcion_servicio || prof.descripcion || '').trim();
                     const badgeTexto = tieneConversacion ? 'Conversación activa' : (esIncompleto ? 'Perfil incompleto' : 'DISPONIBLE');
+                    const scoreMeta = this._scoreEtiquetaMeta(prof.score, prof.estado_ruana);
 
-                    const iniciales = this.getIniciales(nombre);
                     const badgeRuana = tieneConversacion ? 'conversacion-activa' : (esIncompleto ? 'perfil-incompleto' : '');
                     const badgeTipo = tieneConversacion ? 'ruana-badge pendiente' : (esIncompleto ? 'ruana-badge observacion' : 'ruana-badge disponible');
                     const avatarHtml = this.renderAvatarHtml(prof.foto_perfil_url, nombre, 'profesional-avatar');
@@ -3550,6 +3638,10 @@
                                 </div>
                             </div>
                             <div class="profesional-badge ${badgeRuana} ${badgeTipo}"><span class="ruana-badge-dot"></span>${this.escapeHtml(badgeTexto)}</div>
+                        </div>
+                        <div class="profesional-score-row">
+                            <span class="profesional-etiqueta ${scoreMeta.status}">${this.escapeHtml(scoreMeta.label)}</span>
+                            <span class="profesional-score ${scoreMeta.status}">Score <strong>${this.escapeHtml(String(scoreMeta.score))}</strong></span>
                         </div>
                         ${descripcionServicio ? `<div class="profesional-descripcion">${this.escapeHtml(descripcionServicio)}</div>` : ''}
                         <div class="profesional-acciones">

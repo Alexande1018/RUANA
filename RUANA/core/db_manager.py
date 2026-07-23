@@ -4824,6 +4824,7 @@ class DBManager:
                 for row in rows:
                     item = dict(row)
                     item['zona'] = item.get('codigo_postal') or ''
+                    item['estado_ruana'] = self.score_a_estado(item.get('score'))
                     # M-06: marcar perfiles incompletos (placeholder o datos sin completar)
                     nombre = (item.get('nombre') or '').strip()
                     oficio = (item.get('oficio') or '').strip()
