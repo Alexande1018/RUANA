@@ -360,3 +360,48 @@ def test_penalizacion6_omite_no_activo(sqlite_db):
     conn.close()
     assert sqlite_db.aplicar_penalizacion_sin_acceso_semanal("99405", dia_ref="2026-07-15") == []
     assert _score(sqlite_db, "99405") == 50
+
+
+def test_penalizacion7_chat_agotado_resta_2_al_que_agoto(sqlite_db):
+    """Penalización 7: quien envía el mensaje que agota el chat → -2; el otro no."""
+    _crear_activo(sqlite_db, "99501", "SolAgota")
+    _crear_activo(sqlite_db, "99502", "ProfAgota")
+    created = sqlite_db.crear_contacto_ruana("99501", "99502", "Servicio", "Agota")
+    cid = created["id"]
+    sqlite_db.CHAT_MAX_MENSAJES_TOTAL = 3
+    sqlite_db._chat_referencia_ts = lambda cursor, contacto_id: datetime.now() - timedelta(minutes=5)
+
+    assert sqlite_db.enviar_mensaje_chat(cid, "99501", "msg1")["status"] == "success"
+    assert sqlite_db.enviar_mensaje_chat(cid, "99502", "msg2")["status"] == "success"
+    assert _score(sqlite_db, "99501") == 50
+    assert _score(sqlite_db, "99502") == 50
+
+    r = sqlite_db.enviar_mensaje_chat(cid, "99501", "msg3 agota")
+    assert r["status"] == "success"
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute("SELECT estado FROM contactos_ruana WHERE id = ?", (cid,))
+    assert cur.fetchone()[0] == "chat_agotado"
+    conn.close()
+
+    assert _score(sqlite_db, "99501") == 48
+    assert _score(sqlite_db, "99502") == 50
+    assert (-2, f"chat_agotado_sin_resultado_{cid}") in _motivos(sqlite_db, "99501")
+    assert not any(m.startswith("chat_agotado_sin_resultado_") for _, m in _motivos(sqlite_db, "99502"))
+
+    # Idempotente
+    assert sqlite_db.aplicar_penalizacion_chat_agotado_sin_resultado(cid, "99501") is None
+
+
+def test_penalizacion7_no_aplica_si_ya_cerrado(sqlite_db):
+    _crear_activo(sqlite_db, "99511", "SolCerrado")
+    _crear_activo(sqlite_db, "99512", "ProfCerrado")
+    created = sqlite_db.crear_contacto_ruana("99511", "99512", "Servicio", "Cerrado")
+    cid = created["id"]
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute("UPDATE contactos_ruana SET estado = 'trabajo_cerrado' WHERE id = ?", (cid,))
+    conn.commit()
+    conn.close()
+    assert sqlite_db.aplicar_penalizacion_chat_agotado_sin_resultado(cid, "99511") is None
+    assert _score(sqlite_db, "99511") == 50

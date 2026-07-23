@@ -5827,6 +5827,8 @@ class DBManager:
 
         resultado: Dict[str, Any] = {'status': 'error', 'message': 'unknown'}
         profesional_para_regla5: Optional[str] = None
+        codigo_penal_agotado: Optional[str] = None
+        contacto_penal_agotado: Optional[int] = None
 
         with self._lock:
             try:
@@ -5892,12 +5894,14 @@ class DBManager:
                 msg_id = cursor.lastrowid
 
                 # --- 7. Actualizacion de estado: si el chat llega al limite total -> chat_agotado ---
+                chat_agotado_ahora = False
                 if count_total + 1 >= self.CHAT_MAX_MENSAJES_TOTAL:
                     cursor.execute(
                         """UPDATE contactos_ruana SET estado = 'chat_agotado', actualizado_en = CURRENT_TIMESTAMP
                            WHERE id = ? AND estado IN ('iniciado', 'aceptado', 'trabajo_en_progreso', 'en_conversacion')""",
                         (contacto_id,)
                     )
+                    chat_agotado_ahora = (cursor.rowcount or 0) > 0
 
                 conn.commit()
 
@@ -5911,6 +5915,10 @@ class DBManager:
                 # Regla 5 solo si quien escribe es el profesional
                 if emisor_norm == pro:
                     profesional_para_regla5 = pro
+                # Penalización 7: quien agota el chat (mensaje 30) sin resultado declarado → -2
+                if chat_agotado_ahora:
+                    codigo_penal_agotado = emisor_norm
+                    contacto_penal_agotado = int(contacto_id)
             except Exception as e:
                 return {'status': 'error', 'message': str(e)}
             finally:
@@ -5923,7 +5931,99 @@ class DBManager:
                     self.aplicar_cambio_score(hito[0], hito[1], hito[2])
             except Exception:
                 pass
+        if codigo_penal_agotado and contacto_penal_agotado:
+            try:
+                self.aplicar_penalizacion_chat_agotado_sin_resultado(
+                    contacto_penal_agotado, codigo_penal_agotado
+                )
+            except Exception:
+                pass
         return resultado
+
+    def aplicar_penalizacion_chat_agotado_sin_resultado(
+        self, contacto_id: int, codigo_aliado: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Penalización 7: al agotar el chat (30 mensajes) sin declarar resultado → -2
+        solo a quien envió el mensaje que agotó el cupo.
+        No aplica si el encargo ya está en cierre adecuado.
+        Motivo: chat_agotado_sin_resultado_{contacto_id} (una vez).
+        """
+        codigo_aliado = (codigo_aliado or '').strip()
+        if not codigo_aliado or not contacto_id:
+            return None
+        with self._lock:
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT estado, solicitante_codigo, profesional_codigo FROM contactos_ruana WHERE id = ?",
+                    (int(contacto_id),),
+                )
+                row = cursor.fetchone()
+                if not row:
+                    return None
+                estado = (row[0] or '').strip()
+                sol = str(row[1] or '').strip()
+                prof = str(row[2] or '').strip()
+                if estado in self._ESTADOS_CIERRE_ADECUADO_CHAT:
+                    return None
+                if codigo_aliado not in (sol, prof):
+                    return None
+            except Exception:
+                return None
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+        motivo = f'chat_agotado_sin_resultado_{int(contacto_id)}'
+        if self._ya_aplicado_motivo_score(codigo_aliado, motivo):
+            return None
+        # También registrar tipo en contacto_penalizaciones_aplicadas
+        with self._lock:
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT 1 FROM contacto_penalizaciones_aplicadas
+                    WHERE contacto_id = ? AND tipo = 'chat_agotado'
+                    """,
+                    (int(contacto_id),),
+                )
+                if cursor.fetchone():
+                    return None
+            except Exception:
+                return None
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+        result = self.aplicar_cambio_score(codigo_aliado, -2, motivo)
+        if result.get('status') == 'success' and int(result.get('aplicado') or 0) != 0:
+            with self._lock:
+                try:
+                    conn = self._connect()
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        """
+                        INSERT OR IGNORE INTO contacto_penalizaciones_aplicadas (contacto_id, tipo)
+                        VALUES (?, 'chat_agotado')
+                        """,
+                        (int(contacto_id),),
+                    )
+                    conn.commit()
+                except Exception:
+                    pass
+                finally:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+            return {'codigo': codigo_aliado, 'motivo': motivo, 'result': result}
+        return None
 
     def _ya_aplicado_motivo_score(self, codigo_aliado: str, motivo: str) -> bool:
         codigo_aliado = (codigo_aliado or '').strip()
