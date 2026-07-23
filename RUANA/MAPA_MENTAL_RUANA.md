@@ -348,17 +348,17 @@
           ┌─────────────────┐ ┌───────────────┐ ┌──────────────────┐
           │  SUBE SCORE     │ │ BAJA SCORE    │ │  ESTADOS RUANA   │
           │                 │ │               │ │                  │
-          │ Trabajo cerrado │ │ No concretado │ │ 80-100:          │
-          │ OK: +8 c/u      │ │ : -2 c/u      │ │  PRIORITARIO     │
+          │ Trabajo cerrado │ │ No concretado │ │ 85-100:          │
+          │ OK: +8 c/u      │ │ : -2 c/u      │ │  DESTACADO       │
           │                 │ │               │ │                  │
-          │ Referido        │ │ Disputa       │ │ 50-79:           │
+          │ Referido        │ │ Disputa       │ │ 50-84:           │
           │ exitoso: +3     │ │ importe: -5   │ │  ESTABLE         │
           │                 │ │               │ │                  │
-          │                 │ │ Contacto 7d   │ │ 25-49:           │
+          │                 │ │ Contacto 7d   │ │ 15-49:           │
           │                 │ │ sin cerrar:-2 │ │  EN RIESGO       │
           │                 │ │               │ │                  │
-          │                 │ │ Contacto 21d  │ │ 0-24:            │
-          │                 │ │ sin cerrar:-5 │ │  EN COMPETENCIA  │
+          │                 │ │ Contacto 21d  │ │ 0-14:            │
+          │                 │ │ sin cerrar:-5 │ │  COMPETENCIA     │
           └─────────────────┘ └───────────────┘ └──────────────────┘
 
 

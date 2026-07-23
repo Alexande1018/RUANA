@@ -460,7 +460,7 @@ def get_aliado_datos():
             contar_contestadas = getattr(db, 'contar_solicitudes_enviadas_contestadas', lambda c: 0)
             solicitudes_enviadas_contestadas = contar_contestadas(codigo)
             referidos_count = db.contar_referidos_por_codigo(codigo)
-            # Estado RUANA siempre calculado desde el score (PRIORITARIO/ESTABLE/EN RIESGO/COMPETENCIA)
+            # Estado RUANA siempre calculado desde el score (DESTACADO/ESTABLE/EN RIESGO/COMPETENCIA)
             score = aliado.get('score')
             if score is None:
                 score = 0
@@ -3289,7 +3289,7 @@ def admin_dashboard_summary():
     - total_users: COUNT users (aliados)
     - active_users: WHERE status = active
     - suplentes: WHERE role = suplente (en competencia activa)
-    - en_riesgo: WHERE score < umbral o en rango EN RIESGO (15 <= score < 60)
+    - en_riesgo: WHERE score < umbral o en rango EN RIESGO (15 <= score < 50)
     - solicitudes_activas: WHERE estado = pendiente (open)
     - oficios_ocupados: COUNT oficios con titular activo
     - grupos: COUNT grupos reales

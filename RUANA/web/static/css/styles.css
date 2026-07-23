@@ -1382,10 +1382,11 @@ select optgroup {
     color: #4ade80;
 }
 
+.ruana-badge.destacado,
 .ruana-badge.prioritario {
-    background: rgba(22, 163, 74, 0.18);
-    border-color: rgba(22, 163, 74, 0.35);
-    color: #86efac;
+    background: rgba(212, 160, 23, 0.2);
+    border-color: rgba(212, 160, 23, 0.4);
+    color: #e6c35c;
 }
 
 .ruana-badge.pendiente {

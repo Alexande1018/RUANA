@@ -139,9 +139,9 @@
         }
 
         /* Score RUANA: estados y colores por rango (sin mostrar fórmulas) */
-        .perfil-status[data-status="prioritario"] {
-            background: rgba(22, 163, 74, 0.25);
-            color: #16a34a;
+        .perfil-status[data-status="destacado"] {
+            background: rgba(212, 160, 23, 0.28);
+            color: #e6c35c;
         }
         .perfil-status[data-status="estable"] {
             background: rgba(34, 197, 94, 0.15);
@@ -441,9 +441,9 @@
             font-weight: 400;
         }
 
-        /* Score RUANA: color del número según rango (85+ verde intenso, 60-84 verde suave, 35-59 amarillo, 0-34 rojo) */
-        .metrica-card.score-prioritario .metrica-numero { color: #16a34a; }
-        .metrica-card.score-estable .metrica-numero { color: #4ade80; }
+        /* Score RUANA: color del número según etiqueta (DESTACADO dorado, ESTABLE verde, EN RIESGO amarillo, COMPETENCIA rojo) */
+        .metrica-card.score-destacado .metrica-numero { color: #d4af37; }
+        .metrica-card.score-estable .metrica-numero { color: #22c55e; }
         .metrica-card.score-riesgo .metrica-numero { color: #eab308; }
         .metrica-card.score-competencia .metrica-numero { color: #ef4444; }
 
@@ -2553,11 +2553,12 @@
                 }
                 document.getElementById('detail-fecha').textContent = desdeTexto;
 
-                // Score RUANA: estado derivado del score (PRIORITARIO / ESTABLE / EN RIESGO / COMPETENCIA)
+                // Score RUANA: estado derivado del score (DESTACADO / ESTABLE / EN RIESGO / COMPETENCIA)
                 const statusEl = document.getElementById('perfil-status');
                 const estadoRuana = (aliadoData.estado_ruana || '').trim().toUpperCase();
                 const estadoMap = {
-                    'PRIORITARIO': { status: 'prioritario', label: 'Prioritario' },
+                    'DESTACADO': { status: 'destacado', label: 'Destacado' },
+                    'PRIORITARIO': { status: 'destacado', label: 'Destacado' }, // alias legado
                     'ESTABLE': { status: 'estable', label: 'Estable' },
                     'EN RIESGO': { status: 'en_riesgo', label: 'En riesgo' },
                     'COMPETENCIA': { status: 'competencia', label: 'Competencia' }
@@ -2678,12 +2679,12 @@
                     if (el) el.textContent = value;
                 });
 
-                // Color del Score RUANA por rango (85+ verde intenso, 60-84 verde suave, 35-59 amarillo, 0-34 rojo)
+                // Color del Score RUANA por etiqueta (DESTACADO ≥85, ESTABLE ≥50, EN RIESGO ≥15, COMPETENCIA <15)
                 const cardScore = document.getElementById('metrica-card-score');
                 if (cardScore) {
-                    cardScore.classList.remove('score-prioritario', 'score-estable', 'score-riesgo', 'score-competencia');
-                    if (score >= 85) cardScore.classList.add('score-prioritario');
-                    else if (score >= 60) cardScore.classList.add('score-estable');
+                    cardScore.classList.remove('score-destacado', 'score-prioritario', 'score-estable', 'score-riesgo', 'score-competencia');
+                    if (score >= 85) cardScore.classList.add('score-destacado');
+                    else if (score >= 50) cardScore.classList.add('score-estable');
                     else if (score >= 15) cardScore.classList.add('score-riesgo');
                     else cardScore.classList.add('score-competencia');
                 }

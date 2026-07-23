@@ -35,9 +35,9 @@ Hoy las recomendaciones no tienen consecuencias, no hay memoria de errores y la 
 
 ### Principio rector (no negociable)
 
-> **"El panel no piensa. El motor decide. El panel solo refleja estado."**
+> **"El panel no piensa. El score define el estado. El panel solo refleja estado."**
 
-El frontend presenta y recoge acciones; el backend y el motor RUANA orquestan, aplican reglas y persisten en SQLite.
+El frontend presenta y recoge acciones; el backend aplica reglas de score/competencia y persiste en SQLite. Las etiquetas `DESTACADO` / `ESTABLE` / `EN RIESGO` / `COMPETENCIA` son el semáforo de estado (el semáforo verde/amarillo/rojo del motor de evaluación ya no aplica como estado del aliado).
 
 ### Otros principios
 
@@ -163,11 +163,11 @@ Límites: máximo **5 grupos por código postal**; **un oficio principal por gru
 
 - Almacenado en `aliados.score`. Auditoría en `score_movimientos` (`codigo_aliado`, `delta`, `motivo`, `creado_en`).
 - **Límite diario**: máximo ±10 puntos por aliado por día.
-- **Cálculo de estado** (derivado; `DBManager.score_a_estado(score)`):
-  - **PRIORITARIO**: score ≥ 85  
-  - **ESTABLE**: 60 ≤ score < 85  
-  - **EN RIESGO**: 15 ≤ score < 60  
-  - **COMPETENCIA**: score < 15  
+- **Cálculo de estado** (derivado; `DBManager.score_a_estado(score)`). Este es el **único semáforo** de estado del aliado (ya no se usa el semáforo verde/amarillo/rojo del motor de evaluación):
+  - **DESTACADO** (verde dorado): score ≥ 85  
+  - **ESTABLE** (verde): 50 ≤ score < 85  
+  - **EN RIESGO** (amarillo): 15 ≤ score < 50  
+  - **COMPETENCIA** (rojo): score < 15  
 
 ### Reglas de aumento de score (orden 1–9)
 
@@ -260,20 +260,22 @@ Un **contacto** une a un solicitante (aliado que pide servicio) y un profesional
 
 ## 9. Motor de evaluación (engines/motor_evaluacion.py)
 
+> **Nota:** el semáforo verde/amarillo/rojo del motor **ya no es el estado visible del aliado**. El estado de cara al usuario y al panel es únicamente el derivado del score (`DESTACADO` / `ESTABLE` / `EN RIESGO` / `COMPETENCIA`). El motor permanece como lógica interna de métricas/evaluación histórica; no sustituye ni redefine esas etiquetas.
+
 - **Entrada**: diccionario de métricas por aliado (`tasa_respuesta`, `tasa_confirmacion`, `meses_sin_trabajo`, etc.).
-- **Reglas**:
+- **Reglas** (internas):
   - tasa_respuesta ≥ 0.70 → 1 filtro OK.
   - tasa_confirmacion ≥ 0.80 → 1 filtro OK.
   - meses_sin_trabajo ≤ 6 → 1 filtro OK.
-- **Decisión**:
+- **Salida interna** (no es la etiqueta de estado del aliado):
   - 3 OK → estado **verde**, intención **mantener**.
   - 2 OK → estado **amarillo**, intención **vigilar**.
   - ≤1 OK → estado **rojo**, intención **evaluar_suplencia**.
-- **Score del motor**: (filtros_ok / 3) * 100.
+- **Score del motor**: (filtros_ok / 3) * 100 (distinto de `aliados.score`).
 - **Persistencia**: se guarda en `evaluaciones` (y histórico) vía `DBManager.guardar_evaluacion`.
 - **Severidad**: según ciclos consecutivos en el mismo estado (normal / alerta / crítico). Ej.: rojo ≥2 ciclos o amarillo ≥6 ciclos → crítico.
 
-El orquestador (`core/orquestador.py`) ejecuta preflight, recolecta métricas (`metrics/collector.py`) y llama al motor; los eventos se registran en `events/event_bus.py` (archivo `logs/eventos_ruana.jsonl`). En la implementación actual, el **MetricsCollector** devuelve métricas de ejemplo para un aliado "A1"; la integración con datos reales (tasa respuesta/confirmación, meses sin trabajo desde BD) es futura. Al ejecutar `python core/orquestador.py` se ejecutan 5 ciclos de demo con pausa de 2 s entre ellos.
+El orquestador (`core/orquestador.py`) ejecuta preflight, recolecta métricas (`metrics/collector.py`) y llama al motor; los eventos se registran en `events/event_bus.py` (archivo `logs/eventos_ruana.jsonl`). En la implementación actual, el **MetricsCollector** puede devolver métricas de ejemplo; la fuente real es `DBManager.obtener_metricas_motor_por_aliado` cuando hay DB. Al ejecutar `python core/orquestador.py` se ejecutan 5 ciclos de demo con pausa de 2 s entre ellos.
 
 ---
 

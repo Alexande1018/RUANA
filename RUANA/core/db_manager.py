@@ -2445,15 +2445,15 @@ class DBManager:
     def score_a_estado(score: Any) -> str:
         """
         Calcula el estado RUANA a partir del score (siempre derivado, sin almacenar).
-        PRIORITARIO 85-100, ESTABLE 60-84, EN RIESGO 15-59, COMPETENCIA 0-14.
+        DESTACADO 85-100, ESTABLE 50-84, EN RIESGO 15-49, COMPETENCIA 0-14.
         """
         try:
             s = int(score) if score is not None else 0
         except (TypeError, ValueError):
             s = 0
         if s >= 85:
-            return 'PRIORITARIO'
-        if s >= 60:
+            return 'DESTACADO'
+        if s >= 50:
             return 'ESTABLE'
         if s >= 15:
             return 'EN RIESGO'
@@ -4753,7 +4753,7 @@ class DBManager:
 
                         if s < 15:
                             estado_panel = 'riesgo'
-                        elif s < 60:
+                        elif s < 50:
                             estado_panel = 'observacion'
                         else:
                             estado_panel = 'activos'
@@ -9041,7 +9041,7 @@ class DBManager:
                 conn.close()
 
     def contar_aliados_en_riesgo(self) -> int:
-        """Cuenta aliados activos con estado RUANA 'EN RIESGO' (15 <= score < 60)."""
+        """Cuenta aliados activos con estado RUANA 'EN RIESGO' (15 <= score < 50)."""
         with self._lock:
             try:
                 conn = self._connect()
@@ -9049,7 +9049,7 @@ class DBManager:
                 cursor.execute("""
                     SELECT COUNT(*) FROM aliados
                     WHERE estado = 'activo' AND score IS NOT NULL
-                    AND CAST(score AS INTEGER) >= 15 AND CAST(score AS INTEGER) < 60
+                    AND CAST(score AS INTEGER) >= 15 AND CAST(score AS INTEGER) < 50
                 """)
                 return cursor.fetchone()[0] or 0
             except Exception:
