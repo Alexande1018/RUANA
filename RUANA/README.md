@@ -176,6 +176,7 @@ Límites: máximo **5 grupos por código postal**; **un oficio principal por gru
 - **Regla 4**: 4 encargos `pagado` en el mismo mes (datos de Pagos Apoyo RUANA) sin incidencias de pago (disputa/conflicto o rechazo de comprobante, aunque luego se pague) → +3 una vez por mes (`regla4_4_encargos_mes_limpio_YYYY-MM`).
 - **Regla 5**: El profesional responde en &lt;1 h al primer mensaje de chat de 3 clientes (solicitantes) distintos → +3. Se evalúa al enviar mensaje del profesional; cada lote de 3 clientes otorga el bonus una vez (`regla5_3_clientes_respuesta_1h_...`).
 - **Regla 6**: Contacto marcado como **urgente** al iniciar el chat y Apoyo **pagado el mismo día** (calendario del servidor) → +3 al profesional (`regla6_urgente_mismo_dia_{contacto_id}`).
+- **Regla 7**: El contratante (solicitante) declara el importe **antes de 24 h** desde `contactos_ruana.creado_en` → +2 al contratante (`regla7_declaracion_24h_{contacto_id}`). Se evalúa al declarar; no requiere pago.
 - Declaración contradictoria (importe en disputa): -1 cada uno.
 - Contacto no concretado: -2 cada uno.
 - Contacto abierto 7 días: -2 (una vez por contacto).
