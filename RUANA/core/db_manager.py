@@ -6087,7 +6087,10 @@ class DBManager:
         - Apoyo RUANA segun apoyo_pct configurado. Disputa → -1; cierre no da score.
         - Coinciden → trabajo_cerrado, ingresos_ruana, audit_log (score al marcar Apoyo pagado).
         - No coinciden → importe_en_disputa, audit_log.
+        - Regla 7: si el contratante declara en <24 h desde creado_en → +2 (una vez).
         """
+        resultado = None
+        evaluar_regla7 = False
         with self._lock:
             conn = None
             try:
@@ -6271,11 +6274,25 @@ class DBManager:
                     resultado_estado = estado_actual
 
                 conn.commit()
-                return {'status': 'success', 'id': contacto_id, 'estado': resultado_estado}
+                resultado = {'status': 'success', 'id': contacto_id, 'estado': resultado_estado}
+                evaluar_regla7 = True
             except Exception as e:
                 return {'status': 'error', 'message': str(e)}
             finally:
-                conn.close()
+                if conn is not None:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+
+        if evaluar_regla7 and resultado and resultado.get('status') == 'success':
+            try:
+                hito = self.evaluar_regla7_declaracion_24h(contacto_id)
+                if hito:
+                    self.aplicar_cambio_score(hito[0], hito[1], hito[2])
+            except Exception:
+                pass
+        return resultado if resultado is not None else {'status': 'error', 'message': 'Error desconocido'}
 
     def obtener_metricas_contactos(self) -> Dict[str, Any]:
         """
@@ -7037,6 +7054,59 @@ class DBManager:
     REGLA4_ENCARGOS_MES_UMBRAL = 4
     REGLA4_ENCARGOS_MES_DELTA = 3
     REGLA6_DELTA = 3
+    REGLA7_DELTA = 2
+    REGLA7_HORAS_LIMITE = 24
+
+    def evaluar_regla7_declaracion_24h(
+        self,
+        contacto_id: int,
+        fecha_declaracion: Optional[Any] = None,
+    ) -> Optional[Tuple[str, int, str]]:
+        """
+        Regla 7: el contratante declara el importe antes de 24 h desde contactos_ruana.creado_en
+        → +2 al solicitante. Una vez por contacto (motivo regla7_declaracion_24h_{id}).
+        """
+        try:
+            contacto_id = int(contacto_id)
+        except (TypeError, ValueError):
+            return None
+        with self._lock:
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id, solicitante_codigo, creado_en, fecha_declaracion_solicitante
+                    FROM contactos_ruana WHERE id = ?
+                """, (contacto_id,))
+                row = cursor.fetchone()
+                if not row:
+                    return None
+                d = dict(row)
+            except Exception:
+                return None
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+        sol = str(d.get('solicitante_codigo') or '').strip()
+        if not sol or not self._es_invitador_elegible_score(sol):
+            return None
+        ts_inicio = self._parse_timestamp(d.get('creado_en'))
+        ts_decl = self._parse_timestamp(
+            fecha_declaracion if fecha_declaracion is not None else d.get('fecha_declaracion_solicitante')
+        )
+        if not ts_inicio or not ts_decl:
+            return None
+        if ts_decl < ts_inicio:
+            return None
+        if (ts_decl - ts_inicio) >= timedelta(hours=self.REGLA7_HORAS_LIMITE):
+            return None
+        motivo = f'regla7_declaracion_24h_{contacto_id}'
+        if self._ya_aplicado_motivo_score(sol, motivo):
+            return None
+        return (sol, self.REGLA7_DELTA, motivo)
 
     @staticmethod
     def _fecha_dia_servidor(fecha_val: Any) -> Optional[str]:
