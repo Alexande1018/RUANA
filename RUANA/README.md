@@ -180,11 +180,15 @@ Límites: máximo **5 grupos por código postal**; **un oficio principal por gru
 - **Regla 7**: El contratante (solicitante) declara el importe **antes de 24 h** desde `contactos_ruana.creado_en` → +2 al contratante (`regla7_declaracion_24h_{contacto_id}`). Se evalúa al declarar; no requiere pago.
 - **Regla 8**: Login en la app **todos los días durante 7 días consecutivos** (calendario del servidor) → +3 (`regla8_racha_7dias_YYYY-MM-DD`). Solo cuenta `POST /api/aliado/login`; una vez por ventana de 7 días (repetible la semana siguiente). Tabla `aliado_accesos_dia`.
 - **Regla 9**: Se usa una **invitación por oficio** (`RUANA-…`) → +5 al aliado que la generó (`invitacion_oficio_usada`).
-- Contacto no concretado: **-1** cada uno.
-- Contacto abierto 7 días: -2 (una vez por contacto).
-- Contacto abierto 21 días: -5 (una vez por contacto).
+### Penalizaciones de score (orden)
 
-Las penalizaciones por contactos abiertos se aplican al solicitar datos del aliado (p. ej. `GET /api/aliado/datos`) mediante `aplicar_penalizaciones_contactos_abiertos()`.
+1. **contacto_cerrado_no_concretado**: Contacto cerrado sin trabajo concretado → **-1** al solicitante y **-1** al profesional.
+2. **contacto_sin_cerrar_7d**: Contacto abierto ≥ 7 días (`iniciado` / `aceptado` / `trabajo_en_progreso`) → **-2** (una vez por contacto).
+3. **contacto_sin_cerrar_21d**: Contacto abierto ≥ 21 días → **-5** (una vez por contacto; se suma al −2 de 7d).
+4. **descendiente_entra_competencia_gen{1|2}_{id}**: Un hijo (gen1) o nieto (gen2) del linaje (`invitado_por_codigo`) entra en competencia (proceso real) → **-2** al padre y/o abuelo. Una vez por competencia y ancestro. No aplica a admin/sistema. El suplente no dispara la regla.
+
+Las penalizaciones 2–3 se aplican al solicitar datos del aliado (p. ej. `GET /api/aliado/datos`) mediante `aplicar_penalizaciones_contactos_abiertos()`.
+La penalización 4 se aplica al iniciar la competencia (`_iniciar_competencia_si_procede` → `aplicar_penalizacion_descendiente_en_competencia`).
 El cierre del contacto con importe genera el Apoyo (`pendiente_pago`) pero **no** suma score; los puntos llegan al confirmar el pago.
 La disputa de importes **no** modifica el score.
 ---

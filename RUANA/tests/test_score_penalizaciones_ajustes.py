@@ -113,3 +113,67 @@ def test_disputa_ya_no_resta_score_en_registrar_importe(sqlite_db):
     assert r["status"] == "success"
     assert not any(m == "declaracion_discrepante" for _, m in _motivos(sqlite_db, "97001"))
     assert not any(m == "declaracion_discrepante" for _, m in _motivos(sqlite_db, "97002"))
+
+
+def test_penalizacion4_descendiente_en_competencia_resta_2_a_padre_y_abuelo(sqlite_db):
+    """Penalización 4: hijo/nieto entra en competencia → -2 a padre (gen1) y abuelo (gen2)."""
+    _crear_activo(sqlite_db, "98001", "Abuelo")
+    _crear_activo(sqlite_db, "98002", "Padre")
+    _crear_activo(sqlite_db, "98003", "Nieto")
+    assert sqlite_db.asignar_invitado_por("98002", "98001", "aliado")
+    assert sqlite_db.asignar_invitado_por("98003", "98002", "aliado")
+
+    aplicados = sqlite_db.aplicar_penalizacion_descendiente_en_competencia("98003", competencia_id=42)
+    assert len(aplicados) == 2
+    assert _score(sqlite_db, "98001") == 48
+    assert _score(sqlite_db, "98002") == 48
+    assert _score(sqlite_db, "98003") == 50
+    assert (-2, "descendiente_entra_competencia_gen1_42") in _motivos(sqlite_db, "98002")
+    assert (-2, "descendiente_entra_competencia_gen2_42") in _motivos(sqlite_db, "98001")
+
+    # Idempotente por competencia_id
+    de_nuevo = sqlite_db.aplicar_penalizacion_descendiente_en_competencia("98003", competencia_id=42)
+    assert de_nuevo == []
+    assert sum(1 for _, m in _motivos(sqlite_db, "98002") if m.startswith("descendiente_entra_competencia_")) == 1
+    assert sum(1 for _, m in _motivos(sqlite_db, "98001") if m.startswith("descendiente_entra_competencia_")) == 1
+
+
+def test_penalizacion4_omite_admin_y_sin_linaje(sqlite_db):
+    sqlite_db.obtener_o_crear_invitador_admin("RUANA-ADMIN")
+    _crear_activo(sqlite_db, "98101", "HijoAdmin")
+    assert sqlite_db.asignar_invitado_por("98101", "RUANA-ADMIN", "admin_invitacion")
+    assert sqlite_db.aplicar_penalizacion_descendiente_en_competencia("98101", 7) == []
+
+    _crear_activo(sqlite_db, "98102", "SinPadre")
+    assert sqlite_db.aplicar_penalizacion_descendiente_en_competencia("98102", 8) == []
+
+
+def test_penalizacion4_al_iniciar_competencia_real(sqlite_db):
+    """Al arrancar competencia del nieto, padre y abuelo reciben -2."""
+    _crear_activo(sqlite_db, "98201", "AbueloComp", score=60)
+    _crear_activo(sqlite_db, "98202", "PadreComp", score=60)
+    _crear_activo(sqlite_db, "98203", "NietoTitular", score=30)
+    _crear_activo(sqlite_db, "98204", "Suplente", score=80)
+    assert sqlite_db.asignar_invitado_por("98202", "98201", "aliado")
+    assert sqlite_db.asignar_invitado_por("98203", "98202", "aliado")
+
+    g1 = sqlite_db.crear_grupo_en_cp("28099", ciudad="Madrid", provincia="Madrid")
+    g2 = sqlite_db.crear_grupo_en_cp("28099", ciudad="Madrid", provincia="Madrid")
+    assert "id" in g1 and "id" in g2
+
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    # crear_aliado puede dejar pendiente_validacion; competencia exige activo
+    cur.execute("UPDATE aliados SET estado = 'activo' WHERE codigo IN ('98203', '98204')")
+    cur.execute("UPDATE aliados SET grupo_id = ? WHERE codigo = ?", (g1["id"], "98203"))
+    cur.execute("UPDATE aliados SET grupo_id = ? WHERE codigo = ?", (g2["id"], "98204"))
+    conn.commit()
+    conn.close()
+
+    result = sqlite_db._iniciar_competencia_si_procede("98203")
+    assert result is not None
+    cid = result["competencia_id"]
+    assert _score(sqlite_db, "98201") == 58
+    assert _score(sqlite_db, "98202") == 58
+    assert (-2, f"descendiente_entra_competencia_gen1_{cid}") in _motivos(sqlite_db, "98202")
+    assert (-2, f"descendiente_entra_competencia_gen2_{cid}") in _motivos(sqlite_db, "98201")

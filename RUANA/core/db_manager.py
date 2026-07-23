@@ -2885,6 +2885,7 @@ class DBManager:
                 """, (grupo_id, oficio.strip(), codigo_aliado, suplente_codigo, suplente_grupo_anterior_id,
                       score_titular_inicio, score_suplente_inicio, score_titular_inicio, score_suplente_inicio,
                       fecha_fin))
+                competencia_id = int(cursor.lastrowid)
                 cursor.execute("UPDATE aliados SET grupo_id = ? WHERE codigo = ?", (grupo_id, suplente_codigo))
                 cursor.execute("UPDATE grupos SET estado = 'en_competencia' WHERE id = ?", (grupo_id,))
                 texto_aviso = f"Este mes tenemos {oficio.strip()} en competencia dentro del grupo."
@@ -2899,7 +2900,17 @@ class DBManager:
                     )
                 except Exception:
                     pass
-                return {'grupo_id': grupo_id, 'suplente_codigo': suplente_codigo, 'oficio': oficio}
+                # Penalización 4: -2 a padre/abuelo si un hijo/nieto entra en competencia
+                try:
+                    self.aplicar_penalizacion_descendiente_en_competencia(codigo_aliado, competencia_id)
+                except Exception:
+                    pass
+                return {
+                    'grupo_id': grupo_id,
+                    'suplente_codigo': suplente_codigo,
+                    'oficio': oficio,
+                    'competencia_id': competencia_id,
+                }
             except Exception as e:
                 try:
                     conn.rollback()
@@ -2908,6 +2919,31 @@ class DBManager:
                 return None
             finally:
                 conn.close()
+
+    def aplicar_penalizacion_descendiente_en_competencia(
+        self, codigo_titular: str, competencia_id: int
+    ) -> List[Dict[str, Any]]:
+        """
+        Penalización 4: si un hijo o nieto (linaje via invitado_por_codigo) entra en
+        competencia, -2 al padre (gen1) y -2 al abuelo (gen2). Una vez por competencia.
+        No aplica a admin/sistema. El suplente no dispara esta regla.
+        """
+        codigo_titular = (codigo_titular or '').strip()
+        if not codigo_titular or not competencia_id:
+            return []
+        aplicados: List[Dict[str, Any]] = []
+        for ancestro, gen in self.ancestros_referidos_para_score(codigo_titular, max_generaciones=2):
+            motivo = f'descendiente_entra_competencia_gen{gen}_{int(competencia_id)}'
+            if self._ya_aplicado_motivo_score(ancestro, motivo):
+                continue
+            result = self.aplicar_cambio_score(ancestro, -2, motivo)
+            aplicados.append({
+                'codigo': ancestro,
+                'generacion': gen,
+                'motivo': motivo,
+                'result': result,
+            })
+        return aplicados
 
     def finalizar_competencia_activas_vencidas(self) -> List[Dict[str, Any]]:
         """Finaliza competencias cuya fecha_fin_prevista ha pasado. Mayor score permanece, el otro sale del grupo."""
