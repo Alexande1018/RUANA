@@ -385,6 +385,11 @@ def aliado_login():
             return jsonify({'status': 'error', 'message': 'Acceso suspendido temporalmente.'}), 403
         expires_at = time.time() + ALIADO_SESSION_EXPIRES_SECONDS
         session_id = _ruana_session_create('aliado', codigo, expires_at)
+        # Regla 8: registrar día de login (calendario servidor) y evaluar racha 7 días
+        try:
+            db.registrar_acceso_login(codigo)
+        except Exception:
+            pass
         return jsonify({'status': 'success', 'codigo': codigo, 'session_id': session_id})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
