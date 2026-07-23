@@ -3289,7 +3289,7 @@ def admin_dashboard_summary():
     - total_users: COUNT users (aliados)
     - active_users: WHERE status = active
     - suplentes: WHERE role = suplente (en competencia activa)
-    - en_riesgo: WHERE score < umbral o en rango EN RIESGO (35 <= score < 60)
+    - en_riesgo: WHERE score < umbral o en rango EN RIESGO (15 <= score < 60)
     - solicitudes_activas: WHERE estado = pendiente (open)
     - oficios_ocupados: COUNT oficios con titular activo
     - grupos: COUNT grupos reales

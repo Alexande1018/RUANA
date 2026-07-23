@@ -78,7 +78,7 @@ El frontend presenta y recoge acciones; el backend y el motor RUANA orquestan, a
 | **engines/motor_evaluacion.py** | Motor RUANA v0.2: evalúa aliados (tasa respuesta/confirmación, meses sin trabajo), persistencia en SQLite, severidad (normal/alerta/crítico). |
 | **metrics/collector.py** | Recolector de métricas (por ahora datos de ejemplo para el orquestador). |
 | **events/event_bus.py** | Registro de eventos del motor en `logs/eventos_ruana.jsonl` (JSONL). |
-| **config/ruana_reglas_v1.json** | Configuración del motor: version, capital, risk_per_trade_pct, **umbral_competencia** (35), **duracion_competencia_dias** (30), **purga_mensual_meses_sin_ganar** (3), **purga_score_bajo_umbral** (40), **apoyo_pct** (15.0, % Apoyo RUANA por trabajo cerrado). |
+| **config/ruana_reglas_v1.json** | Configuración del motor: version, capital, risk_per_trade_pct, **umbral_competencia** (15), **duracion_competencia_dias** (30), **purga_mensual_meses_sin_ganar** (3), **purga_score_bajo_umbral** (40), **apoyo_pct** (15.0, % Apoyo RUANA por trabajo cerrado). |
 | **config/oficios_ruana.json** | Catálogo oficial de oficios (lista `oficios`); ~77 oficios. |
 | **config/admin_codes.json** | Códigos de administrador y permisos (admin_codes). |
 
@@ -144,7 +144,7 @@ Límites: máximo **5 grupos por código postal**; **un oficio principal por gru
 
 ### Sistema de competencia
 
-- **Cuándo**: cuando el **score** del aliado baja **por debajo del umbral** (config `umbral_competencia`, por defecto 35 en `config/ruana_reglas_v1.json`).
+- **Cuándo**: cuando el **score** del aliado baja **por debajo del umbral** (config `umbral_competencia`, por defecto 15 en `config/ruana_reglas_v1.json`).
 - **Proceso**:
   1. **Selección del suplente**: mismo oficio, mayor score, misma ciudad/provincia (o mismo CP si no hay); prioridad a grupos con **&lt;3 aliados**; luego criterio territorial (mismo CP).
   2. El **suplente entra temporalmente** al grupo (mismo grupo que el aliado en riesgo).
@@ -166,8 +166,8 @@ Límites: máximo **5 grupos por código postal**; **un oficio principal por gru
 - **Cálculo de estado** (derivado; `DBManager.score_a_estado(score)`):
   - **PRIORITARIO**: score ≥ 85  
   - **ESTABLE**: 60 ≤ score < 85  
-  - **EN RIESGO**: 35 ≤ score < 60  
-  - **COMPETENCIA**: score < 35  
+  - **EN RIESGO**: 15 ≤ score < 60  
+  - **COMPETENCIA**: score < 15  
 
 ### Reglas de aumento de score (orden 1–9)
 

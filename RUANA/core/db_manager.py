@@ -2445,7 +2445,7 @@ class DBManager:
     def score_a_estado(score: Any) -> str:
         """
         Calcula el estado RUANA a partir del score (siempre derivado, sin almacenar).
-        PRIORITARIO 85-100, ESTABLE 60-84, EN RIESGO 35-59, COMPETENCIA 0-34.
+        PRIORITARIO 85-100, ESTABLE 60-84, EN RIESGO 15-59, COMPETENCIA 0-14.
         """
         try:
             s = int(score) if score is not None else 0
@@ -2455,7 +2455,7 @@ class DBManager:
             return 'PRIORITARIO'
         if s >= 60:
             return 'ESTABLE'
-        if s >= 35:
+        if s >= 15:
             return 'EN RIESGO'
         return 'COMPETENCIA'
     
@@ -2519,16 +2519,16 @@ class DBManager:
                 conn.close()
     
     def _get_umbral_competencia(self) -> Optional[int]:
-        """Lee umbral_competencia desde config/ruana_reglas_v1.json. Por defecto 35."""
+        """Lee umbral_competencia desde config/ruana_reglas_v1.json. Por defecto 15."""
         try:
             config_path = Path(__file__).resolve().parent.parent / 'config' / 'ruana_reglas_v1.json'
             if config_path.exists():
                 with open(config_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                return int(data.get('umbral_competencia', 35))
+                return int(data.get('umbral_competencia', 15))
         except Exception:
             pass
-        return 35
+        return 15
 
     def _get_duracion_competencia_dias(self) -> int:
         """Lee duracion_competencia_dias desde config. Por defecto 30."""
@@ -4751,7 +4751,7 @@ class DBManager:
                         else:
                             s = float(item.get('score') or 0)
 
-                        if s < 35:
+                        if s < 15:
                             estado_panel = 'riesgo'
                         elif s < 60:
                             estado_panel = 'observacion'
@@ -9041,7 +9041,7 @@ class DBManager:
                 conn.close()
 
     def contar_aliados_en_riesgo(self) -> int:
-        """Cuenta aliados activos con estado RUANA 'EN RIESGO' (35 <= score < 60)."""
+        """Cuenta aliados activos con estado RUANA 'EN RIESGO' (15 <= score < 60)."""
         with self._lock:
             try:
                 conn = self._connect()
@@ -9049,7 +9049,7 @@ class DBManager:
                 cursor.execute("""
                     SELECT COUNT(*) FROM aliados
                     WHERE estado = 'activo' AND score IS NOT NULL
-                    AND CAST(score AS INTEGER) >= 35 AND CAST(score AS INTEGER) < 60
+                    AND CAST(score AS INTEGER) >= 15 AND CAST(score AS INTEGER) < 60
                 """)
                 return cursor.fetchone()[0] or 0
             except Exception:
