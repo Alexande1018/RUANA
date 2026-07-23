@@ -177,3 +177,106 @@ def test_penalizacion4_al_iniciar_competencia_real(sqlite_db):
     assert _score(sqlite_db, "98202") == 58
     assert (-2, f"descendiente_entra_competencia_gen1_{cid}") in _motivos(sqlite_db, "98202")
     assert (-2, f"descendiente_entra_competencia_gen2_{cid}") in _motivos(sqlite_db, "98201")
+
+
+def _insertar_mensaje_antiguo(db, contacto_id, emisor, horas_atras=49):
+    hace = (datetime.now() - timedelta(hours=horas_atras)).strftime("%Y-%m-%d %H:%M:%S")
+    conn = db._connect()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO chat_mensajes (contacto_id, emisor_codigo, texto, creado_en) VALUES (?, ?, ?, ?)",
+        (contacto_id, emisor, "msg test", hace),
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_penalizacion5_chat_48h_resta_2_al_que_no_respondio(sqlite_db):
+    """Penalización 5: último mensaje del solicitante hace ≥48h → -2 al profesional."""
+    _crear_activo(sqlite_db, "99001", "SolChat")
+    _crear_activo(sqlite_db, "99002", "ProfChat")
+    created = sqlite_db.crear_contacto_ruana("99001", "99002", "Servicio", "Chat48")
+    cid = created["id"]
+    _insertar_mensaje_antiguo(sqlite_db, cid, "99001", horas_atras=49)
+
+    sqlite_db.aplicar_penalizacion_chat_sin_respuesta_48h("99002")
+    assert _score(sqlite_db, "99002") == 48
+    assert (-2, f"chat_sin_respuesta_48h_{cid}") in _motivos(sqlite_db, "99002")
+    # El que escribió el último no se penaliza
+    sqlite_db.aplicar_penalizacion_chat_sin_respuesta_48h("99001")
+    assert _score(sqlite_db, "99001") == 50
+    assert not any(m.startswith("chat_sin_respuesta_48h_") for _, m in _motivos(sqlite_db, "99001"))
+    # Idempotente
+    sqlite_db.aplicar_penalizacion_chat_sin_respuesta_48h("99002")
+    assert sum(1 for _, m in _motivos(sqlite_db, "99002") if m.startswith("chat_sin_respuesta_48h_")) == 1
+
+
+def test_penalizacion5_no_aplica_si_encargo_cerrado(sqlite_db):
+    """Cierre adecuado (trabajo_cerrado / no_concretado) → nadie pierde por chat 48h."""
+    _crear_activo(sqlite_db, "99101", "SolCerrado")
+    _crear_activo(sqlite_db, "99102", "ProfCerrado")
+    created = sqlite_db.crear_contacto_ruana("99101", "99102", "Servicio", "Cerrado")
+    cid = created["id"]
+    _insertar_mensaje_antiguo(sqlite_db, cid, "99101", horas_atras=50)
+
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE contactos_ruana SET estado = 'trabajo_cerrado' WHERE id = ?",
+        (cid,),
+    )
+    conn.commit()
+    conn.close()
+
+    sqlite_db.aplicar_penalizacion_chat_sin_respuesta_48h("99102")
+    assert _score(sqlite_db, "99102") == 50
+    assert not any(m.startswith("chat_sin_respuesta_48h_") for _, m in _motivos(sqlite_db, "99102"))
+
+    # no_concretado también exime
+    created2 = sqlite_db.crear_contacto_ruana("99101", "99102", "Otro", "NC")
+    cid2 = created2["id"]
+    _insertar_mensaje_antiguo(sqlite_db, cid2, "99101", horas_atras=50)
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE contactos_ruana SET estado = 'cerrado_no_concretado' WHERE id = ?",
+        (cid2,),
+    )
+    conn.commit()
+    conn.close()
+    sqlite_db.aplicar_penalizacion_chat_sin_respuesta_48h("99102")
+    assert not any(m.startswith("chat_sin_respuesta_48h_") for _, m in _motivos(sqlite_db, "99102"))
+
+
+def test_penalizacion5_no_aplica_si_ambos_finalizan_chat(sqlite_db):
+    """Si ambas partes dan por terminado el chat, no hay -2 por silencio."""
+    _crear_activo(sqlite_db, "99201", "SolFin")
+    _crear_activo(sqlite_db, "99202", "ProfFin")
+    created = sqlite_db.crear_contacto_ruana("99201", "99202", "Servicio", "FinChat")
+    cid = created["id"]
+    _insertar_mensaje_antiguo(sqlite_db, cid, "99201", horas_atras=50)
+    assert sqlite_db.ocultar_contacto_del_panel(cid, "99201")["status"] == "success"
+    assert sqlite_db.ocultar_contacto_del_panel(cid, "99202")["status"] == "success"
+
+    sqlite_db.aplicar_penalizacion_chat_sin_respuesta_48h("99202")
+    assert _score(sqlite_db, "99202") == 50
+    assert not any(m.startswith("chat_sin_respuesta_48h_") for _, m in _motivos(sqlite_db, "99202"))
+
+
+def test_penalizacion5_sin_mensajes_no_aplica(sqlite_db):
+    _crear_activo(sqlite_db, "99301", "SolVacio")
+    _crear_activo(sqlite_db, "99302", "ProfVacio")
+    created = sqlite_db.crear_contacto_ruana("99301", "99302", "Servicio", "Vacio")
+    cid = created["id"]
+    # Contacto viejo pero sin mensajes
+    hace = (datetime.now() - timedelta(hours=72)).strftime("%Y-%m-%d %H:%M:%S")
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE contactos_ruana SET creado_en = ?, actualizado_en = ? WHERE id = ?",
+        (hace, hace, cid),
+    )
+    conn.commit()
+    conn.close()
+    sqlite_db.aplicar_penalizacion_chat_sin_respuesta_48h("99302")
+    assert _score(sqlite_db, "99302") == 50

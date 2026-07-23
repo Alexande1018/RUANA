@@ -3211,7 +3211,93 @@ class DBManager:
                 pass
             finally:
                 conn.close()
-    
+        # Penalización 5: chat sin respuesta ≥ 48 h
+        try:
+            self.aplicar_penalizacion_chat_sin_respuesta_48h(codigo_aliado)
+        except Exception:
+            pass
+
+    # Estados de cierre adecuado: no aplicar penalización 5 (chat 48h)
+    _ESTADOS_CIERRE_ADECUADO_CHAT = (
+        'trabajo_cerrado', 'no_concretado', 'cerrado_no_concretado',
+    )
+
+    def aplicar_penalizacion_chat_sin_respuesta_48h(self, codigo_aliado: str) -> None:
+        """
+        Penalización 5: conversación con mensajes dejada sin respuesta ≥ 48 h → -2
+        al aliado que no respondió (el que no es el último emisor).
+
+        No se aplica si el encargo/chat se cerró de forma adecuada:
+        - estado en trabajo_cerrado / no_concretado / cerrado_no_concretado
+        - o ambas partes dieron por terminado el chat (contacto_panel_oculto)
+        Sin mensajes no aplica. Una vez por contacto (tipo chat_48h).
+        """
+        codigo_aliado = (codigo_aliado or '').strip()
+        if not codigo_aliado:
+            return
+        with self._lock:
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT c.id, c.solicitante_codigo, c.profesional_codigo, c.estado
+                    FROM contactos_ruana c
+                    WHERE (c.solicitante_codigo = ? OR c.profesional_codigo = ?)
+                      AND c.estado IN ('iniciado', 'aceptado', 'trabajo_en_progreso', 'en_conversacion')
+                """, (codigo_aliado, codigo_aliado))
+                filas = cursor.fetchall()
+                for row in filas:
+                    cid, sol, prof, estado = row[0], row[1], row[2], (row[3] or '').strip()
+                    if estado in self._ESTADOS_CIERRE_ADECUADO_CHAT:
+                        continue
+                    # Ambas partes dieron por terminado el chat → no penalizar
+                    cursor.execute(
+                        "SELECT COUNT(*) FROM contacto_panel_oculto WHERE contacto_id = ?",
+                        (cid,),
+                    )
+                    if int((cursor.fetchone() or [0])[0] or 0) >= 2:
+                        continue
+                    cursor.execute("""
+                        SELECT emisor_codigo, creado_en FROM chat_mensajes
+                        WHERE contacto_id = ?
+                        ORDER BY creado_en DESC, id DESC LIMIT 1
+                    """, (cid,))
+                    ultimo = cursor.fetchone()
+                    if not ultimo:
+                        continue  # sin mensajes → no hay "quién debía responder"
+                    emisor_ultimo = str(ultimo[0] or '').strip()
+                    if not emisor_ultimo or emisor_ultimo == codigo_aliado:
+                        continue  # este aliado respondió el último (o vacío)
+                    # Debe ser la otra parte del contacto
+                    partes = {str(sol or '').strip(), str(prof or '').strip()}
+                    if codigo_aliado not in partes or emisor_ultimo not in partes:
+                        continue
+                    ref = self._parse_timestamp(ultimo[1])
+                    if not ref or not self._chat_esta_expirado(ref):
+                        continue  # aún dentro de las 48 h
+                    cursor.execute("""
+                        SELECT 1 FROM contacto_penalizaciones_aplicadas
+                        WHERE contacto_id = ? AND tipo = 'chat_48h'
+                    """, (cid,))
+                    if cursor.fetchone():
+                        continue
+                    motivo = f'chat_sin_respuesta_48h_{int(cid)}'
+                    if self._ya_aplicado_motivo_score(codigo_aliado, motivo):
+                        continue
+                    self.aplicar_cambio_score(codigo_aliado, -2, motivo)
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO contacto_penalizaciones_aplicadas (contacto_id, tipo)
+                        VALUES (?, 'chat_48h')
+                    """, (cid,))
+                    conn.commit()
+            except Exception:
+                pass
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
     def contar_referidos_por_codigo(self, codigo_aliado: str) -> int:
         """Cuenta hijos directos del linaje (invitado_por_codigo; une referidos por compatibilidad)."""
         codigo_aliado = (codigo_aliado or '').strip()
