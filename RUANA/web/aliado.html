@@ -1260,6 +1260,44 @@
             color: #fecaca;
         }
 
+        .contacto-aviso.contacto-aviso-urgente {
+            border-color: #fbbf24;
+            box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.35);
+        }
+
+        .contacto-aviso-badge.urgente {
+            background: #b45309;
+            color: #ffedd5;
+        }
+
+        .chat-modal-content.chat-urgente {
+            border: 1px solid rgba(251, 191, 36, 0.65);
+            box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.25);
+        }
+
+        .chat-urgente-badge {
+            display: none;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            color: #ffedd5;
+            background: #b45309;
+            border: 1px solid rgba(251, 191, 36, 0.7);
+        }
+
+        .chat-aviso-urgente {
+            display: none;
+            margin: 0 12px 8px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            background: rgba(180, 83, 9, 0.25);
+            border: 1px solid rgba(251, 191, 36, 0.45);
+            color: #fde68a;
+            font-size: 0.9rem;
+        }
+
         .contacto-aviso-acciones {
             display: flex;
             flex-wrap: wrap;
@@ -1506,6 +1544,7 @@
         <!-- Seguimiento de contacto RUANA (tono profesional, no coercitivo) -->
         <div id="contacto-aviso-persistente" class="contacto-aviso" style="display:none;">
             <div class="contacto-aviso-header">
+                <span class="contacto-aviso-badge urgente" id="contacto-aviso-badge-urgente" style="display:none;">Urgente</span>
                 <span class="contacto-aviso-titulo">Seguimiento de contacto RUANA</span>
             </div>
             <div id="contacto-aviso-texto" class="contacto-aviso-texto">
@@ -1829,6 +1868,10 @@
                 <label class="modal-importe-label" for="input-motivo-otro">Especifica (breve)</label>
                 <input type="text" id="input-motivo-otro" class="chat-input-texto" placeholder="Ej: Reparación urgente" maxlength="200" style="width:100%; margin-bottom:12px;">
             </div>
+            <label class="motivo-urgente-label" for="check-contacto-urgente" style="display:flex; align-items:center; gap:10px; margin:12px 0 4px; cursor:pointer;">
+                <input type="checkbox" id="check-contacto-urgente" style="width:18px; height:18px;">
+                <span><strong>Marcar como urgente</strong> — el profesional lo verá resaltado</span>
+            </label>
             <div class="modal-contacto-actions">
                 <button id="btn-motivo-confirm" class="modal-contacto-btn confirm">Iniciar chat</button>
                 <button id="btn-motivo-cancel" class="modal-contacto-btn cancel">Cancelar</button>
@@ -1841,10 +1884,14 @@
         <div class="chat-modal-content">
             <div class="chat-modal-header">
                 <h3 class="chat-modal-title" id="chat-modal-title">Chat RUANA</h3>
+                <span class="chat-urgente-badge" id="chat-urgente-badge" style="display:none;">URGENTE</span>
                 <div style="display:flex; gap:10px; align-items:center;">
                     <button type="button" class="chat-btn-finalizar" id="ruana-chat-finalizar" aria-label="Finalizar chat y quitarlo del panel">Finalizar chat</button>
                     <button type="button" class="chat-btn-volver-panel" id="ruana-chat-cerrar" aria-label="Volver al panel personal">Volver al panel</button>
                 </div>
+            </div>
+            <div class="chat-aviso-urgente" id="chat-aviso-urgente" style="display:none;">
+                Este contacto fue marcado como <strong>URGENTE</strong> por el solicitante.
             </div>
             <div class="chat-aviso-refrescar" style="display: none;">
                 <!-- Mensaje retirado: el botón "Volver al panel" cierra el modal sin necesidad de refrescar -->
@@ -3885,8 +3932,15 @@
                     if (!this.contactoActual) {
                         await this.cargarPagosApoyoPendientes();
                         avisoEl.style.display = 'none';
+                        avisoEl.classList.remove('contacto-aviso-urgente');
+                        const badgeUrgenteOff = document.getElementById('contacto-aviso-badge-urgente');
+                        if (badgeUrgenteOff) badgeUrgenteOff.style.display = 'none';
                         return;
                     }
+
+                    avisoEl.classList.toggle('contacto-aviso-urgente', !!this.contactoActual.es_urgente);
+                    const badgeUrgente = document.getElementById('contacto-aviso-badge-urgente');
+                    if (badgeUrgente) badgeUrgente.style.display = this.contactoActual.es_urgente ? 'inline-block' : 'none';
 
                     // Construir mensaje según estado (incluye chat_agotado: cierre obligatorio)
                     const textoEl = document.getElementById('contacto-aviso-texto');
@@ -3894,6 +3948,9 @@
                     const numMensajes = parseInt(this.contactoActual.num_mensajes, 10) || 0;
                     const yaDeclaraste = this.contactoActual.ya_declaraste_importe === true;
                     let mensaje = 'Tienes un contacto activo. Usa **Abrir chat** para ver y responder los mensajes (se actualizan solos). Cuando lo consideres oportuno, indícanos el resultado.';
+                    if (this.contactoActual.es_urgente) {
+                        mensaje = '**URGENTE.** ' + mensaje;
+                    }
                     if (estado === 'chat_agotado') {
                         mensaje = 'Has alcanzado el límite de mensajes del chat. **Para continuar, cierra el contacto** indicando si hubo trabajo o no.';
                     } else if (estado === 'importe_en_disputa') {
@@ -4265,6 +4322,8 @@
                 if (select) select.value = '';
                 if (inputOtro) inputOtro.value = '';
                 if (otroWrap) otroWrap.style.display = 'none';
+                const checkUrgente = document.getElementById('check-contacto-urgente');
+                if (checkUrgente) checkUrgente.checked = false;
                 const errMotivo = document.getElementById('motivo-contacto-error');
                 if (errMotivo) { errMotivo.style.display = 'none'; errMotivo.textContent = ''; }
                 if (modalMotivo) modalMotivo.classList.add('show');
@@ -4344,7 +4403,8 @@
                         body: JSON.stringify({
                             profesional_codigo: profesionalCodigo,
                             servicio,
-                            motivo_contacto: motivo
+                            motivo_contacto: motivo,
+                            es_urgente: !!(document.getElementById('check-contacto-urgente') || {}).checked
                         })
                     });
                     const data = await resp.json();
@@ -4353,12 +4413,14 @@
                         return;
                     }
                     if (modalMotivo) modalMotivo.classList.remove('show');
+                    const checkUrgente = document.getElementById('check-contacto-urgente');
+                    if (checkUrgente) checkUrgente.checked = false;
                     await this.cargarContactosPendientes();
                     const contactoId = data.id;
                     // No marcar en-conversacion aquí: ocultaría la alerta para el profesional,
                     // que debe ver el nuevo contacto y poder abrir el chat. "Sigue en conversación"
                     // se usa solo cuando el usuario lo pulsa explícitamente desde la alerta.
-                    this.abrirChatContacto(contactoId, profesional);
+                    this.abrirChatContacto(contactoId, profesional, { es_urgente: !!data.es_urgente });
                 } catch (e) {
                     console.error('Error de red:', e);
                     alert('Error de conexión al registrar el contacto.');
@@ -4371,7 +4433,7 @@
              * Abre el modal de chat RUANA con el contacto dado.
              * profesional: { nombre } opcional (al abrir desde directorio). Si no, se muestra "Conversación RUANA".
              */
-            abrirChatContacto(contactoId, profesional) {
+            abrirChatContacto(contactoId, profesional, opts) {
                 this.chatContactoId = contactoId;
                 this.chatProfesionalNombre = profesional && profesional.nombre ? profesional.nombre : '';
                 const titleEl = document.getElementById('chat-modal-title');
@@ -4381,10 +4443,39 @@
                     modal.classList.add('show');
                     modal.style.display = 'flex';
                 }
+                let esUrgente = !!(opts && opts.es_urgente);
+                if (!esUrgente && this.contactoActual && Number(this.contactoActual.id) === Number(contactoId)) {
+                    esUrgente = !!this.contactoActual.es_urgente;
+                }
+                if (!esUrgente && Array.isArray(this.contactosAbiertos)) {
+                    const found = this.contactosAbiertos.find(c => Number(c.id) === Number(contactoId));
+                    if (found) esUrgente = !!found.es_urgente;
+                }
+                this.actualizarChatUrgenteUI(esUrgente);
                 this.cargarMensajesChat();
                 this.iniciarPollingChat();
                 const input = document.getElementById('chat-input-texto');
                 if (input) { input.value = ''; input.focus(); }
+                // Refrescar flag desde API por si se abrió sin contexto local
+                if (!esUrgente) {
+                    fetch('/api/contactos/' + encodeURIComponent(contactoId), { credentials: 'same-origin', headers: getRuanaAuthHeaders() })
+                        .then(r => r.ok ? r.json() : null)
+                        .then(data => {
+                            if (data && data.status === 'success' && data.contacto && data.contacto.es_urgente) {
+                                this.actualizarChatUrgenteUI(true);
+                            }
+                        })
+                        .catch(() => {});
+                }
+            }
+
+            actualizarChatUrgenteUI(esUrgente) {
+                const content = document.querySelector('#modal-chat-ruana .chat-modal-content');
+                const badge = document.getElementById('chat-urgente-badge');
+                const aviso = document.getElementById('chat-aviso-urgente');
+                if (content) content.classList.toggle('chat-urgente', !!esUrgente);
+                if (badge) badge.style.display = esUrgente ? 'inline-block' : 'none';
+                if (aviso) aviso.style.display = esUrgente ? 'block' : 'none';
             }
 
             /**

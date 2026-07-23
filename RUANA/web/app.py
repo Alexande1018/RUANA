@@ -1491,7 +1491,7 @@ def crear_contacto():
     """
     POST /api/contactos
     Crea un contacto RUANA. solicitante_codigo debe ser el aliado en sesi?n (no se conf?a en body).
-    Body JSON: profesional_codigo, servicio, motivo_contacto.
+        Body JSON: profesional_codigo, servicio, motivo_contacto, es_urgente (opcional).
     """
     try:
         solicitante_codigo = _aliado_codigo()
@@ -1501,6 +1501,8 @@ def crear_contacto():
         profesional_codigo = (data.get('profesional_codigo') or '').strip()
         servicio = (data.get('servicio') or '').strip()
         motivo_contacto = (data.get('motivo_contacto') or '').strip()
+        es_urgente_raw = data.get('es_urgente', False)
+        es_urgente = es_urgente_raw in (True, 1, '1', 'true', 'True', 'yes', 'on')
 
         if not profesional_codigo:
             return jsonify({
@@ -1518,7 +1520,8 @@ def crear_contacto():
             solicitante_codigo=solicitante_codigo,
             profesional_codigo=profesional_codigo,
             servicio=servicio,
-            motivo_contacto=motivo_contacto
+            motivo_contacto=motivo_contacto,
+            es_urgente=es_urgente,
         )
 
         status_code = 201 if result.get('status') == 'success' else 400
@@ -3717,6 +3720,8 @@ def admin_conversations():
                 'solicitante_codigo': c.get('solicitante_codigo'),
                 'profesional_codigo': c.get('profesional_codigo'),
                 'motivo_contacto': c.get('motivo_contacto'),
+                'es_urgente': bool(c.get('es_urgente')),
+                'urgente_marcado_en': c.get('urgente_marcado_en'),
                 'importe_final': c.get('importe_final'),
                 'comision': c.get('comision'),
                 'num_mensajes': c.get('num_mensajes'),

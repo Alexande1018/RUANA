@@ -109,8 +109,9 @@ class DBManager:
             """)
             self._migrar_aliados_foto_perfil(conn, cursor)
             self._migrar_aliados_invitado_por(conn, cursor)
+            self._migrar_contactos_es_urgente(conn, cursor)
             conn.commit()
-            print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil + linaje)")
+            print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil + linaje + urgente)")
         except Exception as e:
             print(f"[RUANA][DB] Error inicializando esquema Postgres: {e}")
         finally:
@@ -472,6 +473,7 @@ class DBManager:
                 self._migrar_contactos_fecha_pospuesto_hasta(conn, cursor)
                 self._migrar_chat_mensajes(conn, cursor)
                 self._migrar_contactos_motivo_contacto(conn, cursor)
+                self._migrar_contactos_es_urgente(conn, cursor)
                 self._migrar_drop_chat_messages(conn, cursor)
                 self._migrar_competencia_scores(conn, cursor)
                 self._migrar_payment_conflicts(conn, cursor)
@@ -722,6 +724,25 @@ class DBManager:
         if 'motivo_contacto' in columnas:
             return
         cursor.execute("ALTER TABLE contactos_ruana ADD COLUMN motivo_contacto TEXT")
+
+    def _migrar_contactos_es_urgente(self, conn, cursor) -> None:
+        """Añade es_urgente y urgente_marcado_en (solo al iniciar chat, Regla 6)."""
+        if self.backend == "postgres":
+            cursor.execute("""
+                ALTER TABLE contactos_ruana
+                ADD COLUMN IF NOT EXISTS es_urgente INTEGER DEFAULT 0
+            """)
+            cursor.execute("""
+                ALTER TABLE contactos_ruana
+                ADD COLUMN IF NOT EXISTS urgente_marcado_en TIMESTAMP
+            """)
+            return
+        cursor.execute("PRAGMA table_info(contactos_ruana)")
+        columnas = [row[1] for row in cursor.fetchall()]
+        if 'es_urgente' not in columnas:
+            cursor.execute("ALTER TABLE contactos_ruana ADD COLUMN es_urgente INTEGER DEFAULT 0")
+        if 'urgente_marcado_en' not in columnas:
+            cursor.execute("ALTER TABLE contactos_ruana ADD COLUMN urgente_marcado_en TIMESTAMP")
 
     def _migrar_drop_chat_messages(self, conn, cursor) -> None:
         """Elimina la tabla redundante chat_messages. Admin lee desde chat_mensajes + JOIN aliados."""
@@ -5106,10 +5127,12 @@ class DBManager:
     REGLA5_SEGUNDOS_RESPUESTA = 3600
 
     def crear_contacto_ruana(self, solicitante_codigo: str, profesional_codigo: str,
-                             servicio: str = "", motivo_contacto: str = "") -> Dict[str, Any]:
+                             servicio: str = "", motivo_contacto: str = "",
+                             es_urgente: bool = False) -> Dict[str, Any]:
         """
         Crea un nuevo contacto RUANA en estado 'iniciado'.
         motivo_contacto: obligatorio para el flujo de chat (quién contactó a quién y por qué).
+        es_urgente: solo el solicitante puede marcarlo al iniciar el chat (Regla 6).
         """
         with self._lock:
             try:
@@ -5142,13 +5165,28 @@ class DBManager:
 
                 cursor.execute("PRAGMA table_info(contactos_ruana)")
                 columnas = [row[1] for row in cursor.fetchall()]
-                if 'motivo_contacto' in columnas:
+                motivo_val = (motivo_contacto or '').strip() or None
+                urgente_flag = 1 if es_urgente else 0
+                tiene_motivo = 'motivo_contacto' in columnas
+                tiene_urgente = 'es_urgente' in columnas
+
+                if tiene_motivo and tiene_urgente:
+                    cursor.execute("""
+                        INSERT INTO contactos_ruana (
+                            solicitante_codigo, profesional_codigo, servicio, motivo_contacto,
+                            es_urgente, urgente_marcado_en,
+                            estado, pendiente_resolucion, contacto_externo_habilitado
+                        ) VALUES (?, ?, ?, ?, ?, CASE WHEN ? = 1 THEN CURRENT_TIMESTAMP ELSE NULL END,
+                                  'iniciado', 1, 0)
+                    """, (solicitante_codigo, profesional_codigo, servicio or '', motivo_val,
+                          urgente_flag, urgente_flag))
+                elif tiene_motivo:
                     cursor.execute("""
                         INSERT INTO contactos_ruana (
                             solicitante_codigo, profesional_codigo, servicio, motivo_contacto,
                             estado, pendiente_resolucion, contacto_externo_habilitado
                         ) VALUES (?, ?, ?, ?, 'iniciado', 1, 0)
-                    """, (solicitante_codigo, profesional_codigo, servicio or '', (motivo_contacto or '').strip() or None))
+                    """, (solicitante_codigo, profesional_codigo, servicio or '', motivo_val))
                 else:
                     cursor.execute("""
                         INSERT INTO contactos_ruana (
@@ -5167,7 +5205,8 @@ class DBManager:
                     'solicitante_codigo': solicitante_codigo,
                     'profesional_codigo': profesional_codigo,
                     'servicio': servicio or '',
-                    'motivo_contacto': (motivo_contacto or '').strip() or None,
+                    'motivo_contacto': motivo_val,
+                    'es_urgente': bool(urgente_flag) if tiene_urgente else False,
                     'creado_en': datetime.now().isoformat()
                 }
             except Exception as e:
@@ -5887,16 +5926,21 @@ class DBManager:
                 cursor.execute("PRAGMA table_info(contactos_ruana)")
                 cols = [r[1] for r in cursor.fetchall()]
                 motivo_col = 'c.motivo_contacto, ' if 'motivo_contacto' in cols else ''
+                urgente_col = 'COALESCE(c.es_urgente, 0) AS es_urgente, c.urgente_marcado_en, ' if 'es_urgente' in cols else ''
                 cursor.execute(f"""
                     SELECT c.id, c.solicitante_codigo, c.profesional_codigo, c.servicio, c.estado, c.creado_en,
-                           c.fecha_cierre, c.fecha_no_concretado, c.importe_final, c.comision, {motivo_col}
+                           c.fecha_cierre, c.fecha_no_concretado, c.importe_final, c.comision, {motivo_col}{urgente_col}
                            (SELECT COUNT(*) FROM chat_mensajes m WHERE m.contacto_id = c.id) AS num_mensajes,
                            (SELECT MAX(m.creado_en) FROM chat_mensajes m WHERE m.contacto_id = c.id) AS ultimo_mensaje_en
                     FROM contactos_ruana c
                     ORDER BY c.creado_en DESC
                     LIMIT ?
                 """, (limite,))
-                return [dict(row) for row in cursor.fetchall()]
+                lista = [dict(row) for row in cursor.fetchall()]
+                for d in lista:
+                    if 'es_urgente' in d:
+                        d['es_urgente'] = bool(int(d.get('es_urgente') or 0))
+                return lista
             except Exception as e:
                 print(f"Error listar_contactos_recientes_con_chat: {e}")
                 return []
@@ -5921,6 +5965,9 @@ class DBManager:
                            COALESCE(prof.nombre, c.profesional_codigo) AS profesional,
                            c.solicitante_codigo,
                            c.profesional_codigo,
+                           COALESCE(c.es_urgente, 0) AS es_urgente,
+                           c.urgente_marcado_en,
+                           c.motivo_contacto,
                            (SELECT m.texto FROM chat_mensajes m WHERE m.contacto_id = c.id ORDER BY m.creado_en DESC LIMIT 1) AS ultimo_mensaje,
                            (SELECT MAX(m.creado_en) FROM chat_mensajes m WHERE m.contacto_id = c.id) AS fecha_ultimo,
                            (SELECT COUNT(*) FROM chat_mensajes m WHERE m.contacto_id = c.id) AS num_mensajes
@@ -5932,6 +5979,8 @@ class DBManager:
                     LIMIT ? OFFSET ?
                 """, (limite, offset))
                 contactos = [dict(row) for row in cursor.fetchall()]
+                for c in contactos:
+                    c['es_urgente'] = bool(int(c.get('es_urgente') or 0))
                 if not contactos:
                     return []
                 ids = [c["contacto_id"] for c in contactos]
@@ -5981,6 +6030,9 @@ class DBManager:
                         "ultimo_mensaje": ultimo,
                         "fecha_ultimo": fecha_ultimo,
                         "num_mensajes": num_m,
+                        "es_urgente": bool(c.get("es_urgente")),
+                        "urgente_marcado_en": c.get("urgente_marcado_en"),
+                        "motivo_contacto": c.get("motivo_contacto"),
                         "mensajes": mensajes_por_contacto.get(cid, []),
                     })
                 return out
@@ -6391,6 +6443,9 @@ class DBManager:
                             c.fecha_disputa,
                             c.creado_en,
                             c.actualizado_en,
+                            COALESCE(c.es_urgente, 0) AS es_urgente,
+                            c.urgente_marcado_en,
+                            c.motivo_contacto,
                             (SELECT COUNT(*) FROM chat_mensajes m WHERE m.contacto_id = c.id) AS num_mensajes,
                             (SELECT 1 FROM confirmaciones_trabajo ct INNER JOIN aliados a ON a.id = ct.aliado_id WHERE ct.contacto_id = c.id AND TRIM(CAST(a.codigo AS TEXT)) = ?) AS ya_declaraste_importe,
                             COALESCE(
@@ -6421,6 +6476,7 @@ class DBManager:
                         d = dict(row)
                         d['num_mensajes'] = d.get('num_mensajes') or 0
                         d['ya_declaraste_importe'] = d.get('ya_declaraste_importe') is not None
+                        d['es_urgente'] = bool(int(d.get('es_urgente') or 0))
                         result.append(d)
                     return result
 
@@ -6441,6 +6497,9 @@ class DBManager:
                         c.fecha_disputa,
                         c.creado_en,
                         c.actualizado_en,
+                        COALESCE(c.es_urgente, 0) AS es_urgente,
+                        c.urgente_marcado_en,
+                        c.motivo_contacto,
                         (SELECT COUNT(*) FROM chat_mensajes m WHERE m.contacto_id = c.id) AS num_mensajes,
                         (SELECT 1 FROM confirmaciones_trabajo ct INNER JOIN aliados a ON a.id = ct.aliado_id WHERE ct.contacto_id = c.id AND TRIM(CAST(a.codigo AS TEXT)) = ?) AS ya_declaraste_importe
                     FROM contactos_ruana c
@@ -6478,6 +6537,7 @@ class DBManager:
                     d = dict(row)
                     d['num_mensajes'] = d.get('num_mensajes') or 0
                     d['ya_declaraste_importe'] = d.get('ya_declaraste_importe') is not None
+                    d['es_urgente'] = bool(int(d.get('es_urgente') or 0))
                     result.append(d)
                 return result
             except Exception as e:
@@ -6502,6 +6562,7 @@ class DBManager:
                 cols = [r[1] for r in cursor.fetchall()]
                 motivo_col = ', motivo_contacto' if 'motivo_contacto' in cols else ''
                 apoyo_col = ', apoyo_ruana' if 'apoyo_ruana' in cols else ''
+                urgente_col = ', COALESCE(es_urgente, 0) AS es_urgente, urgente_marcado_en' if 'es_urgente' in cols else ''
                 cursor.execute(f"""
                     SELECT
                         id, solicitante_codigo, profesional_codigo, servicio, estado,
@@ -6509,6 +6570,7 @@ class DBManager:
                         fecha_cierre, fecha_no_concretado, creado_en, actualizado_en
                         {apoyo_col}
                         {motivo_col}
+                        {urgente_col}
                     FROM contactos_ruana
                     WHERE id = ?
                 """, (contacto_id,))
@@ -6517,6 +6579,8 @@ class DBManager:
                 if not row:
                     return None
                 d = dict(row)
+                if 'es_urgente' in d:
+                    d['es_urgente'] = bool(int(d.get('es_urgente') or 0))
                 # Reparación: si trabajo cerrado con importe_final pero apoyo_ruana/comision faltan, calcular
                 if d.get('estado') == 'trabajo_cerrado' and d.get('importe_final') is not None:
                     imp = float(d['importe_final'])
@@ -6913,6 +6977,7 @@ class DBManager:
                     SELECT c.id, c.solicitante_codigo, c.profesional_codigo, c.servicio,
                            c.importe_final, c.apoyo_ruana, c.estado_pago, c.pendiente_pago, c.fecha_cierre,
                            c.comprobante_ruta,
+                           COALESCE(c.es_urgente, 0) AS es_urgente, c.urgente_marcado_en, c.creado_en,
                            a_sol.nombre AS solicitante_nombre, a_prof.nombre AS profesional_nombre
                     FROM contactos_ruana c
                     LEFT JOIN aliados a_sol ON a_sol.codigo = c.solicitante_codigo
@@ -6923,6 +6988,7 @@ class DBManager:
                 """)
                 lista = [dict(row) for row in cursor.fetchall()]
                 for d in lista:
+                    d['es_urgente'] = bool(int(d.get('es_urgente') or 0))
                     if d.get('importe_final') is not None and d.get('apoyo_ruana') is None:
                         try:
                             d['apoyo_ruana'] = round(float(d['importe_final']) * self._get_apoyo_pct() / 100.0, 2)
@@ -6970,6 +7036,73 @@ class DBManager:
     ESTADOS_PAGO_PERMITIDOS_ADMIN = ('en_revision', 'pagado', 'rechazado')
     REGLA4_ENCARGOS_MES_UMBRAL = 4
     REGLA4_ENCARGOS_MES_DELTA = 3
+    REGLA6_DELTA = 3
+
+    @staticmethod
+    def _fecha_dia_servidor(fecha_val: Any) -> Optional[str]:
+        """Normaliza timestamp/fecha a 'YYYY-MM-DD' (calendario del servidor)."""
+        if fecha_val is None:
+            return None
+        if isinstance(fecha_val, datetime):
+            dt = fecha_val
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+            return dt.strftime('%Y-%m-%d')
+        s = str(fecha_val).strip()
+        if len(s) >= 10 and s[4] == '-' and s[7] == '-':
+            return s[:10]
+        return None
+
+    def evaluar_regla6_urgente_mismo_dia(
+        self,
+        contacto_id: int,
+        fecha_pago: Optional[Any] = None,
+    ) -> Optional[Tuple[str, int, str]]:
+        """
+        Regla 6: contacto urgente pagado el mismo día → +3 al profesional.
+        """
+        try:
+            contacto_id = int(contacto_id)
+        except (TypeError, ValueError):
+            return None
+        with self._lock:
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id, profesional_codigo, COALESCE(es_urgente, 0) AS es_urgente,
+                           urgente_marcado_en, creado_en, fecha_validacion_pago, estado_pago
+                    FROM contactos_ruana WHERE id = ?
+                """, (contacto_id,))
+                row = cursor.fetchone()
+                if not row:
+                    return None
+                d = dict(row)
+            except Exception:
+                return None
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+        if not bool(int(d.get('es_urgente') or 0)):
+            return None
+        prof = str(d.get('profesional_codigo') or '').strip()
+        if not prof:
+            return None
+        inicio = d.get('urgente_marcado_en') or d.get('creado_en')
+        pago = fecha_pago if fecha_pago is not None else d.get('fecha_validacion_pago')
+        if pago is None:
+            pago = datetime.now()
+        dia_inicio = self._fecha_dia_servidor(inicio)
+        dia_pago = self._fecha_dia_servidor(pago)
+        if not dia_inicio or not dia_pago or dia_inicio != dia_pago:
+            return None
+        motivo = f'regla6_urgente_mismo_dia_{contacto_id}'
+        if self._ya_aplicado_motivo_score(prof, motivo):
+            return None
+        return (prof, self.REGLA6_DELTA, motivo)
 
     @staticmethod
     def _anio_mes_de(fecha_val: Any) -> Optional[str]:
@@ -7137,7 +7270,8 @@ class DBManager:
         - pagado: pendiente_pago = 0, fecha_validacion_pago y admin_validacion_codigo;
           Regla 2: +2 score al solicitante y al profesional (encargo completado);
           Regla 3: +1 a ancestros 1ª/2ª generación de cada participante (linaje referidos);
-          Regla 4: +3 si el aliado completa 4 encargos pagados limpios en el mismo mes.
+          Regla 4: +3 si el aliado completa 4 encargos pagados limpios en el mismo mes;
+          Regla 6: +3 al profesional si el contacto era urgente y se paga el mismo día.
         - rechazado: estado_pago → pendiente_pago, pendiente_pago = 1, motivo_rechazo_pago, comprobante_ruta=NULL;
           motivo_rechazo obligatorio; notifica al profesional.
         """
@@ -7252,6 +7386,11 @@ class DBManager:
             hito_regla4 = self.evaluar_regla4_encargos_mes_limpio(codigo, anio_mes_actual)
             if hito_regla4:
                 scores_aplicar.append(hito_regla4)
+        # Regla 6: urgente pagado el mismo día → +3 al profesional
+        if participantes_regla2:
+            hito_regla6 = self.evaluar_regla6_urgente_mismo_dia(contacto_id)
+            if hito_regla6:
+                scores_aplicar.append(hito_regla6)
         for codigo, delta, motivo in scores_aplicar:
             try:
                 self.aplicar_cambio_score(codigo, delta, motivo)

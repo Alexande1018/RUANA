@@ -1299,6 +1299,7 @@
                                 <th>ID</th>
                                 <th>Solicitante</th>
                                 <th>Profesional</th>
+                                <th>Urgente</th>
                                 <th>Importe final</th>
                                 <th>Apoyo RUANA</th>
                                 <th>Estado pago</th>
@@ -1433,6 +1434,7 @@
                                 <th>ID contacto</th>
                                 <th>Solicitante</th>
                                 <th>Profesional</th>
+                                <th>Urgente</th>
                                 <th>Último mensaje</th>
                                 <th>Fecha</th>
                                 <th></th>
@@ -3016,12 +3018,17 @@
                     const estadoPago = (p.estado_pago || 'pendiente_pago').replace(/_/g, ' ');
                     const comprobanteLink = p.comprobante_ruta ? `<a href="${this.escapeHtml(p.comprobante_ruta)}" target="_blank" rel="noopener">Ver</a>` : '—';
                     const fechaCierre = p.fecha_cierre ? this.formatearHora(p.fecha_cierre) : '—';
+                    const urgenteHtml = p.es_urgente
+                        ? '<span class="estado-pago-badge" style="background:rgba(180,83,9,0.35);color:#fde68a;border:1px solid rgba(251,191,36,0.5);">URGENTE</span>'
+                        : '—';
                     const tr = document.createElement('tr');
                     tr.setAttribute('data-contacto-id', String(p.id || ''));
+                    if (p.es_urgente) tr.style.background = 'rgba(180, 83, 9, 0.12)';
                     tr.innerHTML = `
                         <td>${p.id || '—'}</td>
                         <td>${this.escapeHtml(p.solicitante_nombre || p.solicitante_codigo || '')}</td>
                         <td>${this.escapeHtml(p.profesional_nombre || p.profesional_codigo || '')}</td>
+                        <td>${urgenteHtml}</td>
                         <td>${importeFinal}</td>
                         <td>${apoyo}</td>
                         <td><span class="estado-pago-badge estado-pago-${(p.estado_pago || '').replace(/_/g, '-')}">${this.escapeHtml(estadoPago)}</span></td>
@@ -3859,11 +3866,16 @@
                 const id = c.contacto_id != null ? c.contacto_id : c.id;
                 const ultimoTexto = (c.ultimo_mensaje || '').substring(0, 80) + ((c.ultimo_mensaje || '').length > 80 ? '…' : '');
                 const fecha = c.fecha_ultimo ? this.formatearHora(c.fecha_ultimo) : '—';
+                const urgenteHtml = c.es_urgente
+                    ? '<span class="estado-pago-badge" style="background:rgba(180,83,9,0.35);color:#fde68a;border:1px solid rgba(251,191,36,0.5);">URGENTE</span>'
+                    : '—';
                 const tr = document.createElement('tr');
+                if (c.es_urgente) tr.style.background = 'rgba(180, 83, 9, 0.12)';
                 tr.innerHTML = `
                     <td>${id}</td>
                     <td>${this.escapeHtml(c.solicitante || '')}</td>
                     <td>${this.escapeHtml(c.profesional || '')}</td>
+                    <td>${urgenteHtml}</td>
                     <td>${this.escapeHtml(ultimoTexto) || '—'}</td>
                     <td>${fecha}</td>
                     <td><button type="button" class="btn-accion btn-ver-chat" data-contacto-id="${id}">Ver chat</button></td>
