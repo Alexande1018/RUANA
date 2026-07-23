@@ -112,13 +112,10 @@ def test_regla7_idempotente(sqlite_db):
         contacto_id=cid, parte="solicitante", importe=50.0, usuario="92001"
     )["status"] == "success"
     assert sum(1 for _, m in _motivos(sqlite_db, "92001") if m.startswith("regla7_")) == 1
-
-    assert sqlite_db.evaluar_regla7_declaracion_24h(cid) is None
-    hito = ( "92001", 2, f"regla7_declaracion_24h_{cid}" )
-    # Reaplicar el mismo motivo no debe duplicar (aplicar_cambio_score insertaría otra fila;
-    # la evaluación ya es None por idempotencia).
     assert _score(sqlite_db, "92001") == 52
-    assert hito[2] == f"regla7_declaracion_24h_{cid}"
+
+    # Segunda evaluación: idempotente (no vuelve a proponer el hito)
+    assert sqlite_db.evaluar_regla7_declaracion_24h(cid) is None
 
 
 def test_regla7_limite_exacto_24h_no_aplica(sqlite_db):
