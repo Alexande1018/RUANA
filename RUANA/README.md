@@ -189,12 +189,14 @@ Límites: máximo **5 grupos por código postal**; **un oficio principal por gru
 5. **chat_sin_respuesta_48h_{contacto_id}**: Conversación con mensajes sin respuesta ≥ **48 h** (desde el último mensaje) → **-2** al que no respondió (quien no es el último emisor). **No aplica** si el encargo se cerró de forma adecuada (`trabajo_cerrado`, `no_concretado`, `cerrado_no_concretado`) o si **ambas** partes dieron por terminado el chat (`contacto_panel_oculto`). Sin mensajes no aplica. Una vez por contacto (`tipo` `chat_48h`).
 6. **sin_acceso_7d_{YYYY-MM-DD}**: Sin entrar a la app (**`POST /api/aliado/login`**) durante **7 días** de calendario → **-1**. Repetible: un −1 por cada bloque completo de 7 días sin acceso desde el último login (o desde `creado_en` si nunca entró). Solo aliados `activo`.
 7. **chat_agotado_sin_resultado_{contacto_id}**: Agotar el chat (**30 mensajes** totales) sin declarar resultado → **-2** solo a quien envió el mensaje que agotó el cupo. No aplica si el encargo ya está en cierre adecuado. Una vez por contacto (`tipo` `chat_agotado`).
+8. **disputa_perdida_{contacto_id}**: Perder una disputa de importe resuelta por admin (`decision` = `contratante` o `profesional`) → **-3** al perdedor. Si admin da la razón al contratante, pierde el profesional; si al profesional, pierde el solicitante. `decision=rechazado` no aplica. Una vez por contacto (`tipo` `disputa_perdida`).
 
 Las penalizaciones 2–3, 5 y 6 se aplican al solicitar datos del aliado (p. ej. `GET /api/aliado/datos`) mediante `aplicar_penalizaciones_contactos_abiertos()` (5 vía `aplicar_penalizacion_chat_sin_respuesta_48h`, 6 vía `aplicar_penalizacion_sin_acceso_semanal`). La 6 también se evalúa en el login **antes** de registrar el acceso del día.
 La penalización 4 se aplica al iniciar la competencia (`_iniciar_competencia_si_procede` → `aplicar_penalizacion_descendiente_en_competencia`).
 La penalización 7 se aplica en `enviar_mensaje_chat` al pasar a `chat_agotado`.
+La penalización 8 se aplica en `resolver_payment_conflict_admin` al dar la razón a una parte.
 El cierre del contacto con importe genera el Apoyo (`pendiente_pago`) pero **no** suma score; los puntos llegan al confirmar el pago.
-La disputa de importes **no** modifica el score.
+La disputa de importes **solo** modifica el score al **perder** tras resolución admin explícita (−3).
 ---
 
 ## 7. Flujo de contactos RUANA

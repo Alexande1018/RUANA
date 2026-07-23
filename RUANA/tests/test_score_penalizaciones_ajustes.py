@@ -405,3 +405,64 @@ def test_penalizacion7_no_aplica_si_ya_cerrado(sqlite_db):
     conn.close()
     assert sqlite_db.aplicar_penalizacion_chat_agotado_sin_resultado(cid, "99511") is None
     assert _score(sqlite_db, "99511") == 50
+
+
+def _contacto_en_disputa(db, sol="99601", prof="99602", importe=100.0):
+    _crear_activo(db, sol, "SolDisp8", score=60)
+    _crear_activo(db, prof, "ProfDisp8", score=60)
+    _forzar_activo(db, sol)
+    _forzar_activo(db, prof)
+    created = db.crear_contacto_ruana(sol, prof, "Servicio", "Disp8")
+    cid = created["id"]
+    assert db.registrar_importe_contacto(cid, "solicitante", importe, usuario=sol)["status"] == "success"
+    assert db.impugnar_apoyo_ruana(cid, prof, "Importe incorrecto")["status"] == "success"
+    conflicto = db.obtener_payment_conflict_por_trabajo(cid, sol)
+    return cid, conflicto["id"], sol, prof
+
+
+def test_penalizacion8_disputa_perdida_resta_3_al_perdedor(sqlite_db):
+    """Admin da razón al contratante → -3 al profesional."""
+    cid, conflict_id, sol, prof = _contacto_en_disputa(sqlite_db)
+    score_sol_antes = _score(sqlite_db, sol)
+    score_prof_antes = _score(sqlite_db, prof)
+    r = sqlite_db.resolver_payment_conflict_admin(
+        conflict_id, "contratante", "Prueba valida el importe.", "ADMIN001"
+    )
+    assert r["status"] == "success"
+    assert _score(sqlite_db, sol) == score_sol_antes
+    assert _score(sqlite_db, prof) == score_prof_antes - 3
+    assert (-3, f"disputa_perdida_{cid}") in _motivos(sqlite_db, prof)
+    assert not any(m.startswith("disputa_perdida_") for _, m in _motivos(sqlite_db, sol))
+    # Idempotente
+    assert sqlite_db.aplicar_penalizacion_disputa_perdida(cid, "contratante") is None
+
+
+def test_penalizacion8_gana_profesional_pierde_solicitante(sqlite_db):
+    cid, conflict_id, sol, prof = _contacto_en_disputa(
+        sqlite_db, sol="99611", prof="99612"
+    )
+    score_sol_antes = _score(sqlite_db, sol)
+    score_prof_antes = _score(sqlite_db, prof)
+    r = sqlite_db.resolver_payment_conflict_admin(
+        conflict_id, "profesional", "Se acepta version del profesional.", "ADMIN001"
+    )
+    assert r["status"] == "success"
+    assert _score(sqlite_db, sol) == score_sol_antes - 3
+    assert _score(sqlite_db, prof) == score_prof_antes
+    assert (-3, f"disputa_perdida_{cid}") in _motivos(sqlite_db, sol)
+
+
+def test_penalizacion8_rechazado_no_resta(sqlite_db):
+    cid, conflict_id, sol, prof = _contacto_en_disputa(
+        sqlite_db, sol="99621", prof="99622"
+    )
+    score_sol_antes = _score(sqlite_db, sol)
+    score_prof_antes = _score(sqlite_db, prof)
+    r = sqlite_db.resolver_payment_conflict_admin(
+        conflict_id, "rechazado", "Documentacion insuficiente.", "ADMIN001"
+    )
+    assert r["status"] == "success"
+    assert _score(sqlite_db, sol) == score_sol_antes
+    assert _score(sqlite_db, prof) == score_prof_antes
+    assert not any(m.startswith("disputa_perdida_") for _, m in _motivos(sqlite_db, sol))
+    assert not any(m.startswith("disputa_perdida_") for _, m in _motivos(sqlite_db, prof))

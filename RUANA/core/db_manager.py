@@ -7040,6 +7040,8 @@ class DBManager:
         if not (comentario or "").strip():
             return {'status': 'error', 'message': 'comentario es obligatorio'}
         resultado = {'status': 'error', 'message': 'unknown'}
+        decision_penal_disputa: Optional[str] = None
+        contacto_penal_disputa: Optional[int] = None
         with self._lock:
             try:
                 conn = self._connect()
@@ -7058,6 +7060,7 @@ class DBManager:
                 trabajo_id = pc['trabajo_id']
                 nuevo_estado = 'RECHAZADO' if decision == 'rechazado' else 'RESUELTO'
                 importe_valido = None
+                cerro_contacto_disputa = False
                 if decision == 'contratante':
                     importe_valido = float(pc['importe_contratante'])
                 elif decision in ('profesional', 'rechazado'):
@@ -7087,6 +7090,7 @@ class DBManager:
                                 fecha_cierre = CURRENT_TIMESTAMP, actualizado_en = CURRENT_TIMESTAMP
                             WHERE id = ?
                         """, (importe_valido, apoyo, comision_pct, apoyo, estado_pago_final, pendiente_pago_final, trabajo_id))
+                        cerro_contacto_disputa = True
                         if apoyo > 0:
                             cursor.execute(
                                 "INSERT INTO ingresos_ruana (contacto_id, importe_final, apoyo_ruana_2pct) VALUES (?, ?, ?)",
@@ -7138,11 +7142,111 @@ class DBManager:
                 conn.commit()
                 resultado = {'status': 'success', 'conflict_id': conflict_id, 'estado': nuevo_estado,
                              'importe_final': importe_valido}
+                # Penalización 8: -3 al perdedor si admin da la razón a una parte
+                if (
+                    cerro_contacto_disputa
+                    and decision in ('contratante', 'profesional')
+                    and trabajo_id
+                ):
+                    decision_penal_disputa = decision
+                    contacto_penal_disputa = int(trabajo_id)
             except Exception as e:
                 resultado = {'status': 'error', 'message': str(e)}
             finally:
                 conn.close()
+        if (
+            resultado.get('status') == 'success'
+            and decision_penal_disputa in ('contratante', 'profesional')
+            and contacto_penal_disputa
+        ):
+            try:
+                self.aplicar_penalizacion_disputa_perdida(
+                    contacto_penal_disputa, decision_penal_disputa
+                )
+            except Exception:
+                pass
         return resultado
+
+    def aplicar_penalizacion_disputa_perdida(
+        self, contacto_id: int, decision: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Penalización 8: perder una disputa resuelta por admin → -3 al perdedor.
+        decision=contratante → pierde el profesional; decision=profesional → pierde el solicitante.
+        No aplica si decision=rechazado. Motivo: disputa_perdida_{contacto_id}.
+        """
+        decision = (decision or '').strip().lower()
+        if decision not in ('contratante', 'profesional') or not contacto_id:
+            return None
+        with self._lock:
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT solicitante_codigo, profesional_codigo FROM contactos_ruana WHERE id = ?",
+                    (int(contacto_id),),
+                )
+                row = cursor.fetchone()
+                if not row:
+                    return None
+                sol = str(row[0] or '').strip()
+                prof = str(row[1] or '').strip()
+            except Exception:
+                return None
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+        perdedor = prof if decision == 'contratante' else sol
+        if not perdedor:
+            return None
+        motivo = f'disputa_perdida_{int(contacto_id)}'
+        if self._ya_aplicado_motivo_score(perdedor, motivo):
+            return None
+        with self._lock:
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT 1 FROM contacto_penalizaciones_aplicadas
+                    WHERE contacto_id = ? AND tipo = 'disputa_perdida'
+                    """,
+                    (int(contacto_id),),
+                )
+                if cursor.fetchone():
+                    return None
+            except Exception:
+                return None
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+        result = self.aplicar_cambio_score(perdedor, -3, motivo)
+        if result.get('status') == 'success' and int(result.get('aplicado') or 0) != 0:
+            with self._lock:
+                try:
+                    conn = self._connect()
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        """
+                        INSERT OR IGNORE INTO contacto_penalizaciones_aplicadas (contacto_id, tipo)
+                        VALUES (?, 'disputa_perdida')
+                        """,
+                        (int(contacto_id),),
+                    )
+                    conn.commit()
+                except Exception:
+                    pass
+                finally:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+            return {'codigo': perdedor, 'motivo': motivo, 'result': result}
+        return None
 
     def resolver_conflicto_pago(self, contacto_id: int, importe_valido: float,
                                 admin_codigo: str = "") -> Dict[str, Any]:
