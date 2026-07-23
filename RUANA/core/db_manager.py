@@ -4358,8 +4358,8 @@ class DBManager:
 
     def consumir_invitacion_oficio(self, codigo: str, nuevo_aliado_codigo: str) -> bool:
         """
-        Marca una invitación por oficio como usada, registra referido y da +5 al generador.
-        Idempotente si ya estaba usada pero faltaba el vínculo en referidos.
+        Marca una invitación por oficio como usada, registra referido y da +5 al generador
+        (Regla 9 del score operativo). Idempotente si ya estaba usada pero faltaba el vínculo.
         """
         codigo = (codigo or '').strip().upper()
         nuevo_aliado_codigo = (nuevo_aliado_codigo or '').strip()
@@ -4407,7 +4407,9 @@ class DBManager:
                         (nuevo_aliado_codigo, invitacion_id),
                     )
                     if not ya_registrado:
-                        self.aplicar_cambio_score(codigo_invitador, 5, 'invitacion_oficio_usada')
+                        self.aplicar_cambio_score(
+                            codigo_invitador, self.REGLA9_DELTA, 'invitacion_oficio_usada'
+                        )
                 elif estado == 'usado' and not ya_registrado:
                     cursor.execute(
                         "UPDATE invitaciones_oficio SET codigo_referido = ? WHERE id = ? AND COALESCE(codigo_referido, '') = ''",
@@ -5359,7 +5361,7 @@ class DBManager:
     def marcar_no_concretado(self, contacto_id: int, motivo: str = "") -> Dict[str, Any]:
         """
         Marca el contacto como 'no_concretado' (compatibilidad legacy).
-        Ver marcar_cerrado_no_concretado para el flujo con -2 y audit.
+        Ver marcar_cerrado_no_concretado para el flujo con -1 y audit.
         """
         return self.marcar_cerrado_no_concretado(contacto_id, motivo=motivo)
 
@@ -5368,7 +5370,7 @@ class DBManager:
         """
         Cierra el contacto como no concretado. Transacción atómica:
         - Estado → cerrado_no_concretado, pendiente_resolucion = 0.
-        - -2 puntos Score RUANA a cada aliado.
+        - -1 punto Score RUANA a cada aliado.
         - audit_log. No permitir si ya está en estado final.
         """
         sol = prof = None
@@ -5417,9 +5419,9 @@ class DBManager:
                     pass
 
         if sol:
-            self.aplicar_cambio_score(sol, -2, 'contacto_cerrado_no_concretado')
+            self.aplicar_cambio_score(sol, -1, 'contacto_cerrado_no_concretado')
         if prof:
-            self.aplicar_cambio_score(prof, -2, 'contacto_cerrado_no_concretado')
+            self.aplicar_cambio_score(prof, -1, 'contacto_cerrado_no_concretado')
         return {'status': 'success', 'id': contacto_id, 'estado': 'cerrado_no_concretado'}
 
     def marcar_en_conversacion(self, contacto_id: int, actor_codigo: str = "") -> Dict[str, Any]:
@@ -7078,6 +7080,7 @@ class DBManager:
     REGLA7_HORAS_LIMITE = 24
     REGLA8_DIAS_RACHA = 7
     REGLA8_DELTA = 3
+    REGLA9_DELTA = 5  # Invitación por oficio usada
 
     def evaluar_regla7_declaracion_24h(
         self,

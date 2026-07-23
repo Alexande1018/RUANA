@@ -179,13 +179,14 @@ Límites: máximo **5 grupos por código postal**; **un oficio principal por gru
 - **Regla 6**: Contacto marcado como **urgente** al iniciar el chat y Apoyo **pagado el mismo día** (calendario del servidor) → +3 al profesional (`regla6_urgente_mismo_dia_{contacto_id}`).
 - **Regla 7**: El contratante (solicitante) declara el importe **antes de 24 h** desde `contactos_ruana.creado_en` → +2 al contratante (`regla7_declaracion_24h_{contacto_id}`). Se evalúa al declarar; no requiere pago.
 - **Regla 8**: Login en la app **todos los días durante 7 días consecutivos** (calendario del servidor) → +3 (`regla8_racha_7dias_YYYY-MM-DD`). Solo cuenta `POST /api/aliado/login`; una vez por ventana de 7 días (repetible la semana siguiente). Tabla `aliado_accesos_dia`.
-- Declaración contradictoria (importe en disputa): -1 cada uno.
-- Contacto no concretado: -2 cada uno.
+- **Regla 9**: Se usa una **invitación por oficio** (`RUANA-…`) → +5 al aliado que la generó (`invitacion_oficio_usada`).
+- Contacto no concretado: **-1** cada uno.
 - Contacto abierto 7 días: -2 (una vez por contacto).
 - Contacto abierto 21 días: -5 (una vez por contacto).
 
 Las penalizaciones por contactos abiertos se aplican al solicitar datos del aliado (p. ej. `GET /api/aliado/datos`) mediante `aplicar_penalizaciones_contactos_abiertos()`.
 El cierre del contacto con importe genera el Apoyo (`pendiente_pago`) pero **no** suma score; los puntos llegan al confirmar el pago.
+La disputa de importes **no** modifica el score.
 ---
 
 ## 7. Flujo de contactos RUANA
