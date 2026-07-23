@@ -161,43 +161,49 @@ Límites: máximo **5 grupos por código postal**; **un oficio principal por gru
 
 ### Score (0–100)
 
-- Almacenado en `aliados.score`.
-- **Límite diario**: máximo ±10 puntos por aliado por día (suma de `score_movimientos` del día).
-- **Cálculo de estado** (derivado, no almacenado como texto en `aliados`): `DBManager.score_a_estado(score)`:
+- Almacenado en `aliados.score`. Auditoría en `score_movimientos` (`codigo_aliado`, `delta`, `motivo`, `creado_en`).
+- **Límite diario**: máximo ±10 puntos por aliado por día.
+- **Cálculo de estado** (derivado; `DBManager.score_a_estado(score)`):
   - **PRIORITARIO**: score ≥ 85  
   - **ESTABLE**: 60 ≤ score < 85  
   - **EN RIESGO**: 35 ≤ score < 60  
   - **COMPETENCIA**: score < 35  
 
-### Eventos que modifican el score (ejemplos)
+### Reglas de aumento de score (orden 1–9)
 
-- **Regla 1**: Aliado referido se registra con código de invitación válido: +3 al invitador.
-- **Regla 2**: Encargo completado (Apoyo RUANA marcado como `pagado` por admin): +2 al solicitante y +2 al profesional.
-- **Regla 3**: Al completar Regla 2, +1 al padre (1ª generación) y +1 al abuelo (2ª generación) de cada participante, según `invitado_por_codigo`. No aplica a admin/sistema. Si el mismo ancestro aparece por ambos participantes, suma por cada rama.
-- **Regla 4**: 4 encargos `pagado` en el mismo mes (datos de Pagos Apoyo RUANA) sin incidencias de pago (disputa/conflicto o rechazo de comprobante, aunque luego se pague) → +3 una vez por mes (`regla4_4_encargos_mes_limpio_YYYY-MM`).
-- **Regla 5**: El profesional responde en &lt;1 h al primer mensaje de chat de 3 clientes (solicitantes) distintos → +3. Se evalúa al enviar mensaje del profesional; cada lote de 3 clientes otorga el bonus una vez (`regla5_3_clientes_respuesta_1h_...`).
-- **Regla 6**: Contacto marcado como **urgente** al iniciar el chat y Apoyo **pagado el mismo día** (calendario del servidor) → +3 al profesional (`regla6_urgente_mismo_dia_{contacto_id}`).
-- **Regla 7**: El contratante (solicitante) declara el importe **antes de 24 h** desde `contactos_ruana.creado_en` → +2 al contratante (`regla7_declaracion_24h_{contacto_id}`). Se evalúa al declarar; no requiere pago.
-- **Regla 8**: Login en la app **todos los días durante 7 días consecutivos** (calendario del servidor) → +3 (`regla8_racha_7dias_YYYY-MM-DD`). Solo cuenta `POST /api/aliado/login`; una vez por ventana de 7 días (repetible la semana siguiente). Tabla `aliado_accesos_dia`.
-- **Regla 9**: Se usa una **invitación por oficio** (`RUANA-…`) → +5 al aliado que la generó (`invitacion_oficio_usada`).
-### Penalizaciones de score (orden)
+1. **Regla 1** (`aliado_referido_registro_valido`): Aliado referido se registra con código de invitación válido → **+3** al invitador.
+2. **Regla 2** (`encargo_completado_apoyo_pagado`): Encargo completado (Apoyo RUANA marcado como `pagado` por admin) → **+2** al solicitante y **+2** al profesional.
+3. **Regla 3** (`referido_encargo_completado_gen{1|2}`): Al completar Regla 2 → **+1** al padre (gen1) y **+1** al abuelo (gen2) de cada participante, según `invitado_por_codigo`. No aplica a admin/sistema. Si el mismo ancestro aparece por ambas ramas, suma por cada una.
+4. **Regla 4** (`regla4_4_encargos_mes_limpio_YYYY-MM`): 4 encargos `pagado` en el mismo mes sin incidencias de pago (disputa/conflicto o rechazo de comprobante, aunque luego se pague) → **+3** una vez por mes.
+5. **Regla 5** (`regla5_3_clientes_respuesta_1h_...`): El profesional responde en &lt;1 h al primer mensaje de chat de **3 clientes** (solicitantes) distintos → **+3**. Cada lote de 3 clientes otorga el bonus una vez.
+6. **Regla 6** (`regla6_urgente_mismo_dia_{contacto_id}`): Contacto marcado como **urgente** al iniciar el chat y Apoyo **pagado el mismo día** (calendario del servidor) → **+3** al profesional.
+7. **Regla 7** (`regla7_declaracion_24h_{contacto_id}`): El contratante (solicitante) declara el importe **antes de 24 h** desde `contactos_ruana.creado_en` → **+2** al contratante. Se evalúa al declarar; no requiere pago.
+8. **Regla 8** (`regla8_racha_7dias_YYYY-MM-DD`): Login en la app **todos los días durante 7 días consecutivos** (calendario del servidor) → **+3**. Solo cuenta `POST /api/aliado/login`; una vez por ventana de 7 días (repetible). Tabla `aliado_accesos_dia`.
+9. **Regla 9** (`invitacion_oficio_usada`): Se usa una **invitación por oficio** (`RUANA-…`) → **+5** al aliado que la generó.
 
-1. **contacto_cerrado_no_concretado**: Contacto cerrado sin trabajo concretado → **-1** al solicitante y **-1** al profesional.
-2. **contacto_sin_cerrar_7d**: Contacto abierto ≥ 7 días (`iniciado` / `aceptado` / `trabajo_en_progreso`) → **-2** (una vez por contacto).
-3. **contacto_sin_cerrar_21d**: Contacto abierto ≥ 21 días → **-5** (una vez por contacto; se suma al −2 de 7d).
-4. **descendiente_entra_competencia_gen{1|2}_{id}**: Un hijo (gen1) o nieto (gen2) del linaje (`invitado_por_codigo`) entra en competencia (proceso real) → **-2** al padre y/o abuelo. Una vez por competencia y ancestro. No aplica a admin/sistema. El suplente no dispara la regla.
-5. **chat_sin_respuesta_48h_{contacto_id}**: Conversación con mensajes sin respuesta ≥ **48 h** (desde el último mensaje) → **-2** al que no respondió (quien no es el último emisor). **No aplica** si el encargo se cerró de forma adecuada (`trabajo_cerrado`, `no_concretado`, `cerrado_no_concretado`) o si **ambas** partes dieron por terminado el chat (`contacto_panel_oculto`). Sin mensajes no aplica. Una vez por contacto (`tipo` `chat_48h`).
-6. **sin_acceso_7d_{YYYY-MM-DD}**: Sin entrar a la app (**`POST /api/aliado/login`**) durante **7 días** de calendario → **-1**. Repetible: un −1 por cada bloque completo de 7 días sin acceso desde el último login (o desde `creado_en` si nunca entró). Solo aliados `activo`.
-7. **chat_agotado_sin_resultado_{contacto_id}**: Agotar el chat (**30 mensajes** totales) sin declarar resultado → **-2** solo a quien envió el mensaje que agotó el cupo. No aplica si el encargo ya está en cierre adecuado. Una vez por contacto (`tipo` `chat_agotado`).
-8. **disputa_perdida_{contacto_id}**: Perder una disputa de importe resuelta por admin (`decision` = `contratante` o `profesional`) → **-3** al perdedor. Si admin da la razón al contratante, pierde el profesional; si al profesional, pierde el solicitante. `decision=rechazado` no aplica. Una vez por contacto (`tipo` `disputa_perdida`).
-9. **comprobante_apoyo_3d_{contacto_id}**: Apoyo RUANA generado sin subir comprobante ≥ **3 días** (desde `fecha_cierre`) → **-3** al profesional. Solo si `estado_pago=pendiente_pago` y sin `comprobante_ruta`. No aplica si ya `pagado`, `en_revision` o `no_generado`. Una vez por contacto (`tipo` `comprobante_3d`).
+Notas de aumento: el cierre del contacto con importe genera el Apoyo (`pendiente_pago`) pero **no** suma score por sí solo; los puntos de Regla 2 llegan al confirmar el pago (`pagado`).
 
-Las penalizaciones 2–3, 5, 6 y 9 se aplican al solicitar datos del aliado (p. ej. `GET /api/aliado/datos`) mediante `aplicar_penalizaciones_contactos_abiertos()` (5 vía `aplicar_penalizacion_chat_sin_respuesta_48h`, 6 vía `aplicar_penalizacion_sin_acceso_semanal`, 9 vía `aplicar_penalizacion_comprobante_apoyo_3d`). La 6 también se evalúa en el login **antes** de registrar el acceso del día.
-La penalización 4 se aplica al iniciar la competencia (`_iniciar_competencia_si_procede` → `aplicar_penalizacion_descendiente_en_competencia`).
-La penalización 7 se aplica en `enviar_mensaje_chat` al pasar a `chat_agotado`.
-La penalización 8 se aplica en `resolver_payment_conflict_admin` al dar la razón a una parte.
-El cierre del contacto con importe genera el Apoyo (`pendiente_pago`) pero **no** suma score; los puntos llegan al confirmar el pago.
-La disputa de importes **solo** modifica el score al **perder** tras resolución admin explícita (−3).
+### Reglas de penalización de score (orden 1–9)
+
+1. **contacto_cerrado_no_concretado**: Contacto cerrado sin trabajo concretado → **−1** al solicitante y **−1** al profesional.
+2. **contacto_sin_cerrar_7d**: Contacto abierto ≥ 7 días (`iniciado` / `aceptado` / `trabajo_en_progreso`) → **−2** (una vez por contacto).
+3. **contacto_sin_cerrar_21d**: Contacto abierto ≥ 21 días → **−5** (una vez por contacto; se suma al −2 de 7d).
+4. **descendiente_entra_competencia_gen{1|2}_{id}**: Un hijo (gen1) o nieto (gen2) del linaje (`invitado_por_codigo`) entra en competencia (proceso real) → **−2** al padre y/o abuelo. Una vez por competencia y ancestro. No aplica a admin/sistema. El suplente no dispara la regla.
+5. **chat_sin_respuesta_48h_{contacto_id}**: Conversación con mensajes sin respuesta ≥ **48 h** (desde el último mensaje) → **−2** al que no respondió (quien no es el último emisor). **No aplica** si el encargo se cerró de forma adecuada (`trabajo_cerrado`, `no_concretado`, `cerrado_no_concretado`) o si **ambas** partes dieron por terminado el chat (`contacto_panel_oculto`). Sin mensajes no aplica. Una vez por contacto (`tipo` `chat_48h`).
+6. **sin_acceso_7d_{YYYY-MM-DD}**: Sin entrar a la app (`POST /api/aliado/login`) durante **7 días** de calendario → **−1**. Repetible: un −1 por cada bloque completo de 7 días sin acceso desde el último login (o desde `creado_en` si nunca entró). Solo aliados `activo`.
+7. **chat_agotado_sin_resultado_{contacto_id}**: Agotar el chat (**30 mensajes** totales) sin declarar resultado → **−2** solo a quien envió el mensaje que agotó el cupo. No aplica si el encargo ya está en cierre adecuado. Una vez por contacto (`tipo` `chat_agotado`).
+8. **disputa_perdida_{contacto_id}**: Perder una disputa de importe resuelta por admin (`decision` = `contratante` o `profesional`) → **−3** al perdedor. Si admin da la razón al contratante, pierde el profesional; si al profesional, pierde el solicitante. `decision=rechazado` no aplica. Una vez por contacto (`tipo` `disputa_perdida`).
+9. **comprobante_apoyo_3d_{contacto_id}**: Apoyo RUANA generado sin subir comprobante ≥ **3 días** (desde `fecha_cierre`) → **−3** al profesional. Solo si `estado_pago=pendiente_pago` y sin `comprobante_ruta`. No aplica si ya `pagado`, `en_revision` o `no_generado`. Una vez por contacto (`tipo` `comprobante_3d`).
+
+**Hooks de penalización:**
+- 1 → al cerrar no concretado (`marcar_cerrado_no_concretado`).
+- 2, 3, 5, 6, 9 → al solicitar datos del aliado (`GET/POST /api/aliado/datos` → `aplicar_penalizaciones_contactos_abiertos` y helpers). La 6 también en login **antes** de registrar el acceso del día.
+- 4 → al iniciar competencia (`_iniciar_competencia_si_procede`).
+- 7 → en `enviar_mensaje_chat` al pasar a `chat_agotado`.
+- 8 → en `resolver_payment_conflict_admin` al dar la razón a una parte.
+
+La disputa de importes **solo** modifica el score al **perder** tras resolución admin explícita (penalización 8).
+
 ---
 
 ## 7. Flujo de contactos RUANA
