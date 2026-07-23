@@ -109,6 +109,7 @@ El frontend presenta y recoge acciones; el backend y el motor RUANA orquestan, a
 | **invitaciones_oficio** | id, codigo (único), grupo_id, oficio, aliado_id, estado, fecha_creacion. Invitaciones para cubrir oficios faltantes en un grupo (formato RUANA-{grupo_id}-{OFICIO_NORM}-{4chars}). |
 | **eventos_sistema** | id, tipo, descripcion, actor_tipo, actor_codigo, metadata, creado_en. Trazabilidad (incl. tipo **apoyo_generado**). |
 | **notificaciones_aliado** | id, aliado_codigo, tipo (ej. apoyo_ruana), titulo, mensaje, metadata (JSON: qr_paypal_path, bizum_num, contacto_id, apoyo_ruana), leida, creado_en. |
+| **aliado_accesos_dia** | codigo_aliado, dia (YYYY-MM-DD), creado_en. Un login por día (Regla 8). |
 | **competencia** | id, grupo_id, oficio, aliado_original_codigo, suplente_codigo, suplente_grupo_anterior_id, fecha_inicio, fecha_fin_prevista, estado (activa \| finalizada), ganador_codigo, creado_en. Competencia temporal por bajo score. |
 | **avisos_grupo** | id, grupo_id, tipo, texto, creado_en. Avisos al grupo (ej. “Este mes tenemos X en competencia”). |
 | **grupo_oficio_cerrado** | grupo_id, oficio, cerrado_en (PK compuesta). Plaza cerrada por admin (Cerrar Oficio / Abrir Plaza). |
@@ -177,6 +178,7 @@ Límites: máximo **5 grupos por código postal**; **un oficio principal por gru
 - **Regla 5**: El profesional responde en &lt;1 h al primer mensaje de chat de 3 clientes (solicitantes) distintos → +3. Se evalúa al enviar mensaje del profesional; cada lote de 3 clientes otorga el bonus una vez (`regla5_3_clientes_respuesta_1h_...`).
 - **Regla 6**: Contacto marcado como **urgente** al iniciar el chat y Apoyo **pagado el mismo día** (calendario del servidor) → +3 al profesional (`regla6_urgente_mismo_dia_{contacto_id}`).
 - **Regla 7**: El contratante (solicitante) declara el importe **antes de 24 h** desde `contactos_ruana.creado_en` → +2 al contratante (`regla7_declaracion_24h_{contacto_id}`). Se evalúa al declarar; no requiere pago.
+- **Regla 8**: Login en la app **todos los días durante 7 días consecutivos** (calendario del servidor) → +3 (`regla8_racha_7dias_YYYY-MM-DD`). Solo cuenta `POST /api/aliado/login`; una vez por ventana de 7 días (repetible la semana siguiente). Tabla `aliado_accesos_dia`.
 - Declaración contradictoria (importe en disputa): -1 cada uno.
 - Contacto no concretado: -2 cada uno.
 - Contacto abierto 7 días: -2 (una vez por contacto).

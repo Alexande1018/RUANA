@@ -110,8 +110,9 @@ class DBManager:
             self._migrar_aliados_foto_perfil(conn, cursor)
             self._migrar_aliados_invitado_por(conn, cursor)
             self._migrar_contactos_es_urgente(conn, cursor)
+            self._migrar_aliado_accesos_dia(conn, cursor)
             conn.commit()
-            print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil + linaje + urgente)")
+            print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil + linaje + urgente + accesos día)")
         except Exception as e:
             print(f"[RUANA][DB] Error inicializando esquema Postgres: {e}")
         finally:
@@ -483,6 +484,7 @@ class DBManager:
                 self._migrar_referidos_origen(conn, cursor)
                 self._migrar_invitaciones_oficio_codigo_referido(conn, cursor)
                 self._migrar_aliados_invitado_por(conn, cursor)
+                self._migrar_aliado_accesos_dia(conn, cursor)
 
                 conn.commit()
                 print(f"[RUANA][DB] Base de datos inicializada en: {self.db_path}")
@@ -743,6 +745,24 @@ class DBManager:
             cursor.execute("ALTER TABLE contactos_ruana ADD COLUMN es_urgente INTEGER DEFAULT 0")
         if 'urgente_marcado_en' not in columnas:
             cursor.execute("ALTER TABLE contactos_ruana ADD COLUMN urgente_marcado_en TIMESTAMP")
+
+    def _migrar_aliado_accesos_dia(self, conn, cursor) -> None:
+        """Tabla de días con login (Regla 8: racha de 7 días consecutivos)."""
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS aliado_accesos_dia (
+                codigo_aliado TEXT NOT NULL,
+                dia TEXT NOT NULL,
+                creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (codigo_aliado, dia),
+                FOREIGN KEY (codigo_aliado) REFERENCES aliados(codigo)
+            )
+        """)
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_aliado_accesos_dia_codigo ON aliado_accesos_dia(codigo_aliado)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_aliado_accesos_dia_dia ON aliado_accesos_dia(dia)"
+        )
 
     def _migrar_drop_chat_messages(self, conn, cursor) -> None:
         """Elimina la tabla redundante chat_messages. Admin lee desde chat_mensajes + JOIN aliados."""
@@ -7056,6 +7076,8 @@ class DBManager:
     REGLA6_DELTA = 3
     REGLA7_DELTA = 2
     REGLA7_HORAS_LIMITE = 24
+    REGLA8_DIAS_RACHA = 7
+    REGLA8_DELTA = 3
 
     def evaluar_regla7_declaracion_24h(
         self,
@@ -7122,6 +7144,170 @@ class DBManager:
         if len(s) >= 10 and s[4] == '-' and s[7] == '-':
             return s[:10]
         return None
+
+    def _dia_hoy_servidor(self) -> str:
+        """Día calendario del servidor (local) en YYYY-MM-DD."""
+        return datetime.now().strftime('%Y-%m-%d')
+
+    def _motivo_regla8(self, dia_fin: str) -> str:
+        return f'regla8_racha_7dias_{dia_fin}'
+
+    def _tiene_premio_regla8_reciente(self, codigo_aliado: str, dia_fin: str) -> bool:
+        """
+        True si ya hay un premio Regla 8 cuyo día de cierre está en [dia_fin-6, dia_fin].
+        Evita +3 diario tras la 1ª racha; la siguiente racha completa puede premiarse.
+        """
+        codigo_aliado = (codigo_aliado or '').strip()
+        dia_fin = (dia_fin or '').strip()
+        if not codigo_aliado or not dia_fin:
+            return True
+        try:
+            fin = datetime.strptime(dia_fin, '%Y-%m-%d')
+        except ValueError:
+            return True
+        dia_min = (fin - timedelta(days=self.REGLA8_DIAS_RACHA - 1)).strftime('%Y-%m-%d')
+        prefijo = 'regla8_racha_7dias_'
+        with self._lock:
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT motivo FROM score_movimientos
+                    WHERE codigo_aliado = ? AND motivo LIKE ?
+                    """,
+                    (codigo_aliado, prefijo + '%'),
+                )
+                rows = cursor.fetchall()
+            except Exception:
+                return True
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+        for row in rows:
+            motivo = row[0] if not isinstance(row, dict) else row.get('motivo')
+            motivo = str(motivo or '')
+            if not motivo.startswith(prefijo):
+                continue
+            dia_motivo = motivo[len(prefijo):]
+            if len(dia_motivo) == 10 and dia_min <= dia_motivo <= dia_fin:
+                return True
+        return False
+
+    def registrar_acceso_login(
+        self,
+        codigo_aliado: str,
+        dia: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Registra un día de login (máx. 1 fila/día) y evalúa Regla 8.
+        Solo debe llamarse desde POST /api/aliado/login.
+        """
+        codigo_aliado = (codigo_aliado or '').strip()
+        if not codigo_aliado:
+            return {'status': 'error', 'message': 'Código obligatorio'}
+        dia_val = (dia or '').strip() or self._dia_hoy_servidor()
+        if len(dia_val) != 10 or dia_val[4] != '-' or dia_val[7] != '-':
+            return {'status': 'error', 'message': 'Día inválido'}
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT 1 FROM aliados WHERE codigo = ? LIMIT 1",
+                    (codigo_aliado,),
+                )
+                if not cursor.fetchone():
+                    return {'status': 'error', 'message': 'Aliado no encontrado'}
+                cursor.execute(
+                    """
+                    INSERT OR IGNORE INTO aliado_accesos_dia (codigo_aliado, dia)
+                    VALUES (?, ?)
+                    """,
+                    (codigo_aliado, dia_val),
+                )
+                conn.commit()
+            except Exception as e:
+                return {'status': 'error', 'message': str(e)}
+            finally:
+                if conn is not None:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+
+        aplicado = False
+        motivo = None
+        try:
+            hito = self.evaluar_regla8_racha_7dias(codigo_aliado, dia_fin=dia_val)
+            if hito:
+                self.aplicar_cambio_score(hito[0], hito[1], hito[2])
+                aplicado = True
+                motivo = hito[2]
+        except Exception:
+            pass
+        return {
+            'status': 'success',
+            'codigo': codigo_aliado,
+            'dia': dia_val,
+            'regla8_aplicada': aplicado,
+            'motivo': motivo,
+        }
+
+    def evaluar_regla8_racha_7dias(
+        self,
+        codigo_aliado: str,
+        dia_fin: Optional[str] = None,
+    ) -> Optional[Tuple[str, int, str]]:
+        """
+        Regla 8: login todos los días durante 7 días consecutivos (calendario servidor)
+        → +3. Repetible: una vez por ventana de 7 días (motivo regla8_racha_7dias_{dia_fin}).
+        """
+        codigo_aliado = (codigo_aliado or '').strip()
+        if not codigo_aliado:
+            return None
+        if not self._es_invitador_elegible_score(codigo_aliado):
+            return None
+        dia_fin_val = (dia_fin or '').strip() or self._dia_hoy_servidor()
+        try:
+            fin = datetime.strptime(dia_fin_val, '%Y-%m-%d')
+        except ValueError:
+            return None
+        dias_requeridos = [
+            (fin - timedelta(days=i)).strftime('%Y-%m-%d')
+            for i in range(self.REGLA8_DIAS_RACHA)
+        ]
+        with self._lock:
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                placeholders = ','.join('?' * len(dias_requeridos))
+                cursor.execute(
+                    f"""
+                    SELECT dia FROM aliado_accesos_dia
+                    WHERE codigo_aliado = ? AND dia IN ({placeholders})
+                    """,
+                    (codigo_aliado, *dias_requeridos),
+                )
+                presentes = {str(r[0]) for r in cursor.fetchall()}
+            except Exception:
+                return None
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+        if set(dias_requeridos) != presentes:
+            return None
+        motivo = self._motivo_regla8(dia_fin_val)
+        if self._ya_aplicado_motivo_score(codigo_aliado, motivo):
+            return None
+        if self._tiene_premio_regla8_reciente(codigo_aliado, dia_fin_val):
+            return None
+        return (codigo_aliado, self.REGLA8_DELTA, motivo)
 
     def evaluar_regla6_urgente_mismo_dia(
         self,
