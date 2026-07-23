@@ -280,3 +280,83 @@ def test_penalizacion5_sin_mensajes_no_aplica(sqlite_db):
     conn.close()
     sqlite_db.aplicar_penalizacion_chat_sin_respuesta_48h("99302")
     assert _score(sqlite_db, "99302") == 50
+
+
+def _forzar_activo(db, codigo):
+    conn = db._connect()
+    cur = conn.cursor()
+    cur.execute("UPDATE aliados SET estado = 'activo' WHERE codigo = ?", (codigo,))
+    conn.commit()
+    conn.close()
+
+
+def test_penalizacion6_sin_acceso_7d_resta_1(sqlite_db):
+    """Penalización 6: 7 días sin login → -1."""
+    _crear_activo(sqlite_db, "99401", "SinAcceso")
+    _forzar_activo(sqlite_db, "99401")
+    assert sqlite_db.registrar_acceso_login("99401", dia="2026-07-01")["status"] == "success"
+    # Sin más accesos; a día 8 (7 días después) → -1
+    aplicados = sqlite_db.aplicar_penalizacion_sin_acceso_semanal("99401", dia_ref="2026-07-08")
+    assert len(aplicados) == 1
+    assert _score(sqlite_db, "99401") == 49
+    assert (-1, "sin_acceso_7d_2026-07-08") in _motivos(sqlite_db, "99401")
+    # Idempotente
+    assert sqlite_db.aplicar_penalizacion_sin_acceso_semanal("99401", dia_ref="2026-07-08") == []
+    assert sum(1 for _, m in _motivos(sqlite_db, "99401") if m.startswith("sin_acceso_7d_")) == 1
+
+
+def test_penalizacion6_repetible_cada_semana(sqlite_db):
+    """14 días sin acceso → 2× -1."""
+    _crear_activo(sqlite_db, "99402", "DosSemanas")
+    _forzar_activo(sqlite_db, "99402")
+    assert sqlite_db.registrar_acceso_login("99402", dia="2026-07-01")["status"] == "success"
+    aplicados = sqlite_db.aplicar_penalizacion_sin_acceso_semanal("99402", dia_ref="2026-07-15")
+    assert len(aplicados) == 2
+    assert (-1, "sin_acceso_7d_2026-07-08") in _motivos(sqlite_db, "99402")
+    assert (-1, "sin_acceso_7d_2026-07-15") in _motivos(sqlite_db, "99402")
+    assert _score(sqlite_db, "99402") == 48
+
+
+def test_penalizacion6_no_aplica_antes_de_7_dias(sqlite_db):
+    _crear_activo(sqlite_db, "99403", "SeisDias")
+    _forzar_activo(sqlite_db, "99403")
+    assert sqlite_db.registrar_acceso_login("99403", dia="2026-07-01")["status"] == "success"
+    assert sqlite_db.aplicar_penalizacion_sin_acceso_semanal("99403", dia_ref="2026-07-07") == []
+    assert _score(sqlite_db, "99403") == 50
+
+
+def test_penalizacion6_en_login_antes_de_registrar_acceso(sqlite_db):
+    """Al volver a entrar tras 7+ días, el login aplica -1 y luego registra el día."""
+    _crear_activo(sqlite_db, "99404", "Vuelve")
+    _forzar_activo(sqlite_db, "99404")
+    # Insertar acceso antiguo sin pasar por registrar (para no disparar penal al crear)
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO aliado_accesos_dia (codigo_aliado, dia) VALUES (?, ?)",
+        ("99404", "2026-07-01"),
+    )
+    conn.commit()
+    conn.close()
+
+    r = sqlite_db.registrar_acceso_login("99404", dia="2026-07-08")
+    assert r["status"] == "success"
+    assert (-1, "sin_acceso_7d_2026-07-08") in _motivos(sqlite_db, "99404")
+    assert _score(sqlite_db, "99404") == 49
+    # Hoy ya cuenta como acceso
+    assert sqlite_db.aplicar_penalizacion_sin_acceso_semanal("99404", dia_ref="2026-07-08") == []
+
+
+def test_penalizacion6_omite_no_activo(sqlite_db):
+    _crear_activo(sqlite_db, "99405", "Suspendido")
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute("UPDATE aliados SET estado = 'suspendido_temporal' WHERE codigo = ?", ("99405",))
+    cur.execute(
+        "INSERT INTO aliado_accesos_dia (codigo_aliado, dia) VALUES (?, ?)",
+        ("99405", "2026-07-01"),
+    )
+    conn.commit()
+    conn.close()
+    assert sqlite_db.aplicar_penalizacion_sin_acceso_semanal("99405", dia_ref="2026-07-15") == []
+    assert _score(sqlite_db, "99405") == 50

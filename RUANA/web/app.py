@@ -428,7 +428,7 @@ def get_aliado_datos():
     
     try:
         db = get_db()
-        # Aplicar penalizaciones por contactos abiertos (7d -2, 21d -5) y chat 48h (-2)
+        # Aplicar penalizaciones por contactos abiertos (7d/21d), chat 48h y sin acceso semanal
         db.aplicar_penalizaciones_contactos_abiertos(codigo)
         aliado = db.obtener_aliado_por_codigo(codigo)
         

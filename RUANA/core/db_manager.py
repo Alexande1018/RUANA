@@ -3216,6 +3216,11 @@ class DBManager:
             self.aplicar_penalizacion_chat_sin_respuesta_48h(codigo_aliado)
         except Exception:
             pass
+        # Penalización 6: semana(s) sin acceso a la app
+        try:
+            self.aplicar_penalizacion_sin_acceso_semanal(codigo_aliado)
+        except Exception:
+            pass
 
     # Estados de cierre adecuado: no aplicar penalización 5 (chat 48h)
     _ESTADOS_CIERRE_ADECUADO_CHAT = (
@@ -7202,6 +7207,9 @@ class DBManager:
     REGLA7_HORAS_LIMITE = 24
     REGLA8_DIAS_RACHA = 7
     REGLA8_DELTA = 3
+    # Penalización 6: semana sin login → -1 (repetible)
+    PENAL6_DIAS_SIN_ACCESO = 7
+    PENAL6_DELTA = -1
     REGLA9_DELTA = 5  # Invitación por oficio usada
 
     def evaluar_regla7_declaracion_24h(
@@ -7328,6 +7336,7 @@ class DBManager:
     ) -> Dict[str, Any]:
         """
         Registra un día de login (máx. 1 fila/día) y evalúa Regla 8.
+        Antes de insertar el acceso de hoy aplica Penalización 6 (semanas sin entrar).
         Solo debe llamarse desde POST /api/aliado/login.
         """
         codigo_aliado = (codigo_aliado or '').strip()
@@ -7336,6 +7345,13 @@ class DBManager:
         dia_val = (dia or '').strip() or self._dia_hoy_servidor()
         if len(dia_val) != 10 or dia_val[4] != '-' or dia_val[7] != '-':
             return {'status': 'error', 'message': 'Día inválido'}
+
+        # Penalización 6 ANTES de registrar el acceso de hoy (si no, MAX(dia)=hoy y no penaliza)
+        try:
+            self.aplicar_penalizacion_sin_acceso_semanal(codigo_aliado, dia_ref=dia_val)
+        except Exception:
+            pass
+
         with self._lock:
             conn = None
             try:
@@ -7381,6 +7397,89 @@ class DBManager:
             'regla8_aplicada': aplicado,
             'motivo': motivo,
         }
+
+    def _baseline_acceso_dia(self, codigo_aliado: str) -> Optional[str]:
+        """Último día de login o fecha de alta (YYYY-MM-DD)."""
+        codigo_aliado = (codigo_aliado or '').strip()
+        if not codigo_aliado:
+            return None
+        with self._lock:
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT MAX(dia) FROM aliado_accesos_dia WHERE codigo_aliado = ?
+                    """,
+                    (codigo_aliado,),
+                )
+                row = cursor.fetchone()
+                ultimo = (row[0] if row else None) or None
+                if ultimo and len(str(ultimo)) >= 10:
+                    return str(ultimo)[:10]
+                cursor.execute(
+                    "SELECT creado_en FROM aliados WHERE codigo = ?",
+                    (codigo_aliado,),
+                )
+                row = cursor.fetchone()
+                if not row or not row[0]:
+                    return None
+                return self._fecha_dia_servidor(row[0]) or self._dia_hoy_servidor()
+            except Exception:
+                return None
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+    def aplicar_penalizacion_sin_acceso_semanal(
+        self,
+        codigo_aliado: str,
+        dia_ref: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Penalización 6: sin entrar a la app (login) durante 7 días de calendario → -1.
+        Repetible: un -1 por cada bloque completo de 7 días sin acceso desde el último login
+        (o desde creado_en si nunca entró). Motivo: sin_acceso_7d_{YYYY-MM-DD}.
+        """
+        codigo_aliado = (codigo_aliado or '').strip()
+        if not codigo_aliado:
+            return []
+        aliado = self.obtener_aliado_por_codigo(codigo_aliado)
+        if not aliado:
+            return []
+        estado = (aliado.get('estado') or '').strip()
+        if estado != 'activo':
+            return []
+        if not self._es_invitador_elegible_score(codigo_aliado):
+            return []
+        dia_hoy = (dia_ref or '').strip() or self._dia_hoy_servidor()
+        try:
+            hoy_dt = datetime.strptime(dia_hoy[:10], '%Y-%m-%d')
+        except ValueError:
+            return []
+        baseline = self._baseline_acceso_dia(codigo_aliado)
+        if not baseline:
+            return []
+        try:
+            base_dt = datetime.strptime(baseline[:10], '%Y-%m-%d')
+        except ValueError:
+            return []
+        dias_ausente = (hoy_dt - base_dt).days
+        if dias_ausente < self.PENAL6_DIAS_SIN_ACCESO:
+            return []
+        semanas = dias_ausente // self.PENAL6_DIAS_SIN_ACCESO
+        aplicados: List[Dict[str, Any]] = []
+        for k in range(1, semanas + 1):
+            dia_fin = (base_dt + timedelta(days=k * self.PENAL6_DIAS_SIN_ACCESO)).strftime('%Y-%m-%d')
+            motivo = f'sin_acceso_7d_{dia_fin}'
+            if self._ya_aplicado_motivo_score(codigo_aliado, motivo):
+                continue
+            result = self.aplicar_cambio_score(codigo_aliado, self.PENAL6_DELTA, motivo)
+            if result.get('status') == 'success' and int(result.get('aplicado') or 0) != 0:
+                aplicados.append({'motivo': motivo, 'result': result})
+        return aplicados
 
     def evaluar_regla8_racha_7dias(
         self,
