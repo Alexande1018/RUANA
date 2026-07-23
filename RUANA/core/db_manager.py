@@ -5101,6 +5101,9 @@ class DBManager:
     CHAT_MAX_MENSAJES_TOTAL = 30
     CHAT_MAX_MENSAJES_POR_USUARIO = CHAT_MAX_MENSAJES_TOTAL
     CHAT_HORAS_VIGENCIA = 48
+    REGLA5_CLIENTES_UMBRAL = 3
+    REGLA5_DELTA = 3
+    REGLA5_SEGUNDOS_RESPUESTA = 3600
 
     def crear_contacto_ruana(self, solicitante_codigo: str, profesional_codigo: str,
                              servicio: str = "", motivo_contacto: str = "") -> Dict[str, Any]:
@@ -5634,6 +5637,9 @@ class DBManager:
         if not emisor_norm:
             return {'status': 'error', 'message': 'emisor_codigo es obligatorio'}
 
+        resultado: Dict[str, Any] = {'status': 'error', 'message': 'unknown'}
+        profesional_para_regla5: Optional[str] = None
+
         with self._lock:
             try:
                 conn = self._connect()
@@ -5713,12 +5719,163 @@ class DBManager:
                     (msg_id,)
                 )
                 msg_row = cursor.fetchone()
-                return {'status': 'success', 'mensaje': dict(msg_row)}
-
+                resultado = {'status': 'success', 'mensaje': dict(msg_row)}
+                # Regla 5 solo si quien escribe es el profesional
+                if emisor_norm == pro:
+                    profesional_para_regla5 = pro
             except Exception as e:
                 return {'status': 'error', 'message': str(e)}
             finally:
                 conn.close()
+
+        if profesional_para_regla5:
+            try:
+                hito = self.evaluar_regla5_respuestas_chat(profesional_para_regla5)
+                if hito:
+                    self.aplicar_cambio_score(hito[0], hito[1], hito[2])
+            except Exception:
+                pass
+        return resultado
+
+    def _ya_aplicado_motivo_score(self, codigo_aliado: str, motivo: str) -> bool:
+        codigo_aliado = (codigo_aliado or '').strip()
+        motivo = (motivo or '').strip()
+        if not codigo_aliado or not motivo:
+            return True
+        with self._lock:
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT 1 FROM score_movimientos WHERE codigo_aliado = ? AND motivo = ? LIMIT 1",
+                    (codigo_aliado, motivo),
+                )
+                return cursor.fetchone() is not None
+            except Exception:
+                return True
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+    def listar_respuestas_rapidas_regla5(self, codigo_profesional: str) -> List[Dict[str, Any]]:
+        """
+        Respuestas válidas Regla 5: primer mensaje de chat del cliente (solicitante)
+        y primer mensaje posterior del profesional en el mismo contacto, con delta ≤ 1 h.
+        Devuelve una entrada por solicitante (la respuesta válida más temprana).
+        """
+        codigo_profesional = (codigo_profesional or '').strip()
+        if not codigo_profesional:
+            return []
+        with self._lock:
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT c.id AS contacto_id, c.solicitante_codigo,
+                           m.id AS msg_id, m.emisor_codigo, m.creado_en
+                    FROM contactos_ruana c
+                    JOIN chat_mensajes m ON m.contacto_id = c.id
+                    WHERE c.profesional_codigo = ?
+                    ORDER BY c.id ASC, m.creado_en ASC, m.id ASC
+                    """,
+                    (codigo_profesional,),
+                )
+                rows = [dict(r) for r in cursor.fetchall()]
+            except Exception:
+                return []
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+        por_contacto: Dict[int, Dict[str, Any]] = {}
+        for row in rows:
+            cid = int(row['contacto_id'])
+            bucket = por_contacto.setdefault(cid, {
+                'solicitante_codigo': str(row.get('solicitante_codigo') or '').strip(),
+                'msgs': [],
+            })
+            bucket['msgs'].append(row)
+
+        por_cliente: Dict[str, Dict[str, Any]] = {}
+        for cid, data in por_contacto.items():
+            sol = data['solicitante_codigo']
+            pro = codigo_profesional
+            if not sol or sol == pro:
+                continue
+            primer_cliente = None
+            for msg in data['msgs']:
+                if str(msg.get('emisor_codigo') or '').strip() == sol:
+                    primer_cliente = msg
+                    break
+            if not primer_cliente:
+                continue
+            ts_cliente = self._parse_timestamp(primer_cliente.get('creado_en'))
+            if not ts_cliente:
+                continue
+            primer_pro = None
+            for msg in data['msgs']:
+                if str(msg.get('emisor_codigo') or '').strip() != pro:
+                    continue
+                ts_pro = self._parse_timestamp(msg.get('creado_en'))
+                if not ts_pro or ts_pro < ts_cliente:
+                    continue
+                if ts_pro == ts_cliente and int(msg.get('msg_id') or 0) <= int(primer_cliente.get('msg_id') or 0):
+                    continue
+                primer_pro = msg
+                ts_respuesta = ts_pro
+                break
+            if not primer_pro:
+                continue
+            delta = (ts_respuesta - ts_cliente).total_seconds()
+            if delta < 0 or delta > self.REGLA5_SEGUNDOS_RESPUESTA:
+                continue
+            candidato = {
+                'contacto_id': cid,
+                'solicitante_codigo': sol,
+                'cliente_msg_id': int(primer_cliente.get('msg_id') or 0),
+                'respuesta_msg_id': int(primer_pro.get('msg_id') or 0),
+                'cliente_msg_en': ts_cliente,
+                'respuesta_en': ts_respuesta,
+            }
+            prev = por_cliente.get(sol)
+            if prev is None or candidato['respuesta_en'] < prev['respuesta_en']:
+                por_cliente[sol] = candidato
+
+        return sorted(
+            por_cliente.values(),
+            key=lambda x: (x['respuesta_en'], x['contacto_id']),
+        )
+
+    def evaluar_regla5_respuestas_chat(
+        self,
+        codigo_profesional: str,
+    ) -> Optional[Tuple[str, int, str]]:
+        """
+        Regla 5: el profesional responde (<1 h) al primer mensaje de chat de 3 clientes
+        distintos → +3. Cada lote de 3 clientes otorga el bonus una vez
+        (motivo único por conjunto de códigos de cliente).
+        """
+        codigo_profesional = (codigo_profesional or '').strip()
+        if not codigo_profesional:
+            return None
+        respuestas = self.listar_respuestas_rapidas_regla5(codigo_profesional)
+        if len(respuestas) < self.REGLA5_CLIENTES_UMBRAL:
+            return None
+        for i in range(0, len(respuestas) - self.REGLA5_CLIENTES_UMBRAL + 1, self.REGLA5_CLIENTES_UMBRAL):
+            lote = respuestas[i:i + self.REGLA5_CLIENTES_UMBRAL]
+            if len(lote) < self.REGLA5_CLIENTES_UMBRAL:
+                break
+            codes = sorted(item['solicitante_codigo'] for item in lote)
+            motivo = f"regla5_3_clientes_respuesta_1h_{'_'.join(codes)}"
+            if not self._ya_aplicado_motivo_score(codigo_profesional, motivo):
+                return (codigo_profesional, self.REGLA5_DELTA, motivo)
+        return None
 
     def listar_contactos_recientes_con_chat(self, limite: int = 100) -> List[Dict[str, Any]]:
         """Lista contactos recientes con número de mensajes y fecha del último mensaje (para admin)."""
