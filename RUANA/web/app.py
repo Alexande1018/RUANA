@@ -1783,20 +1783,9 @@ def declarar_importe_contacto(contacto_id):
             moneda=moneda,
             usuario=usuario
         )
-        if result.get('status') == 'success':
-            estado = result.get('estado')
-            contacto = db.obtener_contacto_resumen(contacto_id)
-            if contacto:
-                sol = contacto.get('solicitante_codigo')
-                prof = contacto.get('profesional_codigo')
-                # El score por encargo completado (+2) se aplica al marcar Apoyo como pagado (Regla 2).
-                if estado == 'importe_en_disputa':
-                    if sol:
-                        db.aplicar_cambio_score(sol, -1, 'declaracion_discrepante')
-                    if prof:
-                        db.aplicar_cambio_score(prof, -1, 'declaracion_discrepante')
-        else:
+        if result.get('status') != 'success':
             print(f"[RUANA] declarar-importe 400: contacto_id={contacto_id} message={result.get('message')}")
+        # Score por encargo (+2) al marcar Apoyo pagado (Regla 2). Sin penalización por disputa.
         status_code = 200 if result.get('status') == 'success' else 400
 
         safe_response = {
