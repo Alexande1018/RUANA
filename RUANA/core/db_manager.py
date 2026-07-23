@@ -3221,6 +3221,68 @@ class DBManager:
             self.aplicar_penalizacion_sin_acceso_semanal(codigo_aliado)
         except Exception:
             pass
+        # Penalización 9: sin comprobante de Apoyo ≥ 3 días
+        try:
+            self.aplicar_penalizacion_comprobante_apoyo_3d(codigo_aliado)
+        except Exception:
+            pass
+
+    def aplicar_penalizacion_comprobante_apoyo_3d(self, codigo_aliado: str) -> None:
+        """
+        Penalización 9: Apoyo RUANA generado sin subir comprobante ≥ 3 días → -3
+        al profesional. Reloj desde fecha_cierre. Solo estado_pago=pendiente_pago
+        sin comprobante_ruta. Una vez por contacto (tipo comprobante_3d).
+        """
+        codigo_aliado = (codigo_aliado or '').strip()
+        if not codigo_aliado:
+            return
+        with self._lock:
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id, fecha_cierre
+                    FROM contactos_ruana
+                    WHERE profesional_codigo = ?
+                      AND estado = 'trabajo_cerrado'
+                      AND COALESCE(apoyo_ruana, 0) > 0
+                      AND estado_pago = 'pendiente_pago'
+                      AND (comprobante_ruta IS NULL OR TRIM(COALESCE(comprobante_ruta, '')) = '')
+                      AND fecha_cierre IS NOT NULL
+                """, (codigo_aliado,))
+                filas = cursor.fetchall()
+                for row in filas:
+                    cid, fecha_cierre = row[0], row[1]
+                    ref = self._parse_timestamp(fecha_cierre)
+                    if not ref:
+                        continue
+                    dias = (datetime.now() - ref).days
+                    if dias < 3:
+                        continue
+                    cursor.execute("""
+                        SELECT 1 FROM contacto_penalizaciones_aplicadas
+                        WHERE contacto_id = ? AND tipo = 'comprobante_3d'
+                    """, (cid,))
+                    if cursor.fetchone():
+                        continue
+                    motivo = f'comprobante_apoyo_3d_{int(cid)}'
+                    if self._ya_aplicado_motivo_score(codigo_aliado, motivo):
+                        continue
+                    result = self.aplicar_cambio_score(codigo_aliado, -3, motivo)
+                    if result.get('status') != 'success' or int(result.get('aplicado') or 0) == 0:
+                        continue
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO contacto_penalizaciones_aplicadas (contacto_id, tipo)
+                        VALUES (?, 'comprobante_3d')
+                    """, (cid,))
+                    conn.commit()
+            except Exception:
+                pass
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     # Estados de cierre adecuado: no aplicar penalización 5 (chat 48h)
     _ESTADOS_CIERRE_ADECUADO_CHAT = (

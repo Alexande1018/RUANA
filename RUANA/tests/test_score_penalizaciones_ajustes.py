@@ -466,3 +466,80 @@ def test_penalizacion8_rechazado_no_resta(sqlite_db):
     assert _score(sqlite_db, prof) == score_prof_antes
     assert not any(m.startswith("disputa_perdida_") for _, m in _motivos(sqlite_db, sol))
     assert not any(m.startswith("disputa_perdida_") for _, m in _motivos(sqlite_db, prof))
+
+
+def _contacto_apoyo_pendiente(db, sol="99701", prof="99702", importe=100.0, dias_atras=4):
+    _crear_activo(db, sol, "SolComp9", score=60)
+    _crear_activo(db, prof, "ProfComp9", score=60)
+    created = db.crear_contacto_ruana(sol, prof, "Servicio", "Comp9")
+    cid = created["id"]
+    assert db.registrar_importe_contacto(cid, "solicitante", importe, usuario=sol)["status"] == "success"
+    hace = (datetime.now() - timedelta(days=dias_atras)).strftime("%Y-%m-%d %H:%M:%S")
+    conn = db._connect()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        UPDATE contactos_ruana
+        SET fecha_cierre = ?, estado_pago = 'pendiente_pago', pendiente_pago = 1,
+            comprobante_ruta = NULL
+        WHERE id = ?
+        """,
+        (hace, cid),
+    )
+    conn.commit()
+    conn.close()
+    return cid, sol, prof
+
+
+def test_penalizacion9_comprobante_3d_resta_3_al_profesional(sqlite_db):
+    cid, sol, prof = _contacto_apoyo_pendiente(sqlite_db, dias_atras=4)
+    score_antes = _score(sqlite_db, prof)
+    sqlite_db.aplicar_penalizacion_comprobante_apoyo_3d(prof)
+    assert _score(sqlite_db, prof) == score_antes - 3
+    assert (-3, f"comprobante_apoyo_3d_{cid}") in _motivos(sqlite_db, prof)
+    assert not any(m.startswith("comprobante_apoyo_3d_") for _, m in _motivos(sqlite_db, sol))
+    # Idempotente
+    sqlite_db.aplicar_penalizacion_comprobante_apoyo_3d(prof)
+    assert sum(1 for _, m in _motivos(sqlite_db, prof) if m.startswith("comprobante_apoyo_3d_")) == 1
+
+
+def test_penalizacion9_no_aplica_antes_de_3_dias(sqlite_db):
+    cid, sol, prof = _contacto_apoyo_pendiente(
+        sqlite_db, sol="99711", prof="99712", dias_atras=2
+    )
+    score_antes = _score(sqlite_db, prof)
+    sqlite_db.aplicar_penalizacion_comprobante_apoyo_3d(prof)
+    assert _score(sqlite_db, prof) == score_antes
+    assert not any(m.startswith("comprobante_apoyo_3d_") for _, m in _motivos(sqlite_db, prof))
+
+
+def test_penalizacion9_no_aplica_si_en_revision_o_pagado(sqlite_db):
+    cid, sol, prof = _contacto_apoyo_pendiente(
+        sqlite_db, sol="99721", prof="99722", dias_atras=5
+    )
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE contactos_ruana SET estado_pago = 'en_revision', comprobante_ruta = ? WHERE id = ?",
+        ("https://example.com/comp.pdf", cid),
+    )
+    conn.commit()
+    conn.close()
+    score_antes = _score(sqlite_db, prof)
+    sqlite_db.aplicar_penalizacion_comprobante_apoyo_3d(prof)
+    assert _score(sqlite_db, prof) == score_antes
+
+    cid2, sol2, prof2 = _contacto_apoyo_pendiente(
+        sqlite_db, sol="99731", prof="99732", dias_atras=5
+    )
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE contactos_ruana SET estado_pago = 'pagado', pendiente_pago = 0 WHERE id = ?",
+        (cid2,),
+    )
+    conn.commit()
+    conn.close()
+    score2 = _score(sqlite_db, prof2)
+    sqlite_db.aplicar_penalizacion_comprobante_apoyo_3d(prof2)
+    assert _score(sqlite_db, prof2) == score2
