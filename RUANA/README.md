@@ -164,7 +164,7 @@ Límites: máximo **5 grupos por código postal**; **un oficio principal por gru
 - Almacenado en `aliados.score`. Auditoría en `score_movimientos` (`codigo_aliado`, `delta`, `motivo`, `creado_en`).
 - **Límite diario**: máximo ±10 puntos por aliado por día.
 - **Cálculo de estado** (derivado; `DBManager.score_a_estado(score)`). Este es el **único semáforo** de estado del aliado (ya no se usa el semáforo verde/amarillo/rojo del motor de evaluación):
-  - **DESTACADO** (verde dorado): score ≥ 85  
+  - **DESTACADO** (oro brillante): score ≥ 85  
   - **ESTABLE** (verde): 50 ≤ score < 85  
   - **EN RIESGO** (amarillo): 15 ≤ score < 50  
   - **COMPETENCIA** (rojo): score < 15  
