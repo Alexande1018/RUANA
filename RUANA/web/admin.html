@@ -1066,8 +1066,12 @@
                     <div class="indicador-label">Aliados Activos</div>
                 </div>
                 <div class="indicador-card">
-                    <div class="indicador-numero" id="suplentes-count">—</div>
-                    <div class="indicador-label">Suplentes</div>
+                    <div class="indicador-numero" id="retadores-count">—</div>
+                    <div class="indicador-label">Retadores</div>
+                </div>
+                <div class="indicador-card" id="indicador-en-espera" style="cursor: pointer;" title="Ver lista de Suplentes en Espera">
+                    <div class="indicador-numero" id="en-espera-count">—</div>
+                    <div class="indicador-label">Suplentes en Espera</div>
                 </div>
                 <div class="indicador-card">
                     <div class="indicador-numero" id="en-riesgo-count">—</div>
@@ -1398,7 +1402,7 @@
         <!-- CAPA 3.6b: Competencias activas -->
         <div class="competencias-activas-wrap" id="competencias-activas-wrap">
             <h2 class="seccion-titulo">Competencias activas</h2>
-            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Titulares y suplentes en competencia. Quién compite, de qué grupo viene el suplente, scores y tiempo.</p>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Titulares y Retadores en competencia. Quién compite, de qué grupo viene el Retador, scores y tiempo.</p>
             <div class="movimiento-24h-tabla-wrap">
                 <div class="movimiento-24h-tabla-scroll">
                     <table class="movimiento-24h-tabla" id="tabla-competencias-activas">
@@ -1408,7 +1412,7 @@
                                 <th>Oficio</th>
                                 <th>Titular</th>
                                 <th>Score</th>
-                                <th>Suplente</th>
+                                <th>Retador</th>
                                 <th>Origen</th>
                                 <th>Score</th>
                                 <th>Tiempo</th>
@@ -1420,6 +1424,30 @@
                 </div>
             </div>
             <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="competencias-activas-empty">No hay competencias activas.</p>
+        </div>
+
+        <!-- CAPA 3.6c: Suplentes en Espera (estado en_espera) -->
+        <div class="competencias-activas-wrap" id="suplentes-espera-wrap" style="display:none;">
+            <h2 class="seccion-titulo">Suplentes en Espera</h2>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Aliados registrados cuyo CP está al completo para su oficio. Puedes incorporarlos cuando se libere una plaza.</p>
+            <div class="movimiento-24h-tabla-wrap">
+                <div class="movimiento-24h-tabla-scroll">
+                    <table class="movimiento-24h-tabla" id="tabla-suplentes-espera">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Nombre</th>
+                                <th>Oficio</th>
+                                <th>CP</th>
+                                <th>Registro</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-suplentes-espera"></tbody>
+                    </table>
+                </div>
+            </div>
+            <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="suplentes-espera-empty">No hay aliados en lista de espera.</p>
         </div>
 
         <!-- CAPA 3.7: Registro de chats (solicitante y profesional) -->
@@ -1744,7 +1772,8 @@
                         stats24hFetch,
                         fetch('/api/admin/invitaciones-recientes?limite=15', fetchOpts),
                         fetch('/api/admin/invitacion-campanas?limite=30', fetchOpts),
-                        fetch('/api/admin/metodos-pago', fetchOpts)
+                        fetch('/api/admin/metodos-pago', fetchOpts),
+                        fetch('/api/admin/suplentes-espera', fetchOpts)
                     ];
                     const settled = await Promise.allSettled(fetchPromises);
                     const responses = settled.map((r, i) => (r.status === 'fulfilled' ? r.value : null));
@@ -1762,7 +1791,7 @@
                         return r.json().catch(() => null);
                     }
                     const idx12 = responses[12];
-                    const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, solicitudesData, chatsData, competenciasData, stats24hData, invitacionesRecData, campanasData, metodosPagoData] = await Promise.all([
+                    const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, solicitudesData, chatsData, competenciasData, stats24hData, invitacionesRecData, campanasData, metodosPagoData, suplentesEsperaData] = await Promise.all([
                         parseResponse(responses[0], false),
                         parseResponse(responses[1], false),
                         parseResponse(responses[2], false),
@@ -1778,7 +1807,8 @@
                         Promise.resolve(idx12),
                         parseResponse(responses[13], false),
                         parseResponse(responses[14], false),
-                        parseResponse(responses[15], false)
+                        parseResponse(responses[15], false),
+                        parseResponse(responses[16], false)
                     ]);
 
                     // Pendientes de validación (unir API + lista por código)
@@ -1801,7 +1831,8 @@
                     const indicadores = {
                         totalAliados: dashOk ? (dashboardData.total_users ?? 0) : (statsOk ? statsData.total_aliados : (aliadosData && aliadosData.total) || 0),
                         aliadosActivos: dashOk ? (dashboardData.active_users ?? 0) : (statsOk ? statsData.aliados_activos : 0),
-                        suplentes: dashOk ? (dashboardData.suplentes ?? 0) : (statsOk ? (statsData.suplentes || 0) : 0),
+                        retadores: dashOk ? (dashboardData.retadores ?? dashboardData.suplentes ?? 0) : (statsOk ? (statsData.retadores || statsData.suplentes || 0) : 0),
+                        enEspera: dashOk ? (dashboardData.en_espera ?? 0) : (statsOk ? (statsData.en_espera || 0) : 0),
                         enRiesgo: dashOk ? (dashboardData.en_riesgo ?? 0) : (statsOk ? (statsData.en_riesgo || 0) : 0),
                         solicitudesActivas: dashOk ? (dashboardData.solicitudes_activas ?? 0) : (statsOk ? (statsData.solicitudes_activas || 0) : 0),
                         pendientesValidacion: pendientes.length,
@@ -1854,6 +1885,7 @@
                     this.renderCampanasInvitacion(campanasData && campanasData.status === 'success' && Array.isArray(campanasData.campanas) ? campanasData.campanas : []);
                     this.renderMetodosPago((metodosPagoData && metodosPagoData.status === 'success' && metodosPagoData.metodos) ? metodosPagoData.metodos : null);
                     this.renderCompetenciasActivas((competenciasData && competenciasData.status === 'success' && Array.isArray(competenciasData.competencias)) ? competenciasData.competencias : []);
+                    this.renderSuplentesEspera((suplentesEsperaData && suplentesEsperaData.status === 'success' && Array.isArray(suplentesEsperaData.aliados)) ? suplentesEsperaData.aliados : []);
                     let conversaciones = (chatsData && chatsData.status === 'success' && Array.isArray(chatsData.conversaciones)) ? chatsData.conversaciones : [];
                     this._conversacionesList = conversaciones;
                     this._conversacionesOffset = conversaciones.length;
@@ -1924,7 +1956,8 @@
                 };
                 set('total-aliados', indicadores.totalAliados);
                 set('aliados-activos', indicadores.aliadosActivos);
-                set('suplentes-count', indicadores.suplentes);
+                set('retadores-count', indicadores.retadores);
+                set('en-espera-count', indicadores.enEspera);
                 set('en-riesgo-count', indicadores.enRiesgo);
                 set('solicitudes-activas', indicadores.solicitudesActivas);
                 set('oficios-ocupados', indicadores.oficiosOcupados !== undefined && indicadores.oficiosOcupados !== null ? indicadores.oficiosOcupados : '-');
@@ -2040,6 +2073,13 @@
                 if (indicadorPend) {
                     indicadorPend.addEventListener('click', () => {
                         const wrap = document.getElementById('pendientes-validacion-wrap');
+                        if (wrap) wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    });
+                }
+                const indicadorEnEspera = document.getElementById('indicador-en-espera');
+                if (indicadorEnEspera) {
+                    indicadorEnEspera.addEventListener('click', () => {
+                        const wrap = document.getElementById('suplentes-espera-wrap');
                         if (wrap) wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     });
                 }
@@ -2579,7 +2619,7 @@
 
             accionForzarSuplencia() {
                 this._abrirModalAccionAdmin({
-                    title: 'Forzar suplencia',
+                    title: 'Forzar competencia (Retador)',
                     bodyHtml: `
                         <label class="modal-importe-label" style="display:block; margin-bottom:6px;">ID del grupo *</label>
                         <input type="number" id="accion-fs-grupo" placeholder="Ej: 1" style="width:100%; padding:8px; margin-bottom:12px; box-sizing:border-box;" />
@@ -2587,23 +2627,23 @@
                         <input type="text" id="accion-fs-oficio" placeholder="Ej: Fontanería" style="width:100%; padding:8px; margin-bottom:12px; box-sizing:border-box;" />
                         <label class="modal-importe-label" style="display:block; margin-bottom:6px;">Código del aliado titular *</label>
                         <input type="text" id="accion-fs-original" placeholder="Ej: A0001" style="width:100%; padding:8px; margin-bottom:12px; box-sizing:border-box;" />
-                        <label class="modal-importe-label" style="display:block; margin-bottom:6px;">Código del aliado suplente *</label>
+                        <label class="modal-importe-label" style="display:block; margin-bottom:6px;">Código del aliado Retador *</label>
                         <input type="text" id="accion-fs-suplente" placeholder="Ej: A0002" style="width:100%; padding:8px; box-sizing:border-box;" />
                     `,
                     getPayload: () => ({
                         grupo_id: document.getElementById('accion-fs-grupo')?.value?.trim(),
                         oficio: (document.getElementById('accion-fs-oficio')?.value || '').trim(),
                         aliado_original_codigo: (document.getElementById('accion-fs-original')?.value || '').trim(),
-                        suplente_codigo: (document.getElementById('accion-fs-suplente')?.value || '').trim()
+                        retador_codigo: (document.getElementById('accion-fs-suplente')?.value || '').trim()
                     }),
-                    validate: (p) => !p.grupo_id || !p.oficio || !p.aliado_original_codigo || !p.suplente_codigo ? 'Todos los campos son obligatorios.' : null,
-                    getConfirmSummary: (p) => `¿Confirmar <strong>forzar suplencia</strong>? Grupo ${p.grupo_id}, oficio ${p.oficio}. Titular: ${p.aliado_original_codigo} → Suplente: ${p.suplente_codigo}.`,
+                    validate: (p) => !p.grupo_id || !p.oficio || !p.aliado_original_codigo || !p.retador_codigo ? 'Todos los campos son obligatorios.' : null,
+                    getConfirmSummary: (p) => `¿Confirmar <strong>forzar competencia</strong>? Grupo ${p.grupo_id}, oficio ${p.oficio}. Titular: ${p.aliado_original_codigo} → Retador: ${p.retador_codigo}.`,
                     execute: async (p) => {
-                        const r = await fetch('/api/admin/forzar-suplencia', { method: 'POST', credentials: 'same-origin', headers: this.getAuthHeaders(), body: JSON.stringify({ grupo_id: parseInt(p.grupo_id, 10), oficio: p.oficio, aliado_original_codigo: p.aliado_original_codigo, suplente_codigo: p.suplente_codigo }) });
+                        const r = await fetch('/api/admin/forzar-competencia', { method: 'POST', credentials: 'same-origin', headers: this.getAuthHeaders(), body: JSON.stringify({ grupo_id: parseInt(p.grupo_id, 10), oficio: p.oficio, aliado_original_codigo: p.aliado_original_codigo, retador_codigo: p.retador_codigo }) });
                         if (r.status === 401) { this._adminSessionExpired(); return; }
                         if (r.status === 403) { this.showToast('Sin permiso de escritura (solo lectura).', 'error'); return; }
                         const data = await r.json().catch(() => ({}));
-                        if (data.status === 'success') { this.showToast(data.message || 'Suplencia forzada.', 'success'); this.cargarDesdeApi(); }
+                        if (data.status === 'success') { this.showToast(data.message || 'Competencia forzada.', 'success'); this.cargarDesdeApi(); }
                         else { this.showToast(data.message || 'Error.', 'error'); }
                     }
                 });
@@ -3373,24 +3413,26 @@
 
             /**
              * Devuelve el grupo (clave) de un aliado para la jerarquía CP → Grupo → Tarjetas.
-             * Orden: pendientes, suplentes, competencia, luego estado_panel/estado.
+             * Orden: pendientes, retadores, competencia, suplentes_espera, luego estado_panel/estado.
              */
             getGrupoAliado(a) {
                 const est = (a.estado || '').toLowerCase();
                 // Placeholders de invitación no forman parte del panel de control
                 if (est === 'pendiente_completar') return null;
+                if (est === 'en_espera') return 'suplentes_espera';
                 if (est === 'pendiente_validacion') return 'pendientes';
-                if (a.es_suplente_activo === true) return 'suplentes';
+                if (a.es_retador_activo === true || a.es_suplente_activo === true) return 'retadores';
                 if (a.es_titular_en_competencia === true) return 'competencia';
                 const ep = (a.estado_panel || a.estado || 'activos').toLowerCase();
                 if (ep === 'observacion') return 'observacion';
                 if (ep === 'riesgo') return 'riesgo';
+                if (ep === 'suplentes_espera') return 'suplentes_espera';
                 if (ep === 'suspendido_temporal') return 'pausados';
                 return 'activos';
             }
 
             getGrupoNombre(grupoKey) {
-                const nombres = { activos: 'Activos', observacion: 'En Observación', riesgo: 'En Riesgo', suplentes: 'Suplentes', competencia: 'En Competencia', pendientes: 'Pendientes / Nuevos', pausados: 'Pausados' };
+                const nombres = { activos: 'Activos', observacion: 'En Observación', riesgo: 'En Riesgo', retadores: 'Retadores', competencia: 'En Competencia', pendientes: 'Pendientes / Nuevos', pausados: 'Pausados', suplentes_espera: 'Suplentes en Espera' };
                 return nombres[grupoKey] || grupoKey;
             }
 
@@ -3455,7 +3497,7 @@
                     if (!g) return;
                     byGrupo.set(g, (byGrupo.get(g) || 0) + 1);
                 });
-                const ordenGrupos = ['activos', 'observacion', 'riesgo', 'suplentes', 'competencia', 'pendientes', 'pausados'];
+                const ordenGrupos = ['activos', 'observacion', 'riesgo', 'retadores', 'competencia', 'pendientes', 'pausados', 'suplentes_espera'];
                 const grupos = ordenGrupos.filter(k => (byGrupo.get(k) || 0) > 0).map(k => [k, byGrupo.get(k)]);
                 if (grupos.length === 0) {
                     list.innerHTML = '<p style="color:#94a3b8; padding:20px;">Ningún grupo con aliados en este CP.</p>';
@@ -3512,7 +3554,7 @@
                     else if (estadoPanel === 'riesgo') estadoTexto = 'En Riesgo';
                     else if (estadoPanel === 'suspendido_temporal') estadoTexto = 'Pausado';
                     else if (estadoPanel === 'rechazado') estadoTexto = 'Rechazado';
-                    const badgeSuplente = aliado.es_suplente_activo ? '<span class="aliado-badge suplente">Suplente</span>' : '';
+                    const badgeRetador = (aliado.es_retador_activo || aliado.es_suplente_activo) ? '<span class="aliado-badge suplente">Retador</span>' : '';
                     const badgeCompetencia = aliado.es_titular_en_competencia ? '<span class="aliado-badge competencia">En competencia</span>' : '';
 
                     const scoreTexto = (aliado.score_panel != null ? aliado.score_panel : aliado.score || 0);
@@ -3535,7 +3577,7 @@
                             <div class="aliado-nombre-admin">${this.escapeHtml(aliado.nombre)}</div>
                             <div class="aliado-badges-wrap">
                                 <div class="${estadoBadgeClasses}">${estadoTexto}</div>
-                                ${badgeSuplente}
+                                ${badgeRetador}
                                 ${badgeCompetencia}
                             </div>
                         </div>
@@ -3972,9 +4014,11 @@
                     const oficio = this.escapeHtml(c.oficio || '—');
                     const titularNombre = this.escapeHtml((c.titular && c.titular.nombre) ? c.titular.nombre : '—');
                     const titularScore = (c.titular && (c.titular.score_actual != null)) ? Number(c.titular.score_actual).toFixed(1) : '—';
-                    const suplenteNombre = this.escapeHtml((c.suplente && c.suplente.nombre) ? c.suplente.nombre : '—');
-                    const suplenteOrigen = this.escapeHtml((c.suplente && c.suplente.grupo_origen) ? c.suplente.grupo_origen : '—');
-                    const suplenteScore = (c.suplente && (c.suplente.score_actual != null)) ? Number(c.suplente.score_actual).toFixed(1) : '—';
+                    // Soporte para ambos nombres: retador (nuevo) y suplente (alias backward-compat)
+                    const retadorData = c.retador || c.suplente || null;
+                    const retadorNombre = this.escapeHtml((retadorData && retadorData.nombre) ? retadorData.nombre : '—');
+                    const retadorOrigen = this.escapeHtml((retadorData && retadorData.grupo_origen) ? retadorData.grupo_origen : '—');
+                    const retadorScore = (retadorData && (retadorData.score_actual != null)) ? Number(retadorData.score_actual).toFixed(1) : '—';
                     const tiempoHoras = (c.tiempo_en_competencia_horas != null) ? Number(c.tiempo_en_competencia_horas).toFixed(1) + ' h' : '—';
                     const estado = this.escapeHtml((c.estado || 'activa').toLowerCase());
                     const tr = document.createElement('tr');
@@ -3983,13 +4027,72 @@
                         <td>${oficio}</td>
                         <td>${titularNombre}</td>
                         <td>${titularScore}</td>
-                        <td>${suplenteNombre}</td>
-                        <td>${suplenteOrigen}</td>
-                        <td>${suplenteScore}</td>
+                        <td>${retadorNombre}</td>
+                        <td>${retadorOrigen}</td>
+                        <td>${retadorScore}</td>
                         <td>${tiempoHoras}</td>
                         <td>${estado}</td>
                     `;
                     tbody.appendChild(tr);
+                });
+            }
+
+            renderSuplentesEspera(aliados) {
+                const tbody = document.getElementById('tbody-suplentes-espera');
+                const emptyEl = document.getElementById('suplentes-espera-empty');
+                const wrap = document.getElementById('suplentes-espera-wrap');
+                if (!tbody) return;
+                tbody.innerHTML = '';
+                const lista = Array.isArray(aliados) ? aliados : [];
+                if (wrap) wrap.style.display = 'block';
+                if (emptyEl) emptyEl.style.display = lista.length ? 'none' : 'block';
+                lista.forEach(a => {
+                    const codigo = this.escapeHtml(a.codigo || '—');
+                    const nombre = this.escapeHtml(a.nombre || a.marca || '—');
+                    const oficio = this.escapeHtml(a.oficio_principal || a.oficio || '—');
+                    const cp = this.escapeHtml(a.codigo_postal || a.zona || '—');
+                    const fecha = a.creado_en ? new Date(a.creado_en).toLocaleDateString('es-ES') : '—';
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td><code>${codigo}</code></td>
+                        <td>${nombre}</td>
+                        <td>${oficio}</td>
+                        <td>${cp}</td>
+                        <td>${fecha}</td>
+                        <td>
+                            <button class="btn-activar-pendiente" data-codigo="${codigo}" style="padding:4px 10px; font-size:0.8rem;" title="Incorporar al aliado asignándolo al grupo con plaza libre más adecuado">
+                                Incorporar
+                            </button>
+                        </td>
+                    `;
+                    const btn = tr.querySelector('.btn-activar-pendiente');
+                    if (btn) btn.addEventListener('click', () => this.accionIncorporarSuplente(codigo));
+                    tbody.appendChild(tr);
+                });
+            }
+
+            accionIncorporarSuplente(codigo) {
+                this._abrirModalAccionAdmin({
+                    title: 'Incorporar Suplente en Espera',
+                    bodyHtml: `
+                        <p style="color:#ccc; margin-bottom:12px;">Aliado: <strong>${this.escapeHtml(codigo)}</strong></p>
+                        <label class="modal-importe-label" style="display:block; margin-bottom:6px;">ID de grupo (opcional — dejar vacío para asignar automáticamente)</label>
+                        <input type="number" id="accion-inc-grupo" placeholder="Dejar vacío = automático" style="width:100%; padding:8px; box-sizing:border-box;" />
+                    `,
+                    getPayload: () => ({
+                        grupo_id: (document.getElementById('accion-inc-grupo')?.value || '').trim() || null
+                    }),
+                    validate: () => null,
+                    getConfirmSummary: (p) => `¿Incorporar <strong>${this.escapeHtml(codigo)}</strong>${p.grupo_id ? ' al grupo ' + p.grupo_id : ' automáticamente'}?`,
+                    execute: async (p) => {
+                        const body = p.grupo_id ? { grupo_id: parseInt(p.grupo_id, 10) } : {};
+                        const r = await fetch(`/api/admin/suplentes-espera/${encodeURIComponent(codigo)}/incorporar`, { method: 'POST', credentials: 'same-origin', headers: this.getAuthHeaders(), body: JSON.stringify(body) });
+                        if (r.status === 401) { this._adminSessionExpired(); return; }
+                        if (r.status === 403) { this.showToast('Sin permiso de escritura (solo lectura).', 'error'); return; }
+                        const data = await r.json().catch(() => ({}));
+                        if (data.status === 'success') { this.showToast(data.message || 'Suplente incorporado.', 'success'); this.cargarDesdeApi(); }
+                        else { this.showToast(data.message || 'Error al incorporar.', 'error'); }
+                    }
                 });
             }
 
