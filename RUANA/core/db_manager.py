@@ -377,15 +377,15 @@ class DBManager:
                 """)
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_eventos_sistema_creado ON eventos_sistema(creado_en DESC)")
 
-                # Competencia: suplente temporal cuando score < umbral; 1 mes, mayor score permanece
+                # Competencia: retador temporal cuando score < umbral; 1 mes, mayor score permanece
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS competencia (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         grupo_id INTEGER NOT NULL,
                         oficio TEXT NOT NULL,
                         aliado_original_codigo TEXT NOT NULL,
-                        suplente_codigo TEXT NOT NULL,
-                        suplente_grupo_anterior_id INTEGER,
+                        retador_codigo TEXT NOT NULL,
+                        retador_grupo_anterior_id INTEGER,
                         fecha_inicio TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         fecha_fin_prevista TIMESTAMP NOT NULL,
                         estado TEXT DEFAULT 'activa' CHECK(estado IN ('activa', 'finalizada')),
@@ -393,7 +393,7 @@ class DBManager:
                         creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY(grupo_id) REFERENCES grupos(id),
                         FOREIGN KEY(aliado_original_codigo) REFERENCES aliados(codigo),
-                        FOREIGN KEY(suplente_codigo) REFERENCES aliados(codigo)
+                        FOREIGN KEY(retador_codigo) REFERENCES aliados(codigo)
                     )
                 """)
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_competencia_grupo_estado ON competencia(grupo_id, estado)")
@@ -865,11 +865,11 @@ class DBManager:
         ]:
             if col not in columnas:
                 cursor.execute(f"ALTER TABLE competencia ADD COLUMN {col} {def_sql}")
-        # Manejo especial: suplente_inicio/actual → tras renombrar serán retador_inicio/actual
-        if 'score_suplente_inicio' not in columnas and 'score_retador_inicio' not in columnas:
-            cursor.execute("ALTER TABLE competencia ADD COLUMN score_suplente_inicio INTEGER")
-        if 'score_suplente_actual' not in columnas and 'score_retador_actual' not in columnas:
-            cursor.execute("ALTER TABLE competencia ADD COLUMN score_suplente_actual INTEGER")
+        # Preferir nombres retador; si solo existen los legacy suplente, el rename posterior los migra
+        if 'score_retador_inicio' not in columnas and 'score_suplente_inicio' not in columnas:
+            cursor.execute("ALTER TABLE competencia ADD COLUMN score_retador_inicio INTEGER")
+        if 'score_retador_actual' not in columnas and 'score_suplente_actual' not in columnas:
+            cursor.execute("ALTER TABLE competencia ADD COLUMN score_retador_actual INTEGER")
 
     def _migrar_retador_rename(self, conn, cursor) -> None:
         """Renombra columnas suplente→retador en la tabla competencia (SQLite 3.25+)."""
