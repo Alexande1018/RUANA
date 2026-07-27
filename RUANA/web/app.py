@@ -3452,6 +3452,32 @@ def admin_rechazar_aliado():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+@app.route('/api/admin/eliminar-aliado', methods=['POST'])
+@require_admin_escritura
+def admin_eliminar_aliado():
+    """
+    POST /api/admin/eliminar-aliado
+    Body: { "codigo": "12345", "motivo": "opcional" }
+    Elimina el perfil de un aliado desde Control de aliados (expulsado/rechazado o borrado si placeholder).
+    """
+    try:
+        data = request.get_json() or {}
+        codigo = (data.get('codigo') or '').strip()
+        if not codigo:
+            return jsonify({'status': 'error', 'message': 'C?digo de aliado obligatorio'}), 400
+        motivo = (data.get('motivo') or '').strip() or None
+        db = get_db()
+        result = db.eliminar_perfil_aliado_admin(
+            codigo,
+            motivo=motivo,
+            admin_codigo=_admin_codigo() or None,
+        )
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
 @app.route('/api/admin/users/<int:user_id>/activate', methods=['PATCH'])
 @require_admin_escritura
 def admin_users_activate(user_id):
