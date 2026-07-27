@@ -1,8 +1,12 @@
+import os
 import time
+from pathlib import Path
 
 import pytest
 
 from RUANA.web import app as app_module
+
+_QA_ADMIN_CREDENTIALS = Path(__file__).resolve().parents[1] / "config" / "admin_credentials.qa.json"
 
 
 class Hito2AFakeDB:
@@ -91,6 +95,13 @@ class Hito2AFakeDB:
     def obtener_o_crear_invitador_admin(self, admin_codigo, nombre=""):
         self.calls.append(("obtener_o_crear_invitador_admin", admin_codigo, nombre))
         return admin_codigo
+
+
+@pytest.fixture(autouse=True)
+def admin_test_credentials(tmp_path, monkeypatch):
+    credentials = tmp_path / "admin_credentials.json"
+    credentials.write_text(_QA_ADMIN_CREDENTIALS.read_text(encoding="utf-8"), encoding="utf-8")
+    monkeypatch.setenv("RUANA_ADMIN_CREDENTIALS_PATH", str(credentials))
 
 
 @pytest.fixture(autouse=True)

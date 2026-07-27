@@ -1,0 +1,11 @@
+{
+  "admin_codes": {
+    "ADMIN_EJEMPLO": {
+      "nombre": "Administrador de ejemplo",
+      "descripcion": "Plantilla sin credenciales reales. No usar en producción.",
+      "activo": true,
+      "creado": "2026-07-27",
+      "permisos": ["leer", "escribir", "eliminar", "configurar"]
+    }
+  }
+}
