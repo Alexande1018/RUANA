@@ -1,0 +1,391 @@
+/* ================================================
+   RUANA Admin Premium 2026 — look más moderno
+   Solo estética. Cargar DESPUÉS del <style> inline.
+   ================================================ */
+
+.admin-topbar {
+    background: rgba(7, 9, 15, 0.55) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+    backdrop-filter: blur(28px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35), inset 0 -1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+
+.admin-topbar-title {
+    letter-spacing: 0.14em !important;
+    text-transform: uppercase;
+    font-size: 0.88rem;
+    font-weight: 800;
+}
+
+.admin-topbar-link {
+    border-radius: 14px !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    color: #e5e7eb !important;
+    backdrop-filter: blur(16px);
+    font-weight: 600;
+    transition: background 180ms ease, border-color 180ms ease, transform 180ms ease !important;
+}
+
+.admin-topbar-link:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    transform: translateY(-1px);
+}
+
+.btn-admin-logout {
+    border-radius: 14px !important;
+    font-weight: 600;
+    transition: background 180ms ease, transform 180ms ease;
+}
+
+.btn-admin-logout:hover {
+    transform: translateY(-1px);
+}
+
+.admin-container {
+    padding-top: 104px !important;
+}
+
+.admin-title {
+    letter-spacing: -0.04em !important;
+    font-weight: 800 !important;
+    color: #f8fafc !important;
+}
+
+.admin-subtitle {
+    color: #9ca3af !important;
+}
+
+.admin-is-loading #admin-loader {
+    background: rgba(7, 9, 15, 0.82) !important;
+    backdrop-filter: blur(28px) !important;
+}
+
+.admin-login-modal:not(.hidden) {
+    backdrop-filter: blur(18px) saturate(160%);
+    background: rgba(4, 6, 12, 0.72);
+}
+
+.admin-login-card,
+.admin-login-card.ruana-auth-card {
+    background:
+        linear-gradient(155deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.025) 50%, rgba(255, 255, 255, 0.05) 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    border-radius: 32px !important;
+    backdrop-filter: blur(40px) saturate(190%) !important;
+    -webkit-backdrop-filter: blur(40px) saturate(190%) !important;
+    box-shadow: 0 40px 100px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.14) !important;
+}
+
+.indicador-card {
+    background:
+        linear-gradient(160deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    border-radius: 22px !important;
+    backdrop-filter: blur(28px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.18) !important;
+    transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease !important;
+}
+
+.indicador-card:hover {
+    transform: translateY(-4px) !important;
+    border-color: rgba(162, 255, 0, 0.28) !important;
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.38), 0 0 24px rgba(34, 197, 94, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+}
+
+.indicador-numero {
+    letter-spacing: -0.05em;
+    font-weight: 800;
+    background: linear-gradient(180deg, #86efac 0%, #22c55e 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.indicador-label {
+    color: #9ca3af !important;
+    font-size: 0.8rem !important;
+}
+
+.seccion-titulo {
+    font-size: 0.72rem !important;
+    letter-spacing: 0.16em !important;
+    color: #9ca3af !important;
+    font-weight: 700 !important;
+}
+
+.movimiento-card,
+.metricas-salud,
+.metrica-item,
+.salud-card,
+.panel-block,
+.admin-section-card,
+.acciones-admin,
+.estado-global {
+    background:
+        linear-gradient(160deg, rgba(255, 255, 255, 0.11) 0%, rgba(255, 255, 255, 0.035) 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.16) !important;
+    border-radius: 22px !important;
+    backdrop-filter: blur(28px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.16) !important;
+}
+
+.metricas-salud,
+.estado-global,
+.acciones-admin {
+    border-radius: 26px !important;
+    padding: 28px !important;
+}
+
+.metrica-item {
+    border-radius: 16px !important;
+    transition: transform 180ms ease, border-color 180ms ease;
+}
+
+.metrica-item:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.18) !important;
+}
+
+.movimiento-24h-tabla-scroll,
+.tabla-scroll,
+.admin-tabla-wrap,
+.aliados-tabla-wrap {
+    border-radius: 18px !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(16px);
+}
+
+.movimiento-24h-tabla th,
+.admin-tabla th,
+table th {
+    background: rgba(255, 255, 255, 0.045) !important;
+    color: #9ca3af !important;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+.movimiento-24h-tabla tbody tr:hover,
+.admin-tabla tbody tr:hover,
+table tbody tr:hover {
+    background: rgba(34, 197, 94, 0.05) !important;
+}
+
+.btn-filtro {
+    border-radius: 14px !important;
+    background: rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    backdrop-filter: blur(12px);
+    font-weight: 600;
+    transition: background 180ms ease, border-color 180ms ease, color 180ms ease, transform 180ms ease !important;
+}
+
+.btn-filtro:hover {
+    transform: translateY(-1px);
+    border-color: rgba(255, 255, 255, 0.18) !important;
+}
+
+.btn-filtro.active {
+    background: rgba(34, 197, 94, 0.16) !important;
+    border-color: rgba(34, 197, 94, 0.45) !important;
+    color: #86efac !important;
+    box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.admin-filter-row input,
+.admin-filter-row select,
+.filtros-aliados input,
+.filtros-aliados select,
+input[type="search"],
+input[type="text"],
+input[type="number"],
+input[type="date"],
+textarea,
+select {
+    border-radius: 14px !important;
+    transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+
+.admin-filter-row input:focus,
+.admin-filter-row select:focus,
+.filtros-aliados input:focus,
+.filtros-aliados select:focus,
+input:focus,
+textarea:focus,
+select:focus {
+    outline: none;
+    border-color: rgba(34, 197, 94, 0.6) !important;
+    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.15);
+}
+
+.btn-accion,
+.btn-admin-action,
+.btn-volver-nivel,
+.btn-linaje {
+    border-radius: 14px !important;
+    min-height: 42px;
+    font-weight: 600;
+    transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease, border-color 180ms ease !important;
+}
+
+.btn-accion:hover,
+.btn-admin-action:hover,
+.btn-volver-nivel:hover,
+.btn-linaje:hover {
+    transform: translateY(-1px);
+}
+
+.btn-accion:active,
+.btn-admin-action:active,
+.btn-volver-nivel:active {
+    transform: scale(0.98);
+}
+
+.btn-admin-action {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+    color: #e5e7eb !important;
+    backdrop-filter: blur(12px);
+}
+
+.btn-admin-action:hover {
+    background: rgba(255, 255, 255, 0.09) !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    color: #fff !important;
+}
+
+.btn-admin-action.danger,
+.btn-accion.danger {
+    background: rgba(239, 68, 68, 0.12) !important;
+    border-color: rgba(239, 68, 68, 0.35) !important;
+    color: #f87171 !important;
+    box-shadow: none !important;
+}
+
+.btn-admin-action.danger:hover,
+.btn-accion.danger:hover {
+    background: rgba(239, 68, 68, 0.2) !important;
+}
+
+.cp-card,
+.grupo-card,
+.aliado-admin-card,
+.linaje-card,
+.pendiente-card,
+.conflicto-card,
+.pago-card,
+.solicitud-admin-card,
+.competencia-card,
+.suplente-card,
+.conversacion-card,
+.aliado-card,
+.aviso-card,
+.lista-item,
+.item-card {
+    background:
+        linear-gradient(160deg, rgba(255, 255, 255, 0.065) 0%, rgba(255, 255, 255, 0.02) 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.11) !important;
+    border-radius: 20px !important;
+    backdrop-filter: blur(22px) saturate(170%) !important;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.09) !important;
+    transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.cp-card:hover,
+.grupo-card:hover,
+.aliado-admin-card:hover,
+.pendiente-card:hover,
+.conflicto-card:hover,
+.pago-card:hover,
+.lista-item:hover,
+.item-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(162, 255, 0, 0.25) !important;
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+}
+
+.aliado-estado-badge,
+.aliado-badge,
+.estado-pago-badge {
+    border-radius: 10px !important;
+    border: 1px solid transparent;
+    letter-spacing: 0.04em;
+    font-weight: 700;
+}
+
+.evento-item {
+    background: rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-left: 3px solid rgba(34, 197, 94, 0.55) !important;
+    border-radius: 16px !important;
+    backdrop-filter: blur(16px);
+    transition: transform 180ms ease, border-color 180ms ease;
+}
+
+.evento-item:hover {
+    transform: translateX(3px);
+}
+
+.modal-overlay.admin-modal,
+.admin-modal.modal-overlay {
+    backdrop-filter: blur(16px) saturate(150%) !important;
+    background: rgba(4, 6, 12, 0.78) !important;
+}
+
+.admin-modal .modal-content,
+.modal-overlay .modal-content {
+    background:
+        linear-gradient(160deg, rgba(255, 255, 255, 0.08) 0%, rgba(12, 14, 22, 0.88) 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    border-radius: 28px !important;
+    backdrop-filter: blur(36px) saturate(180%) !important;
+    box-shadow: 0 40px 100px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+}
+
+.linaje-drawer {
+    background: linear-gradient(180deg, rgba(12, 14, 22, 0.92) 0%, rgba(7, 9, 15, 0.95) 100%) !important;
+    border-left: 1px solid rgba(255, 255, 255, 0.12) !important;
+    backdrop-filter: blur(32px) !important;
+    box-shadow: -20px 0 60px rgba(0, 0, 0, 0.45) !important;
+}
+
+.linaje-drawer-overlay {
+    backdrop-filter: blur(12px) !important;
+    background: rgba(4, 6, 12, 0.7) !important;
+}
+
+.estado-sistema {
+    border-radius: 12px !important;
+    border: 1px solid transparent;
+    backdrop-filter: blur(12px);
+    padding: 8px 14px !important;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.estado-sistema.estable { border-color: rgba(34, 197, 94, 0.3); }
+.estado-sistema.alerta { border-color: rgba(234, 179, 8, 0.3); }
+.estado-sistema.crítico { border-color: rgba(239, 68, 68, 0.3); }
+
+.aliados-jerarquia-nav,
+.linaje-panel {
+    background: rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 18px !important;
+    backdrop-filter: blur(16px);
+    padding: 12px 14px;
+}
+
+@media (max-width: 768px) {
+    .admin-topbar { padding: 10px 14px !important; }
+    .indicador-card { padding: 18px 14px !important; }
+    .admin-container { padding-left: 14px !important; padding-right: 14px !important; }
+}
