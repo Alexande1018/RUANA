@@ -222,14 +222,73 @@ html.admin-shell-enabled .movimiento-card {
     scroll-margin-top: calc(var(--admin-topbar-h) + 20px);
 }
 
-.admin-section-header {
+.admin-section-actions {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 18px;
+    align-items: center;
+    gap: 8px;
     flex-wrap: wrap;
 }
+
+.admin-section-btn {
+    padding: 7px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--admin-border-strong);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--admin-text);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 140ms ease, border-color 140ms ease;
+}
+
+.admin-section-btn.is-danger {
+    border-color: rgba(248, 113, 113, 0.4);
+    background: var(--admin-danger-soft);
+    color: #fecaca;
+}
+
+.admin-section-btn.is-danger-outline {
+    border-color: rgba(248, 113, 113, 0.35);
+    background: transparent;
+    color: #fca5a5;
+}
+
+.admin-section-btn:hover {
+    background: rgba(255, 255, 255, 0.09);
+}
+
+.admin-section-btn.is-danger:hover,
+.admin-section-btn.is-danger-outline:hover {
+    background: rgba(248, 113, 113, 0.2);
+}
+
+.admin-section-note {
+    font-size: 0.75rem;
+    color: var(--admin-text-faint);
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--admin-border);
+}
+
+.admin-delete-cell {
+    width: 88px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.btn-row-delete {
+    padding: 4px 10px !important;
+    font-size: 0.72rem !important;
+    min-height: 28px;
+}
+
+html.admin-shell-enabled table th.admin-delete-cell {
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
 
 .admin-section-header .seccion-titulo {
     margin: 0 !important;
