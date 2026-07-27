@@ -3416,15 +3416,9 @@
              * Orden: pendientes, retadores, competencia, suplentes_espera, luego estado_panel/estado.
              */
             esAliadoPlaceholder(a) {
-                if (!a) return true;
+                if (!a) return false;
                 const est = (a.estado || '').toLowerCase();
-                const email = (a.email || '').toLowerCase();
-                const nombre = (a.nombre || '').trim();
-                const oficio = (a.oficio || '').toLowerCase().trim();
-                if (est === 'pendiente_completar') return true;
-                if (email.startsWith('placeholder-') && email.endsWith('@ruana.local')) return true;
-                if (nombre.startsWith('Nuevo Aliado -') && oficio === 'pendiente') return true;
-                return false;
+                return est === 'pendiente_completar';
             }
 
             getGrupoAliado(a) {

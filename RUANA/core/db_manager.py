@@ -902,14 +902,9 @@ class DBManager:
         cursor.execute("INSERT INTO migraciones (nombre) VALUES ('retador_rename_v1')")
 
     def _es_condicion_aliado_placeholder_sql(self) -> str:
-        """Condición SQL (sin WHERE) para detectar aliados placeholder de invitación."""
+        """Condición SQL (sin WHERE) para detectar placeholders reales de invitación."""
         return """(
             LOWER(TRIM(COALESCE(estado, ''))) = 'pendiente_completar'
-            OR LOWER(TRIM(COALESCE(email, ''))) LIKE 'placeholder-%@ruana.local'
-            OR (
-                TRIM(COALESCE(nombre, '')) LIKE 'Nuevo Aliado -%'
-                AND LOWER(TRIM(COALESCE(oficio, ''))) = 'pendiente'
-            )
         )"""
 
     def _purgar_placeholders_control_aliados(self, conn, cursor) -> None:

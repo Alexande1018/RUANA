@@ -5,11 +5,6 @@ WITH placeholders AS (
   SELECT codigo
   FROM public.aliados
   WHERE LOWER(TRIM(COALESCE(estado, ''))) = 'pendiente_completar'
-     OR LOWER(TRIM(COALESCE(email, ''))) LIKE 'placeholder-%@ruana.local'
-     OR (
-       TRIM(COALESCE(nombre, '')) LIKE 'Nuevo Aliado -%'
-       AND LOWER(TRIM(COALESCE(oficio, ''))) = 'pendiente'
-     )
 )
 DELETE FROM public.referidos
 WHERE codigo_referido IN (SELECT codigo FROM placeholders)
@@ -19,11 +14,6 @@ WITH placeholders AS (
   SELECT codigo
   FROM public.aliados
   WHERE LOWER(TRIM(COALESCE(estado, ''))) = 'pendiente_completar'
-     OR LOWER(TRIM(COALESCE(email, ''))) LIKE 'placeholder-%@ruana.local'
-     OR (
-       TRIM(COALESCE(nombre, '')) LIKE 'Nuevo Aliado -%'
-       AND LOWER(TRIM(COALESCE(oficio, ''))) = 'pendiente'
-     )
 )
 UPDATE public.aliados
 SET invitado_por_codigo = NULL,
@@ -31,9 +21,4 @@ SET invitado_por_codigo = NULL,
 WHERE invitado_por_codigo IN (SELECT codigo FROM placeholders);
 
 DELETE FROM public.aliados
-WHERE LOWER(TRIM(COALESCE(estado, ''))) = 'pendiente_completar'
-   OR LOWER(TRIM(COALESCE(email, ''))) LIKE 'placeholder-%@ruana.local'
-   OR (
-     TRIM(COALESCE(nombre, '')) LIKE 'Nuevo Aliado -%'
-     AND LOWER(TRIM(COALESCE(oficio, ''))) = 'pendiente'
-   );
+WHERE LOWER(TRIM(COALESCE(estado, ''))) = 'pendiente_completar';
