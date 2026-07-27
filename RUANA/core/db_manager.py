@@ -892,6 +892,53 @@ class DBManager:
                     print(f"[RUANA][DB] Aviso al renombrar {old_name}→{new_name}: {ex}")
         cursor.execute("INSERT INTO migraciones (nombre) VALUES ('retador_rename_v1')")
 
+    def _columna_retador_competencia(self, cursor) -> str:
+        """
+        Devuelve la columna vigente para el retador en `competencia`.
+        Compatibilidad lectura: algunas BDs reales siguen con esquema legacy `suplente_codigo`.
+        """
+        try:
+            if self.backend == "postgres":
+                cursor.execute(
+                    """
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_name = 'competencia'
+                      AND column_name IN ('retador_codigo', 'suplente_codigo')
+                    """
+                )
+                cols = {str(r[0]) for r in (cursor.fetchall() or [])}
+            else:
+                cursor.execute("PRAGMA table_info(competencia)")
+                cols = {str(r[1]) for r in (cursor.fetchall() or [])}
+        except Exception:
+            cols = set()
+        return "retador_codigo" if "retador_codigo" in cols else "suplente_codigo"
+
+    def _columnas_compat_competencia(self, cursor) -> Dict[str, str]:
+        """Mapea columnas de competencia entre esquema nuevo (retador_*) y legacy (suplente_*)."""
+        try:
+            if self.backend == "postgres":
+                cursor.execute(
+                    """
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_name = 'competencia'
+                    """
+                )
+                cols = {str(r[0]) for r in (cursor.fetchall() or [])}
+            else:
+                cursor.execute("PRAGMA table_info(competencia)")
+                cols = {str(r[1]) for r in (cursor.fetchall() or [])}
+        except Exception:
+            cols = set()
+        return {
+            "retador_codigo": "retador_codigo" if "retador_codigo" in cols else "suplente_codigo",
+            "retador_grupo_anterior_id": "retador_grupo_anterior_id" if "retador_grupo_anterior_id" in cols else "suplente_grupo_anterior_id",
+            "score_retador_inicio": "score_retador_inicio" if "score_retador_inicio" in cols else "score_suplente_inicio",
+            "score_retador_actual": "score_retador_actual" if "score_retador_actual" in cols else "score_suplente_actual",
+        }
+
     def _es_condicion_aliado_placeholder_sql(self) -> str:
         """Condición SQL (sin WHERE) para detectar placeholders reales de invitación."""
         return """(
@@ -2672,8 +2719,11 @@ class DBManager:
                 conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
+                cols = self._columnas_compat_competencia(cursor)
                 cursor.execute("""
-                    SELECT id, grupo_id, oficio, aliado_original_codigo, retador_codigo, retador_grupo_anterior_id,
+                    SELECT id, grupo_id, oficio, aliado_original_codigo,
+                           """ + cols["retador_codigo"] + """ AS retador_codigo,
+                           """ + cols["retador_grupo_anterior_id"] + """ AS retador_grupo_anterior_id,
                            fecha_inicio, fecha_fin_prevista, estado
                     FROM competencia WHERE grupo_id = ? AND oficio = ? AND estado = 'activa' LIMIT 1
                 """, (grupo_id, (oficio or '').strip()))
@@ -2708,19 +2758,22 @@ class DBManager:
                 conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
+                cols = self._columnas_compat_competencia(cursor)
                 cursor.execute("""
-                    SELECT c.id, c.grupo_id, c.oficio, c.aliado_original_codigo, c.retador_codigo,
-                           c.retador_grupo_anterior_id, c.fecha_inicio, c.fecha_fin_prevista,
-                           c.score_titular_inicio, c.score_retador_inicio,
-                           c.score_titular_actual, c.score_retador_actual, c.motivo,
+                    SELECT c.id, c.grupo_id, c.oficio, c.aliado_original_codigo,
+                           c.""" + cols["retador_codigo"] + """ AS retador_codigo,
+                           c.""" + cols["retador_grupo_anterior_id"] + """ AS retador_grupo_anterior_id,
+                           c.fecha_inicio, c.fecha_fin_prevista,
+                           c.score_titular_inicio, c.""" + cols["score_retador_inicio"] + """ AS score_retador_inicio,
+                           c.score_titular_actual, c.""" + cols["score_retador_actual"] + """ AS score_retador_actual, c.motivo,
                            t.id AS titular_id, t.nombre AS titular_nombre, t.score AS titular_score_actual,
                            s.id AS retador_id, s.nombre AS retador_nombre, s.score AS retador_score_actual,
                            g.nombre AS grupo_nombre, g_origen.nombre AS grupo_origen_nombre
                     FROM competencia c
                     JOIN aliados t ON t.codigo = c.aliado_original_codigo
-                    JOIN aliados s ON s.codigo = c.retador_codigo
+                    JOIN aliados s ON s.codigo = c.""" + cols["retador_codigo"] + """
                     JOIN grupos g ON g.id = c.grupo_id
-                    LEFT JOIN grupos g_origen ON g_origen.id = c.retador_grupo_anterior_id
+                    LEFT JOIN grupos g_origen ON g_origen.id = c.""" + cols["retador_grupo_anterior_id"] + """
                     WHERE c.estado = 'activa'
                     ORDER BY c.fecha_inicio ASC
                 """)
@@ -4645,6 +4698,7 @@ class DBManager:
                 conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
+                col_retador = self._columna_retador_competencia(cursor)
 
                 base_query = """
                     SELECT
@@ -4682,7 +4736,7 @@ class DBManager:
                         ) AS contactos_30d,
                         (
                             SELECT 1 FROM competencia c
-                            WHERE c.retador_codigo = a.codigo AND c.estado = 'activa' LIMIT 1
+                            WHERE c.""" + col_retador + """ = a.codigo AND c.estado = 'activa' LIMIT 1
                         ) AS es_retador_activo,
                         (
                             SELECT 1 FROM competencia c
@@ -9153,8 +9207,9 @@ class DBManager:
             try:
                 conn = self._connect()
                 cursor = conn.cursor()
+                col_retador = self._columna_retador_competencia(cursor)
                 cursor.execute(
-                    "SELECT COUNT(DISTINCT retador_codigo) FROM competencia WHERE estado = 'activa'"
+                    f"SELECT COUNT(DISTINCT {col_retador}) FROM competencia WHERE estado = 'activa'"
                 )
                 return cursor.fetchone()[0] or 0
             except Exception:
@@ -9911,11 +9966,12 @@ class DBManager:
                 ratio_invitacion_registro = round(invitaciones_usadas / max(total_invitaciones, 1), 2)
 
                 # Oficios saturados: oficios con más de X retadores en competencia activa
+                col_retador = self._columna_retador_competencia(cursor)
                 cursor.execute("""
-                    SELECT oficio, COUNT(DISTINCT retador_codigo) as n
+                    SELECT oficio, COUNT(DISTINCT """ + col_retador + """) as n
                     FROM competencia WHERE estado = 'activa'
                     GROUP BY oficio
-                    HAVING COUNT(DISTINCT retador_codigo) > ?
+                    HAVING COUNT(DISTINCT """ + col_retador + """) > ?
                 """, (umbral_suplentes,))
                 oficios_saturados = len(cursor.fetchall())
 
