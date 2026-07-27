@@ -1,0 +1,707 @@
+/**
+ * RUANA Admin Shell — navegación, acciones masivas y auditoría de sesión.
+ * No modifica APIs ni lógica de negocio: envuelve el AdminPanel existente.
+ */
+(function () {
+    'use strict';
+
+    const NAV_SECTIONS = [
+        { id: 'overview', label: 'Resumen', group: 'Principal', target: '.estado-global', icon: 'grid' },
+        { id: 'movimiento', label: 'Movimiento 24h', group: 'Principal', target: '.movimiento-sistema', icon: 'activity' },
+        { id: 'salud', label: 'Métricas de salud', group: 'Principal', target: '.metricas-salud', icon: 'heart' },
+        { id: 'pendientes', label: 'Pendientes validación', group: 'Operaciones', target: '#pendientes-validacion-wrap', icon: 'user-check', badge: '#pendientes-validacion-count' },
+        { id: 'conflictos', label: 'Conflictos de pago', group: 'Operaciones', target: '#conflictos-pago-wrap', icon: 'alert' },
+        { id: 'pagos-apoyo', label: 'Pagos Apoyo', group: 'Operaciones', target: '#pagos-apoyo-wrap', icon: 'credit' },
+        { id: 'pagos-revision', label: 'Pagos en revisión', group: 'Operaciones', target: '#pagos-en-revision-wrap', icon: 'clock' },
+        { id: 'solicitudes', label: 'Solicitudes', group: 'Operaciones', target: '#solicitudes-admin-wrap', icon: 'inbox' },
+        { id: 'competencias', label: 'Competencias', group: 'Operaciones', target: '#competencias-activas-wrap', icon: 'zap' },
+        { id: 'suplentes', label: 'Suplentes en espera', group: 'Operaciones', target: '#suplentes-espera-wrap', icon: 'users' },
+        { id: 'chats', label: 'Registro de chats', group: 'Operaciones', target: '#conversaciones-ruana-wrap', icon: 'message' },
+        { id: 'aliados', label: 'Control de aliados', group: 'Red', target: '#control-aliados-wrap', icon: 'network' },
+        { id: 'trazabilidad', label: 'Trazabilidad', group: 'Sistema', target: '.eventos-trazabilidad', icon: 'list' },
+        { id: 'metodos-pago', label: 'Métodos de pago', group: 'Sistema', target: '#metodos-pago-admin-wrap', icon: 'wallet' },
+        { id: 'acciones', label: 'Acciones admin', group: 'Sistema', target: '.acciones-admin:last-of-type', icon: 'settings' }
+    ];
+
+    const BULK_CONFIG = {
+        'tbody-pendientes-validacion': {
+            name: 'pendientes de validación',
+            critical: true,
+            rowLabel: (tr) => tr.cells[3]?.textContent?.trim() || tr.cells[2]?.textContent?.trim() || tr.dataset.id || 'registro',
+            actions: [
+                {
+                    id: 'activar',
+                    label: 'Activar seleccionados',
+                    consequences: [
+                        'Los aliados seleccionados podrán acceder al panel con su código.',
+                        'Esta acción no se puede deshacer desde el panel.'
+                    ],
+                    run: async (panel, rows) => {
+                        for (const tr of rows) {
+                            const id = tr.dataset.id;
+                            if (id) await panel.activarAliadoPendiente(Number(id), tr);
+                        }
+                    }
+                },
+                {
+                    id: 'rechazar',
+                    label: 'Rechazar seleccionados',
+                    danger: true,
+                    confirmPhrase: 'RECHAZAR',
+                    consequences: [
+                        'Los aliados rechazados no podrán acceder al panel.',
+                        'No hay opción de restaurar desde este panel.'
+                    ],
+                    run: async (panel, rows) => {
+                        for (const tr of rows) {
+                            const codigo = tr.cells[2]?.textContent?.trim();
+                            if (!codigo) continue;
+                            try {
+                                const r = await fetch('/api/admin/rechazar-aliado', {
+                                    method: 'POST',
+                                    credentials: 'same-origin',
+                                    headers: panel.getAuthHeaders(),
+                                    body: JSON.stringify({ codigo })
+                                });
+                                if (r.status === 401) { panel._adminSessionExpired(); return; }
+                                const data = await r.json().catch(() => ({}));
+                                if (r.ok && data.status === 'success' && tr.parentNode) tr.remove();
+                            } catch (_) { /* continuar con el siguiente */ }
+                        }
+                        panel.cargarDesdeApi();
+                    }
+                }
+            ],
+            allAction: {
+                id: 'rechazar-todos',
+                label: 'Rechazar todos los pendientes',
+                danger: true,
+                confirmPhrase: 'RECHAZAR TODOS',
+                consequences: [
+                    'Se rechazarán TODOS los aliados pendientes de validación visibles.',
+                    'Operación crítica e irreversible desde el panel.'
+                ],
+                run: async (panel, tbody) => {
+                    const rows = Array.from(tbody.querySelectorAll('tr')).filter((tr) => tr.querySelector('td'));
+                    for (const tr of rows) {
+                        const codigo = tr.cells[2]?.textContent?.trim();
+                        if (!codigo) continue;
+                        try {
+                            const r = await fetch('/api/admin/rechazar-aliado', {
+                                method: 'POST',
+                                credentials: 'same-origin',
+                                headers: panel.getAuthHeaders(),
+                                body: JSON.stringify({ codigo })
+                            });
+                            if (r.status === 401) { panel._adminSessionExpired(); return; }
+                        } catch (_) { /* continuar */ }
+                    }
+                    panel.cargarDesdeApi();
+                }
+            }
+        },
+        'admin-campanas-invitacion-tbody': {
+            name: 'códigos multiuso',
+            critical: true,
+            rowLabel: (tr) => tr.cells[1]?.textContent?.trim() || 'campaña',
+            actions: [
+                {
+                    id: 'desactivar',
+                    label: 'Desactivar seleccionados',
+                    danger: true,
+                    confirmPhrase: 'DESACTIVAR',
+                    consequences: [
+                        'Los códigos dejarán de validar inmediatamente.',
+                        'Los usos ya consumidos no se revierten.'
+                    ],
+                    run: async (panel, rows) => {
+                        for (const tr of rows) {
+                            const btn = tr.querySelector('.btn-desactivar-campana');
+                            const codigo = btn?.getAttribute('data-codigo') || tr.cells[1]?.textContent?.trim();
+                            if (!codigo) continue;
+                            try {
+                                const r = await fetch('/api/admin/invitacion-campanas/' + encodeURIComponent(codigo) + '/desactivar', {
+                                    method: 'POST',
+                                    credentials: 'same-origin',
+                                    headers: panel.getAuthHeaders()
+                                });
+                                if (r.status === 401) { panel._adminSessionExpired(); return; }
+                                if (r.status === 403) { panel.showToast('Sin permiso de escritura.', 'error'); return; }
+                            } catch (_) { /* continuar */ }
+                        }
+                        panel.cargarDesdeApi();
+                    }
+                }
+            ]
+        },
+        'tbody-solicitudes-admin': {
+            name: 'solicitudes',
+            critical: false,
+            rowLabel: (tr) => `solicitud #${tr.dataset.id || tr.cells[1]?.textContent?.trim()}`,
+            actions: [
+                {
+                    id: 'atender',
+                    label: 'Marcar atendidas',
+                    consequences: [
+                        'Las solicitudes pasarán a estado atendida.',
+                        'No elimina el historial, solo actualiza el estado.'
+                    ],
+                    run: async (panel, rows) => {
+                        for (const tr of rows) {
+                            const id = tr.dataset.id || tr.cells[1]?.textContent?.trim();
+                            if (id) await panel.marcarSolicitudAtendidaAdmin(id, tr);
+                        }
+                    }
+                }
+            ]
+        },
+        'tbody-pagos-en-revision': {
+            name: 'pagos en revisión',
+            critical: true,
+            rowLabel: (tr) => {
+                const id = tr.querySelector('[data-contacto-id]')?.getAttribute('data-contacto-id');
+                return id ? `contacto #${id}` : 'pago';
+            },
+            actions: [
+                {
+                    id: 'aprobar',
+                    label: 'Aprobar pagos seleccionados',
+                    consequences: [
+                        'Los pagos pasarán a estado «pagado».',
+                        'Esta acción afecta el score y la trazabilidad del contacto.'
+                    ],
+                    run: async (panel, rows) => {
+                        for (const tr of rows) {
+                            const id = tr.querySelector('[data-contacto-id]')?.getAttribute('data-contacto-id');
+                            if (id) await panel.cambiarEstadoPagoContacto(id, 'pagado', tr);
+                        }
+                    }
+                }
+            ]
+        }
+    };
+
+    const ICONS = {
+        grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
+        activity: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+        heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>',
+        'user-check': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>',
+        alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+        credit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>',
+        clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+        inbox: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>',
+        zap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+        users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+        message: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+        network: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="3"/><circle cx="5" cy="19" r="3"/><circle cx="19" cy="19" r="3"/><line x1="12" y1="8" x2="5" y2="16"/><line x1="12" y1="8" x2="19" y2="16"/></svg>',
+        list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
+        wallet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg>',
+        settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'
+    };
+
+    const auditLog = [];
+    let adminCodigo = 'admin';
+    let enhanceTimer = null;
+
+    function getPanel() {
+        return window._ruanaAdminPanel || null;
+    }
+
+    function formatTime(date) {
+        return date.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'medium' });
+    }
+
+    function logAudit(action, detail, meta) {
+        const entry = {
+            at: new Date(),
+            admin: adminCodigo,
+            action,
+            detail,
+            meta: meta || {}
+        };
+        auditLog.unshift(entry);
+        if (auditLog.length > 200) auditLog.pop();
+        renderAuditList();
+    }
+
+    function renderAuditList() {
+        const list = document.getElementById('adminAuditList');
+        if (!list) return;
+        if (!auditLog.length) {
+            list.innerHTML = '<p style="color:#71717a;font-size:0.8rem;padding:8px;">Sin acciones en esta sesión.</p>';
+            return;
+        }
+        list.innerHTML = auditLog.slice(0, 50).map((e) => `
+            <div class="admin-audit-entry">
+                <time>${formatTime(e.at)}</time>
+                <div><strong>${escapeHtml(e.admin)}</strong> — ${escapeHtml(e.action)}</div>
+                <div style="color:#a1a1aa;margin-top:4px;">${escapeHtml(e.detail)}</div>
+            </div>
+        `).join('');
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text == null ? '' : String(text);
+        return div.innerHTML;
+    }
+
+    function buildSidebar() {
+        if (document.getElementById('adminSidebar')) return;
+
+        const app = document.createElement('div');
+        app.className = 'admin-app';
+        app.id = 'adminApp';
+
+        const sidebar = document.createElement('aside');
+        sidebar.className = 'admin-sidebar';
+        sidebar.id = 'adminSidebar';
+        sidebar.innerHTML = `
+            <div class="admin-sidebar-search">
+                <div class="admin-sidebar-search-wrap">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input type="search" id="adminNavSearch" placeholder="Buscar sección…" autocomplete="off" />
+                </div>
+            </div>
+            <nav class="admin-sidebar-nav" id="adminSidebarNav"></nav>
+            <div class="admin-sidebar-footer">
+                <button type="button" id="adminOpenAuditBtn">Auditoría de sesión <span class="admin-kbd">⌘⇧A</span></button>
+            </div>
+        `;
+
+        const main = document.createElement('main');
+        main.className = 'admin-main';
+        main.id = 'adminMain';
+
+        const container = document.getElementById('admin-main-content');
+        if (container && container.parentNode) {
+            container.parentNode.insertBefore(app, container);
+            app.appendChild(sidebar);
+            app.appendChild(main);
+            main.appendChild(container);
+        }
+
+        renderNavItems();
+        setupNavSearch();
+    }
+
+    function renderNavItems(filter) {
+        const nav = document.getElementById('adminSidebarNav');
+        if (!nav) return;
+        const q = (filter || '').trim().toLowerCase();
+        const groups = {};
+        NAV_SECTIONS.forEach((s) => {
+            if (q && !s.label.toLowerCase().includes(q)) return;
+            if (!groups[s.group]) groups[s.group] = [];
+            groups[s.group].push(s);
+        });
+        nav.innerHTML = Object.keys(groups).map((group) => {
+            const items = groups[group].map((s) => {
+                const badgeEl = s.badge ? document.querySelector(s.badge) : null;
+                const badgeVal = badgeEl ? badgeEl.textContent.trim() : '';
+                const hasBadge = badgeVal && badgeVal !== '—' && badgeVal !== '0';
+                return `<button type="button" class="admin-nav-item" data-nav-target="${s.target}">
+                    ${ICONS[s.icon] || ''}
+                    <span>${escapeHtml(s.label)}</span>
+                    ${hasBadge ? `<span class="admin-nav-badge has-items">${escapeHtml(badgeVal)}</span>` : ''}
+                </button>`;
+            }).join('');
+            return `<div class="admin-nav-group-label">${escapeHtml(group)}</div>${items}`;
+        }).join('');
+
+        nav.querySelectorAll('.admin-nav-item').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const target = document.querySelector(btn.getAttribute('data-nav-target'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    nav.querySelectorAll('.admin-nav-item').forEach((b) => b.classList.remove('is-active'));
+                    btn.classList.add('is-active');
+                }
+                document.getElementById('adminSidebar')?.classList.remove('is-mobile-open');
+            });
+        });
+    }
+
+    function setupNavSearch() {
+        const input = document.getElementById('adminNavSearch');
+        if (!input) return;
+        input.addEventListener('input', () => renderNavItems(input.value));
+    }
+
+    function buildDangerModal() {
+        if (document.getElementById('adminDangerModal')) return;
+        const modal = document.createElement('div');
+        modal.className = 'admin-danger-modal';
+        modal.id = 'adminDangerModal';
+        modal.innerHTML = `
+            <div class="admin-danger-card" role="dialog" aria-modal="true" aria-labelledby="adminDangerTitle">
+                <h3 id="adminDangerTitle">Confirmar acción</h3>
+                <p id="adminDangerDesc"></p>
+                <div class="admin-danger-consequences" id="adminDangerConsequences"></div>
+                <div id="adminDangerStep2" style="display:none;">
+                    <p style="font-size:0.82rem;color:#fca5a5;margin-bottom:8px;">Escribe la frase de confirmación para continuar:</p>
+                    <p style="font-size:0.78rem;color:#a1a1aa;margin-bottom:8px;font-family:monospace;" id="adminDangerPhrase"></p>
+                    <input type="text" class="admin-danger-confirm-input" id="adminDangerInput" autocomplete="off" />
+                </div>
+                <div class="admin-danger-actions">
+                    <button type="button" class="admin-bulk-btn admin-bulk-clear" id="adminDangerCancel">Cancelar</button>
+                    <button type="button" class="admin-bulk-btn" id="adminDangerContinue">Continuar</button>
+                    <button type="button" class="admin-bulk-btn is-danger" id="adminDangerConfirm" style="display:none;">Confirmar</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeDangerModal();
+        });
+        document.getElementById('adminDangerCancel')?.addEventListener('click', closeDangerModal);
+    }
+
+    function buildAuditDrawer() {
+        if (document.getElementById('adminAuditDrawer')) return;
+        const drawer = document.createElement('aside');
+        drawer.className = 'admin-audit-drawer';
+        drawer.id = 'adminAuditDrawer';
+        drawer.innerHTML = `
+            <div class="admin-audit-header">
+                <h3>Auditoría de sesión</h3>
+                <button type="button" class="admin-bulk-btn admin-bulk-clear" id="adminCloseAuditBtn">Cerrar</button>
+            </div>
+            <div class="admin-audit-list" id="adminAuditList"></div>
+        `;
+        document.body.appendChild(drawer);
+        document.getElementById('adminOpenAuditBtn')?.addEventListener('click', () => toggleAudit(true));
+        document.getElementById('adminCloseAuditBtn')?.addEventListener('click', () => toggleAudit(false));
+    }
+
+    function toggleAudit(open) {
+        document.getElementById('adminAuditDrawer')?.classList.toggle('is-open', open);
+    }
+
+    let dangerResolve = null;
+    let dangerState = { step: 1 };
+
+    function closeDangerModal() {
+        const modal = document.getElementById('adminDangerModal');
+        if (modal) modal.classList.remove('is-open');
+        dangerResolve = null;
+        dangerState = { step: 1 };
+    }
+
+    function confirmDanger({ title, description, consequences, confirmPhrase }) {
+        buildDangerModal();
+        return new Promise((resolve) => {
+            dangerResolve = resolve;
+            dangerState = { step: 1, confirmPhrase: confirmPhrase || null };
+            const modal = document.getElementById('adminDangerModal');
+            const step2 = document.getElementById('adminDangerStep2');
+            const input = document.getElementById('adminDangerConfirm');
+            const continueBtn = document.getElementById('adminDangerContinue');
+            const confirmBtn = document.getElementById('adminDangerConfirm');
+            document.getElementById('adminDangerTitle').textContent = title || 'Confirmar acción';
+            document.getElementById('adminDangerDesc').textContent = description || '';
+            const consEl = document.getElementById('adminDangerConsequences');
+            consEl.innerHTML = consequences && consequences.length
+                ? '<strong>Consecuencias:</strong><ul>' + consequences.map((c) => `<li>${escapeHtml(c)}</li>`).join('') + '</ul>'
+                : '';
+            step2.style.display = 'none';
+            confirmBtn.style.display = 'none';
+            continueBtn.style.display = '';
+            input.value = '';
+            modal.classList.add('is-open');
+
+            const onContinue = () => {
+                if (!confirmPhrase) {
+                    closeDangerModal();
+                    resolve(true);
+                    return;
+                }
+                dangerState.step = 2;
+                step2.style.display = 'block';
+                continueBtn.style.display = 'none';
+                confirmBtn.style.display = '';
+                document.getElementById('adminDangerPhrase').textContent = confirmPhrase;
+                document.getElementById('adminDangerInput')?.focus();
+            };
+
+            const onConfirm = () => {
+                const val = (document.getElementById('adminDangerInput')?.value || '').trim();
+                if (val !== confirmPhrase) {
+                    getPanel()?.showToast?.('La frase de confirmación no coincide.', 'error');
+                    return;
+                }
+                closeDangerModal();
+                resolve(true);
+            };
+
+            continueBtn.onclick = onContinue;
+            confirmBtn.onclick = onConfirm;
+        });
+    }
+
+    function getSelectedRows(tbody) {
+        return Array.from(tbody.querySelectorAll('tr.is-selected'));
+    }
+
+    function updateBulkToolbar(tbodyId) {
+        const config = BULK_CONFIG[tbodyId];
+        if (!config) return;
+        const tbody = document.getElementById(tbodyId);
+        const toolbar = document.getElementById(`bulk-toolbar-${tbodyId}`);
+        if (!tbody || !toolbar) return;
+        const selected = getSelectedRows(tbody);
+        const countEl = toolbar.querySelector('.admin-bulk-count');
+        if (countEl) countEl.textContent = `${selected.length} seleccionado${selected.length === 1 ? '' : 's'}`;
+        toolbar.classList.toggle('is-visible', selected.length > 0);
+    }
+
+    function enhanceTable(tbodyId) {
+        const config = BULK_CONFIG[tbodyId];
+        if (!config) return;
+        const tbody = document.getElementById(tbodyId);
+        if (!tbody) return;
+
+        const table = tbody.closest('table');
+        if (!table) return;
+
+        const wrap = table.closest('.movimiento-24h-tabla-scroll, .tabla-scroll, .admin-tabla-wrap') || table.parentElement;
+        if (wrap && !wrap.classList.contains('admin-table-shell')) {
+            wrap.classList.add('admin-table-shell');
+        }
+
+        let toolbar = document.getElementById(`bulk-toolbar-${tbodyId}`);
+        if (!toolbar && wrap) {
+            toolbar = document.createElement('div');
+            toolbar.className = 'admin-bulk-toolbar';
+            toolbar.id = `bulk-toolbar-${tbodyId}`;
+            toolbar.innerHTML = `<span class="admin-bulk-count">0 seleccionados</span>`;
+            config.actions.forEach((action) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'admin-bulk-btn' + (action.danger ? ' is-danger' : '');
+                btn.textContent = action.label;
+                btn.addEventListener('click', () => runBulkAction(tbodyId, action));
+                toolbar.appendChild(btn);
+            });
+            if (config.allAction) {
+                const allBtn = document.createElement('button');
+                allBtn.type = 'button';
+                allBtn.className = 'admin-bulk-btn is-danger';
+                allBtn.textContent = config.allAction.label;
+                allBtn.addEventListener('click', () => runBulkAllAction(tbodyId, config.allAction));
+                toolbar.appendChild(allBtn);
+            }
+            const clearBtn = document.createElement('button');
+            clearBtn.type = 'button';
+            clearBtn.className = 'admin-bulk-btn admin-bulk-clear';
+            clearBtn.textContent = 'Limpiar selección';
+            clearBtn.addEventListener('click', () => {
+                tbody.querySelectorAll('tr.is-selected').forEach((tr) => {
+                    tr.classList.remove('is-selected');
+                    const cb = tr.querySelector('.admin-row-checkbox');
+                    if (cb) cb.checked = false;
+                });
+                const headCb = table.querySelector('thead .admin-row-checkbox');
+                if (headCb) headCb.checked = false;
+                updateBulkToolbar(tbodyId);
+            });
+            toolbar.appendChild(clearBtn);
+            wrap.parentNode.insertBefore(toolbar, wrap);
+        }
+
+        const headerRow = table.querySelector('thead tr');
+        if (headerRow && !headerRow.querySelector('.admin-bulk-cell')) {
+            const th = document.createElement('th');
+            th.className = 'admin-bulk-cell';
+            th.innerHTML = '<input type="checkbox" class="admin-row-checkbox admin-select-all" aria-label="Seleccionar todos" />';
+            headerRow.insertBefore(th, headerRow.firstChild);
+            th.querySelector('.admin-select-all')?.addEventListener('change', (e) => {
+                const checked = e.target.checked;
+                tbody.querySelectorAll('tr').forEach((tr) => {
+                    if (!tr.querySelector('td')) return;
+                    tr.classList.toggle('is-selected', checked);
+                    const cb = tr.querySelector('.admin-row-checkbox');
+                    if (cb) cb.checked = checked;
+                });
+                updateBulkToolbar(tbodyId);
+            });
+        }
+
+        tbody.querySelectorAll('tr').forEach((tr) => {
+            if (!tr.querySelector('td') || tr.querySelector('.admin-bulk-cell')) return;
+            const td = document.createElement('td');
+            td.className = 'admin-bulk-cell';
+            td.innerHTML = '<input type="checkbox" class="admin-row-checkbox" aria-label="Seleccionar fila" />';
+            tr.insertBefore(td, tr.firstChild);
+            const cb = td.querySelector('.admin-row-checkbox');
+            cb.addEventListener('change', () => {
+                tr.classList.toggle('is-selected', cb.checked);
+                updateBulkToolbar(tbodyId);
+            });
+        });
+    }
+
+    async function runBulkAction(tbodyId, action) {
+        const panel = getPanel();
+        if (!panel) return;
+        const tbody = document.getElementById(tbodyId);
+        const rows = getSelectedRows(tbody);
+        if (!rows.length) return;
+
+        const config = BULK_CONFIG[tbodyId];
+        const labels = rows.map((tr) => config.rowLabel(tr)).slice(0, 5);
+        const more = rows.length > 5 ? ` y ${rows.length - 5} más` : '';
+        const ok = await confirmDanger({
+            title: action.label,
+            description: `Vas a aplicar esta acción a ${rows.length} elemento(s): ${labels.join(', ')}${more}.`,
+            consequences: action.consequences || [],
+            confirmPhrase: action.danger ? (action.confirmPhrase || 'CONFIRMAR') : null
+        });
+        if (!ok) return;
+
+        logAudit(action.label, `${rows.length} registro(s) en ${config.name}`, { tbodyId, count: rows.length });
+        await action.run(panel, rows);
+        rows.forEach((tr) => {
+            tr.classList.remove('is-selected');
+            const cb = tr.querySelector('.admin-row-checkbox');
+            if (cb) cb.checked = false;
+        });
+        updateBulkToolbar(tbodyId);
+        scheduleEnhance();
+    }
+
+    async function runBulkAllAction(tbodyId, allAction) {
+        const panel = getPanel();
+        if (!panel) return;
+        const tbody = document.getElementById(tbodyId);
+        const config = BULK_CONFIG[tbodyId];
+        const total = tbody ? tbody.querySelectorAll('tr td').length : 0;
+        const rowCount = tbody ? Array.from(tbody.querySelectorAll('tr')).filter((tr) => tr.querySelector('td')).length : 0;
+        if (!rowCount) return;
+
+        const ok = await confirmDanger({
+            title: allAction.label,
+            description: `Esta operación afectará a los ${rowCount} registros visibles en ${config.name}.`,
+            consequences: allAction.consequences || [],
+            confirmPhrase: allAction.confirmPhrase || 'CONFIRMAR TODOS'
+        });
+        if (!ok) return;
+
+        logAudit(allAction.label, `Todos los registros (${rowCount}) en ${config.name}`, { tbodyId, count: rowCount });
+        await allAction.run(panel, tbody);
+        scheduleEnhance();
+    }
+
+    function scheduleEnhance() {
+        clearTimeout(enhanceTimer);
+        enhanceTimer = setTimeout(enhanceAll, 120);
+    }
+
+    function enhanceAll() {
+        Object.keys(BULK_CONFIG).forEach(enhanceTable);
+        renderNavItems(document.getElementById('adminNavSearch')?.value || '');
+    }
+
+    function patchPanel(panel) {
+        if (!panel || panel._adminShellPatched) return;
+        panel._adminShellPatched = true;
+
+        const originalToast = panel.showToast.bind(panel);
+        panel.showToast = function (message, type) {
+            if (type === 'success') logAudit('Acción completada', message);
+            return originalToast(message, type);
+        };
+
+        const originalCargar = panel.cargarDesdeApi.bind(panel);
+        panel.cargarDesdeApi = async function () {
+            const result = await originalCargar();
+            scheduleEnhance();
+            return result;
+        };
+
+        fetch('/api/admin/me', {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: typeof AdminAuthenticator !== 'undefined' ? AdminAuthenticator.getAdminAuthHeaders() : {}
+        }).then((r) => r.ok ? r.json() : null).then((data) => {
+            if (data && data.admin_codigo) adminCodigo = data.admin_codigo;
+        }).catch(() => {});
+
+        scheduleEnhance();
+    }
+
+    function setupTopbarExtras() {
+        const actions = document.querySelector('.admin-topbar-actions');
+        if (!actions || document.getElementById('adminSidebarToggle')) return;
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'admin-sidebar-toggle';
+        toggle.id = 'adminSidebarToggle';
+        toggle.setAttribute('aria-label', 'Abrir menú');
+        toggle.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>';
+        actions.insertBefore(toggle, actions.firstChild);
+        toggle.addEventListener('click', () => {
+            document.getElementById('adminSidebar')?.classList.toggle('is-mobile-open');
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'a') {
+                e.preventDefault();
+                toggleAudit(true);
+            }
+            if (e.key === 'Escape') {
+                closeDangerModal();
+                toggleAudit(false);
+            }
+        });
+    }
+
+    function observeMutations() {
+        const root = document.getElementById('admin-main-content');
+        if (!root || root._adminShellObserved) return;
+        root._adminShellObserved = true;
+        const observer = new MutationObserver(() => scheduleEnhance());
+        observer.observe(root, { childList: true, subtree: true });
+    }
+
+    function init() {
+        document.documentElement.classList.add('admin-shell-enabled');
+        buildSidebar();
+        buildDangerModal();
+        buildAuditDrawer();
+        setupTopbarExtras();
+        observeMutations();
+
+        const tryPatch = () => {
+            const panel = getPanel();
+            if (panel) {
+                patchPanel(panel);
+                return true;
+            }
+            return false;
+        };
+
+        if (!tryPatch()) {
+            const interval = setInterval(() => {
+                if (tryPatch()) clearInterval(interval);
+            }, 200);
+            setTimeout(() => clearInterval(interval), 60000);
+        }
+
+        scheduleEnhance();
+    }
+
+    window.AdminShell = {
+        init,
+        enhanceAll,
+        logAudit,
+        confirmDanger
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
