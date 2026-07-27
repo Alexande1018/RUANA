@@ -111,14 +111,6 @@ class DBManager:
             self._migrar_aliados_invitado_por(conn, cursor)
             self._migrar_contactos_es_urgente(conn, cursor)
             self._migrar_aliado_accesos_dia(conn, cursor)
-            try:
-                # En Postgres puede no existir tabla migraciones: purgar directo
-                cursor = conn.cursor()
-                eliminados = self._ejecutar_purga_placeholders(cursor)
-                if eliminados:
-                    print(f"[RUANA][DB] Purgados {eliminados} aliados placeholder (Postgres)")
-            except Exception as purge_err:
-                print(f"[RUANA][DB] Aviso purga placeholders Postgres: {purge_err}")
             conn.commit()
             print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil + linaje + urgente + accesos día + retador)")
         except Exception as e:
@@ -496,7 +488,6 @@ class DBManager:
                 self._migrar_datos_plaza_oficio(conn, cursor)
                 self._migrar_drop_especializaciones(conn, cursor)
                 self._migrar_retador_rename(conn, cursor)
-                self._purgar_placeholders_control_aliados(conn, cursor)
 
                 conn.commit()
                 print(f"[RUANA][DB] Base de datos inicializada en: {self.db_path}")
@@ -908,63 +899,19 @@ class DBManager:
         )"""
 
     def _purgar_placeholders_control_aliados(self, conn, cursor) -> None:
-        """
-        Elimina aliados placeholder (invitaciones sin completar) para que no aparezcan
-        en Control de Aliados ni contaminen métricas/linaje.
-        Conserva las filas de `invitaciones` (el código sigue siendo válido para registro).
-        """
+        """Compatibilidad: ya no se purgan placeholders automáticamente."""
         cursor.execute("SELECT 1 FROM migraciones WHERE nombre = 'purgar_placeholders_control_v1'")
         if cursor.fetchone():
             return
-        eliminados = self._ejecutar_purga_placeholders(cursor)
         cursor.execute("INSERT INTO migraciones (nombre) VALUES ('purgar_placeholders_control_v1')")
-        if eliminados:
-            print(f"[RUANA][DB] Purgados {eliminados} aliados placeholder del control de aliados")
 
     def _ejecutar_purga_placeholders(self, cursor) -> int:
-        """Borra placeholders y limpia referidos huérfanos ligados a esos códigos. Devuelve filas borradas de aliados."""
-        cond = self._es_condicion_aliado_placeholder_sql()
-        cursor.execute(f"SELECT codigo FROM aliados WHERE {cond}")
-        codigos = [row[0] for row in cursor.fetchall() if row and row[0]]
-        if not codigos:
-            return 0
-        # Limpiar referidos que apunten a placeholders (como referido o invitador)
-        for codigo in codigos:
-            cursor.execute(
-                "DELETE FROM referidos WHERE codigo_referido = ? OR codigo_invitador = ?",
-                (codigo, codigo),
-            )
-            cursor.execute(
-                """
-                UPDATE aliados
-                SET invitado_por_codigo = NULL, invitado_origen = ''
-                WHERE invitado_por_codigo = ?
-                """,
-                (codigo,),
-            )
-        cursor.execute(f"DELETE FROM aliados WHERE {cond}")
-        return int(cursor.rowcount or 0)
+        """Compatibilidad: no elimina placeholders de BD."""
+        return 0
 
     def purgar_aliados_placeholder(self) -> Dict[str, Any]:
-        """API/utilidad: elimina todos los placeholders restantes. Idempotente."""
-        with self._lock:
-            conn = None
-            try:
-                conn = self._connect()
-                cursor = conn.cursor()
-                eliminados = self._ejecutar_purga_placeholders(cursor)
-                conn.commit()
-                return {'status': 'success', 'eliminados': eliminados}
-            except Exception as e:
-                if conn:
-                    try:
-                        conn.rollback()
-                    except Exception:
-                        pass
-                return {'status': 'error', 'message': str(e)}
-            finally:
-                if conn:
-                    conn.close()
+        """Compatibilidad: no elimina filas; placeholders se ocultan en listados."""
+        return {'status': 'success', 'eliminados': 0}
 
     def _migrar_datos_plaza_oficio(self, conn, cursor) -> None:
         """Resuelve conflictos de plaza: si un grupo tiene varios activos del mismo oficio,
@@ -4750,11 +4697,6 @@ class DBManager:
                         AND a.estado != 'sistema'
                         AND a.estado != 'pendiente_completar'
                     ))
-                    AND LOWER(TRIM(COALESCE(a.email, ''))) NOT LIKE 'placeholder-%@ruana.local'
-                    AND NOT (
-                        TRIM(COALESCE(a.nombre, '')) LIKE 'Nuevo Aliado -%'
-                        AND LOWER(TRIM(COALESCE(a.oficio, ''))) = 'pendiente'
-                    )
                 """
 
                 params: Tuple[Any, ...] = ()
