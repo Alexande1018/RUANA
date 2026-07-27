@@ -17,6 +17,15 @@ def test_admin_shell_js_exports_api():
     assert "tbody-pendientes-validacion" in text
 
 
+def test_admin_shell_js_has_delete_controls():
+    shell_js = Path(__file__).resolve().parents[1] / "web" / "static" / "js" / "admin-shell.js"
+    text = shell_js.read_text(encoding="utf-8")
+    assert "btn-row-delete" in text
+    assert "injectSectionHeaders" in text
+    assert "tbody-conflictos-pago" in text
+    assert "Eliminar todos" in text
+
+
 def test_admin_shell_css_has_sidebar_layout():
     shell_css = Path(__file__).resolve().parents[1] / "web" / "static" / "css" / "admin-shell.css"
     text = shell_css.read_text(encoding="utf-8")

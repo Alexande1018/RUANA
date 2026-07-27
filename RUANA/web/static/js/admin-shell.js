@@ -23,12 +23,125 @@
         { id: 'acciones', label: 'Acciones admin', group: 'Sistema', target: '.acciones-admin:last-of-type', icon: 'settings' }
     ];
 
+    const ADMIN_DELETE_MOTIVO = 'Gestionado desde panel de administración.';
+
+    async function apiRechazarAliado(panel, codigo) {
+        const r = await fetch('/api/admin/rechazar-aliado', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: panel.getAuthHeaders(),
+            body: JSON.stringify({ codigo })
+        });
+        if (r.status === 401) { panel._adminSessionExpired(); return false; }
+        const data = await r.json().catch(() => ({}));
+        return r.ok && data.status === 'success';
+    }
+
+    async function apiRechazarPago(panel, contactoId, motivo) {
+        const r = await fetch(`/api/admin/contactos/${contactoId}/estado-pago`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: panel.getAuthHeaders(),
+            body: JSON.stringify({ estado_pago: 'rechazado', motivo: motivo || ADMIN_DELETE_MOTIVO })
+        });
+        if (r.status === 401) { panel._adminSessionExpired(); return false; }
+        const data = await r.json().catch(() => ({}));
+        return r.ok && data.status === 'success';
+    }
+
+    async function apiResolverConflicto(panel, conflictId) {
+        const r = await fetch(`/api/admin/payment-conflicts/${conflictId}/resolver`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: panel.getAuthHeaders(),
+            body: JSON.stringify({ decision: 'rechazado', comentario: ADMIN_DELETE_MOTIVO })
+        });
+        if (r.status === 401) { panel._adminSessionExpired(); return false; }
+        const data = await r.json().catch(() => ({}));
+        return r.ok && data.status === 'success';
+    }
+
+    async function apiDesactivarCampana(panel, codigo) {
+        const r = await fetch('/api/admin/invitacion-campanas/' + encodeURIComponent(codigo) + '/desactivar', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: panel.getAuthHeaders()
+        });
+        if (r.status === 401) { panel._adminSessionExpired(); return false; }
+        if (r.status === 403) { panel.showToast('Sin permiso de escritura.', 'error'); return false; }
+        const data = await r.json().catch(() => ({}));
+        return r.ok && data.status === 'success';
+    }
+
+    function getRowCodigo(tr) {
+        return tr.querySelector('[data-codigo]')?.getAttribute('data-codigo')
+            || tr.querySelector('.btn-rechazar-pendiente')?.getAttribute('data-codigo')
+            || tr.querySelector('td:nth-child(3)')?.textContent?.trim();
+    }
+
+    function getRowContactoId(tr) {
+        return tr.getAttribute('data-contacto-id')
+            || tr.querySelector('[data-contacto-id]')?.getAttribute('data-contacto-id');
+    }
+
+    function getRowConflictId(tr) {
+        return tr.getAttribute('data-conflict-id') || tr.dataset.conflictId;
+    }
+
+    function getRowSolicitudId(tr) {
+        return tr.dataset.solicitudId
+            || tr.querySelector('[data-solicitud-id]')?.getAttribute('data-solicitud-id')
+            || tr.querySelector('td:nth-child(2)')?.textContent?.trim();
+    }
+
+    const SECTION_REGISTRY = [
+        { wrapId: 'pendientes-validacion-wrap', tbodyId: 'tbody-pendientes-validacion', deletable: true },
+        { wrapId: 'conflictos-pago-wrap', tbodyId: 'tbody-conflictos-pago', deletable: true },
+        { wrapId: 'pagos-apoyo-wrap', tbodyId: 'tbody-pagos-apoyo', deletable: true },
+        { wrapId: 'pagos-en-revision-wrap', tbodyId: 'tbody-pagos-en-revision', deletable: true },
+        { wrapId: 'solicitudes-admin-wrap', tbodyId: 'tbody-solicitudes-admin', deletable: true },
+        { wrapId: 'admin-campanas-invitacion-panel', tbodyId: 'admin-campanas-invitacion-tbody', deletable: true },
+        { wrapId: 'competencias-activas-wrap', tbodyId: 'tbody-competencias-activas', deletable: false, note: 'Solo lectura' },
+        { wrapId: 'suplentes-espera-wrap', tbodyId: 'tbody-suplentes-espera', deletable: false, note: 'Use «Incorporar» por fila' },
+        { wrapId: 'conversaciones-ruana-wrap', tbodyId: 'tbody-conversaciones', deletable: false, note: 'Auditoría — solo lectura' }
+    ];
+
     const BULK_CONFIG = {
         'tbody-pendientes-validacion': {
             name: 'pendientes de validación',
             critical: true,
-            rowLabel: (tr) => tr.cells[3]?.textContent?.trim() || tr.cells[2]?.textContent?.trim() || tr.dataset.id || 'registro',
+            rowLabel: (tr) => getRowCodigo(tr) || tr.dataset.id || 'registro',
+            rowDelete: {
+                consequences: [
+                    'El aliado será rechazado y no podrá acceder al panel.',
+                    'No hay restauración desde este panel.'
+                ],
+                confirmPhrase: 'ELIMINAR',
+                run: async (panel, tr) => {
+                    const codigo = getRowCodigo(tr);
+                    if (!codigo) return;
+                    if (await apiRechazarAliado(panel, codigo) && tr.parentNode) tr.remove();
+                    panel.cargarDesdeApi();
+                }
+            },
             actions: [
+                {
+                    id: 'eliminar',
+                    label: 'Eliminar seleccionados',
+                    danger: true,
+                    confirmPhrase: 'ELIMINAR',
+                    consequences: [
+                        'Los aliados seleccionados serán rechazados.',
+                        'No podrán acceder al panel.'
+                    ],
+                    run: async (panel, rows) => {
+                        for (const tr of rows) {
+                            const codigo = getRowCodigo(tr);
+                            if (codigo && await apiRechazarAliado(panel, codigo) && tr.parentNode) tr.remove();
+                        }
+                        panel.cargarDesdeApi();
+                    }
+                },
                 {
                     id: 'activar',
                     label: 'Activar seleccionados',
@@ -42,59 +155,22 @@
                             if (id) await panel.activarAliadoPendiente(Number(id), tr);
                         }
                     }
-                },
-                {
-                    id: 'rechazar',
-                    label: 'Rechazar seleccionados',
-                    danger: true,
-                    confirmPhrase: 'RECHAZAR',
-                    consequences: [
-                        'Los aliados rechazados no podrán acceder al panel.',
-                        'No hay opción de restaurar desde este panel.'
-                    ],
-                    run: async (panel, rows) => {
-                        for (const tr of rows) {
-                            const codigo = tr.cells[2]?.textContent?.trim();
-                            if (!codigo) continue;
-                            try {
-                                const r = await fetch('/api/admin/rechazar-aliado', {
-                                    method: 'POST',
-                                    credentials: 'same-origin',
-                                    headers: panel.getAuthHeaders(),
-                                    body: JSON.stringify({ codigo })
-                                });
-                                if (r.status === 401) { panel._adminSessionExpired(); return; }
-                                const data = await r.json().catch(() => ({}));
-                                if (r.ok && data.status === 'success' && tr.parentNode) tr.remove();
-                            } catch (_) { /* continuar con el siguiente */ }
-                        }
-                        panel.cargarDesdeApi();
-                    }
                 }
             ],
             allAction: {
-                id: 'rechazar-todos',
-                label: 'Rechazar todos los pendientes',
+                id: 'eliminar-todos',
+                label: 'Eliminar todos',
                 danger: true,
-                confirmPhrase: 'RECHAZAR TODOS',
+                confirmPhrase: 'ELIMINAR TODOS',
                 consequences: [
-                    'Se rechazarán TODOS los aliados pendientes de validación visibles.',
+                    'Se rechazarán TODOS los aliados pendientes visibles.',
                     'Operación crítica e irreversible desde el panel.'
                 ],
                 run: async (panel, tbody) => {
                     const rows = Array.from(tbody.querySelectorAll('tr')).filter((tr) => tr.querySelector('td'));
                     for (const tr of rows) {
-                        const codigo = tr.cells[2]?.textContent?.trim();
-                        if (!codigo) continue;
-                        try {
-                            const r = await fetch('/api/admin/rechazar-aliado', {
-                                method: 'POST',
-                                credentials: 'same-origin',
-                                headers: panel.getAuthHeaders(),
-                                body: JSON.stringify({ codigo })
-                            });
-                            if (r.status === 401) { panel._adminSessionExpired(); return; }
-                        } catch (_) { /* continuar */ }
+                        const codigo = getRowCodigo(tr);
+                        if (codigo) await apiRechazarAliado(panel, codigo);
                     }
                     panel.cargarDesdeApi();
                 }
@@ -103,42 +179,74 @@
         'admin-campanas-invitacion-tbody': {
             name: 'códigos multiuso',
             critical: true,
-            rowLabel: (tr) => tr.cells[1]?.textContent?.trim() || 'campaña',
+            rowLabel: (tr) => tr.querySelector('.btn-desactivar-campana')?.getAttribute('data-codigo') || tr.querySelector('td:nth-child(2)')?.textContent?.trim() || 'campaña',
+            rowDelete: {
+                consequences: ['El código dejará de validar inmediatamente.', 'Los usos consumidos no se revierten.'],
+                confirmPhrase: 'ELIMINAR',
+                run: async (panel, tr) => {
+                    const codigo = tr.querySelector('.btn-desactivar-campana')?.getAttribute('data-codigo') || tr.querySelector('td:nth-child(2)')?.textContent?.trim();
+                    if (!codigo) return;
+                    if (await apiDesactivarCampana(panel, codigo) && tr.parentNode) tr.remove();
+                    panel.cargarDesdeApi();
+                }
+            },
             actions: [
                 {
-                    id: 'desactivar',
-                    label: 'Desactivar seleccionados',
+                    id: 'eliminar',
+                    label: 'Eliminar seleccionados',
                     danger: true,
-                    confirmPhrase: 'DESACTIVAR',
-                    consequences: [
-                        'Los códigos dejarán de validar inmediatamente.',
-                        'Los usos ya consumidos no se revierten.'
-                    ],
+                    confirmPhrase: 'ELIMINAR',
+                    consequences: ['Los códigos dejarán de validar.', 'Los usos ya consumidos no se revierten.'],
                     run: async (panel, rows) => {
                         for (const tr of rows) {
-                            const btn = tr.querySelector('.btn-desactivar-campana');
-                            const codigo = btn?.getAttribute('data-codigo') || tr.cells[1]?.textContent?.trim();
-                            if (!codigo) continue;
-                            try {
-                                const r = await fetch('/api/admin/invitacion-campanas/' + encodeURIComponent(codigo) + '/desactivar', {
-                                    method: 'POST',
-                                    credentials: 'same-origin',
-                                    headers: panel.getAuthHeaders()
-                                });
-                                if (r.status === 401) { panel._adminSessionExpired(); return; }
-                                if (r.status === 403) { panel.showToast('Sin permiso de escritura.', 'error'); return; }
-                            } catch (_) { /* continuar */ }
+                            const codigo = tr.querySelector('.btn-desactivar-campana')?.getAttribute('data-codigo') || tr.querySelector('td:nth-child(2)')?.textContent?.trim();
+                            if (codigo && await apiDesactivarCampana(panel, codigo) && tr.parentNode) tr.remove();
                         }
                         panel.cargarDesdeApi();
                     }
                 }
-            ]
+            ],
+            allAction: {
+                id: 'eliminar-todos',
+                label: 'Eliminar todos',
+                danger: true,
+                confirmPhrase: 'ELIMINAR TODOS',
+                consequences: ['Se desactivarán TODOS los códigos multiuso visibles.'],
+                run: async (panel, tbody) => {
+                    const rows = Array.from(tbody.querySelectorAll('tr')).filter((tr) => tr.querySelector('td'));
+                    for (const tr of rows) {
+                        const codigo = tr.querySelector('.btn-desactivar-campana')?.getAttribute('data-codigo') || tr.querySelector('td:nth-child(2)')?.textContent?.trim();
+                        if (codigo) await apiDesactivarCampana(panel, codigo);
+                    }
+                    panel.cargarDesdeApi();
+                }
+            }
         },
         'tbody-solicitudes-admin': {
             name: 'solicitudes',
             critical: false,
-            rowLabel: (tr) => `solicitud #${tr.dataset.id || tr.cells[1]?.textContent?.trim()}`,
+            rowLabel: (tr) => `solicitud #${getRowSolicitudId(tr)}`,
+            rowDelete: {
+                consequences: ['La solicitud pasará a estado atendida.', 'Permanece en el historial.'],
+                run: async (panel, tr) => {
+                    const id = getRowSolicitudId(tr);
+                    if (id) await panel.marcarSolicitudAtendidaAdmin(id, tr);
+                }
+            },
             actions: [
+                {
+                    id: 'eliminar',
+                    label: 'Eliminar seleccionados',
+                    danger: true,
+                    confirmPhrase: 'ELIMINAR',
+                    consequences: ['Las solicitudes pasarán a estado atendida (archivadas en la lista).'],
+                    run: async (panel, rows) => {
+                        for (const tr of rows) {
+                            const id = getRowSolicitudId(tr);
+                            if (id) await panel.marcarSolicitudAtendidaAdmin(id, tr);
+                        }
+                    }
+                },
                 {
                     id: 'atender',
                     label: 'Marcar atendidas',
@@ -148,21 +256,148 @@
                     ],
                     run: async (panel, rows) => {
                         for (const tr of rows) {
-                            const id = tr.dataset.id || tr.cells[1]?.textContent?.trim();
+                            const id = getRowSolicitudId(tr);
                             if (id) await panel.marcarSolicitudAtendidaAdmin(id, tr);
                         }
                     }
                 }
-            ]
+            ],
+            allAction: {
+                id: 'eliminar-todos',
+                label: 'Eliminar todos',
+                danger: true,
+                confirmPhrase: 'ELIMINAR TODOS',
+                consequences: ['Todas las solicitudes visibles se marcarán como atendidas.'],
+                run: async (panel, tbody) => {
+                    const rows = Array.from(tbody.querySelectorAll('tr')).filter((tr) => tr.querySelector('td'));
+                    for (const tr of rows) {
+                        const id = getRowSolicitudId(tr);
+                        if (id) await panel.marcarSolicitudAtendidaAdmin(id, tr);
+                    }
+                }
+            }
+        },
+        'tbody-conflictos-pago': {
+            name: 'conflictos de pago',
+            critical: true,
+            rowLabel: (tr) => `conflicto #${getRowConflictId(tr)}`,
+            rowDelete: {
+                consequences: ['El conflicto se cerrará como rechazado.', 'Afecta al contacto y al score asociado.'],
+                confirmPhrase: 'ELIMINAR',
+                run: async (panel, tr) => {
+                    const id = getRowConflictId(tr);
+                    if (!id) return;
+                    if (await apiResolverConflicto(panel, id) && tr.parentNode) tr.remove();
+                    panel.cargarDesdeApi();
+                }
+            },
+            actions: [
+                {
+                    id: 'eliminar',
+                    label: 'Eliminar seleccionados',
+                    danger: true,
+                    confirmPhrase: 'ELIMINAR',
+                    consequences: ['Los conflictos se resolverán como rechazados.'],
+                    run: async (panel, rows) => {
+                        for (const tr of rows) {
+                            const id = getRowConflictId(tr);
+                            if (id && await apiResolverConflicto(panel, id) && tr.parentNode) tr.remove();
+                        }
+                        panel.cargarDesdeApi();
+                    }
+                }
+            ],
+            allAction: {
+                id: 'eliminar-todos',
+                label: 'Eliminar todos',
+                danger: true,
+                confirmPhrase: 'ELIMINAR TODOS',
+                consequences: ['Todos los conflictos visibles se cerrarán como rechazados.'],
+                run: async (panel, tbody) => {
+                    const rows = Array.from(tbody.querySelectorAll('tr')).filter((tr) => tr.querySelector('td'));
+                    for (const tr of rows) {
+                        const id = getRowConflictId(tr);
+                        if (id) await apiResolverConflicto(panel, id);
+                    }
+                    panel.cargarDesdeApi();
+                }
+            }
+        },
+        'tbody-pagos-apoyo': {
+            name: 'pagos Apoyo RUANA',
+            critical: true,
+            rowLabel: (tr) => `contacto #${getRowContactoId(tr) || '?'}`,
+            rowDelete: {
+                consequences: ['El pago se marcará como rechazado.', 'El profesional puede volver a subir comprobante.'],
+                confirmPhrase: 'ELIMINAR',
+                run: async (panel, tr) => {
+                    const id = getRowContactoId(tr);
+                    if (!id) return;
+                    if (await apiRechazarPago(panel, id) && tr.parentNode) tr.remove();
+                    panel.cargarDesdeApi();
+                }
+            },
+            actions: [
+                {
+                    id: 'eliminar',
+                    label: 'Eliminar seleccionados',
+                    danger: true,
+                    confirmPhrase: 'ELIMINAR',
+                    consequences: ['Los pagos seleccionados se rechazarán.'],
+                    run: async (panel, rows) => {
+                        for (const tr of rows) {
+                            const id = getRowContactoId(tr);
+                            if (id && await apiRechazarPago(panel, id) && tr.parentNode) tr.remove();
+                        }
+                        panel.cargarDesdeApi();
+                    }
+                }
+            ],
+            allAction: {
+                id: 'eliminar-todos',
+                label: 'Eliminar todos',
+                danger: true,
+                confirmPhrase: 'ELIMINAR TODOS',
+                consequences: ['Todos los pagos Apoyo visibles se rechazarán.'],
+                run: async (panel, tbody) => {
+                    const rows = Array.from(tbody.querySelectorAll('tr')).filter((tr) => tr.querySelector('td'));
+                    for (const tr of rows) {
+                        const id = getRowContactoId(tr);
+                        if (id) await apiRechazarPago(panel, id);
+                    }
+                    panel.cargarDesdeApi();
+                }
+            }
         },
         'tbody-pagos-en-revision': {
             name: 'pagos en revisión',
             critical: true,
-            rowLabel: (tr) => {
-                const id = tr.querySelector('[data-contacto-id]')?.getAttribute('data-contacto-id');
-                return id ? `contacto #${id}` : 'pago';
+            rowLabel: (tr) => `contacto #${getRowContactoId(tr) || '?'}`,
+            rowDelete: {
+                consequences: ['El pago en revisión se rechazará.', 'Se notificará al aliado afectado.'],
+                confirmPhrase: 'ELIMINAR',
+                run: async (panel, tr) => {
+                    const id = getRowContactoId(tr);
+                    if (!id) return;
+                    if (await apiRechazarPago(panel, id) && tr.parentNode) tr.remove();
+                    panel.cargarDesdeApi();
+                }
             },
             actions: [
+                {
+                    id: 'eliminar',
+                    label: 'Eliminar seleccionados',
+                    danger: true,
+                    confirmPhrase: 'ELIMINAR',
+                    consequences: ['Los pagos seleccionados se rechazarán.'],
+                    run: async (panel, rows) => {
+                        for (const tr of rows) {
+                            const id = getRowContactoId(tr);
+                            if (id && await apiRechazarPago(panel, id) && tr.parentNode) tr.remove();
+                        }
+                        panel.cargarDesdeApi();
+                    }
+                },
                 {
                     id: 'aprobar',
                     label: 'Aprobar pagos seleccionados',
@@ -172,12 +407,27 @@
                     ],
                     run: async (panel, rows) => {
                         for (const tr of rows) {
-                            const id = tr.querySelector('[data-contacto-id]')?.getAttribute('data-contacto-id');
+                            const id = getRowContactoId(tr);
                             if (id) await panel.cambiarEstadoPagoContacto(id, 'pagado', tr);
                         }
                     }
                 }
-            ]
+            ],
+            allAction: {
+                id: 'eliminar-todos',
+                label: 'Eliminar todos',
+                danger: true,
+                confirmPhrase: 'ELIMINAR TODOS',
+                consequences: ['Todos los pagos en revisión visibles se rechazarán.'],
+                run: async (panel, tbody) => {
+                    const rows = Array.from(tbody.querySelectorAll('tr')).filter((tr) => tr.querySelector('td'));
+                    for (const tr of rows) {
+                        const id = getRowContactoId(tr);
+                        if (id) await apiRechazarPago(panel, id);
+                    }
+                    panel.cargarDesdeApi();
+                }
+            }
         }
     };
 
@@ -529,16 +779,128 @@
         }
 
         tbody.querySelectorAll('tr').forEach((tr) => {
-            if (!tr.querySelector('td') || tr.querySelector('.admin-bulk-cell')) return;
-            const td = document.createElement('td');
-            td.className = 'admin-bulk-cell';
-            td.innerHTML = '<input type="checkbox" class="admin-row-checkbox" aria-label="Seleccionar fila" />';
-            tr.insertBefore(td, tr.firstChild);
-            const cb = td.querySelector('.admin-row-checkbox');
-            cb.addEventListener('change', () => {
-                tr.classList.toggle('is-selected', cb.checked);
-                updateBulkToolbar(tbodyId);
-            });
+            if (!tr.querySelector('td')) return;
+            if (!tr.querySelector('.admin-bulk-cell')) {
+                const td = document.createElement('td');
+                td.className = 'admin-bulk-cell';
+                td.innerHTML = '<input type="checkbox" class="admin-row-checkbox" aria-label="Seleccionar fila" />';
+                tr.insertBefore(td, tr.firstChild);
+                const cb = td.querySelector('.admin-row-checkbox');
+                cb.addEventListener('change', () => {
+                    tr.classList.toggle('is-selected', cb.checked);
+                    updateBulkToolbar(tbodyId);
+                });
+            }
+            injectRowDeleteButton(tr, tbodyId, config);
+        });
+
+        if (config.rowDelete && headerRow && !headerRow.querySelector('.admin-delete-cell')) {
+            const thDel = document.createElement('th');
+            thDel.className = 'admin-delete-cell';
+            thDel.textContent = 'Eliminar';
+            headerRow.appendChild(thDel);
+        }
+    }
+
+    function injectRowDeleteButton(tr, tbodyId, config) {
+        if (!config?.rowDelete) return;
+        const existing = tr.querySelector('.admin-delete-cell .btn-row-delete');
+        if (existing) return;
+        const panel = getPanel();
+        if (!panel) return;
+
+        let tdDel = tr.querySelector('.admin-delete-cell');
+        if (!tdDel) {
+            tdDel = document.createElement('td');
+            tdDel.className = 'admin-delete-cell';
+            tr.appendChild(tdDel);
+        }
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn-accion danger btn-row-delete';
+        btn.textContent = 'Eliminar';
+        btn.title = 'Eliminar este registro';
+        btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            await runRowDelete(tbodyId, tr, config.rowDelete);
+        });
+        tdDel.appendChild(btn);
+    }
+
+    async function runRowDelete(tbodyId, tr, rowDelete) {
+        const panel = getPanel();
+        const config = BULK_CONFIG[tbodyId];
+        if (!panel || !config) return;
+
+        const label = config.rowLabel(tr);
+        const ok = await confirmDanger({
+            title: 'Eliminar registro',
+            description: `Vas a eliminar: ${label}.`,
+            consequences: rowDelete.consequences || [],
+            confirmPhrase: rowDelete.confirmPhrase || (config.critical ? 'ELIMINAR' : null)
+        });
+        if (!ok) return;
+
+        logAudit('Eliminar registro', label, { tbodyId });
+        await rowDelete.run(panel, tr);
+        scheduleEnhance();
+    }
+
+    function injectSectionHeaders() {
+        SECTION_REGISTRY.forEach((sec) => {
+            const wrap = document.getElementById(sec.wrapId);
+            if (!wrap) return;
+            const h2 = wrap.querySelector(':scope > .seccion-titulo');
+            if (!h2) return;
+            if (h2.closest('.admin-section-header')) return;
+
+            const header = document.createElement('div');
+            header.className = 'admin-section-header';
+            h2.parentNode.insertBefore(header, h2);
+            header.appendChild(h2);
+
+            const actions = document.createElement('div');
+            actions.className = 'admin-section-actions';
+
+            if (sec.deletable && BULK_CONFIG[sec.tbodyId]) {
+                const cfg = BULK_CONFIG[sec.tbodyId];
+                const deleteAct = cfg.actions.find((a) => a.id === 'eliminar');
+
+                const btnSel = document.createElement('button');
+                btnSel.type = 'button';
+                btnSel.className = 'admin-section-btn is-danger';
+                btnSel.textContent = 'Eliminar seleccionados';
+                btnSel.addEventListener('click', () => {
+                    const tbody = document.getElementById(sec.tbodyId);
+                    const panel = getPanel();
+                    if (!tbody || !panel) return;
+                    const rows = getSelectedRows(tbody);
+                    if (!rows.length) {
+                        panel.showToast('Selecciona al menos un registro con la casilla.', 'error');
+                        return;
+                    }
+                    if (deleteAct) runBulkAction(sec.tbodyId, deleteAct);
+                });
+                actions.appendChild(btnSel);
+
+                if (cfg.allAction) {
+                    const btnAll = document.createElement('button');
+                    btnAll.type = 'button';
+                    btnAll.className = 'admin-section-btn is-danger-outline';
+                    btnAll.textContent = 'Eliminar todos';
+                    btnAll.addEventListener('click', () => runBulkAllAction(sec.tbodyId, cfg.allAction));
+                    actions.appendChild(btnAll);
+                }
+            } else if (sec.note) {
+                const note = document.createElement('span');
+                note.className = 'admin-section-note';
+                note.textContent = sec.note;
+                actions.appendChild(note);
+            }
+
+            header.appendChild(actions);
         });
     }
 
@@ -599,6 +961,7 @@
     }
 
     function enhanceAll() {
+        injectSectionHeaders();
         Object.keys(BULK_CONFIG).forEach(enhanceTable);
         renderNavItems(document.getElementById('adminNavSearch')?.value || '');
     }
