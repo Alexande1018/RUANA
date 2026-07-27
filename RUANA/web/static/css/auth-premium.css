@@ -1,0 +1,241 @@
+/* ================================================
+   RUANA Auth & Shared Premium Glass — 2026
+   Overrides visuales para login, invite, register
+   y pantallas legacy. Sin tocar lógica.
+   Cargar DESPUÉS del <style> inline de cada página.
+   ================================================ */
+
+/* Back button — gana sobre estilos inline duplicados */
+.btn-back {
+    padding: 10px 16px !important;
+    background: var(--ruana-surface) !important;
+    border: 1px solid var(--ruana-border-glass) !important;
+    border-radius: 12px !important;
+    color: var(--ruana-text-muted) !important;
+    backdrop-filter: var(--ruana-glass) !important;
+    -webkit-backdrop-filter: var(--ruana-glass) !important;
+    box-shadow: var(--ruana-highlight);
+    transition: background var(--ruana-transition), border-color var(--ruana-transition), color var(--ruana-transition), transform var(--ruana-transition) !important;
+}
+
+.btn-back:hover {
+    background: var(--ruana-surface-hover) !important;
+    border-color: var(--ruana-border-strong) !important;
+    color: var(--ruana-text) !important;
+    transform: translateY(-1px) !important;
+}
+
+.btn-back:active {
+    transform: translateY(1px) scale(0.98) !important;
+}
+
+/* Auth cards (index / invite / register) */
+.invite-card,
+.register-card,
+.access-card,
+.login-card,
+.ruana-auth-card {
+    background: linear-gradient(165deg, rgba(22, 26, 44, 0.78) 0%, rgba(12, 14, 26, 0.7) 100%) !important;
+    border: 1px solid var(--ruana-border-glass) !important;
+    border-radius: var(--ruana-radius-xl) !important;
+    backdrop-filter: var(--ruana-glass-strong) !important;
+    -webkit-backdrop-filter: var(--ruana-glass-strong) !important;
+    box-shadow: var(--ruana-shadow-soft), var(--ruana-highlight) !important;
+}
+
+.invite-card h1,
+.register-card h1,
+.access-card h1 {
+    letter-spacing: -0.03em;
+}
+
+.invite-input,
+.register-input,
+.access-input,
+.invite-form input,
+.register-form input,
+.access-form input,
+.invite-form select,
+.register-form select,
+.access-form select,
+.invite-form textarea,
+.register-form textarea {
+    min-height: 48px;
+    border-radius: var(--ruana-radius-md) !important;
+    background: rgba(8, 10, 20, 0.55) !important;
+    border: 1px solid var(--ruana-border) !important;
+    color: var(--ruana-text) !important;
+    transition: border-color var(--ruana-transition), box-shadow var(--ruana-transition), background var(--ruana-transition) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.invite-input:focus,
+.register-input:focus,
+.access-input:focus,
+.invite-form input:focus,
+.register-form input:focus,
+.access-form input:focus,
+.invite-form select:focus,
+.register-form select:focus,
+.invite-form textarea:focus,
+.register-form textarea:focus {
+    outline: none !important;
+    border-color: var(--ruana-accent) !important;
+    box-shadow: var(--ruana-focus-ring) !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.invite-btn,
+.register-btn,
+.access-btn,
+.btn-submit,
+.btn-primary {
+    min-height: 48px;
+    border-radius: 14px !important;
+    background: linear-gradient(135deg, var(--ruana-accent) 0%, var(--ruana-accent-strong) 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    color: #fff !important;
+    font-weight: 600 !important;
+    box-shadow: 0 2px 14px var(--ruana-accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.18) !important;
+    transition: transform var(--ruana-transition), box-shadow var(--ruana-transition), filter var(--ruana-transition) !important;
+    cursor: pointer;
+}
+
+.invite-btn:hover,
+.register-btn:hover,
+.access-btn:hover,
+.btn-submit:hover,
+.btn-primary:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.05);
+    box-shadow: 0 10px 32px var(--ruana-accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.22) !important;
+}
+
+.invite-btn:active,
+.register-btn:active,
+.access-btn:active,
+.btn-submit:active,
+.btn-primary:active {
+    transform: translateY(0) scale(0.98);
+}
+
+/* Mensajes / alertas auth */
+.invite-error,
+.register-error,
+.access-error,
+.error-message,
+.form-error,
+.success-message,
+.form-success {
+    border-radius: var(--ruana-radius-md) !important;
+    backdrop-filter: var(--ruana-glass);
+    border: 1px solid transparent;
+    padding: 12px 14px !important;
+}
+
+.invite-error,
+.register-error,
+.access-error,
+.error-message,
+.form-error {
+    background: rgba(239, 68, 68, 0.12) !important;
+    border-color: rgba(239, 68, 68, 0.28) !important;
+    color: #fca5a5 !important;
+}
+
+.success-message,
+.form-success {
+    background: rgba(34, 197, 94, 0.12) !important;
+    border-color: rgba(34, 197, 94, 0.28) !important;
+    color: #86efac !important;
+}
+
+/* Checkbox / radio visual polish */
+input[type="checkbox"],
+input[type="radio"] {
+    accent-color: var(--ruana-accent);
+    width: 16px;
+    height: 16px;
+}
+
+/* Filters / legacy dashboard glass */
+.filters-section {
+    background: var(--ruana-surface) !important;
+    border: 1px solid var(--ruana-border-glass) !important;
+    border-radius: var(--ruana-radius-xl) !important;
+    backdrop-filter: var(--ruana-glass) !important;
+    box-shadow: var(--ruana-shadow-card);
+}
+
+.filter-select,
+.filter-input {
+    border-radius: var(--ruana-radius-md) !important;
+    background: rgba(8, 10, 20, 0.55) !important;
+    border: 1px solid var(--ruana-border) !important;
+    transition: border-color var(--ruana-transition), box-shadow var(--ruana-transition), background var(--ruana-transition) !important;
+}
+
+.filter-select:focus,
+.filter-input:focus {
+    border-color: var(--ruana-accent) !important;
+    box-shadow: var(--ruana-focus-ring) !important;
+}
+
+.btn-reset {
+    border-radius: 12px !important;
+    transition: transform var(--ruana-transition), background var(--ruana-transition) !important;
+}
+
+.btn-reset:hover {
+    transform: translateY(-1px);
+}
+
+/* Brand watermark glass */
+.ruana-brand-watermark {
+    background: rgba(12, 14, 26, 0.55) !important;
+    border: 1px solid rgba(162, 255, 0, 0.14) !important;
+    backdrop-filter: var(--ruana-glass) !important;
+    -webkit-backdrop-filter: var(--ruana-glass) !important;
+    box-shadow: var(--ruana-highlight);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(34, 197, 94, 0.35);
+}
+
+@media (max-width: 640px) {
+    .invite-card,
+    .register-card,
+    .access-card,
+    .ruana-auth-card {
+        padding: 28px 18px !important;
+        border-radius: var(--ruana-radius-lg) !important;
+    }
+
+    .invite-btn,
+    .register-btn,
+    .access-btn,
+    .btn-submit,
+    .btn-primary {
+        width: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .btn-back,
+    .invite-btn,
+    .register-btn,
+    .access-btn,
+    .btn-submit,
+    .btn-primary,
+    .filter-select,
+    .filter-input {
+        transition: none !important;
+    }
+}

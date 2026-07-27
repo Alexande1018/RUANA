@@ -4,34 +4,38 @@
    ================================================ */
 
 :root {
-    --ruana-bg: #0e1020;
-    --ruana-bg-soft: #141827;
+    /* Paleta de marca RUANA — intacta */
+    --ruana-bg: #0c0e1a;
+    --ruana-bg-soft: #12162a;
     --ruana-panel: #141827;
-    --ruana-surface: rgba(20, 24, 39, 0.72);
-    --ruana-surface-strong: rgba(20, 24, 39, 0.94);
-    --ruana-surface-hover: rgba(255, 255, 255, 0.06);
-    --ruana-border: rgba(255, 255, 255, 0.08);
-    --ruana-border-strong: rgba(255, 255, 255, 0.14);
+    --ruana-surface: rgba(18, 22, 40, 0.62);
+    --ruana-surface-strong: rgba(18, 22, 40, 0.88);
+    --ruana-surface-hover: rgba(255, 255, 255, 0.07);
+    --ruana-border: rgba(255, 255, 255, 0.10);
+    --ruana-border-strong: rgba(255, 255, 255, 0.18);
+    --ruana-border-glass: rgba(255, 255, 255, 0.14);
     --ruana-text: #f1f5f9;
     --ruana-text-soft: #cbd5e1;
     --ruana-text-muted: #94a3b8;
     --ruana-text-subtle: #64748b;
     --ruana-accent: #22c55e;
     --ruana-accent-strong: #16a34a;
-    --ruana-accent-glow: rgba(34, 197, 94, 0.28);
+    --ruana-accent-glow: rgba(34, 197, 94, 0.30);
     --ruana-info: #38bdf8;
     --ruana-warning: #eab308;
     --ruana-danger: #ef4444;
     --ruana-radius-sm: 10px;
     --ruana-radius-md: 14px;
     --ruana-radius-lg: 18px;
-    --ruana-radius-xl: 20px;
-    --ruana-focus-ring: 0 0 0 3px rgba(34, 197, 94, 0.2);
-    --ruana-shadow-soft: 0 20px 50px rgba(0, 0, 0, 0.35);
-    --ruana-shadow-card: 0 4px 24px rgba(0, 0, 0, 0.22);
+    --ruana-radius-xl: 22px;
+    --ruana-focus-ring: 0 0 0 3px rgba(34, 197, 94, 0.22);
+    --ruana-shadow-soft: 0 24px 64px rgba(0, 0, 0, 0.42), 0 0 0 1px rgba(255, 255, 255, 0.04);
+    --ruana-shadow-card: 0 8px 32px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.06);
     --ruana-transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
-    --ruana-glass: blur(16px) saturate(140%);
+    --ruana-glass: blur(20px) saturate(160%);
+    --ruana-glass-strong: blur(28px) saturate(170%);
     --ruana-brand-lime: #a2ff00;
+    --ruana-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 /* ================================================
@@ -147,27 +151,30 @@
     position: fixed;
     top: 20px;
     left: 20px;
-    padding: 8px 16px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 6px;
-    color: #bbb;
+    padding: 10px 16px;
+    background: var(--ruana-surface);
+    border: 1px solid var(--ruana-border-glass);
+    border-radius: 12px;
+    color: var(--ruana-text-muted);
     font-size: 0.85rem;
     font-weight: 500;
     text-decoration: none;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: background var(--ruana-transition), border-color var(--ruana-transition), color var(--ruana-transition), transform var(--ruana-transition), box-shadow var(--ruana-transition);
     z-index: 100;
+    backdrop-filter: var(--ruana-glass);
+    box-shadow: var(--ruana-highlight);
 }
 
 .btn-back:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.15);
-    color: #e0e0e0;
+    background: var(--ruana-surface-hover);
+    border-color: var(--ruana-border-strong);
+    color: var(--ruana-text);
+    transform: translateY(-1px);
 }
 
 .btn-back:active {
-    transform: translateY(1px);
+    transform: translateY(1px) scale(0.98);
 }
 
 * {
@@ -184,14 +191,16 @@ body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     background: var(--ruana-bg);
     background-image:
-        radial-gradient(ellipse 80% 60% at 10% 0%, rgba(34, 197, 94, 0.06) 0%, transparent 55%),
-        radial-gradient(ellipse 60% 50% at 90% 100%, rgba(56, 189, 248, 0.04) 0%, transparent 50%);
+        radial-gradient(ellipse 90% 70% at 8% -10%, rgba(34, 197, 94, 0.09) 0%, transparent 52%),
+        radial-gradient(ellipse 70% 55% at 92% 108%, rgba(56, 189, 248, 0.055) 0%, transparent 48%),
+        radial-gradient(ellipse 50% 40% at 70% 20%, rgba(162, 255, 0, 0.03) 0%, transparent 55%);
     color: var(--ruana-text);
     line-height: 1.65;
     min-height: 100vh;
     position: relative;
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
+    letter-spacing: -0.011em;
 }
 
 /* ================================================
@@ -207,24 +216,26 @@ body {
 
 .ruana-auth-card {
     width: min(100%, 460px);
-    background: linear-gradient(165deg, rgba(20, 24, 39, 0.92) 0%, rgba(14, 16, 32, 0.88) 100%);
-    border: 1px solid var(--ruana-border);
+    background: linear-gradient(165deg, rgba(22, 26, 44, 0.78) 0%, rgba(12, 14, 26, 0.72) 100%);
+    border: 1px solid var(--ruana-border-glass);
     border-radius: var(--ruana-radius-xl);
     padding: clamp(32px, 6vw, 52px) clamp(24px, 5vw, 36px);
-    backdrop-filter: var(--ruana-glass);
-    box-shadow: var(--ruana-shadow-soft);
+    backdrop-filter: var(--ruana-glass-strong);
+    -webkit-backdrop-filter: var(--ruana-glass-strong);
+    box-shadow: var(--ruana-shadow-soft), var(--ruana-highlight);
 }
 
 .ruana-form-control {
     width: 100%;
     min-height: 48px;
     padding: 13px 16px;
-    background: rgba(14, 16, 32, 0.6);
+    background: rgba(8, 10, 20, 0.55);
     border: 1px solid var(--ruana-border);
     border-radius: var(--ruana-radius-md);
     color: var(--ruana-text);
     font: inherit;
     transition: background var(--ruana-transition), border-color var(--ruana-transition), box-shadow var(--ruana-transition), transform var(--ruana-transition);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .ruana-form-control::placeholder {
@@ -251,7 +262,7 @@ textarea.ruana-form-control {
 .ruana-button {
     min-height: 48px;
     padding: 13px 22px;
-    border: 1px solid transparent;
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 14px;
     background: linear-gradient(135deg, var(--ruana-accent) 0%, var(--ruana-accent-strong) 100%);
     color: #fff;
@@ -260,17 +271,19 @@ textarea.ruana-form-control {
     font-weight: 600;
     letter-spacing: 0.01em;
     cursor: pointer;
-    transition: transform var(--ruana-transition), box-shadow var(--ruana-transition), background var(--ruana-transition), opacity var(--ruana-transition);
-    box-shadow: 0 2px 12px var(--ruana-accent-glow);
+    transition: transform var(--ruana-transition), box-shadow var(--ruana-transition), background var(--ruana-transition), opacity var(--ruana-transition), filter var(--ruana-transition);
+    box-shadow: 0 2px 14px var(--ruana-accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .ruana-button:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 28px var(--ruana-accent-glow), 0 0 20px rgba(34, 197, 94, 0.12);
+    filter: brightness(1.05);
+    box-shadow: 0 10px 32px var(--ruana-accent-glow), 0 0 24px rgba(34, 197, 94, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
 .ruana-button:active {
     transform: translateY(0) scale(0.98);
+    filter: brightness(0.98);
 }
 
 .ruana-button:focus-visible {
@@ -287,15 +300,19 @@ textarea.ruana-form-control {
 }
 
 .ruana-button.secondary {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: var(--ruana-border);
+    background: var(--ruana-surface);
+    border-color: var(--ruana-border-glass);
     color: var(--ruana-text-soft);
+    box-shadow: var(--ruana-highlight);
+    backdrop-filter: var(--ruana-glass);
+    filter: none;
 }
 
 .ruana-button.secondary:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--ruana-surface-hover);
     border-color: var(--ruana-border-strong);
-    box-shadow: none;
+    box-shadow: var(--ruana-highlight);
+    filter: none;
 }
 
 .access-mode-switch {
@@ -573,7 +590,7 @@ textarea.ruana-form-control {
     }
 }
 
-/* Fondo animado sutil */
+/* Fondo ambiental premium (sin púrpura dominante) */
 body::before {
     content: '';
     position: fixed;
@@ -581,8 +598,10 @@ body::before {
     left: 0;
     width: 100%;
     height: 100%;
-    background: radial-gradient(circle at 20% 50%, rgba(34, 197, 94, 0.05) 0%, transparent 50%),
-                radial-gradient(circle at 80% 80%, rgba(168, 85, 247, 0.03) 0%, transparent 50%);
+    background:
+        radial-gradient(circle at 18% 42%, rgba(34, 197, 94, 0.07) 0%, transparent 46%),
+        radial-gradient(circle at 82% 78%, rgba(56, 189, 248, 0.045) 0%, transparent 48%),
+        radial-gradient(circle at 55% 12%, rgba(162, 255, 0, 0.035) 0%, transparent 42%);
     pointer-events: none;
     z-index: 0;
 }
@@ -801,17 +820,19 @@ select optgroup {
 }
 
 .card {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 12px;
+    background: linear-gradient(165deg, rgba(22, 26, 44, 0.72) 0%, rgba(12, 14, 26, 0.58) 100%);
+    border: 1px solid var(--ruana-border-glass);
+    border-radius: var(--ruana-radius-xl);
     padding: 24px;
-    backdrop-filter: blur(10px);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: var(--ruana-glass);
+    -webkit-backdrop-filter: var(--ruana-glass);
+    transition: transform var(--ruana-transition), border-color var(--ruana-transition), box-shadow var(--ruana-transition), background var(--ruana-transition);
     cursor: pointer;
     position: relative;
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    box-shadow: var(--ruana-shadow-card);
 }
 
 .card::before {
@@ -1064,15 +1085,18 @@ select optgroup {
 }
 
 .modal-content {
-    background: #1a1a2e;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
+    background: linear-gradient(165deg, rgba(22, 26, 44, 0.92) 0%, rgba(12, 14, 26, 0.9) 100%);
+    border: 1px solid var(--ruana-border-glass);
+    border-radius: var(--ruana-radius-xl);
     padding: 40px;
     max-width: 600px;
     max-height: 80vh;
     overflow-y: auto;
     position: relative;
-    animation: modalIn 0.3s ease;
+    animation: modalIn 220ms ease;
+    backdrop-filter: var(--ruana-glass-strong);
+    -webkit-backdrop-filter: var(--ruana-glass-strong);
+    box-shadow: var(--ruana-shadow-soft), var(--ruana-highlight);
 }
 
 @keyframes modalIn {
@@ -1229,15 +1253,16 @@ select optgroup {
     gap: 12px;
     padding: 14px 16px;
     border-radius: var(--ruana-radius-lg);
-    border: 1px solid var(--ruana-border);
-    background: linear-gradient(165deg, rgba(20, 24, 39, 0.96) 0%, rgba(14, 16, 32, 0.94) 100%);
-    backdrop-filter: var(--ruana-glass);
-    box-shadow: var(--ruana-shadow-card);
+    border: 1px solid var(--ruana-border-glass);
+    background: linear-gradient(165deg, rgba(22, 26, 44, 0.82) 0%, rgba(12, 14, 26, 0.78) 100%);
+    backdrop-filter: var(--ruana-glass-strong);
+    -webkit-backdrop-filter: var(--ruana-glass-strong);
+    box-shadow: var(--ruana-shadow-card), var(--ruana-highlight);
     color: var(--ruana-text);
     font-size: 0.9rem;
     line-height: 1.45;
     pointer-events: auto;
-    animation: ruana-toast-in 220ms ease forwards;
+    animation: ruana-toast-in 200ms ease forwards;
 }
 
 .ruana-toast.is-leaving {
