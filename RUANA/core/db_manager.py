@@ -4842,8 +4842,9 @@ class DBManager:
     
     def listar_aliados_directorio_grupo(self, codigo_aliado: str) -> List[Dict[str, Any]]:
         """
-        Lista todos los profesionales del mismo grupo que el aliado (para el directorio).
-        Excluye al propio aliado. Solo activos. Garantiza mostrar siempre todos los del grupo.
+        Lista profesionales del mismo grupo y código postal que el aliado (directorio).
+        Excluye al propio aliado. Solo activos / pendiente_validacion.
+        Nunca mezcla aliados de otros CP aunque compartan grupo_id por error de datos.
         """
         codigo_busqueda = (codigo_aliado or '').strip()
         aliado = self.obtener_aliado_por_codigo(codigo_busqueda)
@@ -4858,32 +4859,61 @@ class DBManager:
                 conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
-                # Incluir activo y pendiente_validacion para mostrar a todos los del grupo/zona
                 estados_ok = ('activo', 'pendiente_validacion')
-                if grupo_id is not None and codigo_postal:
-                    # Mismo grupo O mismo código postal (incluye aliados con grupo_id NULL en la zona)
-                    cursor.execute(f"""
-                        SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, estado, score, descripcion_servicio, {ALIADO_FOTO_PERFIL_COLUMN}, creado_en
-                        FROM aliados
-                        WHERE estado IN (?, ?) AND codigo != ?
-                        AND (grupo_id = ? OR codigo_postal = ?)
-                        ORDER BY nombre
-                    """, (estados_ok[0], estados_ok[1], codigo_excluir, grupo_id, codigo_postal))
+                select_cols = (
+                    f"a.id, a.codigo, a.nombre, a.marca, a.oficio, a.codigo_postal, a.grupo_id, "
+                    f"a.estado, a.score, a.descripcion_servicio, a.{ALIADO_FOTO_PERFIL_COLUMN}, a.creado_en"
+                )
+
+                cp_filtro = codigo_postal
+                if grupo_id is not None:
+                    cursor.execute(
+                        "SELECT codigo_postal FROM grupos WHERE id = ?",
+                        (grupo_id,),
+                    )
+                    row_grupo = cursor.fetchone()
+                    if row_grupo and (row_grupo[0] or '').strip():
+                        cp_filtro = (row_grupo[0] or '').strip()
+
+                if grupo_id is not None and cp_filtro:
+                    cursor.execute(
+                        f"""
+                        SELECT {select_cols}
+                        FROM aliados a
+                        INNER JOIN grupos g ON g.id = a.grupo_id
+                        WHERE a.estado IN (?, ?) AND a.codigo != ?
+                          AND a.grupo_id = ?
+                          AND TRIM(COALESCE(g.codigo_postal, '')) = ?
+                          AND TRIM(COALESCE(a.codigo_postal, '')) = ?
+                        ORDER BY a.nombre
+                        """,
+                        (estados_ok[0], estados_ok[1], codigo_excluir, grupo_id, cp_filtro, cp_filtro),
+                    )
                 elif grupo_id is not None:
-                    cursor.execute(f"""
-                        SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, estado, score, descripcion_servicio, {ALIADO_FOTO_PERFIL_COLUMN}, creado_en
+                    cursor.execute(
+                        f"""
+                        SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, estado, score,
+                               descripcion_servicio, {ALIADO_FOTO_PERFIL_COLUMN}, creado_en
                         FROM aliados
                         WHERE grupo_id = ? AND estado IN (?, ?) AND codigo != ?
                         ORDER BY nombre
-                    """, (grupo_id, estados_ok[0], estados_ok[1], codigo_excluir))
-                else:
-                    # Sin grupo: mismo código postal (fallback)
-                    cursor.execute(f"""
-                        SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, estado, score, descripcion_servicio, {ALIADO_FOTO_PERFIL_COLUMN}, creado_en
+                        """,
+                        (grupo_id, estados_ok[0], estados_ok[1], codigo_excluir),
+                    )
+                elif cp_filtro:
+                    cursor.execute(
+                        f"""
+                        SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, estado, score,
+                               descripcion_servicio, {ALIADO_FOTO_PERFIL_COLUMN}, creado_en
                         FROM aliados
-                        WHERE codigo_postal = ? AND estado IN (?, ?) AND codigo != ?
+                        WHERE TRIM(COALESCE(codigo_postal, '')) = ?
+                          AND estado IN (?, ?) AND codigo != ?
                         ORDER BY nombre
-                    """, (codigo_postal or '', estados_ok[0], estados_ok[1], codigo_excluir))
+                        """,
+                        (cp_filtro, estados_ok[0], estados_ok[1], codigo_excluir),
+                    )
+                else:
+                    return []
                 rows = cursor.fetchall()
                 result = []
                 for row in rows:

@@ -3588,6 +3588,13 @@
                 listaProfesionales.innerHTML = '';
 
                 let profesionalesArray = Array.isArray(this.profesionales) ? this.profesionales : [];
+                const miCp = ((this.aliado && this.aliado.codigo_postal) || '').trim();
+                if (miCp) {
+                    profesionalesArray = profesionalesArray.filter(p => {
+                        const cp = ((p && (p.codigo_postal || p.zona)) || '').trim();
+                        return cp === miCp;
+                    });
+                }
                 const profesionalesDisponibles = profesionalesArray.some(p => p && (p.rol !== undefined && p.rol !== null))
                     ? profesionalesArray.filter(p => p.rol === 'Titular')
                     : profesionalesArray;

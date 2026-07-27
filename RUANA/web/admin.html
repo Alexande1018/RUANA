@@ -3616,6 +3616,10 @@
                 return nombres[grupoKey] || grupoKey;
             }
 
+            normalizarCpAliado(a) {
+                return (a && (a.codigo_postal || a.zona) || '').toString().trim() || '(sin CP)';
+            }
+
             renderAliadosJerarquia() {
                 const nav = document.getElementById('aliados-jerarquia-nav');
                 const breadcrumb = document.getElementById('aliados-breadcrumb');
@@ -3646,7 +3650,7 @@
                 const byCp = new Map();
                 data.forEach(a => {
                     if (this.esAliadoPlaceholder(a)) return;
-                    const cp = (a.zona || a.codigo_postal || '').toString().trim() || '(sin CP)';
+                    const cp = this.normalizarCpAliado(a);
                     byCp.set(cp, (byCp.get(cp) || 0) + 1);
                 });
                 const cps = Array.from(byCp.entries()).sort((x, y) => String(x[0]).localeCompare(String(y[0])));
@@ -3670,7 +3674,7 @@
                 list.innerHTML = '';
                 const cp = this.aliadosCPSeleccionado;
                 if (!cp) return this.renderAliadosNivel1();
-                const data = (this._aliadosData || []).filter(a => ((a.zona || a.codigo_postal || '').toString().trim() || '(sin CP)') === cp);
+                const data = (this._aliadosData || []).filter(a => this.normalizarCpAliado(a) === cp);
                 const byGrupo = new Map();
                 data.forEach(a => {
                     const g = this.getGrupoAliado(a);
@@ -3698,8 +3702,7 @@
                 const grupo = this.aliadosGrupoSeleccionado;
                 if (!cp || !grupo) return;
                 const data = (this._aliadosData || []).filter(a => {
-                    const aCp = (a.zona || a.codigo_postal || '').toString().trim() || '(sin CP)';
-                    if (aCp !== cp) return false;
+                    if (this.normalizarCpAliado(a) !== cp) return false;
                     return this.getGrupoAliado(a) === grupo;
                 });
                 this.renderAliados(data);
