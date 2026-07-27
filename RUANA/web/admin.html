@@ -146,6 +146,20 @@
         .btn-admin-logout:hover {
             background: rgba(239, 68, 68, 0.3);
         }
+        .btn-admin-password {
+            min-height: 38px;
+            padding: 8px 14px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 8px;
+            color: #dbeafe;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        .btn-admin-password:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
         @media (max-width: 640px) {
             .admin-container {
                 padding: 112px 14px 28px;
@@ -1007,6 +1021,7 @@
         </div>
         <div class="admin-topbar-actions">
             <a href="/" class="admin-topbar-link">← Inicio</a>
+            <button type="button" id="admin-change-password-btn" class="btn-admin-password">Cambiar contraseña</button>
             <button type="button" id="admin-logout-btn" class="btn-admin-logout">Cerrar sesión admin</button>
         </div>
     </div>
@@ -1018,13 +1033,31 @@
                 <svg class="ruana-brand-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="56" height="56" aria-hidden="true" focusable="false"><g fill="none" stroke="#A2FF00" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 24v7.5"/><path d="M32 31.5H18v7.5"/><path d="M32 31.5H46v7.5"/></g><rect x="22" y="8" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="8" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="36" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/></svg>
                 <span class="ruana-brand-word">RUANA</span>
             </div>
-            <p class="subtitle">Introduce el código de administrador</p>
+            <p class="subtitle">Introduce tus credenciales de administrador</p>
             <form class="admin-login-form" id="adminLoginForm">
-                <input type="text" class="admin-login-input ruana-form-control" id="adminLoginCodigo" placeholder="Código admin" autocomplete="off" maxlength="20">
+                <input type="text" class="admin-login-input ruana-form-control" id="adminLoginCodigo" placeholder="Identificador admin" autocomplete="username" maxlength="32">
+                <input type="password" class="admin-login-input ruana-form-control" id="adminLoginPassword" placeholder="Contraseña" autocomplete="current-password" maxlength="128">
                 <button type="submit" class="admin-login-btn ruana-button" id="adminLoginBtn">Entrar</button>
                 <p class="admin-login-error" id="adminLoginError" style="display:none;"></p>
             </form>
-            <p class="admin-login-tip">Acceso solo con código de administrador configurado en el servidor.</p>
+            <p class="admin-login-tip">Las credenciales se configuran de forma segura en el servidor, nunca en el repositorio.</p>
+        </div>
+    </div>
+
+    <!-- Modal cambiar contraseña admin -->
+    <div class="admin-login-modal hidden" id="adminChangePasswordModal">
+        <div class="admin-login-card ruana-auth-card">
+            <h1 style="margin:0 0 8px; font-size:1.25rem; color:#fff;">Cambiar contraseña</h1>
+            <p class="subtitle">Actualiza la contraseña de tu cuenta de administrador</p>
+            <form class="admin-login-form" id="adminChangePasswordForm">
+                <input type="password" class="admin-login-input ruana-form-control" id="adminCurrentPassword" placeholder="Contraseña actual" autocomplete="current-password" maxlength="128">
+                <input type="password" class="admin-login-input ruana-form-control" id="adminNewPassword" placeholder="Nueva contraseña (mín. 8 caracteres)" autocomplete="new-password" maxlength="128">
+                <input type="password" class="admin-login-input ruana-form-control" id="adminConfirmPassword" placeholder="Confirmar nueva contraseña" autocomplete="new-password" maxlength="128">
+                <button type="submit" class="admin-login-btn ruana-button" id="adminChangePasswordBtn">Guardar contraseña</button>
+                <p class="admin-login-error" id="adminChangePasswordError" style="display:none;"></p>
+                <p class="admin-login-error" id="adminChangePasswordSuccess" style="display:none; color:#86efac;"></p>
+            </form>
+            <button type="button" class="admin-topbar-link" id="adminChangePasswordCancel" style="margin-top:12px; width:100%;">Cancelar</button>
         </div>
     </div>
 
@@ -1645,14 +1678,20 @@
             setupLoginForm() {
                 const form = document.getElementById('adminLoginForm');
                 const codigoInput = document.getElementById('adminLoginCodigo');
+                const passwordInput = document.getElementById('adminLoginPassword');
                 const errorEl = document.getElementById('adminLoginError');
                 const btn = document.getElementById('adminLoginBtn');
                 if (!form || !codigoInput) return;
                 form.addEventListener('submit', async (e) => {
                     e.preventDefault();
                     const codigo = (codigoInput.value || '').trim().toUpperCase();
+                    const password = (passwordInput?.value || '').trim();
                     if (!codigo) {
-                        if (errorEl) { errorEl.textContent = 'Introduce el código'; errorEl.style.display = 'block'; }
+                        if (errorEl) { errorEl.textContent = 'Introduce el identificador de administrador'; errorEl.style.display = 'block'; }
+                        return;
+                    }
+                    if (!password) {
+                        if (errorEl) { errorEl.textContent = 'Introduce la contraseña'; errorEl.style.display = 'block'; }
                         return;
                     }
                     if (btn) btn.disabled = true;
@@ -1662,7 +1701,7 @@
                             method: 'POST',
                             credentials: 'same-origin',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ codigo })
+                            body: JSON.stringify({ codigo, password })
                         });
                         const data = await r.json().catch(() => ({}));
                         if (r.ok && data.status === 'success') {
@@ -2120,6 +2159,12 @@
                 if (logoutBtn) {
                     logoutBtn.addEventListener('click', () => this.logout());
                 }
+
+                const changePasswordBtn = document.getElementById('admin-change-password-btn');
+                if (changePasswordBtn) {
+                    changePasswordBtn.addEventListener('click', () => this.openChangePasswordModal());
+                }
+                this.setupChangePasswordForm();
 
                 const cerrarDetalleBtn = document.getElementById('aliadoDetalleCerrar');
                 if (cerrarDetalleBtn) {
@@ -2916,6 +2961,95 @@
                 sessionStorage.removeItem('admin_session_id');
                 delete window._ruanaAdminPanel;
                 window.location.href = '/admin';
+            }
+
+            openChangePasswordModal() {
+                const modal = document.getElementById('adminChangePasswordModal');
+                const errorEl = document.getElementById('adminChangePasswordError');
+                const successEl = document.getElementById('adminChangePasswordSuccess');
+                ['adminCurrentPassword', 'adminNewPassword', 'adminConfirmPassword'].forEach((id) => {
+                    const input = document.getElementById(id);
+                    if (input) input.value = '';
+                });
+                if (errorEl) errorEl.style.display = 'none';
+                if (successEl) successEl.style.display = 'none';
+                if (modal) modal.classList.remove('hidden');
+            }
+
+            closeChangePasswordModal() {
+                const modal = document.getElementById('adminChangePasswordModal');
+                if (modal) modal.classList.add('hidden');
+            }
+
+            setupChangePasswordForm() {
+                const form = document.getElementById('adminChangePasswordForm');
+                const cancelBtn = document.getElementById('adminChangePasswordCancel');
+                const errorEl = document.getElementById('adminChangePasswordError');
+                const successEl = document.getElementById('adminChangePasswordSuccess');
+                const submitBtn = document.getElementById('adminChangePasswordBtn');
+                if (cancelBtn) {
+                    cancelBtn.addEventListener('click', () => this.closeChangePasswordModal());
+                }
+                if (!form) return;
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const currentPassword = (document.getElementById('adminCurrentPassword')?.value || '').trim();
+                    const newPassword = (document.getElementById('adminNewPassword')?.value || '').trim();
+                    const confirmPassword = (document.getElementById('adminConfirmPassword')?.value || '').trim();
+                    if (errorEl) errorEl.style.display = 'none';
+                    if (successEl) successEl.style.display = 'none';
+                    if (!currentPassword || !newPassword || !confirmPassword) {
+                        if (errorEl) {
+                            errorEl.textContent = 'Completa todos los campos';
+                            errorEl.style.display = 'block';
+                        }
+                        return;
+                    }
+                    if (newPassword !== confirmPassword) {
+                        if (errorEl) {
+                            errorEl.textContent = 'La confirmación no coincide con la nueva contraseña';
+                            errorEl.style.display = 'block';
+                        }
+                        return;
+                    }
+                    if (submitBtn) submitBtn.disabled = true;
+                    try {
+                        const r = await fetch('/api/admin/cambiar-contraseña', {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: this.getAuthHeaders(),
+                            body: JSON.stringify({
+                                contraseña_actual: currentPassword,
+                                contraseña_nueva: newPassword,
+                                contraseña_confirmacion: confirmPassword
+                            })
+                        });
+                        const data = await r.json().catch(() => ({}));
+                        if (r.ok && data.status === 'success') {
+                            if (successEl) {
+                                successEl.textContent = data.message || 'Contraseña actualizada';
+                                successEl.style.display = 'block';
+                            }
+                            setTimeout(() => this.closeChangePasswordModal(), 1500);
+                        } else {
+                            if (r.status === 401) {
+                                this._adminSessionExpired();
+                                return;
+                            }
+                            if (errorEl) {
+                                errorEl.textContent = data.message || 'No se pudo cambiar la contraseña';
+                                errorEl.style.display = 'block';
+                            }
+                        }
+                    } catch (_) {
+                        if (errorEl) {
+                            errorEl.textContent = 'Error de conexión';
+                            errorEl.style.display = 'block';
+                        }
+                    } finally {
+                        if (submitBtn) submitBtn.disabled = false;
+                    }
+                });
             }
 
             renderSolicitudesAdmin(solicitudes) {

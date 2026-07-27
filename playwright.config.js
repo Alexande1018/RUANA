@@ -41,6 +41,7 @@ module.exports = defineConfig({
           PYTHONIOENCODING: 'utf-8',
           PYTHONUTF8: '1',
           RUANA_DB_PATH: qaDbPath,
+          RUANA_ADMIN_CREDENTIALS_PATH: path.join(__dirname, 'RUANA/config/admin_credentials.qa.json'),
           DATABASE_URL: '',
           SUPABASE_URL: '',
           SUPABASE_SERVICE_ROLE_KEY: '',

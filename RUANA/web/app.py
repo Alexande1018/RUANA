@@ -29,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.db_manager import get_db, DB_PATH, RUANA_CODIGO_INVITACION_REGEX
 from core.settings import get_settings
 from core.storage_manager import upload_ruana_file, upload_foto_perfil_file
+from core.admin_auth import verify_admin_login, change_admin_password
 
 # Obtener ruta absoluta de la carpeta web
 web_dir = Path(__file__).parent.absolute()
@@ -3100,71 +3101,62 @@ def purga_mensual():
 def validar_admin():
     """
     POST /api/admin/validar
-    Valida si el c?digo proporcionado es un c?digo de administrador
-    Lee desde archivo persistente de configuraci?n
+    Valida las credenciales de administrador (identificador + contraseña).
+    Las contraseñas se almacenan con hash fuera del repositorio.
     """
     data = request.get_json() or {}
-    codigo = data.get('codigo', '').strip().upper()
-    
-    if not codigo:
+    admin_id = (data.get('codigo') or data.get('admin_id') or '').strip().upper()
+    password = (
+        data.get('password')
+        or data.get('contraseña')
+        or data.get('contrasena')
+        or ''
+    ).strip()
+
+    # Compatibilidad: un solo campo "codigo" actúa como identificador y contraseña.
+    if admin_id and not password:
+        password = admin_id
+    elif password and not admin_id:
+        admin_id = password.upper()
+
+    if not admin_id or not password:
         return jsonify({
             'status': 'error',
-            'message': 'C?digo requerido'
+            'message': 'Identificador y contraseña requeridos'
         }), 400
-    
+
     try:
-        # Cargar c?digos desde archivo de configuraci?n
-        config_path = Path(__file__).parent.parent / 'config' / 'admin_codes.json'
-        
-        if not config_path.exists():
+        admin_info = verify_admin_login(admin_id, password)
+        if not admin_info:
             return jsonify({
                 'status': 'error',
-                'message': 'Configuraci?n de administrador no encontrada'
-            }), 500
-        
-        with open(config_path, 'r', encoding='utf-8') as f:
-            admin_config = json.load(f)
-        
-        admin_codes = admin_config.get('admin_codes', {})
-        
-        if codigo in admin_codes:
-            admin_info = admin_codes[codigo]
-            
-            # Verificar si est? activo
-            if not admin_info.get('activo', True):
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Este c?digo de administrador est? desactivado'
-                }), 401
+                'message': 'Credenciales de administrador no válidas'
+            }), 401
 
-            expires_at = time.time() + ADMIN_SESSION_EXPIRES_SECONDS
-            permisos = admin_info.get('permisos', [])
-            session_id = _ruana_session_create('admin', codigo, expires_at, permisos=permisos)
+        codigo = admin_info['codigo']
+        expires_at = time.time() + ADMIN_SESSION_EXPIRES_SECONDS
+        permisos = admin_info.get('permisos', [])
+        session_id = _ruana_session_create('admin', codigo, expires_at, permisos=permisos)
 
-            payload = {
-                'admin_codigo': codigo,
-                'permisos': permisos,
-                'exp': expires_at,
-                'iat': time.time()
-            }
-            token = jwt.encode(payload, app.secret_key, algorithm='HS256')
-            if hasattr(token, 'decode'):
-                token = token.decode('utf-8')
+        payload = {
+            'admin_codigo': codigo,
+            'permisos': permisos,
+            'exp': expires_at,
+            'iat': time.time()
+        }
+        token = jwt.encode(payload, app.secret_key, algorithm='HS256')
+        if hasattr(token, 'decode'):
+            token = token.decode('utf-8')
 
-            return jsonify({
-                'status': 'success',
-                'message': f'Acceso concedido como {admin_info.get("nombre")}',
-                'role': admin_info.get('nombre'),
-                'permisos': admin_info.get('permisos', []),
-                'expires_at': expires_at,
-                'session_id': session_id,
-                'token': token
-            })
-        
         return jsonify({
-            'status': 'error',
-            'message': 'C?digo de administrador no v?lido'
-        }), 401
+            'status': 'success',
+            'message': f'Acceso concedido como {admin_info.get("nombre")}',
+            'role': admin_info.get('nombre'),
+            'permisos': permisos,
+            'expires_at': expires_at,
+            'session_id': session_id,
+            'token': token
+        })
 
     except Exception as e:
         return jsonify({
@@ -3196,6 +3188,52 @@ def admin_me():
     if not permisos and _admin_codigo():
         permisos = ['leer', 'escribir', 'eliminar', 'configurar']
     return jsonify({'permisos': permisos or []})
+
+
+@app.route('/api/admin/cambiar-contraseña', methods=['POST'])
+@require_admin
+def admin_cambiar_contraseña():
+    """
+    POST /api/admin/cambiar-contraseña
+    Cambia la contraseña del administrador autenticado.
+    Requiere permiso de escritura o configuración.
+    """
+    if not _admin_puede_escribir():
+        return jsonify({
+            'status': 'error',
+            'message': 'No tienes permiso para cambiar la contraseña'
+        }), 403
+
+    data = request.get_json() or {}
+    current_password = (
+        data.get('contraseña_actual')
+        or data.get('contrasena_actual')
+        or data.get('password_actual')
+        or ''
+    ).strip()
+    new_password = (
+        data.get('contraseña_nueva')
+        or data.get('contrasena_nueva')
+        or data.get('password_nueva')
+        or ''
+    ).strip()
+    confirm_password = (
+        data.get('contraseña_confirmacion')
+        or data.get('contrasena_confirmacion')
+        or data.get('password_confirmacion')
+        or ''
+    ).strip()
+
+    if confirm_password and new_password != confirm_password:
+        return jsonify({
+            'status': 'error',
+            'message': 'La confirmación de la nueva contraseña no coincide'
+        }), 400
+
+    admin_codigo = _admin_codigo()
+    result = change_admin_password(admin_codigo, current_password, new_password)
+    status_code = 200 if result.get('status') == 'success' else 400
+    return jsonify(result), status_code
 
 
 @app.route('/api/admin/health-metrics', methods=['GET'])
