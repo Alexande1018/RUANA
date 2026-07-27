@@ -112,7 +112,7 @@ class DBManager:
             self._migrar_contactos_es_urgente(conn, cursor)
             self._migrar_aliado_accesos_dia(conn, cursor)
             conn.commit()
-            print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil + linaje + urgente + accesos día)")
+            print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil + linaje + urgente + accesos día + retador)")
         except Exception as e:
             print(f"[RUANA][DB] Error inicializando esquema Postgres: {e}")
         finally:
@@ -485,6 +485,9 @@ class DBManager:
                 self._migrar_invitaciones_oficio_codigo_referido(conn, cursor)
                 self._migrar_aliados_invitado_por(conn, cursor)
                 self._migrar_aliado_accesos_dia(conn, cursor)
+                self._migrar_datos_plaza_oficio(conn, cursor)
+                self._migrar_drop_especializaciones(conn, cursor)
+                self._migrar_retador_rename(conn, cursor)
 
                 conn.commit()
                 print(f"[RUANA][DB] Base de datos inicializada en: {self.db_path}")
@@ -857,13 +860,109 @@ class DBManager:
         columnas = [row[1] for row in cursor.fetchall()]
         for col, def_sql in [
             ('score_titular_inicio', 'INTEGER'),
-            ('score_suplente_inicio', 'INTEGER'),
             ('score_titular_actual', 'INTEGER'),
-            ('score_suplente_actual', 'INTEGER'),
             ('motivo', 'TEXT'),
         ]:
             if col not in columnas:
                 cursor.execute(f"ALTER TABLE competencia ADD COLUMN {col} {def_sql}")
+        # Manejo especial: suplente_inicio/actual → tras renombrar serán retador_inicio/actual
+        if 'score_suplente_inicio' not in columnas and 'score_retador_inicio' not in columnas:
+            cursor.execute("ALTER TABLE competencia ADD COLUMN score_suplente_inicio INTEGER")
+        if 'score_suplente_actual' not in columnas and 'score_retador_actual' not in columnas:
+            cursor.execute("ALTER TABLE competencia ADD COLUMN score_suplente_actual INTEGER")
+
+    def _migrar_retador_rename(self, conn, cursor) -> None:
+        """Renombra columnas suplente→retador en la tabla competencia (SQLite 3.25+)."""
+        cursor.execute("SELECT 1 FROM migraciones WHERE nombre = 'retador_rename_v1'")
+        if cursor.fetchone():
+            return
+        cursor.execute("PRAGMA table_info(competencia)")
+        cols = [row[1] for row in cursor.fetchall()]
+        renames = [
+            ('suplente_codigo', 'retador_codigo'),
+            ('suplente_grupo_anterior_id', 'retador_grupo_anterior_id'),
+            ('score_suplente_inicio', 'score_retador_inicio'),
+            ('score_suplente_actual', 'score_retador_actual'),
+        ]
+        for old_name, new_name in renames:
+            if old_name in cols:
+                try:
+                    cursor.execute(f"ALTER TABLE competencia RENAME COLUMN {old_name} TO {new_name}")
+                except Exception as ex:
+                    print(f"[RUANA][DB] Aviso al renombrar {old_name}→{new_name}: {ex}")
+        cursor.execute("INSERT INTO migraciones (nombre) VALUES ('retador_rename_v1')")
+
+    def _migrar_datos_plaza_oficio(self, conn, cursor) -> None:
+        """Resuelve conflictos de plaza: si un grupo tiene varios activos del mismo oficio,
+        conserva el de mayor score (más antiguo en empate); reasigna el resto o pone en_espera."""
+        cursor.execute("SELECT 1 FROM migraciones WHERE nombre = 'plaza_oficio_v1'")
+        if cursor.fetchone():
+            return
+        cursor.execute("""
+            SELECT grupo_id, oficio, COUNT(*) as cnt
+            FROM aliados
+            WHERE estado = 'activo' AND grupo_id IS NOT NULL AND oficio IS NOT NULL AND oficio != ''
+            GROUP BY grupo_id, oficio
+            HAVING COUNT(*) > 1
+        """)
+        conflictos = cursor.fetchall()
+        for grupo_id, oficio, cnt in conflictos:
+            cursor.execute("""
+                SELECT id, codigo, score, codigo_postal
+                FROM aliados
+                WHERE grupo_id = ? AND oficio = ? AND estado = 'activo'
+                ORDER BY score DESC, creado_en ASC
+            """, (grupo_id, oficio))
+            aliados_conflicto = cursor.fetchall()
+            for aliado in aliados_conflicto[1:]:
+                aliado_id, aliado_codigo, aliado_score, codigo_postal = aliado
+                cursor.execute("""
+                    SELECT g.id FROM grupos g
+                    WHERE g.codigo_postal = ? AND g.estado = 'activo' AND g.id != ?
+                      AND NOT EXISTS (
+                        SELECT 1 FROM aliados a2
+                        WHERE a2.grupo_id = g.id AND a2.oficio = ? AND a2.estado = 'activo'
+                      )
+                    ORDER BY g.id LIMIT 1
+                """, (codigo_postal, grupo_id, oficio))
+                alt_row = cursor.fetchone()
+                if alt_row:
+                    cursor.execute("UPDATE aliados SET grupo_id = ? WHERE id = ?", (alt_row[0], aliado_id))
+                else:
+                    cursor.execute(
+                        "SELECT COUNT(*) FROM grupos WHERE codigo_postal = ? AND estado = 'activo'",
+                        (codigo_postal,)
+                    )
+                    n_grupos = cursor.fetchone()[0] or 0
+                    if n_grupos < MAX_GRUPOS_POR_CP:
+                        nombre = self._generar_nombre_grupo(cursor)
+                        cursor.execute(
+                            "INSERT INTO grupos (nombre, codigo_postal, estado, fecha_creacion) VALUES (?, ?, 'activo', CURRENT_TIMESTAMP)",
+                            (nombre, codigo_postal)
+                        )
+                        new_grupo_id = cursor.lastrowid
+                        cursor.execute("UPDATE aliados SET grupo_id = ? WHERE id = ?", (new_grupo_id, aliado_id))
+                    else:
+                        cursor.execute(
+                            "UPDATE aliados SET grupo_id = NULL, estado = 'en_espera' WHERE id = ?",
+                            (aliado_id,)
+                        )
+        cursor.execute("INSERT INTO migraciones (nombre) VALUES ('plaza_oficio_v1')")
+
+    def _migrar_drop_especializaciones(self, conn, cursor) -> None:
+        """Elimina las columnas especializacion y especializaciones de aliados (ya no se usan)."""
+        cursor.execute("SELECT 1 FROM migraciones WHERE nombre = 'drop_especializaciones_v1'")
+        if cursor.fetchone():
+            return
+        cursor.execute("PRAGMA table_info(aliados)")
+        cols = [row[1] for row in cursor.fetchall()]
+        for col in ('especializacion', 'especializaciones'):
+            if col in cols:
+                try:
+                    cursor.execute(f"ALTER TABLE aliados DROP COLUMN {col}")
+                except Exception as ex:
+                    print(f"[RUANA][DB] Aviso al eliminar columna {col}: {ex}")
+        cursor.execute("INSERT INTO migraciones (nombre) VALUES ('drop_especializaciones_v1')")
 
     def _migrar_referidos_origen(self, conn, cursor) -> None:
         """Añade columna origen a referidos (trazabilidad del vínculo invitador→referido)."""
@@ -1111,7 +1210,7 @@ class DBManager:
                 cursor = conn.cursor()
                 cursor.execute("""
                     SELECT a.codigo, a.nombre, a.oficio, a.codigo_postal, a.marca,
-                           a.estado, a.score, a.telefono, a.email, a.especializaciones,
+                           a.estado, a.score, a.telefono, a.email,
                            a.creado_en, a.invitado_origen AS origen,
                            (
                                SELECT COUNT(*) FROM aliados h
@@ -1131,14 +1230,7 @@ class DBManager:
                 for row in cursor.fetchall():
                     item = dict(row)
                     item['zona'] = item.get('codigo_postal') or ''
-                    esp_raw = item.get('especializaciones')
-                    if esp_raw:
-                        try:
-                            item['especializaciones'] = json.loads(esp_raw) if isinstance(esp_raw, str) else list(esp_raw)
-                        except Exception:
-                            item['especializaciones'] = []
-                    else:
-                        item['especializaciones'] = []
+                    item['especializaciones'] = []
                     try:
                         item['score'] = float(item.get('score') or 0)
                     except (TypeError, ValueError):
@@ -1356,55 +1448,36 @@ class DBManager:
         )
         return cursor.fetchone() is not None
 
-    def _grupo_tiene_plaza(self, cursor, grupo_id: int, oficio_principal: str, especializacion: Optional[str]) -> bool:
-        """True si la plaza (oficio_principal, especializacion) ya está ocupada en el grupo. Una plaza por especialización por grupo."""
+    def _grupo_tiene_plaza(self, cursor, grupo_id: int, oficio_principal: str, especializacion: Optional[str] = None) -> bool:
+        """True si la plaza (oficio_principal) ya está ocupada en el grupo. Plaza por oficio principal únicamente."""
         if not grupo_id or not oficio_principal:
             return False
-        oficio_principal = oficio_principal.strip()
-        esp_efectiva = (especializacion or oficio_principal).strip()
-        # En BD: efectivo = COALESCE(NULLIF(TRIM(especializacion),''), oficio)
-        cursor.execute(
-            """SELECT 1 FROM aliados WHERE grupo_id = ? AND oficio = ? AND estado = 'activo'
-               AND COALESCE(NULLIF(TRIM(COALESCE(especializacion,'')),''), oficio) = ? LIMIT 1""",
-            (grupo_id, oficio_principal, esp_efectiva),
-        )
-        return cursor.fetchone() is not None
+        return self._grupo_tiene_oficio(cursor, grupo_id, oficio_principal.strip())
 
-    def plaza_ocupada_en_grupo(self, grupo_id: int, oficio_principal: str, especializacion: Optional[str]) -> bool:
-        """True si la plaza (oficio_principal, especializacion) ya está ocupada en el grupo. Thread-safe."""
+    def plaza_ocupada_en_grupo(self, grupo_id: int, oficio_principal: str, especializacion: Optional[str] = None) -> bool:
+        """True si la plaza (oficio_principal) ya está ocupada en el grupo. Thread-safe. especializacion ignorado."""
         if not grupo_id or not oficio_principal:
             return False
         with self._lock:
             try:
                 conn = self._connect()
                 cursor = conn.cursor()
-                return self._grupo_tiene_plaza(cursor, grupo_id, oficio_principal.strip(), (especializacion or '').strip() or None)
+                return self._grupo_tiene_oficio(cursor, grupo_id, oficio_principal.strip())
             except Exception:
                 return True
             finally:
                 conn.close()
 
     def obtener_especializaciones_ocupadas(self, grupo_id: int, oficio_principal: str) -> set:
-        """Devuelve el conjunto de especializaciones ya ocupadas en el grupo para ese oficio (plaza única por especialización)."""
+        """Devuelve los oficios ya ocupados en el grupo (deprecado: solo devuelve el oficio si está ocupado)."""
         if not grupo_id or not oficio_principal:
             return set()
-        with self._lock:
-            try:
-                conn = self._connect()
-                cursor = conn.cursor()
-                cursor.execute(
-                    """SELECT COALESCE(NULLIF(TRIM(especializacion), ''), oficio) AS esp
-                       FROM aliados WHERE grupo_id = ? AND oficio = ? AND estado = 'activo'""",
-                    (grupo_id, oficio_principal.strip()),
-                )
-                return {row[0].strip() for row in cursor.fetchall() if row[0]}
-            except Exception:
-                return set()
-            finally:
-                conn.close()
+        if self.plaza_ocupada_en_grupo(grupo_id, oficio_principal):
+            return {oficio_principal.strip()}
+        return set()
 
     def buscar_grupo_sin_oficio(self, codigo_postal: str, oficio: str, especializacion: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        """Devuelve un grupo activo en ese CP donde la plaza (oficio, especializacion) esté libre. Si especializacion es None, busca grupo sin ese oficio."""
+        """Devuelve un grupo activo en ese CP donde el oficio esté libre. especializacion ignorado."""
         if not codigo_postal or not oficio:
             return None
         with self._lock:
@@ -1419,12 +1492,8 @@ class DBManager:
                 )
                 for row in cursor.fetchall():
                     g = dict(row)
-                    if especializacion and especializacion.strip():
-                        if not self._grupo_tiene_plaza(cursor, g['id'], oficio, especializacion.strip()):
-                            return g
-                    else:
-                        if not self._grupo_tiene_oficio(cursor, g['id'], oficio):
-                            return g
+                    if not self._grupo_tiene_oficio(cursor, g['id'], oficio):
+                        return g
                 return None
             except Exception:
                 return None
@@ -1838,6 +1907,17 @@ class DBManager:
     # OPERACIONES ALIADOS
     # ===============================================
     
+    MENSAJE_LISTA_ESPERA = (
+        "¡Bienvenido a RUANA! 🎉\n\n"
+        "Tu registro se ha completado correctamente.\n\n"
+        "En este momento, los grupos de tu Código Postal ya han alcanzado su capacidad máxima "
+        "para tu oficio, por lo que has sido incluido en la lista de Suplentes.\n\n"
+        "Esto significa que ya formas parte de RUANA y tendrás prioridad para ocupar la siguiente "
+        "plaza disponible en tu zona. En cuanto se libere una vacante, nuestro equipo revisará tu "
+        "incorporación y te lo notificaremos.\n\n"
+        "Mientras tanto, no tienes que hacer nada más. Gracias por confiar en RUANA."
+    )
+
     def crear_aliado(self, codigo: str, nombre: str, marca: str = "",
                     oficio: str = "", codigo_postal: str = "",
                     email: str = "", telefono: str = "",
@@ -1848,73 +1928,40 @@ class DBManager:
                     grupo_id_invitacion: Optional[int] = None) -> Dict[str, Any]:
         """
         Crea un nuevo aliado en la BD.
-        Catálogo oficial: oficio principal obligatorio; si no está en catálogo → estado pendiente_validacion.
-        Si grupo_id_invitacion está definido (registro con código "Conozco a alguien") y el oficio está en catálogo
-        y ese grupo no tiene ese oficio, se asigna al grupo del invitador y estado = activo.
-        Especializaciones opcionales (solo oficios del catálogo, no ocupan plaza en grupo).
+        Plaza por oficio principal (especializacion ignorada).
+        Si CP lleno y oficio ocupado en todos → estado en_espera (lista de Suplentes).
         """
         with self._lock:
             try:
                 conn = self._connect()
                 cursor = conn.cursor()
-                
-                # Verificar unicidad del código
+
                 cursor.execute("SELECT id FROM aliados WHERE codigo = ?", (codigo,))
                 if cursor.fetchone():
-                    return {
-                        'status': 'error',
-                        'message': f'Código {codigo} ya existe'
-                    }
-                
-                # F07: Validación de unicidad mejorada - mensajes específicos
-                # Buscar email duplicado
+                    return {'status': 'error', 'message': f'Código {codigo} ya existe'}
+
                 cursor.execute("SELECT id FROM aliados WHERE email = ?", (email,))
                 if cursor.fetchone():
-                    return {
-                        'status': 'error',
-                        'message': f'El email {email} ya está registrado'
-                    }
-                
-                # Buscar teléfono duplicado
+                    return {'status': 'error', 'message': f'El email {email} ya está registrado'}
+
                 cursor.execute("SELECT id FROM aliados WHERE telefono = ?", (telefono,))
                 if cursor.fetchone():
-                    return {
-                        'status': 'error',
-                        'message': f'El teléfono {telefono} ya está registrado'
-                    }
-                
-                # F07: Validaciones defensivas (app.py ya validó, pero aseguramos integridad).
-                # Estos checks nunca deberían fallar si app.py hace su trabajo.
-                # Para el flujo normal de alta de aliados exigimos 5 dígitos numéricos.
+                    return {'status': 'error', 'message': f'El teléfono {telefono} ya está registrado'}
+
                 if not codigo or len(codigo) != 5 or not codigo.isdigit():
-                    return {
-                        'status': 'error',
-                        'message': 'El código debe ser un número de 5 dígitos (error de validación backend)'
-                    }
+                    return {'status': 'error', 'message': 'El código debe ser un número de 5 dígitos (error de validación backend)'}
 
                 if not nombre or len(nombre) < 3:
-                    return {
-                        'status': 'error',
-                        'message': 'El nombre es obligatorio y debe tener al menos 3 caracteres (error de validación backend)'
-                    }
+                    return {'status': 'error', 'message': 'El nombre es obligatorio y debe tener al menos 3 caracteres (error de validación backend)'}
 
                 if not email or '@' not in email:
-                    return {
-                        'status': 'error',
-                        'message': 'El email es obligatorio y debe ser válido (error de validación backend)'
-                    }
+                    return {'status': 'error', 'message': 'El email es obligatorio y debe ser válido (error de validación backend)'}
 
-                # Validar teléfono: debe tener al menos 7 dígitos (sin contar símbolos)
                 import re
                 digitos_telefono = re.sub(r'\D', '', telefono)
                 if not telefono or len(digitos_telefono) < 7:
-                    return {
-                        'status': 'error',
-                        'message': 'El teléfono es obligatorio y debe tener al menos 7 dígitos (error de validación backend)'
-                    }
+                    return {'status': 'error', 'message': 'El teléfono es obligatorio y debe tener al menos 7 dígitos (error de validación backend)'}
 
-                # Catálogo oficial: oficio fuera de catálogo → pendiente_validacion (requiere validación manual)
-                # Placeholder de invitación ("Conozco a alguien") mantiene pendiente_completar para que el código lleve a registro
                 oficio_stripped = str(oficio).strip() if oficio else ''
                 catalogo_oficial = {str(o).strip() for o in self.get_catalogo_oficios_ruana() if o and str(o).strip()}
                 oficio_canonico = self._resolver_en_conjunto_catalogo(oficio_stripped, catalogo_oficial) if oficio_stripped else None
@@ -1925,74 +1972,48 @@ class DBManager:
                 if oficio_stripped and not en_catalogo and estado != 'pendiente_completar':
                     estado_final = 'pendiente_validacion'
 
-                # Especializaciones: solo especialidades del mismo oficio (catálogo jerárquico), máx. 3 en total (plaza + lista)
-                esp_plaza = (especializacion or '').strip() or oficio_stripped
-                catalogo_jer = self.get_catalogo_oficios_jerarquico()
-                oficio_info = next(
-                    (o for o in catalogo_jer if self._normalizar_texto_catalogo(o.get('nombre') or '') == self._normalizar_texto_catalogo(oficio_stripped)),
-                    None,
-                )
-                allowed_esp = set()
-                if oficio_info and oficio_info.get('especializaciones'):
-                    allowed_esp = {str(e).strip() for e in oficio_info['especializaciones'] if str(e).strip()}
-                esp_canonica = self._resolver_en_conjunto_catalogo(esp_plaza, allowed_esp) if esp_plaza and allowed_esp else None
-                if esp_canonica:
-                    esp_plaza = esp_canonica
-                # Si eligió "Otro" en suboficio (especialización no está en catálogo) → pendiente de validación
-                if en_catalogo and oficio_stripped and estado_final != 'pendiente_completar' and esp_plaza:
-                    if esp_plaza not in allowed_esp:
-                        estado_final = 'pendiente_validacion'
-                esp_list = list(especializaciones) if especializaciones is not None else []
-                # Filtrar solo las que pertenecen a este oficio y no repetir la plaza; máx. 2 adicionales (total 3)
-                esp_filtradas = []
-                for e in esp_list:
-                    s = self._resolver_en_conjunto_catalogo(str(e).strip(), allowed_esp) if allowed_esp else None
-                    if s and s != esp_plaza and s not in esp_filtradas:
-                        esp_filtradas.append(s)
-                        if len(esp_filtradas) >= 2:  # plaza + 2 = 3 total
-                            break
-                especializaciones_json = json.dumps(esp_filtradas, ensure_ascii=False) if esp_filtradas else None
-
-                # Asignación automática de grupo solo si oficio está en catálogo (no para pendiente_validacion)
+                # Asignación de grupo: solo si oficio en catálogo
                 grupo_preferido_id = None
-                if en_catalogo and oficio_stripped:
+                mensaje_lista_espera = None
+                if en_catalogo and oficio_stripped and estado_final not in ('pendiente_validacion', 'pendiente_completar'):
                     if grupo_id_invitacion:
-                        # Registro con invitación: asignar al grupo del invitador si la plaza (oficio, especializacion) está libre
-                        if not self._grupo_tiene_plaza(cursor, grupo_id_invitacion, oficio_stripped, esp_plaza or None):
+                        if not self._grupo_tiene_oficio(cursor, grupo_id_invitacion, oficio_stripped):
                             grupo_pref = self.obtener_grupo_por_id(grupo_id_invitacion)
                             if grupo_pref and (grupo_pref.get('estado') or '') == 'activo':
                                 grupo_preferido_id = grupo_id_invitacion
+                        # Si invitador tiene oficio ocupado, buscar otro grupo del CP
+                        if grupo_preferido_id is None and codigo_postal:
+                            grupo_sin_oficio = self.buscar_grupo_sin_oficio(codigo_postal, oficio_stripped)
+                            if grupo_sin_oficio:
+                                grupo_preferido_id = grupo_sin_oficio['id']
                     if grupo_preferido_id is None and codigo_postal:
-                        grupos_activos = self.obtener_grupos_activos_por_cp(codigo_postal)
-                        grupo_sin_oficio = self.buscar_grupo_sin_oficio(codigo_postal, oficio_stripped, esp_plaza or None)
-                        if grupo_sin_oficio is None and len(grupos_activos) >= MAX_GRUPOS_POR_CP:
-                            cp_adyacente = self.sugerir_cp_adyacente(codigo_postal)
-                            msg = 'Límite de 5 grupos alcanzado para este código postal. Por favor use un código postal adyacente.'
-                            if cp_adyacente:
-                                msg += f' Sugerencia: {cp_adyacente}'
-                            return {
-                                'status': 'error',
-                                'message': msg,
-                                'redirect_to_codigo_postal': cp_adyacente or ''
-                            }
+                        grupo_sin_oficio = self.buscar_grupo_sin_oficio(codigo_postal, oficio_stripped)
+                        if grupo_sin_oficio:
+                            grupo_preferido_id = grupo_sin_oficio['id']
+                        elif self.contar_grupos_activos_por_cp(codigo_postal) < MAX_GRUPOS_POR_CP:
+                            pass  # Se creará el grupo después del INSERT
+                        else:
+                            # CP lleno y oficio ocupado en todos → en_espera
+                            estado_final = 'en_espera'
+                            mensaje_lista_espera = self.MENSAJE_LISTA_ESPERA
 
-                # Insertar aliado (oficio = principal; especializacion = plaza por grupo; especializaciones opcionales, no ocupan plaza)
                 cursor.execute("""
-                    INSERT INTO aliados 
-                    (codigo, nombre, marca, oficio, codigo_postal, email, telefono, estado, score, especializaciones, especializacion)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (codigo, nombre, marca, oficio_stripped or oficio, codigo_postal, email, telefono, estado_final, score, especializaciones_json, esp_plaza or None))
+                    INSERT INTO aliados
+                    (codigo, nombre, marca, oficio, codigo_postal, email, telefono, estado, score, descripcion_servicio)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (codigo, nombre, marca, oficio_stripped or oficio, codigo_postal, email, telefono,
+                      estado_final, score, descripcion_servicio))
 
                 aliado_id = cursor.lastrowid
                 conn.commit()
 
-                # Asignar grupo solo si oficio en catálogo (pendiente_validacion no asigna grupo)
-                if en_catalogo and oficio_stripped:
+                # Asignar grupo
+                if estado_final not in ('pendiente_validacion', 'pendiente_completar', 'en_espera'):
                     if grupo_preferido_id:
                         cursor.execute("UPDATE aliados SET grupo_id = ? WHERE id = ?", (grupo_preferido_id, aliado_id))
                         conn.commit()
-                    elif codigo_postal:
-                        grupo_asignar = self.buscar_grupo_sin_oficio(codigo_postal, oficio_stripped, esp_plaza or None)
+                    elif codigo_postal and en_catalogo and oficio_stripped:
+                        grupo_asignar = self.buscar_grupo_sin_oficio(codigo_postal, oficio_stripped)
                         if grupo_asignar:
                             cursor.execute("UPDATE aliados SET grupo_id = ? WHERE id = ?", (grupo_asignar['id'], aliado_id))
                         elif self.contar_grupos_activos_por_cp(codigo_postal) < MAX_GRUPOS_POR_CP:
@@ -2002,27 +2023,26 @@ class DBManager:
                         if cursor.rowcount:
                             conn.commit()
 
-                # Leer fila recién insertada para devolver valores reales (incl. grupo_id, especializacion, descripcion_servicio)
                 cursor.execute(
-                    "SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, email, telefono, estado, score, descripcion_servicio, especializacion, creado_en, actualizado_en FROM aliados WHERE id = ?",
+                    "SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, email, telefono, estado, score, descripcion_servicio, creado_en, actualizado_en FROM aliados WHERE id = ?",
                     (aliado_id,)
                 )
                 row = cursor.fetchone()
                 if row and hasattr(row, 'keys'):
                     aliado_row = dict(row)
                 elif row and isinstance(row, (list, tuple)):
-                    cols = ('id', 'codigo', 'nombre', 'marca', 'oficio', 'codigo_postal', 'grupo_id', 'email', 'telefono', 'estado', 'score', 'descripcion_servicio', 'especializacion', 'creado_en', 'actualizado_en')
+                    cols = ('id', 'codigo', 'nombre', 'marca', 'oficio', 'codigo_postal', 'grupo_id', 'email', 'telefono', 'estado', 'score', 'descripcion_servicio', 'creado_en', 'actualizado_en')
                     aliado_row = dict(zip(cols, row))
                 else:
                     aliado_row = {
                         'id': aliado_id, 'codigo': codigo, 'nombre': nombre, 'marca': marca, 'oficio': oficio,
                         'codigo_postal': codigo_postal, 'grupo_id': None, 'email': email, 'telefono': telefono,
-                        'estado': estado, 'score': score, 'creado_en': datetime.now().isoformat(), 'actualizado_en': None
+                        'estado': estado_final, 'score': score, 'creado_en': datetime.now().isoformat(), 'actualizado_en': None
                     }
 
-                # Incluir especializaciones en la respuesta (lista, no JSON)
                 out = {'status': 'success', **aliado_row}
-                out['especializaciones'] = esp_filtradas
+                if mensaje_lista_espera:
+                    out['mensaje_lista_espera'] = mensaje_lista_espera
                 return out
 
             except sqlite3.IntegrityError as e:
@@ -2040,7 +2060,9 @@ class DBManager:
                                    especializacion: Optional[str] = None,
                                    descripcion_servicio: Optional[str] = None,
                                    grupo_id_invitacion: Optional[int] = None) -> Dict[str, Any]:
-        """Completa un aliado placeholder creado por invitacion y conserva su codigo."""
+        """Completa un aliado placeholder creado por invitacion y conserva su codigo.
+        especializaciones y especializacion ignorados (plaza solo por oficio).
+        """
         codigo = (codigo or "").strip()
         with self._lock:
             conn = None
@@ -2087,51 +2109,26 @@ class DBManager:
                 if oficio_stripped and not en_catalogo:
                     estado_final = 'pendiente_validacion'
 
-                esp_plaza = (especializacion or '').strip() or oficio_stripped
-                catalogo_jer = self.get_catalogo_oficios_jerarquico()
-                oficio_info = next(
-                    (o for o in catalogo_jer if self._normalizar_texto_catalogo(o.get('nombre') or '') == self._normalizar_texto_catalogo(oficio_stripped)),
-                    None,
-                )
-                allowed_esp = set()
-                if oficio_info and oficio_info.get('especializaciones'):
-                    allowed_esp = {str(e).strip() for e in oficio_info['especializaciones'] if str(e).strip()}
-                esp_canonica = self._resolver_en_conjunto_catalogo(esp_plaza, allowed_esp) if esp_plaza and allowed_esp else None
-                if esp_canonica:
-                    esp_plaza = esp_canonica
-                if en_catalogo and oficio_stripped and esp_plaza and esp_plaza not in allowed_esp:
-                    estado_final = 'pendiente_validacion'
-
-                esp_list = list(especializaciones) if especializaciones is not None else []
-                esp_filtradas = []
-                for e in esp_list:
-                    s = self._resolver_en_conjunto_catalogo(str(e).strip(), allowed_esp) if allowed_esp else None
-                    if s and s != esp_plaza and s not in esp_filtradas:
-                        esp_filtradas.append(s)
-                        if len(esp_filtradas) >= 2:
-                            break
-                especializaciones_json = json.dumps(esp_filtradas, ensure_ascii=False) if esp_filtradas else None
-
+                # Asignación de grupo
                 grupo_preferido_id = None
-                if en_catalogo and oficio_stripped:
+                mensaje_lista_espera = None
+                if en_catalogo and oficio_stripped and estado_final not in ('pendiente_validacion',):
                     if grupo_id_invitacion:
-                        if not self._grupo_tiene_plaza(cursor, grupo_id_invitacion, oficio_stripped, esp_plaza or None):
+                        if not self._grupo_tiene_oficio(cursor, grupo_id_invitacion, oficio_stripped):
                             grupo_pref = self.obtener_grupo_por_id(grupo_id_invitacion)
                             if grupo_pref and (grupo_pref.get('estado') or '') == 'activo':
                                 grupo_preferido_id = grupo_id_invitacion
+                        if grupo_preferido_id is None and codigo_postal:
+                            grupo_sin_oficio = self.buscar_grupo_sin_oficio(codigo_postal, oficio_stripped)
+                            if grupo_sin_oficio:
+                                grupo_preferido_id = grupo_sin_oficio['id']
                     if grupo_preferido_id is None and codigo_postal:
-                        grupos_activos = self.obtener_grupos_activos_por_cp(codigo_postal)
-                        grupo_sin_oficio = self.buscar_grupo_sin_oficio(codigo_postal, oficio_stripped, esp_plaza or None)
-                        if grupo_sin_oficio is None and len(grupos_activos) >= MAX_GRUPOS_POR_CP:
-                            cp_adyacente = self.sugerir_cp_adyacente(codigo_postal)
-                            msg = 'Limite de 5 grupos alcanzado para este codigo postal. Por favor use un codigo postal adyacente.'
-                            if cp_adyacente:
-                                msg += f' Sugerencia: {cp_adyacente}'
-                            return {
-                                'status': 'error',
-                                'message': msg,
-                                'redirect_to_codigo_postal': cp_adyacente or ''
-                            }
+                        grupo_sin_oficio = self.buscar_grupo_sin_oficio(codigo_postal, oficio_stripped)
+                        if grupo_sin_oficio:
+                            grupo_preferido_id = grupo_sin_oficio['id']
+                        elif self.contar_grupos_activos_por_cp(codigo_postal) >= MAX_GRUPOS_POR_CP:
+                            estado_final = 'en_espera'
+                            mensaje_lista_espera = self.MENSAJE_LISTA_ESPERA
 
                 cursor.execute("""
                     UPDATE aliados
@@ -2144,27 +2141,24 @@ class DBManager:
                         estado = ?,
                         score = ?,
                         grupo_id = NULL,
-                        especializaciones = ?,
-                        especializacion = ?,
                         descripcion_servicio = ?,
                         actualizado_en = CURRENT_TIMESTAMP
                     WHERE id = ? AND estado = 'pendiente_completar'
                 """, (
                     nombre, marca, oficio_stripped or oficio, codigo_postal, email, telefono,
-                    estado_final, score, especializaciones_json, esp_plaza or None,
-                    descripcion_servicio, aliado_id
+                    estado_final, score, descripcion_servicio, aliado_id
                 ))
                 if cursor.rowcount != 1:
                     conn.rollback()
                     return {'status': 'error', 'message': 'Codigo de invitacion ya usado'}
                 conn.commit()
 
-                if en_catalogo and oficio_stripped:
+                if en_catalogo and oficio_stripped and estado_final not in ('pendiente_validacion', 'en_espera'):
                     if grupo_preferido_id:
                         cursor.execute("UPDATE aliados SET grupo_id = ? WHERE id = ?", (grupo_preferido_id, aliado_id))
                         conn.commit()
                     elif codigo_postal:
-                        grupo_asignar = self.buscar_grupo_sin_oficio(codigo_postal, oficio_stripped, esp_plaza or None)
+                        grupo_asignar = self.buscar_grupo_sin_oficio(codigo_postal, oficio_stripped)
                         if grupo_asignar:
                             cursor.execute("UPDATE aliados SET grupo_id = ? WHERE id = ?", (grupo_asignar['id'], aliado_id))
                         elif self.contar_grupos_activos_por_cp(codigo_postal) < MAX_GRUPOS_POR_CP:
@@ -2175,14 +2169,14 @@ class DBManager:
                             conn.commit()
 
                 cursor.execute(
-                    "SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, email, telefono, estado, score, descripcion_servicio, especializacion, creado_en, actualizado_en FROM aliados WHERE id = ?",
+                    "SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, email, telefono, estado, score, descripcion_servicio, creado_en, actualizado_en FROM aliados WHERE id = ?",
                     (aliado_id,)
                 )
                 row = cursor.fetchone()
                 if row and hasattr(row, 'keys'):
                     aliado_row = dict(row)
                 elif row and isinstance(row, (list, tuple)):
-                    cols = ('id', 'codigo', 'nombre', 'marca', 'oficio', 'codigo_postal', 'grupo_id', 'email', 'telefono', 'estado', 'score', 'descripcion_servicio', 'especializacion', 'creado_en', 'actualizado_en')
+                    cols = ('id', 'codigo', 'nombre', 'marca', 'oficio', 'codigo_postal', 'grupo_id', 'email', 'telefono', 'estado', 'score', 'descripcion_servicio', 'creado_en', 'actualizado_en')
                     aliado_row = dict(zip(cols, row))
                 else:
                     aliado_row = {
@@ -2192,7 +2186,8 @@ class DBManager:
                     }
 
                 out = {'status': 'success', **aliado_row}
-                out['especializaciones'] = esp_filtradas
+                if mensaje_lista_espera:
+                    out['mensaje_lista_espera'] = mensaje_lista_espera
                 return out
             except sqlite3.IntegrityError as e:
                 return {'status': 'error', 'message': f'Error de integridad: {e}'}
@@ -2657,7 +2652,7 @@ class DBManager:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT id, grupo_id, oficio, aliado_original_codigo, suplente_codigo, suplente_grupo_anterior_id,
+                    SELECT id, grupo_id, oficio, aliado_original_codigo, retador_codigo, retador_grupo_anterior_id,
                            fecha_inicio, fecha_fin_prevista, estado
                     FROM competencia WHERE grupo_id = ? AND oficio = ? AND estado = 'activa' LIMIT 1
                 """, (grupo_id, (oficio or '').strip()))
@@ -2693,18 +2688,18 @@ class DBManager:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT c.id, c.grupo_id, c.oficio, c.aliado_original_codigo, c.suplente_codigo,
-                           c.suplente_grupo_anterior_id, c.fecha_inicio, c.fecha_fin_prevista,
-                           c.score_titular_inicio, c.score_suplente_inicio,
-                           c.score_titular_actual, c.score_suplente_actual, c.motivo,
+                    SELECT c.id, c.grupo_id, c.oficio, c.aliado_original_codigo, c.retador_codigo,
+                           c.retador_grupo_anterior_id, c.fecha_inicio, c.fecha_fin_prevista,
+                           c.score_titular_inicio, c.score_retador_inicio,
+                           c.score_titular_actual, c.score_retador_actual, c.motivo,
                            t.id AS titular_id, t.nombre AS titular_nombre, t.score AS titular_score_actual,
-                           s.id AS suplente_id, s.nombre AS suplente_nombre, s.score AS suplente_score_actual,
+                           s.id AS retador_id, s.nombre AS retador_nombre, s.score AS retador_score_actual,
                            g.nombre AS grupo_nombre, g_origen.nombre AS grupo_origen_nombre
                     FROM competencia c
                     JOIN aliados t ON t.codigo = c.aliado_original_codigo
-                    JOIN aliados s ON s.codigo = c.suplente_codigo
+                    JOIN aliados s ON s.codigo = c.retador_codigo
                     JOIN grupos g ON g.id = c.grupo_id
-                    LEFT JOIN grupos g_origen ON g_origen.id = c.suplente_grupo_anterior_id
+                    LEFT JOIN grupos g_origen ON g_origen.id = c.retador_grupo_anterior_id
                     WHERE c.estado = 'activa'
                     ORDER BY c.fecha_inicio ASC
                 """)
@@ -2737,17 +2732,17 @@ class DBManager:
                             score_tit_actual = int(score_tit_actual)
                         else:
                             score_tit_actual = r.get('score_titular_inicio', 0)
-                    score_supl_actual = r.get('suplente_score_actual')
-                    if score_supl_actual is not None:
-                        score_supl_actual = int(score_supl_actual)
+                    score_ret_actual = r.get('retador_score_actual')
+                    if score_ret_actual is not None:
+                        score_ret_actual = int(score_ret_actual)
                     else:
-                        score_supl_actual = r.get('score_suplente_actual')
-                        if score_supl_actual is not None:
-                            score_supl_actual = int(score_supl_actual)
+                        score_ret_actual = r.get('score_retador_actual')
+                        if score_ret_actual is not None:
+                            score_ret_actual = int(score_ret_actual)
                         else:
-                            score_supl_actual = r.get('score_suplente_inicio', 0)
+                            score_ret_actual = r.get('score_retador_inicio', 0)
                     score_tit_inicio = int(r.get('score_titular_inicio') or 0)
-                    score_supl_inicio = int(r.get('score_suplente_inicio') or 0)
+                    score_ret_inicio = int(r.get('score_retador_inicio') or 0)
                     resultado.append({
                         'id': r.get('id'),
                         'grupo': r.get('grupo_nombre') or f"Grupo {r.get('grupo_id')}",
@@ -2759,13 +2754,22 @@ class DBManager:
                             'score_actual': score_tit_actual,
                             'score_inicio': score_tit_inicio,
                         },
+                        'retador': {
+                            'id': r.get('retador_id'),
+                            'codigo': r.get('retador_codigo'),
+                            'nombre': r.get('retador_nombre') or '',
+                            'grupo_origen': r.get('grupo_origen_nombre') or f"Grupo {r.get('retador_grupo_anterior_id')}" if r.get('retador_grupo_anterior_id') else '—',
+                            'score_actual': score_ret_actual,
+                            'score_inicio': score_ret_inicio,
+                        },
+                        # alias para compatibilidad con frontend existente
                         'suplente': {
-                            'id': r.get('suplente_id'),
-                            'codigo': r.get('suplente_codigo'),
-                            'nombre': r.get('suplente_nombre') or '',
-                            'grupo_origen': r.get('grupo_origen_nombre') or f"Grupo {r.get('suplente_grupo_anterior_id')}" if r.get('suplente_grupo_anterior_id') else '—',
-                            'score_actual': score_supl_actual,
-                            'score_inicio': score_supl_inicio,
+                            'id': r.get('retador_id'),
+                            'codigo': r.get('retador_codigo'),
+                            'nombre': r.get('retador_nombre') or '',
+                            'grupo_origen': r.get('grupo_origen_nombre') or f"Grupo {r.get('retador_grupo_anterior_id')}" if r.get('retador_grupo_anterior_id') else '—',
+                            'score_actual': score_ret_actual,
+                            'score_inicio': score_ret_inicio,
                         },
                         'fecha_inicio': fecha_inicio,
                         'tiempo_en_competencia_horas': round(tiempo_horas, 1),
@@ -2779,11 +2783,11 @@ class DBManager:
             finally:
                 conn.close()
 
-    def _buscar_suplente(self, codigo_aliado_en_riesgo: str, grupo_id: int, oficio: str,
-                         score_actual: int, ciudad: Optional[str], provincia: Optional[str],
-                         codigo_postal: str) -> Optional[Dict[str, Any]]:
+    def _buscar_retador(self, codigo_aliado_en_riesgo: str, grupo_id: int, oficio: str,
+                        score_actual: int, ciudad: Optional[str], provincia: Optional[str],
+                        codigo_postal: str) -> Optional[Dict[str, Any]]:
         """
-        Suplente: mismo oficio, mayor score, misma ciudad/provincia (o mismo CP si no hay),
+        Retador: mismo oficio, mayor score, misma ciudad/provincia (o mismo CP si no hay),
         prioridad grupos con <3 aliados, luego lista territorial (mismo CP).
         Excluye al aliado en riesgo y a quien ya esté en ese grupo.
         """
@@ -2867,26 +2871,26 @@ class DBManager:
                     return None
                 if self.competencia_activa_para_grupo_oficio(grupo_id, oficio):
                     return None
-                suplente = self._buscar_suplente(codigo_aliado, grupo_id, oficio, score_actual, ciudad, provincia, codigo_postal)
-                if not suplente:
+                retador = self._buscar_retador(codigo_aliado, grupo_id, oficio, score_actual, ciudad, provincia, codigo_postal)
+                if not retador:
                     return None
-                suplente_codigo = suplente['codigo']
-                suplente_grupo_anterior_id = suplente.get('grupo_id')
+                retador_codigo = retador['codigo']
+                retador_grupo_anterior_id = retador.get('grupo_id')
                 score_titular_inicio = int(score_actual)
-                score_suplente_inicio = int(suplente.get('score', 0) or 0)
+                score_retador_inicio = int(retador.get('score', 0) or 0)
                 duracion_dias = self._get_duracion_competencia_dias()
                 from datetime import timedelta
                 fecha_fin = (datetime.now() + timedelta(days=duracion_dias)).strftime('%Y-%m-%d %H:%M:%S')
                 cursor.execute("""
-                    INSERT INTO competencia (grupo_id, oficio, aliado_original_codigo, suplente_codigo, suplente_grupo_anterior_id,
-                        score_titular_inicio, score_suplente_inicio, score_titular_actual, score_suplente_actual,
+                    INSERT INTO competencia (grupo_id, oficio, aliado_original_codigo, retador_codigo, retador_grupo_anterior_id,
+                        score_titular_inicio, score_retador_inicio, score_titular_actual, score_retador_actual,
                         fecha_fin_prevista, estado, motivo)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'activa', 'score bajo')
-                """, (grupo_id, oficio.strip(), codigo_aliado, suplente_codigo, suplente_grupo_anterior_id,
-                      score_titular_inicio, score_suplente_inicio, score_titular_inicio, score_suplente_inicio,
+                """, (grupo_id, oficio.strip(), codigo_aliado, retador_codigo, retador_grupo_anterior_id,
+                      score_titular_inicio, score_retador_inicio, score_titular_inicio, score_retador_inicio,
                       fecha_fin))
                 competencia_id = int(cursor.lastrowid)
-                cursor.execute("UPDATE aliados SET grupo_id = ? WHERE codigo = ?", (grupo_id, suplente_codigo))
+                cursor.execute("UPDATE aliados SET grupo_id = ? WHERE codigo = ?", (grupo_id, retador_codigo))
                 cursor.execute("UPDATE grupos SET estado = 'en_competencia' WHERE id = ?", (grupo_id,))
                 texto_aviso = f"Este mes tenemos {oficio.strip()} en competencia dentro del grupo."
                 cursor.execute("INSERT INTO avisos_grupo (grupo_id, tipo, texto) VALUES (?, 'competencia', ?)", (grupo_id, texto_aviso))
@@ -2894,9 +2898,9 @@ class DBManager:
                 try:
                     self.registrar_evento_sistema(
                         'competencia_iniciada',
-                        f'Competencia iniciada: titular {codigo_aliado} vs suplente {suplente_codigo} en grupo {grupo_id}',
+                        f'Competencia iniciada: titular {codigo_aliado} vs retador {retador_codigo} en grupo {grupo_id}',
                         actor_tipo='sistema',
-                        metadata={'grupo_id': grupo_id, 'oficio': oficio.strip(), 'titular_codigo': codigo_aliado, 'suplente_codigo': suplente_codigo}
+                        metadata={'grupo_id': grupo_id, 'oficio': oficio.strip(), 'titular_codigo': codigo_aliado, 'retador_codigo': retador_codigo}
                     )
                 except Exception:
                     pass
@@ -2907,7 +2911,8 @@ class DBManager:
                     pass
                 return {
                     'grupo_id': grupo_id,
-                    'suplente_codigo': suplente_codigo,
+                    'retador_codigo': retador_codigo,
+                    'suplente_codigo': retador_codigo,  # alias compatibilidad
                     'oficio': oficio,
                     'competencia_id': competencia_id,
                 }
@@ -2953,7 +2958,7 @@ class DBManager:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT id, grupo_id, oficio, aliado_original_codigo, suplente_codigo, suplente_grupo_anterior_id
+                    SELECT id, grupo_id, oficio, aliado_original_codigo, retador_codigo, retador_grupo_anterior_id
                     FROM competencia WHERE estado = 'activa' AND fecha_fin_prevista <= datetime('now')
                 """)
                 filas = cursor.fetchall()
@@ -2969,7 +2974,7 @@ class DBManager:
         return resultados
 
     def _finalizar_una_competencia(self, competencia_id: int, grupo_id: int, aliado_original_codigo: str,
-                                   suplente_codigo: str, suplente_grupo_anterior_id: Optional[int]) -> Dict[str, Any]:
+                                   retador_codigo: str, retador_grupo_anterior_id: Optional[int]) -> Dict[str, Any]:
         """
         Compara scores (sin exponerlos); el mayor permanece, el otro sale.
         Primera derrota (original pierde): no eliminar perfil, no desactivar código;
@@ -2981,12 +2986,12 @@ class DBManager:
                 cursor = conn.cursor()
                 cursor.execute("SELECT score FROM aliados WHERE codigo = ?", (aliado_original_codigo,))
                 s1 = cursor.fetchone()
-                cursor.execute("SELECT score FROM aliados WHERE codigo = ?", (suplente_codigo,))
+                cursor.execute("SELECT score FROM aliados WHERE codigo = ?", (retador_codigo,))
                 s2 = cursor.fetchone()
                 score_orig = int(s1[0]) if s1 and s1[0] is not None else 0
-                score_supl = int(s2[0]) if s2 and s2[0] is not None else 0
-                ganador = aliado_original_codigo if score_orig >= score_supl else suplente_codigo
-                if ganador == suplente_codigo:
+                score_ret = int(s2[0]) if s2 and s2[0] is not None else 0
+                ganador = aliado_original_codigo if score_orig >= score_ret else retador_codigo
+                if ganador == retador_codigo:
                     cursor.execute("SELECT codigo_postal, ciudad, provincia FROM grupos WHERE id = ?", (grupo_id,))
                     g = cursor.fetchone()
                     codigo_postal = (g[0] or '') if g else ''
@@ -3028,9 +3033,9 @@ class DBManager:
                     conn = self._connect()
                     cursor = conn.cursor()
                 else:
-                    cursor.execute("UPDATE aliados SET grupo_id = ? WHERE codigo = ?", (suplente_grupo_anterior_id, suplente_codigo))
-                    if suplente_grupo_anterior_id:
-                        self.procesar_viabilidad_grupo(suplente_grupo_anterior_id)
+                    cursor.execute("UPDATE aliados SET grupo_id = ? WHERE codigo = ?", (retador_grupo_anterior_id, retador_codigo))
+                    if retador_grupo_anterior_id:
+                        self.procesar_viabilidad_grupo(retador_grupo_anterior_id)
                 cursor.execute("UPDATE competencia SET estado = 'finalizada', ganador_codigo = ? WHERE id = ?", (ganador, competencia_id))
                 cursor.execute("UPDATE grupos SET estado = 'activo' WHERE id = ?", (grupo_id,))
                 conn.commit()
@@ -3424,13 +3429,7 @@ class DBManager:
         referidos_count = self.contar_referidos_por_codigo(codigo)
         origen = self._obtener_origen_referido(codigo)
         invitador = self.obtener_invitador_de(codigo)
-        esp_raw = aliado.get('especializaciones')
         especializaciones: List[str] = []
-        if esp_raw:
-            try:
-                especializaciones = json.loads(esp_raw) if isinstance(esp_raw, str) else list(esp_raw)
-            except Exception:
-                especializaciones = []
         score = aliado.get('score')
         try:
             score_val = float(score) if score is not None else 0.0
@@ -3839,7 +3838,6 @@ class DBManager:
                            COALESCE(a.score, 0) AS score,
                            COALESCE(a.telefono, '') AS telefono,
                            COALESCE(a.email, '') AS email,
-                           a.especializaciones,
                            COALESCE(a.creado_en, r.creado_en) AS creado_en,
                            r.creado_en AS referido_en,
                            COALESCE(r.origen, '') AS origen
@@ -3854,14 +3852,7 @@ class DBManager:
                     item = dict(row)
                     item['zona'] = item.get('codigo_postal') or ''
                     item['referidos_count'] = self.contar_referidos_por_codigo(item['codigo'])
-                    esp_raw = item.get('especializaciones')
-                    if esp_raw:
-                        try:
-                            item['especializaciones'] = json.loads(esp_raw) if isinstance(esp_raw, str) else list(esp_raw)
-                        except Exception:
-                            item['especializaciones'] = []
-                    else:
-                        item['especializaciones'] = []
+                    item['especializaciones'] = []
                     try:
                         item['score'] = float(item.get('score') or 0)
                     except (TypeError, ValueError):
@@ -4670,8 +4661,8 @@ class DBManager:
                         ) AS contactos_30d,
                         (
                             SELECT 1 FROM competencia c
-                            WHERE c.suplente_codigo = a.codigo AND c.estado = 'activa' LIMIT 1
-                        ) AS es_suplente_activo,
+                            WHERE c.retador_codigo = a.codigo AND c.estado = 'activa' LIMIT 1
+                        ) AS es_retador_activo,
                         (
                             SELECT 1 FROM competencia c
                             WHERE c.aliado_original_codigo = a.codigo AND c.estado = 'activa' LIMIT 1
@@ -4695,16 +4686,6 @@ class DBManager:
                 aliados: List[Dict[str, Any]] = []
                 for row in rows:
                     item = dict(row)
-
-                    # Parsear especializaciones JSON a lista
-                    esp_raw = item.get('especializaciones')
-                    if esp_raw:
-                        try:
-                            item['especializaciones'] = json.loads(esp_raw)
-                        except Exception:
-                            item['especializaciones'] = []
-                    else:
-                        item['especializaciones'] = []
 
                     # Zona legible para el panel (usa código postal por ahora)
                     item['zona'] = item.get('codigo_postal') or ''
@@ -4732,13 +4713,15 @@ class DBManager:
                         score_panel = float(item.get('score') or 0)
                     item['score_panel'] = score_panel
 
-                    # Estado de panel: prioriza estado real de BD (activo / pendiente_validacion).
+                    # Estado de panel: prioriza estado real de BD (activo / pendiente_validacion / en_espera).
                     # El score de evaluación solo reclasifica a observación/riesgo cuando existe evaluación.
                     # pendiente_completar no se lista (placeholders de invitación se excluyen arriba).
                     estado_bd = (item.get('estado') or 'activo').strip().lower()
                     estado_panel = 'activos'
                     if estado_bd == 'pendiente_validacion':
                         estado_panel = 'pendientes'
+                    elif estado_bd == 'en_espera':
+                        estado_panel = 'suplentes_espera'
                     elif estado_bd in ('expulsado', 'suspendido_temporal', 'rechazado'):
                         estado_panel = estado_bd
                     elif estado_bd == 'activo' and eval_score is None:
@@ -4761,8 +4744,9 @@ class DBManager:
 
                     item['estado_panel'] = estado_panel
 
-                    # Suplente activo: 1 si está en competencia como suplente, 0/None si no
-                    item['es_suplente_activo'] = bool(item.get('es_suplente_activo'))
+                    # Retador activo: en competencia como retador; alias es_suplente_activo para compat
+                    item['es_retador_activo'] = bool(item.get('es_retador_activo'))
+                    item['es_suplente_activo'] = item['es_retador_activo']  # alias compatibilidad
                     # Titular en competencia: 1 si es el aliado original en competencia
                     item['es_titular_en_competencia'] = bool(item.get('es_titular_en_competencia'))
 
@@ -8820,16 +8804,16 @@ class DBManager:
     # ACCIONES ADMIN (FORZAR SUPLENCIA, CERRAR/ABRIR PLAZA, REPORTE, REGLAS)
     # ===============================================
 
-    def forzar_suplencia(
+    def forzar_competencia(
         self,
         grupo_id: int,
         oficio: str,
         aliado_original_codigo: str,
-        suplente_codigo: str,
+        retador_codigo: str,
         admin_codigo: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Crea manualmente una competencia: suplente compite por la plaza del titular en el grupo.
+        Crea manualmente una competencia: retador compite por la plaza del titular en el grupo.
         """
         with self._lock:
             try:
@@ -8843,7 +8827,7 @@ class DBManager:
                 cursor.execute("SELECT id FROM grupos WHERE id = ? AND estado = 'activo'", (grupo_id,))
                 if not cursor.fetchone():
                     return {'status': 'error', 'message': 'Grupo no encontrado o no activo'}
-                for cod, label in [(aliado_original_codigo, 'titular'), (suplente_codigo, 'suplente')]:
+                for cod, label in [(aliado_original_codigo, 'titular'), (retador_codigo, 'retador')]:
                     cursor.execute("SELECT 1 FROM aliados WHERE codigo = ?", (cod,))
                     if not cursor.fetchone():
                         return {'status': 'error', 'message': f'Aliado {label} no encontrado'}
@@ -8851,20 +8835,20 @@ class DBManager:
                 from datetime import timedelta
                 fecha_fin = (datetime.now() + timedelta(days=duracion)).strftime('%Y-%m-%d %H:%M:%S')
                 cursor.execute("""
-                    INSERT INTO competencia (grupo_id, oficio, aliado_original_codigo, suplente_codigo, fecha_fin_prevista, estado)
+                    INSERT INTO competencia (grupo_id, oficio, aliado_original_codigo, retador_codigo, fecha_fin_prevista, estado)
                     VALUES (?, ?, ?, ?, ?, 'activa')
-                """, (grupo_id, oficio_s, aliado_original_codigo, suplente_codigo, fecha_fin))
+                """, (grupo_id, oficio_s, aliado_original_codigo, retador_codigo, fecha_fin))
                 conn.commit()
                 try:
                     self.registrar_evento_sistema(
-                        'forzar_suplencia',
+                        'forzar_competencia',
                         f'Competencia forzada: grupo {grupo_id}, oficio {oficio_s}',
                         actor_tipo='admin',
-                        metadata={'grupo_id': grupo_id, 'oficio': oficio_s, 'original': aliado_original_codigo, 'suplente': suplente_codigo},
+                        metadata={'grupo_id': grupo_id, 'oficio': oficio_s, 'original': aliado_original_codigo, 'retador': retador_codigo},
                     )
                 except Exception:
                     pass
-                return {'status': 'success', 'message': 'Suplencia forzada correctamente', 'competencia_id': cursor.lastrowid}
+                return {'status': 'success', 'message': 'Competencia forzada correctamente', 'competencia_id': cursor.lastrowid}
             except Exception as e:
                 return {'status': 'error', 'message': str(e)}
             finally:
@@ -8872,6 +8856,17 @@ class DBManager:
                     conn.close()
                 except Exception:
                     pass
+
+    def forzar_suplencia(
+        self,
+        grupo_id: int,
+        oficio: str,
+        aliado_original_codigo: str,
+        suplente_codigo: str,
+        admin_codigo: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Alias de forzar_competencia para compatibilidad con código existente."""
+        return self.forzar_competencia(grupo_id, oficio, aliado_original_codigo, suplente_codigo, admin_codigo=admin_codigo)
 
     def cerrar_oficio_grupo(self, grupo_id: int, oficio: str, admin_codigo: Optional[str] = None) -> Dict[str, Any]:
         """Marca la plaza (grupo + oficio) como cerrada; no se asignan nuevos aliados a esa plaza."""
@@ -9126,20 +9121,123 @@ class DBManager:
                 except Exception:
                     pass
 
-    def contar_suplentes_activos(self) -> int:
-        """Cuenta aliados que están actuando como suplente en una competencia activa."""
+    def contar_retadores_activos(self) -> int:
+        """Cuenta aliados que están actuando como retador en una competencia activa."""
         with self._lock:
             try:
                 conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
-                    "SELECT COUNT(DISTINCT suplente_codigo) FROM competencia WHERE estado = 'activa'"
+                    "SELECT COUNT(DISTINCT retador_codigo) FROM competencia WHERE estado = 'activa'"
                 )
                 return cursor.fetchone()[0] or 0
             except Exception:
                 return 0
             finally:
                 conn.close()
+
+    def contar_suplentes_activos(self) -> int:
+        """Alias de contar_retadores_activos para compatibilidad."""
+        return self.contar_retadores_activos()
+
+    def contar_aliados_en_espera(self) -> int:
+        """Cuenta aliados en lista de espera (estado en_espera)."""
+        with self._lock:
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM aliados WHERE estado = 'en_espera'")
+                return cursor.fetchone()[0] or 0
+            except Exception:
+                return 0
+            finally:
+                conn.close()
+
+    def listar_aliados_en_espera(self) -> List[Dict[str, Any]]:
+        """Lista aliados con estado en_espera (Suplentes). Para panel admin."""
+        with self._lock:
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id, codigo, nombre, marca, oficio, codigo_postal, email, telefono,
+                           estado, score, descripcion_servicio, creado_en, actualizado_en
+                    FROM aliados WHERE estado = 'en_espera'
+                    ORDER BY creado_en ASC
+                """)
+                return [dict(row) for row in cursor.fetchall()]
+            except Exception as e:
+                print(f"[RUANA][DB] Error listar_aliados_en_espera: {e}")
+                return []
+            finally:
+                conn.close()
+
+    def incorporar_aliado_espera(self, codigo: str, grupo_id: Optional[int] = None,
+                                  admin_codigo: Optional[str] = None) -> Dict[str, Any]:
+        """Incorpora un aliado en_espera a un grupo: estado → activo, asigna grupo."""
+        codigo = (codigo or '').strip()
+        if not codigo:
+            return {'status': 'error', 'message': 'Código obligatorio'}
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT id, codigo, oficio, codigo_postal, estado FROM aliados WHERE codigo = ?",
+                    (codigo,)
+                )
+                row = cursor.fetchone()
+                if not row:
+                    return {'status': 'error', 'message': 'Aliado no encontrado'}
+                aliado = dict(row)
+                if aliado['estado'] != 'en_espera':
+                    return {'status': 'error', 'message': 'El aliado no está en lista de espera'}
+                aliado_id = aliado['id']
+                oficio = (aliado.get('oficio') or '').strip()
+                codigo_postal = (aliado.get('codigo_postal') or '').strip()
+                grupo_asignado = None
+                if grupo_id:
+                    cursor.execute("SELECT id, estado FROM grupos WHERE id = ? AND estado = 'activo'", (grupo_id,))
+                    g = cursor.fetchone()
+                    if not g:
+                        return {'status': 'error', 'message': 'Grupo no encontrado o no activo'}
+                    if oficio and self._grupo_tiene_oficio(cursor, grupo_id, oficio):
+                        return {'status': 'error', 'message': f'El grupo ya tiene un aliado con oficio {oficio}'}
+                    grupo_asignado = grupo_id
+                elif oficio and codigo_postal:
+                    g = self.buscar_grupo_sin_oficio(codigo_postal, oficio)
+                    if g:
+                        grupo_asignado = g['id']
+                    elif self.contar_grupos_activos_por_cp(codigo_postal) < MAX_GRUPOS_POR_CP:
+                        nuevo = self.crear_grupo_en_cp(codigo_postal)
+                        if isinstance(nuevo, dict) and nuevo.get('id'):
+                            grupo_asignado = nuevo['id']
+                if grupo_asignado is None:
+                    return {'status': 'error', 'message': 'No hay plaza disponible. Especifica grupo_id o espera a que se libere una plaza.'}
+                cursor.execute(
+                    "UPDATE aliados SET estado = 'activo', grupo_id = ?, actualizado_en = CURRENT_TIMESTAMP WHERE id = ?",
+                    (grupo_asignado, aliado_id)
+                )
+                conn.commit()
+                try:
+                    self.registrar_evento_sistema(
+                        'incorporar_espera',
+                        f'Aliado {codigo} incorporado desde lista de espera al grupo {grupo_asignado}',
+                        actor_tipo='admin',
+                        actor_codigo=admin_codigo,
+                        metadata={'codigo': codigo, 'grupo_id': grupo_asignado},
+                    )
+                except Exception:
+                    pass
+                return {'status': 'success', 'message': 'Aliado incorporado correctamente', 'grupo_id': grupo_asignado}
+            except Exception as e:
+                return {'status': 'error', 'message': str(e)}
+            finally:
+                if conn:
+                    conn.close()
 
     def contar_aliados_en_riesgo(self) -> int:
         """Cuenta aliados activos con estado RUANA 'EN RIESGO' (15 <= score < 50)."""
@@ -9786,12 +9884,12 @@ class DBManager:
                 # Ratio invitación → registro
                 ratio_invitacion_registro = round(invitaciones_usadas / max(total_invitaciones, 1), 2)
 
-                # Oficios saturados: oficios con más de X suplentes en competencia activa
+                # Oficios saturados: oficios con más de X retadores en competencia activa
                 cursor.execute("""
-                    SELECT oficio, COUNT(DISTINCT suplente_codigo) as n
+                    SELECT oficio, COUNT(DISTINCT retador_codigo) as n
                     FROM competencia WHERE estado = 'activa'
                     GROUP BY oficio
-                    HAVING COUNT(DISTINCT suplente_codigo) > ?
+                    HAVING COUNT(DISTINCT retador_codigo) > ?
                 """, (umbral_suplentes,))
                 oficios_saturados = len(cursor.fetchall())
 

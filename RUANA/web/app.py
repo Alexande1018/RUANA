@@ -383,6 +383,8 @@ def aliado_login():
             return jsonify({'status': 'error', 'message': 'Tu solicitud de registro no fue aceptada.'}), 403
         if estado == 'suspendido_temporal':
             return jsonify({'status': 'error', 'message': 'Acceso suspendido temporalmente.'}), 403
+        if estado == 'en_espera':
+            return jsonify({'status': 'error', 'message': 'Estás en la lista de Suplentes. En cuanto se libere una plaza en tu zona, el equipo RUANA te incorporará y podrás acceder al panel.'}), 403
         expires_at = time.time() + ALIADO_SESSION_EXPIRES_SECONDS
         session_id = _ruana_session_create('aliado', codigo, expires_at)
         # Regla 8: registrar día de login (calendario servidor) y evaluar racha 7 días
@@ -453,6 +455,11 @@ def get_aliado_datos():
                 return jsonify({
                     'status': 'error',
                     'message': 'Acceso suspendido temporalmente por purga de calidad. Contacte al administrador.'
+                }), 403
+            if estado == 'en_espera':
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Estás en la lista de Suplentes. En cuanto se libere una plaza en tu zona, el equipo RUANA te incorporará.'
                 }), 403
             solicitudes = []
             if aliado.get('codigo_postal'):
@@ -1088,7 +1095,9 @@ def get_aliado(aliado_id):
 
 
 def _catalogo_oficios_desde_archivo():
-    """Lee el catálogo desde config/oficios_ruana.json. Devuelve lista de {nombre, especializaciones} o []."""
+    """Lee el catálogo desde config/oficios_ruana.json. Devuelve lista de {nombre, especializaciones} o [].
+    Especializaciones se incluyen por compatibilidad pero no se usan en la lógica de plaza.
+    """
     try:
         config_path = Path(__file__).resolve().parent.parent / 'config' / 'oficios_ruana.json'
         if config_path.exists():
@@ -1099,15 +1108,16 @@ def _catalogo_oficios_desde_archivo():
                 out = []
                 for o in oficios:
                     if isinstance(o, dict) and o.get('nombre'):
-                        esp = o.get('especializaciones') or [o['nombre']]
+                        nombre = str(o['nombre']).strip()
+                        esp = o.get('especializaciones') or []
                         if isinstance(esp, list):
                             esp = [str(e).strip() for e in esp if str(e).strip()]
                         else:
-                            esp = [str(o['nombre']).strip()]
-                        out.append({'nombre': str(o['nombre']).strip(), 'especializaciones': esp})
+                            esp = []
+                        out.append({'nombre': nombre, 'especializaciones': esp})
                     elif isinstance(o, str) and o.strip():
                         n = str(o).strip()
-                        out.append({'nombre': n, 'especializaciones': [n]})
+                        out.append({'nombre': n, 'especializaciones': []})
                 return out if out else []
     except Exception:
         pass
@@ -1151,46 +1161,28 @@ def get_catalogo_oficios_raw():
 def get_especializaciones_disponibles():
     """
     GET /api/grupos/especializaciones-disponibles?codigo_postal=...&oficio_principal=...&grupo_id=...
-    Devuelve para cada especialización del oficio si está disponible u ocupada en el grupo destino.
-    Si grupo_id viene (invitación), se consulta solo ese grupo; si no, todos los grupos activos del CP.
+    Deprecado: la plaza es por oficio principal, no por especialización.
+    Devuelve el oficio como única opción con disponibilidad real.
     """
     try:
         codigo_postal = (request.args.get('codigo_postal') or '').strip()
         oficio_principal = (request.args.get('oficio_principal') or '').strip()
         grupo_id_raw = request.args.get('grupo_id')
+        if not oficio_principal:
+            return jsonify({'status': 'success', 'especializaciones': [], 'grupos': [], 'timestamp': datetime.now().isoformat()})
         db = get_db()
-        catalogo = db.get_catalogo_oficios_jerarquico()
-        oficio_info = next((o for o in catalogo if (o.get('nombre') or '').strip() == oficio_principal), None)
-        if not oficio_info:
-            return jsonify({
-                'status': 'success',
-                'especializaciones': [],
-                'grupos': [],
-                'timestamp': datetime.now().isoformat()
-            })
-        especializaciones_nombres = list(oficio_info.get('especializaciones') or [oficio_principal])
-        resultado = []
         grupos_a_consultar = []
         if grupo_id_raw and str(grupo_id_raw).isdigit():
             grupos_a_consultar = [{'id': int(grupo_id_raw)}]
         elif codigo_postal:
             grupos_a_consultar = db.obtener_grupos_activos_por_cp(codigo_postal)
-        for esp in especializaciones_nombres:
-            esp = str(esp).strip()
-            if not esp:
-                continue
-            # Disponible si al menos un grupo del CP (o el grupo de invitación) tiene la plaza libre
-            disponible = False
-            for g in grupos_a_consultar:
-                gid = g.get('id') if isinstance(g, dict) else g
-                ocupadas = db.obtener_especializaciones_ocupadas(gid, oficio_principal)
-                if esp not in ocupadas:
-                    disponible = True
-                    break
-            resultado.append({'nombre': esp, 'disponible': disponible})
+        disponible = any(
+            not db.plaza_ocupada_en_grupo(g.get('id') if isinstance(g, dict) else g, oficio_principal)
+            for g in grupos_a_consultar
+        )
         return jsonify({
             'status': 'success',
-            'especializaciones': resultado,
+            'especializaciones': [{'nombre': oficio_principal, 'disponible': disponible}],
             'grupos': [g.get('id') if isinstance(g, dict) else g for g in grupos_a_consultar],
             'timestamp': datetime.now().isoformat()
         })
@@ -1241,7 +1233,9 @@ def get_stats():
         total = len(aliados)
         activos = len([a for a in aliados if a.get('estado') == 'activo'])
 
-        suplentes = db.contar_suplentes_activos()
+        retadores = db.contar_retadores_activos()
+        suplentes = retadores  # alias
+        en_espera = db.contar_aliados_en_espera() if hasattr(db, 'contar_aliados_en_espera') else 0
         en_riesgo = db.contar_aliados_en_riesgo()
         solicitudes_activas = db.contar_solicitudes_activas()
         oficios_ocupados = db.contar_oficios_ocupados()
@@ -1282,7 +1276,9 @@ def get_stats():
             'permisos': permisos or [],
             'total_aliados': total,
             'aliados_activos': activos,
-            'suplentes': suplentes,
+            'retadores': retadores,
+            'suplentes': suplentes,  # alias compatibilidad
+            'en_espera': en_espera,
             'en_riesgo': en_riesgo,
             'solicitudes_activas': solicitudes_activas,
             'oficios_ocupados': oficios_ocupados,
@@ -2117,15 +2113,9 @@ def registrar_aliado():
                 'message': 'El oficio principal es obligatorio. Elige uno del catálogo.'
             }), 400
 
-        # Especialización que ocupa plaza (una por grupo). Obligatoria si el catálogo es jerárquico; si no se envía, se usa el oficio.
-        especializacion_plaza = (data.get('especializacion') or '').strip() or oficio
-
-        # Especializaciones adicionales (solo del mismo oficio; máx. 3 en total: 1 plaza + 2 más)
-        especializaciones = data.get('especializaciones')
-        if isinstance(especializaciones, list):
-            especializaciones = [str(e).strip() for e in especializaciones if str(e).strip()][:2]
-        else:
-            especializaciones = []
+        # Suboficios/especializaciones ignorados: plaza solo por oficio principal
+        especializacion_plaza = oficio
+        especializaciones = []
 
 
         # Si viene con código de invitación "Conozco a alguien", intentar asignar al grupo del invitador si cumple reglas
@@ -2163,22 +2153,7 @@ def registrar_aliado():
                 if grupo_inv and grupo_inv.get('grupo_id'):
                     grupo_id_invitacion = grupo_inv['grupo_id']
 
-        # Validar disponibilidad de la plaza antes de confirmar (evitar condición de carrera)
-        if grupo_id_invitacion:
-            if db.plaza_ocupada_en_grupo(grupo_id_invitacion, oficio, especializacion_plaza):
-                return jsonify({
-                    'status': 'error',
-                    'message': 'La especialización elegida ya no está disponible en este grupo. Elige otra.',
-                    'code': 'plaza_ocupada'
-                }), 409
-        elif codigo_postal:
-            grupo_libre = db.buscar_grupo_sin_oficio(codigo_postal, oficio, especializacion_plaza)
-            if not grupo_libre and db.contar_grupos_activos_por_cp(codigo_postal) >= 5:
-                return jsonify({
-                    'status': 'error',
-                    'message': 'No hay plaza libre para esta especialización en tu código postal. Límite de grupos alcanzado.',
-                    'code': 'sin_plaza'
-                }), 409
+        # Pre-check: si CP lleno y oficio ocupado en todos → se registrará como en_espera (no error)
 
         # Crear aliado con código personal NUEVO (distinto del código de invitación).
         # Si había placeholder legacy, se elimina tras el registro para no dejar duplicados.
@@ -2194,8 +2169,6 @@ def registrar_aliado():
             telefono=telefono,
             estado='activo',
             score=50,
-            especializaciones=especializaciones,
-            especializacion=especializacion_plaza,
             descripcion_servicio=descripcion_servicio,
             grupo_id_invitacion=grupo_id_invitacion
         )
@@ -2203,13 +2176,16 @@ def registrar_aliado():
         if result['status'] == 'error':
             return jsonify(result), 400
 
-        # Oficio o suboficio fuera de catálogo → pendiente_validacion (validación manual por admin)
+        # Oficio fuera de catálogo → pendiente_validacion (validación manual por admin)
         if result.get('estado') == 'pendiente_validacion':
             result['mensaje_pendiente_validacion'] = (
-                'Tu oficio o suboficio no está en el catálogo oficial. Tu cuenta queda pendiente de validación. '
+                'Tu oficio no está en el catálogo oficial. Tu cuenta queda pendiente de validación. '
                 'Guarda tu código personal. Tus datos se han enviado al panel de administración en "Aliados pendientes de validación", '
                 'donde un administrador podrá aceptarte o rechazarte. Cuando te activen, podrás entrar con este mismo código.'
             )
+
+        # CP lleno, oficio ocupado → en_espera (lista de Suplentes)
+        # mensaje_lista_espera viene del db_manager si aplica
 
         # Si registr? con c?digo de invitaci?n v?lido
         codigo_invitacion = (data.get('codigo_invitacion') or '').strip()
@@ -3296,7 +3272,9 @@ def admin_dashboard_summary():
         aliados = db.listar_aliados()
         total_users = len(aliados)
         active_users = len([a for a in aliados if a.get('estado') == 'activo'])
-        suplentes = db.contar_suplentes_activos()
+        retadores = db.contar_retadores_activos()
+        suplentes = retadores  # alias
+        en_espera = db.contar_aliados_en_espera() if hasattr(db, 'contar_aliados_en_espera') else 0
         en_riesgo = db.contar_aliados_en_riesgo()
         solicitudes_activas = db.contar_solicitudes_activas()
         oficios_ocupados = db.contar_oficios_ocupados()
@@ -3318,7 +3296,9 @@ def admin_dashboard_summary():
         return jsonify({
             'total_users': total_users,
             'active_users': active_users,
-            'suplentes': suplentes,
+            'retadores': retadores,
+            'suplentes': suplentes,  # alias compatibilidad
+            'en_espera': en_espera,
             'en_riesgo': en_riesgo,
             'solicitudes_activas': solicitudes_activas,
             'oficios_ocupados': oficios_ocupados,
@@ -3332,24 +3312,65 @@ def admin_dashboard_summary():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+@app.route('/api/admin/forzar-competencia', methods=['POST'])
 @app.route('/api/admin/forzar-suplencia', methods=['POST'])
 @require_admin
-def admin_forzar_suplencia():
+def admin_forzar_competencia():
     """
-    POST /api/admin/forzar-suplencia
-    Body: { "grupo_id": int, "oficio": str, "aliado_original_codigo": str, "suplente_codigo": str }
+    POST /api/admin/forzar-competencia (alias: /api/admin/forzar-suplencia)
+    Body: { "grupo_id": int, "oficio": str, "aliado_original_codigo": str, "retador_codigo": str }
+    También acepta "suplente_codigo" por compatibilidad.
     """
     try:
         data = request.get_json() or {}
         grupo_id = data.get('grupo_id')
         oficio = (data.get('oficio') or '').strip()
         aliado_original_codigo = (data.get('aliado_original_codigo') or '').strip()
-        suplente_codigo = (data.get('suplente_codigo') or '').strip()
-        if grupo_id is None or not oficio or not aliado_original_codigo or not suplente_codigo:
-            return jsonify({'status': 'error', 'message': 'Faltan grupo_id, oficio, aliado_original_codigo o suplente_codigo'}), 400
+        retador_codigo = (data.get('retador_codigo') or data.get('suplente_codigo') or '').strip()
+        if grupo_id is None or not oficio or not aliado_original_codigo or not retador_codigo:
+            return jsonify({'status': 'error', 'message': 'Faltan grupo_id, oficio, aliado_original_codigo o retador_codigo'}), 400
         db = get_db()
         admin_codigo = _admin_codigo() or None
-        result = db.forzar_suplencia(int(grupo_id), oficio, aliado_original_codigo, suplente_codigo, admin_codigo=admin_codigo)
+        result = db.forzar_competencia(int(grupo_id), oficio, aliado_original_codigo, retador_codigo, admin_codigo=admin_codigo)
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/suplentes-espera', methods=['GET'])
+@require_admin
+def admin_suplentes_espera():
+    """
+    GET /api/admin/suplentes-espera
+    Lista aliados en estado en_espera (lista de Suplentes). Solo admin.
+    """
+    try:
+        db = get_db()
+        aliados = db.listar_aliados_en_espera()
+        return jsonify({'status': 'success', 'aliados': aliados, 'total': len(aliados)})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/suplentes-espera/<codigo>/incorporar', methods=['POST'])
+@require_admin_escritura
+def admin_incorporar_suplente_espera(codigo):
+    """
+    POST /api/admin/suplentes-espera/<codigo>/incorporar
+    Body opcional: { "grupo_id": int }
+    Incorpora al aliado en_espera: lo activa y asigna a un grupo con plaza libre.
+    """
+    try:
+        data = request.get_json() or {}
+        grupo_id = data.get('grupo_id')
+        db = get_db()
+        admin_codigo = _admin_codigo() or None
+        result = db.incorporar_aliado_espera(
+            codigo=codigo,
+            grupo_id=int(grupo_id) if grupo_id else None,
+            admin_codigo=admin_codigo,
+        )
         status_code = 200 if result.get('status') == 'success' else 400
         return jsonify(result), status_code
     except Exception as e:
