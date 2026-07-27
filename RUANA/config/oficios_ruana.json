@@ -1,402 +1,121 @@
 {
-  "descripcion": "Catálogo oficial RUANA. Mínimo 5 suboficios por oficio. Máximo 3 seleccionables por aliado.",
   "oficios": [
     {
-      "nombre": "Albañilería y obra",
-      "especializaciones": [
-        "Reformas integrales (pequeñas-medias)",
-        "Tabiques y pladur",
-        "Alicatado, solado y colocación de cerámica",
-        "Enlucidos, gotelé y yeso laminado",
-        "Microcemento y resinas",
-        "Reparaciones de humedades y grietas",
-        "Falsos techos",
-        "Aislamiento térmico (SATE, insuflado, placas)"
-      ]
+      "nombre": "Albañilería y obra"
     },
     {
-      "nombre": "Electricidad",
-      "especializaciones": [
-        "Averías y reparaciones eléctricas",
-        "Instalación de puntos de luz y enchufes",
-        "Cambio de cuadros eléctricos",
-        "Iluminación LED interior/exterior",
-        "Instalación de ventiladores y extractores",
-        "Certificados de instalación (boletines)",
-        "Timbre y videoportero básico"
-      ]
+      "nombre": "Electricidad"
     },
     {
-      "nombre": "Fontanería y fontanería-gas",
-      "especializaciones": [
-        "Reparación de fugas y grifos",
-        "Cambio de sanitarios y grifería",
-        "Instalación de termos y calentadores",
-        "Desatascos (hogar y comunidades)",
-        "Cambio de tuberías y bajantes",
-        "Instalación básica de gas (con carné)"
-      ]
+      "nombre": "Fontanería y fontanería-gas"
     },
     {
-      "nombre": "Climatización y calefacción",
-      "especializaciones": [
-        "Instalación y reparación de splits/aire acondicionado",
-        "Mantenimiento de calderas y termos",
-        "Limpieza de equipos y filtros",
-        "Bombas de calor pequeñas",
-        "Aerotermia básica (instalación sencilla)"
-      ]
+      "nombre": "Climatización y calefacción"
     },
     {
-      "nombre": "Carpintería de madera e interior",
-      "especializaciones": [
-        "Muebles a medida básicos",
-        "Armarios empotrados y vestidores",
-        "Puertas interiores y rodapiés",
-        "Tarimas flotantes",
-        "Restauración de muebles antiguos",
-        "Montaje de cocinas modulares"
-      ]
+      "nombre": "Carpintería de madera e interior"
     },
     {
-      "nombre": "Carpintería de aluminio / PVC / metálica",
-      "especializaciones": [
-        "Cambios de ventanas y puertas",
-        "Cerramientos de terrazas y balcones",
-        "Persianas y toldos",
-        "Mosquiteras a medida",
-        "Rejas y barandillas simples"
-      ]
+      "nombre": "Carpintería de aluminio / PVC / metálica"
     },
     {
-      "nombre": "Pintura y decoración",
-      "especializaciones": [
-        "Pintura interior y exterior",
-        "Pintura decorativa (efectos, estarcido)",
-        "Lacados y barnizados",
-        "Impermeabilización de terrazas",
-        "Pintura de fachadas (andamios pequeños)"
-      ]
+      "nombre": "Pintura y decoración"
     },
     {
-      "nombre": "Impermeabilizaciones y cubiertas",
-      "especializaciones": [
-        "Terrazas, azoteas y patios",
-        "Sótanos y garajes",
-        "Cubiertas planas e inclinadas",
-        "Juntas y sellados",
-        "Drenajes y canaletas"
-      ]
+      "nombre": "Impermeabilizaciones y cubiertas"
     },
     {
-      "nombre": "Trabajos verticales y en altura",
-      "especializaciones": [
-        "Limpieza y pintura de fachadas (bajos-medios)",
-        "Reparaciones en balcones y cornisas",
-        "Revisión de toldos y persianas en altura",
-        "Sellado de grietas en fachada",
-        "Limpieza de canalones"
-      ]
+      "nombre": "Trabajos verticales y en altura"
     },
     {
-      "nombre": "Manitas / Reparaciones generales",
-      "especializaciones": [
-        "Montaje de muebles (IKEA, similares)",
-        "Pequeñas reparaciones (puertas, cajones, persianas)",
-        "Colocación de estanterías, soportes TV, cuadros",
-        "Ajustes de carpintería y cerrajería básica",
-        "Montaje de toldos y pérgolas pequeñas"
-      ]
+      "nombre": "Manitas / Reparaciones generales"
     },
     {
-      "nombre": "Limpieza y acabados",
-      "especializaciones": [
-        "Limpieza profunda post-obra",
-        "Limpieza de fin de alquiler / mudanza",
-        "Limpieza de cristales (interiores y exteriores bajos)",
-        "Limpieza de comunidades y oficinas pequeñas",
-        "Limpieza de tapicerías y alfombras"
-      ]
+      "nombre": "Limpieza y acabados"
     },
     {
-      "nombre": "Desinsectación y control de plagas",
-      "especializaciones": [
-        "Cucarachas, hormigas, chinches",
-        "Roedores (ratas, ratones)",
-        "Avispas y avisperos",
-        "Tratamientos preventivos básicos",
-        "Desinfección de espacios"
-      ]
+      "nombre": "Desinsectación y control de plagas"
     },
     {
-      "nombre": "Cerrajería",
-      "especializaciones": [
-        "Apertura de puertas",
-        "Cambio de bombines y cerraduras",
-        "Llaves a domicilio",
-        "Cerrajería de seguridad básica",
-        "Instalación de cerraduras de seguridad"
-      ]
+      "nombre": "Cerrajería"
     },
     {
-      "nombre": "Cristalería y espejos",
-      "especializaciones": [
-        "Colocación de mamparas de baño",
-        "Espejos y lunas a medida",
-        "Reparación de cristales rotos",
-        "Cristales para muebles y estanterías",
-        "Vidrio decorativo y divisorios"
-      ]
+      "nombre": "Cristalería y espejos"
     },
     {
-      "nombre": "Jardinería y mantenimiento exterior",
-      "especializaciones": [
-        "Poda de árboles y setos",
-        "Mantenimiento de jardines y césped",
-        "Plantación y cambio de tierra",
-        "Limpieza de parcelas y solares pequeños",
-        "Diseño básico de jardines"
-      ]
+      "nombre": "Jardinería y mantenimiento exterior"
     },
     {
-      "nombre": "Riego automático",
-      "especializaciones": [
-        "Instalación de sistemas de riego por goteo",
-        "Reparación y temporización",
-        "Riego por aspersión",
-        "Programadores y electroválvulas",
-        "Mantenimiento de instalaciones de riego"
-      ]
+      "nombre": "Riego automático"
     },
     {
-      "nombre": "Mecánica ligera",
-      "especializaciones": [
-        "Cambio de aceite, filtros, pastillas",
-        "Reparación de frenos y suspensión",
-        "Diagnóstico básico con escáner",
-        "Baterías y alternadores",
-        "Revisión de niveles y neumáticos"
-      ]
+      "nombre": "Mecánica ligera"
     },
     {
-      "nombre": "Chapa, pintura y lunas",
-      "especializaciones": [
-        "Arreglo de pequeños golpes",
-        "Pulido y encerado",
-        "Cambio de lunas y faros",
-        "Pintura de embellecimiento",
-        "Sustitución de retrovisores"
-      ]
+      "nombre": "Chapa, pintura y lunas"
     },
     {
-      "nombre": "Informática y móviles",
-      "especializaciones": [
-        "Reparación de ordenadores y portátiles",
-        "Instalación y formateo Windows/Mac",
-        "Eliminación de virus y malware",
-        "Configuración de redes WiFi domésticas",
-        "Reparación de móviles (pantallas, baterías)"
-      ]
+      "nombre": "Informática y móviles"
     },
     {
-      "nombre": "Domótica y seguridad básica",
-      "especializaciones": [
-        "Instalación de cámaras IP y timbres inteligentes",
-        "Alarmas sencillas",
-        "Enchufes y bombillas inteligentes",
-        "Control de persianas y toldos",
-        "Asistentes de voz y dispositivos conectados"
-      ]
+      "nombre": "Domótica y seguridad básica"
     },
     {
-      "nombre": "Gas e instalaciones certificadas",
-      "especializaciones": [
-        "Revisiones y certificados de gas",
-        "Reparación de calderas y calentadores",
-        "Instalación de gas natural",
-        "Cambio de tuberías de gas",
-        "Mantenimiento de instalaciones de gas"
-      ]
+      "nombre": "Gas e instalaciones certificadas"
     },
     {
-      "nombre": "Instalaciones específicas",
-      "especializaciones": [
-        "Estufas de pellets y biomasa pequeñas",
-        "Pequeñas instalaciones solares domésticas (kit prefabricado, autoconsumo básico)",
-        "Aerotermia doméstica",
-        "Suelo radiante eléctrico",
-        "Termos y acumuladores"
-      ]
+      "nombre": "Instalaciones específicas"
     },
     {
-      "nombre": "Mudanzas y portes",
-      "especializaciones": [
-        "Mudanzas pequeñas (pisos, estudios)",
-        "Transporte de muebles y enseres",
-        "Recogida de enseres y achatarrado",
-        "Montaje y desmontaje de muebles",
-        "Embalaje y protección de objetos"
-      ]
+      "nombre": "Mudanzas y portes"
     },
     {
-      "nombre": "Recogida de escombros y limpieza",
-      "especializaciones": [
-        "Sacar escombros de obra pequeña",
-        "Retirada de enseres viejos",
-        "Vaciado de pisos y locales pequeños",
-        "Retirada de muebles y electrodomésticos",
-        "Limpieza post-derribo"
-      ]
+      "nombre": "Recogida de escombros y limpieza"
     },
     {
-      "nombre": "Reparto y recados",
-      "especializaciones": [
-        "Reparto local para pequeños comercios",
-        "Entrega de compras a domicilio",
-        "Gestión de colas, trámites y envíos",
-        "Mensajería urgente",
-        "Recogida y entrega de documentos"
-      ]
+      "nombre": "Reparto y recados"
     },
     {
-      "nombre": "Cuidado de niños / apoyo familiar",
-      "especializaciones": [
-        "Canguros por horas",
-        "Niñeras a domicilio",
-        "Acompañamiento a extraescolares",
-        "Refuerzo en vacaciones escolares",
-        "Cuidado puntual y de fines de semana"
-      ]
+      "nombre": "Cuidado de niños / apoyo familiar"
     },
     {
-      "nombre": "Cuidado de mayores y dependientes",
-      "especializaciones": [
-        "Acompañamiento en domicilio",
-        "Ayuda en aseo, medicación y comidas",
-        "Paseos y recados",
-        "Acompañamiento a citas médicas",
-        "Compañía y apoyo en el hogar"
-      ]
+      "nombre": "Cuidado de mayores y dependientes"
     },
     {
-      "nombre": "Empleadas de hogar y servicio doméstico",
-      "especializaciones": [
-        "Limpieza por horas",
-        "Empleada interna/externa",
-        "Plancha y colada",
-        "Limpieza periódica de hogar y comunidades",
-        "Cocina y preparación de comidas"
-      ]
+      "nombre": "Empleadas de hogar y servicio doméstico"
     },
     {
-      "nombre": "Cuidado de mascotas",
-      "especializaciones": [
-        "Paseo de perros",
-        "Cuidado de mascotas en domicilio del cliente",
-        "Alojamiento temporal en casa del cuidador",
-        "Traslado a veterinario",
-        "Peluquería canina básica"
-      ]
+      "nombre": "Cuidado de mascotas"
     },
     {
-      "nombre": "Peluquería y barbería (local o a domicilio)",
-      "especializaciones": [
-        "Corte de pelo hombre/mujer/niños",
-        "Arreglo de barba y afeitado clásico",
-        "Tinte, mechas y peinados",
-        "Peluquería para eventos",
-        "Tratamientos capilares básicos"
-      ]
+      "nombre": "Peluquería y barbería (local o a domicilio)"
     },
     {
-      "nombre": "Estética y belleza",
-      "especializaciones": [
-        "Manicura y pedicura",
-        "Depilación (cera, hilo, láser doméstico)",
-        "Maquillaje social y de fiesta",
-        "Tratamientos faciales y corporales básicos",
-        "Cuidado de cejas y pestañas"
-      ]
+      "nombre": "Estética y belleza"
     },
     {
-      "nombre": "Masajes y bienestar",
-      "especializaciones": [
-        "Masaje descontracturante y relajante",
-        "Masaje deportivo",
-        "Drenaje linfático básico",
-        "Masajes a domicilio para mayores o movilidad reducida",
-        "Reflexología podal básica"
-      ]
+      "nombre": "Masajes y bienestar"
     },
     {
-      "nombre": "Actividad física y salud básica",
-      "especializaciones": [
-        "Entrenador personal a domicilio o exterior",
-        "Clases de yoga, pilates u otras disciplinas suaves",
-        "Readaptación física básica (no sanitaria)",
-        "Gimnasia para mayores",
-        "Actividad física adaptada"
-      ]
+      "nombre": "Actividad física y salud básica"
     },
     {
-      "nombre": "Clases particulares académicas",
-      "especializaciones": [
-        "Apoyo escolar primaria",
-        "Apoyo ESO y bachiller",
-        "Preparación de exámenes y recuperaciones",
-        "Técnicas de estudio",
-        "Refuerzo en asignaturas específicas"
-      ]
+      "nombre": "Clases particulares académicas"
     },
     {
-      "nombre": "Idiomas",
-      "especializaciones": [
-        "Clases de inglés",
-        "Clases de otros idiomas (francés, alemán, etc.)",
-        "Conversación y refuerzo oral",
-        "Preparación de exámenes oficiales",
-        "Inglés para negocios y viajes"
-      ]
+      "nombre": "Idiomas"
     },
     {
-      "nombre": "Clases de informática básica",
-      "especializaciones": [
-        "Uso básico de ordenador y móvil",
-        "Ofimática básica",
-        "Redes sociales y herramientas digitales básicas",
-        "Compras y trámites por internet",
-        "Correo electrónico y videollamadas"
-      ]
+      "nombre": "Clases de informática básica"
     },
     {
-      "nombre": "Habilidades y ocio",
-      "especializaciones": [
-        "Música (guitarra, piano, canto, otros)",
-        "Dibujo y pintura",
-        "Cocina básica y batch cooking",
-        "Manualidades y bricolaje básico",
-        "Fotografía y edición básica"
-      ]
+      "nombre": "Habilidades y ocio"
     },
     {
-      "nombre": "Costura, arreglos y confección",
-      "especializaciones": [
-        "Arreglo de bajos, cremalleras, botones",
-        "Ajustes de ropa (entallar, agrandar)",
-        "Confección simple (cortinas, cojines)",
-        "Transformación de prendas",
-        "Bordado y personalización básica"
-      ]
+      "nombre": "Costura, arreglos y confección"
     },
     {
-      "nombre": "Lavandería y planchado",
-      "especializaciones": [
-        "Planchado a domicilio",
-        "Recogida y entrega de ropa lavada",
-        "Lavado de nórdicos, cortinas y textiles grandes",
-        "Lavado delicado y prendas especiales",
-        "Organización de armarios"
-      ]
+      "nombre": "Lavandería y planchado"
     }
   ]
 }
