@@ -114,6 +114,7 @@ body:not(.panel-loading) {
     background: rgba(8, 12, 24, 0.92);
     margin: 0;
     padding: 0;
+    z-index: 1;
 }
 
 .perfil-avatar-iniciales,
@@ -126,6 +127,25 @@ body:not(.panel-loading) {
     height: 100%;
     margin: 0;
     padding: 0;
+    z-index: 0;
+}
+
+/* display:grid/block en clases anula el atributo HTML hidden — forzar ocultación */
+.perfil-avatar-photo[hidden],
+.ruana-avatar-photo[hidden],
+.perfil-avatar-iniciales[hidden],
+.ruana-avatar-iniciales[hidden] {
+    display: none !important;
+}
+
+.perfil-avatar.avatar-has-photo .perfil-avatar-iniciales,
+.profesional-avatar.avatar-has-photo .ruana-avatar-iniciales {
+    display: none !important;
+}
+
+.perfil-avatar:not(.avatar-has-photo) .perfil-avatar-photo,
+.profesional-avatar:not(.avatar-has-photo) .ruana-avatar-photo {
+    display: none !important;
 }
 
 .perfil-avatar-edit-hint {
