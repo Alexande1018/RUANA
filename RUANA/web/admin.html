@@ -340,11 +340,15 @@
         }
         .movimiento-24h-tabla-scroll {
             overflow-x: auto;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            max-width: 100%;
             border-radius: 8px;
             border: 1px solid rgba(255, 255, 255, 0.08);
         }
         .movimiento-24h-tabla {
             width: 100%;
+            min-width: max-content;
             border-collapse: collapse;
             font-size: 0.8rem;
         }
