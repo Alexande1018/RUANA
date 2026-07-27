@@ -9201,6 +9201,116 @@ class DBManager:
                 except Exception:
                     pass
 
+    def eliminar_perfil_aliado_admin(
+        self,
+        codigo_aliado: str,
+        motivo: Optional[str] = None,
+        admin_codigo: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Elimina el perfil de un aliado desde el panel admin.
+        - pendiente_completar: borrado físico (placeholder).
+        - pendiente_validacion: pasa a rechazado.
+        - resto de estados operativos: pasa a expulsado (código desactivado).
+        """
+        codigo = (codigo_aliado or '').strip()
+        if not codigo:
+            return {'status': 'error', 'message': 'Código de aliado obligatorio'}
+
+        with self._lock:
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT id, estado, nombre FROM aliados WHERE codigo = ?",
+                    (codigo,),
+                )
+                row = cursor.fetchone()
+                if not row:
+                    return {'status': 'error', 'message': f'Aliado {codigo} no encontrado'}
+
+                estado_actual = (row[1] or '').strip().lower()
+                nombre = row[2] or ''
+
+                if estado_actual == 'sistema':
+                    return {'status': 'error', 'message': 'No se puede eliminar un aliado del sistema'}
+                if estado_actual == 'expulsado':
+                    return {'status': 'error', 'message': f'El aliado {codigo} ya está expulsado'}
+                if estado_actual == 'rechazado':
+                    return {'status': 'error', 'message': f'El aliado {codigo} ya está rechazado'}
+
+                motivo_txt = (motivo or '').strip() or 'Eliminado desde panel de administración'
+
+                if estado_actual == 'pendiente_completar':
+                    cursor.execute(
+                        """
+                        DELETE FROM aliados
+                        WHERE codigo = ?
+                          AND LOWER(TRIM(COALESCE(estado, ''))) = 'pendiente_completar'
+                        """,
+                        (codigo,),
+                    )
+                    accion = 'eliminado'
+                    nuevo_estado = None
+                elif estado_actual == 'pendiente_validacion':
+                    cursor.execute(
+                        """
+                        UPDATE aliados
+                        SET estado = 'rechazado', actualizado_en = CURRENT_TIMESTAMP
+                        WHERE codigo = ?
+                        """,
+                        (codigo,),
+                    )
+                    accion = 'rechazado'
+                    nuevo_estado = 'rechazado'
+                else:
+                    cursor.execute(
+                        """
+                        UPDATE aliados
+                        SET estado = 'expulsado', actualizado_en = CURRENT_TIMESTAMP
+                        WHERE codigo = ?
+                        """,
+                        (codigo,),
+                    )
+                    accion = 'expulsado'
+                    nuevo_estado = 'expulsado'
+
+                if cursor.rowcount <= 0:
+                    return {'status': 'error', 'message': f'No se pudo eliminar el perfil de {codigo}'}
+
+                try:
+                    self._insert_evento_sistema(
+                        cursor,
+                        tipo="aliado_perfil_eliminado",
+                        descripcion=f"Perfil de aliado {codigo} ({nombre}) eliminado por admin",
+                        actor_tipo="admin",
+                        actor_codigo=admin_codigo,
+                        metadata={
+                            "codigo_aliado": codigo,
+                            "estado_anterior": estado_actual,
+                            "accion": accion,
+                            "motivo": motivo_txt,
+                        },
+                    )
+                except Exception:
+                    pass
+
+                conn.commit()
+                return {
+                    'status': 'success',
+                    'message': f'Perfil de {codigo} eliminado correctamente',
+                    'codigo_aliado': codigo,
+                    'accion': accion,
+                    'nuevo_estado': nuevo_estado,
+                }
+            except Exception as e:
+                return {'status': 'error', 'message': str(e)}
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
     def contar_retadores_activos(self) -> int:
         """Cuenta aliados que están actuando como retador en una competencia activa."""
         with self._lock:

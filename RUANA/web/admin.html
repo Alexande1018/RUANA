@@ -914,6 +914,31 @@
             transform: none;
         }
 
+        .aliado-detalle-footer {
+            display: flex;
+            gap: 10px;
+            margin-top: 18px;
+            flex-wrap: wrap;
+        }
+
+        .aliado-detalle-footer .admin-login-btn {
+            flex: 1;
+            min-width: 140px;
+        }
+
+        .admin-login-btn.is-danger-outline {
+            background: transparent;
+            border: 1px solid rgba(248, 113, 113, 0.45);
+            color: #fca5a5;
+            box-shadow: none;
+        }
+
+        .admin-login-btn.is-danger-outline:hover {
+            background: rgba(248, 113, 113, 0.14);
+            box-shadow: none;
+            transform: none;
+        }
+
         .admin-login-error {
             color: #ef4444;
             font-size: 0.85rem;
@@ -1008,7 +1033,10 @@
                 <h3>Histórico de evaluaciones</h3>
                 <div id="det-historico"></div>
             </div>
-            <button type="button" class="admin-login-btn" id="aliadoDetalleCerrar">Cerrar</button>
+            <div class="aliado-detalle-footer">
+                <button type="button" class="admin-login-btn is-danger-outline" id="aliadoDetalleEliminar">Eliminar perfil</button>
+                <button type="button" class="admin-login-btn" id="aliadoDetalleCerrar">Cerrar</button>
+            </div>
         </div>
     </div>
 
@@ -2172,6 +2200,11 @@
                 const cerrarDetalleBtn = document.getElementById('aliadoDetalleCerrar');
                 if (cerrarDetalleBtn) {
                     cerrarDetalleBtn.addEventListener('click', () => this.cerrarModalDetalle());
+                }
+
+                const eliminarDetalleBtn = document.getElementById('aliadoDetalleEliminar');
+                if (eliminarDetalleBtn) {
+                    eliminarDetalleBtn.addEventListener('click', () => this.confirmarEliminarPerfil());
                 }
 
                 const linajeCerrar = document.getElementById('linaje-drawer-cerrar');
@@ -3878,6 +3911,8 @@
                 const modal = document.getElementById('aliadoDetalleModal');
                 if (!modal) return;
 
+                this._aliadoDetalleActual = aliado;
+
                 const set = (id, value) => {
                     const el = document.getElementById(id);
                     if (el) el.textContent = value;
@@ -3905,6 +3940,16 @@
                 set('det-severidad', '—');
                 set('det-evaluado-en', '—');
                 set('det-razones', '—');
+
+                const eliminarBtn = document.getElementById('aliadoDetalleEliminar');
+                if (eliminarBtn) {
+                    const estadoBd = (aliado.estado || '').toLowerCase();
+                    const yaEliminado = estadoBd === 'expulsado' || estadoBd === 'rechazado' || estadoBd === 'sistema';
+                    eliminarBtn.disabled = yaEliminado;
+                    eliminarBtn.title = yaEliminado
+                        ? 'Este perfil ya está eliminado o no se puede borrar'
+                        : 'Eliminar perfil del aliado';
+                }
 
                 modal.classList.remove('hidden');
 
@@ -3958,6 +4003,56 @@
             cerrarModalDetalle() {
                 const modal = document.getElementById('aliadoDetalleModal');
                 if (modal) modal.classList.add('hidden');
+                this._aliadoDetalleActual = null;
+            }
+
+            async confirmarEliminarPerfil() {
+                const aliado = this._aliadoDetalleActual;
+                if (!aliado || !aliado.codigo) return;
+
+                const nombre = aliado.nombre || aliado.codigo;
+                const confirmFn = window.AdminShell && window.AdminShell.confirmDanger;
+                let ok = false;
+                if (confirmFn) {
+                    ok = await confirmFn({
+                        title: 'Eliminar perfil',
+                        description: `Vas a eliminar el perfil de ${nombre} (${aliado.codigo}).`,
+                        consequences: [
+                            'El aliado perderá el acceso al panel.',
+                            'Su código quedará desactivado o rechazado según su estado actual.',
+                            'Esta acción no se puede deshacer desde el panel.'
+                        ],
+                        confirmPhrase: 'ELIMINAR'
+                    });
+                } else {
+                    ok = window.confirm(`¿Eliminar el perfil de ${nombre} (${aliado.codigo})?`);
+                }
+                if (!ok) return;
+
+                const motivo = window.prompt('Motivo (opcional):', '') || '';
+                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+                const headers = Object.assign({}, authHeaders, { 'Content-Type': 'application/json' });
+
+                try {
+                    const r = await fetch('/api/admin/eliminar-aliado', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers,
+                        body: JSON.stringify({ codigo: aliado.codigo, motivo })
+                    });
+                    if (r.status === 401) { this._adminSessionExpired(); return; }
+                    if (r.status === 403) { this.showToast('Sin permiso de escritura (solo lectura).', 'error'); return; }
+                    const data = await r.json().catch(() => null);
+                    if (!data || data.status !== 'success') {
+                        this.showToast((data && data.message) ? data.message : 'No se pudo eliminar el perfil.', 'error');
+                        return;
+                    }
+                    this.showToast(data.message || 'Perfil eliminado.', 'success');
+                    this.cerrarModalDetalle();
+                    this.cargarDesdeApi();
+                } catch (e) {
+                    this.showToast('Error de red al eliminar perfil.', 'error');
+                }
             }
 
             confirmarPausa(aliado) {
