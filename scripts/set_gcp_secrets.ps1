@@ -54,6 +54,16 @@ Set-SecretValue -Name "ruana-supabase-service-role-key" -Value $env:SUPABASE_SER
 Set-SecretValue -Name "ruana-supabase-anon-key" -Value $env:SUPABASE_ANON_KEY
 Set-SecretValue -Name "ruana-flask-secret-key" -Value $env:FLASK_SECRET_KEY
 
+$adminCredentialsPath = if ($env:RUANA_ADMIN_CREDENTIALS_PATH) { $env:RUANA_ADMIN_CREDENTIALS_PATH } else { ".local-secrets/admin_credentials.json" }
+if (Test-Path -LiteralPath $adminCredentialsPath) {
+    $adminCredentialsJson = [System.IO.File]::ReadAllText((Resolve-Path -LiteralPath $adminCredentialsPath))
+    Set-SecretValue -Name "ruana-admin-credentials" -Value $adminCredentialsJson
+    Write-Host "Secret ruana-admin-credentials updated from $adminCredentialsPath"
+}
+else {
+    Write-Warning "Admin credentials file not found at $adminCredentialsPath. Run bootstrap_admin_credentials.py first."
+}
+
 $runtimeServiceAccountName = "ruana-runner"
 $runtimeServiceAccount = "$runtimeServiceAccountName@$projectId.iam.gserviceaccount.com"
 $serviceAccounts = @(Invoke-RuanaNativeCommandOutput -FilePath $gcloud -Arguments @("iam", "service-accounts", "list", "--project", $projectId, "--format", "value(email)"))
@@ -62,7 +72,7 @@ if ($serviceAccounts -notcontains $runtimeServiceAccount) {
     Start-Sleep -Seconds 5
 }
 
-foreach ($secretName in @("ruana-database-url", "ruana-supabase-service-role-key", "ruana-supabase-anon-key", "ruana-flask-secret-key")) {
+foreach ($secretName in @("ruana-database-url", "ruana-supabase-service-role-key", "ruana-supabase-anon-key", "ruana-flask-secret-key", "ruana-admin-credentials")) {
     Invoke-RuanaNativeCommand -FilePath $gcloud -Arguments @(
         "secrets", "add-iam-policy-binding", $secretName,
         "--member", "serviceAccount:$runtimeServiceAccount",
