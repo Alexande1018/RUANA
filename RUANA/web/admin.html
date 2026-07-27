@@ -1872,7 +1872,7 @@
                         : { ratio_solicitud_invitacion: 0, ratio_invitacion_registro: 0, oficios_saturados: 0, oficios_disponibles: 0, zona_mayor_demanda: '—', tasa_retencion: 0 };
                     this.renderMetricas({ metricas: metricasPayload });
                     this.renderPendientesValidacion(pendientes);
-                    this._aliadosData = (aliadosData && aliadosData.aliados) || [];
+                    this._aliadosData = ((aliadosData && aliadosData.aliados) || []).filter(a => !this.esAliadoPlaceholder(a));
                     this.renderAliadosJerarquia();
                     this.renderEventos((eventosData && eventosData.status === 'success' && Array.isArray(eventosData.eventos)) ? eventosData.eventos : []);
                     const permisos = (statsData && Array.isArray(statsData.permisos)) ? statsData.permisos : ['leer', 'escribir', 'eliminar', 'configurar'];
@@ -3415,10 +3415,21 @@
              * Devuelve el grupo (clave) de un aliado para la jerarquía CP → Grupo → Tarjetas.
              * Orden: pendientes, retadores, competencia, suplentes_espera, luego estado_panel/estado.
              */
-            getGrupoAliado(a) {
+            esAliadoPlaceholder(a) {
+                if (!a) return true;
                 const est = (a.estado || '').toLowerCase();
-                // Placeholders de invitación no forman parte del panel de control
-                if (est === 'pendiente_completar') return null;
+                const email = (a.email || '').toLowerCase();
+                const nombre = (a.nombre || '').trim();
+                const oficio = (a.oficio || '').toLowerCase().trim();
+                if (est === 'pendiente_completar') return true;
+                if (email.startsWith('placeholder-') && email.endsWith('@ruana.local')) return true;
+                if (nombre.startsWith('Nuevo Aliado -') && oficio === 'pendiente') return true;
+                return false;
+            }
+
+            getGrupoAliado(a) {
+                if (this.esAliadoPlaceholder(a)) return null;
+                const est = (a.estado || '').toLowerCase();
                 if (est === 'en_espera') return 'suplentes_espera';
                 if (est === 'pendiente_validacion') return 'pendientes';
                 if (a.es_retador_activo === true || a.es_suplente_activo === true) return 'retadores';
@@ -3465,8 +3476,8 @@
                 const data = this._aliadosData || [];
                 const byCp = new Map();
                 data.forEach(a => {
+                    if (this.esAliadoPlaceholder(a)) return;
                     const cp = (a.zona || a.codigo_postal || '').toString().trim() || '(sin CP)';
-                    if ((a.estado || '').toLowerCase() === 'pendiente_completar') return;
                     byCp.set(cp, (byCp.get(cp) || 0) + 1);
                 });
                 const cps = Array.from(byCp.entries()).sort((x, y) => String(x[0]).localeCompare(String(y[0])));
@@ -3536,10 +3547,10 @@
                 const aliados = Array.isArray(aliadosData) ? aliadosData : [];
 
                 aliados.forEach(aliado => {
-                    const estadoBd = (aliado.estado || '').toLowerCase();
                     // No mostrar placeholders de invitación en el panel de control
-                    if (estadoBd === 'pendiente_completar') return;
+                    if (this.esAliadoPlaceholder(aliado)) return;
 
+                    const estadoBd = (aliado.estado || '').toLowerCase();
                     const card = document.createElement('div');
                     card.className = 'aliado-admin-card';
 
