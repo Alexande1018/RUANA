@@ -52,6 +52,18 @@ def test_register_uses_real_select_class_and_shared_form_styles():
     assert "ruana-form-control" in _read(STYLES)
 
 
+def test_admin_table_scroll_containers_allow_overflow():
+    text = _read(WEB / "static" / "css" / "admin-premium.css")
+
+    start = text.index(".movimiento-24h-tabla-scroll,")
+    end = text.index(".movimiento-24h-tabla th,", start)
+    block = text[start:end]
+
+    assert "overflow-x: auto" in block
+    assert "overflow-y: auto" in block
+    assert "overflow: hidden" not in block
+
+
 def test_admin_uses_shared_loader_and_filter_classes():
     text = _read(WEB / "admin.html")
 
