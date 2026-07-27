@@ -131,10 +131,11 @@ def test_admin_can_deactivate_campaign_code(client, sqlite_db, monkeypatch):
     assert inactive_validation.status_code == 404
 
 
-def test_admin_placeholder_invitation_registers_referral_on_completion(
+def test_admin_invitation_registers_referral_with_distinct_personal_code(
     client, sqlite_db, monkeypatch
 ):
     monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    monkeypatch.setattr(app_module, "_generar_codigo_unico", lambda: "88888")
     sqlite_db.obtener_o_crear_invitador_admin("ADMIN001")
 
     create_response = client.post(
@@ -143,7 +144,14 @@ def test_admin_placeholder_invitation_registers_referral_on_completion(
         json={"zona": "28001"},
     )
     assert create_response.status_code == 201
-    codigo = create_response.get_json()["codigo"]
+    codigo_invitacion = create_response.get_json()["codigo"]
+    assert codigo_invitacion != "88888"
+    # No debe crearse placeholder de aliado
+    conn = sqlite_db._connect()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM aliados WHERE codigo = ?", (codigo_invitacion,))
+    assert cursor.fetchone()[0] == 0
+    conn.close()
 
     register_response = client.post(
         "/api/aliados/registrar",
@@ -156,19 +164,23 @@ def test_admin_placeholder_invitation_registers_referral_on_completion(
             "codigo_postal": "28001",
             "email": "aliado.admin.placeholder@example.com",
             "telefono": "+34600111222",
-            "codigo_invitacion": codigo,
+            "codigo_invitacion": codigo_invitacion,
         },
     )
     assert register_response.status_code == 201
-    assert register_response.get_json()["codigo"] == codigo
+    personal_codigo = register_response.get_json()["codigo"]
+    assert personal_codigo == "88888"
+    assert personal_codigo != codigo_invitacion
 
     conn = sqlite_db._connect()
     cursor = conn.cursor()
     cursor.execute(
         "SELECT codigo_invitador FROM referidos WHERE codigo_referido = ?",
-        (codigo,),
+        (personal_codigo,),
     )
     referido_row = cursor.fetchone()
+    cursor.execute("SELECT usado FROM invitaciones WHERE codigo = ?", (codigo_invitacion,))
+    assert cursor.fetchone()[0] == 1
     conn.close()
     assert referido_row is not None
     assert referido_row[0] == "ADMIN001"

@@ -3377,7 +3377,9 @@
              */
             getGrupoAliado(a) {
                 const est = (a.estado || '').toLowerCase();
-                if (est === 'pendiente_validacion' || est === 'pendiente_completar') return 'pendientes';
+                // Placeholders de invitación no forman parte del panel de control
+                if (est === 'pendiente_completar') return null;
+                if (est === 'pendiente_validacion') return 'pendientes';
                 if (a.es_suplente_activo === true) return 'suplentes';
                 if (a.es_titular_en_competencia === true) return 'competencia';
                 const ep = (a.estado_panel || a.estado || 'activos').toLowerCase();
@@ -3422,6 +3424,7 @@
                 const byCp = new Map();
                 data.forEach(a => {
                     const cp = (a.zona || a.codigo_postal || '').toString().trim() || '(sin CP)';
+                    if ((a.estado || '').toLowerCase() === 'pendiente_completar') return;
                     byCp.set(cp, (byCp.get(cp) || 0) + 1);
                 });
                 const cps = Array.from(byCp.entries()).sort((x, y) => String(x[0]).localeCompare(String(y[0])));
@@ -3449,6 +3452,7 @@
                 const byGrupo = new Map();
                 data.forEach(a => {
                     const g = this.getGrupoAliado(a);
+                    if (!g) return;
                     byGrupo.set(g, (byGrupo.get(g) || 0) + 1);
                 });
                 const ordenGrupos = ['activos', 'observacion', 'riesgo', 'suplentes', 'competencia', 'pendientes', 'pausados'];
@@ -3490,18 +3494,20 @@
                 const aliados = Array.isArray(aliadosData) ? aliadosData : [];
 
                 aliados.forEach(aliado => {
+                    const estadoBd = (aliado.estado || '').toLowerCase();
+                    // No mostrar placeholders de invitación en el panel de control
+                    if (estadoBd === 'pendiente_completar') return;
+
                     const card = document.createElement('div');
                     card.className = 'aliado-admin-card';
 
-                    const estadoBd = (aliado.estado || '').toLowerCase();
                     const estadoPanel = aliado.estado_panel || aliado.estado || 'activos';
-                    const badgeKey = (estadoBd === 'pendiente_validacion' || estadoBd === 'pendiente_completar')
+                    const badgeKey = estadoBd === 'pendiente_validacion'
                         ? 'pendientes'
                         : estadoPanel;
                     const estadoBadgeClasses = `aliado-estado-badge ${badgeKey}`;
                     let estadoTexto = 'Activo';
                     if (badgeKey === 'pendientes' || estadoBd === 'pendiente_validacion') estadoTexto = 'Pendiente de validación';
-                    else if (estadoBd === 'pendiente_completar') estadoTexto = 'Pendiente de completar';
                     else if (estadoPanel === 'observacion') estadoTexto = 'En Observación';
                     else if (estadoPanel === 'riesgo') estadoTexto = 'En Riesgo';
                     else if (estadoPanel === 'suspendido_temporal') estadoTexto = 'Pausado';

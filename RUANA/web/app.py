@@ -2132,7 +2132,7 @@ def registrar_aliado():
         grupo_id_invitacion = None
         codigo_postal = (data.get('codigo_postal') or '').strip()
         codigo_invitacion_raw = (data.get('codigo_invitacion') or '').strip()
-        codigo_placeholder = None
+        codigo_invitacion_simple = None
         codigo_campana_invitacion = None
         if codigo_invitacion_raw and not re.match(RUANA_CODIGO_INVITACION_REGEX, codigo_invitacion_raw.upper()):
             campana = db.validar_campana_invitacion(codigo_invitacion_raw.upper()) if hasattr(db, 'validar_campana_invitacion') else None
@@ -2141,13 +2141,24 @@ def registrar_aliado():
                 if not codigo_postal and campana.get('codigo_postal'):
                     codigo_postal = (campana.get('codigo_postal') or '').strip()
             else:
-                aliado_invitacion = db.obtener_aliado_por_codigo(codigo_invitacion_raw)
-                if not aliado_invitacion or (aliado_invitacion.get('estado') or '').strip() != 'pendiente_completar':
+                invitacion_pendiente = None
+                if hasattr(db, 'obtener_invitacion_pendiente'):
+                    invitacion_pendiente = db.obtener_invitacion_pendiente(codigo_invitacion_raw)
+                aliado_placeholder = db.obtener_aliado_por_codigo(codigo_invitacion_raw)
+                es_placeholder = bool(
+                    aliado_placeholder
+                    and (aliado_placeholder.get('estado') or '').strip() == 'pendiente_completar'
+                )
+                if not invitacion_pendiente and not es_placeholder:
                     return jsonify({
                         'status': 'error',
                         'message': f'Codigo de invitacion {codigo_invitacion_raw} no encontrado o ya usado.'
                     }), 404
-                codigo_placeholder = (aliado_invitacion.get('codigo') or codigo_invitacion_raw).strip()
+                codigo_invitacion_simple = (
+                    (invitacion_pendiente.get('codigo') if invitacion_pendiente else None)
+                    or (aliado_placeholder.get('codigo') if aliado_placeholder else None)
+                    or codigo_invitacion_raw
+                ).strip()
                 grupo_inv = db.obtener_grupo_invitador_por_codigo_invitacion(codigo_invitacion_raw)
                 if grupo_inv and grupo_inv.get('grupo_id'):
                     grupo_id_invitacion = grupo_inv['grupo_id']
@@ -2169,42 +2180,25 @@ def registrar_aliado():
                     'code': 'sin_plaza'
                 }), 409
 
-        # Crear aliado: si oficio no está en catálogo → estado pendiente_validacion (validación manual)
+        # Crear aliado con código personal NUEVO (distinto del código de invitación).
+        # Si había placeholder legacy, se elimina tras el registro para no dejar duplicados.
         descripcion_servicio = (data.get('descripcion') or data.get('descripcion_servicio') or '').strip() or None
-        if codigo_placeholder:
-            result = db.completar_aliado_pendiente(
-                codigo=codigo_placeholder,
-                nombre=nombre,
-                marca=data.get('marca', '').strip(),
-                oficio=oficio,
-                codigo_postal=codigo_postal,
-                email=email,
-                telefono=telefono,
-                estado='activo',
-                score=50,
-                especializaciones=especializaciones,
-                especializacion=especializacion_plaza,
-                descripcion_servicio=descripcion_servicio,
-                grupo_id_invitacion=grupo_id_invitacion
-            )
-        else:
-            # Generar codigo unico (5 digitos) solo si no estamos completando un placeholder.
-            codigo = _generar_codigo_unico()
-            result = db.crear_aliado(
-                codigo=codigo,
-                nombre=nombre,
-                marca=data.get('marca', '').strip(),
-                oficio=oficio,
-                codigo_postal=codigo_postal,
-                email=email,
-                telefono=telefono,
-                estado='activo',
-                score=50,
-                especializaciones=especializaciones,
-                especializacion=especializacion_plaza,
-                descripcion_servicio=descripcion_servicio,
-                grupo_id_invitacion=grupo_id_invitacion
-            )
+        codigo = _generar_codigo_unico()
+        result = db.crear_aliado(
+            codigo=codigo,
+            nombre=nombre,
+            marca=data.get('marca', '').strip(),
+            oficio=oficio,
+            codigo_postal=codigo_postal,
+            email=email,
+            telefono=telefono,
+            estado='activo',
+            score=50,
+            especializaciones=especializaciones,
+            especializacion=especializacion_plaza,
+            descripcion_servicio=descripcion_servicio,
+            grupo_id_invitacion=grupo_id_invitacion
+        )
         
         if result['status'] == 'error':
             return jsonify(result), 400
@@ -2229,6 +2223,9 @@ def registrar_aliado():
             else:
                 if not db.consumir_invitacion_y_recompensar(codigo_invitacion, result['codigo']):
                     db.asegurar_referido_desde_invitacion(codigo_invitacion, result['codigo'])
+                # Limpia placeholder legacy si existía con el mismo código de invitación
+                if hasattr(db, 'eliminar_aliado_placeholder'):
+                    db.eliminar_aliado_placeholder(codigo_invitacion_simple or codigo_invitacion)
 
         # Asegurar red completa: invitaciones pendientes de sync y huérfanos bajo admin
         db.sincronizar_referidos_completo()
@@ -2811,6 +2808,25 @@ def _validar_invitacion_impl(codigo_raw):
                 'status': 'error',
                 'message': 'Formato de c?digo inv?lido'
             }), 400
+
+        # Preferir invitaciones reales (tabla invitaciones) frente a placeholders legacy.
+        invitacion_pendiente = None
+        if hasattr(db, 'obtener_invitacion_pendiente'):
+            invitacion_pendiente = db.obtener_invitacion_pendiente(codigo)
+        if invitacion_pendiente:
+            return jsonify({
+                'status': 'success',
+                'message': 'C?digo v?lido',
+                'invitacion': {
+                    'codigo': invitacion_pendiente.get('codigo') or codigo,
+                    'zona': invitacion_pendiente.get('zona_invitador') or '',
+                    'grupo': None,
+                    'aliado_id': invitacion_pendiente.get('invitador_aliado_id') or invitacion_pendiente.get('invitador_id'),
+                    'fecha_expiracion': None,
+                    'tipo': 'invitacion',
+                }
+            }), 200
+
         aliado = db.obtener_aliado_por_codigo(codigo)
 
         # LOG TEMPORAL: traza completa para depuraci?n de invitaciones
@@ -2826,7 +2842,7 @@ def _validar_invitacion_impl(codigo_raw):
                 'status': 'error',
                 'message': 'C?digo desactivado. Se requiere nueva invitaci?n para volver.'
             }), 403
-        # Solo c?digos "placeholder" (pendiente_completar) son invitaci?n ? registro.
+        # Compatibilidad: placeholders legacy (pendiente_completar) siguen siendo invitaci?n.
         # Si el c?digo es de un aliado activo o pendiente_validacion, es c?digo de ingreso (no invitaci?n).
         if not aliado or aliado.get('estado') != 'pendiente_completar':
             if aliado and aliado.get('estado') in ('activo', 'pendiente_validacion'):
@@ -2844,7 +2860,8 @@ def _validar_invitacion_impl(codigo_raw):
             'zona': aliado.get('codigo_postal') or '',
             'grupo': None,
             'aliado_id': aliado.get('id'),
-            'fecha_expiracion': None
+            'fecha_expiracion': None,
+            'tipo': 'invitacion_legacy_placeholder',
         }
 
         return jsonify({
@@ -2873,29 +2890,22 @@ def validar_invitacion_path(codigo):
     return _validar_invitacion_impl(codigo)
 
 
-def _crear_aliado_placeholder_para_invitacion(db, zona=""):
-    """Crea un aliado temporal que el invitado completara al usar el codigo."""
+def _generar_codigo_invitacion(db):
+    """Genera un código de invitación único sin crear aliado placeholder."""
     import random
 
     for _ in range(100):
         codigo = str(random.randint(10000, 99999))
-        if not db.codigo_existe(codigo):
-            break
-    else:
-        raise RuntimeError("No se pudo generar codigo unico despues de 100 intentos")
-
-    result = db.crear_aliado(
-        codigo=codigo,
-        nombre=f"Nuevo Aliado - {codigo}",
-        marca="",
-        oficio="Pendiente",
-        codigo_postal=(zona or "").strip(),
-        email=f"placeholder-{codigo}@ruana.local",
-        telefono=f"+34 600 {codigo}",
-        estado="pendiente_completar",
-        score=50,
-    )
-    return codigo, result
+        disponible = True
+        if hasattr(db, 'codigo_disponible_para_asignar'):
+            disponible = db.codigo_disponible_para_asignar(codigo)
+        elif hasattr(db, 'codigo_existe') and db.codigo_existe(codigo):
+            disponible = False
+        elif hasattr(db, 'invitacion_codigo_existe') and db.invitacion_codigo_existe(codigo):
+            disponible = False
+        if disponible:
+            return codigo
+    raise RuntimeError("No se pudo generar codigo de invitacion unico despues de 100 intentos")
 
 
 @app.route('/api/invitaciones/crear', methods=['POST'])
@@ -2904,13 +2914,9 @@ def crear_invitacion():
     """
     POST /api/invitaciones/crear
     
-    Crea un c?digo de invitaci?n para un nuevo aliado
-    
-    FLUJO CORREGIDO:
-    - Genera un c?digo de 5 d?gitos num?ricos ?nicos
-    - Crea un "aliado placeholder" en la BD con ese c?digo
-    - El nuevo usuario ingresa el c?digo en index.html y accede al sistema
-    - El c?digo DEBE ser aceptado por la validaci?n en /api/aliados/obtener-por-codigo/
+    Crea un c?digo de invitaci?n para un nuevo aliado.
+    El c?digo vive solo en `invitaciones` (no crea aliado placeholder).
+    Al registrarse, el invitado recibe un c?digo personal distinto.
     
     Body JSON:
     {
@@ -2933,13 +2939,9 @@ def crear_invitacion():
             return jsonify({'status': 'error', 'message': 'Aliado no autorizado para crear invitaciones'}), 403
 
         aliado_invitador_id = aliado_sesion.get('id')
-        zona = data.get('zona', '').strip()
         solicitud_id = data.get('solicitud_id')
 
-        codigo, result = _crear_aliado_placeholder_para_invitacion(db, zona)
-        
-        if result['status'] != 'success':
-            return jsonify(result), 400
+        codigo = _generar_codigo_invitacion(db)
 
         # Registrar quién invitó (para recompensa +3 y métrica de referidos al completar)
         if aliado_invitador_id is None:
@@ -2980,16 +2982,11 @@ def crear_invitacion():
 def admin_crear_invitacion():
     """
     POST /api/admin/invitaciones/crear
-    Crea un codigo de aliado placeholder desde el panel admin.
+    Crea un codigo de invitacion desde el panel admin (sin placeholder de aliado).
     """
     try:
-        data = request.get_json() or {}
-        zona = (data.get('zona') or data.get('codigo_postal') or '').strip()
         db = get_db()
-        codigo, result = _crear_aliado_placeholder_para_invitacion(db, zona)
-
-        if result['status'] != 'success':
-            return jsonify(result), 400
+        codigo = _generar_codigo_invitacion(db)
 
         # Vincular al admin como invitador para que el registro aparezca en la red de referidos.
         admin_codigo = _admin_codigo() or 'RUANA-ADMIN'
@@ -3009,7 +3006,7 @@ def admin_crear_invitacion():
 
         return jsonify({
             'status': 'success',
-            'message': 'Codigo de aliado creado desde admin',
+            'message': 'Codigo de invitacion creado desde admin',
             'codigo': codigo,
             'tipo': 'invitacion_admin',
             'timestamp': datetime.now().isoformat()
@@ -3929,7 +3926,7 @@ def admin_estado_pago_contacto(contacto_id):
 def _generar_codigo_unico() -> str:
     """
     Genera un c?digo ?nico de 5 d?gitos
-    Verifica contra BD para garantizar unicidad
+    Verifica contra BD (aliados e invitaciones) para garantizar unicidad
     """
     import random
     db = get_db()
@@ -3937,7 +3934,10 @@ def _generar_codigo_unico() -> str:
     max_intentos = 100
     for _ in range(max_intentos):
         codigo = str(random.randint(10000, 99999))
-        if not db.codigo_existe(codigo):
+        if hasattr(db, 'codigo_disponible_para_asignar'):
+            if db.codigo_disponible_para_asignar(codigo):
+                return codigo
+        elif not db.codigo_existe(codigo):
             return codigo
     
     raise Exception("No se pudo generar c?digo ?nico despu?s de 100 intentos")

@@ -26,9 +26,71 @@ def _fetch_aliado(db, codigo):
     return dict(row) if row else None
 
 
-def test_register_with_placeholder_invitation_completes_existing_ally(
+def test_register_with_invitation_creates_distinct_personal_code(
     client, sqlite_db, monkeypatch
 ):
+    """El código de invitación y el código personal tras registrarse deben ser distintos."""
+    invitador = sqlite_db.crear_aliado(
+        codigo="11111",
+        nombre="Aliado Invitador",
+        marca="",
+        oficio="Electricidad",
+        codigo_postal="",
+        email="invitador@example.com",
+        telefono="+34600111111",
+        estado="activo",
+        score=50,
+    )
+    assert invitador["status"] == "success"
+
+    sqlite_db._registrar_invitacion("12345", invitador["id"])
+
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    monkeypatch.setattr(app_module, "_generar_codigo_unico", lambda: "99999")
+
+    validation = client.get("/api/validar-invitacion?codigo=12345")
+    assert validation.status_code == 200
+    assert validation.get_json()["status"] == "success"
+
+    response = client.post(
+        "/api/aliados/registrar",
+        json={
+            "nombre": "Persona Invitada",
+            "marca": "Marca Invitada",
+            "oficio": "Electricidad",
+            "oficio_principal": "Electricidad",
+            "especializacion": "Averías y reparaciones eléctricas",
+            "codigo_postal": "28001",
+            "email": "persona.invitada@example.com",
+            "telefono": "+34600999999",
+            "codigo_invitacion": "12345",
+        },
+    )
+
+    assert response.status_code == 201
+    data = response.get_json()
+    assert data["status"] == "success"
+    assert data["codigo"] == "99999"
+    assert data["codigo"] != "12345"
+
+    assert _fetch_aliado(sqlite_db, "99999") is not None
+    assert _fetch_aliado(sqlite_db, "12345") is None
+
+    conn = sqlite_db._connect()
+    cursor = conn.cursor()
+    cursor.execute("SELECT usado FROM invitaciones WHERE codigo = ?", ("12345",))
+    assert cursor.fetchone()[0] == 1
+    conn.close()
+
+    reused = client.get("/api/validar-invitacion?codigo=12345")
+    assert reused.status_code == 404
+    assert reused.get_json()["status"] == "error"
+
+
+def test_legacy_placeholder_is_removed_after_registration(
+    client, sqlite_db, monkeypatch
+):
+    """Placeholders legacy desaparecen del panel al completar el registro."""
     invitador = sqlite_db.crear_aliado(
         codigo="11111",
         nombre="Aliado Invitador",
@@ -56,6 +118,12 @@ def test_register_with_placeholder_invitation_completes_existing_ally(
     assert placeholder["status"] == "success"
     sqlite_db._registrar_invitacion("12345", invitador["id"])
 
+    # Antes del registro, el placeholder no debe listarse en control de aliados
+    listado_antes = sqlite_db.listar_aliados()
+    assert all(a["codigo"] != "12345" for a in listado_antes)
+    pendientes = sqlite_db.listar_aliados_pendiente_validacion()
+    assert all(a["codigo"] != "12345" for a in pendientes)
+
     monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
     monkeypatch.setattr(app_module, "_generar_codigo_unico", lambda: "99999")
 
@@ -76,21 +144,55 @@ def test_register_with_placeholder_invitation_completes_existing_ally(
 
     assert response.status_code == 201
     data = response.get_json()
-    assert data["status"] == "success"
-    assert data["codigo"] == "12345"
+    assert data["codigo"] == "99999"
+    assert data["codigo"] != "12345"
 
-    aliado_actualizado = _fetch_aliado(sqlite_db, "12345")
-    assert aliado_actualizado["nombre"] == "Persona Invitada"
-    assert aliado_actualizado["email"] == "persona.invitada@example.com"
-    assert aliado_actualizado["estado"] == "activo"
-    assert _fetch_aliado(sqlite_db, "99999") is None
+    assert _fetch_aliado(sqlite_db, "12345") is None
+    aliado_nuevo = _fetch_aliado(sqlite_db, "99999")
+    assert aliado_nuevo is not None
+    assert aliado_nuevo["nombre"] == "Persona Invitada"
+    assert aliado_nuevo["email"] == "persona.invitada@example.com"
 
+    listado_despues = sqlite_db.listar_aliados()
+    codigos = {a["codigo"] for a in listado_despues}
+    assert "99999" in codigos
+    assert "12345" not in codigos
+
+
+def test_crear_invitacion_no_crea_placeholder_aliado(client, sqlite_db, monkeypatch, session_headers):
+    invitador = sqlite_db.crear_aliado(
+        codigo="11111",
+        nombre="Aliado Invitador",
+        marca="",
+        oficio="Electricidad",
+        codigo_postal="28001",
+        email="invitador2@example.com",
+        telefono="+34600111112",
+        estado="activo",
+        score=50,
+        especializacion="Averías y reparaciones eléctricas",
+    )
+    assert invitador["status"] == "success"
+    # Garantizar estado activo para poder generar invitaciones
     conn = sqlite_db._connect()
     cursor = conn.cursor()
-    cursor.execute("SELECT usado FROM invitaciones WHERE codigo = ?", ("12345",))
-    assert cursor.fetchone()[0] == 1
+    cursor.execute("UPDATE aliados SET estado = 'activo' WHERE codigo = ?", ("11111",))
+    conn.commit()
     conn.close()
 
-    validation = client.get("/api/validar-invitacion?codigo=12345")
-    assert validation.status_code == 404
-    assert validation.get_json()["status"] == "error"
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    monkeypatch.setattr(app_module, "_generar_codigo_invitacion", lambda _db: "55555")
+
+    response = client.post(
+        "/api/invitaciones/crear",
+        json={"zona": "28001"},
+        headers=session_headers("aliado", "11111"),
+    )
+    assert response.status_code == 201
+    data = response.get_json()
+    assert data["codigo"] == "55555"
+    assert data["tipo"] == "invitacion"
+
+    assert _fetch_aliado(sqlite_db, "55555") is None
+    assert sqlite_db.obtener_invitacion_pendiente("55555") is not None
+    assert all(a["codigo"] != "55555" for a in sqlite_db.listar_aliados())

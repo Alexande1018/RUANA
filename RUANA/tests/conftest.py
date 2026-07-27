@@ -14,6 +14,22 @@ class Hito2AFakeDB:
         self.calls.append(("codigo_existe", codigo))
         return False
 
+    def invitacion_codigo_existe(self, codigo):
+        self.calls.append(("invitacion_codigo_existe", codigo))
+        return False
+
+    def codigo_disponible_para_asignar(self, codigo):
+        self.calls.append(("codigo_disponible_para_asignar", codigo))
+        return True
+
+    def obtener_invitacion_pendiente(self, codigo):
+        self.calls.append(("obtener_invitacion_pendiente", codigo))
+        return None
+
+    def eliminar_aliado_placeholder(self, codigo):
+        self.calls.append(("eliminar_aliado_placeholder", codigo))
+        return False
+
     def obtener_aliado_por_codigo(self, codigo):
         self.calls.append(("obtener_aliado_por_codigo", codigo))
         return {"id": 42, "codigo": codigo, "estado": self.aliado_estado}

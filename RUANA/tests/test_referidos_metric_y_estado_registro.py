@@ -67,8 +67,10 @@ def test_registro_con_codigo_suma_referidos_y_queda_activo(client, sqlite_db, mo
     )
     assert register.status_code == 201, register.get_json()
     data = register.get_json()
-    assert data["codigo"] == codigo_inv
+    assert data["codigo"] != codigo_inv
     assert data.get("estado") == "activo"
+    assert len(data["codigo"]) == 5
+    assert data["codigo"].isdigit()
 
     assert sqlite_db.contar_referidos_por_codigo("11111") == 1
     hijos = sqlite_db.listar_hijos_directos_linaje("11111")

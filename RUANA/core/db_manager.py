@@ -4679,7 +4679,7 @@ class DBManager:
                     FROM aliados a
                     LEFT JOIN evaluaciones e ON e.codigo_aliado = a.codigo
                     LEFT JOIN aliados inv ON inv.codigo = a.invitado_por_codigo
-                    WHERE (a.estado IS NULL OR (a.estado != 'expulsado' AND a.estado != 'suspendido_temporal' AND a.estado != 'sistema'))
+                    WHERE (a.estado IS NULL OR (a.estado != 'expulsado' AND a.estado != 'suspendido_temporal' AND a.estado != 'sistema' AND a.estado != 'pendiente_completar'))
                 """
 
                 params: Tuple[Any, ...] = ()
@@ -4734,9 +4734,10 @@ class DBManager:
 
                     # Estado de panel: prioriza estado real de BD (activo / pendiente_validacion).
                     # El score de evaluación solo reclasifica a observación/riesgo cuando existe evaluación.
+                    # pendiente_completar no se lista (placeholders de invitación se excluyen arriba).
                     estado_bd = (item.get('estado') or 'activo').strip().lower()
                     estado_panel = 'activos'
-                    if estado_bd in ('pendiente_validacion', 'pendiente_completar'):
+                    if estado_bd == 'pendiente_validacion':
                         estado_panel = 'pendientes'
                     elif estado_bd in ('expulsado', 'suspendido_temporal', 'rechazado'):
                         estado_panel = estado_bd
@@ -4845,20 +4846,119 @@ class DBManager:
                 conn.close()
 
     def codigo_existe(self, codigo: str) -> bool:
-        """Verifica si un código ya existe"""
+        """Verifica si un código ya existe como aliado."""
         with self._lock:
+            conn = None
             try:
                 conn = self._connect()
                 cursor = conn.cursor()
-                
                 cursor.execute("SELECT 1 FROM aliados WHERE codigo = ?", (codigo,))
                 return cursor.fetchone() is not None
-                
             except Exception as e:
                 print(f"Error verificando código: {e}")
                 return False
             finally:
-                conn.close()
+                if conn:
+                    conn.close()
+
+    def invitacion_codigo_existe(self, codigo: str) -> bool:
+        """True si el código ya está registrado en la tabla invitaciones."""
+        codigo = (codigo or '').strip()
+        if not codigo:
+            return False
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                cursor.execute("SELECT 1 FROM invitaciones WHERE codigo = ?", (codigo,))
+                return cursor.fetchone() is not None
+            except Exception as e:
+                print(f"Error verificando codigo invitacion: {e}")
+                return False
+            finally:
+                if conn:
+                    conn.close()
+
+    def codigo_disponible_para_asignar(self, codigo: str) -> bool:
+        """True si el código no choca con aliados ni con invitaciones existentes."""
+        codigo = (codigo or '').strip()
+        if not codigo:
+            return False
+        return (not self.codigo_existe(codigo)) and (not self.invitacion_codigo_existe(codigo))
+
+    def obtener_invitacion_pendiente(self, codigo: str) -> Optional[Dict[str, Any]]:
+        """
+        Devuelve una invitación aliado/admin aún no usada (tabla invitaciones).
+        No incluye campañas ni invitaciones por oficio.
+        """
+        codigo = (codigo or '').strip()
+        if not codigo:
+            return None
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT i.codigo, i.invitador_aliado_id, i.usado, i.creado_en,
+                           inv.codigo AS codigo_invitador,
+                           inv.codigo_postal AS zona_invitador,
+                           inv.id AS invitador_id
+                    FROM invitaciones i
+                    JOIN aliados inv ON inv.id = i.invitador_aliado_id
+                    WHERE i.codigo = ? AND COALESCE(i.usado, 0) = 0
+                    """,
+                    (codigo,),
+                )
+                row = cursor.fetchone()
+                if not row:
+                    return None
+                return dict(row)
+            except Exception as e:
+                print(f"Error obtener_invitacion_pendiente: {e}")
+                return None
+            finally:
+                if conn:
+                    conn.close()
+
+    def eliminar_aliado_placeholder(self, codigo: str) -> bool:
+        """
+        Elimina un aliado placeholder (pendiente_completar) tras usar su código de invitación.
+        Evita duplicados inútiles en el panel de control de aliados.
+        """
+        codigo = (codigo or '').strip()
+        if not codigo:
+            return False
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    DELETE FROM aliados
+                    WHERE codigo = ?
+                      AND LOWER(TRIM(COALESCE(estado, ''))) = 'pendiente_completar'
+                    """,
+                    (codigo,),
+                )
+                deleted = cursor.rowcount > 0
+                conn.commit()
+                return deleted
+            except Exception as e:
+                print(f"Error eliminar_aliado_placeholder: {e}")
+                if conn:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+                return False
+            finally:
+                if conn:
+                    conn.close()
 
     def listar_aliados_pendiente_validacion(self) -> List[Dict[str, Any]]:
         """Lista aliados con estado pendiente_validacion (oficio fuera de catálogo, requieren activación manual)."""

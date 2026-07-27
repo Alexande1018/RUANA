@@ -136,7 +136,7 @@ def test_admin_crear_invitacion_rejects_read_only_admin_without_writes(client, f
     assert fake_db.calls == []
 
 
-def test_admin_crear_invitacion_creates_placeholder(client, fake_db, session_headers):
+def test_admin_crear_invitacion_creates_invitation_without_placeholder(client, fake_db, session_headers):
     headers = session_headers("admin", "ADMIN001", permisos=["leer", "escribir"])
 
     response = client.post(
@@ -153,13 +153,7 @@ def test_admin_crear_invitacion_creates_placeholder(client, fake_db, session_hea
     assert len(data["codigo"]) == 5
 
     crear_calls = [call for call in fake_db.calls if call[0] == "crear_aliado"]
-    assert len(crear_calls) == 1
-    placeholder = crear_calls[0][1]
-    assert placeholder["codigo"] == data["codigo"]
-    assert placeholder["codigo_postal"] == "08001"
-    assert placeholder["estado"] == "pendiente_completar"
-    assert placeholder["nombre"] == f"Nuevo Aliado - {data['codigo']}"
-    assert placeholder["email"] == f"placeholder-{data['codigo']}@ruana.local"
+    assert crear_calls == []
     registrar_calls = [call for call in fake_db.calls if call[0] == "_registrar_invitacion"]
     assert len(registrar_calls) == 1
     assert registrar_calls[0][1] == data["codigo"]
