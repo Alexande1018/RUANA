@@ -1,7 +1,10 @@
 """Almacenamiento y verificación segura de credenciales de administrador.
 
-Las contraseñas nunca se guardan en texto plano. El archivo de credenciales
-vive fuera del repositorio (por defecto en .local-secrets/).
+PUENTE TEMPORAL: sustituir por Firebase Authentication + tabla admin_users.
+Ver docs/superpowers/plans/2026-07-27-admin-firebase-auth-migration.md
+
+Las contraseñas nunca se guardan en texto plano. En producción el JSON
+(hasheado) llega vía GitHub Secret → CI → GCP Secret Manager.
 """
 
 from __future__ import annotations

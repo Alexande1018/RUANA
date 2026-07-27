@@ -57,6 +57,11 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 
+      - name: Sync admin credentials to Secret Manager
+        env:
+          ADMIN_CREDENTIALS_JSON: ${{ secrets.RUANA_ADMIN_CREDENTIALS_JSON }}
+        run: bash .github/scripts/sync-admin-credentials-gcp.sh
+
       - name: Build and push container image
         run: |
           DEPLOY_SHA=$(git rev-parse HEAD)

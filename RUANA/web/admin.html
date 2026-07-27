@@ -1051,6 +1051,7 @@
         <div class="admin-login-card ruana-auth-card">
             <h1 style="margin:0 0 8px; font-size:1.25rem; color:#fff;">Cambiar contraseña</h1>
             <p class="subtitle">Actualiza la contraseña de tu cuenta de administrador</p>
+            <p class="admin-login-tip" style="margin-bottom:12px;">En producción (modo puente), el cambio puede no persistir hasta la migración a Firebase Auth. Ver docs/ADMIN_CREDENTIALS_SETUP.md.</p>
             <form class="admin-login-form" id="adminChangePasswordForm">
                 <input type="password" class="admin-login-input ruana-form-control" id="adminCurrentPassword" placeholder="Contraseña actual" autocomplete="current-password" maxlength="128">
                 <input type="password" class="admin-login-input ruana-form-control" id="adminNewPassword" placeholder="Nueva contraseña (mín. 8 caracteres)" autocomplete="new-password" maxlength="128">
