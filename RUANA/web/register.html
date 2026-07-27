@@ -547,14 +547,7 @@
                     </div>
                 </div>
 
-                <!-- Suboficios (checkboxes; máx. 3; obligatorio al menos 1) -->
-                <div class="oficios-section suboficios-section" id="suboficios-section" style="display: none;">
-                    <span class="oficios-title" id="suboficios-label">Suboficios *</span>
-                    <p class="oficios-hint">Elige entre 1 y 3 suboficios de tu oficio principal.</p>
-                    <div class="suboficios-container" id="suboficios-container" role="group" aria-labelledby="suboficios-label"></div>
-                    <p class="suboficios-empty-msg" id="suboficios-empty-msg" style="display: none;">Este oficio no tiene subcategorías.</p>
-                    <p class="suboficios-max-hint" id="suboficios-max-hint" style="display: none;">Máximo 3 suboficios.</p>
-                </div>
+                <!-- Suboficios eliminados: la plaza es por oficio principal -->
 
                 <!-- Descripción del servicio -->
                 <div class="form-group">
@@ -629,11 +622,6 @@
                 this.oficioPrincipalSelect = document.getElementById('oficio-principal');
                 this.oficioOtroWrap = document.getElementById('oficio-otro-wrap');
                 this.oficioOtroTexto = document.getElementById('oficio-otro-texto');
-                this.suboficiosSection = document.getElementById('suboficios-section');
-                this.suboficiosContainer = document.getElementById('suboficios-container');
-                this.suboficiosEmptyMsg = document.getElementById('suboficios-empty-msg');
-                this.suboficiosMaxHint = document.getElementById('suboficios-max-hint');
-                this.MAX_SUBOFICIOS = 3;
                 this.catalogoJerarquico = [];
                 this.checkAccess();
                 this.init();
@@ -661,7 +649,7 @@
             init() {
                 this.loadCatalogo();
                 this.form.addEventListener('submit', (e) => this.handleSubmit(e));
-                if (this.oficioPrincipalSelect) this.oficioPrincipalSelect.addEventListener('change', () => this.onOficioChange());
+                if (this.oficioPrincipalSelect) this.oficioPrincipalSelect.addEventListener('change', () => this.handleOtroOficio());
             }
 
             async loadCatalogo() {
@@ -688,7 +676,6 @@
                 }
                 this.catalogoJerarquico = this.normalizarCatalogo(Array.isArray(raw) ? raw : []);
                 this.fillOficioPrincipalSelect();
-                this.cargarSuboficios();
             }
 
             /** Asegura que cada oficio tenga nombre (string) y especializaciones (array de strings). */
@@ -754,10 +741,6 @@
                 this.handleOtroOficio();
             }
 
-            onOficioChange() {
-                this.handleOtroOficio();
-            }
-
             handleOtroOficio() {
                 const isOtro = this.oficioPrincipalSelect && this.oficioPrincipalSelect.value === '__otro__';
                 if (this.oficioOtroWrap) this.oficioOtroWrap.style.display = isOtro ? 'block' : 'none';
@@ -765,232 +748,6 @@
                     this.oficioOtroTexto.required = isOtro;
                     if (!isOtro) this.oficioOtroTexto.value = '';
                 }
-                const oficioVal = this.oficioPrincipalSelect && (this.oficioPrincipalSelect.value || '').trim();
-                const mostrarSuboficios = !isOtro && oficioVal && oficioVal !== '';
-                if (this.suboficiosSection) this.suboficiosSection.style.display = mostrarSuboficios ? 'block' : 'none';
-                if (!mostrarSuboficios) {
-                    this.limpiarSuboficios();
-                    return;
-                }
-                this.cargarSuboficios();
-            }
-
-            limpiarSuboficios() {
-                if (this.suboficiosContainer) this.suboficiosContainer.innerHTML = '';
-                if (this.suboficiosEmptyMsg) this.suboficiosEmptyMsg.style.display = 'none';
-                if (this.suboficiosMaxHint) this.suboficiosMaxHint.style.display = 'none';
-            }
-
-            /** Obtiene el objeto oficio del catálogo por nombre seleccionado (para usar .especializaciones). */
-            getOficioObjetoDelCatalogo(oficioNombre) {
-                const val = (oficioNombre && String(oficioNombre).trim()) || '';
-                if (!val || val === '__otro__') return null;
-                const catalog = Array.isArray(this.catalogoJerarquico) ? this.catalogoJerarquico : [];
-                const norm = (s) => String(s).trim().toLowerCase().replace(/\s+/g, ' ');
-                return catalog.find(o => {
-                    if (!o || typeof o !== 'object') return false;
-                    const name = this.getOficioDisplayName(o) || (o.nombre != null ? String(o.nombre).trim() : '');
-                    return name && (name === val || norm(name) === norm(val));
-                }) || null;
-            }
-
-            /** Extrae el nombre para mostrar: solo string legible. Rechaza objeto, JSON o repr tipo Python. */
-            nombreSuboficio(item) {
-                let raw = '';
-                if (item == null) return '';
-                if (typeof item === 'string') raw = String(item).trim();
-                else if (typeof item === 'object' && item && item.nombre != null) raw = String(item.nombre).trim();
-                else if (typeof item === 'number' || typeof item === 'boolean') raw = String(item).trim();
-                else return '';
-                if (!raw || raw.length > 200) return '';
-                if (raw.indexOf('{') !== -1 || raw.indexOf('}') !== -1) return '';
-                if (raw.indexOf("'nombre'") !== -1 || raw.indexOf("'especializaciones'") !== -1) return '';
-                if (raw.indexOf('"nombre"') !== -1 || raw.indexOf('"especializaciones"') !== -1) return '';
-                return raw;
-            }
-
-            /** Renderiza suboficios: itera solo oficio.especializaciones y crea un checkbox por cada nombre. */
-            cargarSuboficios() {
-                if (!this.suboficiosContainer) return;
-                this.limpiarSuboficios();
-                const oficioVal = this.oficioPrincipalSelect && (this.oficioPrincipalSelect.value || '').trim();
-                if (!oficioVal || oficioVal === '__otro__') return;
-
-                let arrSuboficios = [];
-                const oficioObjeto = this.getOficioObjetoDelCatalogo(oficioVal);
-                let esp = oficioObjeto && oficioObjeto.especializaciones;
-                if (esp != null && typeof esp === 'string') {
-                    try { esp = JSON.parse(esp); } catch (_) { esp = null; }
-                }
-                if (Array.isArray(esp) && esp.length > 0) {
-                    esp.forEach(item => {
-                        const n = this.nombreSuboficio(item);
-                        if (n) arrSuboficios.push(n);
-                    });
-                }
-                if (arrSuboficios.length === 0 && oficioObjeto) {
-                    const nom = oficioObjeto.nombre;
-                    if (nom) arrSuboficios.push(String(nom).trim());
-                }
-                if (arrSuboficios.length === 0) {
-                    this.getListaEspecialidadesDelOficio(oficioVal).forEach(item => {
-                        const n = this.nombreSuboficio(item);
-                        if (n) arrSuboficios.push(n);
-                    });
-                }
-                if (arrSuboficios.length === 0) {
-                    if (this.suboficiosEmptyMsg) this.suboficiosEmptyMsg.style.display = 'block';
-                    return;
-                }
-                if (this.suboficiosEmptyMsg) this.suboficiosEmptyMsg.style.display = 'none';
-
-                this.suboficiosContainer.style.display = '';
-                arrSuboficios.forEach((nombre, index) => {
-                    const texto = typeof nombre === 'string' ? nombre.trim() : this.nombreSuboficio(nombre);
-                    if (!texto) return;
-                    const wrapper = document.createElement('div');
-                    wrapper.className = 'checkbox-group suboficio-item';
-                    const checkbox = document.createElement('input');
-                    checkbox.type = 'checkbox';
-                    checkbox.name = 'suboficio';
-                    checkbox.value = texto;
-                    checkbox.id = 'suboficio-' + index;
-                    checkbox.setAttribute('aria-label', texto);
-                    checkbox.addEventListener('change', (e) => this.onSuboficioChange(e));
-                    const label = document.createElement('label');
-                    label.htmlFor = checkbox.id;
-                    label.textContent = texto;
-                    wrapper.appendChild(checkbox);
-                    wrapper.appendChild(label);
-                    wrapper.addEventListener('click', (e) => {
-                        if (e.target === checkbox || e.target === label) return;
-                        e.preventDefault();
-                        checkbox.checked = !checkbox.checked;
-                        this.onSuboficioChange({ target: checkbox });
-                    });
-                    this.suboficiosContainer.appendChild(wrapper);
-                });
-
-                // Siempre añadir "Otro" al final de la lista de suboficios
-                const otroWrap = document.createElement('div');
-                otroWrap.className = 'checkbox-group suboficio-item suboficio-otro-row';
-                const otroCheck = document.createElement('input');
-                otroCheck.type = 'checkbox';
-                otroCheck.name = 'suboficio';
-                otroCheck.value = '__otro__';
-                otroCheck.id = 'suboficio-otro';
-                otroCheck.setAttribute('aria-label', 'Otro suboficio');
-                otroCheck.addEventListener('change', (e) => this.onSuboficioChange(e));
-                const otroLabel = document.createElement('label');
-                otroLabel.htmlFor = 'suboficio-otro';
-                otroLabel.textContent = 'Otro';
-                const otroTextWrap = document.createElement('div');
-                otroTextWrap.id = 'suboficio-otro-texto-wrap';
-                otroTextWrap.className = 'suboficio-otro-texto-wrap';
-                otroTextWrap.setAttribute('style', 'display: none; margin-top: 8px; margin-left: 0; width: 100%;');
-                const otroTextLabel = document.createElement('label');
-                otroTextLabel.setAttribute('for', 'suboficio-otro-texto');
-                otroTextLabel.textContent = '¿Cuál? ';
-                otroTextLabel.style.fontSize = '0.85rem';
-                otroTextLabel.style.color = '#999';
-                const otroInput = document.createElement('input');
-                otroInput.type = 'text';
-                otroInput.id = 'suboficio-otro-texto';
-                otroInput.className = 'register-input';
-                otroInput.placeholder = 'Escribe tu suboficio si no está en la lista';
-                otroInput.style.marginTop = '4px';
-                otroInput.style.width = '100%';
-                otroInput.style.boxSizing = 'border-box';
-                otroTextWrap.appendChild(otroTextLabel);
-                otroTextWrap.appendChild(otroInput);
-                otroWrap.appendChild(otroCheck);
-                otroWrap.appendChild(otroLabel);
-                otroWrap.appendChild(otroTextWrap);
-                otroWrap.addEventListener('click', (e) => {
-                    if (e.target === otroCheck || e.target === otroLabel || e.target === otroInput || e.target === otroTextLabel) return;
-                    e.preventDefault();
-                    otroCheck.checked = !otroCheck.checked;
-                    this.onSuboficioChange({ target: otroCheck });
-                });
-                this.suboficiosContainer.appendChild(otroWrap);
-            }
-
-            onSuboficioChange(ev) {
-                const target = ev && ev.target;
-                if (target && target.value === '__otro__') {
-                    const wrap = this.suboficiosContainer && (this.suboficiosContainer.querySelector('#suboficio-otro-texto-wrap') || this.suboficiosContainer.querySelector('.suboficio-otro-texto-wrap'));
-                    if (wrap) {
-                        if (target.checked) {
-                            wrap.classList.add('show');
-                            wrap.style.display = 'block';
-                            wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                        } else {
-                            wrap.classList.remove('show');
-                            wrap.style.display = 'none';
-                        }
-                    }
-                }
-                const checked = this.suboficiosContainer && this.suboficiosContainer.querySelectorAll('input[name="suboficio"]:checked');
-                const n = checked ? checked.length : 0;
-                if (n > this.MAX_SUBOFICIOS && ev && ev.target && ev.target.checked) {
-                    ev.target.checked = false;
-                    if (target && target.value === '__otro__') {
-                        const w = this.suboficiosContainer && (this.suboficiosContainer.querySelector('#suboficio-otro-texto-wrap') || this.suboficiosContainer.querySelector('.suboficio-otro-texto-wrap'));
-                        if (w) { w.classList.remove('show'); w.style.display = 'none'; }
-                    }
-                }
-                const total = this.suboficiosContainer ? this.suboficiosContainer.querySelectorAll('input[name="suboficio"]:checked').length : 0;
-                if (this.suboficiosMaxHint) this.suboficiosMaxHint.style.display = total >= this.MAX_SUBOFICIOS ? 'block' : 'none';
-            }
-
-            /** True si es un nombre corto válido para mostrar (no objeto/repr). */
-            isNombreCortoValido(s) {
-                if (!s || typeof s !== 'string') return false;
-                const t = s.trim();
-                if (t.length > 120) return false;
-                if (t.indexOf('{') !== -1 || t.indexOf("'nombre'") !== -1 || t.indexOf('"especializaciones"') !== -1) return false;
-                return true;
-            }
-
-            /** Lista de especialidades/suboficios del oficio seleccionado. Siempre devuelve al menos [oficio] si hay oficio válido. */
-            getListaEspecialidadesDelOficio(oficioVal) {
-                const val = (oficioVal && String(oficioVal).trim()) || '';
-                if (!val || val === '__otro__') return [];
-                const catalog = Array.isArray(this.catalogoJerarquico) ? this.catalogoJerarquico : [];
-                const norm = (s) => String(s).trim().toLowerCase().replace(/\s+/g, ' ');
-                const oficioItem = catalog.find(o => {
-                    if (!o) return false;
-                    const name = this.getOficioDisplayName(o) || (o && o.nombre != null ? String(o.nombre).trim() : '');
-                    if (!name) return false;
-                    return name === val || norm(name) === norm(val);
-                });
-                if (!oficioItem) return [val];
-                if (typeof oficioItem === 'string') return [String(oficioItem).trim()];
-                const esp = oficioItem.especializaciones;
-                if (Array.isArray(esp) && esp.length > 0) {
-                    const names = esp.map(e => {
-                        const n = typeof e === 'object' && e && e.nombre != null ? String(e.nombre).trim() : String(e || '').trim();
-                        return this.isNombreCortoValido(n) ? n : (n ? n : '');
-                    }).filter(Boolean);
-                    if (names.length) return names;
-                }
-                const nombreOficio = oficioItem.nombre != null ? String(oficioItem.nombre).trim() : '';
-                return nombreOficio ? [nombreOficio] : [val];
-            }
-
-            /** Devuelve los suboficios seleccionados (valor de cada checkbox). Si "Otro" está marcado, usa el texto del cuadro. */
-            getSuboficiosSeleccionados() {
-                if (!this.suboficiosContainer) return [];
-                const checked = this.suboficiosContainer.querySelectorAll('input[name="suboficio"]:checked');
-                const otroInput = this.suboficiosContainer.querySelector('#suboficio-otro-texto');
-                return Array.from(checked).map(cb => {
-                    const val = (cb.value || '').trim();
-                    if (val === '__otro__') {
-                        const texto = otroInput ? otroInput.value.trim() : '';
-                        return texto || null;
-                    }
-                    return val || null;
-                }).filter(Boolean);
             }
 
             handleSubmit(e) {
@@ -1022,8 +779,6 @@
                     return;
                 }
                 let oficioEnviar = oficioPrincipalVal;
-                let especializacionEnviar = '';
-                const especializaciones = [];
                 if (oficioPrincipalVal === '__otro__') {
                     const otroTexto = this.oficioOtroTexto ? this.oficioOtroTexto.value.trim() : '';
                     if (!otroTexto) {
@@ -1031,24 +786,6 @@
                         return;
                     }
                     oficioEnviar = otroTexto;
-                } else {
-                    const otroCheck = this.suboficiosContainer && this.suboficiosContainer.querySelector('input[name="suboficio"][value="__otro__"]');
-                    const otroTexto = this.suboficiosContainer && this.suboficiosContainer.querySelector('#suboficio-otro-texto');
-                    if (otroCheck && otroCheck.checked && otroTexto && !otroTexto.value.trim()) {
-                        this.showError('Si eliges "Otro" en suboficios, escribe cuál en el cuadro.');
-                        return;
-                    }
-                    const suboficios = this.getSuboficiosSeleccionados();
-                    if (suboficios.length === 0) {
-                        this.showError('Elige al menos un suboficio');
-                        return;
-                    }
-                    if (suboficios.length > this.MAX_SUBOFICIOS) {
-                        this.showError('Máximo ' + this.MAX_SUBOFICIOS + ' suboficios');
-                        return;
-                    }
-                    especializacionEnviar = suboficios[0];
-                    for (let i = 1; i < suboficios.length; i++) especializaciones.push(suboficios[i]);
                 }
 
                 if (!descripcion || descripcion.length < 10) {
@@ -1087,8 +824,6 @@
                     marca,
                     oficio: oficioEnviar,
                     oficio_principal: oficioPrincipalVal === '__otro__' ? oficioEnviar : oficioPrincipalVal,
-                    especializacion: especializacionEnviar,
-                    especializaciones,
                     descripcion,
                     codigo_postal: codigoPostal,
                     email,
@@ -1113,9 +848,7 @@
                         marca: data.marca,
                         oficio: data.oficio,
                         oficio_principal: data.oficio_principal || data.oficio,
-                        especializacion: data.especializacion || data.oficio,
                         descripcion: data.descripcion || '',
-                        especializaciones: data.especializaciones || [],
                         codigo_postal: data.codigo_postal,
                         email: data.email,
                         telefono: data.telefono,
@@ -1124,12 +857,6 @@
                 })
                 .then(response => response.json().then(result => ({ response, result })))
                 .then(({ response, result }) => {
-                    if (response.status === 409 && (result.code === 'plaza_ocupada' || (result.message && result.message.includes('disponible')))) {
-                        this.showError(result.message || 'La especialización ya no está disponible. Elige otra.');
-                        this.submitBtn.disabled = false;
-                        this.submitBtn.textContent = 'Solicitar registro';
-                        return;
-                    }
                     if (result.status === 'success') {
                         // El servidor generó el código
                         const codigoAliado = result.codigo;
@@ -1152,8 +879,8 @@
                         aliadosRegistrados[codigoAliado] = aliadoPayload;
                         localStorage.setItem('ruana_aliados', JSON.stringify(aliadosRegistrados));
                         
-                        // Guardar en sessionStorage solo si está activo (bloqueados no deben acceder al panel)
-                        if (estadoBackend !== 'pendiente_validacion') {
+                        // Guardar en sessionStorage solo si está activo (no pendiente, no en_espera)
+                        if (estadoBackend !== 'pendiente_validacion' && estadoBackend !== 'en_espera') {
                             sessionStorage.setItem('ruana_aliado_data', JSON.stringify(aliadoPayload));
                             sessionStorage.setItem('ruana_codigo_aliado', codigoAliado);
                         } else {
@@ -1162,14 +889,15 @@
                         }
                         
                         // IMPORTANTE: Invalidar la invitación después de registrarse
-                        // Evita reutilización
                         sessionStorage.removeItem('ruana_invite_valid');
                         sessionStorage.removeItem('ruana_invite_payload');
                         sessionStorage.removeItem('ruana_invite_code');
                         sessionStorage.removeItem('ruana_invite_codigo');
                         
-                        // Mostrar modal con el código (y aviso si pendiente de validación)
-                        this.mostrarModalCodigoAliado(codigoAliado, result.mensaje_pendiente_validacion);
+                        // Mostrar modal con el código
+                        const mensajeEspera = result.mensaje_lista_espera || null;
+                        const mensajePendiente = result.mensaje_pendiente_validacion || null;
+                        this.mostrarModalCodigoAliado(codigoAliado, mensajePendiente, mensajeEspera);
                     } else {
                         this.showError(result.message || 'Error al registrar');
                         this.submitBtn.disabled = false;
@@ -1201,10 +929,11 @@
                 return codigo;
             }
 
-            mostrarModalCodigoAliado(codigo, mensajePendienteValidacion) {
+            mostrarModalCodigoAliado(codigo, mensajePendienteValidacion, mensajeListaEspera) {
                 /**
                  * Muestra modal con el código único del aliado.
-                 * Si mensajePendienteValidacion existe (oficio fuera de catálogo), se muestra el aviso.
+                 * mensajePendienteValidacion: oficio fuera de catálogo.
+                 * mensajeListaEspera: CP lleno → lista de Suplentes.
                  */
                 // Crear overlay
                 const overlay = document.createElement('div');
@@ -1258,12 +987,20 @@
                     margin-bottom: 32px;
                     line-height: 1.6;
                 `;
-                desc.textContent = mensajePendienteValidacion
-                    ? 'Guarda este código. Es tu identificación personal. Cuando un administrador active tu cuenta, entrarás con este mismo código.'
-                    : 'Tu código de 5 dígitos es tu identificación personal permanente. Úsalo para acceder rápidamente en futuras sesiones.';
+                if (mensajeListaEspera) {
+                    desc.textContent = 'Tu registro se ha completado. Guarda tu código: lo necesitarás cuando se libere tu plaza.';
+                } else if (mensajePendienteValidacion) {
+                    desc.textContent = 'Guarda este código. Es tu identificación personal. Cuando un administrador active tu cuenta, entrarás con este mismo código.';
+                } else {
+                    desc.textContent = 'Tu código de 5 dígitos es tu identificación personal permanente. Úsalo para acceder rápidamente en futuras sesiones.';
+                }
 
                 let avisoPendiente = null;
-                if (mensajePendienteValidacion) {
+                if (mensajeListaEspera) {
+                    avisoPendiente = document.createElement('div');
+                    avisoPendiente.style.cssText = 'font-size: 0.9rem; color: #60a5fa; margin-bottom: 24px; padding: 16px; background: rgba(96, 165, 250, 0.1); border: 1px solid rgba(96, 165, 250, 0.3); border-radius: 8px; line-height: 1.6; white-space: pre-line; text-align: left;';
+                    avisoPendiente.textContent = mensajeListaEspera;
+                } else if (mensajePendienteValidacion) {
                     avisoPendiente = document.createElement('p');
                     avisoPendiente.style.cssText = 'font-size: 0.9rem; color: #eab308; margin-bottom: 24px; padding: 12px; background: rgba(234, 179, 8, 0.15); border-radius: 8px; line-height: 1.5;';
                     avisoPendiente.textContent = mensajePendienteValidacion;
@@ -1333,7 +1070,7 @@
                     text-transform: uppercase;
                     letter-spacing: 0.5px;
                 `;
-                btnAceptar.textContent = mensajePendienteValidacion ? 'Entendido' : 'Aceptar y Continuar';
+                btnAceptar.textContent = (mensajeListaEspera || mensajePendienteValidacion) ? 'Entendido' : 'Aceptar y Continuar';
 
                 btnAceptar.addEventListener('mouseenter', () => {
                     btnAceptar.style.transform = 'translateY(-2px)';
@@ -1347,11 +1084,12 @@
 
                 btnAceptar.addEventListener('click', async () => {
                     overlay.remove();
-                    const codigoAliadoStored = sessionStorage.getItem('ruana_codigo_aliado');
-                    if (mensajePendienteValidacion) {
+                    // en_espera y pendiente_validacion no tienen acceso al panel
+                    if (mensajeListaEspera || mensajePendienteValidacion) {
                         window.location.href = '/';
                         return;
                     }
+                    const codigoAliadoStored = sessionStorage.getItem('ruana_codigo_aliado');
                     if (codigoAliadoStored) {
                         try {
                             const r = await fetch('/api/aliado/login', {
