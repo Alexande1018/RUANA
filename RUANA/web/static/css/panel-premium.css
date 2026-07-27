@@ -75,8 +75,7 @@ body:not(.panel-loading) {
     border-radius: 50%;
     background: linear-gradient(135deg, rgba(34, 197, 94, 0.25) 0%, rgba(56, 189, 248, 0.15) 100%);
     border: 2px solid rgba(34, 197, 94, 0.45);
-    display: grid;
-    place-items: center;
+    display: block;
     font-size: 1.75rem;
     font-weight: 700;
     color: var(--ruana-accent);
@@ -85,6 +84,8 @@ body:not(.panel-loading) {
     overflow: hidden;
     position: relative;
     box-sizing: border-box;
+    padding: 0;
+    flex-shrink: 0;
 }
 
 .perfil-avatar-editable {
@@ -100,21 +101,31 @@ body:not(.panel-loading) {
 
 .perfil-avatar-photo,
 .ruana-avatar-photo {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
+    max-width: none;
+    max-height: none;
     object-fit: cover;
-    object-position: center;
+    object-position: center center;
     display: block;
     border-radius: 50%;
     background: rgba(8, 12, 24, 0.92);
+    margin: 0;
+    padding: 0;
 }
 
 .perfil-avatar-iniciales,
 .ruana-avatar-iniciales {
+    position: absolute;
+    inset: 0;
     display: grid;
     place-items: center;
     width: 100%;
     height: 100%;
+    margin: 0;
+    padding: 0;
 }
 
 .perfil-avatar-edit-hint {
@@ -411,14 +422,23 @@ body:not(.panel-loading) {
     border-radius: 50%;
     background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(56, 189, 248, 0.12));
     border: 2px solid rgba(34, 197, 94, 0.35);
-    display: grid;
-    place-items: center;
+    display: block;
     font-weight: 700;
     font-size: 1.2rem;
     color: var(--ruana-accent);
     flex-shrink: 0;
     overflow: hidden;
     box-sizing: border-box;
+    position: relative;
+    padding: 0;
+}
+
+.profesional-avatar .ruana-avatar-photo,
+.profesional-avatar .ruana-avatar-iniciales {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
 }
 
 /* Anillo fino del avatar según color de la etiqueta RUANA */
