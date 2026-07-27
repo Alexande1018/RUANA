@@ -1,42 +1,42 @@
 /* ================================================
-   RUANA Admin Premium — Glassmorphism 2026
-   Overrides visuales únicamente. Sin tocar lógica.
-   Cargar DESPUÉS del <style> inline de admin.html
+   RUANA Admin Premium 2026 — look más moderno
+   Solo estética. Cargar DESPUÉS del <style> inline.
    ================================================ */
 
 .admin-topbar {
-    background: linear-gradient(180deg, rgba(14, 16, 32, 0.78) 0%, rgba(12, 14, 26, 0.68) 100%) !important;
-    border-bottom: 1px solid var(--ruana-border-glass) !important;
-    backdrop-filter: var(--ruana-glass-strong) !important;
-    -webkit-backdrop-filter: var(--ruana-glass-strong) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.28), inset 0 -1px 0 rgba(255, 255, 255, 0.04) !important;
+    background: rgba(7, 9, 15, 0.55) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+    backdrop-filter: blur(28px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35), inset 0 -1px 0 rgba(255, 255, 255, 0.04) !important;
 }
 
 .admin-topbar-title {
-    letter-spacing: 0.06em !important;
+    letter-spacing: 0.14em !important;
     text-transform: uppercase;
-    font-size: 0.92rem;
+    font-size: 0.88rem;
+    font-weight: 800;
 }
 
 .admin-topbar-link {
-    border-radius: 12px !important;
-    background: var(--ruana-surface) !important;
-    border: 1px solid var(--ruana-border-glass) !important;
-    color: var(--ruana-text-soft) !important;
-    backdrop-filter: var(--ruana-glass);
-    transition: background var(--ruana-transition), border-color var(--ruana-transition), transform var(--ruana-transition) !important;
+    border-radius: 14px !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    color: #e5e7eb !important;
+    backdrop-filter: blur(16px);
+    font-weight: 600;
+    transition: background 180ms ease, border-color 180ms ease, transform 180ms ease !important;
 }
 
 .admin-topbar-link:hover {
-    background: var(--ruana-surface-hover) !important;
-    border-color: var(--ruana-border-strong) !important;
+    background: rgba(255, 255, 255, 0.1) !important;
     transform: translateY(-1px);
 }
 
 .btn-admin-logout {
-    border-radius: 12px !important;
-    backdrop-filter: var(--ruana-glass);
-    transition: background var(--ruana-transition), border-color var(--ruana-transition), transform var(--ruana-transition);
+    border-radius: 14px !important;
+    font-weight: 600;
+    transition: background 180ms ease, transform 180ms ease;
 }
 
 .btn-admin-logout:hover {
@@ -44,79 +44,76 @@
 }
 
 .admin-container {
-    padding-top: 100px !important;
+    padding-top: 104px !important;
 }
 
 .admin-title {
-    letter-spacing: -0.03em !important;
-    color: var(--ruana-text) !important;
+    letter-spacing: -0.04em !important;
+    font-weight: 800 !important;
+    color: #f8fafc !important;
 }
 
 .admin-subtitle {
-    color: var(--ruana-text-muted) !important;
+    color: #9ca3af !important;
 }
 
 .admin-is-loading #admin-loader {
-    background: rgba(12, 14, 26, 0.88) !important;
-    backdrop-filter: var(--ruana-glass-strong) !important;
+    background: rgba(7, 9, 15, 0.82) !important;
+    backdrop-filter: blur(28px) !important;
 }
 
-/* Login admin */
 .admin-login-modal:not(.hidden) {
-    backdrop-filter: blur(14px) saturate(140%);
-    background: rgba(6, 8, 18, 0.72);
+    backdrop-filter: blur(18px) saturate(160%);
+    background: rgba(4, 6, 12, 0.72);
 }
 
 .admin-login-card,
 .admin-login-card.ruana-auth-card {
-    background: linear-gradient(165deg, rgba(22, 26, 44, 0.82) 0%, rgba(12, 14, 26, 0.76) 100%) !important;
-    border: 1px solid var(--ruana-border-glass) !important;
-    border-radius: var(--ruana-radius-xl) !important;
-    backdrop-filter: var(--ruana-glass-strong) !important;
-    -webkit-backdrop-filter: var(--ruana-glass-strong) !important;
-    box-shadow: var(--ruana-shadow-soft), var(--ruana-highlight) !important;
+    background:
+        linear-gradient(155deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.025) 50%, rgba(255, 255, 255, 0.05) 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    border-radius: 32px !important;
+    backdrop-filter: blur(40px) saturate(190%) !important;
+    -webkit-backdrop-filter: blur(40px) saturate(190%) !important;
+    box-shadow: 0 40px 100px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.14) !important;
 }
 
-.admin-login-input,
-.admin-login-form .ruana-form-control {
-    border-radius: var(--ruana-radius-md) !important;
-}
-
-.admin-login-btn,
-.admin-login-form .ruana-button {
-    border-radius: 14px !important;
-}
-
-/* KPI / indicadores */
 .indicador-card {
-    background: linear-gradient(165deg, rgba(22, 26, 44, 0.7) 0%, rgba(12, 14, 26, 0.55) 100%) !important;
-    border: 1px solid var(--ruana-border-glass) !important;
-    border-radius: var(--ruana-radius-xl) !important;
-    backdrop-filter: var(--ruana-glass) !important;
-    -webkit-backdrop-filter: var(--ruana-glass) !important;
-    box-shadow: var(--ruana-shadow-card) !important;
-    transition: transform var(--ruana-transition), border-color var(--ruana-transition), box-shadow var(--ruana-transition) !important;
+    background:
+        linear-gradient(160deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    border-radius: 22px !important;
+    backdrop-filter: blur(28px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.18) !important;
+    transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease !important;
 }
 
 .indicador-card:hover {
-    transform: translateY(-3px) !important;
-    border-color: rgba(34, 197, 94, 0.28) !important;
-    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+    transform: translateY(-4px) !important;
+    border-color: rgba(162, 255, 0, 0.28) !important;
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.38), 0 0 24px rgba(34, 197, 94, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
 }
 
 .indicador-numero {
-    letter-spacing: -0.04em;
+    letter-spacing: -0.05em;
+    font-weight: 800;
+    background: linear-gradient(180deg, #86efac 0%, #22c55e 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
 .indicador-label {
-    color: var(--ruana-text-muted) !important;
+    color: #9ca3af !important;
+    font-size: 0.8rem !important;
 }
 
-/* Secciones / cards movimiento */
 .seccion-titulo {
-    font-size: 0.78rem !important;
-    letter-spacing: 0.12em !important;
-    color: var(--ruana-text-muted) !important;
+    font-size: 0.72rem !important;
+    letter-spacing: 0.16em !important;
+    color: #9ca3af !important;
+    font-weight: 700 !important;
 }
 
 .movimiento-card,
@@ -124,76 +121,80 @@
 .metrica-item,
 .salud-card,
 .panel-block,
-.admin-section-card {
-    background: linear-gradient(165deg, rgba(22, 26, 44, 0.68) 0%, rgba(12, 14, 26, 0.52) 100%) !important;
-    border: 1px solid var(--ruana-border-glass) !important;
-    border-radius: var(--ruana-radius-lg) !important;
-    backdrop-filter: var(--ruana-glass) !important;
-    -webkit-backdrop-filter: var(--ruana-glass) !important;
-    box-shadow: var(--ruana-shadow-card) !important;
+.admin-section-card,
+.acciones-admin,
+.estado-global {
+    background:
+        linear-gradient(160deg, rgba(255, 255, 255, 0.11) 0%, rgba(255, 255, 255, 0.035) 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.16) !important;
+    border-radius: 22px !important;
+    backdrop-filter: blur(28px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.16) !important;
 }
 
-.metricas-salud {
-    border-radius: var(--ruana-radius-xl) !important;
+.metricas-salud,
+.estado-global,
+.acciones-admin {
+    border-radius: 26px !important;
     padding: 28px !important;
 }
 
 .metrica-item {
-    border-radius: var(--ruana-radius-md) !important;
-    transition: transform var(--ruana-transition), border-color var(--ruana-transition);
+    border-radius: 16px !important;
+    transition: transform 180ms ease, border-color 180ms ease;
 }
 
 .metrica-item:hover {
     transform: translateY(-2px);
-    border-color: var(--ruana-border-strong) !important;
+    border-color: rgba(255, 255, 255, 0.18) !important;
 }
 
-/* Tablas */
 .movimiento-24h-tabla-scroll,
 .tabla-scroll,
 .admin-tabla-wrap,
-table.admin-tabla,
 .aliados-tabla-wrap {
-    border-radius: var(--ruana-radius-lg) !important;
-    border: 1px solid var(--ruana-border-glass) !important;
+    border-radius: 18px !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
     overflow: hidden;
-    background: rgba(12, 14, 26, 0.45);
-    backdrop-filter: var(--ruana-glass);
+    background: rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(16px);
 }
 
 .movimiento-24h-tabla th,
 .admin-tabla th,
 table th {
-    background: rgba(255, 255, 255, 0.05) !important;
-    color: var(--ruana-text-muted) !important;
-    font-size: 0.72rem;
-    letter-spacing: 0.06em;
+    background: rgba(255, 255, 255, 0.045) !important;
+    color: #9ca3af !important;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
+    font-weight: 700;
 }
 
 .movimiento-24h-tabla tbody tr:hover,
 .admin-tabla tbody tr:hover,
 table tbody tr:hover {
-    background: rgba(34, 197, 94, 0.04) !important;
+    background: rgba(34, 197, 94, 0.05) !important;
 }
 
-/* Filtros */
 .btn-filtro {
-    border-radius: 12px !important;
-    background: var(--ruana-surface) !important;
-    border: 1px solid var(--ruana-border) !important;
-    backdrop-filter: var(--ruana-glass);
-    transition: background var(--ruana-transition), border-color var(--ruana-transition), color var(--ruana-transition), transform var(--ruana-transition) !important;
+    border-radius: 14px !important;
+    background: rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    backdrop-filter: blur(12px);
+    font-weight: 600;
+    transition: background 180ms ease, border-color 180ms ease, color 180ms ease, transform 180ms ease !important;
 }
 
 .btn-filtro:hover {
     transform: translateY(-1px);
-    border-color: var(--ruana-border-strong) !important;
+    border-color: rgba(255, 255, 255, 0.18) !important;
 }
 
 .btn-filtro.active {
     background: rgba(34, 197, 94, 0.16) !important;
-    border-color: rgba(34, 197, 94, 0.42) !important;
+    border-color: rgba(34, 197, 94, 0.45) !important;
     color: #86efac !important;
     box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
@@ -208,8 +209,8 @@ input[type="number"],
 input[type="date"],
 textarea,
 select {
-    border-radius: var(--ruana-radius-md) !important;
-    transition: border-color var(--ruana-transition), box-shadow var(--ruana-transition), background var(--ruana-transition);
+    border-radius: 14px !important;
+    transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
 }
 
 .admin-filter-row input:focus,
@@ -220,18 +221,18 @@ input:focus,
 textarea:focus,
 select:focus {
     outline: none;
-    border-color: var(--ruana-accent) !important;
-    box-shadow: var(--ruana-focus-ring);
+    border-color: rgba(34, 197, 94, 0.6) !important;
+    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.15);
 }
 
-/* Botones de acción */
 .btn-accion,
 .btn-admin-action,
 .btn-volver-nivel,
 .btn-linaje {
-    border-radius: 12px !important;
-    min-height: 40px;
-    transition: transform var(--ruana-transition), box-shadow var(--ruana-transition), background var(--ruana-transition), border-color var(--ruana-transition) !important;
+    border-radius: 14px !important;
+    min-height: 42px;
+    font-weight: 600;
+    transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease, border-color 180ms ease !important;
 }
 
 .btn-accion:hover,
@@ -248,18 +249,17 @@ select:focus {
 }
 
 .btn-admin-action {
-    background: var(--ruana-surface) !important;
-    border: 1px solid var(--ruana-border-glass) !important;
-    box-shadow: var(--ruana-highlight) !important;
-    color: var(--ruana-text-soft) !important;
-    font-weight: 600;
-    backdrop-filter: var(--ruana-glass);
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+    color: #e5e7eb !important;
+    backdrop-filter: blur(12px);
 }
 
 .btn-admin-action:hover {
-    background: var(--ruana-surface-hover) !important;
-    border-color: var(--ruana-border-strong) !important;
-    color: var(--ruana-text) !important;
+    background: rgba(255, 255, 255, 0.09) !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    color: #fff !important;
 }
 
 .btn-admin-action.danger,
@@ -275,82 +275,10 @@ select:focus {
     background: rgba(239, 68, 68, 0.2) !important;
 }
 
-/* Cards de control aliados / jerarquía */
 .cp-card,
 .grupo-card,
 .aliado-admin-card,
-.linaje-card {
-    background: linear-gradient(165deg, rgba(22, 26, 44, 0.72) 0%, rgba(12, 14, 26, 0.55) 100%) !important;
-    border: 1px solid var(--ruana-border-glass) !important;
-    border-radius: var(--ruana-radius-lg) !important;
-    backdrop-filter: var(--ruana-glass) !important;
-    -webkit-backdrop-filter: var(--ruana-glass) !important;
-    box-shadow: var(--ruana-shadow-card) !important;
-    transition: transform var(--ruana-transition), border-color var(--ruana-transition), box-shadow var(--ruana-transition), background var(--ruana-transition) !important;
-}
-
-.cp-card:hover,
-.grupo-card:hover,
-.aliado-admin-card:hover {
-    transform: translateY(-2px);
-    border-color: rgba(34, 197, 94, 0.28) !important;
-    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
-}
-
-.aliado-estado-badge,
-.aliado-badge,
-.estado-pago-badge {
-    border-radius: 999px !important;
-    border: 1px solid transparent;
-    letter-spacing: 0.04em;
-}
-
-.evento-item {
-    background: linear-gradient(165deg, rgba(22, 26, 44, 0.65) 0%, rgba(12, 14, 26, 0.5) 100%) !important;
-    border: 1px solid var(--ruana-border-glass) !important;
-    border-left: 3px solid rgba(34, 197, 94, 0.45) !important;
-    border-radius: var(--ruana-radius-md) !important;
-    backdrop-filter: var(--ruana-glass);
-    box-shadow: var(--ruana-shadow-card);
-    transition: transform var(--ruana-transition), border-color var(--ruana-transition);
-}
-
-.evento-item:hover {
-    transform: translateX(2px);
-    border-color: var(--ruana-border-strong) !important;
-}
-
-.acciones-admin {
-    background: linear-gradient(165deg, rgba(22, 26, 44, 0.68) 0%, rgba(12, 14, 26, 0.52) 100%) !important;
-    border: 1px solid var(--ruana-border-glass) !important;
-    border-radius: var(--ruana-radius-xl) !important;
-    backdrop-filter: var(--ruana-glass) !important;
-    box-shadow: var(--ruana-shadow-card) !important;
-}
-
-.linaje-drawer {
-    background: linear-gradient(180deg, rgba(22, 26, 44, 0.94) 0%, rgba(12, 14, 26, 0.92) 100%) !important;
-    border-left: 1px solid var(--ruana-border-glass) !important;
-    backdrop-filter: var(--ruana-glass-strong) !important;
-    -webkit-backdrop-filter: var(--ruana-glass-strong) !important;
-    box-shadow: -16px 0 48px rgba(0, 0, 0, 0.4) !important;
-}
-
-.linaje-drawer-overlay {
-    backdrop-filter: blur(10px) !important;
-    background: rgba(6, 8, 18, 0.72) !important;
-}
-
-.estado-global {
-    background: linear-gradient(165deg, rgba(22, 26, 44, 0.7) 0%, rgba(12, 14, 26, 0.55) 100%) !important;
-    border: 1px solid var(--ruana-border-glass) !important;
-    border-radius: var(--ruana-radius-xl) !important;
-    backdrop-filter: var(--ruana-glass) !important;
-    box-shadow: var(--ruana-shadow-card);
-    padding: 20px 22px;
-}
-
-/* Cards de listas / pendientes / chats */
+.linaje-card,
 .pendiente-card,
 .conflicto-card,
 .pago-card,
@@ -362,133 +290,102 @@ select:focus {
 .aviso-card,
 .lista-item,
 .item-card {
-    background: linear-gradient(165deg, rgba(22, 26, 44, 0.72) 0%, rgba(12, 14, 26, 0.58) 100%) !important;
-    border: 1px solid var(--ruana-border-glass) !important;
-    border-radius: var(--ruana-radius-lg) !important;
-    backdrop-filter: var(--ruana-glass) !important;
-    box-shadow: var(--ruana-shadow-card) !important;
-    transition: transform var(--ruana-transition), border-color var(--ruana-transition), box-shadow var(--ruana-transition);
+    background:
+        linear-gradient(160deg, rgba(255, 255, 255, 0.065) 0%, rgba(255, 255, 255, 0.02) 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.11) !important;
+    border-radius: 20px !important;
+    backdrop-filter: blur(22px) saturate(170%) !important;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.09) !important;
+    transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
 }
 
+.cp-card:hover,
+.grupo-card:hover,
+.aliado-admin-card:hover,
 .pendiente-card:hover,
 .conflicto-card:hover,
 .pago-card:hover,
-.solicitud-admin-card:hover,
-.competencia-card:hover,
-.suplente-card:hover,
-.conversacion-card:hover,
-.aliado-card:hover,
 .lista-item:hover,
 .item-card:hover {
-    transform: translateY(-2px);
-    border-color: var(--ruana-border-strong) !important;
+    transform: translateY(-3px);
+    border-color: rgba(162, 255, 0, 0.25) !important;
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
 }
 
-/* Modales admin */
+.aliado-estado-badge,
+.aliado-badge,
+.estado-pago-badge {
+    border-radius: 10px !important;
+    border: 1px solid transparent;
+    letter-spacing: 0.04em;
+    font-weight: 700;
+}
+
+.evento-item {
+    background: rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-left: 3px solid rgba(34, 197, 94, 0.55) !important;
+    border-radius: 16px !important;
+    backdrop-filter: blur(16px);
+    transition: transform 180ms ease, border-color 180ms ease;
+}
+
+.evento-item:hover {
+    transform: translateX(3px);
+}
+
 .modal-overlay.admin-modal,
 .admin-modal.modal-overlay {
-    backdrop-filter: blur(12px) saturate(140%) !important;
-    background: rgba(6, 8, 18, 0.76) !important;
+    backdrop-filter: blur(16px) saturate(150%) !important;
+    background: rgba(4, 6, 12, 0.78) !important;
 }
 
 .admin-modal .modal-content,
 .modal-overlay .modal-content {
-    background: linear-gradient(165deg, rgba(22, 26, 44, 0.92) 0%, rgba(12, 14, 26, 0.9) 100%) !important;
-    border: 1px solid var(--ruana-border-glass) !important;
-    border-radius: var(--ruana-radius-xl) !important;
-    backdrop-filter: var(--ruana-glass-strong) !important;
-    -webkit-backdrop-filter: var(--ruana-glass-strong) !important;
-    box-shadow: var(--ruana-shadow-soft), var(--ruana-highlight) !important;
-    animation: ruana-dialog-in 220ms ease;
+    background:
+        linear-gradient(160deg, rgba(255, 255, 255, 0.08) 0%, rgba(12, 14, 22, 0.88) 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    border-radius: 28px !important;
+    backdrop-filter: blur(36px) saturate(180%) !important;
+    box-shadow: 0 40px 100px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
 }
 
-.modal-title {
-    letter-spacing: -0.02em;
-    color: var(--ruana-text) !important;
+.linaje-drawer {
+    background: linear-gradient(180deg, rgba(12, 14, 22, 0.92) 0%, rgba(7, 9, 15, 0.95) 100%) !important;
+    border-left: 1px solid rgba(255, 255, 255, 0.12) !important;
+    backdrop-filter: blur(32px) !important;
+    box-shadow: -20px 0 60px rgba(0, 0, 0, 0.45) !important;
 }
 
-.modal-actions button,
-.modal-actions .ruana-button,
-.modal-actions .btn-accion {
-    border-radius: 12px !important;
-    min-height: 42px;
+.linaje-drawer-overlay {
+    backdrop-filter: blur(12px) !important;
+    background: rgba(4, 6, 12, 0.7) !important;
 }
 
-/* Estado sistema */
 .estado-sistema {
-    border-radius: 999px !important;
+    border-radius: 12px !important;
     border: 1px solid transparent;
-    backdrop-filter: var(--ruana-glass);
+    backdrop-filter: blur(12px);
     padding: 8px 14px !important;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 0.04em;
 }
 
-.estado-sistema.estable {
-    border-color: rgba(34, 197, 94, 0.28);
-}
+.estado-sistema.estable { border-color: rgba(34, 197, 94, 0.3); }
+.estado-sistema.alerta { border-color: rgba(234, 179, 8, 0.3); }
+.estado-sistema.crítico { border-color: rgba(239, 68, 68, 0.3); }
 
-.estado-sistema.alerta {
-    border-color: rgba(234, 179, 8, 0.28);
-}
-
-.estado-sistema.crítico {
-    border-color: rgba(239, 68, 68, 0.28);
-}
-
-/* Jerarquía / linaje */
 .aliados-jerarquia-nav,
 .linaje-panel {
-    background: var(--ruana-surface) !important;
-    border: 1px solid var(--ruana-border-glass) !important;
-    border-radius: var(--ruana-radius-lg) !important;
-    backdrop-filter: var(--ruana-glass);
+    background: rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 18px !important;
+    backdrop-filter: blur(16px);
     padding: 12px 14px;
 }
 
-/* Empty states */
-#pendientes-empty,
-#conflictos-pago-empty,
-#pagos-apoyo-empty,
-#pagos-en-revision-empty,
-#solicitudes-admin-empty,
-#competencias-activas-empty,
-#suplentes-espera-empty,
-#conversaciones-empty,
-#conversaciones-no-mas {
-    color: var(--ruana-text-subtle) !important;
-}
-
-/* Responsive */
 @media (max-width: 768px) {
-    .admin-topbar {
-        padding: 10px 14px !important;
-    }
-
-    .indicadores-grid {
-        gap: 12px !important;
-    }
-
-    .indicador-card {
-        padding: 18px 14px !important;
-    }
-
-    .admin-container {
-        padding-left: 14px !important;
-        padding-right: 14px !important;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .indicador-card,
-    .btn-filtro,
-    .btn-accion,
-    .btn-admin-action,
-    .metrica-item,
-    .pendiente-card,
-    .conflicto-card,
-    .pago-card {
-        transition: none !important;
-        animation: none !important;
-    }
+    .admin-topbar { padding: 10px 14px !important; }
+    .indicador-card { padding: 18px 14px !important; }
+    .admin-container { padding-left: 14px !important; padding-right: 14px !important; }
 }
