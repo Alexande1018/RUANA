@@ -1665,7 +1665,7 @@
         <div class="perfil-block ruana-card-premium">
             <div class="perfil-header">
                 <div class="perfil-avatar-wrap">
-                    <label class="perfil-avatar perfil-avatar-editable" for="input-foto-perfil" id="perfil-avatar" title="Cambiar foto de perfil">
+                    <label class="perfil-avatar perfil-avatar-editable" for="input-foto-perfil" id="perfil-avatar" data-etiqueta="estable" title="Cambiar foto de perfil">
                         <img id="perfil-avatar-img" class="perfil-avatar-photo ruana-avatar-photo" alt="" hidden>
                         <span id="perfil-avatar-iniciales" class="perfil-avatar-iniciales ruana-avatar-iniciales" aria-hidden="true">RU</span>
                         <span class="perfil-avatar-edit-hint">Cambiar foto</span>
@@ -2457,13 +2457,36 @@
                 return texto.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]).join('').toUpperCase().slice(0, 2) || '?';
             }
 
-            renderAvatarHtml(fotoUrl, nombre, className) {
+            renderAvatarHtml(fotoUrl, nombre, className, etiquetaStatus) {
                 const iniciales = this.getIniciales(nombre);
                 const foto = (fotoUrl || '').trim();
+                const etiqueta = this._mapEtiquetaAvatarStatus(etiquetaStatus || 'estable');
+                const etiquetaAttr = ` data-etiqueta="${this.escapeHtml(etiqueta)}"`;
                 if (foto) {
-                    return `<div class="${className}"><img src="${this.escapeHtml(foto)}" alt="" class="ruana-avatar-photo"></div>`;
+                    return `<div class="${className}"${etiquetaAttr}><img src="${this.escapeHtml(foto)}" alt="" class="ruana-avatar-photo"></div>`;
                 }
-                return `<div class="${className}" aria-hidden="true"><span class="ruana-avatar-iniciales">${this.escapeHtml(iniciales)}</span></div>`;
+                return `<div class="${className}"${etiquetaAttr} aria-hidden="true"><span class="ruana-avatar-iniciales">${this.escapeHtml(iniciales)}</span></div>`;
+            }
+
+            _mapEtiquetaAvatarStatus(status) {
+                const key = (status || '').toString().trim().toLowerCase();
+                const map = {
+                    destacado: 'destacado',
+                    estable: 'estable',
+                    en_riesgo: 'en_riesgo',
+                    competencia: 'competencia',
+                    activo: 'estable',
+                    observacion: 'en_riesgo',
+                    riesgo: 'competencia',
+                    inactivo: 'inactivo'
+                };
+                return map[key] || 'estable';
+            }
+
+            _syncPerfilAvatarEtiqueta(status) {
+                const avatarEl = document.getElementById('perfil-avatar');
+                if (!avatarEl) return;
+                avatarEl.dataset.etiqueta = this._mapEtiquetaAvatarStatus(status);
             }
 
             aplicarAvatarPerfil(aliadoData) {
@@ -2642,12 +2665,14 @@
                 if (estadoMap[estadoRuana]) {
                     statusEl.dataset.status = estadoMap[estadoRuana].status;
                     statusEl.querySelector('.status-text').textContent = estadoMap[estadoRuana].label;
+                    this._syncPerfilAvatarEtiqueta(estadoMap[estadoRuana].status);
                 } else {
                     const estado = aliadoData.estado || aliadoData.status || 'observacion';
                     const estadoNormalizado = this.normalizarEstado(estado);
                     statusEl.dataset.status = estadoNormalizado;
                     const statusTexts = { 'activo': 'Activo', 'inactivo': 'Inactivo', 'observacion': 'En observación', 'riesgo': 'En riesgo' };
                     statusEl.querySelector('.status-text').textContent = statusTexts[estadoNormalizado] || 'Estado desconocido';
+                    this._syncPerfilAvatarEtiqueta(estadoNormalizado);
                 }
             }
 
@@ -3632,7 +3657,7 @@
 
                     const badgeRuana = tieneConversacion ? 'conversacion-activa' : (esIncompleto ? 'perfil-incompleto' : '');
                     const badgeTipo = tieneConversacion ? 'ruana-badge pendiente' : (esIncompleto ? 'ruana-badge observacion' : 'ruana-badge disponible');
-                    const avatarHtml = this.renderAvatarHtml(prof.foto_perfil_url, nombre, 'profesional-avatar');
+                    const avatarHtml = this.renderAvatarHtml(prof.foto_perfil_url, nombre, 'profesional-avatar', scoreMeta.status);
 
                     const card = document.createElement('div');
                     card.className = 'profesional-card' + (esIncompleto ? ' perfil-incompleto' : '');
