@@ -1,0 +1,239 @@
+/* ================================================
+   RUANA Auth Premium 2026 — look más moderno
+   Solo estética. Cargar después del <style> inline.
+   ================================================ */
+
+.btn-back {
+    padding: 11px 16px !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 14px !important;
+    color: var(--ruana-text-muted) !important;
+    backdrop-filter: blur(20px) saturate(160%) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(160%) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    font-weight: 600 !important;
+    letter-spacing: -0.01em;
+    transition: background 180ms ease, border-color 180ms ease, color 180ms ease, transform 180ms ease !important;
+}
+
+.btn-back:hover {
+    background: rgba(255, 255, 255, 0.09) !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    color: #fff !important;
+    transform: translateY(-1px) !important;
+}
+
+.invite-card,
+.register-card,
+.access-card,
+.login-card,
+.ruana-auth-card {
+    background:
+        linear-gradient(155deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.05) 45%, rgba(255, 255, 255, 0.09) 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.22) !important;
+    border-radius: 32px !important;
+    backdrop-filter: blur(48px) saturate(200%) !important;
+    -webkit-backdrop-filter: blur(48px) saturate(200%) !important;
+    box-shadow:
+        0 40px 100px rgba(0, 0, 0, 0.45),
+        inset 0 1px 0 rgba(255, 255, 255, 0.26) !important;
+}
+
+.invite-card h1,
+.register-card h1,
+.access-card h1 {
+    font-weight: 800 !important;
+    letter-spacing: 0.16em !important;
+    background: linear-gradient(135deg, #a2ff00 0%, #d9ff8a 60%, #f7ffe8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.invite-card p,
+.register-card .subtitle,
+.access-card p,
+.ruana-auth-card > p {
+    color: rgba(209, 213, 219, 0.78) !important;
+    font-size: 0.95rem !important;
+    line-height: 1.55 !important;
+    font-weight: 450;
+}
+
+.invite-input,
+.register-input,
+.access-input,
+.invite-form input,
+.register-form input,
+.access-form input,
+.invite-form select,
+.register-form select,
+.access-form select,
+.invite-form textarea,
+.register-form textarea {
+    min-height: 52px !important;
+    border-radius: 16px !important;
+    background: rgba(0, 0, 0, 0.38) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: #f8fafc !important;
+    font-size: 0.95rem !important;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+    transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease !important;
+}
+
+.invite-input:focus,
+.register-input:focus,
+.access-input:focus,
+.invite-form input:focus,
+.register-form input:focus,
+.access-form input:focus,
+.invite-form select:focus,
+.register-form select:focus,
+.invite-form textarea:focus,
+.register-form textarea:focus {
+    outline: none !important;
+    border-color: rgba(34, 197, 94, 0.65) !important;
+    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.16), inset 0 1px 2px rgba(0, 0, 0, 0.25) !important;
+    background: rgba(0, 0, 0, 0.45) !important;
+}
+
+.invite-btn,
+.register-btn,
+.access-btn,
+.btn-submit,
+.btn-primary {
+    min-height: 52px !important;
+    border-radius: 18px !important;
+    background: linear-gradient(135deg, #34d399 0%, #22c55e 45%, #16a34a 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: #04140a !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.04em !important;
+    text-transform: uppercase;
+    box-shadow:
+        0 10px 32px rgba(34, 197, 94, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
+    transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease !important;
+}
+
+.invite-btn:hover,
+.register-btn:hover,
+.access-btn:hover,
+.btn-submit:hover,
+.btn-primary:hover {
+    transform: translateY(-2px) scale(1.01);
+    filter: brightness(1.06);
+    box-shadow:
+        0 16px 40px rgba(34, 197, 94, 0.42),
+        0 0 28px rgba(162, 255, 0, 0.16),
+        inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
+}
+
+.invite-btn:active,
+.register-btn:active,
+.access-btn:active,
+.btn-submit:active,
+.btn-primary:active {
+    transform: translateY(0) scale(0.985);
+}
+
+.invite-error,
+.register-error,
+.access-error,
+.error-message,
+.form-error,
+.success-message,
+.form-success {
+    border-radius: 14px !important;
+    backdrop-filter: blur(16px);
+    border: 1px solid transparent;
+    padding: 12px 14px !important;
+    font-size: 0.88rem !important;
+}
+
+.invite-error,
+.register-error,
+.access-error,
+.error-message,
+.form-error {
+    background: rgba(239, 68, 68, 0.12) !important;
+    border-color: rgba(239, 68, 68, 0.3) !important;
+    color: #fca5a5 !important;
+}
+
+.success-message,
+.form-success {
+    background: rgba(34, 197, 94, 0.12) !important;
+    border-color: rgba(34, 197, 94, 0.3) !important;
+    color: #86efac !important;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+    accent-color: #22c55e;
+    width: 17px;
+    height: 17px;
+}
+
+.filters-section {
+    background: rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 24px !important;
+    backdrop-filter: blur(24px) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.filter-select,
+.filter-input {
+    border-radius: 14px !important;
+    background: rgba(0, 0, 0, 0.35) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    min-height: 44px;
+}
+
+.filter-select:focus,
+.filter-input:focus {
+    border-color: rgba(34, 197, 94, 0.6) !important;
+    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.15) !important;
+}
+
+.ruana-brand-watermark {
+    background: rgba(7, 9, 15, 0.45) !important;
+    border: 1px solid rgba(162, 255, 0, 0.16) !important;
+    backdrop-filter: blur(20px) !important;
+    border-radius: 16px !important;
+}
+
+.register-form .form-group label,
+.invite-form label {
+    font-size: 0.78rem !important;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(156, 163, 175, 0.9) !important;
+    font-weight: 600 !important;
+    margin-bottom: 8px !important;
+}
+
+@media (max-width: 640px) {
+    .invite-card,
+    .register-card,
+    .access-card,
+    .ruana-auth-card {
+        padding: 28px 18px !important;
+        border-radius: 24px !important;
+    }
+
+    .access-mode-switch {
+        grid-template-columns: 1fr !important;
+        border-radius: 18px !important;
+    }
+
+    .invite-btn,
+    .register-btn,
+    .access-btn,
+    .btn-submit,
+    .btn-primary {
+        width: 100%;
+    }
+}
