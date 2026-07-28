@@ -1633,6 +1633,12 @@
             line-height: 1.5;
             font-size: 0.94rem;
         }
+        .ruana-tour-copy br + br {
+            line-height: 1.2;
+        }
+        .ruana-tour-copy strong {
+            color: #f4ffe6;
+        }
         .ruana-tour-progress {
             margin: 14px 0 10px;
             height: 6px;
@@ -2315,38 +2321,68 @@
                 return [
                     {
                         selector: '.perfil-block',
-                        title: 'Bienvenido a tu red privada de aliados',
-                        copy: 'RUANA conecta profesionales que trabajan con confianza y reputación real. Aquí no compites por likes: construyes relaciones útiles para crecer.',
+                        title: 'Tu perfil personal: quién eres en RUANA',
+                        copy: 'Aquí se muestra tu nombre, marca, código de aliado, oficio, código postal, antigüedad y estado. Este bloque es tu carta de presentación profesional dentro de la red privada.',
+                        placement: 'bottom'
+                    },
+                    {
+                        selector: '#perfil-avatar',
+                        title: 'Foto de perfil o logo de empresa',
+                        copy: 'En este avatar puedes subir tu foto o el logo de tu empresa. Una imagen clara aumenta confianza y hace que los demás aliados te identifiquen más rápido.',
+                        placement: 'bottom'
+                    },
+                    {
+                        selector: '#detail-descripcion-wrap',
+                        title: 'Descripción de tu oficio (editable)',
+                        copy: 'Tu descripción del servicio se puede editar aquí. Lo que escribas será visible para otros aliados en el directorio, así que conviene explicar bien especialidad, experiencia y tipo de trabajo.',
+                        placement: 'bottom'
+                    },
+                    {
+                        selector: '#perfil-status',
+                        title: 'Etiquetas y estado RUANA',
+                        copy: 'Esta etiqueta resume tu nivel actual (por ejemplo: destacado, estable, en observación o en riesgo). Tu comportamiento profesional mueve este estado y afecta cómo te percibe la comunidad.',
+                        placement: 'bottom'
+                    },
+                    {
+                        selector: '.metricas-block',
+                        title: 'Métricas que ves en tu perfil',
+                        copy: 'Aquí monitoreas solicitudes gestionadas, red de referidos y Score RUANA. Úsalas para medir progreso real y tomar mejores decisiones en tus conexiones.',
                         placement: 'bottom'
                     },
                     {
                         selector: '.directorio-panel',
-                        title: 'Conecta con aliados verificados',
-                        copy: 'Usa el directorio para ubicar a la persona correcta por oficio, nombre o zona y abrir conversaciones con contexto profesional.',
+                        title: 'Dónde eliges profesionales del grupo',
+                        copy: 'En el directorio puedes buscar por nombre, oficio o zona y seleccionar al profesional correcto para contactar de forma segura dentro de RUANA.',
                         placement: 'top'
                     },
                     {
                         selector: '#solicitudes-entrantes-wrap',
-                        title: 'Encuentra oportunidades reales',
-                        copy: 'Las solicitudes entrantes son necesidades concretas de tu grupo. Si puedes ayudar, actúas de inmediato y refuerzas tu posición en la comunidad.',
+                        title: 'Solicitudes de otros aliados',
+                        copy: 'Aquí ves necesidades del grupo para aceptar o recomendar si conoces a alguien. Al usar la acción correspondiente, RUANA registra el flujo y puede generar código de invitación cuando aplica.',
                         placement: 'top'
                     },
                     {
-                        selector: '#metrica-card-score',
-                        title: 'Tu reputación se mide con hechos',
-                        copy: 'El Score RUANA evoluciona según cierres, cumplimiento y coherencia. Es la señal de confianza que abre más oportunidades.',
+                        selector: '#btn-invitar-aliado',
+                        title: 'Invitar a un nuevo aliado',
+                        copy: 'Desde este botón se genera el código de invitación para que otro profesional se registre en RUANA y entre a la red con trazabilidad y confianza.',
                         placement: 'bottom'
                     },
                     {
                         selector: '.crear-solicitud-zone',
-                        title: 'Colabora con seguridad y rapidez',
-                        copy: 'Cuando necesitas apoyo, envía una solicitud clara y activa una conexión de trabajo trazable dentro de tu red confiable.',
+                        title: 'Tus propias solicitudes de profesionales',
+                        copy: 'En esta sección indicas el oficio requerido y escribes lo que necesitas. Después envías la solicitud al grupo para recibir apoyo real y rápido de aliados.',
                         placement: 'left'
                     },
                     {
-                        selector: '#btn-invitar-aliado',
-                        title: 'Empieza en menos de un minuto',
-                        copy: 'Publica tu primera solicitud o invita a un aliado estratégico. Tu red crece contigo, con reglas claras y valor profesional.',
+                        selector: '#metrica-card-score',
+                        title: 'Score RUANA: cómo sube y cómo baja',
+                        copy: 'Sube con: 1) cierres reales, 2) puntualidad, 3) buena comunicación, 4) importes coherentes, 5) evidencias claras, 6) respuesta rápida, 7) feedback positivo, 8) cumplimiento de acuerdos, 9) colaboración activa.<br><br>Baja por: 1) contactos sin cerrar, 2) impagos, 3) datos falsos, 4) incumplimientos, 5) disputas repetidas, 6) ausencias sin aviso, 7) importes inconsistentes, 8) baja calidad recurrente, 9) romper reglas RUANA.<br><br>Si sube recibes más visibilidad y mejores oportunidades; si baja demasiado tendrás restricciones y más controles.',
+                        placement: 'bottom'
+                    },
+                    {
+                        selector: '.ruana-brand',
+                        title: 'Para saber más: reglas RUANA',
+                        copy: 'Si quieres profundizar, revisa las reglas completas en la landing page de RUANA. Conocerlas te ayuda a crecer con beneficios y evitar consecuencias por incumplimiento.',
                         placement: 'bottom',
                         final: true
                     }
@@ -2425,7 +2461,7 @@
                 }
 
                 this.card.querySelector('.ruana-tour-title').textContent = step.title;
-                this.card.querySelector('.ruana-tour-copy').textContent = step.copy;
+                this.card.querySelector('.ruana-tour-copy').innerHTML = step.copy || '';
                 this.stepCounter.textContent = `Paso ${this.stepIndex + 1} de ${this.steps.length}`;
                 const progress = ((this.stepIndex + 1) / this.steps.length) * 100;
                 this.progressFill.style.width = progress + '%';
