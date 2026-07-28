@@ -2566,10 +2566,19 @@ class DBManager:
                     INSERT INTO score_movimientos (codigo_aliado, delta, motivo)
                     VALUES (?, ?, ?)
                 """, (codigo_aliado, delta_real, motivo))
+                movimiento_id = cursor.lastrowid
                 cursor.execute("""
                     UPDATE aliados SET score = ?, actualizado_en = CURRENT_TIMESTAMP
                     WHERE codigo = ?
                 """, (score_nuevo, codigo_aliado))
+                self._registrar_notificacion_cambio_score(
+                    cursor=cursor,
+                    codigo_aliado=codigo_aliado,
+                    delta_real=delta_real,
+                    score_nuevo=score_nuevo,
+                    motivo=motivo,
+                    movimiento_id=movimiento_id
+                )
                 conn.commit()
                 # Si el score cruza por debajo del umbral de competencia, iniciar proceso de competencia
                 umbral = self._get_umbral_competencia()
@@ -2580,6 +2589,38 @@ class DBManager:
                 return {'status': 'error', 'message': str(e)}
             finally:
                 conn.close()
+
+    def _registrar_notificacion_cambio_score(
+        self,
+        cursor,
+        codigo_aliado: str,
+        delta_real: int,
+        score_nuevo: int,
+        motivo: str,
+        movimiento_id: Optional[int] = None
+    ) -> None:
+        """Crea una notificación persistente por cada cambio real de score."""
+        if not codigo_aliado or not delta_real:
+            return
+        try:
+            direccion = 'subió' if delta_real > 0 else 'bajó'
+            puntos = f"{delta_real:+d}"
+            motivo_txt = (motivo or 'actualización de reglas RUANA').strip()
+            titulo = "Cambio en tu Score RUANA"
+            mensaje = f"Tu score {direccion} {puntos} puntos. Motivo: {motivo_txt}."
+            metadata = json.dumps({
+                'delta': delta_real,
+                'score_final': int(score_nuevo),
+                'motivo': motivo_txt,
+                'movimiento_id': movimiento_id
+            }, ensure_ascii=False)
+            cursor.execute("""
+                INSERT INTO notificaciones_aliado (aliado_codigo, tipo, titulo, mensaje, metadata, leida)
+                VALUES (?, 'score_change', ?, ?, ?, 0)
+            """, (codigo_aliado, titulo, mensaje, metadata))
+        except Exception:
+            # No romper el flujo principal de score si falla la notificación
+            return
     
     def _get_umbral_competencia(self) -> Optional[int]:
         """Lee umbral_competencia desde config/ruana_reglas_v1.json. Por defecto 15."""
