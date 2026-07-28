@@ -552,6 +552,30 @@
         }
         .score-alerta-panel.visible { display: block; }
 
+        .competencia-banner {
+            margin: 16px 0 20px;
+            padding: 16px 20px;
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.45);
+            border-radius: 10px;
+            color: #fecaca;
+        }
+        .competencia-banner.pendiente {
+            background: rgba(234, 179, 8, 0.12);
+            border-color: rgba(234, 179, 8, 0.45);
+            color: #fde68a;
+        }
+        .competencia-banner.retador {
+            background: rgba(59, 130, 246, 0.12);
+            border-color: rgba(59, 130, 246, 0.45);
+            color: #bfdbfe;
+        }
+        .competencia-banner-meta {
+            margin-top: 8px;
+            font-size: 0.85rem;
+            opacity: 0.9;
+        }
+
         /* Divisor visual */
         .panel-divider {
             height: 1px;
@@ -2104,6 +2128,12 @@
                 </div>
             </div>
 
+            <div id="competencia-banner-wrap" class="competencia-banner" style="display: none;" role="status" aria-live="polite">
+                <div id="competencia-banner-titulo"><strong>En competencia</strong></div>
+                <div id="competencia-banner-texto"></div>
+                <div class="competencia-banner-meta" id="competencia-banner-meta"></div>
+            </div>
+
             <div class="perfil-acciones">
                 <button type="button" class="btn-invitar-aliado" id="btn-invitar-aliado" title="Generar código para que un nuevo aliado se registre">
                     <i data-lucide="user-plus" style="width:16px;height:16px"></i>
@@ -3196,6 +3226,7 @@
              */
             render() {
                 this.renderPerfil();
+                this.renderCompetencia();
                 this.renderGrupo();
                 this.renderMetricas();
                 this.renderSolicitudes();
@@ -3465,7 +3496,8 @@
                     'PRIORITARIO': { status: 'destacado', label: 'Destacado' }, // alias legado
                     'ESTABLE': { status: 'estable', label: 'Estable' },
                     'EN RIESGO': { status: 'en_riesgo', label: 'En riesgo' },
-                    'COMPETENCIA': { status: 'competencia', label: 'Competencia' }
+                    'COMPETENCIA': { status: 'competencia', label: 'Competencia' },
+                    'EN COMPETENCIA': { status: 'competencia', label: 'En competencia' }
                 };
                 if (estadoMap[estadoRuana]) {
                     statusEl.dataset.status = estadoMap[estadoRuana].status;
@@ -3479,6 +3511,59 @@
                     statusEl.querySelector('.status-text').textContent = statusTexts[estadoNormalizado] || 'Estado desconocido';
                     this._syncPerfilAvatarEtiqueta(estadoNormalizado);
                 }
+                this.renderCompetencia();
+            }
+
+            /**
+             * Banner de competencia por permanencia (activa o pendiente de retador).
+             */
+            renderCompetencia() {
+                const wrap = document.getElementById('competencia-banner-wrap');
+                const tituloEl = document.getElementById('competencia-banner-titulo');
+                const textoEl = document.getElementById('competencia-banner-texto');
+                const metaEl = document.getElementById('competencia-banner-meta');
+                if (!wrap || !tituloEl || !textoEl || !metaEl) return;
+
+                const info = (this.aliado && this.aliado.competencia_info) ? this.aliado.competencia_info : null;
+                wrap.classList.remove('pendiente', 'retador');
+                wrap.style.display = 'none';
+                if (!info || (!info.en_competencia && !info.competencia_pendiente)) return;
+
+                wrap.style.display = 'block';
+                const oficio = info.oficio || (this.aliado && this.aliado.oficio) || 'tu oficio';
+                const dias = info.dias_restantes != null ? info.dias_restantes : null;
+
+                if (info.competencia_pendiente) {
+                    wrap.classList.add('pendiente');
+                    tituloEl.innerHTML = '<strong>Competencia pendiente</strong>';
+                    textoEl.textContent = info.mensaje || 'Esperando retador para iniciar la competencia por permanencia.';
+                    metaEl.textContent = 'Cuando haya un profesional disponible del mismo oficio y código postal, comenzará un periodo de 30 días.';
+                    return;
+                }
+
+                const rol = info.rol || 'titular';
+                if (rol === 'retador') wrap.classList.add('retador');
+
+                if (rol === 'retador') {
+                    tituloEl.innerHTML = '<strong>Oportunidad de plaza</strong>';
+                    textoEl.textContent = 'Compites por la plaza del grupo principal. Durante 30 días, quien acumule mayor score permanece en la plaza.';
+                } else {
+                    tituloEl.innerHTML = '<strong>En competencia</strong>';
+                    textoEl.textContent = `Compites por la permanencia en la plaza de ${oficio}. Al finalizar el periodo, gana quien tenga mayor score.`;
+                }
+
+                const partes = [];
+                if (dias != null) partes.push(`${dias} día${dias === 1 ? '' : 's'} restante${dias === 1 ? '' : 's'}`);
+                if (info.fecha_fin_prevista) {
+                    const fin = new Date(String(info.fecha_fin_prevista).replace(' ', 'T'));
+                    if (!isNaN(fin.getTime())) {
+                        partes.push('Fin previsto: ' + fin.toLocaleDateString('es-ES'));
+                    }
+                }
+                if (info.contrincante_codigo) {
+                    partes.push('Contrincante: ' + info.contrincante_codigo);
+                }
+                metaEl.textContent = partes.join(' · ');
             }
 
             /**

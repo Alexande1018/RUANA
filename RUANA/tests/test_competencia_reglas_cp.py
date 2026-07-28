@@ -69,9 +69,12 @@ def test_iniciar_competencia_notifica_retador_y_avisos_cp(sqlite_db):
     result = sqlite_db._iniciar_competencia_si_procede("50011")
     assert result is not None
 
-    notifs = _notifs(sqlite_db, "50012")
-    assert any(n.get("tipo") == "competencia_inicio" for n in notifs)
-    assert any("30 días" in (n.get("mensaje") or "") for n in notifs)
+    notifs_ret = _notifs(sqlite_db, "50012")
+    assert any(n.get("tipo") == "competencia_inicio" for n in notifs_ret)
+    assert any("30 días" in (n.get("mensaje") or "") for n in notifs_ret)
+
+    notifs_tit = _notifs(sqlite_db, "50011")
+    assert any(n.get("tipo") == "competencia_titular" for n in notifs_tit)
 
     avisos_g1 = sqlite_db.obtener_avisos_grupo(g1["id"], tipo="competencia")
     avisos_g2 = sqlite_db.obtener_avisos_grupo(g2["id"], tipo="competencia")
@@ -178,3 +181,104 @@ def test_aplicar_cambio_score_dispara_competencia_al_cruzar_15(sqlite_db):
     )
     assert cur.fetchone() is not None
     conn.close()
+
+
+def test_sin_retador_encola_competencia_pendiente(sqlite_db):
+    g1 = sqlite_db.crear_grupo_en_cp("28110")
+    _activo(sqlite_db, "50061", "Jardinería", "28110", score=10, grupo_id=g1["id"])
+
+    sqlite_db._solicitar_competencia_por_score("50061")
+    assert sqlite_db.tiene_competencia_pendiente("50061")
+
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute("SELECT 1 FROM competencia WHERE aliado_original_codigo = '50061' AND estado = 'activa'")
+    assert cur.fetchone() is None
+    conn.close()
+
+    info = sqlite_db.obtener_competencia_info_aliado("50061")
+    assert info and info.get("competencia_pendiente")
+
+
+def test_pendiente_inicia_cuando_aparece_retador(sqlite_db):
+    g1 = sqlite_db.crear_grupo_en_cp("28111")
+    _activo(sqlite_db, "50071", "Cerrajería", "28111", score=8, grupo_id=g1["id"])
+    sqlite_db._solicitar_competencia_por_score("50071")
+    assert sqlite_db.tiene_competencia_pendiente("50071")
+
+    _activo(sqlite_db, "50072", "Cerrajería", "28111", score=55, estado="en_espera")
+    iniciadas = sqlite_db._procesar_competencias_pendientes("28111", "Cerrajería")
+    assert len(iniciadas) == 1
+    assert not sqlite_db.tiene_competencia_pendiente("50071")
+    assert sqlite_db.aliado_en_competencia_activa("50071")
+
+
+def test_score_recuperado_cancela_pendiente(sqlite_db):
+    g1 = sqlite_db.crear_grupo_en_cp("28112")
+    _activo(sqlite_db, "50081", "Tapicería", "28112", score=10, grupo_id=g1["id"])
+    sqlite_db._solicitar_competencia_por_score("50081")
+    assert sqlite_db.tiene_competencia_pendiente("50081")
+
+    sqlite_db.aplicar_cambio_score("50081", 10, "recuperación")
+    assert not sqlite_db.tiene_competencia_pendiente("50081")
+
+
+def test_abandono_durante_competencia_walkover(sqlite_db):
+    g1 = sqlite_db.crear_grupo_en_cp("28113")
+    g2 = sqlite_db.crear_grupo_en_cp("28113")
+    _activo(sqlite_db, "50091", "Soldadura", "28113", score=5, grupo_id=g1["id"])
+    _activo(sqlite_db, "50092", "Soldadura", "28113", score=60, grupo_id=g2["id"])
+    sqlite_db._iniciar_competencia_si_procede("50091")
+
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute("UPDATE aliados SET estado = 'expulsado' WHERE codigo = '50091'")
+    conn.commit()
+    conn.close()
+
+    resueltos = sqlite_db._sanear_competencias_participantes_ausentes()
+    assert len(resueltos) == 1
+    ganador = sqlite_db.obtener_aliado_por_codigo("50092")
+    assert ganador["grupo_id"] == g1["id"]
+
+
+def test_obtener_competencia_info_dias_restantes(sqlite_db):
+    g1 = sqlite_db.crear_grupo_en_cp("28114")
+    g2 = sqlite_db.crear_grupo_en_cp("28114")
+    _activo(sqlite_db, "50101", "Climatización", "28114", score=12, grupo_id=g1["id"])
+    _activo(sqlite_db, "50102", "Climatización", "28114", score=70, grupo_id=g2["id"])
+    sqlite_db._iniciar_competencia_si_procede("50101")
+
+    info = sqlite_db.obtener_competencia_info_aliado("50101")
+    assert info["en_competencia"]
+    assert info["rol"] == "titular"
+    assert info["dias_restantes"] >= 0
+    assert info["dias_restantes"] <= 30
+
+
+def test_procesar_competencia_automatica_finaliza_vencidas(sqlite_db):
+    g1 = sqlite_db.crear_grupo_en_cp("28115")
+    g2 = sqlite_db.crear_grupo_en_cp("28115")
+    sqlite_db.crear_grupo_en_cp("28115")
+    _activo(sqlite_db, "50111", "Mecánica", "28115", score=5, grupo_id=g1["id"])
+    _activo(sqlite_db, "50112", "Mecánica", "28115", score=60, grupo_id=g2["id"])
+    sqlite_db._iniciar_competencia_si_procede("50111")
+
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM competencia WHERE aliado_original_codigo = '50111'")
+    cid = cur.fetchone()[0]
+    cur.execute("UPDATE aliados SET score = 5 WHERE codigo = '50111'")
+    cur.execute("UPDATE aliados SET score = 80 WHERE codigo = '50112'")
+    cur.execute(
+        "UPDATE competencia SET fecha_fin_prevista = ? WHERE id = ?",
+        ((datetime.now() - timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S"), cid),
+    )
+    conn.commit()
+    conn.close()
+
+    stats = sqlite_db.procesar_competencia_automatica()
+    assert stats["finalizadas"] >= 1
+    titular = sqlite_db.obtener_aliado_por_codigo("50111")
+    assert titular["score"] == 50
+    assert titular["derrotas_competencia"] == 1

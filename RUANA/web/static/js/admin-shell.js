@@ -103,6 +103,8 @@
         { wrapId: 'solicitudes-admin-wrap', tbodyId: 'tbody-solicitudes-admin', deletable: true },
         { wrapId: 'admin-campanas-invitacion-panel', tbodyId: 'admin-campanas-invitacion-tbody', deletable: true },
         { wrapId: 'competencias-activas-wrap', tbodyId: 'tbody-competencias-activas', deletable: false, note: 'Solo lectura' },
+        { wrapId: 'competencias-pendientes-wrap', tbodyId: 'tbody-competencias-pendientes', deletable: false, note: 'Solo lectura' },
+        { wrapId: 'competencias-historial-wrap', tbodyId: 'tbody-competencias-historial', deletable: false, note: 'Auditoría — solo lectura' },
         { wrapId: 'suplentes-espera-wrap', tbodyId: 'tbody-suplentes-espera', deletable: false, note: 'Use «Incorporar» por fila' },
         { wrapId: 'conversaciones-ruana-wrap', tbodyId: 'tbody-conversaciones', deletable: false, note: 'Auditoría — solo lectura' }
     ];

@@ -431,6 +431,11 @@ def get_aliado_datos():
     
     try:
         db = get_db()
+        # Procesamiento automático de competencias (cierre 30d, abandonos, pendientes)
+        try:
+            db.procesar_competencia_automatica()
+        except Exception:
+            pass
         # Aplicar penalizaciones (abiertos 7d/21d, chat 48h, sin acceso semanal, comprobante 3d)
         db.aplicar_penalizaciones_contactos_abiertos(codigo)
         aliado = db.obtener_aliado_por_codigo(codigo)
@@ -497,6 +502,13 @@ def get_aliado_datos():
             aliado_dict['competencia_activa'] = bool(
                 grupo_id and db.grupo_tiene_competencia_activa(grupo_id)
             )
+            competencia_info = db.obtener_competencia_info_aliado(codigo)
+            aliado_dict['competencia_info'] = competencia_info
+            if competencia_info and (
+                competencia_info.get('en_competencia') or competencia_info.get('competencia_pendiente')
+            ):
+                aliado_dict['estado_ruana'] = 'EN COMPETENCIA'
+                aliado_dict['competencia_activa'] = True
 
             # Notificaciones del aliado (ej. comprobante rechazado con mensaje de admin)
             notificaciones = db.listar_notificaciones_aliado(codigo, limite=50)
@@ -3878,8 +3890,37 @@ def admin_competencias_activas():
     """
     try:
         db = get_db()
+        try:
+            db.procesar_competencia_automatica()
+        except Exception:
+            pass
         lista = db.listar_competencias_activas_admin()
         return jsonify({'status': 'success', 'competencias': lista})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/competencias-pendientes', methods=['GET'])
+@require_admin
+def admin_competencias_pendientes():
+    """GET /api/admin/competencias-pendientes — titulares esperando retador."""
+    try:
+        db = get_db()
+        lista = db.listar_competencias_pendientes_admin()
+        return jsonify({'status': 'success', 'pendientes': lista})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/competencias-historial', methods=['GET'])
+@require_admin
+def admin_competencias_historial():
+    """GET /api/admin/competencias-historial — auditoría de competencias finalizadas."""
+    try:
+        limite = request.args.get('limite', 50, type=int)
+        db = get_db()
+        lista = db.listar_competencias_historial_admin(limite=limite)
+        return jsonify({'status': 'success', 'historial': lista})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 

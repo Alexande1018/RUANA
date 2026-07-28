@@ -1484,6 +1484,7 @@
                                 <th>Retador</th>
                                 <th>Origen</th>
                                 <th>Score</th>
+                                <th>Días rest.</th>
                                 <th>Tiempo</th>
                                 <th>Estado</th>
                             </tr>
@@ -1493,6 +1494,56 @@
                 </div>
             </div>
             <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="competencias-activas-empty">No hay competencias activas.</p>
+        </div>
+
+        <!-- Competencias pendientes de retador -->
+        <div class="competencias-activas-wrap" id="competencias-pendientes-wrap" style="display:none;">
+            <h2 class="seccion-titulo">Competencias pendientes</h2>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Titulares bajo umbral esperando un retador en su CP y oficio.</p>
+            <div class="movimiento-24h-tabla-wrap">
+                <div class="movimiento-24h-tabla-scroll">
+                    <table class="movimiento-24h-tabla" id="tabla-competencias-pendientes">
+                        <thead>
+                            <tr>
+                                <th>Titular</th>
+                                <th>Oficio</th>
+                                <th>CP</th>
+                                <th>Grupo</th>
+                                <th>Score al solicitar</th>
+                                <th>Desde</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-competencias-pendientes"></tbody>
+                    </table>
+                </div>
+            </div>
+            <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="competencias-pendientes-empty">No hay competencias pendientes.</p>
+        </div>
+
+        <!-- Historial de competencias -->
+        <div class="competencias-activas-wrap" id="competencias-historial-wrap" style="display:none;">
+            <h2 class="seccion-titulo">Historial de competencias</h2>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Auditoría de competencias finalizadas (ganador, scores finales).</p>
+            <div class="movimiento-24h-tabla-wrap">
+                <div class="movimiento-24h-tabla-scroll">
+                    <table class="movimiento-24h-tabla" id="tabla-competencias-historial">
+                        <thead>
+                            <tr>
+                                <th>Grupo</th>
+                                <th>Oficio</th>
+                                <th>Titular</th>
+                                <th>Retador</th>
+                                <th>Ganador</th>
+                                <th>Score tit.</th>
+                                <th>Score ret.</th>
+                                <th>Cierre</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-competencias-historial"></tbody>
+                    </table>
+                </div>
+            </div>
+            <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="competencias-historial-empty">No hay historial reciente.</p>
         </div>
 
         <!-- CAPA 3.6c: Suplentes en Espera (estado en_espera) -->
@@ -1909,6 +1960,8 @@
                         fetch('/api/admin/solicitudes', fetchOpts),
                         fetch('/api/admin/chats?limite=10&offset=0', fetchOpts),
                         fetch('/api/admin/competencias-activas', fetchOpts),
+                        fetch('/api/admin/competencias-pendientes', fetchOpts),
+                        fetch('/api/admin/competencias-historial?limite=30', fetchOpts),
                         stats24hFetch,
                         fetch('/api/admin/invitaciones-recientes?limite=15', fetchOpts),
                         fetch('/api/admin/invitacion-campanas?limite=30', fetchOpts),
@@ -1931,8 +1984,8 @@
                         if (!r.ok) return null;
                         return r.json().catch(() => null);
                     }
-                    const idx12 = responses[12];
-                    const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, solicitudesData, chatsData, competenciasData, stats24hData, invitacionesRecData, campanasData, metodosPagoData, suplentesEsperaData, centroComData] = await Promise.all([
+                    const idx14 = responses[14];
+                    const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, solicitudesData, chatsData, competenciasData, competenciasPendientesData, competenciasHistorialData, stats24hData, invitacionesRecData, campanasData, metodosPagoData, suplentesEsperaData, centroComData] = await Promise.all([
                         parseResponse(responses[0], false),
                         parseResponse(responses[1], false),
                         parseResponse(responses[2], false),
@@ -1945,12 +1998,14 @@
                         parseResponse(responses[9], false),
                         parseResponse(responses[10], false),
                         parseResponse(responses[11], false),
-                        Promise.resolve(idx12),
+                        parseResponse(responses[12], false),
                         parseResponse(responses[13], false),
-                        parseResponse(responses[14], false),
+                        Promise.resolve(idx14),
                         parseResponse(responses[15], false),
                         parseResponse(responses[16], false),
-                        parseResponse(responses[17], false)
+                        parseResponse(responses[17], false),
+                        parseResponse(responses[18], false),
+                        parseResponse(responses[19], false)
                     ]);
 
                     // Pendientes de validación (unir API + lista por código)
@@ -2027,6 +2082,8 @@
                     this.renderCampanasInvitacion(campanasData && campanasData.status === 'success' && Array.isArray(campanasData.campanas) ? campanasData.campanas : []);
                     this.renderMetodosPago((metodosPagoData && metodosPagoData.status === 'success' && metodosPagoData.metodos) ? metodosPagoData.metodos : null);
                     this.renderCompetenciasActivas((competenciasData && competenciasData.status === 'success' && Array.isArray(competenciasData.competencias)) ? competenciasData.competencias : []);
+                    this.renderCompetenciasPendientes((competenciasPendientesData && competenciasPendientesData.status === 'success' && Array.isArray(competenciasPendientesData.pendientes)) ? competenciasPendientesData.pendientes : []);
+                    this.renderCompetenciasHistorial((competenciasHistorialData && competenciasHistorialData.status === 'success' && Array.isArray(competenciasHistorialData.historial)) ? competenciasHistorialData.historial : []);
                     this.renderSuplentesEspera((suplentesEsperaData && suplentesEsperaData.status === 'success' && Array.isArray(suplentesEsperaData.aliados)) ? suplentesEsperaData.aliados : []);
                     this._centroComunicacion = (centroComData && centroComData.status === 'success' && Array.isArray(centroComData.conversaciones)) ? centroComData.conversaciones : [];
                     this.renderCentroComunicacionAdmin(this._centroComunicacion);
@@ -4487,6 +4544,7 @@
                     const retadorNombre = this.escapeHtml((retadorData && retadorData.nombre) ? retadorData.nombre : '—');
                     const retadorOrigen = this.escapeHtml((retadorData && retadorData.grupo_origen) ? retadorData.grupo_origen : '—');
                     const retadorScore = (retadorData && (retadorData.score_actual != null)) ? Number(retadorData.score_actual).toFixed(1) : '—';
+                    const diasRest = (c.dias_restantes != null) ? String(c.dias_restantes) : '—';
                     const tiempoHoras = (c.tiempo_en_competencia_horas != null) ? Number(c.tiempo_en_competencia_horas).toFixed(1) + ' h' : '—';
                     const estado = this.escapeHtml((c.estado || 'activa').toLowerCase());
                     const tr = document.createElement('tr');
@@ -4498,8 +4556,58 @@
                         <td>${retadorNombre}</td>
                         <td>${retadorOrigen}</td>
                         <td>${retadorScore}</td>
+                        <td>${diasRest}</td>
                         <td>${tiempoHoras}</td>
                         <td>${estado}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            renderCompetenciasPendientes(pendientes) {
+                const tbody = document.getElementById('tbody-competencias-pendientes');
+                const emptyEl = document.getElementById('competencias-pendientes-empty');
+                const wrap = document.getElementById('competencias-pendientes-wrap');
+                if (!tbody) return;
+                tbody.innerHTML = '';
+                const lista = Array.isArray(pendientes) ? pendientes : [];
+                if (wrap) wrap.style.display = 'block';
+                if (emptyEl) emptyEl.style.display = lista.length ? 'none' : 'block';
+                lista.forEach(p => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${this.escapeHtml(p.aliado_nombre || p.aliado_codigo || '—')}</td>
+                        <td>${this.escapeHtml(p.oficio || '—')}</td>
+                        <td>${this.escapeHtml(p.codigo_postal || '—')}</td>
+                        <td>${this.escapeHtml(p.grupo_nombre || '—')}</td>
+                        <td>${p.score_al_crear != null ? p.score_al_crear : '—'}</td>
+                        <td>${p.creado_en ? new Date(p.creado_en).toLocaleString('es-ES') : '—'}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            renderCompetenciasHistorial(historial) {
+                const tbody = document.getElementById('tbody-competencias-historial');
+                const emptyEl = document.getElementById('competencias-historial-empty');
+                const wrap = document.getElementById('competencias-historial-wrap');
+                if (!tbody) return;
+                tbody.innerHTML = '';
+                const lista = Array.isArray(historial) ? historial : [];
+                if (wrap) wrap.style.display = 'block';
+                if (emptyEl) emptyEl.style.display = lista.length ? 'none' : 'block';
+                lista.forEach(h => {
+                    const tr = document.createElement('tr');
+                    const cierre = h.fecha_cierre || h.fecha_fin_prevista;
+                    tr.innerHTML = `
+                        <td>${this.escapeHtml(h.grupo_nombre || '—')}</td>
+                        <td>${this.escapeHtml(h.oficio || '—')}</td>
+                        <td>${this.escapeHtml(h.titular_nombre || h.aliado_original_codigo || '—')}</td>
+                        <td>${this.escapeHtml(h.retador_nombre || h.retador_codigo || '—')}</td>
+                        <td>${this.escapeHtml(h.ganador_codigo || '—')}</td>
+                        <td>${h.score_titular_final != null ? h.score_titular_final : '—'}</td>
+                        <td>${h.score_retador_final != null ? h.score_retador_final : '—'}</td>
+                        <td>${cierre ? new Date(cierre).toLocaleString('es-ES') : '—'}</td>
                     `;
                     tbody.appendChild(tr);
                 });
