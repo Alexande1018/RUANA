@@ -2463,7 +2463,7 @@
                 const etiqueta = this._mapEtiquetaAvatarStatus(etiquetaStatus || 'estable');
                 const etiquetaAttr = ` data-etiqueta="${this.escapeHtml(etiqueta)}"`;
                 if (foto) {
-                    return `<div class="${className}"${etiquetaAttr}><img src="${this.escapeHtml(foto)}" alt="" class="ruana-avatar-photo"></div>`;
+                    return `<div class="${className} avatar-has-photo"${etiquetaAttr}><img src="${this.escapeHtml(foto)}" alt="" class="ruana-avatar-photo"></div>`;
                 }
                 return `<div class="${className}"${etiquetaAttr} aria-hidden="true"><span class="ruana-avatar-iniciales">${this.escapeHtml(iniciales)}</span></div>`;
             }
@@ -2492,11 +2492,13 @@
             aplicarAvatarPerfil(aliadoData) {
                 const nombre = (aliadoData && aliadoData.nombre) || 'Nombre no disponible';
                 const fotoUrl = (aliadoData && (aliadoData.foto_perfil_url || aliadoData.foto_perfil)) || '';
+                const avatarEl = document.getElementById('perfil-avatar');
                 const imgEl = document.getElementById('perfil-avatar-img');
                 const inicialesEl = document.getElementById('perfil-avatar-iniciales');
                 const btnQuitar = document.getElementById('btn-quitar-foto-perfil');
                 const iniciales = this.getIniciales(nombre);
                 if (inicialesEl) inicialesEl.textContent = iniciales;
+                if (avatarEl) avatarEl.classList.toggle('avatar-has-photo', Boolean(fotoUrl));
                 if (imgEl) {
                     if (fotoUrl) {
                         imgEl.src = fotoUrl;
