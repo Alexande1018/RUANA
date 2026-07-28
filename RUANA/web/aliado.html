@@ -39,6 +39,27 @@
         body.panel-loading .panel-container > :not(#error-bootstrap):not(#panel-loading) {
             display: none !important;
         }
+        .ruana-syncing {
+            position: relative;
+            overflow: hidden;
+        }
+        .ruana-syncing::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: linear-gradient(
+                110deg,
+                rgba(255, 255, 255, 0) 0%,
+                rgba(162, 255, 0, 0.08) 45%,
+                rgba(255, 255, 255, 0) 100%
+            );
+            animation: ruana-sync-sweep 900ms ease;
+        }
+        @keyframes ruana-sync-sweep {
+            from { transform: translateX(-100%); }
+            to { transform: translateX(100%); }
+        }
 
         #btn-logout {
             position: sticky;
@@ -2682,6 +2703,8 @@
                 this.tienePagosPendientes = false;
                 this.scoreNotifActive = false;
                 this.scoreNotifShownIds = new Set();
+                this._syncInProgress = false;
+                this._autoSyncIntervalId = null;
                 this._contactoIdImpugnarApoyo = null;
                 this.metodosPagoRuana = {
                     bizum_num: window.RUANA_BIZUM_NUM || '642868261',
@@ -2714,6 +2737,7 @@
                 this.renderAlertas();
                 this.setPanelLoading(false);
                 this.initOnboarding();
+                this.startAutoSync();
             }
 
             initOnboarding() {
@@ -2726,10 +2750,112 @@
                     setTimeout(() => this.onboardingTour.start(), 450);
                 }
                 window.addEventListener('resize', () => {
-                    if (this.onboardingTour && this.onboardingTour.overlay) {
+                    if (this.onboardingTour && (this.onboardingTour.overlay || this.onboardingTour.cloud)) {
                         this.onboardingTour.renderStep();
                     }
                 });
+            }
+
+            getSyncElements(sections) {
+                const map = {
+                    perfil: '.perfil-block',
+                    metricas: '.metricas-block',
+                    directorio: '.directorio-panel',
+                    solicitudes: '.solicitudes-zone',
+                    alertas: '#notificaciones-ruana-wrap'
+                };
+                return (sections || [])
+                    .map((k) => map[k])
+                    .filter(Boolean)
+                    .map((selector) => document.querySelector(selector))
+                    .filter(Boolean);
+            }
+
+            setSectionsSyncing(sections, syncing) {
+                this.getSyncElements(sections).forEach((el) => {
+                    el.classList.toggle('ruana-syncing', Boolean(syncing));
+                });
+            }
+
+            async fetchAliadoSnapshot() {
+                const apiBase = getApiBase();
+                const resp = await fetch(apiBase + '/api/aliado/datos', { credentials: 'same-origin', headers: getRuanaAuthHeaders() });
+                if (!resp.ok) return;
+                const data = await resp.json();
+                if (data.status === 'success' && data.aliado) {
+                    this.aliado = { ...(this.aliado || {}), ...data.aliado };
+                    if (Array.isArray(data.notificaciones)) this.notificaciones = data.notificaciones;
+                }
+            }
+
+            async fetchSolicitudesSnapshot() {
+                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
+                if (!codigo) return;
+                const apiBase = getApiBase();
+                const resp = await fetch(apiBase + '/api/solicitudes?codigo=' + encodeURIComponent(codigo), {
+                    credentials: 'same-origin',
+                    headers: getRuanaAuthHeaders()
+                });
+                if (!resp.ok) return;
+                const data = await resp.json();
+                if (data && typeof data === 'object' && !Array.isArray(data)) {
+                    this.solicitudesEntrantes = Array.isArray(data.entrantes) ? data.entrantes : [];
+                    this.solicitudesPropias = Array.isArray(data.propias) ? data.propias : [];
+                    this.solicitudesHistorial = Array.isArray(data.historial) ? data.historial : [];
+                } else {
+                    this.solicitudesEntrantes = Array.isArray(data) ? data : [];
+                    this.solicitudesPropias = [];
+                    this.solicitudesHistorial = [];
+                }
+            }
+
+            async fetchDirectorioSnapshot() {
+                const resp = await fetch('/api/aliados/directorio', { credentials: 'same-origin', headers: getRuanaAuthHeaders() });
+                if (!resp.ok) return;
+                const data = await resp.json();
+                if (data.status === 'success' && Array.isArray(data.aliados)) {
+                    this.profesionales = data.aliados;
+                }
+            }
+
+            async refreshAfterAction(sections, options) {
+                const opts = options || {};
+                if (this._syncInProgress && !opts.allowConcurrent) return;
+                const targetSections = Array.isArray(sections) ? sections : [];
+                this._syncInProgress = true;
+                this.setSectionsSyncing(targetSections, true);
+                try {
+                    const jobs = [];
+                    if (targetSections.includes('perfil') || targetSections.includes('metricas') || targetSections.includes('alertas')) jobs.push(this.fetchAliadoSnapshot());
+                    if (targetSections.includes('solicitudes')) jobs.push(this.fetchSolicitudesSnapshot());
+                    if (targetSections.includes('directorio')) jobs.push(this.fetchDirectorioSnapshot());
+                    if (targetSections.includes('alertas')) jobs.push(this.actualizarEstadoAlertas());
+                    if (targetSections.includes('contactos')) jobs.push(this.cargarContactosPendientes());
+                    await Promise.all(jobs);
+
+                    if (targetSections.includes('perfil')) { this.renderPerfil(); this.renderGrupo(); }
+                    if (targetSections.includes('metricas')) this.renderMetricas();
+                    if (targetSections.includes('solicitudes')) this.renderSolicitudes();
+                    if (targetSections.includes('directorio')) this.renderProfesionales();
+                    if (targetSections.includes('alertas')) {
+                        this.renderNotificaciones();
+                        this.renderListaPagosPendientes();
+                        this.renderAlertas();
+                    }
+                } catch (e) {
+                    console.error('Error de sincronización UI:', e);
+                } finally {
+                    this.setSectionsSyncing(targetSections, false);
+                    this._syncInProgress = false;
+                }
+            }
+
+            startAutoSync() {
+                if (this._autoSyncIntervalId) clearInterval(this._autoSyncIntervalId);
+                this._autoSyncIntervalId = setInterval(() => {
+                    if (document.visibilityState !== 'visible') return;
+                    this.refreshAfterAction(['perfil', 'metricas', 'solicitudes', 'directorio', 'alertas', 'contactos']);
+                }, 20000);
             }
 
             setPanelLoading(isLoading) {
@@ -3009,6 +3135,7 @@
                         if (!this.aliado) this.aliado = {};
                         this.aliado.foto_perfil_url = data.foto_perfil_url || null;
                         this.aplicarAvatarPerfil(this.aliado);
+                        await this.refreshAfterAction(['perfil', 'directorio']);
                         if (typeof RuanaUI !== 'undefined') {
                             RuanaUI.toast('Foto de perfil actualizada', 'success');
                         }
@@ -3049,6 +3176,7 @@
                         if (!this.aliado) this.aliado = {};
                         this.aliado.foto_perfil_url = null;
                         this.aplicarAvatarPerfil(this.aliado);
+                        await this.refreshAfterAction(['perfil', 'directorio']);
                     } else {
                         alert(data.message || 'No se pudo quitar la foto.');
                     }
@@ -3996,7 +4124,7 @@
                 // Al volver a la pestaña: recargar datos de alertas y re-evaluar banners
                 document.addEventListener('visibilitychange', () => {
                     if (document.visibilityState !== 'visible' || !this.codigoAliado) return;
-                    this.actualizarEstadoAlertas();
+                    this.refreshAfterAction(['perfil', 'metricas', 'solicitudes', 'directorio', 'alertas', 'contactos']);
                 });
             }
 
@@ -4015,6 +4143,7 @@
                         document.getElementById('modal-invitacion-oficio-nombre').textContent = oficio;
                         document.getElementById('modal-invitacion-oficio-codigo').textContent = data.codigo;
                         document.getElementById('modal-invitacion-oficio').classList.add('show');
+                        await this.refreshAfterAction(['metricas', 'alertas']);
                     } else {
                         alert(data.message || 'No se pudo generar el código.');
                     }
@@ -4117,6 +4246,7 @@
                         this.aliado.descripcion_servicio = valor || null;
                         this.cancelarEditarDescripcion();
                         this.renderPerfil();
+                        await this.refreshAfterAction(['perfil', 'directorio']);
                     } else {
                         alert(data.message || 'No se pudo guardar.');
                     }
@@ -4437,6 +4567,7 @@
                     if (data.status === 'success') {
                         // Recargar estado real y cerrar mensajes (ya no habrá no leídas)
                         await this.actualizarEstadoAlertas();
+                        await this.refreshAfterAction(['alertas']);
                     }
                 } catch (e) {
                     console.error('Error marcando notificaciones leídas:', e);
@@ -4504,6 +4635,7 @@
                             }
                         }
                         this.renderSolicitudes();
+                        await this.refreshAfterAction(['metricas', 'solicitudes', 'alertas']);
                     } else {
                         alert(data.error || data.message || 'Error al enviar');
                     }
@@ -4976,6 +5108,7 @@
                         await this.cargarPagosApoyoPendientes();
                         await this.cargarContactosPendientes();
                         await this.actualizarEstadoAlertas();
+                        await this.refreshAfterAction(['perfil', 'metricas', 'solicitudes', 'directorio', 'alertas', 'contactos']);
                         setTimeout(() => {
                             if (modal) modal.classList.remove('show');
                             this._contactoIdImpugnarApoyo = null;
@@ -5131,6 +5264,7 @@
                     const checkUrgente = document.getElementById('check-contacto-urgente');
                     if (checkUrgente) checkUrgente.checked = false;
                     await this.cargarContactosPendientes();
+                    await this.refreshAfterAction(['metricas', 'solicitudes', 'directorio', 'alertas', 'contactos']);
                     const contactoId = data.id;
                     // No marcar en-conversacion aquí: ocultaría la alerta para el profesional,
                     // que debe ver el nuevo contacto y poder abrir el chat. "Sigue en conversación"
@@ -5257,6 +5391,7 @@
                 await this.cargarContactosPendientes();
                 // Actualizar directorio: el profesional pasa de "Conversación activa" a "DISPONIBLE"
                 this.renderProfesionales();
+                await this.refreshAfterAction(['metricas', 'solicitudes', 'directorio', 'alertas', 'contactos']);
             }
 
             /** Polling: actualiza mensajes cada 5 s mientras el modal está abierto. */
@@ -5475,6 +5610,7 @@
                             if (avisoEl) avisoEl.style.display = 'none';
                             await this.cargarContactosPendientes();
                             await this.cargarPagosApoyoPendientes();
+                            await this.refreshAfterAction(['metricas', 'solicitudes', 'alertas', 'contactos']);
                             const modal = document.getElementById('modal-contacto-importe');
                             if (modal) modal.classList.remove('show');
                         } else if (msg.indexOf('Ya has declarado') !== -1) {
@@ -5507,6 +5643,7 @@
                     if (resumenEl) { resumenEl.style.display = 'none'; resumenEl.innerHTML = ''; }
 
                     await this.cargarContactosPendientes();
+                    await this.refreshAfterAction(['metricas', 'solicitudes', 'directorio', 'alertas', 'contactos']);
                 } catch (e) {
                     console.error('Error declarando importe:', e);
                     alert('Error de conexión al declarar el importe.');
@@ -5585,6 +5722,7 @@
                         if (subirPruebaEl) subirPruebaEl.style.display = 'none';
                         await this.cargarContactosPendientes();
                         await this.actualizarEstadoAlertas();
+                        await this.refreshAfterAction(['metricas', 'solicitudes', 'alertas', 'contactos']);
                     } else {
                         if (resultadoEl) resultadoEl.textContent = data.message || 'Error al subir.';
                     }
@@ -5630,6 +5768,7 @@
                     if (avisoEl) avisoEl.style.display = 'none';
                     this.contactoActual = null;
                     await this.cargarContactosPendientes();
+                    await this.refreshAfterAction(['metricas', 'solicitudes', 'alertas', 'contactos']);
                 } catch (e) {
                     if (modal) modal.classList.remove('show');
                     console.error('Error marcando no concretado:', e);
@@ -5658,6 +5797,7 @@
                         return;
                     }
                     await this.cargarContactosPendientes();
+                    await this.refreshAfterAction(['metricas', 'solicitudes', 'alertas', 'contactos']);
                 } catch (e) {
                     console.error('Error actualizando contacto en conversación:', e);
                     alert('Error de conexión al actualizar el contacto.');
