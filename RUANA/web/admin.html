@@ -1549,6 +1549,46 @@
             <p class="admin-subtitle" id="conversaciones-no-mas" style="margin-top: 8px; color: #666; display: none;">No hay más registros</p>
         </div>
 
+        <div class="conversaciones-ruana-wrap" id="centro-comunicacion-admin-wrap">
+            <h2 class="seccion-titulo">Centro de comunicación RUANA</h2>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Mensajes directos de aliados al equipo RUANA. Filtra por estado, busca por aliado y responde desde aquí.</p>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+                <input id="cc-admin-search" type="text" placeholder="Buscar por aliado o asunto" style="min-width:240px; flex:1; padding:9px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.18); background:rgba(0,0,0,0.25); color:#e5e7eb;">
+                <select id="cc-admin-status" style="min-width:180px;">
+                    <option value="">Todos los estados</option>
+                    <option value="pendiente">Pendiente</option>
+                    <option value="en_revision">En revisión</option>
+                    <option value="respondido">Respondido</option>
+                    <option value="cerrado">Cerrado</option>
+                    <option value="reabierto">Reabierto</option>
+                </select>
+                <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;color:#cbd5e1;">
+                    <input id="cc-admin-only-unread" type="checkbox"> Sin leer
+                </label>
+                <button type="button" class="btn-admin-action" id="cc-admin-refresh">Actualizar</button>
+            </div>
+            <div class="movimiento-24h-tabla-wrap">
+                <div class="movimiento-24h-tabla-scroll">
+                    <table class="movimiento-24h-tabla" id="tabla-centro-comunicacion-admin">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Aliado</th>
+                                <th>Asunto</th>
+                                <th>Estado</th>
+                                <th>Último mensaje</th>
+                                <th>Fecha</th>
+                                <th>Nuevo</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-centro-comunicacion-admin"></tbody>
+                    </table>
+                </div>
+            </div>
+            <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="centro-comunicacion-admin-empty">Sin conversaciones en este filtro.</p>
+        </div>
+
         <!-- Modal ver chat -->
         <div class="modal-overlay admin-modal" id="modal-ver-chat" style="display: none; align-items: center; justify-content: center;">
             <div class="modal-content" style="max-width: 520px; max-height: 80vh; display: flex; flex-direction: column;">
@@ -1556,6 +1596,29 @@
                 <div id="admin-chat-mensajes" style="flex:1; min-height: 200px; max-height: 360px; overflow-y: auto; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 8px; margin: 12px 0;"></div>
                 <div class="modal-actions">
                     <button type="button" class="btn-admin-action" id="btn-cerrar-ver-chat">Cerrar</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-overlay admin-modal" id="modal-centro-comunicacion-admin" style="display:none; align-items:center; justify-content:center;">
+            <div class="modal-content" style="max-width:640px; max-height:82vh; display:flex; flex-direction:column;">
+                <h3 class="modal-title" id="cc-admin-modal-title">Conversación RUANA</h3>
+                <div id="cc-admin-modal-messages" style="flex:1; min-height:220px; max-height:360px; overflow:auto; margin:10px 0; padding:10px; background:rgba(0,0,0,0.2); border-radius:10px;"></div>
+                <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+                    <select id="cc-admin-modal-status" style="min-width:170px;">
+                        <option value="pendiente">Pendiente</option>
+                        <option value="en_revision">En revisión</option>
+                        <option value="respondido">Respondido</option>
+                        <option value="cerrado">Cerrado</option>
+                        <option value="reabierto">Reabierto</option>
+                    </select>
+                    <button type="button" class="btn-admin-action" id="cc-admin-modal-update-status">Actualizar estado</button>
+                    <button type="button" class="btn-admin-action danger" id="cc-admin-modal-delete">Eliminar conversación</button>
+                </div>
+                <textarea id="cc-admin-modal-reply" rows="3" placeholder="Responder al aliado..." style="width:100%; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color:#e0e0e0;"></textarea>
+                <div class="modal-actions" style="margin-top:10px;">
+                    <button type="button" class="btn-admin-action" id="cc-admin-modal-send">Responder</button>
+                    <button type="button" class="btn-admin-action" id="cc-admin-modal-close">Cerrar</button>
                 </div>
             </div>
         </div>
@@ -1793,6 +1856,8 @@
                 this._conversacionesList = [];
                 this._conversacionesHasMore = false;
                 this._conversacionesOffset = 0;
+                this._centroComunicacion = [];
+                this._centroComunicacionActiva = null;
                 this._campanasInvitacion = [];
                 this._referidosTree = null;
                 this._referidosModoBosque = true;
@@ -1848,7 +1913,8 @@
                         fetch('/api/admin/invitaciones-recientes?limite=15', fetchOpts),
                         fetch('/api/admin/invitacion-campanas?limite=30', fetchOpts),
                         fetch('/api/admin/metodos-pago', fetchOpts),
-                        fetch('/api/admin/suplentes-espera', fetchOpts)
+                        fetch('/api/admin/suplentes-espera', fetchOpts),
+                        fetch('/api/admin/centro-comunicacion?limite=120', fetchOpts)
                     ];
                     const settled = await Promise.allSettled(fetchPromises);
                     const responses = settled.map((r, i) => (r.status === 'fulfilled' ? r.value : null));
@@ -1866,7 +1932,7 @@
                         return r.json().catch(() => null);
                     }
                     const idx12 = responses[12];
-                    const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, solicitudesData, chatsData, competenciasData, stats24hData, invitacionesRecData, campanasData, metodosPagoData, suplentesEsperaData] = await Promise.all([
+                    const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, solicitudesData, chatsData, competenciasData, stats24hData, invitacionesRecData, campanasData, metodosPagoData, suplentesEsperaData, centroComData] = await Promise.all([
                         parseResponse(responses[0], false),
                         parseResponse(responses[1], false),
                         parseResponse(responses[2], false),
@@ -1883,7 +1949,8 @@
                         parseResponse(responses[13], false),
                         parseResponse(responses[14], false),
                         parseResponse(responses[15], false),
-                        parseResponse(responses[16], false)
+                        parseResponse(responses[16], false),
+                        parseResponse(responses[17], false)
                     ]);
 
                     // Pendientes de validación (unir API + lista por código)
@@ -1961,6 +2028,8 @@
                     this.renderMetodosPago((metodosPagoData && metodosPagoData.status === 'success' && metodosPagoData.metodos) ? metodosPagoData.metodos : null);
                     this.renderCompetenciasActivas((competenciasData && competenciasData.status === 'success' && Array.isArray(competenciasData.competencias)) ? competenciasData.competencias : []);
                     this.renderSuplentesEspera((suplentesEsperaData && suplentesEsperaData.status === 'success' && Array.isArray(suplentesEsperaData.aliados)) ? suplentesEsperaData.aliados : []);
+                    this._centroComunicacion = (centroComData && centroComData.status === 'success' && Array.isArray(centroComData.conversaciones)) ? centroComData.conversaciones : [];
+                    this.renderCentroComunicacionAdmin(this._centroComunicacion);
                     let conversaciones = (chatsData && chatsData.status === 'success' && Array.isArray(chatsData.conversaciones)) ? chatsData.conversaciones : [];
                     this._conversacionesList = conversaciones;
                     this._conversacionesOffset = conversaciones.length;
@@ -2183,6 +2252,25 @@
                         panel.mostrarMenosConversaciones();
                     }
                 }, true);
+
+                const ccRefreshBtn = document.getElementById('cc-admin-refresh');
+                const ccSearch = document.getElementById('cc-admin-search');
+                const ccStatus = document.getElementById('cc-admin-status');
+                const ccUnread = document.getElementById('cc-admin-only-unread');
+                if (ccRefreshBtn) ccRefreshBtn.addEventListener('click', () => this.cargarCentroComunicacionAdmin());
+                if (ccSearch) ccSearch.addEventListener('input', () => this.renderCentroComunicacionAdmin(this._centroComunicacion || []));
+                if (ccStatus) ccStatus.addEventListener('change', () => this.cargarCentroComunicacionAdmin());
+                if (ccUnread) ccUnread.addEventListener('change', () => this.cargarCentroComunicacionAdmin());
+                const ccClose = document.getElementById('cc-admin-modal-close');
+                if (ccClose) ccClose.addEventListener('click', () => this.cerrarModalCentroComunicacionAdmin());
+                const ccSend = document.getElementById('cc-admin-modal-send');
+                if (ccSend) ccSend.addEventListener('click', () => this.responderCentroComunicacionAdmin());
+                const ccUpd = document.getElementById('cc-admin-modal-update-status');
+                if (ccUpd) ccUpd.addEventListener('click', () => this.actualizarEstadoCentroComunicacionAdmin());
+                const ccDel = document.getElementById('cc-admin-modal-delete');
+                if (ccDel) ccDel.addEventListener('click', () => this.eliminarCentroComunicacionAdmin());
+                const ccModal = document.getElementById('modal-centro-comunicacion-admin');
+                if (ccModal) ccModal.addEventListener('click', (e) => { if (e.target === ccModal) this.cerrarModalCentroComunicacionAdmin(); });
 
                 this.setupAdminActionButtons();
 
@@ -4237,6 +4325,141 @@
                 this._conversacionesHasMore = true;
                 this.renderConversaciones(this._conversacionesList);
                 this.updateConversacionesPaginationUI();
+            }
+
+            async cargarCentroComunicacionAdmin() {
+                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+                const status = (document.getElementById('cc-admin-status')?.value || '').trim();
+                const unreadOnly = document.getElementById('cc-admin-only-unread')?.checked ? '1' : '0';
+                const params = new URLSearchParams({ limite: '120', solo_no_leidas: unreadOnly });
+                if (status) params.set('estado', status);
+                try {
+                    const r = await fetch('/api/admin/centro-comunicacion?' + params.toString(), { method: 'GET', credentials: 'same-origin', headers: authHeaders });
+                    if (r.status === 401) { this._adminSessionExpired(); return; }
+                    const data = await r.json().catch(() => ({}));
+                    this._centroComunicacion = data.status === 'success' && Array.isArray(data.conversaciones) ? data.conversaciones : [];
+                    this.renderCentroComunicacionAdmin(this._centroComunicacion);
+                } catch (_) {
+                    this.showToast('No se pudo cargar el centro de comunicación.', 'error');
+                }
+            }
+
+            renderCentroComunicacionAdmin(conversaciones) {
+                const tbody = document.getElementById('tbody-centro-comunicacion-admin');
+                const empty = document.getElementById('centro-comunicacion-admin-empty');
+                if (!tbody) return;
+                const filtro = (document.getElementById('cc-admin-search')?.value || '').trim().toLowerCase();
+                const lista = (Array.isArray(conversaciones) ? conversaciones : []).filter((c) => {
+                    if (!filtro) return true;
+                    const full = `${c.aliado_codigo || ''} ${c.aliado_nombre || ''} ${c.asunto || ''}`.toLowerCase();
+                    return full.includes(filtro);
+                });
+                tbody.innerHTML = '';
+                if (empty) empty.style.display = lista.length ? 'none' : 'block';
+                lista.forEach((c) => {
+                    const tr = document.createElement('tr');
+                    const fecha = c.ultimo_mensaje_en ? this.formatearHora(c.ultimo_mensaje_en) : '—';
+                    const estadoClass = (c.estado || 'pendiente').replace(/[^a-z_]/g, '');
+                    const nuevo = Number(c.tiene_no_leido_admin || 0) > 0 ? '<span class="estado-pago-badge" style="background:rgba(251,191,36,0.2);color:#fbbf24;">Nuevo</span>' : '—';
+                    tr.innerHTML = `
+                        <td>#${c.id}</td>
+                        <td>${this.escapeHtml((c.aliado_nombre || c.aliado_codigo || '—'))}<br><span style="color:#94a3b8;font-size:0.75rem;">${this.escapeHtml(c.aliado_codigo || '')}</span></td>
+                        <td>${this.escapeHtml(c.asunto || 'Consulta')}</td>
+                        <td><span class="estado-pago-badge estado-pago-${estadoClass.replace('_', '-')}">${this.escapeHtml((c.estado || 'pendiente').replace('_', ' '))}</span></td>
+                        <td>${this.escapeHtml(c.ultimo_mensaje_preview || '—')}</td>
+                        <td>${fecha}</td>
+                        <td>${nuevo}</td>
+                        <td><button type="button" class="btn-accion btn-cc-ver" data-cc-id="${c.id}">Abrir</button></td>
+                    `;
+                    tr.querySelector('.btn-cc-ver')?.addEventListener('click', () => this.abrirModalCentroComunicacionAdmin(c));
+                    tbody.appendChild(tr);
+                });
+            }
+
+            async abrirModalCentroComunicacionAdmin(conv) {
+                this._centroComunicacionActiva = conv || null;
+                const modal = document.getElementById('modal-centro-comunicacion-admin');
+                const title = document.getElementById('cc-admin-modal-title');
+                const msgBox = document.getElementById('cc-admin-modal-messages');
+                const status = document.getElementById('cc-admin-modal-status');
+                if (!modal || !conv) return;
+                if (title) title.textContent = `Conversación #${conv.id} · ${conv.aliado_nombre || conv.aliado_codigo || ''}`;
+                if (status) status.value = conv.estado || 'pendiente';
+                if (msgBox) msgBox.innerHTML = '<p style="color:#94a3b8;">Cargando mensajes…</p>';
+                modal.style.display = 'flex';
+                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+                const r = await fetch('/api/admin/centro-comunicacion/' + conv.id + '/mensajes', { method: 'GET', credentials: 'same-origin', headers: authHeaders });
+                const data = await r.json().catch(() => ({}));
+                const mensajes = data.status === 'success' && Array.isArray(data.mensajes) ? data.mensajes : [];
+                if (msgBox) {
+                    msgBox.innerHTML = mensajes.map((m) => {
+                        const esAdmin = (m.emisor_tipo || '') === 'admin';
+                        const fecha = m.creado_en ? new Date(m.creado_en).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '';
+                        return `<div style="padding:8px 10px; border-radius:8px; margin-bottom:8px; background:${esAdmin ? 'rgba(34,197,94,0.15)' : 'rgba(59,130,246,0.16)'}; border:1px solid ${esAdmin ? 'rgba(74,222,128,0.38)' : 'rgba(147,197,253,0.35)'};">
+                            ${this.escapeHtml(m.mensaje || '')}
+                            <div style="font-size:0.76rem;color:#94a3b8;margin-top:4px;">${esAdmin ? 'RUANA' : 'Aliado'} · ${fecha}</div>
+                        </div>`;
+                    }).join('') || '<p style="color:#94a3b8;">Sin mensajes.</p>';
+                    msgBox.scrollTop = msgBox.scrollHeight;
+                }
+            }
+
+            cerrarModalCentroComunicacionAdmin() {
+                const modal = document.getElementById('modal-centro-comunicacion-admin');
+                if (modal) modal.style.display = 'none';
+                this._centroComunicacionActiva = null;
+            }
+
+            async responderCentroComunicacionAdmin() {
+                const conv = this._centroComunicacionActiva;
+                if (!conv) return;
+                const msgEl = document.getElementById('cc-admin-modal-reply');
+                const estadoEl = document.getElementById('cc-admin-modal-status');
+                const mensaje = (msgEl?.value || '').trim();
+                if (!mensaje) { this.showToast('Escribe una respuesta.', 'error'); return; }
+                const authHeaders = Object.assign({}, AdminAuthenticator.getAdminAuthHeaders(), { 'Content-Type': 'application/json' });
+                const r = await fetch('/api/admin/centro-comunicacion/' + conv.id + '/responder', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: authHeaders,
+                    body: JSON.stringify({ mensaje, estado: estadoEl?.value || 'respondido' })
+                });
+                const data = await r.json().catch(() => ({}));
+                if (data.status !== 'success') { this.showToast(data.message || 'No se pudo responder.', 'error'); return; }
+                if (msgEl) msgEl.value = '';
+                this.showToast('Respuesta enviada.', 'success');
+                await this.cargarCentroComunicacionAdmin();
+                await this.abrirModalCentroComunicacionAdmin((this._centroComunicacion || []).find(c => Number(c.id) === Number(conv.id)) || conv);
+            }
+
+            async actualizarEstadoCentroComunicacionAdmin() {
+                const conv = this._centroComunicacionActiva;
+                const estado = (document.getElementById('cc-admin-modal-status')?.value || '').trim();
+                if (!conv || !estado) return;
+                const authHeaders = Object.assign({}, AdminAuthenticator.getAdminAuthHeaders(), { 'Content-Type': 'application/json' });
+                const r = await fetch('/api/admin/centro-comunicacion/' + conv.id + '/estado', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: authHeaders,
+                    body: JSON.stringify({ estado })
+                });
+                const data = await r.json().catch(() => ({}));
+                if (data.status !== 'success') { this.showToast(data.message || 'No se pudo actualizar estado.', 'error'); return; }
+                this.showToast('Estado actualizado.', 'success');
+                await this.cargarCentroComunicacionAdmin();
+            }
+
+            async eliminarCentroComunicacionAdmin() {
+                const conv = this._centroComunicacionActiva;
+                if (!conv) return;
+                if (!window.confirm('¿Eliminar esta conversación del panel admin?')) return;
+                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+                const r = await fetch('/api/admin/centro-comunicacion/' + conv.id, { method: 'DELETE', credentials: 'same-origin', headers: authHeaders });
+                const data = await r.json().catch(() => ({}));
+                if (data.status !== 'success') { this.showToast(data.message || 'No se pudo eliminar.', 'error'); return; }
+                this.showToast('Conversación eliminada.', 'success');
+                this.cerrarModalCentroComunicacionAdmin();
+                await this.cargarCentroComunicacionAdmin();
             }
 
             renderCompetenciasActivas(competencias) {

@@ -1836,6 +1836,33 @@
             100% { opacity: 0; }
         }
 
+        .ruana-help-center { margin-top: 28px; padding: 26px; border-radius: 16px; background: linear-gradient(160deg, rgba(16, 24, 40, 0.92), rgba(7, 12, 24, 0.9)); border: 1px solid rgba(148, 163, 184, 0.2); box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25); }
+        .ruana-help-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 16px; }
+        .ruana-help-title { font-size: 1.3rem; font-weight: 700; color: #e2e8f0; margin: 0; }
+        .ruana-help-sub { color: #94a3b8; margin: 0 0 16px; font-size: 0.9rem; }
+        .ruana-help-pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; color: #f8fafc; background: rgba(34, 197, 94, 0.18); border: 1px solid rgba(74, 222, 128, 0.35); }
+        .ruana-help-layout { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; }
+        .ruana-help-card { background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 12px; padding: 14px; }
+        .ruana-help-list { max-height: 320px; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+        .ruana-help-thread-item { padding: 10px; border-radius: 10px; cursor: pointer; border: 1px solid rgba(148, 163, 184, 0.16); background: rgba(15, 23, 42, 0.55); }
+        .ruana-help-thread-item.is-active { border-color: rgba(74, 222, 128, 0.5); background: rgba(34, 197, 94, 0.12); }
+        .ruana-help-thread-item.has-unread { box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.45) inset; }
+        .ruana-help-status { font-size: 0.72rem; padding: 3px 8px; border-radius: 999px; background: rgba(148, 163, 184, 0.2); }
+        .ruana-help-status.estado-pendiente { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
+        .ruana-help-status.estado-en_revision { background: rgba(59, 130, 246, 0.2); color: #93c5fd; }
+        .ruana-help-status.estado-respondido { background: rgba(34, 197, 94, 0.2); color: #86efac; }
+        .ruana-help-status.estado-cerrado { background: rgba(148, 163, 184, 0.22); color: #cbd5e1; }
+        .ruana-help-status.estado-reabierto { background: rgba(244, 114, 182, 0.2); color: #f9a8d4; }
+        .ruana-help-form-row { display: grid; gap: 8px; margin-bottom: 8px; }
+        .ruana-help-input, .ruana-help-textarea, .ruana-help-select { width: 100%; border-radius: 8px; padding: 9px 10px; background: rgba(2, 6, 23, 0.7); border: 1px solid rgba(148, 163, 184, 0.3); color: #e2e8f0; }
+        .ruana-help-messages { max-height: 245px; overflow: auto; display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+        .ruana-help-message { padding: 8px 10px; border-radius: 10px; font-size: 0.88rem; line-height: 1.4; }
+        .ruana-help-message.from-aliado { background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.3); }
+        .ruana-help-message.from-admin { background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(74, 222, 128, 0.35); }
+        .ruana-help-meta { display: block; color: #94a3b8; font-size: 0.72rem; margin-top: 4px; }
+        .ruana-help-empty { color: #94a3b8; font-size: 0.88rem; padding: 8px 0; }
+        @media (max-width: 920px) { .ruana-help-layout { grid-template-columns: 1fr; } }
+
     </style>
     <link rel="stylesheet" href="/static/css/panel-premium.css">
     <link rel="stylesheet" href="/static/css/auth-premium.css">
@@ -2129,6 +2156,40 @@
                 </div>
             </div>
         </div>
+        <section class="ruana-help-center" id="ruana-help-center">
+            <div class="ruana-help-header">
+                <h2 class="ruana-help-title">Habla con el equipo de RUANA</h2>
+                <span class="ruana-help-pill" id="ruana-help-unread-pill">0 sin leer</span>
+            </div>
+            <p class="ruana-help-sub">Consultas, incidencias, ideas y soporte en un solo espacio. Escribe, sigue el estado y responde en la misma conversación.</p>
+            <div class="ruana-help-layout">
+                <div class="ruana-help-card">
+                    <h3 style="margin:0 0 10px;">Nuevo mensaje</h3>
+                    <div class="ruana-help-form-row">
+                        <input id="ruana-help-subject" class="ruana-help-input" maxlength="160" placeholder="Asunto (ej. Problema al cerrar un contacto)" />
+                        <select id="ruana-help-category" class="ruana-help-select">
+                            <option value="consulta">Consulta</option>
+                            <option value="error">Error</option>
+                            <option value="sugerencia">Sugerencia</option>
+                            <option value="ayuda">Ayuda</option>
+                            <option value="incidencia">Incidencia</option>
+                        </select>
+                        <textarea id="ruana-help-message" class="ruana-help-textarea" rows="4" maxlength="3000" placeholder="Cuéntanos qué pasó y cómo te podemos ayudar"></textarea>
+                        <button type="button" class="btn-admin-action" id="ruana-help-send-btn">Enviar al equipo RUANA</button>
+                    </div>
+                    <h3 style="margin:12px 0 8px;">Mis conversaciones</h3>
+                    <div class="ruana-help-list" id="ruana-help-threads"></div>
+                </div>
+                <div class="ruana-help-card">
+                    <div id="ruana-help-thread-header" class="ruana-help-empty">Selecciona una conversación para ver el historial.</div>
+                    <div class="ruana-help-messages" id="ruana-help-messages"></div>
+                    <div class="ruana-help-form-row">
+                        <textarea id="ruana-help-reply" class="ruana-help-textarea" rows="3" maxlength="3000" placeholder="Responder en esta conversación..." disabled></textarea>
+                        <button type="button" class="btn-admin-action" id="ruana-help-reply-btn" disabled>Responder</button>
+                    </div>
+                </div>
+            </div>
+        </section>
     </div>
 
     <!-- Modal: Invitación por oficio (código generado al clic en oficio faltante) -->
@@ -2699,6 +2760,9 @@
                 this.chatExpiraEn = null;
                 this._chatPollingIntervalId = null;
                 this.notificaciones = [];
+                this.soporteConversations = [];
+                this.soporteMensajes = [];
+                this.soporteSelectedId = null;
                 this.contactosPagoPendiente = [];
                 this.tienePagosPendientes = false;
                 this.scoreNotifActive = false;
@@ -2729,6 +2793,7 @@
                 
                 // Luego, cargar datos estrictamente desde la API real
                 await this.loadData();
+                await this.fetchCentroComunicacionSnapshot();
                 await this.cargarMetodosPagoRuana();
                 await this.cargarContactosPendientes();
                 
@@ -2762,7 +2827,8 @@
                     metricas: '.metricas-block',
                     directorio: '.directorio-panel',
                     solicitudes: '.solicitudes-zone',
-                    alertas: '#notificaciones-ruana-wrap'
+                    alertas: '#notificaciones-ruana-wrap',
+                    centro: '#ruana-help-center'
                 };
                 return (sections || [])
                     .map((k) => map[k])
@@ -2818,6 +2884,25 @@
                 }
             }
 
+            async fetchCentroComunicacionSnapshot() {
+                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
+                if (!codigo) return;
+                const apiBase = getApiBase();
+                const resp = await fetch(apiBase + '/api/aliados/' + encodeURIComponent(codigo) + '/centro-comunicacion', {
+                    credentials: 'same-origin',
+                    headers: getRuanaAuthHeaders()
+                });
+                if (!resp.ok) return;
+                const data = await resp.json().catch(() => ({}));
+                if (data.status === 'success' && Array.isArray(data.conversaciones)) {
+                    this.soporteConversations = data.conversaciones;
+                    if (this.soporteSelectedId && !this.soporteConversations.some(c => Number(c.id) === Number(this.soporteSelectedId))) {
+                        this.soporteSelectedId = null;
+                        this.soporteMensajes = [];
+                    }
+                }
+            }
+
             async refreshAfterAction(sections, options) {
                 const opts = options || {};
                 if (this._syncInProgress && !opts.allowConcurrent) return;
@@ -2830,6 +2915,7 @@
                     if (targetSections.includes('solicitudes')) jobs.push(this.fetchSolicitudesSnapshot());
                     if (targetSections.includes('directorio')) jobs.push(this.fetchDirectorioSnapshot());
                     if (targetSections.includes('alertas')) jobs.push(this.actualizarEstadoAlertas());
+                    if (targetSections.includes('centro')) jobs.push(this.fetchCentroComunicacionSnapshot());
                     if (targetSections.includes('contactos')) jobs.push(this.cargarContactosPendientes());
                     await Promise.all(jobs);
 
@@ -2842,6 +2928,7 @@
                         this.renderListaPagosPendientes();
                         this.renderAlertas();
                     }
+                    if (targetSections.includes('centro')) this.renderCentroComunicacion();
                 } catch (e) {
                     console.error('Error de sincronización UI:', e);
                 } finally {
@@ -2854,7 +2941,7 @@
                 if (this._autoSyncIntervalId) clearInterval(this._autoSyncIntervalId);
                 this._autoSyncIntervalId = setInterval(() => {
                     if (document.visibilityState !== 'visible') return;
-                    this.refreshAfterAction(['perfil', 'metricas', 'solicitudes', 'directorio', 'alertas', 'contactos']);
+                    this.refreshAfterAction(['perfil', 'metricas', 'solicitudes', 'directorio', 'alertas', 'contactos', 'centro']);
                 }, 20000);
             }
 
@@ -2983,6 +3070,7 @@
                 this.renderSolicitudes();
                 this.renderProfesionales();
                 this.renderNotificaciones();
+                this.renderCentroComunicacion();
             }
 
             async abrirModalLinajeHijos() {
@@ -3796,6 +3884,10 @@
                 if (btnInvitarAliado) {
                     btnInvitarAliado.addEventListener('click', () => this.generarCodigoInvitacionPerfil());
                 }
+                const btnSoporteEnviar = document.getElementById('ruana-help-send-btn');
+                if (btnSoporteEnviar) btnSoporteEnviar.addEventListener('click', () => this.enviarNuevoMensajeSoporte());
+                const btnSoporteResponder = document.getElementById('ruana-help-reply-btn');
+                if (btnSoporteResponder) btnSoporteResponder.addEventListener('click', () => this.responderConversacionSoporte());
 
                 const metricReferidos = document.getElementById('metrica-card-referidos');
                 if (metricReferidos) {
@@ -4572,6 +4664,157 @@
                 } catch (e) {
                     console.error('Error marcando notificaciones leídas:', e);
                 }
+            }
+
+            formatHelpStatus(estado) {
+                const key = String(estado || 'pendiente').toLowerCase();
+                const labels = {
+                    pendiente: 'Pendiente',
+                    en_revision: 'En revisión',
+                    respondido: 'Respondido',
+                    cerrado: 'Cerrado',
+                    reabierto: 'Reabierto'
+                };
+                return labels[key] || 'Pendiente';
+            }
+
+            renderCentroComunicacion() {
+                const list = document.getElementById('ruana-help-threads');
+                const unreadPill = document.getElementById('ruana-help-unread-pill');
+                if (!list || !unreadPill) return;
+                const conversaciones = Array.isArray(this.soporteConversations) ? this.soporteConversations : [];
+                const unreadCount = conversaciones.filter(c => Number(c.tiene_no_leido_aliado || 0) > 0).length;
+                unreadPill.textContent = unreadCount + ' sin leer';
+                if (!conversaciones.length) {
+                    list.innerHTML = '<div class="ruana-help-empty">Aún no tienes conversaciones. Escríbenos y te respondemos por aquí.</div>';
+                    this.renderMensajesCentroComunicacion();
+                    return;
+                }
+                list.innerHTML = conversaciones.map((c) => {
+                    const active = Number(c.id) === Number(this.soporteSelectedId) ? ' is-active' : '';
+                    const hasUnread = Number(c.tiene_no_leido_aliado || 0) > 0 ? ' has-unread' : '';
+                    const fecha = c.ultimo_mensaje_en ? new Date(c.ultimo_mensaje_en).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '';
+                    return `<div class="ruana-help-thread-item${active}${hasUnread}" data-conv-id="${c.id}">
+                        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">
+                            <strong style="font-size:0.85rem;">${this.escapeHtml(c.asunto || 'Consulta')}</strong>
+                            <span class="ruana-help-status estado-${this.escapeHtml(c.estado || 'pendiente')}">${this.formatHelpStatus(c.estado)}</span>
+                        </div>
+                        <div style="color:#cbd5e1;font-size:0.8rem;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${this.escapeHtml(c.ultimo_mensaje_preview || 'Sin mensajes')}</div>
+                        <div class="ruana-help-meta">${fecha}</div>
+                    </div>`;
+                }).join('');
+                list.querySelectorAll('[data-conv-id]').forEach((el) => {
+                    el.addEventListener('click', () => this.seleccionarConversacionSoporte(el.getAttribute('data-conv-id')));
+                });
+                this.renderMensajesCentroComunicacion();
+            }
+
+            async seleccionarConversacionSoporte(conversacionId) {
+                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
+                if (!codigo || !conversacionId) return;
+                this.soporteSelectedId = Number(conversacionId);
+                const apiBase = getApiBase();
+                const r = await fetch(apiBase + '/api/aliados/' + encodeURIComponent(codigo) + '/centro-comunicacion/' + Number(conversacionId) + '/mensajes', {
+                    credentials: 'same-origin',
+                    headers: getRuanaAuthHeaders()
+                });
+                const data = await r.json().catch(() => ({}));
+                this.soporteMensajes = data.status === 'success' && Array.isArray(data.mensajes) ? data.mensajes : [];
+                await fetch(apiBase + '/api/aliados/' + encodeURIComponent(codigo) + '/centro-comunicacion/' + Number(conversacionId) + '/marcar-leida', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: getRuanaAuthHeaders()
+                }).catch(() => null);
+                await this.fetchCentroComunicacionSnapshot();
+                this.renderCentroComunicacion();
+            }
+
+            renderMensajesCentroComunicacion() {
+                const box = document.getElementById('ruana-help-messages');
+                const header = document.getElementById('ruana-help-thread-header');
+                const reply = document.getElementById('ruana-help-reply');
+                const replyBtn = document.getElementById('ruana-help-reply-btn');
+                if (!box || !header || !reply || !replyBtn) return;
+                const conv = (this.soporteConversations || []).find(c => Number(c.id) === Number(this.soporteSelectedId));
+                if (!conv) {
+                    header.textContent = 'Selecciona una conversación para ver el historial.';
+                    box.innerHTML = '';
+                    reply.disabled = true;
+                    replyBtn.disabled = true;
+                    return;
+                }
+                header.innerHTML = `<strong>${this.escapeHtml(conv.asunto || 'Consulta')}</strong> · <span class="ruana-help-status estado-${this.escapeHtml(conv.estado || 'pendiente')}">${this.formatHelpStatus(conv.estado)}</span>`;
+                reply.disabled = false;
+                replyBtn.disabled = false;
+                const mensajes = Array.isArray(this.soporteMensajes) ? this.soporteMensajes : [];
+                box.innerHTML = mensajes.map((m) => {
+                    const fromAdmin = (m.emisor_tipo || '') === 'admin';
+                    const fecha = m.creado_en ? new Date(m.creado_en).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '';
+                    return `<div class="ruana-help-message ${fromAdmin ? 'from-admin' : 'from-aliado'}">
+                        ${this.escapeHtml(m.mensaje || '')}
+                        <span class="ruana-help-meta">${fromAdmin ? 'Equipo RUANA' : 'Tú'} · ${fecha}</span>
+                    </div>`;
+                }).join('');
+                box.scrollTop = box.scrollHeight;
+            }
+
+            async enviarNuevoMensajeSoporte() {
+                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
+                if (!codigo) return;
+                const asuntoEl = document.getElementById('ruana-help-subject');
+                const categoriaEl = document.getElementById('ruana-help-category');
+                const mensajeEl = document.getElementById('ruana-help-message');
+                if (!asuntoEl || !mensajeEl || !categoriaEl) return;
+                const asunto = (asuntoEl.value || '').trim();
+                const mensaje = (mensajeEl.value || '').trim();
+                if (!asunto || !mensaje) {
+                    if (window.RuanaUI) RuanaUI.toast('Completa asunto y mensaje.', 'warning');
+                    return;
+                }
+                const apiBase = getApiBase();
+                const r = await fetch(apiBase + '/api/aliados/' + encodeURIComponent(codigo) + '/centro-comunicacion', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
+                    body: JSON.stringify({ asunto, categoria: categoriaEl.value || 'consulta', mensaje })
+                });
+                const data = await r.json().catch(() => ({}));
+                if (data.status !== 'success') {
+                    if (window.RuanaUI) RuanaUI.toast(data.message || 'No se pudo enviar el mensaje.', 'error');
+                    return;
+                }
+                asuntoEl.value = '';
+                mensajeEl.value = '';
+                if (window.RuanaUI) RuanaUI.toast('Tu mensaje fue enviado. ✅', 'success');
+                await this.fetchCentroComunicacionSnapshot();
+                this.soporteSelectedId = Number(data.conversacion_id || 0) || this.soporteSelectedId;
+                if (this.soporteSelectedId) await this.seleccionarConversacionSoporte(this.soporteSelectedId);
+                this.renderCentroComunicacion();
+            }
+
+            async responderConversacionSoporte() {
+                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
+                const convId = Number(this.soporteSelectedId || 0);
+                if (!codigo || !convId) return;
+                const replyEl = document.getElementById('ruana-help-reply');
+                if (!replyEl) return;
+                const mensaje = (replyEl.value || '').trim();
+                if (!mensaje) return;
+                const apiBase = getApiBase();
+                const r = await fetch(apiBase + '/api/aliados/' + encodeURIComponent(codigo) + '/centro-comunicacion/' + convId + '/mensajes', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
+                    body: JSON.stringify({ mensaje })
+                });
+                const data = await r.json().catch(() => ({}));
+                if (data.status !== 'success') {
+                    if (window.RuanaUI) RuanaUI.toast(data.message || 'No se pudo responder.', 'error');
+                    return;
+                }
+                replyEl.value = '';
+                if (window.RuanaUI) RuanaUI.toast('Respuesta enviada al equipo RUANA. 💬', 'success');
+                await this.seleccionarConversacionSoporte(convId);
             }
 
             /**
