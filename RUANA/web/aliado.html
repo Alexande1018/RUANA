@@ -1577,6 +1577,157 @@
                 grid-template-columns: 1fr;
             }
         }
+
+
+        /* Onboarding premium RUANA */
+        .ruana-tour-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 1400;
+            background: radial-gradient(circle at 10% 0%, rgba(162,255,0,0.12), transparent 35%), rgba(4, 8, 20, 0.82);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 220ms ease;
+        }
+        .ruana-tour-overlay.is-visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .ruana-tour-card {
+            position: fixed;
+            z-index: 1402;
+            width: min(460px, calc(100vw - 24px));
+            border-radius: 22px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: linear-gradient(170deg, rgba(255,255,255,0.14), rgba(10,12,24,0.9));
+            box-shadow: 0 28px 80px rgba(0,0,0,0.58), inset 0 1px 0 rgba(255,255,255,0.24);
+            backdrop-filter: blur(26px) saturate(170%);
+            -webkit-backdrop-filter: blur(26px) saturate(170%);
+            padding: 20px;
+            color: #eff7e8;
+            transform: translateY(10px) scale(0.98);
+            opacity: 0;
+            transition: transform 220ms ease, opacity 220ms ease;
+        }
+        .ruana-tour-card.is-visible {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+        }
+        .ruana-tour-kicker {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.11em;
+            color: #b4d7a2;
+        }
+        .ruana-tour-title {
+            margin: 8px 0 8px;
+            font-size: clamp(1.15rem, 2vw, 1.35rem);
+            letter-spacing: -0.02em;
+            color: #f5fff0;
+        }
+        .ruana-tour-copy {
+            margin: 0;
+            color: rgba(237, 247, 226, 0.88);
+            line-height: 1.5;
+            font-size: 0.94rem;
+        }
+        .ruana-tour-progress {
+            margin: 14px 0 10px;
+            height: 6px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.1);
+            overflow: hidden;
+        }
+        .ruana-tour-progress-fill {
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #4ade80, #a3e635);
+            transition: width 240ms ease;
+        }
+        .ruana-tour-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 10px;
+            color: rgba(237,247,226,0.7);
+            font-size: 0.78rem;
+        }
+        .ruana-tour-actions {
+            margin-top: 14px;
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+        }
+        .ruana-tour-btn {
+            border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 12px;
+            min-height: 40px;
+            padding: 8px 14px;
+            font-weight: 600;
+            cursor: pointer;
+            color: #e8f4de;
+            background: rgba(255,255,255,0.06);
+            transition: transform 150ms ease, background 180ms ease;
+        }
+        .ruana-tour-btn:hover { transform: translateY(-1px); }
+        .ruana-tour-btn.primary {
+            color: #0b1a10;
+            border-color: rgba(162,255,0,0.45);
+            background: linear-gradient(135deg, #a2ff00, #4ade80);
+        }
+        .ruana-tour-btn.ghost { background: transparent; }
+        .ruana-tour-target {
+            position: relative;
+            z-index: 1401 !important;
+            box-shadow: 0 0 0 2px rgba(162,255,0,0.85), 0 0 0 8px rgba(162,255,0,0.16), 0 10px 36px rgba(0,0,0,0.45);
+            border-radius: 14px;
+            animation: ruana-tour-pulse 2s ease-in-out infinite;
+        }
+        .ruana-tour-replay {
+            position: fixed;
+            right: 18px;
+            bottom: 18px;
+            z-index: 1200;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.16);
+            background: rgba(8, 14, 28, 0.72);
+            color: #dff7cb;
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            padding: 10px 14px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 180ms ease, transform 140ms ease;
+        }
+        .ruana-tour-replay:hover {
+            background: rgba(10, 18, 32, 0.95);
+            transform: translateY(-1px);
+        }
+        body.panel-loading .ruana-tour-replay {
+            display: none;
+        }
+        @keyframes ruana-tour-pulse {
+            0%, 100% { box-shadow: 0 0 0 2px rgba(162,255,0,0.8), 0 0 0 8px rgba(162,255,0,0.15), 0 10px 36px rgba(0,0,0,0.45); }
+            50% { box-shadow: 0 0 0 2px rgba(162,255,0,0.95), 0 0 0 12px rgba(162,255,0,0.2), 0 12px 40px rgba(0,0,0,0.55); }
+        }
+        @media (max-width: 720px) {
+            .ruana-tour-card {
+                left: 12px !important;
+                right: 12px;
+                width: auto;
+                top: auto !important;
+                bottom: 12px !important;
+            }
+            .ruana-tour-replay {
+                right: 12px;
+                bottom: 12px;
+            }
+        }
+
     </style>
     <link rel="stylesheet" href="/static/css/panel-premium.css">
     <link rel="stylesheet" href="/static/css/auth-premium.css">
@@ -2104,6 +2255,10 @@
 
     <div id="ruana-toast-container" class="ruana-toast-container" aria-live="polite"></div>
 
+
+
+    <button type="button" id="btn-replay-onboarding" class="ruana-tour-replay" aria-label="Repetir tour de RUANA">✨ Ver tour RUANA</button>
+
     <script>
         /**
          * RUANA - Panel Privado del Aliado
@@ -2134,6 +2289,218 @@
             const h = { ...(extra || {}) };
             if (sid) h['X-Ruana-Session-Id'] = sid;
             return h;
+        }
+
+
+
+        class RuanaOnboardingTour {
+            constructor(panel) {
+                this.panel = panel;
+                this.storageKey = 'ruana_onboarding_completed_v1';
+                this.stepIndex = 0;
+                this.steps = this.buildSteps();
+                this.activeTarget = null;
+                this.overlay = null;
+                this.card = null;
+                this.progressFill = null;
+                this.stepCounter = null;
+                this.boundEsc = (event) => {
+                    if (event.key === 'Escape') this.finish(false);
+                    if (event.key === 'ArrowRight') this.next();
+                    if (event.key === 'ArrowLeft') this.prev();
+                };
+            }
+
+            buildSteps() {
+                return [
+                    {
+                        selector: '.perfil-block',
+                        title: 'Bienvenido a tu red privada de aliados',
+                        copy: 'RUANA conecta profesionales que trabajan con confianza y reputación real. Aquí no compites por likes: construyes relaciones útiles para crecer.',
+                        placement: 'bottom'
+                    },
+                    {
+                        selector: '.directorio-panel',
+                        title: 'Conecta con aliados verificados',
+                        copy: 'Usa el directorio para ubicar a la persona correcta por oficio, nombre o zona y abrir conversaciones con contexto profesional.',
+                        placement: 'top'
+                    },
+                    {
+                        selector: '#solicitudes-entrantes-wrap',
+                        title: 'Encuentra oportunidades reales',
+                        copy: 'Las solicitudes entrantes son necesidades concretas de tu grupo. Si puedes ayudar, actúas de inmediato y refuerzas tu posición en la comunidad.',
+                        placement: 'top'
+                    },
+                    {
+                        selector: '#metrica-card-score',
+                        title: 'Tu reputación se mide con hechos',
+                        copy: 'El Score RUANA evoluciona según cierres, cumplimiento y coherencia. Es la señal de confianza que abre más oportunidades.',
+                        placement: 'bottom'
+                    },
+                    {
+                        selector: '.crear-solicitud-zone',
+                        title: 'Colabora con seguridad y rapidez',
+                        copy: 'Cuando necesitas apoyo, envía una solicitud clara y activa una conexión de trabajo trazable dentro de tu red confiable.',
+                        placement: 'left'
+                    },
+                    {
+                        selector: '#btn-invitar-aliado',
+                        title: 'Empieza en menos de un minuto',
+                        copy: 'Publica tu primera solicitud o invita a un aliado estratégico. Tu red crece contigo, con reglas claras y valor profesional.',
+                        placement: 'bottom',
+                        final: true
+                    }
+                ];
+            }
+
+            shouldAutoStart() {
+                try {
+                    return localStorage.getItem(this.storageKey) !== 'true';
+                } catch (_) {
+                    return true;
+                }
+            }
+
+            markSeen() {
+                try { localStorage.setItem(this.storageKey, 'true'); } catch (_) {}
+            }
+
+            start(force = false) {
+                if (!force && !this.shouldAutoStart()) return;
+                if (this.overlay) return;
+                this.stepIndex = 0;
+                this.createLayer();
+                document.addEventListener('keydown', this.boundEsc);
+                this.renderStep();
+            }
+
+            createLayer() {
+                this.overlay = document.createElement('div');
+                this.overlay.className = 'ruana-tour-overlay';
+                this.overlay.innerHTML = '<div class="ruana-tour-card" role="dialog" aria-modal="true" aria-label="Tour de onboarding RUANA">'
+                    + '<div class="ruana-tour-kicker">Experiencia guiada RUANA</div>'
+                    + '<h3 class="ruana-tour-title"></h3>'
+                    + '<p class="ruana-tour-copy"></p>'
+                    + '<div class="ruana-tour-progress"><div class="ruana-tour-progress-fill"></div></div>'
+                    + '<div class="ruana-tour-meta"><span class="ruana-tour-counter"></span><span>Duración: &lt; 1 min</span></div>'
+                    + '<div class="ruana-tour-actions">'
+                    + '<button type="button" class="ruana-tour-btn ghost" data-action="skip">Salir</button>'
+                    + '<button type="button" class="ruana-tour-btn" data-action="prev">Atrás</button>'
+                    + '<button type="button" class="ruana-tour-btn primary" data-action="next">Continuar</button>'
+                    + '</div></div>';
+                document.body.appendChild(this.overlay);
+                requestAnimationFrame(() => this.overlay.classList.add('is-visible'));
+
+                this.card = this.overlay.querySelector('.ruana-tour-card');
+                this.progressFill = this.overlay.querySelector('.ruana-tour-progress-fill');
+                this.stepCounter = this.overlay.querySelector('.ruana-tour-counter');
+
+                this.overlay.addEventListener('click', (event) => {
+                    const action = event.target && event.target.dataset ? event.target.dataset.action : null;
+                    if (!action) return;
+                    if (action === 'next') this.next();
+                    if (action === 'prev') this.prev();
+                    if (action === 'skip') this.finish(false);
+                });
+
+                requestAnimationFrame(() => this.card.classList.add('is-visible'));
+            }
+
+            getStepElements() {
+                const step = this.steps[this.stepIndex];
+                if (!step) return { step: null, target: null };
+                const target = document.querySelector(step.selector);
+                return { step, target };
+            }
+
+            renderStep() {
+                const { step, target } = this.getStepElements();
+                if (!step || !this.card) return;
+
+                if (this.activeTarget) this.activeTarget.classList.remove('ruana-tour-target');
+                this.activeTarget = target;
+                if (target) {
+                    this.activeTarget.classList.add('ruana-tour-target');
+                    this.activeTarget.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                }
+
+                this.card.querySelector('.ruana-tour-title').textContent = step.title;
+                this.card.querySelector('.ruana-tour-copy').textContent = step.copy;
+                this.stepCounter.textContent = `Paso ${this.stepIndex + 1} de ${this.steps.length}`;
+                const progress = ((this.stepIndex + 1) / this.steps.length) * 100;
+                this.progressFill.style.width = progress + '%';
+
+                const nextBtn = this.card.querySelector('[data-action="next"]');
+                const prevBtn = this.card.querySelector('[data-action="prev"]');
+                prevBtn.style.visibility = this.stepIndex === 0 ? 'hidden' : 'visible';
+                nextBtn.textContent = step.final ? 'Empezar ahora' : 'Continuar';
+
+                this.positionCard(target, step.placement || 'bottom');
+            }
+
+            positionCard(target, placement) {
+                if (!this.card) return;
+                const margin = 18;
+                const vw = window.innerWidth;
+                const vh = window.innerHeight;
+                const cardRect = this.card.getBoundingClientRect();
+
+                let top = vh - cardRect.height - margin;
+                let left = vw - cardRect.width - margin;
+
+                if (target) {
+                    const r = target.getBoundingClientRect();
+                    if (placement === 'top') {
+                        top = r.top - cardRect.height - margin;
+                        left = r.left + (r.width / 2) - (cardRect.width / 2);
+                    } else if (placement === 'left') {
+                        top = r.top + (r.height / 2) - (cardRect.height / 2);
+                        left = r.left - cardRect.width - margin;
+                    } else {
+                        top = r.bottom + margin;
+                        left = r.left + (r.width / 2) - (cardRect.width / 2);
+                    }
+                }
+
+                top = Math.max(margin, Math.min(top, vh - cardRect.height - margin));
+                left = Math.max(margin, Math.min(left, vw - cardRect.width - margin));
+                this.card.style.top = `${Math.round(top)}px`;
+                this.card.style.left = `${Math.round(left)}px`;
+            }
+
+            next() {
+                if (this.stepIndex >= this.steps.length - 1) {
+                    this.finish(true);
+                    return;
+                }
+                this.stepIndex += 1;
+                this.renderStep();
+            }
+
+            prev() {
+                if (this.stepIndex <= 0) return;
+                this.stepIndex -= 1;
+                this.renderStep();
+            }
+
+            finish(markComplete) {
+                if (markComplete) {
+                    this.markSeen();
+                    if (window.RuanaUI && typeof window.RuanaUI.toast === 'function') {
+                        window.RuanaUI.toast('Tour completado. Ya puedes empezar a crear oportunidades en RUANA.', 'success', 4500);
+                    }
+                }
+                if (this.activeTarget) this.activeTarget.classList.remove('ruana-tour-target');
+                this.activeTarget = null;
+                document.removeEventListener('keydown', this.boundEsc);
+                if (this.overlay) {
+                    this.overlay.classList.remove('is-visible');
+                    const overlay = this.overlay;
+                    this.overlay = null;
+                    this.card = null;
+                    setTimeout(() => overlay.remove(), 220);
+                }
+            }
         }
 
         class PrivatePanel {
@@ -2227,6 +2594,9 @@
                 this.isDataLoaded = false;
                 this._referidosTree = null;
 
+                // Onboarding premium
+                this.onboardingTour = null;
+
                 // Contactos RUANA
                 this.codigoAliado = sessionStorage.getItem('ruana_codigo_aliado') || null;
                 this.contactosAbiertos = [];
@@ -2274,6 +2644,7 @@
                 this.render();
                 this.renderAlertas();
                 this.setPanelLoading(false);
+                this.initOnboarding();
             }
 
             setPanelLoading(isLoading) {
