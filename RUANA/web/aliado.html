@@ -2573,7 +2573,7 @@
         class RuanaOnboardingTour {
             constructor(panel) {
                 this.panel = panel;
-                this.storageKey = 'ruana_onboarding_completed_v2';
+                this.storageKeyBase = 'ruana_onboarding_completed_v3';
                 this.stepIndex = 0;
                 this.steps = this.buildSteps();
                 this.activeTarget = null;
@@ -2588,6 +2588,15 @@
                     if (event.target && event.target.closest && event.target.closest('.ruana-tour-cloud-close')) return;
                     this.next();
                 };
+            }
+
+            getStorageKey() {
+                const codigo = (
+                    (this.panel && (this.panel.codigoAliado || (this.panel.aliado && this.panel.aliado.codigo))) ||
+                    sessionStorage.getItem('ruana_codigo_aliado') ||
+                    'anon'
+                ).toString().trim() || 'anon';
+                return `${this.storageKeyBase}_${codigo}`;
             }
 
             buildSteps() {
@@ -2607,16 +2616,18 @@
             }
 
             shouldAutoStart() {
-                try { return localStorage.getItem(this.storageKey) !== 'true'; } catch (_) { return true; }
+                try { return localStorage.getItem(this.getStorageKey()) !== 'true'; } catch (_) { return true; }
             }
 
             markSeen() {
-                try { localStorage.setItem(this.storageKey, 'true'); } catch (_) {}
+                try { localStorage.setItem(this.getStorageKey(), 'true'); } catch (_) {}
             }
 
             start(force = false) {
                 if (!force && !this.shouldAutoStart()) return;
                 if (this.cloud) return;
+                // Autoarranque solo una vez: se marca al abrirse, aunque el usuario lo cierre a mitad.
+                if (!force) this.markSeen();
                 this.stepIndex = 0;
                 this.createLayer();
                 document.addEventListener('keydown', this.boundEsc);
@@ -2736,8 +2747,9 @@
             }
 
             finish(markComplete) {
+                // Cualquier cierre (completar, ✕ o Escape) evita un nuevo autoarranque.
+                this.markSeen();
                 if (markComplete) {
-                    this.markSeen();
                     this.playFinale();
                     if (window.RuanaUI && typeof window.RuanaUI.toast === 'function') {
                         window.RuanaUI.toast('Listo, ya conoces lo clave de RUANA. Dale con todo 🙌', 'success', 3200);
