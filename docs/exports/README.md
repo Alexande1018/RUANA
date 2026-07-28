@@ -1,6 +1,21 @@
-# Informes descargables — Auditoría forense RUANA
+# Informes descargables RUANA
 
-Documentos generados a partir de la auditoría forense del 26 de julio de 2026.
+## Manual Maestro (fuente de verdad)
+
+| Archivo | Formato | Descripción |
+|---|---|---|
+| [README_RUANA_COMPLETO.docx](./README_RUANA_COMPLETO.docx) | Microsoft Word | Manual Maestro editable |
+| [README_RUANA_COMPLETO.pdf](./README_RUANA_COMPLETO.pdf) | PDF | Manual Maestro para lectura/impresión |
+| [`../../README_RUANA_COMPLETO.md`](../../README_RUANA_COMPLETO.md) | Markdown | Misma fuente (idéntica a `README.md`) |
+
+Regenerar:
+
+```bash
+pip install python-docx fpdf2
+python scripts/generate_manual_maestro_documents.py
+```
+
+## Auditoría forense (foto congelada — 26 jul 2026)
 
 | Archivo | Formato | Descripción |
 |---|---|---|
@@ -9,4 +24,4 @@ Documentos generados a partir de la auditoría forense del 26 de julio de 2026.
 
 Fuente Markdown archivada: [`docs/archive/AUDITORIA_FORENSE_RUANA.md`](../archive/AUDITORIA_FORENSE_RUANA.md).
 
-> La auditoría es una **foto congelada** del repositorio. La verdad actual del producto está en el [Manual Maestro](../../README.md).
+> La verdad actual del producto está en el [Manual Maestro](../../README.md).
