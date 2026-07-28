@@ -1836,15 +1836,125 @@
             100% { opacity: 0; }
         }
 
-        .ruana-help-center { margin-top: 28px; padding: 26px; border-radius: 16px; background: linear-gradient(160deg, rgba(16, 24, 40, 0.92), rgba(7, 12, 24, 0.9)); border: 1px solid rgba(148, 163, 184, 0.2); box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25); }
-        .ruana-help-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 16px; }
-        .ruana-help-title { font-size: 1.3rem; font-weight: 700; color: #e2e8f0; margin: 0; }
-        .ruana-help-sub { color: #94a3b8; margin: 0 0 16px; font-size: 0.9rem; }
-        .ruana-help-pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; color: #f8fafc; background: rgba(34, 197, 94, 0.18); border: 1px solid rgba(74, 222, 128, 0.35); }
-        .ruana-help-layout { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; }
-        .ruana-help-card { background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 12px; padding: 14px; }
-        .ruana-help-list { max-height: 320px; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
-        .ruana-help-thread-item { padding: 10px; border-radius: 10px; cursor: pointer; border: 1px solid rgba(148, 163, 184, 0.16); background: rgba(15, 23, 42, 0.55); }
+        .ruana-help-fab {
+            position: fixed;
+            right: 22px;
+            bottom: 22px;
+            z-index: 95;
+            width: 56px;
+            height: 56px;
+            border: 1px solid rgba(162, 255, 0, 0.42);
+            border-radius: 18px;
+            background: linear-gradient(155deg, rgba(18, 28, 22, 0.96), rgba(10, 16, 28, 0.94));
+            color: #A2FF00;
+            box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease, background 220ms ease;
+        }
+        .ruana-help-fab:hover {
+            transform: translateY(-2px) scale(1.03);
+            border-color: rgba(162, 255, 0, 0.7);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
+        }
+        .ruana-help-fab.is-open {
+            background: linear-gradient(155deg, rgba(26, 40, 20, 0.98), rgba(12, 20, 30, 0.96));
+        }
+        .ruana-help-fab svg { width: 22px; height: 22px; }
+        .ruana-help-fab-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            min-width: 20px;
+            height: 20px;
+            padding: 0 5px;
+            border-radius: 999px;
+            background: #fbbf24;
+            color: #111827;
+            font-size: 0.7rem;
+            font-weight: 800;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid rgba(7, 12, 24, 0.95);
+        }
+        .ruana-help-fab-badge.is-visible { display: inline-flex; }
+        body.panel-loading .ruana-help-fab { display: none; }
+
+        .ruana-help-perfil-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+            padding: 8px 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(162, 255, 0, 0.28);
+            background: rgba(162, 255, 0, 0.08);
+            color: #d9f99d;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 180ms ease, border-color 180ms ease, transform 180ms ease;
+        }
+        .ruana-help-perfil-btn:hover {
+            background: rgba(162, 255, 0, 0.14);
+            border-color: rgba(162, 255, 0, 0.45);
+            transform: translateY(-1px);
+        }
+        .ruana-help-perfil-btn svg { width: 15px; height: 15px; }
+
+        .ruana-help-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 110;
+            display: flex;
+            align-items: flex-end;
+            justify-content: flex-end;
+            padding: 18px;
+            background: rgba(5, 9, 18, 0.42);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 240ms ease;
+        }
+        .ruana-help-overlay.is-open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .ruana-help-center {
+            width: min(920px, 100%);
+            max-height: min(86vh, 760px);
+            overflow: auto;
+            margin: 0;
+            padding: 20px;
+            border-radius: 18px;
+            background: linear-gradient(160deg, rgba(16, 24, 40, 0.97), rgba(7, 12, 24, 0.96));
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            box-shadow: 0 24px 56px rgba(0, 0, 0, 0.4);
+            transform: translateY(28px) scale(0.98);
+            opacity: 0;
+            transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1), opacity 240ms ease;
+        }
+        .ruana-help-overlay.is-open .ruana-help-center {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+        }
+        .ruana-help-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+        .ruana-help-title { font-size: 1.15rem; font-weight: 700; color: #e2e8f0; margin: 0; }
+        .ruana-help-sub { color: #94a3b8; margin: 0 0 14px; font-size: 0.86rem; }
+        .ruana-help-pill { display: inline-flex; align-items: center; gap: 8px; padding: 5px 9px; border-radius: 999px; font-size: 0.74rem; font-weight: 700; color: #f8fafc; background: rgba(34, 197, 94, 0.18); border: 1px solid rgba(74, 222, 128, 0.35); }
+        .ruana-help-close {
+            width: 34px; height: 34px; border-radius: 10px; border: 1px solid rgba(148, 163, 184, 0.25);
+            background: rgba(255, 255, 255, 0.04); color: #cbd5e1; cursor: pointer;
+        }
+        .ruana-help-header-actions { display: inline-flex; align-items: center; gap: 8px; }
+        .ruana-help-layout { display: grid; grid-template-columns: 1.05fr 1fr; gap: 12px; }
+        .ruana-help-card { background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 12px; padding: 12px; }
+        .ruana-help-list { max-height: 250px; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+        .ruana-help-thread-item { padding: 10px; border-radius: 10px; cursor: pointer; border: 1px solid rgba(148, 163, 184, 0.16); background: rgba(15, 23, 42, 0.55); transition: border-color 160ms ease, background 160ms ease; }
         .ruana-help-thread-item.is-active { border-color: rgba(74, 222, 128, 0.5); background: rgba(34, 197, 94, 0.12); }
         .ruana-help-thread-item.has-unread { box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.45) inset; }
         .ruana-help-status { font-size: 0.72rem; padding: 3px 8px; border-radius: 999px; background: rgba(148, 163, 184, 0.2); }
@@ -1855,13 +1965,18 @@
         .ruana-help-status.estado-reabierto { background: rgba(244, 114, 182, 0.2); color: #f9a8d4; }
         .ruana-help-form-row { display: grid; gap: 8px; margin-bottom: 8px; }
         .ruana-help-input, .ruana-help-textarea, .ruana-help-select { width: 100%; border-radius: 8px; padding: 9px 10px; background: rgba(2, 6, 23, 0.7); border: 1px solid rgba(148, 163, 184, 0.3); color: #e2e8f0; }
-        .ruana-help-messages { max-height: 245px; overflow: auto; display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+        .ruana-help-messages { max-height: 210px; overflow: auto; display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
         .ruana-help-message { padding: 8px 10px; border-radius: 10px; font-size: 0.88rem; line-height: 1.4; }
         .ruana-help-message.from-aliado { background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.3); }
         .ruana-help-message.from-admin { background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(74, 222, 128, 0.35); }
         .ruana-help-meta { display: block; color: #94a3b8; font-size: 0.72rem; margin-top: 4px; }
         .ruana-help-empty { color: #94a3b8; font-size: 0.88rem; padding: 8px 0; }
-        @media (max-width: 920px) { .ruana-help-layout { grid-template-columns: 1fr; } }
+        @media (max-width: 920px) {
+            .ruana-help-layout { grid-template-columns: 1fr; }
+            .ruana-help-overlay { padding: 10px; align-items: flex-end; }
+            .ruana-help-center { max-height: 88vh; border-radius: 16px 16px 12px 12px; }
+            .ruana-help-fab { right: 14px; bottom: 14px; width: 52px; height: 52px; }
+        }
 
     </style>
     <link rel="stylesheet" href="/static/css/panel-premium.css">
@@ -2012,6 +2127,10 @@
                     <i data-lucide="user-plus" style="width:16px;height:16px"></i>
                     Generar código de invitación
                 </button>
+                <button type="button" class="ruana-help-perfil-btn" id="ruana-help-perfil-btn" title="Hablar con el equipo de RUANA">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    Hablar con RUANA
+                </button>
             </div>
 
             <!-- Mi grupo: nombre, estado, oficios representados, oficios faltantes (sin scores ni métricas de otros) -->
@@ -2156,12 +2275,23 @@
                 </div>
             </div>
         </div>
-        <section class="ruana-help-center" id="ruana-help-center">
+    </div>
+
+    <button type="button" class="ruana-help-fab" id="ruana-help-fab" aria-label="Hablar con el equipo de RUANA" title="Hablar con RUANA">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span class="ruana-help-fab-badge" id="ruana-help-fab-badge" aria-hidden="true">0</span>
+    </button>
+
+    <div class="ruana-help-overlay" id="ruana-help-overlay" aria-hidden="true">
+        <section class="ruana-help-center" id="ruana-help-center" role="dialog" aria-modal="true" aria-labelledby="ruana-help-title">
             <div class="ruana-help-header">
-                <h2 class="ruana-help-title">Habla con el equipo de RUANA</h2>
-                <span class="ruana-help-pill" id="ruana-help-unread-pill">0 sin leer</span>
+                <h2 class="ruana-help-title" id="ruana-help-title">Habla con el equipo de RUANA</h2>
+                <div class="ruana-help-header-actions">
+                    <span class="ruana-help-pill" id="ruana-help-unread-pill">0 sin leer</span>
+                    <button type="button" class="ruana-help-close" id="ruana-help-close" aria-label="Cerrar">✕</button>
+                </div>
             </div>
-            <p class="ruana-help-sub">Consultas, incidencias, ideas y soporte en un solo espacio. Escribe, sigue el estado y responde en la misma conversación.</p>
+            <p class="ruana-help-sub">Consultas, incidencias e ideas. Escribe cuando lo necesites; el panel se mantiene limpio el resto del tiempo.</p>
             <div class="ruana-help-layout">
                 <div class="ruana-help-card">
                     <h3 style="margin:0 0 10px;">Nuevo mensaje</h3>
@@ -3888,6 +4018,21 @@
                 if (btnSoporteEnviar) btnSoporteEnviar.addEventListener('click', () => this.enviarNuevoMensajeSoporte());
                 const btnSoporteResponder = document.getElementById('ruana-help-reply-btn');
                 if (btnSoporteResponder) btnSoporteResponder.addEventListener('click', () => this.responderConversacionSoporte());
+                const fabSoporte = document.getElementById('ruana-help-fab');
+                if (fabSoporte) fabSoporte.addEventListener('click', () => this.toggleCentroComunicacion());
+                const perfilSoporteBtn = document.getElementById('ruana-help-perfil-btn');
+                if (perfilSoporteBtn) perfilSoporteBtn.addEventListener('click', () => this.abrirCentroComunicacion());
+                const closeSoporte = document.getElementById('ruana-help-close');
+                if (closeSoporte) closeSoporte.addEventListener('click', () => this.cerrarCentroComunicacion());
+                const overlaySoporte = document.getElementById('ruana-help-overlay');
+                if (overlaySoporte) {
+                    overlaySoporte.addEventListener('click', (e) => {
+                        if (e.target === overlaySoporte) this.cerrarCentroComunicacion();
+                    });
+                }
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') this.cerrarCentroComunicacion();
+                });
 
                 const metricReferidos = document.getElementById('metrica-card-referidos');
                 if (metricReferidos) {
@@ -4678,13 +4823,46 @@
                 return labels[key] || 'Pendiente';
             }
 
+            abrirCentroComunicacion() {
+                const overlay = document.getElementById('ruana-help-overlay');
+                const fab = document.getElementById('ruana-help-fab');
+                if (!overlay) return;
+                overlay.classList.add('is-open');
+                overlay.setAttribute('aria-hidden', 'false');
+                if (fab) fab.classList.add('is-open');
+                this.renderCentroComunicacion();
+                const subject = document.getElementById('ruana-help-subject');
+                if (subject) setTimeout(() => subject.focus(), 220);
+            }
+
+            cerrarCentroComunicacion() {
+                const overlay = document.getElementById('ruana-help-overlay');
+                const fab = document.getElementById('ruana-help-fab');
+                if (!overlay) return;
+                overlay.classList.remove('is-open');
+                overlay.setAttribute('aria-hidden', 'true');
+                if (fab) fab.classList.remove('is-open');
+            }
+
+            toggleCentroComunicacion() {
+                const overlay = document.getElementById('ruana-help-overlay');
+                if (!overlay) return;
+                if (overlay.classList.contains('is-open')) this.cerrarCentroComunicacion();
+                else this.abrirCentroComunicacion();
+            }
+
             renderCentroComunicacion() {
                 const list = document.getElementById('ruana-help-threads');
                 const unreadPill = document.getElementById('ruana-help-unread-pill');
+                const fabBadge = document.getElementById('ruana-help-fab-badge');
                 if (!list || !unreadPill) return;
                 const conversaciones = Array.isArray(this.soporteConversations) ? this.soporteConversations : [];
                 const unreadCount = conversaciones.filter(c => Number(c.tiene_no_leido_aliado || 0) > 0).length;
                 unreadPill.textContent = unreadCount + ' sin leer';
+                if (fabBadge) {
+                    fabBadge.textContent = String(unreadCount);
+                    fabBadge.classList.toggle('is-visible', unreadCount > 0);
+                }
                 if (!conversaciones.length) {
                     list.innerHTML = '<div class="ruana-help-empty">Aún no tienes conversaciones. Escríbenos y te respondemos por aquí.</div>';
                     this.renderMensajesCentroComunicacion();
