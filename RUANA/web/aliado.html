@@ -1887,28 +1887,6 @@
         .ruana-help-fab-badge.is-visible { display: inline-flex; }
         body.panel-loading .ruana-help-fab { display: none; }
 
-        .ruana-help-perfil-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            margin-top: 10px;
-            padding: 8px 12px;
-            border-radius: 10px;
-            border: 1px solid rgba(162, 255, 0, 0.28);
-            background: rgba(162, 255, 0, 0.08);
-            color: #d9f99d;
-            font-size: 0.82rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 180ms ease, border-color 180ms ease, transform 180ms ease;
-        }
-        .ruana-help-perfil-btn:hover {
-            background: rgba(162, 255, 0, 0.14);
-            border-color: rgba(162, 255, 0, 0.45);
-            transform: translateY(-1px);
-        }
-        .ruana-help-perfil-btn svg { width: 15px; height: 15px; }
-
         .ruana-help-overlay {
             position: fixed;
             inset: 0;
@@ -2130,10 +2108,6 @@
                 <button type="button" class="btn-invitar-aliado" id="btn-invitar-aliado" title="Generar código para que un nuevo aliado se registre">
                     <i data-lucide="user-plus" style="width:16px;height:16px"></i>
                     Generar código de invitación
-                </button>
-                <button type="button" class="ruana-help-perfil-btn" id="ruana-help-perfil-btn" title="Hablar con el equipo de RUANA">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                    Hablar con RUANA
                 </button>
             </div>
 
@@ -4024,8 +3998,6 @@
                 if (btnSoporteResponder) btnSoporteResponder.addEventListener('click', () => this.responderConversacionSoporte());
                 const fabSoporte = document.getElementById('ruana-help-fab');
                 if (fabSoporte) fabSoporte.addEventListener('click', () => this.toggleCentroComunicacion());
-                const perfilSoporteBtn = document.getElementById('ruana-help-perfil-btn');
-                if (perfilSoporteBtn) perfilSoporteBtn.addEventListener('click', () => this.abrirCentroComunicacion());
                 const closeSoporte = document.getElementById('ruana-help-close');
                 if (closeSoporte) closeSoporte.addEventListener('click', () => this.cerrarCentroComunicacion());
                 const overlaySoporte = document.getElementById('ruana-help-overlay');
