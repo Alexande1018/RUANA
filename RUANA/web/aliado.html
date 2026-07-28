@@ -427,6 +427,7 @@
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 12px;
             text-align: center;
+            position: relative;
             transition: all 0.3s ease;
         }
 
@@ -462,6 +463,61 @@
         .metrica-card.score-estable .metrica-numero { color: #22c55e; }
         .metrica-card.score-riesgo .metrica-numero { color: #eab308; }
         .metrica-card.score-competencia .metrica-numero { color: #ef4444; }
+        .score-change-toast {
+            position: absolute;
+            top: -12px;
+            right: 8px;
+            max-width: min(360px, calc(100vw - 40px));
+            padding: 12px 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            background: linear-gradient(150deg, rgba(255, 255, 255, 0.2), rgba(14, 18, 34, 0.92));
+            backdrop-filter: blur(14px) saturate(140%);
+            -webkit-backdrop-filter: blur(14px) saturate(140%);
+            box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+            z-index: 8;
+            opacity: 0;
+            transform: translateY(-8px) scale(0.98);
+            transition: opacity 220ms ease, transform 220ms ease;
+        }
+        .score-change-toast.show {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+        .score-change-toast.up { border-color: rgba(34, 197, 94, 0.45); }
+        .score-change-toast.down { border-color: rgba(245, 158, 11, 0.45); }
+        .score-change-title {
+            margin: 0 28px 4px 0;
+            font-size: 0.78rem;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: rgba(210, 235, 255, 0.85);
+            font-weight: 700;
+        }
+        .score-change-copy {
+            margin: 0;
+            font-size: 0.86rem;
+            color: #e7eefb;
+            line-height: 1.4;
+        }
+        .score-change-close {
+            position: absolute;
+            top: 7px;
+            right: 8px;
+            border: none;
+            background: transparent;
+            color: rgba(227, 236, 252, 0.8);
+            cursor: pointer;
+            font-size: 1rem;
+            line-height: 1;
+            padding: 2px 4px;
+        }
+        .score-change-delta {
+            font-weight: 800;
+            margin-right: 2px;
+        }
+        .score-change-toast.up .score-change-delta { color: #4ade80; }
+        .score-change-toast.down .score-change-delta { color: #fbbf24; }
 
         .score-alerta-panel {
             padding: 14px 20px;
@@ -2624,6 +2680,8 @@
                 this.notificaciones = [];
                 this.contactosPagoPendiente = [];
                 this.tienePagosPendientes = false;
+                this.scoreNotifActive = false;
+                this.scoreNotifShownIds = new Set();
                 this._contactoIdImpugnarApoyo = null;
                 this.metodosPagoRuana = {
                     bizum_num: window.RUANA_BIZUM_NUM || '642868261',
@@ -3193,6 +3251,120 @@
                 const alerta = document.getElementById('score-alerta-panel');
                 if (alerta) alerta.classList.toggle('visible', score < 50);
                 if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons();
+                this.maybeShowScoreChangeNotification();
+            }
+
+            formatScoreMotivo(motivo) {
+                const key = String(motivo || '').trim();
+                if (!key) return 'actualización de reglas RUANA';
+                const mappings = [
+                    [/^aliado_referido_registro_valido/, 'registro válido de un aliado referido'],
+                    [/^encargo_completado_apoyo_pagado/, 'encargo completado con apoyo RUANA validado'],
+                    [/^referido_encargo_completado_gen/, 'impacto positivo de tu red de referidos'],
+                    [/^regla4_/, 'constancia de encargos completados en el mes'],
+                    [/^regla5_/, 'respuesta rápida y buena atención en chat'],
+                    [/^regla6_/, 'gestión efectiva de un contacto urgente'],
+                    [/^regla7_/, 'declaración oportuna del cierre del trabajo'],
+                    [/^regla8_/, 'actividad constante en la app'],
+                    [/^invitacion_oficio_usada/, 'invitar a un nuevo aliado que se registró'],
+                    [/^contacto_cerrado_no_concretado/, 'cierre de contacto sin trabajo concretado'],
+                    [/^contacto_sin_cerrar_7d/, 'contacto abierto sin cierre durante 7 días'],
+                    [/^contacto_sin_cerrar_21d/, 'contacto abierto sin cierre durante 21 días'],
+                    [/^descendiente_entra_competencia_gen/, 'impacto por riesgo dentro de tu red'],
+                    [/^chat_sin_respuesta_48h_/, 'chat sin respuesta durante 48 horas'],
+                    [/^sin_acceso_7d_/, 'inactividad en la app por 7 días'],
+                    [/^chat_agotado_sin_resultado_/, 'chat agotado sin cierre de resultado'],
+                    [/^disputa_perdida_/, 'disputa de importe resuelta en contra'],
+                    [/^comprobante_apoyo_3d_/, 'demora en subir comprobante de apoyo RUANA']
+                ];
+                for (const [regex, desc] of mappings) {
+                    if (regex.test(key)) return desc;
+                }
+                return key.replace(/_/g, ' ');
+            }
+
+            getScoreNotifVariants(isUp) {
+                if (isUp) {
+                    return [
+                        '🎉 ¡Excelente! Tu Score RUANA aumentó {{delta}} por {{reason}}.',
+                        '🌟 ¡Buen trabajo! Has ganado {{delta}} gracias a {{reason}}.',
+                        '🚀 Vas subiendo: tu score mejoró {{delta}} por {{reason}}.',
+                        '👏 ¡Así se hace! Tu reputación creció {{delta}} por {{reason}}.'
+                    ];
+                }
+                return [
+                    '😕 Tu Score RUANA disminuyó {{delta}} por {{reason}}.',
+                    '⚠️ Tu score bajó {{delta}} debido a {{reason}}.',
+                    '💡 Ajuste en tu reputación: {{delta}} por {{reason}}.',
+                    '🧭 Tu score cambió {{delta}} por {{reason}}. Puedes recuperarlo con próximos cierres.'
+                ];
+            }
+
+            async markNotificationRead(notifId) {
+                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
+                if (!codigo || !notifId) return;
+                try {
+                    const apiBase = getApiBase();
+                    await fetch(
+                        apiBase + '/api/aliados/' + encodeURIComponent(codigo) + '/notificaciones/' + encodeURIComponent(notifId) + '/leida',
+                        { method: 'POST', credentials: 'same-origin', headers: getRuanaAuthHeaders() }
+                    );
+                } catch (_) {}
+            }
+
+            maybeShowScoreChangeNotification() {
+                if (this.scoreNotifActive) return;
+                const scoreCard = document.getElementById('metrica-card-score');
+                if (!scoreCard) return;
+                const notifs = Array.isArray(this.notificaciones) ? this.notificaciones : [];
+                const pendientes = notifs
+                    .filter(n => n && n.tipo === 'score_change' && Number(n.leida) === 0)
+                    .sort((a, b) => new Date(a.creado_en || 0) - new Date(b.creado_en || 0));
+                if (pendientes.length === 0) return;
+                const notif = pendientes.find((n) => {
+                    const moveId = n.metadata && n.metadata.movimiento_id ? String(n.metadata.movimiento_id) : `notif-${n.id}`;
+                    return !this.scoreNotifShownIds.has(moveId);
+                });
+                if (!notif) return;
+
+                const deltaRaw = Number(notif.metadata && notif.metadata.delta);
+                const delta = Number.isFinite(deltaRaw) ? deltaRaw : 0;
+                if (!delta) return;
+                const isUp = delta > 0;
+                const deltaText = `${delta > 0 ? '+' : ''}${delta} puntos`;
+                const reason = this.formatScoreMotivo(notif.metadata && notif.metadata.motivo);
+                const variants = this.getScoreNotifVariants(isUp);
+                const template = variants[Math.floor(Math.random() * variants.length)];
+                const message = template
+                    .replace('{{delta}}', `<span class="score-change-delta">${deltaText}</span>`)
+                    .replace('{{reason}}', reason);
+
+                const toast = document.createElement('div');
+                toast.className = `score-change-toast ${isUp ? 'up' : 'down'}`;
+                toast.innerHTML = `
+                    <button type="button" class="score-change-close" aria-label="Cerrar notificación">×</button>
+                    <p class="score-change-title">Score RUANA actualizado</p>
+                    <p class="score-change-copy">${message}</p>
+                `;
+                scoreCard.appendChild(toast);
+                requestAnimationFrame(() => toast.classList.add('show'));
+                this.scoreNotifActive = true;
+
+                const moveId = notif.metadata && notif.metadata.movimiento_id ? String(notif.metadata.movimiento_id) : `notif-${notif.id}`;
+                this.scoreNotifShownIds.add(moveId);
+                notif.leida = 1;
+                this.markNotificationRead(notif.id);
+
+                const closeToast = () => {
+                    toast.classList.remove('show');
+                    setTimeout(() => {
+                        toast.remove();
+                        this.scoreNotifActive = false;
+                        this.maybeShowScoreChangeNotification();
+                    }, 220);
+                };
+                toast.querySelector('.score-change-close').addEventListener('click', closeToast);
+                setTimeout(closeToast, 6200);
             }
 
             /**
@@ -4166,6 +4338,7 @@
                     this.renderNotificaciones();
                     this.renderListaPagosPendientes();
                     this.renderAlertas();
+                    this.maybeShowScoreChangeNotification();
                 } catch (e) {
                     console.error('Error actualizarEstadoAlertas:', e);
                     this.renderAlertas();
