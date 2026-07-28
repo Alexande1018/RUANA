@@ -156,9 +156,17 @@
 .aliados-tabla-wrap {
     border-radius: 18px !important;
     border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
     background: rgba(0, 0, 0, 0.28);
     backdrop-filter: blur(16px);
+}
+
+.movimiento-24h-tabla {
+    width: 100%;
+    min-width: max-content;
 }
 
 .movimiento-24h-tabla th,

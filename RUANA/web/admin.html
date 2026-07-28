@@ -146,6 +146,20 @@
         .btn-admin-logout:hover {
             background: rgba(239, 68, 68, 0.3);
         }
+        .btn-admin-password {
+            min-height: 38px;
+            padding: 8px 14px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 8px;
+            color: #dbeafe;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        .btn-admin-password:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
         @media (max-width: 640px) {
             .admin-container {
                 padding: 112px 14px 28px;
@@ -340,11 +354,15 @@
         }
         .movimiento-24h-tabla-scroll {
             overflow-x: auto;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            max-width: 100%;
             border-radius: 8px;
             border: 1px solid rgba(255, 255, 255, 0.08);
         }
         .movimiento-24h-tabla {
             width: 100%;
+            min-width: max-content;
             border-collapse: collapse;
             font-size: 0.8rem;
         }
@@ -896,6 +914,31 @@
             transform: none;
         }
 
+        .aliado-detalle-footer {
+            display: flex;
+            gap: 10px;
+            margin-top: 18px;
+            flex-wrap: wrap;
+        }
+
+        .aliado-detalle-footer .admin-login-btn {
+            flex: 1;
+            min-width: 140px;
+        }
+
+        .admin-login-btn.is-danger-outline {
+            background: transparent;
+            border: 1px solid rgba(248, 113, 113, 0.45);
+            color: #fca5a5;
+            box-shadow: none;
+        }
+
+        .admin-login-btn.is-danger-outline:hover {
+            background: rgba(248, 113, 113, 0.14);
+            box-shadow: none;
+            transform: none;
+        }
+
         .admin-login-error {
             color: #ef4444;
             font-size: 0.85rem;
@@ -958,7 +1001,9 @@
         }
     </style>
     <link rel="stylesheet" href="/static/css/admin-premium.css">
+    <link rel="stylesheet" href="/static/css/admin-shell.css">
     <script src="/static/js/ruana-ui.js" defer></script>
+    <script src="/static/js/admin-shell.js" defer></script>
 </head>
 <body class="admin-is-loading">
     <!-- Modal Detalle Aliado -->
@@ -988,7 +1033,10 @@
                 <h3>Histórico de evaluaciones</h3>
                 <div id="det-historico"></div>
             </div>
-            <button type="button" class="admin-login-btn" id="aliadoDetalleCerrar">Cerrar</button>
+            <div class="aliado-detalle-footer">
+                <button type="button" class="admin-login-btn is-danger-outline" id="aliadoDetalleEliminar">Eliminar perfil</button>
+                <button type="button" class="admin-login-btn" id="aliadoDetalleCerrar">Cerrar</button>
+            </div>
         </div>
     </div>
 
@@ -1003,6 +1051,7 @@
         </div>
         <div class="admin-topbar-actions">
             <a href="/" class="admin-topbar-link">← Inicio</a>
+            <button type="button" id="admin-change-password-btn" class="btn-admin-password">Cambiar contraseña</button>
             <button type="button" id="admin-logout-btn" class="btn-admin-logout">Cerrar sesión admin</button>
         </div>
     </div>
@@ -1014,13 +1063,32 @@
                 <svg class="ruana-brand-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="56" height="56" aria-hidden="true" focusable="false"><g fill="none" stroke="#A2FF00" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 24v7.5"/><path d="M32 31.5H18v7.5"/><path d="M32 31.5H46v7.5"/></g><rect x="22" y="8" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="8" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="36" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/></svg>
                 <span class="ruana-brand-word">RUANA</span>
             </div>
-            <p class="subtitle">Introduce el código de administrador</p>
+            <p class="subtitle">Introduce tus credenciales de administrador</p>
             <form class="admin-login-form" id="adminLoginForm">
-                <input type="text" class="admin-login-input ruana-form-control" id="adminLoginCodigo" placeholder="Código admin" autocomplete="off" maxlength="20">
+                <input type="text" class="admin-login-input ruana-form-control" id="adminLoginCodigo" placeholder="Identificador admin" autocomplete="username" maxlength="32">
+                <input type="password" class="admin-login-input ruana-form-control" id="adminLoginPassword" placeholder="Contraseña" autocomplete="current-password" maxlength="128">
                 <button type="submit" class="admin-login-btn ruana-button" id="adminLoginBtn">Entrar</button>
                 <p class="admin-login-error" id="adminLoginError" style="display:none;"></p>
             </form>
-            <p class="admin-login-tip">Acceso solo con código de administrador configurado en el servidor.</p>
+            <p class="admin-login-tip">Las credenciales se configuran de forma segura en el servidor, nunca en el repositorio.</p>
+        </div>
+    </div>
+
+    <!-- Modal cambiar contraseña admin -->
+    <div class="admin-login-modal hidden" id="adminChangePasswordModal">
+        <div class="admin-login-card ruana-auth-card">
+            <h1 style="margin:0 0 8px; font-size:1.25rem; color:#fff;">Cambiar contraseña</h1>
+            <p class="subtitle">Actualiza la contraseña de tu cuenta de administrador</p>
+            <p class="admin-login-tip" style="margin-bottom:12px;">En producción (modo puente), el cambio puede no persistir hasta la migración a Firebase Auth. Ver docs/ADMIN_CREDENTIALS_SETUP.md.</p>
+            <form class="admin-login-form" id="adminChangePasswordForm">
+                <input type="password" class="admin-login-input ruana-form-control" id="adminCurrentPassword" placeholder="Contraseña actual" autocomplete="current-password" maxlength="128">
+                <input type="password" class="admin-login-input ruana-form-control" id="adminNewPassword" placeholder="Nueva contraseña (mín. 8 caracteres)" autocomplete="new-password" maxlength="128">
+                <input type="password" class="admin-login-input ruana-form-control" id="adminConfirmPassword" placeholder="Confirmar nueva contraseña" autocomplete="new-password" maxlength="128">
+                <button type="submit" class="admin-login-btn ruana-button" id="adminChangePasswordBtn">Guardar contraseña</button>
+                <p class="admin-login-error" id="adminChangePasswordError" style="display:none;"></p>
+                <p class="admin-login-error" id="adminChangePasswordSuccess" style="display:none; color:#86efac;"></p>
+            </form>
+            <button type="button" class="admin-topbar-link" id="adminChangePasswordCancel" style="margin-top:12px; width:100%;">Cancelar</button>
         </div>
     </div>
 
@@ -1416,6 +1484,7 @@
                                 <th>Retador</th>
                                 <th>Origen</th>
                                 <th>Score</th>
+                                <th>Días rest.</th>
                                 <th>Tiempo</th>
                                 <th>Estado</th>
                             </tr>
@@ -1425,6 +1494,56 @@
                 </div>
             </div>
             <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="competencias-activas-empty">No hay competencias activas.</p>
+        </div>
+
+        <!-- Competencias pendientes de retador -->
+        <div class="competencias-activas-wrap" id="competencias-pendientes-wrap" style="display:none;">
+            <h2 class="seccion-titulo">Competencias pendientes</h2>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Titulares bajo umbral esperando un retador en su CP y oficio.</p>
+            <div class="movimiento-24h-tabla-wrap">
+                <div class="movimiento-24h-tabla-scroll">
+                    <table class="movimiento-24h-tabla" id="tabla-competencias-pendientes">
+                        <thead>
+                            <tr>
+                                <th>Titular</th>
+                                <th>Oficio</th>
+                                <th>CP</th>
+                                <th>Grupo</th>
+                                <th>Score al solicitar</th>
+                                <th>Desde</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-competencias-pendientes"></tbody>
+                    </table>
+                </div>
+            </div>
+            <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="competencias-pendientes-empty">No hay competencias pendientes.</p>
+        </div>
+
+        <!-- Historial de competencias -->
+        <div class="competencias-activas-wrap" id="competencias-historial-wrap" style="display:none;">
+            <h2 class="seccion-titulo">Historial de competencias</h2>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Auditoría de competencias finalizadas (ganador, scores finales).</p>
+            <div class="movimiento-24h-tabla-wrap">
+                <div class="movimiento-24h-tabla-scroll">
+                    <table class="movimiento-24h-tabla" id="tabla-competencias-historial">
+                        <thead>
+                            <tr>
+                                <th>Grupo</th>
+                                <th>Oficio</th>
+                                <th>Titular</th>
+                                <th>Retador</th>
+                                <th>Ganador</th>
+                                <th>Score tit.</th>
+                                <th>Score ret.</th>
+                                <th>Cierre</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-competencias-historial"></tbody>
+                    </table>
+                </div>
+            </div>
+            <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="competencias-historial-empty">No hay historial reciente.</p>
         </div>
 
         <!-- CAPA 3.6c: Suplentes en Espera (estado en_espera) -->
@@ -1481,6 +1600,46 @@
             <p class="admin-subtitle" id="conversaciones-no-mas" style="margin-top: 8px; color: #666; display: none;">No hay más registros</p>
         </div>
 
+        <div class="conversaciones-ruana-wrap" id="centro-comunicacion-admin-wrap">
+            <h2 class="seccion-titulo">Centro de comunicación RUANA</h2>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Mensajes directos de aliados al equipo RUANA. Filtra por estado, busca por aliado y responde desde aquí.</p>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+                <input id="cc-admin-search" type="text" placeholder="Buscar por aliado o asunto" style="min-width:240px; flex:1; padding:9px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.18); background:rgba(0,0,0,0.25); color:#e5e7eb;">
+                <select id="cc-admin-status" style="min-width:180px;">
+                    <option value="">Todos los estados</option>
+                    <option value="pendiente">Pendiente</option>
+                    <option value="en_revision">En revisión</option>
+                    <option value="respondido">Respondido</option>
+                    <option value="cerrado">Cerrado</option>
+                    <option value="reabierto">Reabierto</option>
+                </select>
+                <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;color:#cbd5e1;">
+                    <input id="cc-admin-only-unread" type="checkbox"> Sin leer
+                </label>
+                <button type="button" class="btn-admin-action" id="cc-admin-refresh">Actualizar</button>
+            </div>
+            <div class="movimiento-24h-tabla-wrap">
+                <div class="movimiento-24h-tabla-scroll">
+                    <table class="movimiento-24h-tabla" id="tabla-centro-comunicacion-admin">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Aliado</th>
+                                <th>Asunto</th>
+                                <th>Estado</th>
+                                <th>Último mensaje</th>
+                                <th>Fecha</th>
+                                <th>Nuevo</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-centro-comunicacion-admin"></tbody>
+                    </table>
+                </div>
+            </div>
+            <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="centro-comunicacion-admin-empty">Sin conversaciones en este filtro.</p>
+        </div>
+
         <!-- Modal ver chat -->
         <div class="modal-overlay admin-modal" id="modal-ver-chat" style="display: none; align-items: center; justify-content: center;">
             <div class="modal-content" style="max-width: 520px; max-height: 80vh; display: flex; flex-direction: column;">
@@ -1488,6 +1647,29 @@
                 <div id="admin-chat-mensajes" style="flex:1; min-height: 200px; max-height: 360px; overflow-y: auto; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 8px; margin: 12px 0;"></div>
                 <div class="modal-actions">
                     <button type="button" class="btn-admin-action" id="btn-cerrar-ver-chat">Cerrar</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-overlay admin-modal" id="modal-centro-comunicacion-admin" style="display:none; align-items:center; justify-content:center;">
+            <div class="modal-content" style="max-width:640px; max-height:82vh; display:flex; flex-direction:column;">
+                <h3 class="modal-title" id="cc-admin-modal-title">Conversación RUANA</h3>
+                <div id="cc-admin-modal-messages" style="flex:1; min-height:220px; max-height:360px; overflow:auto; margin:10px 0; padding:10px; background:rgba(0,0,0,0.2); border-radius:10px;"></div>
+                <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+                    <select id="cc-admin-modal-status" style="min-width:170px;">
+                        <option value="pendiente">Pendiente</option>
+                        <option value="en_revision">En revisión</option>
+                        <option value="respondido">Respondido</option>
+                        <option value="cerrado">Cerrado</option>
+                        <option value="reabierto">Reabierto</option>
+                    </select>
+                    <button type="button" class="btn-admin-action" id="cc-admin-modal-update-status">Actualizar estado</button>
+                    <button type="button" class="btn-admin-action danger" id="cc-admin-modal-delete">Eliminar conversación</button>
+                </div>
+                <textarea id="cc-admin-modal-reply" rows="3" placeholder="Responder al aliado..." style="width:100%; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color:#e0e0e0;"></textarea>
+                <div class="modal-actions" style="margin-top:10px;">
+                    <button type="button" class="btn-admin-action" id="cc-admin-modal-send">Responder</button>
+                    <button type="button" class="btn-admin-action" id="cc-admin-modal-close">Cerrar</button>
                 </div>
             </div>
         </div>
@@ -1641,14 +1823,20 @@
             setupLoginForm() {
                 const form = document.getElementById('adminLoginForm');
                 const codigoInput = document.getElementById('adminLoginCodigo');
+                const passwordInput = document.getElementById('adminLoginPassword');
                 const errorEl = document.getElementById('adminLoginError');
                 const btn = document.getElementById('adminLoginBtn');
                 if (!form || !codigoInput) return;
                 form.addEventListener('submit', async (e) => {
                     e.preventDefault();
                     const codigo = (codigoInput.value || '').trim().toUpperCase();
+                    const password = (passwordInput?.value || '').trim();
                     if (!codigo) {
-                        if (errorEl) { errorEl.textContent = 'Introduce el código'; errorEl.style.display = 'block'; }
+                        if (errorEl) { errorEl.textContent = 'Introduce el identificador de administrador'; errorEl.style.display = 'block'; }
+                        return;
+                    }
+                    if (!password) {
+                        if (errorEl) { errorEl.textContent = 'Introduce la contraseña'; errorEl.style.display = 'block'; }
                         return;
                     }
                     if (btn) btn.disabled = true;
@@ -1658,7 +1846,7 @@
                             method: 'POST',
                             credentials: 'same-origin',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ codigo })
+                            body: JSON.stringify({ codigo, password })
                         });
                         const data = await r.json().catch(() => ({}));
                         if (r.ok && data.status === 'success') {
@@ -1719,6 +1907,8 @@
                 this._conversacionesList = [];
                 this._conversacionesHasMore = false;
                 this._conversacionesOffset = 0;
+                this._centroComunicacion = [];
+                this._centroComunicacionActiva = null;
                 this._campanasInvitacion = [];
                 this._referidosTree = null;
                 this._referidosModoBosque = true;
@@ -1770,11 +1960,14 @@
                         fetch('/api/admin/solicitudes', fetchOpts),
                         fetch('/api/admin/chats?limite=10&offset=0', fetchOpts),
                         fetch('/api/admin/competencias-activas', fetchOpts),
+                        fetch('/api/admin/competencias-pendientes', fetchOpts),
+                        fetch('/api/admin/competencias-historial?limite=30', fetchOpts),
                         stats24hFetch,
                         fetch('/api/admin/invitaciones-recientes?limite=15', fetchOpts),
                         fetch('/api/admin/invitacion-campanas?limite=30', fetchOpts),
                         fetch('/api/admin/metodos-pago', fetchOpts),
-                        fetch('/api/admin/suplentes-espera', fetchOpts)
+                        fetch('/api/admin/suplentes-espera', fetchOpts),
+                        fetch('/api/admin/centro-comunicacion?limite=120', fetchOpts)
                     ];
                     const settled = await Promise.allSettled(fetchPromises);
                     const responses = settled.map((r, i) => (r.status === 'fulfilled' ? r.value : null));
@@ -1791,8 +1984,8 @@
                         if (!r.ok) return null;
                         return r.json().catch(() => null);
                     }
-                    const idx12 = responses[12];
-                    const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, solicitudesData, chatsData, competenciasData, stats24hData, invitacionesRecData, campanasData, metodosPagoData, suplentesEsperaData] = await Promise.all([
+                    const idx14 = responses[14];
+                    const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, solicitudesData, chatsData, competenciasData, competenciasPendientesData, competenciasHistorialData, stats24hData, invitacionesRecData, campanasData, metodosPagoData, suplentesEsperaData, centroComData] = await Promise.all([
                         parseResponse(responses[0], false),
                         parseResponse(responses[1], false),
                         parseResponse(responses[2], false),
@@ -1805,11 +1998,14 @@
                         parseResponse(responses[9], false),
                         parseResponse(responses[10], false),
                         parseResponse(responses[11], false),
-                        Promise.resolve(idx12),
+                        parseResponse(responses[12], false),
                         parseResponse(responses[13], false),
-                        parseResponse(responses[14], false),
+                        Promise.resolve(idx14),
                         parseResponse(responses[15], false),
-                        parseResponse(responses[16], false)
+                        parseResponse(responses[16], false),
+                        parseResponse(responses[17], false),
+                        parseResponse(responses[18], false),
+                        parseResponse(responses[19], false)
                     ]);
 
                     // Pendientes de validación (unir API + lista por código)
@@ -1886,7 +2082,11 @@
                     this.renderCampanasInvitacion(campanasData && campanasData.status === 'success' && Array.isArray(campanasData.campanas) ? campanasData.campanas : []);
                     this.renderMetodosPago((metodosPagoData && metodosPagoData.status === 'success' && metodosPagoData.metodos) ? metodosPagoData.metodos : null);
                     this.renderCompetenciasActivas((competenciasData && competenciasData.status === 'success' && Array.isArray(competenciasData.competencias)) ? competenciasData.competencias : []);
+                    this.renderCompetenciasPendientes((competenciasPendientesData && competenciasPendientesData.status === 'success' && Array.isArray(competenciasPendientesData.pendientes)) ? competenciasPendientesData.pendientes : []);
+                    this.renderCompetenciasHistorial((competenciasHistorialData && competenciasHistorialData.status === 'success' && Array.isArray(competenciasHistorialData.historial)) ? competenciasHistorialData.historial : []);
                     this.renderSuplentesEspera((suplentesEsperaData && suplentesEsperaData.status === 'success' && Array.isArray(suplentesEsperaData.aliados)) ? suplentesEsperaData.aliados : []);
+                    this._centroComunicacion = (centroComData && centroComData.status === 'success' && Array.isArray(centroComData.conversaciones)) ? centroComData.conversaciones : [];
+                    this.renderCentroComunicacionAdmin(this._centroComunicacion);
                     let conversaciones = (chatsData && chatsData.status === 'success' && Array.isArray(chatsData.conversaciones)) ? chatsData.conversaciones : [];
                     this._conversacionesList = conversaciones;
                     this._conversacionesOffset = conversaciones.length;
@@ -2110,6 +2310,25 @@
                     }
                 }, true);
 
+                const ccRefreshBtn = document.getElementById('cc-admin-refresh');
+                const ccSearch = document.getElementById('cc-admin-search');
+                const ccStatus = document.getElementById('cc-admin-status');
+                const ccUnread = document.getElementById('cc-admin-only-unread');
+                if (ccRefreshBtn) ccRefreshBtn.addEventListener('click', () => this.cargarCentroComunicacionAdmin());
+                if (ccSearch) ccSearch.addEventListener('input', () => this.renderCentroComunicacionAdmin(this._centroComunicacion || []));
+                if (ccStatus) ccStatus.addEventListener('change', () => this.cargarCentroComunicacionAdmin());
+                if (ccUnread) ccUnread.addEventListener('change', () => this.cargarCentroComunicacionAdmin());
+                const ccClose = document.getElementById('cc-admin-modal-close');
+                if (ccClose) ccClose.addEventListener('click', () => this.cerrarModalCentroComunicacionAdmin());
+                const ccSend = document.getElementById('cc-admin-modal-send');
+                if (ccSend) ccSend.addEventListener('click', () => this.responderCentroComunicacionAdmin());
+                const ccUpd = document.getElementById('cc-admin-modal-update-status');
+                if (ccUpd) ccUpd.addEventListener('click', () => this.actualizarEstadoCentroComunicacionAdmin());
+                const ccDel = document.getElementById('cc-admin-modal-delete');
+                if (ccDel) ccDel.addEventListener('click', () => this.eliminarCentroComunicacionAdmin());
+                const ccModal = document.getElementById('modal-centro-comunicacion-admin');
+                if (ccModal) ccModal.addEventListener('click', (e) => { if (e.target === ccModal) this.cerrarModalCentroComunicacionAdmin(); });
+
                 this.setupAdminActionButtons();
 
                 const logoutBtn = document.getElementById('admin-logout-btn');
@@ -2117,9 +2336,20 @@
                     logoutBtn.addEventListener('click', () => this.logout());
                 }
 
+                const changePasswordBtn = document.getElementById('admin-change-password-btn');
+                if (changePasswordBtn) {
+                    changePasswordBtn.addEventListener('click', () => this.openChangePasswordModal());
+                }
+                this.setupChangePasswordForm();
+
                 const cerrarDetalleBtn = document.getElementById('aliadoDetalleCerrar');
                 if (cerrarDetalleBtn) {
                     cerrarDetalleBtn.addEventListener('click', () => this.cerrarModalDetalle());
+                }
+
+                const eliminarDetalleBtn = document.getElementById('aliadoDetalleEliminar');
+                if (eliminarDetalleBtn) {
+                    eliminarDetalleBtn.addEventListener('click', () => this.confirmarEliminarPerfil());
                 }
 
                 const linajeCerrar = document.getElementById('linaje-drawer-cerrar');
@@ -2914,6 +3144,95 @@
                 window.location.href = '/admin';
             }
 
+            openChangePasswordModal() {
+                const modal = document.getElementById('adminChangePasswordModal');
+                const errorEl = document.getElementById('adminChangePasswordError');
+                const successEl = document.getElementById('adminChangePasswordSuccess');
+                ['adminCurrentPassword', 'adminNewPassword', 'adminConfirmPassword'].forEach((id) => {
+                    const input = document.getElementById(id);
+                    if (input) input.value = '';
+                });
+                if (errorEl) errorEl.style.display = 'none';
+                if (successEl) successEl.style.display = 'none';
+                if (modal) modal.classList.remove('hidden');
+            }
+
+            closeChangePasswordModal() {
+                const modal = document.getElementById('adminChangePasswordModal');
+                if (modal) modal.classList.add('hidden');
+            }
+
+            setupChangePasswordForm() {
+                const form = document.getElementById('adminChangePasswordForm');
+                const cancelBtn = document.getElementById('adminChangePasswordCancel');
+                const errorEl = document.getElementById('adminChangePasswordError');
+                const successEl = document.getElementById('adminChangePasswordSuccess');
+                const submitBtn = document.getElementById('adminChangePasswordBtn');
+                if (cancelBtn) {
+                    cancelBtn.addEventListener('click', () => this.closeChangePasswordModal());
+                }
+                if (!form) return;
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const currentPassword = (document.getElementById('adminCurrentPassword')?.value || '').trim();
+                    const newPassword = (document.getElementById('adminNewPassword')?.value || '').trim();
+                    const confirmPassword = (document.getElementById('adminConfirmPassword')?.value || '').trim();
+                    if (errorEl) errorEl.style.display = 'none';
+                    if (successEl) successEl.style.display = 'none';
+                    if (!currentPassword || !newPassword || !confirmPassword) {
+                        if (errorEl) {
+                            errorEl.textContent = 'Completa todos los campos';
+                            errorEl.style.display = 'block';
+                        }
+                        return;
+                    }
+                    if (newPassword !== confirmPassword) {
+                        if (errorEl) {
+                            errorEl.textContent = 'La confirmación no coincide con la nueva contraseña';
+                            errorEl.style.display = 'block';
+                        }
+                        return;
+                    }
+                    if (submitBtn) submitBtn.disabled = true;
+                    try {
+                        const r = await fetch('/api/admin/cambiar-contraseña', {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: this.getAuthHeaders(),
+                            body: JSON.stringify({
+                                contraseña_actual: currentPassword,
+                                contraseña_nueva: newPassword,
+                                contraseña_confirmacion: confirmPassword
+                            })
+                        });
+                        const data = await r.json().catch(() => ({}));
+                        if (r.ok && data.status === 'success') {
+                            if (successEl) {
+                                successEl.textContent = data.message || 'Contraseña actualizada';
+                                successEl.style.display = 'block';
+                            }
+                            setTimeout(() => this.closeChangePasswordModal(), 1500);
+                        } else {
+                            if (r.status === 401) {
+                                this._adminSessionExpired();
+                                return;
+                            }
+                            if (errorEl) {
+                                errorEl.textContent = data.message || 'No se pudo cambiar la contraseña';
+                                errorEl.style.display = 'block';
+                            }
+                        }
+                    } catch (_) {
+                        if (errorEl) {
+                            errorEl.textContent = 'Error de conexión';
+                            errorEl.style.display = 'block';
+                        }
+                    } finally {
+                        if (submitBtn) submitBtn.disabled = false;
+                    }
+                });
+            }
+
             renderSolicitudesAdmin(solicitudes) {
                 const tbody = document.getElementById('tbody-solicitudes-admin');
                 const emptyEl = document.getElementById('solicitudes-admin-empty');
@@ -3442,6 +3761,10 @@
                 return nombres[grupoKey] || grupoKey;
             }
 
+            normalizarCpAliado(a) {
+                return (a && (a.codigo_postal || a.zona) || '').toString().trim() || '(sin CP)';
+            }
+
             renderAliadosJerarquia() {
                 const nav = document.getElementById('aliados-jerarquia-nav');
                 const breadcrumb = document.getElementById('aliados-breadcrumb');
@@ -3472,7 +3795,7 @@
                 const byCp = new Map();
                 data.forEach(a => {
                     if (this.esAliadoPlaceholder(a)) return;
-                    const cp = (a.zona || a.codigo_postal || '').toString().trim() || '(sin CP)';
+                    const cp = this.normalizarCpAliado(a);
                     byCp.set(cp, (byCp.get(cp) || 0) + 1);
                 });
                 const cps = Array.from(byCp.entries()).sort((x, y) => String(x[0]).localeCompare(String(y[0])));
@@ -3496,7 +3819,7 @@
                 list.innerHTML = '';
                 const cp = this.aliadosCPSeleccionado;
                 if (!cp) return this.renderAliadosNivel1();
-                const data = (this._aliadosData || []).filter(a => ((a.zona || a.codigo_postal || '').toString().trim() || '(sin CP)') === cp);
+                const data = (this._aliadosData || []).filter(a => this.normalizarCpAliado(a) === cp);
                 const byGrupo = new Map();
                 data.forEach(a => {
                     const g = this.getGrupoAliado(a);
@@ -3524,8 +3847,7 @@
                 const grupo = this.aliadosGrupoSeleccionado;
                 if (!cp || !grupo) return;
                 const data = (this._aliadosData || []).filter(a => {
-                    const aCp = (a.zona || a.codigo_postal || '').toString().trim() || '(sin CP)';
-                    if (aCp !== cp) return false;
+                    if (this.normalizarCpAliado(a) !== cp) return false;
                     return this.getGrupoAliado(a) === grupo;
                 });
                 this.renderAliados(data);
@@ -3737,6 +4059,8 @@
                 const modal = document.getElementById('aliadoDetalleModal');
                 if (!modal) return;
 
+                this._aliadoDetalleActual = aliado;
+
                 const set = (id, value) => {
                     const el = document.getElementById(id);
                     if (el) el.textContent = value;
@@ -3764,6 +4088,16 @@
                 set('det-severidad', '—');
                 set('det-evaluado-en', '—');
                 set('det-razones', '—');
+
+                const eliminarBtn = document.getElementById('aliadoDetalleEliminar');
+                if (eliminarBtn) {
+                    const estadoBd = (aliado.estado || '').toLowerCase();
+                    const yaEliminado = estadoBd === 'expulsado' || estadoBd === 'rechazado' || estadoBd === 'sistema';
+                    eliminarBtn.disabled = yaEliminado;
+                    eliminarBtn.title = yaEliminado
+                        ? 'Este perfil ya está eliminado o no se puede borrar'
+                        : 'Eliminar perfil del aliado';
+                }
 
                 modal.classList.remove('hidden');
 
@@ -3817,6 +4151,56 @@
             cerrarModalDetalle() {
                 const modal = document.getElementById('aliadoDetalleModal');
                 if (modal) modal.classList.add('hidden');
+                this._aliadoDetalleActual = null;
+            }
+
+            async confirmarEliminarPerfil() {
+                const aliado = this._aliadoDetalleActual;
+                if (!aliado || !aliado.codigo) return;
+
+                const nombre = aliado.nombre || aliado.codigo;
+                const confirmFn = window.AdminShell && window.AdminShell.confirmDanger;
+                let ok = false;
+                if (confirmFn) {
+                    ok = await confirmFn({
+                        title: 'Eliminar perfil',
+                        description: `Vas a eliminar el perfil de ${nombre} (${aliado.codigo}).`,
+                        consequences: [
+                            'El aliado perderá el acceso al panel.',
+                            'Su código quedará desactivado o rechazado según su estado actual.',
+                            'Esta acción no se puede deshacer desde el panel.'
+                        ],
+                        confirmPhrase: 'ELIMINAR'
+                    });
+                } else {
+                    ok = window.confirm(`¿Eliminar el perfil de ${nombre} (${aliado.codigo})?`);
+                }
+                if (!ok) return;
+
+                const motivo = window.prompt('Motivo (opcional):', '') || '';
+                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+                const headers = Object.assign({}, authHeaders, { 'Content-Type': 'application/json' });
+
+                try {
+                    const r = await fetch('/api/admin/eliminar-aliado', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers,
+                        body: JSON.stringify({ codigo: aliado.codigo, motivo })
+                    });
+                    if (r.status === 401) { this._adminSessionExpired(); return; }
+                    if (r.status === 403) { this.showToast('Sin permiso de escritura (solo lectura).', 'error'); return; }
+                    const data = await r.json().catch(() => null);
+                    if (!data || data.status !== 'success') {
+                        this.showToast((data && data.message) ? data.message : 'No se pudo eliminar el perfil.', 'error');
+                        return;
+                    }
+                    this.showToast(data.message || 'Perfil eliminado.', 'success');
+                    this.cerrarModalDetalle();
+                    this.cargarDesdeApi();
+                } catch (e) {
+                    this.showToast('Error de red al eliminar perfil.', 'error');
+                }
             }
 
             confirmarPausa(aliado) {
@@ -4000,6 +4384,141 @@
                 this.updateConversacionesPaginationUI();
             }
 
+            async cargarCentroComunicacionAdmin() {
+                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+                const status = (document.getElementById('cc-admin-status')?.value || '').trim();
+                const unreadOnly = document.getElementById('cc-admin-only-unread')?.checked ? '1' : '0';
+                const params = new URLSearchParams({ limite: '120', solo_no_leidas: unreadOnly });
+                if (status) params.set('estado', status);
+                try {
+                    const r = await fetch('/api/admin/centro-comunicacion?' + params.toString(), { method: 'GET', credentials: 'same-origin', headers: authHeaders });
+                    if (r.status === 401) { this._adminSessionExpired(); return; }
+                    const data = await r.json().catch(() => ({}));
+                    this._centroComunicacion = data.status === 'success' && Array.isArray(data.conversaciones) ? data.conversaciones : [];
+                    this.renderCentroComunicacionAdmin(this._centroComunicacion);
+                } catch (_) {
+                    this.showToast('No se pudo cargar el centro de comunicación.', 'error');
+                }
+            }
+
+            renderCentroComunicacionAdmin(conversaciones) {
+                const tbody = document.getElementById('tbody-centro-comunicacion-admin');
+                const empty = document.getElementById('centro-comunicacion-admin-empty');
+                if (!tbody) return;
+                const filtro = (document.getElementById('cc-admin-search')?.value || '').trim().toLowerCase();
+                const lista = (Array.isArray(conversaciones) ? conversaciones : []).filter((c) => {
+                    if (!filtro) return true;
+                    const full = `${c.aliado_codigo || ''} ${c.aliado_nombre || ''} ${c.asunto || ''}`.toLowerCase();
+                    return full.includes(filtro);
+                });
+                tbody.innerHTML = '';
+                if (empty) empty.style.display = lista.length ? 'none' : 'block';
+                lista.forEach((c) => {
+                    const tr = document.createElement('tr');
+                    const fecha = c.ultimo_mensaje_en ? this.formatearHora(c.ultimo_mensaje_en) : '—';
+                    const estadoClass = (c.estado || 'pendiente').replace(/[^a-z_]/g, '');
+                    const nuevo = Number(c.tiene_no_leido_admin || 0) > 0 ? '<span class="estado-pago-badge" style="background:rgba(251,191,36,0.2);color:#fbbf24;">Nuevo</span>' : '—';
+                    tr.innerHTML = `
+                        <td>#${c.id}</td>
+                        <td>${this.escapeHtml((c.aliado_nombre || c.aliado_codigo || '—'))}<br><span style="color:#94a3b8;font-size:0.75rem;">${this.escapeHtml(c.aliado_codigo || '')}</span></td>
+                        <td>${this.escapeHtml(c.asunto || 'Consulta')}</td>
+                        <td><span class="estado-pago-badge estado-pago-${estadoClass.replace('_', '-')}">${this.escapeHtml((c.estado || 'pendiente').replace('_', ' '))}</span></td>
+                        <td>${this.escapeHtml(c.ultimo_mensaje_preview || '—')}</td>
+                        <td>${fecha}</td>
+                        <td>${nuevo}</td>
+                        <td><button type="button" class="btn-accion btn-cc-ver" data-cc-id="${c.id}">Abrir</button></td>
+                    `;
+                    tr.querySelector('.btn-cc-ver')?.addEventListener('click', () => this.abrirModalCentroComunicacionAdmin(c));
+                    tbody.appendChild(tr);
+                });
+            }
+
+            async abrirModalCentroComunicacionAdmin(conv) {
+                this._centroComunicacionActiva = conv || null;
+                const modal = document.getElementById('modal-centro-comunicacion-admin');
+                const title = document.getElementById('cc-admin-modal-title');
+                const msgBox = document.getElementById('cc-admin-modal-messages');
+                const status = document.getElementById('cc-admin-modal-status');
+                if (!modal || !conv) return;
+                if (title) title.textContent = `Conversación #${conv.id} · ${conv.aliado_nombre || conv.aliado_codigo || ''}`;
+                if (status) status.value = conv.estado || 'pendiente';
+                if (msgBox) msgBox.innerHTML = '<p style="color:#94a3b8;">Cargando mensajes…</p>';
+                modal.style.display = 'flex';
+                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+                const r = await fetch('/api/admin/centro-comunicacion/' + conv.id + '/mensajes', { method: 'GET', credentials: 'same-origin', headers: authHeaders });
+                const data = await r.json().catch(() => ({}));
+                const mensajes = data.status === 'success' && Array.isArray(data.mensajes) ? data.mensajes : [];
+                if (msgBox) {
+                    msgBox.innerHTML = mensajes.map((m) => {
+                        const esAdmin = (m.emisor_tipo || '') === 'admin';
+                        const fecha = m.creado_en ? new Date(m.creado_en).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '';
+                        return `<div style="padding:8px 10px; border-radius:8px; margin-bottom:8px; background:${esAdmin ? 'rgba(34,197,94,0.15)' : 'rgba(59,130,246,0.16)'}; border:1px solid ${esAdmin ? 'rgba(74,222,128,0.38)' : 'rgba(147,197,253,0.35)'};">
+                            ${this.escapeHtml(m.mensaje || '')}
+                            <div style="font-size:0.76rem;color:#94a3b8;margin-top:4px;">${esAdmin ? 'RUANA' : 'Aliado'} · ${fecha}</div>
+                        </div>`;
+                    }).join('') || '<p style="color:#94a3b8;">Sin mensajes.</p>';
+                    msgBox.scrollTop = msgBox.scrollHeight;
+                }
+            }
+
+            cerrarModalCentroComunicacionAdmin() {
+                const modal = document.getElementById('modal-centro-comunicacion-admin');
+                if (modal) modal.style.display = 'none';
+                this._centroComunicacionActiva = null;
+            }
+
+            async responderCentroComunicacionAdmin() {
+                const conv = this._centroComunicacionActiva;
+                if (!conv) return;
+                const msgEl = document.getElementById('cc-admin-modal-reply');
+                const estadoEl = document.getElementById('cc-admin-modal-status');
+                const mensaje = (msgEl?.value || '').trim();
+                if (!mensaje) { this.showToast('Escribe una respuesta.', 'error'); return; }
+                const authHeaders = Object.assign({}, AdminAuthenticator.getAdminAuthHeaders(), { 'Content-Type': 'application/json' });
+                const r = await fetch('/api/admin/centro-comunicacion/' + conv.id + '/responder', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: authHeaders,
+                    body: JSON.stringify({ mensaje, estado: estadoEl?.value || 'respondido' })
+                });
+                const data = await r.json().catch(() => ({}));
+                if (data.status !== 'success') { this.showToast(data.message || 'No se pudo responder.', 'error'); return; }
+                if (msgEl) msgEl.value = '';
+                this.showToast('Respuesta enviada.', 'success');
+                await this.cargarCentroComunicacionAdmin();
+                await this.abrirModalCentroComunicacionAdmin((this._centroComunicacion || []).find(c => Number(c.id) === Number(conv.id)) || conv);
+            }
+
+            async actualizarEstadoCentroComunicacionAdmin() {
+                const conv = this._centroComunicacionActiva;
+                const estado = (document.getElementById('cc-admin-modal-status')?.value || '').trim();
+                if (!conv || !estado) return;
+                const authHeaders = Object.assign({}, AdminAuthenticator.getAdminAuthHeaders(), { 'Content-Type': 'application/json' });
+                const r = await fetch('/api/admin/centro-comunicacion/' + conv.id + '/estado', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: authHeaders,
+                    body: JSON.stringify({ estado })
+                });
+                const data = await r.json().catch(() => ({}));
+                if (data.status !== 'success') { this.showToast(data.message || 'No se pudo actualizar estado.', 'error'); return; }
+                this.showToast('Estado actualizado.', 'success');
+                await this.cargarCentroComunicacionAdmin();
+            }
+
+            async eliminarCentroComunicacionAdmin() {
+                const conv = this._centroComunicacionActiva;
+                if (!conv) return;
+                if (!window.confirm('¿Eliminar esta conversación del panel admin?')) return;
+                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+                const r = await fetch('/api/admin/centro-comunicacion/' + conv.id, { method: 'DELETE', credentials: 'same-origin', headers: authHeaders });
+                const data = await r.json().catch(() => ({}));
+                if (data.status !== 'success') { this.showToast(data.message || 'No se pudo eliminar.', 'error'); return; }
+                this.showToast('Conversación eliminada.', 'success');
+                this.cerrarModalCentroComunicacionAdmin();
+                await this.cargarCentroComunicacionAdmin();
+            }
+
             renderCompetenciasActivas(competencias) {
                 const tbody = document.getElementById('tbody-competencias-activas');
                 const emptyEl = document.getElementById('competencias-activas-empty');
@@ -4025,6 +4544,7 @@
                     const retadorNombre = this.escapeHtml((retadorData && retadorData.nombre) ? retadorData.nombre : '—');
                     const retadorOrigen = this.escapeHtml((retadorData && retadorData.grupo_origen) ? retadorData.grupo_origen : '—');
                     const retadorScore = (retadorData && (retadorData.score_actual != null)) ? Number(retadorData.score_actual).toFixed(1) : '—';
+                    const diasRest = (c.dias_restantes != null) ? String(c.dias_restantes) : '—';
                     const tiempoHoras = (c.tiempo_en_competencia_horas != null) ? Number(c.tiempo_en_competencia_horas).toFixed(1) + ' h' : '—';
                     const estado = this.escapeHtml((c.estado || 'activa').toLowerCase());
                     const tr = document.createElement('tr');
@@ -4036,8 +4556,58 @@
                         <td>${retadorNombre}</td>
                         <td>${retadorOrigen}</td>
                         <td>${retadorScore}</td>
+                        <td>${diasRest}</td>
                         <td>${tiempoHoras}</td>
                         <td>${estado}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            renderCompetenciasPendientes(pendientes) {
+                const tbody = document.getElementById('tbody-competencias-pendientes');
+                const emptyEl = document.getElementById('competencias-pendientes-empty');
+                const wrap = document.getElementById('competencias-pendientes-wrap');
+                if (!tbody) return;
+                tbody.innerHTML = '';
+                const lista = Array.isArray(pendientes) ? pendientes : [];
+                if (wrap) wrap.style.display = 'block';
+                if (emptyEl) emptyEl.style.display = lista.length ? 'none' : 'block';
+                lista.forEach(p => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${this.escapeHtml(p.aliado_nombre || p.aliado_codigo || '—')}</td>
+                        <td>${this.escapeHtml(p.oficio || '—')}</td>
+                        <td>${this.escapeHtml(p.codigo_postal || '—')}</td>
+                        <td>${this.escapeHtml(p.grupo_nombre || '—')}</td>
+                        <td>${p.score_al_crear != null ? p.score_al_crear : '—'}</td>
+                        <td>${p.creado_en ? new Date(p.creado_en).toLocaleString('es-ES') : '—'}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            renderCompetenciasHistorial(historial) {
+                const tbody = document.getElementById('tbody-competencias-historial');
+                const emptyEl = document.getElementById('competencias-historial-empty');
+                const wrap = document.getElementById('competencias-historial-wrap');
+                if (!tbody) return;
+                tbody.innerHTML = '';
+                const lista = Array.isArray(historial) ? historial : [];
+                if (wrap) wrap.style.display = 'block';
+                if (emptyEl) emptyEl.style.display = lista.length ? 'none' : 'block';
+                lista.forEach(h => {
+                    const tr = document.createElement('tr');
+                    const cierre = h.fecha_cierre || h.fecha_fin_prevista;
+                    tr.innerHTML = `
+                        <td>${this.escapeHtml(h.grupo_nombre || '—')}</td>
+                        <td>${this.escapeHtml(h.oficio || '—')}</td>
+                        <td>${this.escapeHtml(h.titular_nombre || h.aliado_original_codigo || '—')}</td>
+                        <td>${this.escapeHtml(h.retador_nombre || h.retador_codigo || '—')}</td>
+                        <td>${this.escapeHtml(h.ganador_codigo || '—')}</td>
+                        <td>${h.score_titular_final != null ? h.score_titular_final : '—'}</td>
+                        <td>${h.score_retador_final != null ? h.score_retador_final : '—'}</td>
+                        <td>${cierre ? new Date(cierre).toLocaleString('es-ES') : '—'}</td>
                     `;
                     tbody.appendChild(tr);
                 });

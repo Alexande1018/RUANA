@@ -70,20 +70,22 @@ body:not(.panel-loading) {
 }
 
 .perfil-avatar {
-    width: 72px;
-    height: 72px;
-    border-radius: 18px;
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
     background: linear-gradient(135deg, rgba(34, 197, 94, 0.25) 0%, rgba(56, 189, 248, 0.15) 100%);
-    border: 1px solid rgba(34, 197, 94, 0.25);
-    display: grid;
-    place-items: center;
-    font-size: 1.5rem;
+    border: 2px solid rgba(34, 197, 94, 0.45);
+    display: block;
+    font-size: 1.75rem;
     font-weight: 700;
     color: var(--ruana-accent);
     text-transform: uppercase;
     letter-spacing: -0.02em;
     overflow: hidden;
     position: relative;
+    box-sizing: border-box;
+    padding: 0;
+    flex-shrink: 0;
 }
 
 .perfil-avatar-editable {
@@ -93,27 +95,57 @@ body:not(.panel-loading) {
 
 .perfil-avatar-editable:hover,
 .perfil-avatar-editable:focus-within {
-    border-color: rgba(162, 255, 0, 0.45);
     transform: translateY(-1px);
+    box-shadow: 0 0 0 3px rgba(162, 255, 0, 0.12);
 }
 
 .perfil-avatar-photo,
 .ruana-avatar-photo {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
-    object-fit: contain;
-    object-position: center;
+    max-width: none;
+    max-height: none;
+    object-fit: cover;
+    object-position: center center;
     display: block;
-    border-radius: inherit;
+    border-radius: 50%;
     background: rgba(8, 12, 24, 0.92);
+    margin: 0;
+    padding: 0;
+    z-index: 1;
 }
 
 .perfil-avatar-iniciales,
 .ruana-avatar-iniciales {
+    position: absolute;
+    inset: 0;
     display: grid;
     place-items: center;
     width: 100%;
     height: 100%;
+    margin: 0;
+    padding: 0;
+    z-index: 0;
+}
+
+/* display:grid/block en clases anula el atributo HTML hidden — forzar ocultación */
+.perfil-avatar-photo[hidden],
+.ruana-avatar-photo[hidden],
+.perfil-avatar-iniciales[hidden],
+.ruana-avatar-iniciales[hidden] {
+    display: none !important;
+}
+
+.perfil-avatar.avatar-has-photo .perfil-avatar-iniciales,
+.profesional-avatar.avatar-has-photo .ruana-avatar-iniciales {
+    display: none !important;
+}
+
+.perfil-avatar:not(.avatar-has-photo) .perfil-avatar-photo,
+.profesional-avatar:not(.avatar-has-photo) .ruana-avatar-photo {
+    display: none !important;
 }
 
 .perfil-avatar-edit-hint {
@@ -405,18 +437,65 @@ body:not(.panel-loading) {
 }
 
 .profesional-avatar {
-    width: 48px;
-    height: 48px;
-    border-radius: 14px;
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
     background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(56, 189, 248, 0.12));
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    display: grid;
-    place-items: center;
+    border: 2px solid rgba(34, 197, 94, 0.35);
+    display: block;
     font-weight: 700;
-    font-size: 1rem;
+    font-size: 1.2rem;
     color: var(--ruana-accent);
     flex-shrink: 0;
     overflow: hidden;
+    box-sizing: border-box;
+    position: relative;
+    padding: 0;
+}
+
+.profesional-avatar .ruana-avatar-photo,
+.profesional-avatar .ruana-avatar-iniciales {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* Anillo fino del avatar según color de la etiqueta RUANA */
+.perfil-avatar[data-etiqueta="destacado"],
+.profesional-avatar[data-etiqueta="destacado"] {
+    border-color: rgba(255, 215, 0, 0.85);
+    box-shadow: 0 0 0 1px rgba(255, 215, 0, 0.25);
+}
+
+.perfil-avatar[data-etiqueta="estable"],
+.profesional-avatar[data-etiqueta="estable"] {
+    border-color: rgba(74, 222, 128, 0.75);
+}
+
+.perfil-avatar[data-etiqueta="en_riesgo"],
+.profesional-avatar[data-etiqueta="en_riesgo"] {
+    border-color: rgba(234, 179, 8, 0.8);
+}
+
+.perfil-avatar[data-etiqueta="competencia"],
+.profesional-avatar[data-etiqueta="competencia"] {
+    border-color: rgba(248, 113, 113, 0.8);
+}
+
+.perfil-avatar[data-etiqueta="inactivo"],
+.profesional-avatar[data-etiqueta="inactivo"] {
+    border-color: rgba(107, 114, 128, 0.75);
+}
+
+.perfil-avatar[data-etiqueta="observacion"],
+.profesional-avatar[data-etiqueta="observacion"] {
+    border-color: rgba(234, 179, 8, 0.75);
+}
+
+.perfil-avatar[data-etiqueta="activo"],
+.profesional-avatar[data-etiqueta="activo"] {
+    border-color: rgba(34, 197, 94, 0.75);
 }
 
 .profesional-nombre {

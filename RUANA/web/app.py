@@ -29,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.db_manager import get_db, DB_PATH, RUANA_CODIGO_INVITACION_REGEX
 from core.settings import get_settings
 from core.storage_manager import upload_ruana_file, upload_foto_perfil_file
+from core.admin_auth import verify_admin_login, change_admin_password
 
 # Obtener ruta absoluta de la carpeta web
 web_dir = Path(__file__).parent.absolute()
@@ -430,6 +431,11 @@ def get_aliado_datos():
     
     try:
         db = get_db()
+        # Procesamiento automático de competencias (cierre 30d, abandonos, pendientes)
+        try:
+            db.procesar_competencia_automatica()
+        except Exception:
+            pass
         # Aplicar penalizaciones (abiertos 7d/21d, chat 48h, sin acceso semanal, comprobante 3d)
         db.aplicar_penalizaciones_contactos_abiertos(codigo)
         aliado = db.obtener_aliado_por_codigo(codigo)
@@ -496,6 +502,13 @@ def get_aliado_datos():
             aliado_dict['competencia_activa'] = bool(
                 grupo_id and db.grupo_tiene_competencia_activa(grupo_id)
             )
+            competencia_info = db.obtener_competencia_info_aliado(codigo)
+            aliado_dict['competencia_info'] = competencia_info
+            if competencia_info and (
+                competencia_info.get('en_competencia') or competencia_info.get('competencia_pendiente')
+            ):
+                aliado_dict['estado_ruana'] = 'EN COMPETENCIA'
+                aliado_dict['competencia_activa'] = True
 
             # Notificaciones del aliado (ej. comprobante rechazado con mensaje de admin)
             notificaciones = db.listar_notificaciones_aliado(codigo, limite=50)
@@ -2536,6 +2549,65 @@ def marcar_notificacion_leida_api(codigo, notif_id):
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+@app.route('/api/aliados/<codigo>/centro-comunicacion', methods=['GET', 'POST'])
+@require_aliado
+def centro_comunicacion_aliado(codigo):
+    """Centro de comunicación RUANA para el aliado autenticado."""
+    try:
+        codigo = (codigo or "").strip()
+        if codigo != _aliado_codigo():
+            return jsonify({'status': 'error', 'message': 'No autorizado'}), 403
+        db = get_db()
+        if request.method == 'GET':
+            conversaciones = db.listar_conversaciones_soporte_aliado(codigo, limite=request.args.get('limite', 50, type=int))
+            return jsonify({'status': 'success', 'conversaciones': conversaciones})
+        data = request.get_json() or {}
+        result = db.crear_conversacion_soporte_aliado(
+            aliado_codigo=codigo,
+            asunto=data.get('asunto') or 'Consulta general',
+            mensaje=data.get('mensaje') or '',
+            categoria=data.get('categoria') or 'consulta',
+        )
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/aliados/<codigo>/centro-comunicacion/<int:conversacion_id>/mensajes', methods=['GET', 'POST'])
+@require_aliado
+def centro_comunicacion_aliado_mensajes(codigo, conversacion_id):
+    try:
+        codigo = (codigo or "").strip()
+        if codigo != _aliado_codigo():
+            return jsonify({'status': 'error', 'message': 'No autorizado'}), 403
+        db = get_db()
+        if request.method == 'GET':
+            mensajes = db.listar_mensajes_soporte_aliado(conversacion_id, codigo)
+            return jsonify({'status': 'success', 'mensajes': mensajes})
+        data = request.get_json() or {}
+        result = db.enviar_mensaje_soporte_aliado(conversacion_id, codigo, data.get('mensaje') or '')
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/aliados/<codigo>/centro-comunicacion/<int:conversacion_id>/marcar-leida', methods=['POST'])
+@require_aliado
+def centro_comunicacion_aliado_marcar_leida(codigo, conversacion_id):
+    try:
+        codigo = (codigo or "").strip()
+        if codigo != _aliado_codigo():
+            return jsonify({'status': 'error', 'message': 'No autorizado'}), 403
+        db = get_db()
+        result = db.marcar_soporte_leido_aliado(conversacion_id, codigo)
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
 # ================================================
 # EVALUACIONES (Motor RUANA)
 # ================================================
@@ -3100,71 +3172,62 @@ def purga_mensual():
 def validar_admin():
     """
     POST /api/admin/validar
-    Valida si el c?digo proporcionado es un c?digo de administrador
-    Lee desde archivo persistente de configuraci?n
+    Valida las credenciales de administrador (identificador + contraseña).
+    Las contraseñas se almacenan con hash fuera del repositorio.
     """
     data = request.get_json() or {}
-    codigo = data.get('codigo', '').strip().upper()
-    
-    if not codigo:
+    admin_id = (data.get('codigo') or data.get('admin_id') or '').strip().upper()
+    password = (
+        data.get('password')
+        or data.get('contraseña')
+        or data.get('contrasena')
+        or ''
+    ).strip()
+
+    # Compatibilidad: un solo campo "codigo" actúa como identificador y contraseña.
+    if admin_id and not password:
+        password = admin_id
+    elif password and not admin_id:
+        admin_id = password.upper()
+
+    if not admin_id or not password:
         return jsonify({
             'status': 'error',
-            'message': 'C?digo requerido'
+            'message': 'Identificador y contraseña requeridos'
         }), 400
-    
+
     try:
-        # Cargar c?digos desde archivo de configuraci?n
-        config_path = Path(__file__).parent.parent / 'config' / 'admin_codes.json'
-        
-        if not config_path.exists():
+        admin_info = verify_admin_login(admin_id, password)
+        if not admin_info:
             return jsonify({
                 'status': 'error',
-                'message': 'Configuraci?n de administrador no encontrada'
-            }), 500
-        
-        with open(config_path, 'r', encoding='utf-8') as f:
-            admin_config = json.load(f)
-        
-        admin_codes = admin_config.get('admin_codes', {})
-        
-        if codigo in admin_codes:
-            admin_info = admin_codes[codigo]
-            
-            # Verificar si est? activo
-            if not admin_info.get('activo', True):
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Este c?digo de administrador est? desactivado'
-                }), 401
+                'message': 'Credenciales de administrador no válidas'
+            }), 401
 
-            expires_at = time.time() + ADMIN_SESSION_EXPIRES_SECONDS
-            permisos = admin_info.get('permisos', [])
-            session_id = _ruana_session_create('admin', codigo, expires_at, permisos=permisos)
+        codigo = admin_info['codigo']
+        expires_at = time.time() + ADMIN_SESSION_EXPIRES_SECONDS
+        permisos = admin_info.get('permisos', [])
+        session_id = _ruana_session_create('admin', codigo, expires_at, permisos=permisos)
 
-            payload = {
-                'admin_codigo': codigo,
-                'permisos': permisos,
-                'exp': expires_at,
-                'iat': time.time()
-            }
-            token = jwt.encode(payload, app.secret_key, algorithm='HS256')
-            if hasattr(token, 'decode'):
-                token = token.decode('utf-8')
+        payload = {
+            'admin_codigo': codigo,
+            'permisos': permisos,
+            'exp': expires_at,
+            'iat': time.time()
+        }
+        token = jwt.encode(payload, app.secret_key, algorithm='HS256')
+        if hasattr(token, 'decode'):
+            token = token.decode('utf-8')
 
-            return jsonify({
-                'status': 'success',
-                'message': f'Acceso concedido como {admin_info.get("nombre")}',
-                'role': admin_info.get('nombre'),
-                'permisos': admin_info.get('permisos', []),
-                'expires_at': expires_at,
-                'session_id': session_id,
-                'token': token
-            })
-        
         return jsonify({
-            'status': 'error',
-            'message': 'C?digo de administrador no v?lido'
-        }), 401
+            'status': 'success',
+            'message': f'Acceso concedido como {admin_info.get("nombre")}',
+            'role': admin_info.get('nombre'),
+            'permisos': permisos,
+            'expires_at': expires_at,
+            'session_id': session_id,
+            'token': token
+        })
 
     except Exception as e:
         return jsonify({
@@ -3196,6 +3259,52 @@ def admin_me():
     if not permisos and _admin_codigo():
         permisos = ['leer', 'escribir', 'eliminar', 'configurar']
     return jsonify({'permisos': permisos or []})
+
+
+@app.route('/api/admin/cambiar-contraseña', methods=['POST'])
+@require_admin
+def admin_cambiar_contraseña():
+    """
+    POST /api/admin/cambiar-contraseña
+    Cambia la contraseña del administrador autenticado.
+    Requiere permiso de escritura o configuración.
+    """
+    if not _admin_puede_escribir():
+        return jsonify({
+            'status': 'error',
+            'message': 'No tienes permiso para cambiar la contraseña'
+        }), 403
+
+    data = request.get_json() or {}
+    current_password = (
+        data.get('contraseña_actual')
+        or data.get('contrasena_actual')
+        or data.get('password_actual')
+        or ''
+    ).strip()
+    new_password = (
+        data.get('contraseña_nueva')
+        or data.get('contrasena_nueva')
+        or data.get('password_nueva')
+        or ''
+    ).strip()
+    confirm_password = (
+        data.get('contraseña_confirmacion')
+        or data.get('contrasena_confirmacion')
+        or data.get('password_confirmacion')
+        or ''
+    ).strip()
+
+    if confirm_password and new_password != confirm_password:
+        return jsonify({
+            'status': 'error',
+            'message': 'La confirmación de la nueva contraseña no coincide'
+        }), 400
+
+    admin_codigo = _admin_codigo()
+    result = change_admin_password(admin_codigo, current_password, new_password)
+    status_code = 200 if result.get('status') == 'success' else 400
+    return jsonify(result), status_code
 
 
 @app.route('/api/admin/health-metrics', methods=['GET'])
@@ -3408,6 +3517,32 @@ def admin_rechazar_aliado():
             return jsonify({'status': 'error', 'message': 'C?digo de aliado obligatorio'}), 400
         db = get_db()
         result = db.rechazar_aliado_pendiente(codigo)
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/eliminar-aliado', methods=['POST'])
+@require_admin_escritura
+def admin_eliminar_aliado():
+    """
+    POST /api/admin/eliminar-aliado
+    Body: { "codigo": "12345", "motivo": "opcional" }
+    Elimina el perfil de un aliado desde Control de aliados (expulsado/rechazado o borrado si placeholder).
+    """
+    try:
+        data = request.get_json() or {}
+        codigo = (data.get('codigo') or '').strip()
+        if not codigo:
+            return jsonify({'status': 'error', 'message': 'C?digo de aliado obligatorio'}), 400
+        motivo = (data.get('motivo') or '').strip() or None
+        db = get_db()
+        result = db.eliminar_perfil_aliado_admin(
+            codigo,
+            motivo=motivo,
+            admin_codigo=_admin_codigo() or None,
+        )
         status_code = 200 if result.get('status') == 'success' else 400
         return jsonify(result), status_code
     except Exception as e:
@@ -3755,8 +3890,37 @@ def admin_competencias_activas():
     """
     try:
         db = get_db()
+        try:
+            db.procesar_competencia_automatica()
+        except Exception:
+            pass
         lista = db.listar_competencias_activas_admin()
         return jsonify({'status': 'success', 'competencias': lista})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/competencias-pendientes', methods=['GET'])
+@require_admin
+def admin_competencias_pendientes():
+    """GET /api/admin/competencias-pendientes — titulares esperando retador."""
+    try:
+        db = get_db()
+        lista = db.listar_competencias_pendientes_admin()
+        return jsonify({'status': 'success', 'pendientes': lista})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/competencias-historial', methods=['GET'])
+@require_admin
+def admin_competencias_historial():
+    """GET /api/admin/competencias-historial — auditoría de competencias finalizadas."""
+    try:
+        limite = request.args.get('limite', 50, type=int)
+        db = get_db()
+        lista = db.listar_competencias_historial_admin(limite=limite)
+        return jsonify({'status': 'success', 'historial': lista})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
@@ -3876,6 +4040,77 @@ def admin_resolver_conflicto_pago(contacto_id):
         admin_codigo = _admin_codigo() or ''
         db = get_db()
         result = db.resolver_conflicto_pago(contacto_id, float(importe_valido), admin_codigo)
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/centro-comunicacion', methods=['GET'])
+@require_admin
+def admin_listar_centro_comunicacion():
+    try:
+        db = get_db()
+        conversaciones = db.listar_conversaciones_soporte_admin(
+            aliado_codigo=request.args.get('aliado', ''),
+            estado=request.args.get('estado', ''),
+            solo_no_leidas=(request.args.get('solo_no_leidas', '0') == '1'),
+            limite=request.args.get('limite', 100, type=int),
+            offset=request.args.get('offset', 0, type=int),
+        )
+        return jsonify({'status': 'success', 'conversaciones': conversaciones})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/centro-comunicacion/<int:conversacion_id>/mensajes', methods=['GET'])
+@require_admin
+def admin_mensajes_centro_comunicacion(conversacion_id):
+    try:
+        db = get_db()
+        mensajes = db.listar_mensajes_soporte_admin(conversacion_id)
+        return jsonify({'status': 'success', 'mensajes': mensajes})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/centro-comunicacion/<int:conversacion_id>/responder', methods=['POST'])
+@require_admin_escritura
+def admin_responder_centro_comunicacion(conversacion_id):
+    try:
+        data = request.get_json() or {}
+        db = get_db()
+        result = db.responder_soporte_admin(
+            conversacion_id=conversacion_id,
+            admin_codigo=_admin_codigo(),
+            mensaje=data.get('mensaje') or '',
+            nuevo_estado=data.get('estado') or 'respondido',
+        )
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/centro-comunicacion/<int:conversacion_id>/estado', methods=['POST'])
+@require_admin_escritura
+def admin_estado_centro_comunicacion(conversacion_id):
+    try:
+        data = request.get_json() or {}
+        db = get_db()
+        result = db.actualizar_estado_soporte_admin(conversacion_id, data.get('estado') or '', _admin_codigo())
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/centro-comunicacion/<int:conversacion_id>', methods=['DELETE'])
+@require_admin_escritura
+def admin_eliminar_conversacion_centro(conversacion_id):
+    try:
+        db = get_db()
+        result = db.eliminar_conversacion_soporte_admin(conversacion_id, _admin_codigo())
         status_code = 200 if result.get('status') == 'success' else 400
         return jsonify(result), status_code
     except Exception as e:

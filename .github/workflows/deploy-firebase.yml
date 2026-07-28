@@ -57,6 +57,11 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 
+      - name: Sync admin credentials to Secret Manager
+        env:
+          ADMIN_CREDENTIALS_JSON: ${{ secrets.RUANA_ADMIN_CREDENTIALS_JSON }}
+        run: bash .github/scripts/sync-admin-credentials-gcp.sh
+
       - name: Build and push container image
         run: |
           DEPLOY_SHA=$(git rev-parse HEAD)
@@ -75,7 +80,7 @@ jobs:
             --max-instances 3 \
             --service-account "$RUNTIME_SERVICE_ACCOUNT" \
             --set-env-vars "FIREBASE_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_REGION=$REGION,SUPABASE_URL=$SUPABASE_URL" \
-            --set-secrets "DATABASE_URL=ruana-database-url:latest,SUPABASE_SERVICE_ROLE_KEY=ruana-supabase-service-role-key:latest,SUPABASE_ANON_KEY=ruana-supabase-anon-key:latest,FLASK_SECRET_KEY=ruana-flask-secret-key:latest"
+            --set-secrets "DATABASE_URL=ruana-database-url:latest,SUPABASE_SERVICE_ROLE_KEY=ruana-supabase-service-role-key:latest,SUPABASE_ANON_KEY=ruana-supabase-anon-key:latest,FLASK_SECRET_KEY=ruana-flask-secret-key:latest,RUANA_ADMIN_CREDENTIALS_JSON=ruana-admin-credentials:latest"
 
       - name: Deploy Firebase Hosting
         run: npx firebase-tools@15.18.0 deploy --project "$PROJECT_ID" --only hosting --non-interactive

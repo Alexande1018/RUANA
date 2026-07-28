@@ -49,3 +49,12 @@ def test_admin_conflict_resolution_refreshes_api_data():
     snippet = text[start : start + 2200]
 
     assert "await this.cargarDesdeApi()" in snippet
+
+
+def test_admin_aliado_detalle_has_delete_profile_button():
+    admin_html = Path(__file__).resolve().parents[1] / "web" / "admin.html"
+    text = admin_html.read_text(encoding="utf-8")
+
+    assert 'id="aliadoDetalleEliminar"' in text
+    assert "confirmarEliminarPerfil" in text
+    assert "/api/admin/eliminar-aliado" in text

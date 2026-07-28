@@ -39,6 +39,27 @@
         body.panel-loading .panel-container > :not(#error-bootstrap):not(#panel-loading) {
             display: none !important;
         }
+        .ruana-syncing {
+            position: relative;
+            overflow: hidden;
+        }
+        .ruana-syncing::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: linear-gradient(
+                110deg,
+                rgba(255, 255, 255, 0) 0%,
+                rgba(162, 255, 0, 0.08) 45%,
+                rgba(255, 255, 255, 0) 100%
+            );
+            animation: ruana-sync-sweep 900ms ease;
+        }
+        @keyframes ruana-sync-sweep {
+            from { transform: translateX(-100%); }
+            to { transform: translateX(100%); }
+        }
 
         #btn-logout {
             position: sticky;
@@ -427,6 +448,7 @@
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 12px;
             text-align: center;
+            position: relative;
             transition: all 0.3s ease;
         }
 
@@ -462,6 +484,61 @@
         .metrica-card.score-estable .metrica-numero { color: #22c55e; }
         .metrica-card.score-riesgo .metrica-numero { color: #eab308; }
         .metrica-card.score-competencia .metrica-numero { color: #ef4444; }
+        .score-change-toast {
+            position: absolute;
+            top: -12px;
+            right: 8px;
+            max-width: min(360px, calc(100vw - 40px));
+            padding: 12px 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            background: linear-gradient(150deg, rgba(255, 255, 255, 0.2), rgba(14, 18, 34, 0.92));
+            backdrop-filter: blur(14px) saturate(140%);
+            -webkit-backdrop-filter: blur(14px) saturate(140%);
+            box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+            z-index: 8;
+            opacity: 0;
+            transform: translateY(-8px) scale(0.98);
+            transition: opacity 220ms ease, transform 220ms ease;
+        }
+        .score-change-toast.show {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+        .score-change-toast.up { border-color: rgba(34, 197, 94, 0.45); }
+        .score-change-toast.down { border-color: rgba(245, 158, 11, 0.45); }
+        .score-change-title {
+            margin: 0 28px 4px 0;
+            font-size: 0.78rem;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: rgba(210, 235, 255, 0.85);
+            font-weight: 700;
+        }
+        .score-change-copy {
+            margin: 0;
+            font-size: 0.86rem;
+            color: #e7eefb;
+            line-height: 1.4;
+        }
+        .score-change-close {
+            position: absolute;
+            top: 7px;
+            right: 8px;
+            border: none;
+            background: transparent;
+            color: rgba(227, 236, 252, 0.8);
+            cursor: pointer;
+            font-size: 1rem;
+            line-height: 1;
+            padding: 2px 4px;
+        }
+        .score-change-delta {
+            font-weight: 800;
+            margin-right: 2px;
+        }
+        .score-change-toast.up .score-change-delta { color: #4ade80; }
+        .score-change-toast.down .score-change-delta { color: #fbbf24; }
 
         .score-alerta-panel {
             padding: 14px 20px;
@@ -474,6 +551,30 @@
             display: none;
         }
         .score-alerta-panel.visible { display: block; }
+
+        .competencia-banner {
+            margin: 16px 0 20px;
+            padding: 16px 20px;
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.45);
+            border-radius: 10px;
+            color: #fecaca;
+        }
+        .competencia-banner.pendiente {
+            background: rgba(234, 179, 8, 0.12);
+            border-color: rgba(234, 179, 8, 0.45);
+            color: #fde68a;
+        }
+        .competencia-banner.retador {
+            background: rgba(59, 130, 246, 0.12);
+            border-color: rgba(59, 130, 246, 0.45);
+            color: #bfdbfe;
+        }
+        .competencia-banner-meta {
+            margin-top: 8px;
+            font-size: 0.85rem;
+            opacity: 0.9;
+        }
 
         /* Divisor visual */
         .panel-divider {
@@ -1081,6 +1182,10 @@
             margin-top: 20px;
             padding-top: 16px;
             border-top: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
         }
 
         /* Modal para código de invitación */
@@ -1577,6 +1682,308 @@
                 grid-template-columns: 1fr;
             }
         }
+
+
+        /* Onboarding premium RUANA (no invasivo) */
+        .ruana-tour-cloud {
+            position: fixed;
+            z-index: 1402;
+            width: min(430px, calc(100vw - 22px));
+            padding: 15px 16px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.32);
+            background:
+                radial-gradient(circle at 15% 0%, rgba(255,255,255,0.82), transparent 40%),
+                linear-gradient(155deg, rgba(255,255,255,0.84), rgba(216,255,190,0.92));
+            backdrop-filter: blur(12px) saturate(130%);
+            -webkit-backdrop-filter: blur(12px) saturate(130%);
+            color: #10200f;
+            box-shadow: 0 14px 44px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.6);
+            transform: translateY(8px) scale(0.98);
+            opacity: 0;
+            transition: transform 180ms ease, opacity 180ms ease;
+            pointer-events: none;
+        }
+        .ruana-tour-cloud.is-visible {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+        .ruana-tour-cloud::before,
+        .ruana-tour-cloud::after {
+            content: '';
+            position: absolute;
+            background: rgba(227,255,203,0.98);
+            border-radius: 50%;
+            z-index: -1;
+        }
+        .ruana-tour-cloud::before {
+            width: 46px;
+            height: 46px;
+            top: -16px;
+            left: 22px;
+        }
+        .ruana-tour-cloud::after {
+            width: 34px;
+            height: 34px;
+            top: -10px;
+            left: 64px;
+        }
+        .ruana-tour-cloud-title {
+            margin: 0 0 6px;
+            font-size: 1rem;
+            font-weight: 800;
+            color: #0f2a0c;
+        }
+        .ruana-tour-cloud-copy {
+            margin: 0;
+            font-size: 0.9rem;
+            line-height: 1.42;
+            color: #173015;
+        }
+        .ruana-tour-hint {
+            display: block;
+            margin-top: 8px;
+            font-size: 0.72rem;
+            color: rgba(23, 48, 21, 0.72);
+            letter-spacing: 0.01em;
+        }
+        .ruana-tour-cloud-copy strong { color: #0f2b0b; }
+        .ruana-tour-cloud-copy br + br { line-height: 1.15; }
+        .ruana-tour-cloud-close {
+            position: absolute;
+            top: 8px;
+            right: 10px;
+            border: none;
+            background: transparent;
+            color: #244021;
+            font-size: 1rem;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+        .ruana-tour-arrow {
+            position: fixed;
+            z-index: 1401;
+            pointer-events: none;
+            transform-origin: 0 50%;
+        }
+        .ruana-tour-arrow-line {
+            height: 3px;
+            border-radius: 99px;
+            background: linear-gradient(90deg, rgba(162,255,0,0.95), rgba(34,197,94,0.45));
+            box-shadow: 0 0 12px rgba(162,255,0,0.35);
+        }
+        .ruana-tour-arrow-dot {
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            background: #a2ff00;
+            position: absolute;
+            right: -6px;
+            top: -4px;
+            box-shadow: 0 0 0 4px rgba(162,255,0,0.2);
+        }
+        .ruana-tour-target {
+            position: relative;
+            z-index: 1400 !important;
+            box-shadow: 0 0 0 2px rgba(162,255,0,0.75), 0 0 0 6px rgba(162,255,0,0.12), 0 8px 24px rgba(0,0,0,0.28);
+            border-radius: 14px;
+            animation: ruana-tour-pulse 1.8s ease-in-out infinite;
+        }
+        .ruana-tour-replay {
+            position: fixed;
+            right: 18px;
+            bottom: 18px;
+            z-index: 1200;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.16);
+            background: rgba(8, 14, 28, 0.72);
+            color: #dff7cb;
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            padding: 10px 14px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 180ms ease, transform 140ms ease;
+        }
+        .ruana-tour-replay:hover {
+            background: rgba(10, 18, 32, 0.95);
+            transform: translateY(-1px);
+        }
+        body.panel-loading .ruana-tour-replay { display: none; }
+        @keyframes ruana-tour-pulse {
+            0%, 100% { box-shadow: 0 0 0 2px rgba(162,255,0,0.7), 0 0 0 6px rgba(162,255,0,0.1), 0 8px 24px rgba(0,0,0,0.28); }
+            50% { box-shadow: 0 0 0 2px rgba(162,255,0,0.95), 0 0 0 10px rgba(162,255,0,0.22), 0 10px 28px rgba(0,0,0,0.36); }
+        }
+        @media (max-width: 720px) {
+            .ruana-tour-cloud {
+                width: auto;
+                left: 10px !important;
+                right: 10px;
+            }
+            .ruana-tour-arrow { display: none; }
+            .ruana-tour-replay {
+                right: 12px;
+                bottom: 12px;
+            }
+        }
+
+        .ruana-tour-finale {
+            position: fixed;
+            inset: 0;
+            z-index: 1410;
+            display: grid;
+            place-items: center;
+            background: rgba(7, 12, 26, 0.34);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            animation: ruana-finale-fade 900ms ease forwards;
+            pointer-events: none;
+        }
+        .ruana-tour-finale-logo {
+            width: 120px;
+            height: 120px;
+            border-radius: 28px;
+            display: grid;
+            place-items: center;
+            background: linear-gradient(155deg, rgba(162,255,0,0.22), rgba(255,255,255,0.18));
+            border: 1px solid rgba(162,255,0,0.5);
+            box-shadow: 0 20px 44px rgba(0,0,0,0.35);
+            animation: ruana-finale-pop 900ms ease forwards;
+        }
+        .ruana-tour-finale svg { width: 78px; height: 78px; }
+        @keyframes ruana-finale-pop {
+            0% { transform: scale(0.7) rotate(-8deg); opacity: 0; }
+            45% { transform: scale(1.08) rotate(0deg); opacity: 1; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        @keyframes ruana-finale-fade {
+            0% { opacity: 0; }
+            20% { opacity: 1; }
+            85% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+        .ruana-help-fab {
+            position: fixed;
+            right: 22px;
+            bottom: 78px;
+            z-index: 1210;
+            width: 56px;
+            height: 56px;
+            border: 1px solid rgba(162, 255, 0, 0.42);
+            border-radius: 18px;
+            background: linear-gradient(155deg, rgba(18, 28, 22, 0.96), rgba(10, 16, 28, 0.94));
+            color: #A2FF00;
+            box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease, background 220ms ease;
+        }
+        .ruana-help-fab:hover {
+            transform: translateY(-2px) scale(1.03);
+            border-color: rgba(162, 255, 0, 0.7);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
+        }
+        .ruana-help-fab.is-open {
+            background: linear-gradient(155deg, rgba(26, 40, 20, 0.98), rgba(12, 20, 30, 0.96));
+        }
+        .ruana-help-fab svg { width: 22px; height: 22px; }
+        .ruana-help-fab-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            min-width: 20px;
+            height: 20px;
+            padding: 0 5px;
+            border-radius: 999px;
+            background: #fbbf24;
+            color: #111827;
+            font-size: 0.7rem;
+            font-weight: 800;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid rgba(7, 12, 24, 0.95);
+        }
+        .ruana-help-fab-badge.is-visible { display: inline-flex; }
+        body.panel-loading .ruana-help-fab { display: none; }
+
+        .ruana-help-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 1300;
+            display: flex;
+            align-items: flex-end;
+            justify-content: flex-end;
+            padding: 18px;
+            background: rgba(5, 9, 18, 0.42);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 240ms ease;
+        }
+        .ruana-help-overlay.is-open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .ruana-help-center {
+            width: min(920px, 100%);
+            max-height: min(86vh, 760px);
+            overflow: auto;
+            margin: 0;
+            padding: 20px;
+            border-radius: 18px;
+            background: linear-gradient(160deg, rgba(16, 24, 40, 0.97), rgba(7, 12, 24, 0.96));
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            box-shadow: 0 24px 56px rgba(0, 0, 0, 0.4);
+            transform: translateY(28px) scale(0.98);
+            opacity: 0;
+            transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1), opacity 240ms ease;
+        }
+        .ruana-help-overlay.is-open .ruana-help-center {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+        }
+        .ruana-help-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+        .ruana-help-title { font-size: 1.15rem; font-weight: 700; color: #e2e8f0; margin: 0; }
+        .ruana-help-sub { color: #94a3b8; margin: 0 0 14px; font-size: 0.86rem; }
+        .ruana-help-pill { display: inline-flex; align-items: center; gap: 8px; padding: 5px 9px; border-radius: 999px; font-size: 0.74rem; font-weight: 700; color: #f8fafc; background: rgba(34, 197, 94, 0.18); border: 1px solid rgba(74, 222, 128, 0.35); }
+        .ruana-help-close {
+            width: 34px; height: 34px; border-radius: 10px; border: 1px solid rgba(148, 163, 184, 0.25);
+            background: rgba(255, 255, 255, 0.04); color: #cbd5e1; cursor: pointer;
+        }
+        .ruana-help-header-actions { display: inline-flex; align-items: center; gap: 8px; }
+        .ruana-help-layout { display: grid; grid-template-columns: 1.05fr 1fr; gap: 12px; }
+        .ruana-help-card { background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 12px; padding: 12px; }
+        .ruana-help-list { max-height: 250px; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+        .ruana-help-thread-item { padding: 10px; border-radius: 10px; cursor: pointer; border: 1px solid rgba(148, 163, 184, 0.16); background: rgba(15, 23, 42, 0.55); transition: border-color 160ms ease, background 160ms ease; }
+        .ruana-help-thread-item.is-active { border-color: rgba(74, 222, 128, 0.5); background: rgba(34, 197, 94, 0.12); }
+        .ruana-help-thread-item.has-unread { box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.45) inset; }
+        .ruana-help-status { font-size: 0.72rem; padding: 3px 8px; border-radius: 999px; background: rgba(148, 163, 184, 0.2); }
+        .ruana-help-status.estado-pendiente { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
+        .ruana-help-status.estado-en_revision { background: rgba(59, 130, 246, 0.2); color: #93c5fd; }
+        .ruana-help-status.estado-respondido { background: rgba(34, 197, 94, 0.2); color: #86efac; }
+        .ruana-help-status.estado-cerrado { background: rgba(148, 163, 184, 0.22); color: #cbd5e1; }
+        .ruana-help-status.estado-reabierto { background: rgba(244, 114, 182, 0.2); color: #f9a8d4; }
+        .ruana-help-form-row { display: grid; gap: 8px; margin-bottom: 8px; }
+        .ruana-help-input, .ruana-help-textarea, .ruana-help-select { width: 100%; border-radius: 8px; padding: 9px 10px; background: rgba(2, 6, 23, 0.7); border: 1px solid rgba(148, 163, 184, 0.3); color: #e2e8f0; }
+        .ruana-help-messages { max-height: 210px; overflow: auto; display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+        .ruana-help-message { padding: 8px 10px; border-radius: 10px; font-size: 0.88rem; line-height: 1.4; }
+        .ruana-help-message.from-aliado { background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.3); }
+        .ruana-help-message.from-admin { background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(74, 222, 128, 0.35); }
+        .ruana-help-meta { display: block; color: #94a3b8; font-size: 0.72rem; margin-top: 4px; }
+        .ruana-help-empty { color: #94a3b8; font-size: 0.88rem; padding: 8px 0; }
+        @media (max-width: 920px) {
+            .ruana-help-layout { grid-template-columns: 1fr; }
+            .ruana-help-overlay { padding: 10px; align-items: flex-end; }
+            .ruana-help-center { max-height: 88vh; border-radius: 16px 16px 12px 12px; }
+            .ruana-help-fab { right: 14px; bottom: 68px; width: 52px; height: 52px; }
+        }
+
     </style>
     <link rel="stylesheet" href="/static/css/panel-premium.css">
     <link rel="stylesheet" href="/static/css/auth-premium.css">
@@ -1665,7 +2072,7 @@
         <div class="perfil-block ruana-card-premium">
             <div class="perfil-header">
                 <div class="perfil-avatar-wrap">
-                    <label class="perfil-avatar perfil-avatar-editable" for="input-foto-perfil" id="perfil-avatar" title="Cambiar foto de perfil">
+                    <label class="perfil-avatar perfil-avatar-editable" for="input-foto-perfil" id="perfil-avatar" data-etiqueta="estable" title="Cambiar foto de perfil">
                         <img id="perfil-avatar-img" class="perfil-avatar-photo ruana-avatar-photo" alt="" hidden>
                         <span id="perfil-avatar-iniciales" class="perfil-avatar-iniciales ruana-avatar-iniciales" aria-hidden="true">RU</span>
                         <span class="perfil-avatar-edit-hint">Cambiar foto</span>
@@ -1719,6 +2126,12 @@
                     <span class="detail-label">Desde</span>
                     <span class="detail-value" id="detail-fecha">---</span>
                 </div>
+            </div>
+
+            <div id="competencia-banner-wrap" class="competencia-banner" style="display: none;" role="status" aria-live="polite">
+                <div id="competencia-banner-titulo"><strong>En competencia</strong></div>
+                <div id="competencia-banner-texto"></div>
+                <div class="competencia-banner-meta" id="competencia-banner-meta"></div>
             </div>
 
             <div class="perfil-acciones">
@@ -1870,6 +2283,51 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <button type="button" class="ruana-help-fab" id="ruana-help-fab" aria-label="Hablar con el equipo de RUANA" title="Hablar con RUANA">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span class="ruana-help-fab-badge" id="ruana-help-fab-badge" aria-hidden="true">0</span>
+    </button>
+
+    <div class="ruana-help-overlay" id="ruana-help-overlay" aria-hidden="true">
+        <section class="ruana-help-center" id="ruana-help-center" role="dialog" aria-modal="true" aria-labelledby="ruana-help-title">
+            <div class="ruana-help-header">
+                <h2 class="ruana-help-title" id="ruana-help-title">Habla con el equipo de RUANA</h2>
+                <div class="ruana-help-header-actions">
+                    <span class="ruana-help-pill" id="ruana-help-unread-pill">0 sin leer</span>
+                    <button type="button" class="ruana-help-close" id="ruana-help-close" aria-label="Cerrar">✕</button>
+                </div>
+            </div>
+            <p class="ruana-help-sub">Consultas, incidencias e ideas. Escribe cuando lo necesites; el panel se mantiene limpio el resto del tiempo.</p>
+            <div class="ruana-help-layout">
+                <div class="ruana-help-card">
+                    <h3 style="margin:0 0 10px;">Nuevo mensaje</h3>
+                    <div class="ruana-help-form-row">
+                        <input id="ruana-help-subject" class="ruana-help-input" maxlength="160" placeholder="Asunto (ej. Problema al cerrar un contacto)" />
+                        <select id="ruana-help-category" class="ruana-help-select">
+                            <option value="consulta">Consulta</option>
+                            <option value="error">Error</option>
+                            <option value="sugerencia">Sugerencia</option>
+                            <option value="ayuda">Ayuda</option>
+                            <option value="incidencia">Incidencia</option>
+                        </select>
+                        <textarea id="ruana-help-message" class="ruana-help-textarea" rows="4" maxlength="3000" placeholder="Cuéntanos qué pasó y cómo te podemos ayudar"></textarea>
+                        <button type="button" class="btn-admin-action" id="ruana-help-send-btn">Enviar al equipo RUANA</button>
+                    </div>
+                    <h3 style="margin:12px 0 8px;">Mis conversaciones</h3>
+                    <div class="ruana-help-list" id="ruana-help-threads"></div>
+                </div>
+                <div class="ruana-help-card">
+                    <div id="ruana-help-thread-header" class="ruana-help-empty">Selecciona una conversación para ver el historial.</div>
+                    <div class="ruana-help-messages" id="ruana-help-messages"></div>
+                    <div class="ruana-help-form-row">
+                        <textarea id="ruana-help-reply" class="ruana-help-textarea" rows="3" maxlength="3000" placeholder="Responder en esta conversación..." disabled></textarea>
+                        <button type="button" class="btn-admin-action" id="ruana-help-reply-btn" disabled>Responder</button>
+                    </div>
+                </div>
+            </div>
+        </section>
     </div>
 
     <!-- Modal: Invitación por oficio (código generado al clic en oficio faltante) -->
@@ -2104,6 +2562,10 @@
 
     <div id="ruana-toast-container" class="ruana-toast-container" aria-live="polite"></div>
 
+
+
+    <button type="button" id="btn-replay-onboarding" class="ruana-tour-replay" aria-label="Repetir tour de RUANA">✨ Ver tour RUANA</button>
+
     <script>
         /**
          * RUANA - Panel Privado del Aliado
@@ -2134,6 +2596,221 @@
             const h = { ...(extra || {}) };
             if (sid) h['X-Ruana-Session-Id'] = sid;
             return h;
+        }
+
+
+
+        class RuanaOnboardingTour {
+            constructor(panel) {
+                this.panel = panel;
+                this.storageKeyBase = 'ruana_onboarding_completed_v3';
+                this.stepIndex = 0;
+                this.steps = this.buildSteps();
+                this.activeTarget = null;
+                this.cloud = null;
+                this.arrow = null;
+                                this.stepListener = null;
+                this.boundEsc = (event) => {
+                    if (event.key === 'Escape') this.finish(false);
+                };
+                this.boundClickAdvance = (event) => {
+                    if (!this.cloud) return;
+                    if (event.target && event.target.closest && event.target.closest('.ruana-tour-cloud-close')) return;
+                    this.next();
+                };
+            }
+
+            getStorageKey() {
+                const codigo = (
+                    (this.panel && (this.panel.codigoAliado || (this.panel.aliado && this.panel.aliado.codigo))) ||
+                    sessionStorage.getItem('ruana_codigo_aliado') ||
+                    'anon'
+                ).toString().trim() || 'anon';
+                return `${this.storageKeyBase}_${codigo}`;
+            }
+
+            buildSteps() {
+                return [
+                    { selector: '.perfil-block', title: '¡Bienvenido a RUANA!', copy: '<strong>Recomienda. Colabora. Gana confianza.</strong><br><br>Tu Score, medallas y etiquetas reflejan tu reputación. Cuanto mayor sea tu confianza, más oportunidades de negocio conseguirás.', placement: 'bottom' },
+                    { selector: '#perfil-avatar', title: 'Tu foto o logo', copy: 'Aquí subes tu foto o el logo de tu negocio. Cuando te ven claro, confían más rápido en ti.', placement: 'right' },
+                    { selector: '#detail-descripcion-wrap', title: 'Tu descripción sí importa', copy: 'Esta parte se puede editar y la verán otros aliados. Cuéntales en corto qué haces y en qué eres bueno.', placement: 'bottom' },
+                    { selector: '#perfil-status', title: 'Tus etiquetas RUANA', copy: 'Esto es tu reputación en vivo: si cumples sube, si fallas baja. Así te ve la red.', placement: 'left' },
+                    { selector: '.metricas-block', title: 'Tus métricas', copy: 'Aquí miras cómo vas en solicitudes, red y score. Es tu tablero para tomar mejores decisiones.', placement: 'bottom' },
+                    { selector: '.directorio-panel', title: 'Dónde elegir profesionales', copy: 'En el directorio filtras por nombre, oficio o zona para encontrar rápido a la persona adecuada.', placement: 'top' },
+                    { selector: '#solicitudes-entrantes-wrap', title: 'Solicitudes de otros aliados', copy: 'Aquí ayudas aceptando o recomendando a alguien que conozcas. Todo queda trazado dentro de RUANA.', placement: 'top' },
+                    { selector: '#btn-invitar-aliado', title: 'Código para invitar aliados', copy: 'Desde este botón se genera el código para que otro profesional se registre en RUANA.', placement: 'bottom' },
+                    { selector: '.crear-solicitud-zone', title: 'Tus solicitudes propias', copy: 'Aquí eliges el oficio y escribes qué necesitas. Lo mandas y tu grupo te responde.', placement: 'left' },
+                    { selector: '#metrica-card-score', title: 'Score RUANA en simple', copy: 'Tu score sube cuando cumples y colaboras; baja con impagos, incumplimientos o contactos mal cerrados.<br><br><strong>Tu score sube por acciones como:</strong> cierres reales, puntualidad, comunicación, importes coherentes, evidencias, respuesta rápida, feedback positivo, cumplimiento y colaboración.<br><br><strong>Tu score bajará por acciones como:</strong> contactos sin cerrar, impagos, datos falsos, incumplimientos, disputas repetidas, ausencias sin aviso, importes inconsistentes, mala calidad recurrente y romper reglas.', placement: 'bottom' },
+                    { selector: '.ruana-brand', title: '¡Empieza a construir tu reputación!', copy: 'Visita la Landing Page para conocer las reglas de RUANA. Cuanto mejor conozcas la comunidad, más confianza generarás y más oportunidades recibirás.', placement: 'bottom', final: true }
+                ];
+            }
+
+            shouldAutoStart() {
+                try {
+                    const key = this.getStorageKey();
+                    if (localStorage.getItem(key) === 'true') return false;
+                    // Compatibilidad: si ya completó la versión anterior global, no reactivar.
+                    if (localStorage.getItem('ruana_onboarding_completed_v2') === 'true') {
+                        localStorage.setItem(key, 'true');
+                        return false;
+                    }
+                    return true;
+                } catch (_) {
+                    return true;
+                }
+            }
+
+            markSeen() {
+                try { localStorage.setItem(this.getStorageKey(), 'true'); } catch (_) {}
+            }
+
+            start(force = false) {
+                if (!force && !this.shouldAutoStart()) return;
+                if (this.cloud) return;
+                // Autoarranque solo una vez: se marca al abrirse, aunque el usuario lo cierre a mitad.
+                if (!force) this.markSeen();
+                this.stepIndex = 0;
+                this.createLayer();
+                document.addEventListener('keydown', this.boundEsc);
+                document.addEventListener('click', this.boundClickAdvance, true);
+                this.renderStep();
+            }
+
+            createLayer() {
+                this.cloud = document.createElement('div');
+                this.cloud.className = 'ruana-tour-cloud';
+                this.cloud.innerHTML = '<button type="button" class="ruana-tour-cloud-close" aria-label="Cerrar tour">✕</button><h3 class="ruana-tour-cloud-title"></h3><p class="ruana-tour-cloud-copy"></p><span class="ruana-tour-hint">Da clic para avanzar</span>';
+                document.body.appendChild(this.cloud);
+
+                this.arrow = document.createElement('div');
+                this.arrow.className = 'ruana-tour-arrow';
+                this.arrow.innerHTML = '<div class="ruana-tour-arrow-line"></div><span class="ruana-tour-arrow-dot"></span>';
+                document.body.appendChild(this.arrow);
+
+                this.cloud.querySelector('.ruana-tour-cloud-close').addEventListener('click', (event) => { event.stopPropagation(); this.finish(false); });
+                requestAnimationFrame(() => this.cloud.classList.add('is-visible'));
+            }
+
+            renderStep() {
+                if (!this.cloud) return;
+                const step = this.steps[this.stepIndex];
+                if (!step) return;
+                const target = document.querySelector(step.selector);
+
+
+                if (this.activeTarget) this.activeTarget.classList.remove('ruana-tour-target');
+                this.activeTarget = target;
+                if (target) {
+                    target.classList.add('ruana-tour-target');
+                    target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                }
+
+                this.cloud.querySelector('.ruana-tour-cloud-title').textContent = step.title;
+                this.cloud.querySelector('.ruana-tour-cloud-copy').innerHTML = step.copy || '';
+
+                this.positionCloud(target, step.placement || 'bottom');
+                this.positionArrow(target);
+
+            }
+
+            positionCloud(target, placement) {
+                if (!this.cloud) return;
+                const margin = 14;
+                const vw = window.innerWidth;
+                const vh = window.innerHeight;
+                const r = target ? target.getBoundingClientRect() : { top: vh * 0.4, left: vw * 0.5, width: 0, height: 0, right: vw * 0.5, bottom: vh * 0.5 };
+                const c = this.cloud.getBoundingClientRect();
+                let top = r.bottom + margin;
+                let left = r.left + (r.width / 2) - (c.width / 2);
+
+                if (placement === 'top') {
+                    top = r.top - c.height - margin;
+                } else if (placement === 'left') {
+                    top = r.top + (r.height / 2) - (c.height / 2);
+                    left = r.left - c.width - margin;
+                } else if (placement === 'right') {
+                    top = r.top + (r.height / 2) - (c.height / 2);
+                    left = r.right + margin;
+                }
+
+                top = Math.max(10, Math.min(top, vh - c.height - 10));
+                left = Math.max(10, Math.min(left, vw - c.width - 10));
+                this.cloud.style.top = `${Math.round(top)}px`;
+                this.cloud.style.left = `${Math.round(left)}px`;
+            }
+
+            positionArrow(target) {
+                if (!this.arrow) return;
+                if (!target || window.innerWidth < 721) {
+                    this.arrow.style.display = 'none';
+                    return;
+                }
+                this.arrow.style.display = '';
+                const tr = target.getBoundingClientRect();
+                const cr = this.cloud.getBoundingClientRect();
+                const x1 = cr.left + cr.width / 2;
+                const y1 = cr.top + cr.height / 2;
+                const x2 = tr.left + tr.width / 2;
+                const y2 = tr.top + tr.height / 2;
+                const dx = x2 - x1;
+                const dy = y2 - y1;
+                const length = Math.max(22, Math.min(Math.hypot(dx, dy) - 18, 220));
+                const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+                this.arrow.style.left = `${Math.round(x1)}px`;
+                this.arrow.style.top = `${Math.round(y1)}px`;
+                this.arrow.style.transform = `rotate(${angle}deg)`;
+                const line = this.arrow.querySelector('.ruana-tour-arrow-line');
+                line.style.width = `${Math.round(length)}px`;
+            }
+
+            playFinale() {
+                const finale = document.createElement('div');
+                finale.className = 'ruana-tour-finale';
+                finale.innerHTML = '<div class="ruana-tour-finale-logo" aria-hidden="true">'
+                    + '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">'
+                    + '<g stroke="#A2FF00" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 24v7.5"/><path d="M32 31.5H18v7.5"/><path d="M32 31.5H46v7.5"/></g>'
+                    + '<rect x="22" y="8" width="20" height="20" rx="5.5" fill="#A2FF00"/>'
+                    + '<rect x="8" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/>'
+                    + '<rect x="36" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/>'
+                    + '</svg></div>';
+                document.body.appendChild(finale);
+                setTimeout(() => finale.remove(), 980);
+            }
+
+            next() {
+                if (this.stepIndex >= this.steps.length - 1) {
+                    this.finish(true);
+                    return;
+                }
+                this.stepIndex += 1;
+                this.renderStep();
+            }
+
+            finish(markComplete) {
+                // Cualquier cierre (completar, ✕ o Escape) evita un nuevo autoarranque.
+                this.markSeen();
+                if (markComplete) {
+                    this.playFinale();
+                    if (window.RuanaUI && typeof window.RuanaUI.toast === 'function') {
+                        window.RuanaUI.toast('Listo, ya conoces lo clave de RUANA. Dale con todo 🙌', 'success', 3200);
+                    }
+                }
+                if (this.activeTarget) this.activeTarget.classList.remove('ruana-tour-target');
+                this.activeTarget = null;
+                document.removeEventListener('keydown', this.boundEsc);
+                document.removeEventListener('click', this.boundClickAdvance, true);
+                if (this.cloud) {
+                    const cloud = this.cloud;
+                    this.cloud = null;
+                    cloud.remove();
+                }
+                if (this.arrow) {
+                    const arrow = this.arrow;
+                    this.arrow = null;
+                    arrow.remove();
+                }
+            }
         }
 
         class PrivatePanel {
@@ -2227,6 +2904,9 @@
                 this.isDataLoaded = false;
                 this._referidosTree = null;
 
+                // Onboarding premium
+                this.onboardingTour = null;
+
                 // Contactos RUANA
                 this.codigoAliado = sessionStorage.getItem('ruana_codigo_aliado') || null;
                 this.contactosAbiertos = [];
@@ -2241,8 +2921,15 @@
                 this.chatExpiraEn = null;
                 this._chatPollingIntervalId = null;
                 this.notificaciones = [];
+                this.soporteConversations = [];
+                this.soporteMensajes = [];
+                this.soporteSelectedId = null;
                 this.contactosPagoPendiente = [];
                 this.tienePagosPendientes = false;
+                this.scoreNotifActive = false;
+                this.scoreNotifShownIds = new Set();
+                this._syncInProgress = false;
+                this._autoSyncIntervalId = null;
                 this._contactoIdImpugnarApoyo = null;
                 this.metodosPagoRuana = {
                     bizum_num: window.RUANA_BIZUM_NUM || '642868261',
@@ -2267,6 +2954,7 @@
                 
                 // Luego, cargar datos estrictamente desde la API real
                 await this.loadData();
+                await this.fetchCentroComunicacionSnapshot();
                 await this.cargarMetodosPagoRuana();
                 await this.cargarContactosPendientes();
                 
@@ -2274,6 +2962,148 @@
                 this.render();
                 this.renderAlertas();
                 this.setPanelLoading(false);
+                this.initOnboarding();
+                this.startAutoSync();
+            }
+
+            initOnboarding() {
+                this.onboardingTour = new RuanaOnboardingTour(this);
+                const replayBtn = document.getElementById('btn-replay-onboarding');
+                if (replayBtn) {
+                    replayBtn.addEventListener('click', () => this.onboardingTour.start(true));
+                }
+                if (this.onboardingTour.shouldAutoStart()) {
+                    setTimeout(() => this.onboardingTour.start(), 450);
+                }
+                window.addEventListener('resize', () => {
+                    if (this.onboardingTour && (this.onboardingTour.overlay || this.onboardingTour.cloud)) {
+                        this.onboardingTour.renderStep();
+                    }
+                });
+            }
+
+            getSyncElements(sections) {
+                const map = {
+                    perfil: '.perfil-block',
+                    metricas: '.metricas-block',
+                    directorio: '.directorio-panel',
+                    solicitudes: '.solicitudes-zone',
+                    alertas: '#notificaciones-ruana-wrap',
+                    centro: '#ruana-help-center'
+                };
+                return (sections || [])
+                    .map((k) => map[k])
+                    .filter(Boolean)
+                    .map((selector) => document.querySelector(selector))
+                    .filter(Boolean);
+            }
+
+            setSectionsSyncing(sections, syncing) {
+                this.getSyncElements(sections).forEach((el) => {
+                    el.classList.toggle('ruana-syncing', Boolean(syncing));
+                });
+            }
+
+            async fetchAliadoSnapshot() {
+                const apiBase = getApiBase();
+                const resp = await fetch(apiBase + '/api/aliado/datos', { credentials: 'same-origin', headers: getRuanaAuthHeaders() });
+                if (!resp.ok) return;
+                const data = await resp.json();
+                if (data.status === 'success' && data.aliado) {
+                    this.aliado = { ...(this.aliado || {}), ...data.aliado };
+                    if (Array.isArray(data.notificaciones)) this.notificaciones = data.notificaciones;
+                }
+            }
+
+            async fetchSolicitudesSnapshot() {
+                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
+                if (!codigo) return;
+                const apiBase = getApiBase();
+                const resp = await fetch(apiBase + '/api/solicitudes?codigo=' + encodeURIComponent(codigo), {
+                    credentials: 'same-origin',
+                    headers: getRuanaAuthHeaders()
+                });
+                if (!resp.ok) return;
+                const data = await resp.json();
+                if (data && typeof data === 'object' && !Array.isArray(data)) {
+                    this.solicitudesEntrantes = Array.isArray(data.entrantes) ? data.entrantes : [];
+                    this.solicitudesPropias = Array.isArray(data.propias) ? data.propias : [];
+                    this.solicitudesHistorial = Array.isArray(data.historial) ? data.historial : [];
+                } else {
+                    this.solicitudesEntrantes = Array.isArray(data) ? data : [];
+                    this.solicitudesPropias = [];
+                    this.solicitudesHistorial = [];
+                }
+            }
+
+            async fetchDirectorioSnapshot() {
+                const resp = await fetch('/api/aliados/directorio', { credentials: 'same-origin', headers: getRuanaAuthHeaders() });
+                if (!resp.ok) return;
+                const data = await resp.json();
+                if (data.status === 'success' && Array.isArray(data.aliados)) {
+                    this.profesionales = data.aliados;
+                }
+            }
+
+            async fetchCentroComunicacionSnapshot() {
+                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
+                if (!codigo) return;
+                const apiBase = getApiBase();
+                const resp = await fetch(apiBase + '/api/aliados/' + encodeURIComponent(codigo) + '/centro-comunicacion', {
+                    credentials: 'same-origin',
+                    headers: getRuanaAuthHeaders()
+                });
+                if (!resp.ok) return;
+                const data = await resp.json().catch(() => ({}));
+                if (data.status === 'success' && Array.isArray(data.conversaciones)) {
+                    this.soporteConversations = data.conversaciones;
+                    if (this.soporteSelectedId && !this.soporteConversations.some(c => Number(c.id) === Number(this.soporteSelectedId))) {
+                        this.soporteSelectedId = null;
+                        this.soporteMensajes = [];
+                    }
+                }
+            }
+
+            async refreshAfterAction(sections, options) {
+                const opts = options || {};
+                if (this._syncInProgress && !opts.allowConcurrent) return;
+                const targetSections = Array.isArray(sections) ? sections : [];
+                this._syncInProgress = true;
+                this.setSectionsSyncing(targetSections, true);
+                try {
+                    const jobs = [];
+                    if (targetSections.includes('perfil') || targetSections.includes('metricas') || targetSections.includes('alertas')) jobs.push(this.fetchAliadoSnapshot());
+                    if (targetSections.includes('solicitudes')) jobs.push(this.fetchSolicitudesSnapshot());
+                    if (targetSections.includes('directorio')) jobs.push(this.fetchDirectorioSnapshot());
+                    if (targetSections.includes('alertas')) jobs.push(this.actualizarEstadoAlertas());
+                    if (targetSections.includes('centro')) jobs.push(this.fetchCentroComunicacionSnapshot());
+                    if (targetSections.includes('contactos')) jobs.push(this.cargarContactosPendientes());
+                    await Promise.all(jobs);
+
+                    if (targetSections.includes('perfil')) { this.renderPerfil(); this.renderGrupo(); }
+                    if (targetSections.includes('metricas')) this.renderMetricas();
+                    if (targetSections.includes('solicitudes')) this.renderSolicitudes();
+                    if (targetSections.includes('directorio')) this.renderProfesionales();
+                    if (targetSections.includes('alertas')) {
+                        this.renderNotificaciones();
+                        this.renderListaPagosPendientes();
+                        this.renderAlertas();
+                    }
+                    if (targetSections.includes('centro')) this.renderCentroComunicacion();
+                } catch (e) {
+                    console.error('Error de sincronización UI:', e);
+                } finally {
+                    this.setSectionsSyncing(targetSections, false);
+                    this._syncInProgress = false;
+                }
+            }
+
+            startAutoSync() {
+                if (this._autoSyncIntervalId) clearInterval(this._autoSyncIntervalId);
+                this._autoSyncIntervalId = setInterval(() => {
+                    if (document.visibilityState !== 'visible') return;
+                    this.refreshAfterAction(['perfil', 'metricas', 'solicitudes', 'directorio', 'alertas', 'contactos', 'centro']);
+                }, 20000);
             }
 
             setPanelLoading(isLoading) {
@@ -2396,11 +3226,13 @@
              */
             render() {
                 this.renderPerfil();
+                this.renderCompetencia();
                 this.renderGrupo();
                 this.renderMetricas();
                 this.renderSolicitudes();
                 this.renderProfesionales();
                 this.renderNotificaciones();
+                this.renderCentroComunicacion();
             }
 
             async abrirModalLinajeHijos() {
@@ -2457,23 +3289,48 @@
                 return texto.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]).join('').toUpperCase().slice(0, 2) || '?';
             }
 
-            renderAvatarHtml(fotoUrl, nombre, className) {
+            renderAvatarHtml(fotoUrl, nombre, className, etiquetaStatus) {
                 const iniciales = this.getIniciales(nombre);
                 const foto = (fotoUrl || '').trim();
+                const etiqueta = this._mapEtiquetaAvatarStatus(etiquetaStatus || 'estable');
+                const etiquetaAttr = ` data-etiqueta="${this.escapeHtml(etiqueta)}"`;
                 if (foto) {
-                    return `<div class="${className}"><img src="${this.escapeHtml(foto)}" alt="" class="ruana-avatar-photo"></div>`;
+                    return `<div class="${className} avatar-has-photo"${etiquetaAttr}><img src="${this.escapeHtml(foto)}" alt="" class="ruana-avatar-photo"></div>`;
                 }
-                return `<div class="${className}" aria-hidden="true"><span class="ruana-avatar-iniciales">${this.escapeHtml(iniciales)}</span></div>`;
+                return `<div class="${className}"${etiquetaAttr} aria-hidden="true"><span class="ruana-avatar-iniciales">${this.escapeHtml(iniciales)}</span></div>`;
+            }
+
+            _mapEtiquetaAvatarStatus(status) {
+                const key = (status || '').toString().trim().toLowerCase();
+                const map = {
+                    destacado: 'destacado',
+                    estable: 'estable',
+                    en_riesgo: 'en_riesgo',
+                    competencia: 'competencia',
+                    activo: 'estable',
+                    observacion: 'en_riesgo',
+                    riesgo: 'competencia',
+                    inactivo: 'inactivo'
+                };
+                return map[key] || 'estable';
+            }
+
+            _syncPerfilAvatarEtiqueta(status) {
+                const avatarEl = document.getElementById('perfil-avatar');
+                if (!avatarEl) return;
+                avatarEl.dataset.etiqueta = this._mapEtiquetaAvatarStatus(status);
             }
 
             aplicarAvatarPerfil(aliadoData) {
                 const nombre = (aliadoData && aliadoData.nombre) || 'Nombre no disponible';
                 const fotoUrl = (aliadoData && (aliadoData.foto_perfil_url || aliadoData.foto_perfil)) || '';
+                const avatarEl = document.getElementById('perfil-avatar');
                 const imgEl = document.getElementById('perfil-avatar-img');
                 const inicialesEl = document.getElementById('perfil-avatar-iniciales');
                 const btnQuitar = document.getElementById('btn-quitar-foto-perfil');
                 const iniciales = this.getIniciales(nombre);
                 if (inicialesEl) inicialesEl.textContent = iniciales;
+                if (avatarEl) avatarEl.classList.toggle('avatar-has-photo', Boolean(fotoUrl));
                 if (imgEl) {
                     if (fotoUrl) {
                         imgEl.src = fotoUrl;
@@ -2528,6 +3385,7 @@
                         if (!this.aliado) this.aliado = {};
                         this.aliado.foto_perfil_url = data.foto_perfil_url || null;
                         this.aplicarAvatarPerfil(this.aliado);
+                        await this.refreshAfterAction(['perfil', 'directorio']);
                         if (typeof RuanaUI !== 'undefined') {
                             RuanaUI.toast('Foto de perfil actualizada', 'success');
                         }
@@ -2568,6 +3426,7 @@
                         if (!this.aliado) this.aliado = {};
                         this.aliado.foto_perfil_url = null;
                         this.aplicarAvatarPerfil(this.aliado);
+                        await this.refreshAfterAction(['perfil', 'directorio']);
                     } else {
                         alert(data.message || 'No se pudo quitar la foto.');
                     }
@@ -2637,18 +3496,74 @@
                     'PRIORITARIO': { status: 'destacado', label: 'Destacado' }, // alias legado
                     'ESTABLE': { status: 'estable', label: 'Estable' },
                     'EN RIESGO': { status: 'en_riesgo', label: 'En riesgo' },
-                    'COMPETENCIA': { status: 'competencia', label: 'Competencia' }
+                    'COMPETENCIA': { status: 'competencia', label: 'Competencia' },
+                    'EN COMPETENCIA': { status: 'competencia', label: 'En competencia' }
                 };
                 if (estadoMap[estadoRuana]) {
                     statusEl.dataset.status = estadoMap[estadoRuana].status;
                     statusEl.querySelector('.status-text').textContent = estadoMap[estadoRuana].label;
+                    this._syncPerfilAvatarEtiqueta(estadoMap[estadoRuana].status);
                 } else {
                     const estado = aliadoData.estado || aliadoData.status || 'observacion';
                     const estadoNormalizado = this.normalizarEstado(estado);
                     statusEl.dataset.status = estadoNormalizado;
                     const statusTexts = { 'activo': 'Activo', 'inactivo': 'Inactivo', 'observacion': 'En observación', 'riesgo': 'En riesgo' };
                     statusEl.querySelector('.status-text').textContent = statusTexts[estadoNormalizado] || 'Estado desconocido';
+                    this._syncPerfilAvatarEtiqueta(estadoNormalizado);
                 }
+                this.renderCompetencia();
+            }
+
+            /**
+             * Banner de competencia por permanencia (activa o pendiente de retador).
+             */
+            renderCompetencia() {
+                const wrap = document.getElementById('competencia-banner-wrap');
+                const tituloEl = document.getElementById('competencia-banner-titulo');
+                const textoEl = document.getElementById('competencia-banner-texto');
+                const metaEl = document.getElementById('competencia-banner-meta');
+                if (!wrap || !tituloEl || !textoEl || !metaEl) return;
+
+                const info = (this.aliado && this.aliado.competencia_info) ? this.aliado.competencia_info : null;
+                wrap.classList.remove('pendiente', 'retador');
+                wrap.style.display = 'none';
+                if (!info || (!info.en_competencia && !info.competencia_pendiente)) return;
+
+                wrap.style.display = 'block';
+                const oficio = info.oficio || (this.aliado && this.aliado.oficio) || 'tu oficio';
+                const dias = info.dias_restantes != null ? info.dias_restantes : null;
+
+                if (info.competencia_pendiente) {
+                    wrap.classList.add('pendiente');
+                    tituloEl.innerHTML = '<strong>Competencia pendiente</strong>';
+                    textoEl.textContent = info.mensaje || 'Esperando retador para iniciar la competencia por permanencia.';
+                    metaEl.textContent = 'Cuando haya un profesional disponible del mismo oficio y código postal, comenzará un periodo de 30 días.';
+                    return;
+                }
+
+                const rol = info.rol || 'titular';
+                if (rol === 'retador') wrap.classList.add('retador');
+
+                if (rol === 'retador') {
+                    tituloEl.innerHTML = '<strong>Oportunidad de plaza</strong>';
+                    textoEl.textContent = 'Compites por la plaza del grupo principal. Durante 30 días, quien acumule mayor score permanece en la plaza.';
+                } else {
+                    tituloEl.innerHTML = '<strong>En competencia</strong>';
+                    textoEl.textContent = `Compites por la permanencia en la plaza de ${oficio}. Al finalizar el periodo, gana quien tenga mayor score.`;
+                }
+
+                const partes = [];
+                if (dias != null) partes.push(`${dias} día${dias === 1 ? '' : 's'} restante${dias === 1 ? '' : 's'}`);
+                if (info.fecha_fin_prevista) {
+                    const fin = new Date(String(info.fecha_fin_prevista).replace(' ', 'T'));
+                    if (!isNaN(fin.getTime())) {
+                        partes.push('Fin previsto: ' + fin.toLocaleDateString('es-ES'));
+                    }
+                }
+                if (info.contrincante_codigo) {
+                    partes.push('Contrincante: ' + info.contrincante_codigo);
+                }
+                metaEl.textContent = partes.join(' · ');
             }
 
             /**
@@ -2768,6 +3683,120 @@
                 const alerta = document.getElementById('score-alerta-panel');
                 if (alerta) alerta.classList.toggle('visible', score < 50);
                 if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons();
+                this.maybeShowScoreChangeNotification();
+            }
+
+            formatScoreMotivo(motivo) {
+                const key = String(motivo || '').trim();
+                if (!key) return 'actualización de reglas RUANA';
+                const mappings = [
+                    [/^aliado_referido_registro_valido/, 'registro válido de un aliado referido'],
+                    [/^encargo_completado_apoyo_pagado/, 'encargo completado con apoyo RUANA validado'],
+                    [/^referido_encargo_completado_gen/, 'impacto positivo de tu red de referidos'],
+                    [/^regla4_/, 'constancia de encargos completados en el mes'],
+                    [/^regla5_/, 'respuesta rápida y buena atención en chat'],
+                    [/^regla6_/, 'gestión efectiva de un contacto urgente'],
+                    [/^regla7_/, 'declaración oportuna del cierre del trabajo'],
+                    [/^regla8_/, 'actividad constante en la app'],
+                    [/^invitacion_oficio_usada/, 'invitar a un nuevo aliado que se registró'],
+                    [/^contacto_cerrado_no_concretado/, 'cierre de contacto sin trabajo concretado'],
+                    [/^contacto_sin_cerrar_7d/, 'contacto abierto sin cierre durante 7 días'],
+                    [/^contacto_sin_cerrar_21d/, 'contacto abierto sin cierre durante 21 días'],
+                    [/^descendiente_entra_competencia_gen/, 'impacto por riesgo dentro de tu red'],
+                    [/^chat_sin_respuesta_48h_/, 'chat sin respuesta durante 48 horas'],
+                    [/^sin_acceso_7d_/, 'inactividad en la app por 7 días'],
+                    [/^chat_agotado_sin_resultado_/, 'chat agotado sin cierre de resultado'],
+                    [/^disputa_perdida_/, 'disputa de importe resuelta en contra'],
+                    [/^comprobante_apoyo_3d_/, 'demora en subir comprobante de apoyo RUANA']
+                ];
+                for (const [regex, desc] of mappings) {
+                    if (regex.test(key)) return desc;
+                }
+                return key.replace(/_/g, ' ');
+            }
+
+            getScoreNotifVariants(isUp) {
+                if (isUp) {
+                    return [
+                        '🎉 ¡Excelente! Tu Score RUANA aumentó {{delta}} por {{reason}}.',
+                        '🌟 ¡Buen trabajo! Has ganado {{delta}} gracias a {{reason}}.',
+                        '🚀 Vas subiendo: tu score mejoró {{delta}} por {{reason}}.',
+                        '👏 ¡Así se hace! Tu reputación creció {{delta}} por {{reason}}.'
+                    ];
+                }
+                return [
+                    '😕 Tu Score RUANA disminuyó {{delta}} por {{reason}}.',
+                    '⚠️ Tu score bajó {{delta}} debido a {{reason}}.',
+                    '💡 Ajuste en tu reputación: {{delta}} por {{reason}}.',
+                    '🧭 Tu score cambió {{delta}} por {{reason}}. Puedes recuperarlo con próximos cierres.'
+                ];
+            }
+
+            async markNotificationRead(notifId) {
+                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
+                if (!codigo || !notifId) return;
+                try {
+                    const apiBase = getApiBase();
+                    await fetch(
+                        apiBase + '/api/aliados/' + encodeURIComponent(codigo) + '/notificaciones/' + encodeURIComponent(notifId) + '/leida',
+                        { method: 'POST', credentials: 'same-origin', headers: getRuanaAuthHeaders() }
+                    );
+                } catch (_) {}
+            }
+
+            maybeShowScoreChangeNotification() {
+                if (this.scoreNotifActive) return;
+                const scoreCard = document.getElementById('metrica-card-score');
+                if (!scoreCard) return;
+                const notifs = Array.isArray(this.notificaciones) ? this.notificaciones : [];
+                const pendientes = notifs
+                    .filter(n => n && n.tipo === 'score_change' && Number(n.leida) === 0)
+                    .sort((a, b) => new Date(a.creado_en || 0) - new Date(b.creado_en || 0));
+                if (pendientes.length === 0) return;
+                const notif = pendientes.find((n) => {
+                    const moveId = n.metadata && n.metadata.movimiento_id ? String(n.metadata.movimiento_id) : `notif-${n.id}`;
+                    return !this.scoreNotifShownIds.has(moveId);
+                });
+                if (!notif) return;
+
+                const deltaRaw = Number(notif.metadata && notif.metadata.delta);
+                const delta = Number.isFinite(deltaRaw) ? deltaRaw : 0;
+                if (!delta) return;
+                const isUp = delta > 0;
+                const deltaText = `${delta > 0 ? '+' : ''}${delta} puntos`;
+                const reason = this.formatScoreMotivo(notif.metadata && notif.metadata.motivo);
+                const variants = this.getScoreNotifVariants(isUp);
+                const template = variants[Math.floor(Math.random() * variants.length)];
+                const message = template
+                    .replace('{{delta}}', `<span class="score-change-delta">${deltaText}</span>`)
+                    .replace('{{reason}}', reason);
+
+                const toast = document.createElement('div');
+                toast.className = `score-change-toast ${isUp ? 'up' : 'down'}`;
+                toast.innerHTML = `
+                    <button type="button" class="score-change-close" aria-label="Cerrar notificación">×</button>
+                    <p class="score-change-title">Score RUANA actualizado</p>
+                    <p class="score-change-copy">${message}</p>
+                `;
+                scoreCard.appendChild(toast);
+                requestAnimationFrame(() => toast.classList.add('show'));
+                this.scoreNotifActive = true;
+
+                const moveId = notif.metadata && notif.metadata.movimiento_id ? String(notif.metadata.movimiento_id) : `notif-${notif.id}`;
+                this.scoreNotifShownIds.add(moveId);
+                notif.leida = 1;
+                this.markNotificationRead(notif.id);
+
+                const closeToast = () => {
+                    toast.classList.remove('show');
+                    setTimeout(() => {
+                        toast.remove();
+                        this.scoreNotifActive = false;
+                        this.maybeShowScoreChangeNotification();
+                    }, 220);
+                };
+                toast.querySelector('.score-change-close').addEventListener('click', closeToast);
+                setTimeout(closeToast, 6200);
             }
 
             /**
@@ -3071,6 +4100,23 @@
                 if (btnInvitarAliado) {
                     btnInvitarAliado.addEventListener('click', () => this.generarCodigoInvitacionPerfil());
                 }
+                const btnSoporteEnviar = document.getElementById('ruana-help-send-btn');
+                if (btnSoporteEnviar) btnSoporteEnviar.addEventListener('click', () => this.enviarNuevoMensajeSoporte());
+                const btnSoporteResponder = document.getElementById('ruana-help-reply-btn');
+                if (btnSoporteResponder) btnSoporteResponder.addEventListener('click', () => this.responderConversacionSoporte());
+                const fabSoporte = document.getElementById('ruana-help-fab');
+                if (fabSoporte) fabSoporte.addEventListener('click', () => this.toggleCentroComunicacion());
+                const closeSoporte = document.getElementById('ruana-help-close');
+                if (closeSoporte) closeSoporte.addEventListener('click', () => this.cerrarCentroComunicacion());
+                const overlaySoporte = document.getElementById('ruana-help-overlay');
+                if (overlaySoporte) {
+                    overlaySoporte.addEventListener('click', (e) => {
+                        if (e.target === overlaySoporte) this.cerrarCentroComunicacion();
+                    });
+                }
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') this.cerrarCentroComunicacion();
+                });
 
                 const metricReferidos = document.getElementById('metrica-card-referidos');
                 if (metricReferidos) {
@@ -3399,7 +4445,7 @@
                 // Al volver a la pestaña: recargar datos de alertas y re-evaluar banners
                 document.addEventListener('visibilitychange', () => {
                     if (document.visibilityState !== 'visible' || !this.codigoAliado) return;
-                    this.actualizarEstadoAlertas();
+                    this.refreshAfterAction(['perfil', 'metricas', 'solicitudes', 'directorio', 'alertas', 'contactos']);
                 });
             }
 
@@ -3418,6 +4464,7 @@
                         document.getElementById('modal-invitacion-oficio-nombre').textContent = oficio;
                         document.getElementById('modal-invitacion-oficio-codigo').textContent = data.codigo;
                         document.getElementById('modal-invitacion-oficio').classList.add('show');
+                        await this.refreshAfterAction(['metricas', 'alertas']);
                     } else {
                         alert(data.message || 'No se pudo generar el código.');
                     }
@@ -3520,6 +4567,7 @@
                         this.aliado.descripcion_servicio = valor || null;
                         this.cancelarEditarDescripcion();
                         this.renderPerfil();
+                        await this.refreshAfterAction(['perfil', 'directorio']);
                     } else {
                         alert(data.message || 'No se pudo guardar.');
                     }
@@ -3588,6 +4636,13 @@
                 listaProfesionales.innerHTML = '';
 
                 let profesionalesArray = Array.isArray(this.profesionales) ? this.profesionales : [];
+                const miCp = ((this.aliado && this.aliado.codigo_postal) || '').trim();
+                if (miCp) {
+                    profesionalesArray = profesionalesArray.filter(p => {
+                        const cp = ((p && (p.codigo_postal || p.zona)) || '').trim();
+                        return cp === miCp;
+                    });
+                }
                 const profesionalesDisponibles = profesionalesArray.some(p => p && (p.rol !== undefined && p.rol !== null))
                     ? profesionalesArray.filter(p => p.rol === 'Titular')
                     : profesionalesArray;
@@ -3625,7 +4680,7 @@
 
                     const badgeRuana = tieneConversacion ? 'conversacion-activa' : (esIncompleto ? 'perfil-incompleto' : '');
                     const badgeTipo = tieneConversacion ? 'ruana-badge pendiente' : (esIncompleto ? 'ruana-badge observacion' : 'ruana-badge disponible');
-                    const avatarHtml = this.renderAvatarHtml(prof.foto_perfil_url, nombre, 'profesional-avatar');
+                    const avatarHtml = this.renderAvatarHtml(prof.foto_perfil_url, nombre, 'profesional-avatar', scoreMeta.status);
 
                     const card = document.createElement('div');
                     card.className = 'profesional-card' + (esIncompleto ? ' perfil-incompleto' : '');
@@ -3734,6 +4789,7 @@
                     this.renderNotificaciones();
                     this.renderListaPagosPendientes();
                     this.renderAlertas();
+                    this.maybeShowScoreChangeNotification();
                 } catch (e) {
                     console.error('Error actualizarEstadoAlertas:', e);
                     this.renderAlertas();
@@ -3832,10 +4888,195 @@
                     if (data.status === 'success') {
                         // Recargar estado real y cerrar mensajes (ya no habrá no leídas)
                         await this.actualizarEstadoAlertas();
+                        await this.refreshAfterAction(['alertas']);
                     }
                 } catch (e) {
                     console.error('Error marcando notificaciones leídas:', e);
                 }
+            }
+
+            formatHelpStatus(estado) {
+                const key = String(estado || 'pendiente').toLowerCase();
+                const labels = {
+                    pendiente: 'Pendiente',
+                    en_revision: 'En revisión',
+                    respondido: 'Respondido',
+                    cerrado: 'Cerrado',
+                    reabierto: 'Reabierto'
+                };
+                return labels[key] || 'Pendiente';
+            }
+
+            abrirCentroComunicacion() {
+                const overlay = document.getElementById('ruana-help-overlay');
+                const fab = document.getElementById('ruana-help-fab');
+                if (!overlay) return;
+                overlay.classList.add('is-open');
+                overlay.setAttribute('aria-hidden', 'false');
+                if (fab) fab.classList.add('is-open');
+                this.renderCentroComunicacion();
+                const subject = document.getElementById('ruana-help-subject');
+                if (subject) setTimeout(() => subject.focus(), 220);
+            }
+
+            cerrarCentroComunicacion() {
+                const overlay = document.getElementById('ruana-help-overlay');
+                const fab = document.getElementById('ruana-help-fab');
+                if (!overlay) return;
+                overlay.classList.remove('is-open');
+                overlay.setAttribute('aria-hidden', 'true');
+                if (fab) fab.classList.remove('is-open');
+            }
+
+            toggleCentroComunicacion() {
+                const overlay = document.getElementById('ruana-help-overlay');
+                if (!overlay) return;
+                if (overlay.classList.contains('is-open')) this.cerrarCentroComunicacion();
+                else this.abrirCentroComunicacion();
+            }
+
+            renderCentroComunicacion() {
+                const list = document.getElementById('ruana-help-threads');
+                const unreadPill = document.getElementById('ruana-help-unread-pill');
+                const fabBadge = document.getElementById('ruana-help-fab-badge');
+                if (!list || !unreadPill) return;
+                const conversaciones = Array.isArray(this.soporteConversations) ? this.soporteConversations : [];
+                const unreadCount = conversaciones.filter(c => Number(c.tiene_no_leido_aliado || 0) > 0).length;
+                unreadPill.textContent = unreadCount + ' sin leer';
+                if (fabBadge) {
+                    fabBadge.textContent = String(unreadCount);
+                    fabBadge.classList.toggle('is-visible', unreadCount > 0);
+                }
+                if (!conversaciones.length) {
+                    list.innerHTML = '<div class="ruana-help-empty">Aún no tienes conversaciones. Escríbenos y te respondemos por aquí.</div>';
+                    this.renderMensajesCentroComunicacion();
+                    return;
+                }
+                list.innerHTML = conversaciones.map((c) => {
+                    const active = Number(c.id) === Number(this.soporteSelectedId) ? ' is-active' : '';
+                    const hasUnread = Number(c.tiene_no_leido_aliado || 0) > 0 ? ' has-unread' : '';
+                    const fecha = c.ultimo_mensaje_en ? new Date(c.ultimo_mensaje_en).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '';
+                    return `<div class="ruana-help-thread-item${active}${hasUnread}" data-conv-id="${c.id}">
+                        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">
+                            <strong style="font-size:0.85rem;">${this.escapeHtml(c.asunto || 'Consulta')}</strong>
+                            <span class="ruana-help-status estado-${this.escapeHtml(c.estado || 'pendiente')}">${this.formatHelpStatus(c.estado)}</span>
+                        </div>
+                        <div style="color:#cbd5e1;font-size:0.8rem;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${this.escapeHtml(c.ultimo_mensaje_preview || 'Sin mensajes')}</div>
+                        <div class="ruana-help-meta">${fecha}</div>
+                    </div>`;
+                }).join('');
+                list.querySelectorAll('[data-conv-id]').forEach((el) => {
+                    el.addEventListener('click', () => this.seleccionarConversacionSoporte(el.getAttribute('data-conv-id')));
+                });
+                this.renderMensajesCentroComunicacion();
+            }
+
+            async seleccionarConversacionSoporte(conversacionId) {
+                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
+                if (!codigo || !conversacionId) return;
+                this.soporteSelectedId = Number(conversacionId);
+                const apiBase = getApiBase();
+                const r = await fetch(apiBase + '/api/aliados/' + encodeURIComponent(codigo) + '/centro-comunicacion/' + Number(conversacionId) + '/mensajes', {
+                    credentials: 'same-origin',
+                    headers: getRuanaAuthHeaders()
+                });
+                const data = await r.json().catch(() => ({}));
+                this.soporteMensajes = data.status === 'success' && Array.isArray(data.mensajes) ? data.mensajes : [];
+                await fetch(apiBase + '/api/aliados/' + encodeURIComponent(codigo) + '/centro-comunicacion/' + Number(conversacionId) + '/marcar-leida', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: getRuanaAuthHeaders()
+                }).catch(() => null);
+                await this.fetchCentroComunicacionSnapshot();
+                this.renderCentroComunicacion();
+            }
+
+            renderMensajesCentroComunicacion() {
+                const box = document.getElementById('ruana-help-messages');
+                const header = document.getElementById('ruana-help-thread-header');
+                const reply = document.getElementById('ruana-help-reply');
+                const replyBtn = document.getElementById('ruana-help-reply-btn');
+                if (!box || !header || !reply || !replyBtn) return;
+                const conv = (this.soporteConversations || []).find(c => Number(c.id) === Number(this.soporteSelectedId));
+                if (!conv) {
+                    header.textContent = 'Selecciona una conversación para ver el historial.';
+                    box.innerHTML = '';
+                    reply.disabled = true;
+                    replyBtn.disabled = true;
+                    return;
+                }
+                header.innerHTML = `<strong>${this.escapeHtml(conv.asunto || 'Consulta')}</strong> · <span class="ruana-help-status estado-${this.escapeHtml(conv.estado || 'pendiente')}">${this.formatHelpStatus(conv.estado)}</span>`;
+                reply.disabled = false;
+                replyBtn.disabled = false;
+                const mensajes = Array.isArray(this.soporteMensajes) ? this.soporteMensajes : [];
+                box.innerHTML = mensajes.map((m) => {
+                    const fromAdmin = (m.emisor_tipo || '') === 'admin';
+                    const fecha = m.creado_en ? new Date(m.creado_en).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '';
+                    return `<div class="ruana-help-message ${fromAdmin ? 'from-admin' : 'from-aliado'}">
+                        ${this.escapeHtml(m.mensaje || '')}
+                        <span class="ruana-help-meta">${fromAdmin ? 'Equipo RUANA' : 'Tú'} · ${fecha}</span>
+                    </div>`;
+                }).join('');
+                box.scrollTop = box.scrollHeight;
+            }
+
+            async enviarNuevoMensajeSoporte() {
+                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
+                if (!codigo) return;
+                const asuntoEl = document.getElementById('ruana-help-subject');
+                const categoriaEl = document.getElementById('ruana-help-category');
+                const mensajeEl = document.getElementById('ruana-help-message');
+                if (!asuntoEl || !mensajeEl || !categoriaEl) return;
+                const asunto = (asuntoEl.value || '').trim();
+                const mensaje = (mensajeEl.value || '').trim();
+                if (!asunto || !mensaje) {
+                    if (window.RuanaUI) RuanaUI.toast('Completa asunto y mensaje.', 'warning');
+                    return;
+                }
+                const apiBase = getApiBase();
+                const r = await fetch(apiBase + '/api/aliados/' + encodeURIComponent(codigo) + '/centro-comunicacion', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
+                    body: JSON.stringify({ asunto, categoria: categoriaEl.value || 'consulta', mensaje })
+                });
+                const data = await r.json().catch(() => ({}));
+                if (data.status !== 'success') {
+                    if (window.RuanaUI) RuanaUI.toast(data.message || 'No se pudo enviar el mensaje.', 'error');
+                    return;
+                }
+                asuntoEl.value = '';
+                mensajeEl.value = '';
+                if (window.RuanaUI) RuanaUI.toast('Tu mensaje fue enviado. ✅', 'success');
+                await this.fetchCentroComunicacionSnapshot();
+                this.soporteSelectedId = Number(data.conversacion_id || 0) || this.soporteSelectedId;
+                if (this.soporteSelectedId) await this.seleccionarConversacionSoporte(this.soporteSelectedId);
+                this.renderCentroComunicacion();
+            }
+
+            async responderConversacionSoporte() {
+                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
+                const convId = Number(this.soporteSelectedId || 0);
+                if (!codigo || !convId) return;
+                const replyEl = document.getElementById('ruana-help-reply');
+                if (!replyEl) return;
+                const mensaje = (replyEl.value || '').trim();
+                if (!mensaje) return;
+                const apiBase = getApiBase();
+                const r = await fetch(apiBase + '/api/aliados/' + encodeURIComponent(codigo) + '/centro-comunicacion/' + convId + '/mensajes', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
+                    body: JSON.stringify({ mensaje })
+                });
+                const data = await r.json().catch(() => ({}));
+                if (data.status !== 'success') {
+                    if (window.RuanaUI) RuanaUI.toast(data.message || 'No se pudo responder.', 'error');
+                    return;
+                }
+                replyEl.value = '';
+                if (window.RuanaUI) RuanaUI.toast('Respuesta enviada al equipo RUANA. 💬', 'success');
+                await this.seleccionarConversacionSoporte(convId);
             }
 
             /**
@@ -3899,6 +5140,7 @@
                             }
                         }
                         this.renderSolicitudes();
+                        await this.refreshAfterAction(['metricas', 'solicitudes', 'alertas']);
                     } else {
                         alert(data.error || data.message || 'Error al enviar');
                     }
@@ -4371,6 +5613,7 @@
                         await this.cargarPagosApoyoPendientes();
                         await this.cargarContactosPendientes();
                         await this.actualizarEstadoAlertas();
+                        await this.refreshAfterAction(['perfil', 'metricas', 'solicitudes', 'directorio', 'alertas', 'contactos']);
                         setTimeout(() => {
                             if (modal) modal.classList.remove('show');
                             this._contactoIdImpugnarApoyo = null;
@@ -4526,6 +5769,7 @@
                     const checkUrgente = document.getElementById('check-contacto-urgente');
                     if (checkUrgente) checkUrgente.checked = false;
                     await this.cargarContactosPendientes();
+                    await this.refreshAfterAction(['metricas', 'solicitudes', 'directorio', 'alertas', 'contactos']);
                     const contactoId = data.id;
                     // No marcar en-conversacion aquí: ocultaría la alerta para el profesional,
                     // que debe ver el nuevo contacto y poder abrir el chat. "Sigue en conversación"
@@ -4652,6 +5896,7 @@
                 await this.cargarContactosPendientes();
                 // Actualizar directorio: el profesional pasa de "Conversación activa" a "DISPONIBLE"
                 this.renderProfesionales();
+                await this.refreshAfterAction(['metricas', 'solicitudes', 'directorio', 'alertas', 'contactos']);
             }
 
             /** Polling: actualiza mensajes cada 5 s mientras el modal está abierto. */
@@ -4870,6 +6115,7 @@
                             if (avisoEl) avisoEl.style.display = 'none';
                             await this.cargarContactosPendientes();
                             await this.cargarPagosApoyoPendientes();
+                            await this.refreshAfterAction(['metricas', 'solicitudes', 'alertas', 'contactos']);
                             const modal = document.getElementById('modal-contacto-importe');
                             if (modal) modal.classList.remove('show');
                         } else if (msg.indexOf('Ya has declarado') !== -1) {
@@ -4902,6 +6148,7 @@
                     if (resumenEl) { resumenEl.style.display = 'none'; resumenEl.innerHTML = ''; }
 
                     await this.cargarContactosPendientes();
+                    await this.refreshAfterAction(['metricas', 'solicitudes', 'directorio', 'alertas', 'contactos']);
                 } catch (e) {
                     console.error('Error declarando importe:', e);
                     alert('Error de conexión al declarar el importe.');
@@ -4980,6 +6227,7 @@
                         if (subirPruebaEl) subirPruebaEl.style.display = 'none';
                         await this.cargarContactosPendientes();
                         await this.actualizarEstadoAlertas();
+                        await this.refreshAfterAction(['metricas', 'solicitudes', 'alertas', 'contactos']);
                     } else {
                         if (resultadoEl) resultadoEl.textContent = data.message || 'Error al subir.';
                     }
@@ -5025,6 +6273,7 @@
                     if (avisoEl) avisoEl.style.display = 'none';
                     this.contactoActual = null;
                     await this.cargarContactosPendientes();
+                    await this.refreshAfterAction(['metricas', 'solicitudes', 'alertas', 'contactos']);
                 } catch (e) {
                     if (modal) modal.classList.remove('show');
                     console.error('Error marcando no concretado:', e);
@@ -5053,6 +6302,7 @@
                         return;
                     }
                     await this.cargarContactosPendientes();
+                    await this.refreshAfterAction(['metricas', 'solicitudes', 'alertas', 'contactos']);
                 } catch (e) {
                     console.error('Error actualizando contacto en conversación:', e);
                     alert('Error de conexión al actualizar el contacto.');

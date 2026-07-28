@@ -3,6 +3,7 @@
   "capital": 1000,
   "risk_per_trade_pct": 1,
   "umbral_competencia": 15,
+  "score_reinicio_competencia": 50,
   "duracion_competencia_dias": 30,
   "purga_mensual_meses_sin_ganar": 3,
   "purga_score_bajo_umbral": 40,
