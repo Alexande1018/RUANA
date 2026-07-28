@@ -1635,6 +1635,13 @@
             line-height: 1.42;
             color: #173015;
         }
+        .ruana-tour-hint {
+            display: block;
+            margin-top: 8px;
+            font-size: 0.72rem;
+            color: rgba(23, 48, 21, 0.72);
+            letter-spacing: 0.01em;
+        }
         .ruana-tour-cloud-copy strong { color: #0f2b0b; }
         .ruana-tour-cloud-copy br + br { line-height: 1.15; }
         .ruana-tour-cloud-close {
@@ -2374,7 +2381,7 @@
             createLayer() {
                 this.cloud = document.createElement('div');
                 this.cloud.className = 'ruana-tour-cloud';
-                this.cloud.innerHTML = '<button type="button" class="ruana-tour-cloud-close" aria-label="Cerrar tour">✕</button><h3 class="ruana-tour-cloud-title"></h3><p class="ruana-tour-cloud-copy"></p>';
+                this.cloud.innerHTML = '<button type="button" class="ruana-tour-cloud-close" aria-label="Cerrar tour">✕</button><h3 class="ruana-tour-cloud-title"></h3><p class="ruana-tour-cloud-copy"></p><span class="ruana-tour-hint">Da clic para avanzar</span>';
                 document.body.appendChild(this.cloud);
 
                 this.arrow = document.createElement('div');
