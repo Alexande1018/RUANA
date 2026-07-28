@@ -1583,13 +1583,17 @@
         .ruana-tour-cloud {
             position: fixed;
             z-index: 1402;
-            width: min(420px, calc(100vw - 22px));
-            padding: 14px 16px;
-            border-radius: 18px;
-            border: 1px solid rgba(255,255,255,0.18);
-            background: linear-gradient(160deg, rgba(255,255,255,0.88), rgba(227,255,203,0.95));
+            width: min(430px, calc(100vw - 22px));
+            padding: 15px 16px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.32);
+            background:
+                radial-gradient(circle at 15% 0%, rgba(255,255,255,0.82), transparent 40%),
+                linear-gradient(155deg, rgba(255,255,255,0.84), rgba(216,255,190,0.92));
+            backdrop-filter: blur(12px) saturate(130%);
+            -webkit-backdrop-filter: blur(12px) saturate(130%);
             color: #10200f;
-            box-shadow: 0 10px 34px rgba(0,0,0,0.28);
+            box-shadow: 0 14px 44px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.6);
             transform: translateY(8px) scale(0.98);
             opacity: 0;
             transition: transform 180ms ease, opacity 180ms ease;
@@ -1608,16 +1612,16 @@
             z-index: -1;
         }
         .ruana-tour-cloud::before {
-            width: 42px;
-            height: 42px;
-            top: -14px;
-            left: 18px;
+            width: 46px;
+            height: 46px;
+            top: -16px;
+            left: 22px;
         }
         .ruana-tour-cloud::after {
-            width: 30px;
-            height: 30px;
-            top: -8px;
-            left: 56px;
+            width: 34px;
+            height: 34px;
+            top: -10px;
+            left: 64px;
         }
         .ruana-tour-cloud-title {
             margin: 0 0 6px;
@@ -1710,6 +1714,42 @@
                 right: 12px;
                 bottom: 12px;
             }
+        }
+
+        .ruana-tour-finale {
+            position: fixed;
+            inset: 0;
+            z-index: 1410;
+            display: grid;
+            place-items: center;
+            background: rgba(7, 12, 26, 0.34);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            animation: ruana-finale-fade 900ms ease forwards;
+            pointer-events: none;
+        }
+        .ruana-tour-finale-logo {
+            width: 120px;
+            height: 120px;
+            border-radius: 28px;
+            display: grid;
+            place-items: center;
+            background: linear-gradient(155deg, rgba(162,255,0,0.22), rgba(255,255,255,0.18));
+            border: 1px solid rgba(162,255,0,0.5);
+            box-shadow: 0 20px 44px rgba(0,0,0,0.35);
+            animation: ruana-finale-pop 900ms ease forwards;
+        }
+        .ruana-tour-finale svg { width: 78px; height: 78px; }
+        @keyframes ruana-finale-pop {
+            0% { transform: scale(0.7) rotate(-8deg); opacity: 0; }
+            45% { transform: scale(1.08) rotate(0deg); opacity: 1; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        @keyframes ruana-finale-fade {
+            0% { opacity: 0; }
+            20% { opacity: 1; }
+            85% { opacity: 1; }
+            100% { opacity: 0; }
         }
 
     </style>
@@ -2286,26 +2326,30 @@
                 this.activeTarget = null;
                 this.cloud = null;
                 this.arrow = null;
-                this.autoTimer = null;
-                this.stepListener = null;
+                                this.stepListener = null;
                 this.boundEsc = (event) => {
                     if (event.key === 'Escape') this.finish(false);
+                };
+                this.boundClickAdvance = (event) => {
+                    if (!this.cloud) return;
+                    if (event.target && event.target.closest && event.target.closest('.ruana-tour-cloud-close')) return;
+                    this.next();
                 };
             }
 
             buildSteps() {
                 return [
-                    { selector: '.perfil-block', title: '¡Bienvenido a RUANA!', copy: '<strong>Recomienda. Colabora. Gana confianza.</strong><br><br>Tu Score, medallas y etiquetas reflejan tu reputación. Cuanto mayor sea tu confianza, más oportunidades de negocio conseguirás.', placement: 'bottom', duration: 5200 },
-                    { selector: '#perfil-avatar', title: 'Tu foto o logo', copy: 'Aquí subes tu foto o el logo de tu negocio. Cuando te ven claro, confían más rápido en ti.', placement: 'right', duration: 4200 },
-                    { selector: '#detail-descripcion-wrap', title: 'Tu descripción sí importa', copy: 'Esta parte se puede editar y la verán otros aliados. Cuéntales en corto qué haces y en qué eres bueno.', placement: 'bottom', duration: 4700 },
-                    { selector: '#perfil-status', title: 'Tus etiquetas RUANA', copy: 'Esto es tu reputación en vivo: si cumples sube, si fallas baja. Así te ve la red.', placement: 'left', duration: 4200 },
-                    { selector: '.metricas-block', title: 'Tus métricas', copy: 'Aquí miras cómo vas en solicitudes, red y score. Es tu tablero para tomar mejores decisiones.', placement: 'bottom', duration: 4300 },
-                    { selector: '.directorio-panel', title: 'Dónde elegir profesionales', copy: 'En el directorio filtras por nombre, oficio o zona para encontrar rápido a la persona adecuada.', placement: 'top', duration: 4500 },
-                    { selector: '#solicitudes-entrantes-wrap', title: 'Solicitudes de otros aliados', copy: 'Aquí ayudas aceptando o recomendando a alguien que conozcas. Todo queda trazado dentro de RUANA.', placement: 'top', duration: 4700 },
-                    { selector: '#btn-invitar-aliado', title: 'Código para invitar aliados', copy: 'Desde este botón se genera el código para que otro profesional se registre en RUANA.', placement: 'bottom', duration: 4200 },
-                    { selector: '.crear-solicitud-zone', title: 'Tus solicitudes propias', copy: 'Aquí eliges el oficio y escribes qué necesitas. Lo mandas y tu grupo te responde.', placement: 'left', duration: 4600 },
-                    { selector: '#metrica-card-score', title: 'Score RUANA en simple', copy: 'Tu score sube cuando cumples y colaboras; baja con impagos, incumplimientos o contactos mal cerrados.<br><br><strong>Sube por 9 reglas:</strong> cierres reales, puntualidad, comunicación, importes coherentes, evidencias, respuesta rápida, feedback positivo, cumplimiento y colaboración.<br><br><strong>Baja por 9 reglas:</strong> contactos sin cerrar, impagos, datos falsos, incumplimientos, disputas repetidas, ausencias sin aviso, importes inconsistentes, mala calidad recurrente y romper reglas.', placement: 'bottom', duration: 9000 },
-                    { selector: '.ruana-brand', title: '¿Quieres más detalle?', copy: 'Para dominar todo, mira las reglas RUANA en la landing page. Te evita líos y te ayuda a crecer.', placement: 'bottom', duration: 4200, final: true }
+                    { selector: '.perfil-block', title: '¡Bienvenido a RUANA!', copy: '<strong>Recomienda. Colabora. Gana confianza.</strong><br><br>Tu Score, medallas y etiquetas reflejan tu reputación. Cuanto mayor sea tu confianza, más oportunidades de negocio conseguirás.', placement: 'bottom' }
+                    { selector: '#perfil-avatar', title: 'Tu foto o logo', copy: 'Aquí subes tu foto o el logo de tu negocio. Cuando te ven claro, confían más rápido en ti.', placement: 'right' }
+                    { selector: '#detail-descripcion-wrap', title: 'Tu descripción sí importa', copy: 'Esta parte se puede editar y la verán otros aliados. Cuéntales en corto qué haces y en qué eres bueno.', placement: 'bottom' }
+                    { selector: '#perfil-status', title: 'Tus etiquetas RUANA', copy: 'Esto es tu reputación en vivo: si cumples sube, si fallas baja. Así te ve la red.', placement: 'left' }
+                    { selector: '.metricas-block', title: 'Tus métricas', copy: 'Aquí miras cómo vas en solicitudes, red y score. Es tu tablero para tomar mejores decisiones.', placement: 'bottom' }
+                    { selector: '.directorio-panel', title: 'Dónde elegir profesionales', copy: 'En el directorio filtras por nombre, oficio o zona para encontrar rápido a la persona adecuada.', placement: 'top' }
+                    { selector: '#solicitudes-entrantes-wrap', title: 'Solicitudes de otros aliados', copy: 'Aquí ayudas aceptando o recomendando a alguien que conozcas. Todo queda trazado dentro de RUANA.', placement: 'top' }
+                    { selector: '#btn-invitar-aliado', title: 'Código para invitar aliados', copy: 'Desde este botón se genera el código para que otro profesional se registre en RUANA.', placement: 'bottom' }
+                    { selector: '.crear-solicitud-zone', title: 'Tus solicitudes propias', copy: 'Aquí eliges el oficio y escribes qué necesitas. Lo mandas y tu grupo te responde.', placement: 'left' }
+                    { selector: '#metrica-card-score', title: 'Score RUANA en simple', copy: 'Tu score sube cuando cumples y colaboras; baja con impagos, incumplimientos o contactos mal cerrados.<br><br><strong>Tu score sube por acciones como:</strong> cierres reales, puntualidad, comunicación, importes coherentes, evidencias, respuesta rápida, feedback positivo, cumplimiento y colaboración.<br><br><strong>Tu score bajará por acciones como:</strong> contactos sin cerrar, impagos, datos falsos, incumplimientos, disputas repetidas, ausencias sin aviso, importes inconsistentes, mala calidad recurrente y romper reglas.', placement: 'bottom' }
+                    { selector: '.ruana-brand', title: '¿Quieres más detalle?', copy: 'Para dominar todo, mira las reglas RUANA en la landing page. Te evita líos y te ayuda a crecer.', placement: 'bottom', final: true }
                 ];
             }
 
@@ -2323,6 +2367,7 @@
                 this.stepIndex = 0;
                 this.createLayer();
                 document.addEventListener('keydown', this.boundEsc);
+                document.addEventListener('click', this.boundClickAdvance, true);
                 this.renderStep();
             }
 
@@ -2337,15 +2382,8 @@
                 this.arrow.innerHTML = '<div class="ruana-tour-arrow-line"></div><span class="ruana-tour-arrow-dot"></span>';
                 document.body.appendChild(this.arrow);
 
-                this.cloud.querySelector('.ruana-tour-cloud-close').addEventListener('click', () => this.finish(false));
+                this.cloud.querySelector('.ruana-tour-cloud-close').addEventListener('click', (event) => { event.stopPropagation(); this.finish(false); });
                 requestAnimationFrame(() => this.cloud.classList.add('is-visible'));
-            }
-
-            clearStepListener() {
-                if (this.activeTarget && this.stepListener) {
-                    this.activeTarget.removeEventListener('click', this.stepListener);
-                }
-                this.stepListener = null;
             }
 
             renderStep() {
@@ -2354,16 +2392,12 @@
                 if (!step) return;
                 const target = document.querySelector(step.selector);
 
-                clearTimeout(this.autoTimer);
-                this.clearStepListener();
 
                 if (this.activeTarget) this.activeTarget.classList.remove('ruana-tour-target');
                 this.activeTarget = target;
                 if (target) {
                     target.classList.add('ruana-tour-target');
                     target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
-                    this.stepListener = () => this.next();
-                    target.addEventListener('click', this.stepListener, { once: true });
                 }
 
                 this.cloud.querySelector('.ruana-tour-cloud-title').textContent = step.title;
@@ -2372,7 +2406,6 @@
                 this.positionCloud(target, step.placement || 'bottom');
                 this.positionArrow(target);
 
-                this.autoTimer = setTimeout(() => this.next(), step.duration || 4800);
             }
 
             positionCloud(target, placement) {
@@ -2426,6 +2459,20 @@
                 line.style.width = `${Math.round(length)}px`;
             }
 
+            playFinale() {
+                const finale = document.createElement('div');
+                finale.className = 'ruana-tour-finale';
+                finale.innerHTML = '<div class="ruana-tour-finale-logo" aria-hidden="true">'
+                    + '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">'
+                    + '<g stroke="#A2FF00" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 24v7.5"/><path d="M32 31.5H18v7.5"/><path d="M32 31.5H46v7.5"/></g>'
+                    + '<rect x="22" y="8" width="20" height="20" rx="5.5" fill="#A2FF00"/>'
+                    + '<rect x="8" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/>'
+                    + '<rect x="36" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/>'
+                    + '</svg></div>';
+                document.body.appendChild(finale);
+                setTimeout(() => finale.remove(), 980);
+            }
+
             next() {
                 if (this.stepIndex >= this.steps.length - 1) {
                     this.finish(true);
@@ -2436,17 +2483,17 @@
             }
 
             finish(markComplete) {
-                clearTimeout(this.autoTimer);
-                this.clearStepListener();
                 if (markComplete) {
                     this.markSeen();
+                    this.playFinale();
                     if (window.RuanaUI && typeof window.RuanaUI.toast === 'function') {
-                        window.RuanaUI.toast('Listo, ya conoces lo clave de RUANA. Dale con todo 🙌', 'success', 3800);
+                        window.RuanaUI.toast('Listo, ya conoces lo clave de RUANA. Dale con todo 🙌', 'success', 3200);
                     }
                 }
                 if (this.activeTarget) this.activeTarget.classList.remove('ruana-tour-target');
                 this.activeTarget = null;
                 document.removeEventListener('keydown', this.boundEsc);
+                document.removeEventListener('click', this.boundClickAdvance, true);
                 if (this.cloud) {
                     const cloud = this.cloud;
                     this.cloud = null;
