@@ -2616,7 +2616,18 @@
             }
 
             shouldAutoStart() {
-                try { return localStorage.getItem(this.getStorageKey()) !== 'true'; } catch (_) { return true; }
+                try {
+                    const key = this.getStorageKey();
+                    if (localStorage.getItem(key) === 'true') return false;
+                    // Compatibilidad: si ya completó la versión anterior global, no reactivar.
+                    if (localStorage.getItem('ruana_onboarding_completed_v2') === 'true') {
+                        localStorage.setItem(key, 'true');
+                        return false;
+                    }
+                    return true;
+                } catch (_) {
+                    return true;
+                }
             }
 
             markSeen() {
