@@ -2683,6 +2683,22 @@
                 this.initOnboarding();
             }
 
+            initOnboarding() {
+                this.onboardingTour = new RuanaOnboardingTour(this);
+                const replayBtn = document.getElementById('btn-replay-onboarding');
+                if (replayBtn) {
+                    replayBtn.addEventListener('click', () => this.onboardingTour.start(true));
+                }
+                if (this.onboardingTour.shouldAutoStart()) {
+                    setTimeout(() => this.onboardingTour.start(), 450);
+                }
+                window.addEventListener('resize', () => {
+                    if (this.onboardingTour && this.onboardingTour.overlay) {
+                        this.onboardingTour.renderStep();
+                    }
+                });
+            }
+
             setPanelLoading(isLoading) {
                 document.body.classList.toggle('panel-loading', Boolean(isLoading));
                 const loadingEl = document.getElementById('panel-loading');
