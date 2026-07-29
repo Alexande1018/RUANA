@@ -1660,29 +1660,46 @@
         }
 
 
-        /* Onboarding premium RUANA (no invasivo) */
+        /* Onboarding premium RUANA (foco visual reforzado) */
+        body.ruana-tour-active::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            z-index: 1480;
+            background: radial-gradient(circle at center, rgba(4, 8, 18, 0.36), rgba(2, 4, 11, 0.5));
+            backdrop-filter: blur(1.5px);
+            -webkit-backdrop-filter: blur(1.5px);
+            pointer-events: none;
+        }
         .ruana-tour-cloud {
             position: fixed;
-            z-index: 1402;
-            width: min(430px, calc(100vw - 22px));
-            padding: 15px 16px;
+            z-index: 1510;
+            width: min(440px, calc(100vw - 20px));
+            padding: 16px 17px;
             border-radius: 20px;
-            border: 1px solid rgba(255,255,255,0.32);
+            border: 1px solid rgba(255,255,255,0.4);
             background:
-                radial-gradient(circle at 15% 0%, rgba(255,255,255,0.82), transparent 40%),
-                linear-gradient(155deg, rgba(255,255,255,0.84), rgba(216,255,190,0.92));
-            backdrop-filter: blur(12px) saturate(130%);
-            -webkit-backdrop-filter: blur(12px) saturate(130%);
+                radial-gradient(circle at 14% 0%, rgba(255,255,255,0.88), transparent 43%),
+                linear-gradient(155deg, rgba(255,255,255,0.9), rgba(223,255,202,0.95));
+            backdrop-filter: blur(13px) saturate(135%);
+            -webkit-backdrop-filter: blur(13px) saturate(135%);
             color: #10200f;
-            box-shadow: 0 14px 44px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.6);
-            transform: translateY(8px) scale(0.98);
+            box-shadow:
+                0 22px 58px rgba(0,0,0,0.42),
+                0 0 0 1px rgba(162,255,0,0.28),
+                0 0 24px rgba(162,255,0,0.24),
+                inset 0 1px 0 rgba(255,255,255,0.7);
+            transform: translateY(10px) scale(0.975);
             opacity: 0;
-            transition: transform 180ms ease, opacity 180ms ease;
+            transition: transform 210ms cubic-bezier(0.22, 1, 0.36, 1), opacity 210ms ease;
             pointer-events: none;
         }
         .ruana-tour-cloud.is-visible {
             opacity: 1;
             transform: translateY(0) scale(1);
+        }
+        .ruana-tour-cloud.is-step-entering {
+            animation: ruana-tour-cloud-focus 1450ms ease-out 1;
         }
         .ruana-tour-cloud::before,
         .ruana-tour-cloud::after {
@@ -1738,7 +1755,7 @@
         }
         .ruana-tour-arrow {
             position: fixed;
-            z-index: 1401;
+            z-index: 1505;
             pointer-events: none;
             transform-origin: 0 50%;
         }
@@ -1760,8 +1777,8 @@
         }
         .ruana-tour-target {
             position: relative;
-            z-index: 1400 !important;
-            box-shadow: 0 0 0 2px rgba(162,255,0,0.75), 0 0 0 6px rgba(162,255,0,0.12), 0 8px 24px rgba(0,0,0,0.28);
+            z-index: 1490 !important;
+            box-shadow: 0 0 0 2px rgba(162,255,0,0.78), 0 0 0 8px rgba(162,255,0,0.14), 0 10px 28px rgba(0,0,0,0.34);
             border-radius: 14px;
             animation: ruana-tour-pulse 1.8s ease-in-out infinite;
         }
@@ -1790,6 +1807,30 @@
         @keyframes ruana-tour-pulse {
             0%, 100% { box-shadow: 0 0 0 2px rgba(162,255,0,0.7), 0 0 0 6px rgba(162,255,0,0.1), 0 8px 24px rgba(0,0,0,0.28); }
             50% { box-shadow: 0 0 0 2px rgba(162,255,0,0.95), 0 0 0 10px rgba(162,255,0,0.22), 0 10px 28px rgba(0,0,0,0.36); }
+        }
+        @keyframes ruana-tour-cloud-focus {
+            0% {
+                transform: translateY(12px) scale(0.968);
+                box-shadow:
+                    0 10px 28px rgba(0,0,0,0.28),
+                    0 0 0 1px rgba(162,255,0,0.14),
+                    0 0 0 rgba(162,255,0,0);
+            }
+            32% {
+                transform: translateY(0) scale(1.015);
+                box-shadow:
+                    0 24px 62px rgba(0,0,0,0.44),
+                    0 0 0 1px rgba(162,255,0,0.34),
+                    0 0 30px rgba(162,255,0,0.34);
+            }
+            100% {
+                transform: translateY(0) scale(1);
+                box-shadow:
+                    0 22px 58px rgba(0,0,0,0.42),
+                    0 0 0 1px rgba(162,255,0,0.28),
+                    0 0 24px rgba(162,255,0,0.24),
+                    inset 0 1px 0 rgba(255,255,255,0.7);
+            }
         }
         @media (max-width: 720px) {
             .ruana-tour-cloud {
@@ -2639,6 +2680,7 @@
                 if (this.cloud) return;
                 // Autoarranque solo una vez: se marca al abrirse, aunque el usuario lo cierre a mitad.
                 if (!force) this.markSeen();
+                document.body.classList.add('ruana-tour-active');
                 this.stepIndex = 0;
                 this.createLayer();
                 document.addEventListener('keydown', this.boundEsc);
@@ -2677,6 +2719,9 @@
 
                 this.cloud.querySelector('.ruana-tour-cloud-title').textContent = step.title;
                 this.cloud.querySelector('.ruana-tour-cloud-copy').innerHTML = step.copy || '';
+                this.cloud.classList.remove('is-step-entering');
+                void this.cloud.offsetWidth;
+                this.cloud.classList.add('is-step-entering');
 
                 this.positionCloud(target, step.placement || 'bottom');
                 this.positionArrow(target);
@@ -2780,6 +2825,7 @@
                     this.arrow = null;
                     arrow.remove();
                 }
+                document.body.classList.remove('ruana-tour-active');
             }
         }
 
