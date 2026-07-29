@@ -325,14 +325,18 @@ class RAUANADashboard {
                     </div>
                 </div>
 
-                <div class="score-container">
+                ${(Number(aliado.score) || 0) >= 100 ? `<div class="score-container">
                     <div class="score-label">Score RUANA</div>
                     <div class="score-value">${aliado.score}</div>
                     <div class="score-bar">
                         <div class="score-fill" style="width: ${scorePct}%"></div>
                     </div>
                     <div class="score-text">${aliado.score}/${this.SCORE_MAX}</div>
-                </div>
+                </div>` : `<div class="score-container">
+                    <div class="score-label">Score RUANA</div>
+                    <div class="score-value" style="color:#6b7280">—</div>
+                    <div class="score-text" style="color:#6b7280">Visible a partir de 100 pts</div>
+                </div>`}
             </div>
         `;
     }
@@ -433,7 +437,7 @@ class RAUANADashboard {
                     <h3 style="color: #fca5a5; margin-bottom: 15px;">⚡ Suplente Activo</h3>
                     <p><strong>Nombre:</strong> ${this.escapeHtml(aliado.suplente.nombre)}</p>
                     <p><strong>Referencia:</strong> ${this.escapeHtml(aliado.suplente.referencia)}</p>
-                    <p><strong>Score:</strong> ${aliado.suplente.score}/${this.SCORE_MAX}</p>
+                    <p><strong>Score:</strong> ${(Number(aliado.suplente.score) || 0) >= 100 ? `${aliado.suplente.score}/${this.SCORE_MAX}` : 'Visible a partir de 100 pts'}</p>
                     <p><strong>Estado:</strong> ${this.getEstadoLabel(aliado.suplente.estado)}</p>
                     <p><strong>Motivo:</strong> ${this.escapeHtml(aliado.suplente.razon)}</p>
                 </div>
@@ -475,13 +479,16 @@ class RAUANADashboard {
                 <p style="color: #e0e0e0;">${this.escapeHtml(aliado.descripcion)}</p>
             </div>
 
-            <div style="margin-bottom: 25px;">
+            ${(Number(aliado.score) || 0) >= 100 ? `<div style="margin-bottom: 25px;">
                 <p style="color: #999; font-size: 0.85rem; text-transform: uppercase; margin-bottom: 8px;">Score RUANA</p>
                 <div style="font-size: 2.5rem; font-weight: 700; color: #22c55e; margin-bottom: 12px;">${aliado.score}/${this.SCORE_MAX}</div>
                 <div style="background: rgba(255,255,255,0.1); height: 8px; border-radius: 4px; overflow: hidden;">
                     <div style="background: linear-gradient(90deg, #22c55e 0%, #86efac 100%); height: 100%; width: ${Math.max(0, Math.min(100, (Number(aliado.score) || 0) / this.SCORE_MAX * 100))}%; border-radius: 4px;"></div>
                 </div>
-            </div>
+            </div>` : `<div style="margin-bottom: 25px;">
+                <p style="color: #999; font-size: 0.85rem; text-transform: uppercase; margin-bottom: 8px;">Score RUANA</p>
+                <div style="font-size: 1.5rem; font-weight: 600; color: #6b7280; margin-bottom: 12px;">Visible a partir de 100 pts</div>
+            </div>`}
 
             <div style="margin-bottom: 25px;">
                 <p style="color: #999; font-size: 0.85rem; text-transform: uppercase; margin-bottom: 8px;">Contacto</p>

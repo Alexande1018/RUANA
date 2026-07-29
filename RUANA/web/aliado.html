@@ -2669,7 +2669,7 @@
                     { selector: '#solicitudes-entrantes-wrap', title: 'Solicitudes de otros aliados', copy: 'Aquí ayudas aceptando o recomendando a alguien que conozcas. Todo queda trazado dentro de RUANA.', placement: 'top' },
                     { selector: '#btn-invitar-aliado', title: 'Código para invitar aliados', copy: 'Desde este botón se genera el código para que otro profesional se registre en RUANA.', placement: 'bottom' },
                     { selector: '.crear-solicitud-zone', title: 'Tus solicitudes propias', copy: 'Aquí eliges el oficio y escribes qué necesitas. Lo mandas y tu grupo te responde.', placement: 'left' },
-                    { selector: '#metrica-card-score', title: 'Score RUANA en simple', copy: 'Tu score sube cuando cumples y colaboras; baja con impagos, incumplimientos o contactos mal cerrados.<br><br><strong>Tu score sube por acciones como:</strong> cierres reales, puntualidad, comunicación, importes coherentes, evidencias, respuesta rápida, feedback positivo, cumplimiento y colaboración.<br><br><strong>Tu score bajará por acciones como:</strong> contactos sin cerrar, impagos, datos falsos, incumplimientos, disputas repetidas, ausencias sin aviso, importes inconsistentes, mala calidad recurrente y romper reglas.', placement: 'bottom' },
+                    { selector: '#metrica-card-score', title: 'Score RUANA en simple', copy: 'Tu score sube cuando cumples y colaboras; baja con impagos, incumplimientos o contactos mal cerrados.<br><br><strong>Tu score sube por acciones como:</strong> cierres reales, puntualidad, comunicación, importes coherentes, evidencias, respuesta rápida, feedback positivo, cumplimiento y colaboración.<br><br><strong>Tu score bajará por acciones como:</strong> contactos sin cerrar, impagos, datos falsos, incumplimientos, disputas repetidas, ausencias sin aviso, importes inconsistentes, mala calidad recurrente y romper reglas.<br><br><strong>A partir de los 100 puntos, tu Score RUANA será visible para los demás aliados, aumentando tu credibilidad y facilitando que otros confíen en ti para nuevas oportunidades.</strong>', placement: 'bottom' },
                     { selector: '.ruana-brand', title: '¡Empieza a construir tu reputación!', copy: 'Visita la Landing Page para conocer las reglas de RUANA. Cuanto mejor conozcas la comunidad, más confianza generarás y más oportunidades recibirás.', placement: 'bottom', final: true }
                 ];
             }
@@ -4733,7 +4733,9 @@
                         </div>
                         <div class="profesional-score-row">
                             <span class="profesional-etiqueta ${scoreMeta.status}">${this.escapeHtml(scoreMeta.label)}</span>
-                            <span class="profesional-score ${scoreMeta.status}">Score <strong>${this.escapeHtml(String(scoreMeta.score))}</strong></span>
+                            ${scoreMeta.score >= 100
+                                ? `<span class="profesional-score ${scoreMeta.status}">Score <strong>${this.escapeHtml(String(scoreMeta.score))}</strong></span>`
+                                : ''}
                         </div>
                         ${descripcionServicio ? `<div class="profesional-descripcion">${this.escapeHtml(descripcionServicio)}</div>` : ''}
                         <div class="profesional-acciones">
