@@ -139,8 +139,8 @@ class MotorEvaluacion:
         else:
             razones.append(f"Meses sin trabajo {meses_sin_trabajo} > 6")
         
-        # Calcular score
-        score = (filtros_ok / 3.0) * 100.0
+        # Calcular score normalizado sobre 500
+        score = (filtros_ok / 3.0) * 500.0
         
         # Asignar estado e intención según filtros OK
         if filtros_ok == 3:

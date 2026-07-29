@@ -2619,7 +2619,7 @@ class DBManager:
                 return {'status': 'error', 'message': str(e)}
     
     # ===============================================
-    # SCORE RUANA (0-100, estado derivado, límites ±10/día)
+    # SCORE RUANA (0-500, estado derivado, límites ±10/día)
     # ===============================================
     
     @staticmethod
@@ -2651,7 +2651,7 @@ class DBManager:
     
     def aplicar_cambio_score(self, codigo_aliado: str, delta: int, motivo: str = "") -> Dict[str, Any]:
         """
-        Aplica un cambio de score respetando: score en [0, 100], máximo ±10 por día.
+        Aplica un cambio de score respetando: score en [0, 500], máximo ±10 por día.
         Inserta en score_movimientos y actualiza aliados.score.
         """
         if not codigo_aliado or delta == 0:
@@ -2674,8 +2674,8 @@ class DBManager:
                 else:
                     piso_dia = -10 - delta_hoy
                     delta_aplicar = max(delta, min(0, piso_dia))
-                # Limitar score final a [0, 100]
-                score_nuevo = max(0, min(100, score_actual + delta_aplicar))
+                # Limitar score final a [0, 500]
+                score_nuevo = max(0, min(500, score_actual + delta_aplicar))
                 delta_real = score_nuevo - score_actual
                 if delta_real == 0:
                     conn.close()
@@ -9732,7 +9732,7 @@ class DBManager:
         Args:
             codigo_aliado: Código del aliado
             estado: Estado (verde, amarillo, rojo)
-            score: Score de 0-100
+            score: Score de 0-500
             intencion: Intención (mantener, vigilar, evaluar_suplencia)
             tasa_respuesta: Métrica de respuesta (0-1)
             tasa_confirmacion: Métrica de confirmación (0-1)
