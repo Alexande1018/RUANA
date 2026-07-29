@@ -5,6 +5,7 @@
 
 class RAUANADashboard {
     constructor() {
+        this.SCORE_MAX = 500;
         this.aliados = [];
         this.filteredAliados = [];
         this.zonas = [];
@@ -295,6 +296,7 @@ class RAUANADashboard {
             const estadoClass = `estado-${estado}`;
             const estadoLabel = this.getEstadoLabel(estado);
 
+        const scorePct = Math.max(0, Math.min(100, (Number(aliado.score) || 0) / this.SCORE_MAX * 100));
         return `
             <div class="card ${estadoClass}" data-id="${aliado.id}">
                 <div class="card-header">
@@ -327,9 +329,9 @@ class RAUANADashboard {
                     <div class="score-label">Score RUANA</div>
                     <div class="score-value">${aliado.score}</div>
                     <div class="score-bar">
-                        <div class="score-fill" style="width: ${aliado.score}%"></div>
+                        <div class="score-fill" style="width: ${scorePct}%"></div>
                     </div>
-                    <div class="score-text">${aliado.score}/100</div>
+                    <div class="score-text">${aliado.score}/${this.SCORE_MAX}</div>
                 </div>
             </div>
         `;
@@ -353,9 +355,9 @@ class RAUANADashboard {
                         <div class="score-label">Score RUANA</div>
                         <div class="score-value">${aliado.score}</div>
                         <div class="score-bar">
-                            <div class="score-fill" style="width: ${aliado.score}%"></div>
+                            <div class="score-fill" style="width: ${Math.max(0, Math.min(100, (Number(aliado.score) || 0) / this.SCORE_MAX * 100))}%"></div>
                         </div>
-                        <div class="score-text">${aliado.score}/100</div>
+                        <div class="score-text">${aliado.score}/${this.SCORE_MAX}</div>
                     </div>
                 </div>
 
@@ -384,9 +386,9 @@ class RAUANADashboard {
                         <div class="score-label">Score RUANA</div>
                         <div class="score-value">${suplente.score}</div>
                         <div class="score-bar">
-                            <div class="score-fill" style="width: ${suplente.score}%"></div>
+                            <div class="score-fill" style="width: ${Math.max(0, Math.min(100, (Number(suplente.score) || 0) / this.SCORE_MAX * 100))}%"></div>
                         </div>
-                        <div class="score-text">${suplente.score}/100</div>
+                        <div class="score-text">${suplente.score}/${this.SCORE_MAX}</div>
                     </div>
                 </div>
             </div>
@@ -431,7 +433,7 @@ class RAUANADashboard {
                     <h3 style="color: #fca5a5; margin-bottom: 15px;">⚡ Suplente Activo</h3>
                     <p><strong>Nombre:</strong> ${this.escapeHtml(aliado.suplente.nombre)}</p>
                     <p><strong>Referencia:</strong> ${this.escapeHtml(aliado.suplente.referencia)}</p>
-                    <p><strong>Score:</strong> ${aliado.suplente.score}/100</p>
+                    <p><strong>Score:</strong> ${aliado.suplente.score}/${this.SCORE_MAX}</p>
                     <p><strong>Estado:</strong> ${this.getEstadoLabel(aliado.suplente.estado)}</p>
                     <p><strong>Motivo:</strong> ${this.escapeHtml(aliado.suplente.razon)}</p>
                 </div>
@@ -475,9 +477,9 @@ class RAUANADashboard {
 
             <div style="margin-bottom: 25px;">
                 <p style="color: #999; font-size: 0.85rem; text-transform: uppercase; margin-bottom: 8px;">Score RUANA</p>
-                <div style="font-size: 2.5rem; font-weight: 700; color: #22c55e; margin-bottom: 12px;">${aliado.score}/100</div>
+                <div style="font-size: 2.5rem; font-weight: 700; color: #22c55e; margin-bottom: 12px;">${aliado.score}/${this.SCORE_MAX}</div>
                 <div style="background: rgba(255,255,255,0.1); height: 8px; border-radius: 4px; overflow: hidden;">
-                    <div style="background: linear-gradient(90deg, #22c55e 0%, #86efac 100%); height: 100%; width: ${aliado.score}%; border-radius: 4px;"></div>
+                    <div style="background: linear-gradient(90deg, #22c55e 0%, #86efac 100%); height: 100%; width: ${Math.max(0, Math.min(100, (Number(aliado.score) || 0) / this.SCORE_MAX * 100))}%; border-radius: 4px;"></div>
                 </div>
             </div>
 
