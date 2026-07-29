@@ -473,7 +473,7 @@ def get_aliado_datos():
             contar_contestadas = getattr(db, 'contar_solicitudes_enviadas_contestadas', lambda c: 0)
             solicitudes_enviadas_contestadas = contar_contestadas(codigo)
             referidos_count = db.contar_referidos_por_codigo(codigo)
-            # Estado RUANA siempre calculado desde el score (DESTACADO/ESTABLE/EN RIESGO/COMPETENCIA)
+            # Estado RUANA siempre calculado desde el score (ÉLITE/DESTACADO/ESTABLE/EN RIESGO/COMPETENCIA)
             score = aliado.get('score')
             if score is None:
                 score = 0

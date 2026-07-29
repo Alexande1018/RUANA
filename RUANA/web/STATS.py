@@ -50,7 +50,7 @@ VISUAL & DISEÑO
     ✅ Sistema de estados visual (🟢 🟡 🔴)
     ✅ Animaciones suaves (hover, transiciones)
     ✅ Responsive design (mobile, tablet, desktop)
-    ✅ Score RUANA prominente (0-100)
+    ✅ Score RUANA prominente (0-500)
     ✅ Minimalismo B2B (sin red social)
     ✅ Tipografía moderna (Inter, sans-serif)
 

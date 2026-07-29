@@ -462,6 +462,12 @@ body:not(.panel-loading) {
 }
 
 /* Anillo fino del avatar según color de la etiqueta RUANA */
+.perfil-avatar[data-etiqueta="elite"],
+.profesional-avatar[data-etiqueta="elite"] {
+    border-color: rgba(96, 165, 250, 0.9);
+    box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.4), 0 0 12px rgba(59, 130, 246, 0.3);
+}
+
 .perfil-avatar[data-etiqueta="destacado"],
 .profesional-avatar[data-etiqueta="destacado"] {
     border-color: rgba(255, 215, 0, 0.85);
