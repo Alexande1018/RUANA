@@ -1719,9 +1719,7 @@
             position: fixed;
             inset: 0;
             z-index: 1480;
-            background: radial-gradient(circle at center, rgba(4, 8, 18, 0.36), rgba(2, 4, 11, 0.5));
-            backdrop-filter: blur(1.5px);
-            -webkit-backdrop-filter: blur(1.5px);
+            background: radial-gradient(circle at center, rgba(4, 8, 18, 0.24), rgba(2, 4, 11, 0.38));
             pointer-events: none;
         }
         .ruana-tour-cloud {
@@ -1834,6 +1832,9 @@
             box-shadow: 0 0 0 2px rgba(162,255,0,0.78), 0 0 0 8px rgba(162,255,0,0.14), 0 10px 28px rgba(0,0,0,0.34);
             border-radius: 14px;
             animation: ruana-tour-pulse 1.8s ease-in-out infinite;
+            opacity: 1 !important;
+            filter: none !important;
+            isolation: isolate;
         }
         .ruana-tour-replay {
             position: fixed;
@@ -2790,27 +2791,54 @@
             positionCloud(target, placement) {
                 if (!this.cloud) return;
                 const margin = 14;
+                const viewportPadding = 10;
                 const vw = window.innerWidth;
                 const vh = window.innerHeight;
                 const r = target ? target.getBoundingClientRect() : { top: vh * 0.4, left: vw * 0.5, width: 0, height: 0, right: vw * 0.5, bottom: vh * 0.5 };
                 const c = this.cloud.getBoundingClientRect();
-                let top = r.bottom + margin;
-                let left = r.left + (r.width / 2) - (c.width / 2);
 
-                if (placement === 'top') {
-                    top = r.top - c.height - margin;
-                } else if (placement === 'left') {
-                    top = r.top + (r.height / 2) - (c.height / 2);
-                    left = r.left - c.width - margin;
-                } else if (placement === 'right') {
-                    top = r.top + (r.height / 2) - (c.height / 2);
-                    left = r.right + margin;
-                }
+                const calcPos = (place) => {
+                    let top = r.bottom + margin;
+                    let left = r.left + (r.width / 2) - (c.width / 2);
+                    if (place === 'top') {
+                        top = r.top - c.height - margin;
+                    } else if (place === 'left') {
+                        top = r.top + (r.height / 2) - (c.height / 2);
+                        left = r.left - c.width - margin;
+                    } else if (place === 'right') {
+                        top = r.top + (r.height / 2) - (c.height / 2);
+                        left = r.right + margin;
+                    }
+                    return { top, left };
+                };
+                const scorePos = (pos) => {
+                    const overflowTop = Math.max(0, viewportPadding - pos.top);
+                    const overflowBottom = Math.max(0, (pos.top + c.height + viewportPadding) - vh);
+                    const overflowLeft = Math.max(0, viewportPadding - pos.left);
+                    const overflowRight = Math.max(0, (pos.left + c.width + viewportPadding) - vw);
+                    return overflowTop + overflowBottom + overflowLeft + overflowRight;
+                };
 
-                top = Math.max(10, Math.min(top, vh - c.height - 10));
-                left = Math.max(10, Math.min(left, vw - c.width - 10));
+                const options = [placement, 'bottom', 'top', 'right', 'left']
+                    .filter((v, idx, arr) => arr.indexOf(v) === idx);
+                let bestPlacement = options[0];
+                let bestPos = calcPos(bestPlacement);
+                let bestScore = scorePos(bestPos);
+                options.slice(1).forEach((opt) => {
+                    const candidate = calcPos(opt);
+                    const score = scorePos(candidate);
+                    if (score < bestScore) {
+                        bestScore = score;
+                        bestPos = candidate;
+                        bestPlacement = opt;
+                    }
+                });
+
+                const top = Math.max(viewportPadding, Math.min(bestPos.top, vh - c.height - viewportPadding));
+                const left = Math.max(viewportPadding, Math.min(bestPos.left, vw - c.width - viewportPadding));
                 this.cloud.style.top = `${Math.round(top)}px`;
                 this.cloud.style.left = `${Math.round(left)}px`;
+                this.cloud.dataset.placement = bestPlacement;
             }
 
             positionArrow(target) {
