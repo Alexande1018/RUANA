@@ -204,7 +204,7 @@ def actualizar_desde_feedback(self, aliado_id: str, feedback: dict):
     
     if 'score_ajuste' in feedback:
         original = aliado.get('score_final', 50)
-        nuevo = max(0, min(100, original + feedback['score_ajuste']))
+        nuevo = max(0, min(500, original + feedback['score_ajuste']))
         aliado['score_final'] = nuevo
     
     if 'nuevo_estado' in feedback:
@@ -240,7 +240,7 @@ estado_aliados.json
       "referencia": "CM-001",
       "oficio": "Carpintería",
       "zona": "Centro",
-      "score": 92,                          # 0-100, resultado evaluación
+      "score": 92,                          # 0-500, resultado evaluación
       "estado": "recomendado",              # recomendado|observacion|riesgo
       "descripcion": "Excelente desempeño",  # Resumen evaluación
       "especialidades": "Muebles, restauración",
@@ -277,7 +277,7 @@ zona (str)
   - Usado para filtros
   - Ejemplos: Centro, Norte, Sur, Este, Occidente
 
-score (int, 0-100)
+score (int, 0-500)
   - Métrica principal de evaluación
   - Resultado del motor_evaluacion
   - Usado para ordenamiento
@@ -285,7 +285,7 @@ score (int, 0-100)
   - Determina color parcialmente (junto con estado)
 
 estado (str)
-  - "recomendado": 80-100 puntos, confío
+  - "recomendado": 200-500 puntos, confío
   - "observacion": 60-79 puntos, vigilo
   - "riesgo": 0-59 puntos, cuidado
 
@@ -346,7 +346,7 @@ def test_export_to_dashboard():
         assert 'nombre' in aliado
         assert 'score' in aliado
         assert 'estado' in aliado
-        assert 0 <= aliado['score'] <= 100
+        assert 0 <= aliado['score'] <= 500
         assert aliado['estado'] in ['recomendado', 'observacion', 'riesgo']
 
 def test_guardar_para_dashboard():

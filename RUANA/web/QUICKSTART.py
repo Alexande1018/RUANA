@@ -69,7 +69,7 @@ def print_first_run():
 2. Abre en navegador: http://localhost:5000
 3. Ves una "mesa de aliados" con tarjetas
 4. Cada tarjeta es un aliado evaluado
-5. Score RUANA: 0-100, prominente
+5. Score RUANA: 0-500, prominente
 6. Colores = estado:
    🟢 Verde  = Recomendado
    🟡 Amarillo = En Observación  

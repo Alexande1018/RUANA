@@ -2626,13 +2626,15 @@ class DBManager:
     def score_a_estado(score: Any) -> str:
         """
         Calcula el estado RUANA a partir del score (siempre derivado, sin almacenar).
-        DESTACADO 85-100, ESTABLE 50-84, EN RIESGO 15-49, COMPETENCIA 0-14.
+        ÉLITE 350-500, DESTACADO 200-349, ESTABLE 50-199, EN RIESGO 15-49, COMPETENCIA 0-14.
         """
         try:
             s = int(score) if score is not None else 0
         except (TypeError, ValueError):
             s = 0
-        if s >= 85:
+        if s >= 350:
+            return 'ÉLITE'
+        if s >= 200:
             return 'DESTACADO'
         if s >= 50:
             return 'ESTABLE'

@@ -159,6 +159,26 @@
             color: #ef4444;
         }
 
+        /* ÉLITE: azul diamante brillante, máximo nivel */
+        .perfil-status[data-status="elite"] {
+            background: linear-gradient(135deg, rgba(30, 64, 175, 0.45) 0%, rgba(59, 130, 246, 0.55) 40%, rgba(147, 197, 253, 0.45) 100%);
+            color: #93c5fd;
+            border: 1px solid rgba(96, 165, 250, 0.75);
+            box-shadow:
+                0 0 16px rgba(59, 130, 246, 0.55),
+                0 0 32px rgba(30, 64, 175, 0.35),
+                0 0 48px rgba(147, 197, 253, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, 0.4);
+            text-shadow: 0 0 10px rgba(96, 165, 250, 0.8), 0 0 20px rgba(59, 130, 246, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            animation: elite-glow 3s ease-in-out infinite;
+        }
+        @keyframes elite-glow {
+            0%, 100% { box-shadow: 0 0 16px rgba(59, 130, 246, 0.55), 0 0 32px rgba(30, 64, 175, 0.35), 0 0 48px rgba(147, 197, 253, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.4); }
+            50% { box-shadow: 0 0 24px rgba(59, 130, 246, 0.7), 0 0 48px rgba(30, 64, 175, 0.5), 0 0 64px rgba(147, 197, 253, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.5); }
+        }
+
         /* DESTACADO: oro brillante, sobresaliente */
         .perfil-status[data-status="destacado"] {
             background: linear-gradient(135deg, rgba(255, 215, 0, 0.35) 0%, rgba(218, 165, 32, 0.45) 45%, rgba(255, 236, 150, 0.4) 100%);
@@ -472,6 +492,15 @@
         }
 
         /* Score RUANA: color del número según etiqueta */
+        .metrica-card.score-elite .metrica-numero {
+            color: #60a5fa;
+            background: linear-gradient(180deg, #93c5fd 0%, #3b82f6 40%, #1e40af 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.7));
+            font-weight: 900;
+        }
         .metrica-card.score-destacado .metrica-numero {
             color: #ffd700;
             background: linear-gradient(180deg, #fff4b0 0%, #ffd700 40%, #daa520 100%);
@@ -2634,7 +2663,7 @@
                     { selector: '.perfil-block', title: '¡Bienvenido a RUANA!', copy: '<strong>Recomienda. Colabora. Gana confianza.</strong><br><br>Tu Score, medallas y etiquetas reflejan tu reputación. Cuanto mayor sea tu confianza, más oportunidades de negocio conseguirás.', placement: 'bottom' },
                     { selector: '#perfil-avatar', title: 'Tu foto o logo', copy: 'Aquí subes tu foto o el logo de tu negocio. Cuando te ven claro, confían más rápido en ti.', placement: 'right' },
                     { selector: '#detail-descripcion-wrap', title: 'Tu descripción sí importa', copy: 'Esta parte se puede editar y la verán otros aliados. Cuéntales en corto qué haces y en qué eres bueno.', placement: 'bottom' },
-                    { selector: '#perfil-status', title: 'Tus etiquetas RUANA', copy: 'Esto es tu reputación en vivo: si cumples sube, si fallas baja. Así te ve la red.', placement: 'left' },
+                    { selector: '#perfil-status', title: 'Tus etiquetas RUANA', copy: 'Tu etiqueta refleja tu reputación en vivo. Hay 5 niveles:<br><br><span style="color:#ef4444;font-weight:700">● COMPETENCIA</span> (0–14) — Riesgo de suplencia<br><span style="color:#eab308;font-weight:700">● EN RIESGO</span> (15–49) — Atención necesaria<br><span style="color:#22c55e;font-weight:700">● ESTABLE</span> (50–199) — Buen camino<br><span style="color:#ffd700;font-weight:700">● DESTACADO</span> (200–349) — Sobresaliente<br><span style="color:#60a5fa;font-weight:800">◆ ÉLITE</span> (350–500) — Máximo nivel<br><br>Cumple, colabora y apunta a lo más alto.', placement: 'left' },
                     { selector: '.metricas-block', title: 'Tus métricas', copy: 'Aquí miras cómo vas en solicitudes, red y score. Es tu tablero para tomar mejores decisiones.', placement: 'bottom' },
                     { selector: '.directorio-panel', title: 'Dónde elegir profesionales', copy: 'En el directorio filtras por nombre, oficio o zona para encontrar rápido a la persona adecuada.', placement: 'top' },
                     { selector: '#solicitudes-entrantes-wrap', title: 'Solicitudes de otros aliados', copy: 'Aquí ayudas aceptando o recomendando a alguien que conozcas. Todo queda trazado dentro de RUANA.', placement: 'top' },
@@ -3303,6 +3332,7 @@
             _mapEtiquetaAvatarStatus(status) {
                 const key = (status || '').toString().trim().toLowerCase();
                 const map = {
+                    elite: 'elite',
                     destacado: 'destacado',
                     estable: 'estable',
                     en_riesgo: 'en_riesgo',
@@ -3488,12 +3518,14 @@
                 }
                 document.getElementById('detail-fecha').textContent = desdeTexto;
 
-                // Score RUANA: estado derivado del score (DESTACADO / ESTABLE / EN RIESGO / COMPETENCIA)
+                // Score RUANA: estado derivado del score (ÉLITE / DESTACADO / ESTABLE / EN RIESGO / COMPETENCIA)
                 const statusEl = document.getElementById('perfil-status');
                 const estadoRuana = (aliadoData.estado_ruana || '').trim().toUpperCase();
                 const estadoMap = {
+                    'ÉLITE': { status: 'elite', label: 'Élite' },
+                    'ELITE': { status: 'elite', label: 'Élite' },
                     'DESTACADO': { status: 'destacado', label: 'Destacado' },
-                    'PRIORITARIO': { status: 'destacado', label: 'Destacado' }, // alias legado
+                    'PRIORITARIO': { status: 'destacado', label: 'Destacado' },
                     'ESTABLE': { status: 'estable', label: 'Estable' },
                     'EN RIESGO': { status: 'en_riesgo', label: 'En riesgo' },
                     'COMPETENCIA': { status: 'competencia', label: 'Competencia' },
@@ -3670,11 +3702,12 @@
                     if (el) el.textContent = value;
                 });
 
-                // Color del Score RUANA por etiqueta (DESTACADO ≥85, ESTABLE ≥50, EN RIESGO ≥15, COMPETENCIA <15)
+                // Color del Score RUANA por etiqueta (ÉLITE ≥350, DESTACADO ≥200, ESTABLE ≥50, EN RIESGO ≥15, COMPETENCIA <15)
                 const cardScore = document.getElementById('metrica-card-score');
                 if (cardScore) {
-                    cardScore.classList.remove('score-destacado', 'score-prioritario', 'score-estable', 'score-riesgo', 'score-competencia');
-                    if (score >= 85) cardScore.classList.add('score-destacado');
+                    cardScore.classList.remove('score-elite', 'score-destacado', 'score-prioritario', 'score-estable', 'score-riesgo', 'score-competencia');
+                    if (score >= 350) cardScore.classList.add('score-elite');
+                    else if (score >= 200) cardScore.classList.add('score-destacado');
                     else if (score >= 50) cardScore.classList.add('score-estable');
                     else if (score >= 15) cardScore.classList.add('score-riesgo');
                     else cardScore.classList.add('score-competencia');
@@ -4597,7 +4630,7 @@
 
             /**
              * Meta de etiqueta/score RUANA para tarjetas del directorio.
-             * Bandas: DESTACADO ≥85, ESTABLE ≥50, EN RIESGO ≥15, COMPETENCIA <15.
+             * Bandas: ÉLITE ≥350, DESTACADO ≥200, ESTABLE ≥50, EN RIESGO ≥15, COMPETENCIA <15.
              */
             _scoreEtiquetaMeta(score, estadoRuana) {
                 let s = 0;
@@ -4608,6 +4641,8 @@
                     s = 0;
                 }
                 const map = {
+                    'ÉLITE': { status: 'elite', label: 'Élite' },
+                    'ELITE': { status: 'elite', label: 'Élite' },
                     'DESTACADO': { status: 'destacado', label: 'Destacado' },
                     'PRIORITARIO': { status: 'destacado', label: 'Destacado' },
                     'ESTABLE': { status: 'estable', label: 'Estable' },
@@ -4618,7 +4653,8 @@
                 if (map[key]) {
                     return { score: s, status: map[key].status, label: map[key].label };
                 }
-                if (s >= 85) return { score: s, status: 'destacado', label: 'Destacado' };
+                if (s >= 350) return { score: s, status: 'elite', label: 'Élite' };
+                if (s >= 200) return { score: s, status: 'destacado', label: 'Destacado' };
                 if (s >= 50) return { score: s, status: 'estable', label: 'Estable' };
                 if (s >= 15) return { score: s, status: 'en_riesgo', label: 'En riesgo' };
                 return { score: s, status: 'competencia', label: 'Competencia' };

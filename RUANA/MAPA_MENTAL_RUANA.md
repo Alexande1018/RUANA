@@ -112,7 +112,7 @@
   │ email           │  │    │ fecha_creacion  │       │ importe_profesional │
   │ telefono        │  │    └────────┬────────┘       │ importe_final       │
   │ estado          │  │             │                │ comision_ruana (5%) │
-  │ score (0-100)   │  │             │                │ score_aplicado      │
+  │ score (0-500)   │  │             │                │ score_aplicado      │
   │ grupo_id (FK)───┼──┘             │                └─────────────────────┘
   │ especializacion │                │
   │ descripcion_srv │                │
@@ -338,7 +338,7 @@
 
                               ┌──────────────────┐
                               │   SCORE ALIADO   │
-                              │   Rango: 0-100   │
+                              │   Rango: 0-500   │
                               │   Inicio: 75     │
                               │   Límite: ±10/día│
                               └────────┬─────────┘
@@ -348,17 +348,20 @@
           ┌─────────────────┐ ┌───────────────┐ ┌──────────────────┐
           │  SUBE SCORE     │ │ BAJA SCORE    │ │  ESTADOS RUANA   │
           │                 │ │               │ │                  │
-          │ Trabajo cerrado │ │ No concretado │ │ 85-100:          │
-          │ OK: +8 c/u      │ │ : -2 c/u      │ │  DESTACADO       │
+          │ Trabajo cerrado │ │ No concretado │ │ 350-500:         │
+          │ OK: +8 c/u      │ │ : -2 c/u      │ │  ÉLITE           │
           │                 │ │               │ │                  │
-          │ Referido        │ │ Disputa       │ │ 50-84:           │
-          │ exitoso: +3     │ │ importe: -5   │ │  ESTABLE         │
+          │ Referido        │ │ Disputa       │ │ 200-349:         │
+          │ exitoso: +3     │ │ importe: -5   │ │  DESTACADO       │
           │                 │ │               │ │                  │
-          │                 │ │ Contacto 7d   │ │ 15-49:           │
-          │                 │ │ sin cerrar:-2 │ │  EN RIESGO       │
+          │                 │ │ Contacto 7d   │ │ 50-199:          │
+          │                 │ │ sin cerrar:-2 │ │  ESTABLE         │
           │                 │ │               │ │                  │
-          │                 │ │ Contacto 21d  │ │ 0-14:            │
-          │                 │ │ sin cerrar:-5 │ │  COMPETENCIA     │
+          │                 │ │ Contacto 21d  │ │ 15-49:           │
+          │                 │ │ sin cerrar:-5 │ │  EN RIESGO       │
+          │                 │ │               │ │                  │
+          │                 │ │               │ │ 0-14:            │
+          │                 │ │               │ │  COMPETENCIA     │
           └─────────────────┘ └───────────────┘ └──────────────────┘
 
 

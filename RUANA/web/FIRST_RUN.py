@@ -147,7 +147,7 @@ def print_what_to_do():
 1. VER ALIADOS
    - Observa la "mesa de tarjetas" con aliados
    - Cada tarjeta es un aliado evaluado
-   - Score 0-100 es la métrica principal
+   - Score 0-500 es la métrica principal
 
 2. IDENTIFICAR ESTADOS
    🟢 Verde (Recomendado)     = Confío en este aliado
