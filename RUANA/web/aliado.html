@@ -1722,6 +1722,13 @@
             background: radial-gradient(circle at center, rgba(4, 8, 18, 0.24), rgba(2, 4, 11, 0.38));
             pointer-events: none;
         }
+        body.ruana-tour-active .panel-container,
+        body.ruana-tour-active #btn-logout,
+        body.ruana-tour-active .ruana-help-fab,
+        body.ruana-tour-active .ruana-tour-replay {
+            pointer-events: none !important;
+            user-select: none;
+        }
         .ruana-tour-cloud {
             position: fixed;
             z-index: 1510;
@@ -2687,6 +2694,9 @@
                 this.boundClickAdvance = (event) => {
                     if (!this.cloud) return;
                     if (event.target && event.target.closest && event.target.closest('.ruana-tour-cloud-close')) return;
+                    if (event && typeof event.preventDefault === 'function') event.preventDefault();
+                    if (event && typeof event.stopPropagation === 'function') event.stopPropagation();
+                    if (event && typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
                     this.next();
                 };
             }
