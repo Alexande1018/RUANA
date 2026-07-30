@@ -8,7 +8,6 @@ from __future__ import annotations
 import logging
 import smtplib
 from email.message import EmailMessage
-from typing import Optional
 
 from core.settings import get_settings
 
@@ -49,7 +48,7 @@ def enviar_correo_bienvenida_aliado(
 
     Retorna True si el envío fue exitoso, False en caso contrario.
     No lanza excepciones: los errores se registran en logs.
-  """
+    """
     codigo_limpio = (codigo or "").strip()
     email_limpio = (email or "").strip()
     nombre_limpio = (nombre or "").strip()
