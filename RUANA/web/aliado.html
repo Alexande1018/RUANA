@@ -36,6 +36,8 @@
         }
 
         body.panel-loading #btn-logout,
+        body.panel-loading .aliado-shell-nav,
+        body.panel-loading .aliado-shell-bottom,
         body.panel-loading .panel-container > :not(#error-bootstrap):not(#panel-loading) {
             display: none !important;
         }
@@ -2065,15 +2067,68 @@
     </style>
     <link rel="stylesheet" href="/static/css/panel-premium.css">
     <link rel="stylesheet" href="/static/css/auth-premium.css">
+    <link rel="stylesheet" href="/static/css/aliado-shell.css">
     <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
     <script src="/static/js/ruana-ui.js" defer></script>
+    <script src="/static/js/aliado-shell.js" defer></script>
 </head>
-<body class="panel-loading">
+<body class="panel-loading aliado-app">
     <a href="/" class="ruana-brand ruana-brand-watermark" aria-label="RUANA inicio">
         <svg class="ruana-brand-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="24" height="24" aria-hidden="true" focusable="false"><g fill="none" stroke="#A2FF00" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 24v7.5"/><path d="M32 31.5H18v7.5"/><path d="M32 31.5H46v7.5"/></g><rect x="22" y="8" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="8" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="36" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/></svg>
         <span class="ruana-brand-word">RUANA</span>
     </a>
     <button id="btn-logout" class="btn-back">Cerrar sesión</button>
+
+    <nav class="aliado-shell-nav" id="aliado-shell-nav" aria-label="Navegación del panel">
+        <a href="/" class="aliado-shell-nav-brand ruana-brand" aria-label="RUANA inicio">
+            <svg class="ruana-brand-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="28" height="28" aria-hidden="true" focusable="false"><g fill="none" stroke="#A2FF00" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 24v7.5"/><path d="M32 31.5H18v7.5"/><path d="M32 31.5H46v7.5"/></g><rect x="22" y="8" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="8" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="36" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/></svg>
+            <span class="aliado-shell-nav-brand-text">
+                <span class="aliado-shell-nav-brand-name">RUANA</span>
+                <span class="aliado-shell-nav-brand-sub">Panel del aliado</span>
+            </span>
+        </a>
+        <div class="aliado-shell-nav-list" role="tablist" aria-orientation="vertical">
+            <button type="button" class="aliado-shell-nav-item is-active" data-aliado-nav="inicio" role="tab" aria-selected="true">
+                <i data-lucide="layout-dashboard"></i><span>Inicio</span>
+            </button>
+            <button type="button" class="aliado-shell-nav-item" data-aliado-nav="directorio" role="tab" aria-selected="false">
+                <i data-lucide="search"></i><span>Directorio</span>
+            </button>
+            <button type="button" class="aliado-shell-nav-item" data-aliado-nav="solicitudes" role="tab" aria-selected="false">
+                <i data-lucide="inbox"></i><span>Solicitudes</span>
+                <span class="aliado-shell-nav-badge" data-aliado-badge="solicitudes" aria-hidden="true"></span>
+            </button>
+            <button type="button" class="aliado-shell-nav-item" data-aliado-nav="conexiones" role="tab" aria-selected="false">
+                <i data-lucide="plus-circle"></i><span>Conexiones</span>
+            </button>
+            <button type="button" class="aliado-shell-nav-item" data-aliado-nav="perfil" role="tab" aria-selected="false">
+                <i data-lucide="user-round"></i><span>Perfil</span>
+            </button>
+        </div>
+        <div class="aliado-shell-nav-footer">
+            <p class="aliado-shell-nav-hint">Operativa rápida · un clic por módulo</p>
+        </div>
+    </nav>
+
+    <nav class="aliado-shell-bottom" id="aliado-shell-bottom" aria-label="Navegación móvil">
+        <button type="button" class="aliado-shell-bottom-item is-active" data-aliado-nav="inicio">
+            <i data-lucide="layout-dashboard"></i><span>Inicio</span>
+        </button>
+        <button type="button" class="aliado-shell-bottom-item" data-aliado-nav="directorio">
+            <i data-lucide="search"></i><span>Directorio</span>
+        </button>
+        <button type="button" class="aliado-shell-bottom-item" data-aliado-nav="solicitudes">
+            <i data-lucide="inbox"></i><span>Solicitudes</span>
+            <span class="aliado-shell-nav-badge" data-aliado-badge="solicitudes" aria-hidden="true"></span>
+        </button>
+        <button type="button" class="aliado-shell-bottom-item" data-aliado-nav="conexiones">
+            <i data-lucide="plus-circle"></i><span>Conexiones</span>
+        </button>
+        <button type="button" class="aliado-shell-bottom-item" data-aliado-nav="perfil">
+            <i data-lucide="user-round"></i><span>Perfil</span>
+        </button>
+    </nav>
+
     <div class="panel-container">
         <!-- CONTENEDOR DE ERROR F06 -->
         <div id="error-bootstrap" style="display:none; margin-bottom:24px; padding:16px; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); border-radius:8px; color:#ef4444; font-weight:500; text-align:center;"></div>
@@ -2092,13 +2147,14 @@
             <p class="panel-loading-subtext ruana-loader-copy">Estamos cargando tu sesión y sincronizando tus datos de RUANA.</p>
         </div>
 
+        <div class="aliado-shell-alerts" id="aliado-shell-alerts">
         <!-- Banner: Tienes un mensaje nuevo de RUANA -->
-        <div id="banner-mensaje-nuevo-ruana" style="display:none; margin-bottom:20px; padding:16px 20px; background:rgba(234,179,8,0.2); border:1px solid rgba(234,179,8,0.5); border-radius:8px; color:#eab308; font-weight:600; text-align:center;">
+        <div id="banner-mensaje-nuevo-ruana" style="display:none; margin-bottom:0; padding:16px 20px; background:rgba(234,179,8,0.2); border:1px solid rgba(234,179,8,0.5); border-radius:8px; color:#eab308; font-weight:600; text-align:center;">
             ⚠️ Tienes un mensaje nuevo de RUANA
         </div>
 
         <!-- Aviso pagos RUANA pendientes (no bloquea acceso; no puede aceptar nuevos trabajos) -->
-        <div id="aviso-pagos-pendientes-banner" style="display:none; margin-bottom:20px; padding:16px 20px; background:rgba(234,179,8,0.15); border:1px solid rgba(234,179,8,0.4); border-radius:8px; color:#eab308; font-weight:500; text-align:center;">
+        <div id="aviso-pagos-pendientes-banner" style="display:none; margin-bottom:0; padding:16px 20px; background:rgba(234,179,8,0.15); border:1px solid rgba(234,179,8,0.4); border-radius:8px; color:#eab308; font-weight:500; text-align:center;">
             Tienes pagos pendientes con RUANA. No podrás aceptar nuevos trabajos hasta regularizar la situación.
         </div>
         
@@ -2127,7 +2183,7 @@
         </div>
 
         <!-- Apoyo RUANA pendiente de pago (solo profesional, estado_pago = pendiente_pago) -->
-        <div id="pagos-apoyo-ruana-wrap" class="contacto-aviso" style="display:none; margin-bottom: 24px;">
+        <div id="pagos-apoyo-ruana-wrap" class="contacto-aviso" style="display:none; margin-bottom: 0;">
             <div class="contacto-aviso-header">
                 <span class="contacto-aviso-titulo">Apoyo RUANA pendiente de pago</span>
             </div>
@@ -2138,14 +2194,119 @@
         </div>
 
         <!-- Mensajes de RUANA (notificaciones: comprobante rechazado, etc.) -->
-        <div id="notificaciones-ruana-wrap" class="contacto-aviso" style="display:none; margin-bottom: 24px;">
+        <div id="notificaciones-ruana-wrap" class="contacto-aviso" style="display:none; margin-bottom: 0;">
             <div class="contacto-aviso-header" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
                 <span class="contacto-aviso-titulo">Mensajes de RUANA</span>
                 <button type="button" id="btn-marcar-notificaciones-leidas" class="contacto-aviso-btn" style="display:none;">Marcar mensajes como leídos</button>
             </div>
             <div id="notificaciones-ruana-lista" style="margin-top: 12px;"></div>
         </div>
+        </div><!-- /.aliado-shell-alerts -->
 
+        <!-- MÓDULO: Inicio (centro operativo) -->
+        <section class="aliado-module is-active" id="module-inicio" data-aliado-module="inicio" aria-hidden="false">
+            <header class="aliado-module-header">
+                <p class="aliado-module-kicker">Centro operativo</p>
+                <h2 class="aliado-module-title">Inicio</h2>
+                <p class="aliado-module-subtitle">Estado de tu cuenta, métricas y accesos rápidos para empezar a trabajar.</p>
+            </header>
+            <div class="inicio-ops">
+                <div class="inicio-identity" id="inicio-identity">
+                    <div class="inicio-identity-avatar" id="inicio-avatar" data-etiqueta="estable">
+                        <img id="inicio-avatar-img" alt="" hidden>
+                        <span id="inicio-avatar-iniciales">RU</span>
+                    </div>
+                    <div class="inicio-identity-copy">
+                        <h1 id="inicio-nombre">Cargando...</h1>
+                        <p class="inicio-identity-marca" id="inicio-marca">---</p>
+                        <div class="inicio-identity-meta">
+                            <span class="inicio-status-chip" id="inicio-status" data-status="activo">
+                                <span class="status-dot"></span>
+                                <span class="inicio-status-label">Activo</span>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="inicio-score-pill" title="Score RUANA">
+                        <span class="inicio-score-pill-label">Score RUANA</span>
+                        <strong id="inicio-score">0</strong>
+                    </div>
+                </div>
+
+                <div class="inicio-quick-grid" aria-label="Accesos rápidos">
+                    <button type="button" class="inicio-quick-btn" data-aliado-goto="directorio">
+                        <i data-lucide="search"></i>
+                        <span>Directorio</span>
+                        <small>Encontrar profesionales</small>
+                    </button>
+                    <button type="button" class="inicio-quick-btn" data-aliado-goto="solicitudes">
+                        <i data-lucide="inbox"></i>
+                        <span>Solicitudes</span>
+                        <small>Bandeja de trabajo</small>
+                    </button>
+                    <button type="button" class="inicio-quick-btn" data-aliado-goto="conexiones">
+                        <i data-lucide="plus-circle"></i>
+                        <span>Nueva conexión</span>
+                        <small>Crear solicitud</small>
+                    </button>
+                    <button type="button" class="inicio-quick-btn" data-aliado-goto="perfil">
+                        <i data-lucide="user-round"></i>
+                        <span>Mi perfil</span>
+                        <small>Identidad y cuenta</small>
+                    </button>
+                </div>
+
+                <div class="inicio-tasks" id="inicio-tasks">
+                    <h3 class="inicio-tasks-title">Tareas pendientes</h3>
+                    <ul class="inicio-tasks-list" id="inicio-tasks-list"></ul>
+                    <p class="inicio-tasks-empty" id="inicio-tasks-empty">No tienes tareas urgentes ahora mismo.</p>
+                </div>
+
+        <!-- BLOQUE 2: Métricas Personales (en Inicio) -->
+        <div class="metricas-block">
+            <div class="score-alerta-panel" id="score-alerta-panel">
+                Tu Score RUANA está por debajo de 50. Mejora el cierre de contactos y la coherencia en importes para recuperar posición.
+            </div>
+            <h2 class="metricas-title">Métricas principales</h2>
+            <div class="metricas-grid">
+                <div class="metrica-card">
+                    <div class="metrica-card-header">
+                        <div class="metrica-icon"><i data-lucide="send"></i></div>
+                        <div class="metrica-sparkline" aria-hidden="true"><span style="height:40%"></span><span style="height:65%"></span><span style="height:50%"></span><span style="height:80%"></span><span style="height:60%"></span></div>
+                    </div>
+                    <div class="metrica-numero" id="metric-solicitudes">0</div>
+                    <div class="metrica-label">Solicitudes enviadas y contestadas</div>
+                    <div class="metrica-trend"><i data-lucide="activity" style="width:14px;height:14px"></i> Actividad del grupo</div>
+                </div>
+                <div class="metrica-card referidos-metric-clickable" id="metrica-card-referidos" title="Ver red de aliados referidos">
+                    <div class="metrica-card-header">
+                        <div class="metrica-icon"><i data-lucide="users"></i></div>
+                        <div class="metrica-sparkline" aria-hidden="true"><span style="height:30%"></span><span style="height:55%"></span><span style="height:70%"></span><span style="height:45%"></span><span style="height:75%"></span></div>
+                    </div>
+                    <div class="metrica-numero" id="metric-invitaciones">0</div>
+                    <div class="metrica-label">Aliados referidos por mí</div>
+                    <div class="metrica-trend"><i data-lucide="trending-up" style="width:14px;height:14px"></i> Red de confianza</div>
+                </div>
+                <div class="metrica-card" id="metrica-card-score">
+                    <div class="metrica-card-header">
+                        <div class="metrica-icon"><i data-lucide="gauge"></i></div>
+                        <div class="metrica-sparkline" aria-hidden="true"><span style="height:60%"></span><span style="height:75%"></span><span style="height:55%"></span><span style="height:90%"></span><span style="height:70%"></span></div>
+                    </div>
+                    <div class="metrica-numero" id="metric-score">0</div>
+                    <div class="metrica-label">Score RUANA</div>
+                    <div class="metrica-trend"><i data-lucide="shield" style="width:14px;height:14px"></i> Reputación personal</div>
+                </div>
+            </div>
+        </div>
+            </div><!-- /.inicio-ops -->
+        </section>
+
+        <!-- MÓDULO: Perfil -->
+        <section class="aliado-module" id="module-perfil" data-aliado-module="perfil" aria-hidden="true">
+            <header class="aliado-module-header">
+                <p class="aliado-module-kicker">Identidad</p>
+                <h2 class="aliado-module-title">Perfil</h2>
+                <p class="aliado-module-subtitle">Administra tu identidad, descripción y opciones de cuenta.</p>
+            </header>
         <!-- BLOQUE 1: Perfil del Aliado -->
         <div class="perfil-block ruana-card-premium">
             <div class="perfil-header">
@@ -2253,43 +2414,7 @@
                 </div>
             </div>
         </div>
-
-        <!-- BLOQUE 2: Métricas Personales -->
-        <div class="metricas-block">
-            <div class="score-alerta-panel" id="score-alerta-panel">
-                Tu Score RUANA está por debajo de 50. Mejora el cierre de contactos y la coherencia en importes para recuperar posición.
-            </div>
-            <h2 class="metricas-title">Métricas Personales</h2>
-            <div class="metricas-grid">
-                <div class="metrica-card">
-                    <div class="metrica-card-header">
-                        <div class="metrica-icon"><i data-lucide="send"></i></div>
-                        <div class="metrica-sparkline" aria-hidden="true"><span style="height:40%"></span><span style="height:65%"></span><span style="height:50%"></span><span style="height:80%"></span><span style="height:60%"></span></div>
-                    </div>
-                    <div class="metrica-numero" id="metric-solicitudes">0</div>
-                    <div class="metrica-label">Solicitudes enviadas y contestadas</div>
-                    <div class="metrica-trend"><i data-lucide="activity" style="width:14px;height:14px"></i> Actividad del grupo</div>
-                </div>
-                <div class="metrica-card referidos-metric-clickable" id="metrica-card-referidos" title="Ver red de aliados referidos">
-                    <div class="metrica-card-header">
-                        <div class="metrica-icon"><i data-lucide="users"></i></div>
-                        <div class="metrica-sparkline" aria-hidden="true"><span style="height:30%"></span><span style="height:55%"></span><span style="height:70%"></span><span style="height:45%"></span><span style="height:75%"></span></div>
-                    </div>
-                    <div class="metrica-numero" id="metric-invitaciones">0</div>
-                    <div class="metrica-label">Aliados referidos por mí</div>
-                    <div class="metrica-trend"><i data-lucide="trending-up" style="width:14px;height:14px"></i> Red de confianza</div>
-                </div>
-                <div class="metrica-card" id="metrica-card-score">
-                    <div class="metrica-card-header">
-                        <div class="metrica-icon"><i data-lucide="gauge"></i></div>
-                        <div class="metrica-sparkline" aria-hidden="true"><span style="height:60%"></span><span style="height:75%"></span><span style="height:55%"></span><span style="height:90%"></span><span style="height:70%"></span></div>
-                    </div>
-                    <div class="metrica-numero" id="metric-score">0</div>
-                    <div class="metrica-label">Score RUANA</div>
-                    <div class="metrica-trend"><i data-lucide="shield" style="width:14px;height:14px"></i> Reputación personal</div>
-                </div>
-            </div>
-        </div>
+        </section><!-- /module-perfil -->
 
         <!-- Modal: hijos directos del linaje -->
         <div class="modal-overlay" id="modal-linaje-hijos" style="display:none; align-items:center; justify-content:center;">
@@ -2303,32 +2428,38 @@
             </div>
         </div>
 
-
-        <!-- Divisor -->
-        <div class="panel-divider"></div>
-
+        <!-- MÓDULO: Directorio -->
+        <section class="aliado-module" id="module-directorio" data-aliado-module="directorio" aria-hidden="true">
+            <header class="aliado-module-header">
+                <p class="aliado-module-kicker">Localizar</p>
+                <h2 class="aliado-module-title">Directorio</h2>
+                <p class="aliado-module-subtitle">Busca profesionales del grupo y contacta en segundos.</p>
+            </header>
         <!-- Panel Directorio de profesionales (todos los del grupo) -->
         <div class="directorio-panel" id="directorio-panel">
-            <h2 class="metricas-title">Directorio de profesionales</h2>
             <div class="directorio-search-wrap">
                 <i data-lucide="search" class="search-icon"></i>
                 <input type="text" class="directorio-search" id="directorio-search" placeholder="Buscar por nombre, oficio o zona..." autocomplete="off" />
             </div>
             <div class="profesionales-list" id="profesionales-list"></div>
         </div>
+        </section>
 
-        <!-- Contenido principal -->
-        <div class="panel-content">
-            <!-- ZONA 1: Solicitudes del grupo (modelo: entrantes, propias, historial) -->
+        <!-- MÓDULO: Solicitudes -->
+        <section class="aliado-module" id="module-solicitudes" data-aliado-module="solicitudes" aria-hidden="true">
+            <header class="aliado-module-header">
+                <p class="aliado-module-kicker">Bandeja de trabajo</p>
+                <h2 class="aliado-module-title">Solicitudes</h2>
+                <p class="aliado-module-subtitle">Recibidas, enviadas e historial — cada una como unidad de trabajo.</p>
+            </header>
             <div class="solicitudes-zone">
-                <h2 class="zone-title">Solicitudes del grupo</h2>
                 <div class="solicitudes-subsection" id="solicitudes-entrantes-wrap">
-                    <h3 class="solicitudes-subtitle">Solicitudes entrantes al grupo</h3>
+                    <h3 class="solicitudes-subtitle">Solicitudes recibidas</h3>
                     <p class="solicitudes-desc">Peticiones de otros aliados del grupo que puedes atender (Conozco a alguien).</p>
                     <div class="solicitudes-list" id="solicitudes-list"></div>
                 </div>
                 <div class="solicitudes-subsection" id="solicitudes-propias-wrap">
-                    <h3 class="solicitudes-subtitle">Mis solicitudes</h3>
+                    <h3 class="solicitudes-subtitle">Solicitudes enviadas</h3>
                     <p class="solicitudes-desc">Las que tú has enviado al grupo; aparecen aquí tras enviarlas.</p>
                     <div class="solicitudes-list solicitudes-propias-list" id="solicitudes-propias-list"></div>
                 </div>
@@ -2338,11 +2469,17 @@
                     <div class="solicitudes-list solicitudes-historial-list" id="solicitudes-historial-list"></div>
                 </div>
             </div>
+        </section>
 
-            <!-- ZONA 2: Crear solicitud - Terciaria -->
+        <!-- MÓDULO: Conexiones -->
+        <section class="aliado-module" id="module-conexiones" data-aliado-module="conexiones" aria-hidden="true">
+            <header class="aliado-module-header">
+                <p class="aliado-module-kicker">Acción principal</p>
+                <h2 class="aliado-module-title">Conexiones</h2>
+                <p class="aliado-module-subtitle">Crea una nueva solicitud de conexión de forma rápida y clara.</p>
+            </header>
             <div class="crear-solicitud-zone">
                 <div class="crear-card">
-                    <h2 class="zone-title">Nuevas conexiones</h2>
                     <p class="crear-solicitud-aviso" style="margin: 0 0 12px 0; color: rgba(255,255,255,0.75); font-size: 0.9rem;">Antes de solicitar una nueva conexión, revisa si ya hay un Aliado del grupo que realice ese trabajo.</p>
                     <label class="modal-importe-label" for="nueva-solicitud-oficio" style="display:block; margin-bottom:6px;">Oficio solicitado *</label>
                     <input type="text" class="textarea-solicitud" id="nueva-solicitud-oficio" placeholder="Ej: Fontanería" required minlength="1" style="margin-bottom:10px;" />
@@ -2360,7 +2497,7 @@
                     </div>
                 </div>
             </div>
-        </div>
+        </section>
     </div>
 
     <button type="button" class="ruana-help-fab" id="ruana-help-fab" aria-label="Hablar con el equipo de RUANA" title="Hablar con RUANA">
@@ -2777,6 +2914,11 @@
                 if (!this.cloud) return;
                 const step = this.steps[this.stepIndex];
                 if (!step) return;
+
+                if (window.AliadoShell && typeof window.AliadoShell.ensureModuleForSelector === 'function') {
+                    window.AliadoShell.ensureModuleForSelector(step.selector);
+                }
+
                 const target = document.querySelector(step.selector);
 
 
@@ -3223,6 +3365,12 @@
                 document.body.classList.toggle('panel-loading', Boolean(isLoading));
                 const loadingEl = document.getElementById('panel-loading');
                 if (loadingEl) loadingEl.style.display = isLoading ? '' : 'none';
+                if (!isLoading && window.AliadoShell && typeof window.AliadoShell.refresh === 'function') {
+                    window.AliadoShell.refresh();
+                    if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons(document.querySelector('.aliado-shell-nav') || document.body);
+                    if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons(document.querySelector('.aliado-shell-bottom'));
+                    if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons(document.getElementById('module-inicio'));
+                }
             }
 
             /**

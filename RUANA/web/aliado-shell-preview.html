@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="es" class="aliado-shell-enabled">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RUANA — Preview Panel Aliado</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+  <link rel="stylesheet" href="/static/css/panel-premium.css">
+  <link rel="stylesheet" href="/static/css/auth-premium.css">
+  <link rel="stylesheet" href="/static/css/aliado-shell.css">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
+  <script src="/static/js/aliado-shell.js" defer></script>
+  <style>
+    body { margin: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    .preview-card {
+      padding: 16px; border-radius: 16px; border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.05); margin-bottom: 12px;
+    }
+    .preview-card h4 { margin: 0 0 6px; color: #fff; }
+    .preview-card p { margin: 0; color: rgba(255,255,255,.55); font-size: .88rem; }
+    .preview-cta {
+      margin-top: 12px; display: inline-flex; padding: 8px 14px; border-radius: 12px;
+      background: linear-gradient(135deg,#22c55e,#16a34a); color:#fff; font-weight:700; font-size:.82rem; border:none;
+    }
+    .preview-badge {
+      display:inline-block; padding:3px 8px; border-radius:999px; font-size:.7rem; font-weight:700;
+      background:rgba(162,255,0,.14); color:#a2ff00; margin-left:8px;
+    }
+  </style>
+</head>
+<body class="aliado-app">
+  <button id="btn-logout" class="btn-back">Cerrar sesión</button>
+
+  <nav class="aliado-shell-nav" id="aliado-shell-nav" aria-label="Navegación del panel">
+    <a href="#" class="aliado-shell-nav-brand ruana-brand">
+      <svg class="ruana-brand-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="28" height="28"><g fill="none" stroke="#A2FF00" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 24v7.5"/><path d="M32 31.5H18v7.5"/><path d="M32 31.5H46v7.5"/></g><rect x="22" y="8" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="8" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="36" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/></svg>
+      <span class="aliado-shell-nav-brand-text">
+        <span class="aliado-shell-nav-brand-name">RUANA</span>
+        <span class="aliado-shell-nav-brand-sub">Panel del aliado</span>
+      </span>
+    </a>
+    <div class="aliado-shell-nav-list">
+      <button type="button" class="aliado-shell-nav-item is-active" data-aliado-nav="inicio"><i data-lucide="layout-dashboard"></i><span>Inicio</span></button>
+      <button type="button" class="aliado-shell-nav-item" data-aliado-nav="directorio"><i data-lucide="search"></i><span>Directorio</span></button>
+      <button type="button" class="aliado-shell-nav-item" data-aliado-nav="solicitudes"><i data-lucide="inbox"></i><span>Solicitudes</span><span class="aliado-shell-nav-badge is-visible" data-aliado-badge="solicitudes">2</span></button>
+      <button type="button" class="aliado-shell-nav-item" data-aliado-nav="conexiones"><i data-lucide="plus-circle"></i><span>Conexiones</span></button>
+      <button type="button" class="aliado-shell-nav-item" data-aliado-nav="perfil"><i data-lucide="user-round"></i><span>Perfil</span></button>
+    </div>
+    <div class="aliado-shell-nav-footer"><p class="aliado-shell-nav-hint">Operativa rápida · un clic por módulo</p></div>
+  </nav>
+
+  <nav class="aliado-shell-bottom" id="aliado-shell-bottom">
+    <button type="button" class="aliado-shell-bottom-item is-active" data-aliado-nav="inicio"><i data-lucide="layout-dashboard"></i><span>Inicio</span></button>
+    <button type="button" class="aliado-shell-bottom-item" data-aliado-nav="directorio"><i data-lucide="search"></i><span>Directorio</span></button>
+    <button type="button" class="aliado-shell-bottom-item" data-aliado-nav="solicitudes"><i data-lucide="inbox"></i><span>Solicitudes</span><span class="aliado-shell-nav-badge is-visible">2</span></button>
+    <button type="button" class="aliado-shell-bottom-item" data-aliado-nav="conexiones"><i data-lucide="plus-circle"></i><span>Conexiones</span></button>
+    <button type="button" class="aliado-shell-bottom-item" data-aliado-nav="perfil"><i data-lucide="user-round"></i><span>Perfil</span></button>
+  </nav>
+
+  <div class="panel-container">
+    <div class="aliado-shell-alerts">
+      <div id="contacto-aviso-persistente" class="contacto-aviso" style="display:block;">
+        <div class="contacto-aviso-header"><span class="contacto-aviso-titulo">Seguimiento de contacto RUANA</span></div>
+        <div class="contacto-aviso-texto">Tienes un contacto activo pendiente de cierre con <strong>Ana García</strong>.</div>
+      </div>
+    </div>
+
+    <section class="aliado-module is-active" data-aliado-module="inicio">
+      <header class="aliado-module-header">
+        <p class="aliado-module-kicker">Centro operativo</p>
+        <h2 class="aliado-module-title">Inicio</h2>
+        <p class="aliado-module-subtitle">Estado de tu cuenta, métricas y accesos rápidos para empezar a trabajar.</p>
+      </header>
+      <div class="inicio-ops">
+        <div class="inicio-identity">
+          <div class="inicio-identity-avatar" id="inicio-avatar"><span id="inicio-avatar-iniciales">CM</span></div>
+          <div class="inicio-identity-copy">
+            <h1 id="inicio-nombre">Carlos Mendoza</h1>
+            <p class="inicio-identity-marca" id="inicio-marca">Carpintería Mendoza</p>
+            <div class="inicio-identity-meta">
+              <span class="inicio-status-chip" id="inicio-status" data-status="destacado"><span class="inicio-status-label">Destacado</span></span>
+            </div>
+          </div>
+          <div class="inicio-score-pill"><span class="inicio-score-pill-label">Score RUANA</span><strong id="inicio-score">92</strong></div>
+        </div>
+        <div class="inicio-quick-grid">
+          <button type="button" class="inicio-quick-btn" data-aliado-goto="directorio"><i data-lucide="search"></i><span>Directorio</span><small>Encontrar profesionales</small></button>
+          <button type="button" class="inicio-quick-btn" data-aliado-goto="solicitudes"><i data-lucide="inbox"></i><span>Solicitudes</span><small>Bandeja de trabajo</small></button>
+          <button type="button" class="inicio-quick-btn" data-aliado-goto="conexiones"><i data-lucide="plus-circle"></i><span>Nueva conexión</span><small>Crear solicitud</small></button>
+          <button type="button" class="inicio-quick-btn" data-aliado-goto="perfil"><i data-lucide="user-round"></i><span>Mi perfil</span><small>Identidad y cuenta</small></button>
+        </div>
+        <div class="inicio-tasks">
+          <h3 class="inicio-tasks-title">Tareas pendientes</h3>
+          <ul class="inicio-tasks-list" id="inicio-tasks-list">
+            <li><span>Tienes un contacto activo pendiente de cierre</span><button type="button" data-aliado-goto="conexiones">Revisar</button></li>
+            <li><span>2 solicitudes entrantes por atender</span><button type="button" data-aliado-goto="solicitudes">Bandeja</button></li>
+          </ul>
+          <p class="inicio-tasks-empty" id="inicio-tasks-empty" hidden>No tienes tareas urgentes ahora mismo.</p>
+        </div>
+        <div class="metricas-block">
+          <h2 class="metricas-title">Métricas principales</h2>
+          <div class="metricas-grid">
+            <div class="metrica-card"><div class="metrica-numero" id="metric-solicitudes">14</div><div class="metrica-label">Solicitudes enviadas y contestadas</div></div>
+            <div class="metrica-card" id="metrica-card-referidos"><div class="metrica-numero" id="metric-invitaciones">6</div><div class="metrica-label">Aliados referidos por mí</div></div>
+            <div class="metrica-card score-destacado" id="metrica-card-score"><div class="metrica-numero" id="metric-score">92</div><div class="metrica-label">Score RUANA</div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="aliado-module" data-aliado-module="directorio">
+      <header class="aliado-module-header">
+        <p class="aliado-module-kicker">Localizar</p>
+        <h2 class="aliado-module-title">Directorio</h2>
+        <p class="aliado-module-subtitle">Busca profesionales del grupo y contacta en segundos.</p>
+      </header>
+      <div class="directorio-panel" id="directorio-panel">
+        <div class="directorio-search-wrap">
+          <i data-lucide="search" class="search-icon"></i>
+          <input class="directorio-search" id="directorio-search" placeholder="Buscar por nombre, oficio o zona..." />
+        </div>
+        <div class="profesionales-list" id="profesionales-list">
+          <div class="preview-card profesional-card"><h4>Ana García <span class="preview-badge">ESTABLE</span></h4><p>Fontanería · CP 28001 · Score 78</p><button class="preview-cta">Contactar</button></div>
+          <div class="preview-card profesional-card"><h4>Miguel Torres <span class="preview-badge">DESTACADO</span></h4><p>Electricidad · CP 28001 · Score 88</p><button class="preview-cta">Contactar</button></div>
+          <div class="preview-card profesional-card"><h4>Laura Ruiz <span class="preview-badge">ESTABLE</span></h4><p>Pintura · CP 28001 · Score 71</p><button class="preview-cta">Contactar</button></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="aliado-module" data-aliado-module="solicitudes">
+      <header class="aliado-module-header">
+        <p class="aliado-module-kicker">Bandeja de trabajo</p>
+        <h2 class="aliado-module-title">Solicitudes</h2>
+        <p class="aliado-module-subtitle">Recibidas, enviadas e historial — cada una como unidad de trabajo.</p>
+      </header>
+      <div class="solicitudes-zone">
+        <div class="solicitudes-subsection" id="solicitudes-entrantes-wrap">
+          <h3 class="solicitudes-subtitle">Solicitudes recibidas</h3>
+          <div class="solicitudes-list" id="solicitudes-list">
+            <div class="preview-card solicitud-card"><h4>Cerrajería urgente</h4><p>Puerta bloqueada · Pendiente</p><button class="preview-cta">Conozco a alguien</button></div>
+            <div class="preview-card solicitud-card"><h4>Instalación eléctrica</h4><p>Cuadro nuevo · Pendiente</p><button class="preview-cta">Conozco a alguien</button></div>
+          </div>
+        </div>
+        <div class="solicitudes-subsection" id="solicitudes-propias-wrap">
+          <h3 class="solicitudes-subtitle">Solicitudes enviadas</h3>
+          <div class="solicitudes-list" id="solicitudes-propias-list">
+            <div class="preview-card"><h4>Pintura salón</h4><p>Enviada · En curso</p></div>
+          </div>
+        </div>
+        <div class="solicitudes-subsection" id="solicitudes-historial-wrap">
+          <h3 class="solicitudes-subtitle">Historial</h3>
+          <div class="solicitudes-list" id="solicitudes-historial-list">
+            <div class="preview-card"><h4>Fontanería cocina</h4><p>Atendida · hace 3 días</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="aliado-module" data-aliado-module="conexiones">
+      <header class="aliado-module-header">
+        <p class="aliado-module-kicker">Acción principal</p>
+        <h2 class="aliado-module-title">Conexiones</h2>
+        <p class="aliado-module-subtitle">Crea una nueva solicitud de conexión de forma rápida y clara.</p>
+      </header>
+      <div class="crear-solicitud-zone">
+        <div class="crear-card">
+          <p class="crear-solicitud-aviso" style="margin:0 0 12px;color:rgba(255,255,255,.75);font-size:.9rem;">Antes de solicitar una nueva conexión, revisa si ya hay un Aliado del grupo que realice ese trabajo.</p>
+          <label style="display:block;margin-bottom:6px;color:rgba(255,255,255,.7);font-size:.85rem;">Oficio solicitado *</label>
+          <input class="textarea-solicitud" id="nueva-solicitud-oficio" placeholder="Ej: Fontanería" style="margin-bottom:10px;width:100%;box-sizing:border-box;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.25);color:#fff;" />
+          <label style="display:block;margin-bottom:6px;color:rgba(255,255,255,.7);font-size:.85rem;">Descripción *</label>
+          <textarea class="textarea-solicitud" id="nueva-solicitud" rows="4" placeholder="Qué necesitas..." style="width:100%;box-sizing:border-box;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.25);color:#fff;"></textarea>
+          <button class="btn-enviar-solicitud" id="btn-enviar" style="margin-top:14px;width:100%;padding:14px;border:none;border-radius:14px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-weight:700;font-size:1rem;">Enviar solicitud</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="aliado-module" data-aliado-module="perfil">
+      <header class="aliado-module-header">
+        <p class="aliado-module-kicker">Identidad</p>
+        <h2 class="aliado-module-title">Perfil</h2>
+        <p class="aliado-module-subtitle">Administra tu identidad, descripción y opciones de cuenta.</p>
+      </header>
+      <div class="perfil-block ruana-card-premium">
+        <div class="perfil-header">
+          <div class="perfil-avatar-wrap">
+            <div class="perfil-avatar" id="perfil-avatar" data-etiqueta="destacado"><span id="perfil-avatar-iniciales">CM</span></div>
+          </div>
+          <div class="perfil-info">
+            <div class="perfil-titulo">Perfil del Aliado</div>
+            <div class="perfil-main">
+              <h1 class="perfil-nombre" id="perfil-nombre">Carlos Mendoza</h1>
+              <div class="perfil-marca" id="perfil-marca">Carpintería Mendoza</div>
+            </div>
+          </div>
+          <div class="perfil-status" id="perfil-status" data-status="destacado"><span class="status-dot"></span><span class="status-text">Destacado</span></div>
+        </div>
+        <div class="perfil-details">
+          <div class="detail-item"><span class="detail-label">Código de Aliado</span><span class="detail-value" id="detail-codigo">CM-001</span></div>
+          <div class="detail-item"><span class="detail-label">Oficio</span><span class="detail-value" id="detail-oficio">Carpintería</span></div>
+          <div class="detail-item"><span class="detail-label">Código Postal</span><span class="detail-value" id="detail-codigo-postal">28001</span></div>
+          <div class="detail-item" id="detail-descripcion-wrap"><span class="detail-label">Descripción del servicio</span><span class="detail-value" id="detail-descripcion">Muebles a medida y restauración.</span></div>
+        </div>
+        <div class="perfil-acciones">
+          <button type="button" class="btn-invitar-aliado" id="btn-invitar-aliado"><i data-lucide="user-plus"></i> Generar código de invitación</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.lucide) lucide.createIcons();
+      document.querySelectorAll('[data-aliado-goto]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          if (window.AliadoShell) window.AliadoShell.show(btn.getAttribute('data-aliado-goto'));
+        });
+      });
+    });
+  </script>
+</body>
+</html>

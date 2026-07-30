@@ -33,9 +33,20 @@ async function openAliadoPanel(page, session, scenario, label) {
     await pass(page, scenario, {
       step: `${label} en panel aliado`,
       action: 'El usuario entra al panel con su sesion real de navegador.',
-      result: 'Se muestran metricas personales, directorio, solicitudes y avisos.',
+      result: 'Se abre el modulo Inicio con metricas, score y accesos rapidos.',
     });
   });
+}
+
+async function goAliadoModule(page, moduleName) {
+  const desktopNav = page.locator(`.aliado-shell-nav [data-aliado-nav="${moduleName}"]`);
+  const mobileNav = page.locator(`.aliado-shell-bottom [data-aliado-nav="${moduleName}"]`);
+  if (await desktopNav.isVisible().catch(() => false)) {
+    await desktopNav.click();
+  } else {
+    await mobileNav.click();
+  }
+  await expect(page.locator(`.aliado-module[data-aliado-module="${moduleName}"]`)).toBeVisible();
 }
 
 async function loginAdminAsUser(page, scenario, code = ADMIN_CODE, label = 'admin') {
@@ -507,15 +518,17 @@ test.describe('RUANA QA critica con video human-readable', () => {
     const respondedorSession = await aliadoLogin(request, respondedor.codigo);
 
     await openAliadoPanel(page, solicitanteSession, scenario, 'Aliado solicitante');
+    await goAliadoModule(page, 'conexiones');
     await reviewSection(page, scenario, '.crear-solicitud-zone', {
       step: 'Formulario de solicitud',
-      action: 'El aliado baja al formulario de nueva conexion.',
+      action: 'El aliado abre el modulo Conexiones para crear una nueva solicitud.',
       expected: 'Debe poder indicar oficio y descripcion.',
       result: 'El formulario de solicitud queda visible.',
     });
     await fillVisible(page, '#nueva-solicitud-oficio', 'Cerrajeria urgente');
     await fillVisible(page, '#nueva-solicitud', 'Necesito un profesional de cerrajeria para una puerta bloqueada.');
     await clickVisible(page, '#btn-enviar');
+    await goAliadoModule(page, 'solicitudes');
     await expect(page.locator('#solicitudes-propias-list')).toContainText('Cerrajeria urgente');
     await pass(page, scenario, {
       step: 'Solicitud enviada',
@@ -524,6 +537,7 @@ test.describe('RUANA QA critica con video human-readable', () => {
     });
 
     await openAliadoPanel(page, respondedorSession, scenario, 'Aliado respondedor');
+    await goAliadoModule(page, 'solicitudes');
     await reviewSection(page, scenario, '#solicitudes-entrantes-wrap', {
       step: 'Solicitud entrante visible',
       action: 'Otro aliado del grupo revisa las solicitudes entrantes.',
