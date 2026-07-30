@@ -1494,6 +1494,20 @@ def negociacion_contraoferta(contacto_id):
     return jsonify(result), 200 if result.get('status') == 'success' else 400
 
 
+@app.route('/api/contactos/<int:contacto_id>/negociacion/cerrar', methods=['POST'])
+@require_aliado
+def negociacion_cerrar(contacto_id):
+    """POST — cierra la negociación para ambas partes (no concretado)."""
+    codigo = _aliado_codigo()
+    if not codigo:
+        return jsonify({'status': 'error', 'message': 'Sesión expirada'}), 401
+    data = request.get_json() or {}
+    motivo = (data.get('motivo') or '').strip()
+    db = get_db()
+    result = db.cerrar_negociacion(contacto_id, codigo, motivo=motivo)
+    return jsonify(result), 200 if result.get('status') == 'success' else 400
+
+
 # Rutas legacy de chat libre — redirigen a negociación guiada
 @app.route('/api/chat_mensajes', methods=['GET'])
 @app.route('/api/chat/mensajes', methods=['GET'])
@@ -2415,6 +2429,35 @@ def actualizar_aliado_db(codigo):
             'status': 'error',
             'message': str(e)
         }), 500
+
+
+@app.route('/api/aliados/<codigo>/catalogo-servicios', methods=['GET'])
+@require_aliado
+def ver_catalogo_servicios_aliado(codigo):
+    """
+    GET /api/aliados/<codigo>/catalogo-servicios
+    Catálogo privado del profesional (solo servicios configurados).
+    Visible si está en el directorio del aliado o hay contacto activo.
+    """
+    try:
+        visor = _aliado_codigo()
+        if not visor:
+            return jsonify({'status': 'error', 'message': 'Sesión expirada'}), 401
+        objetivo = (codigo or '').strip()
+        if not objetivo:
+            return jsonify({'status': 'error', 'message': 'Código de aliado requerido'}), 400
+        db = get_db()
+        if not db.puede_ver_catalogo_aliado(visor, objetivo):
+            return jsonify({'status': 'error', 'message': 'No autorizado a ver este catálogo'}), 403
+        servicios = db.listar_catalogo_servicios_configurados(objetivo)
+        return jsonify({
+            'status': 'success',
+            'codigo': objetivo,
+            'servicios': servicios,
+            'catalogo_servicios': servicios,
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 @app.route('/api/aliados/<codigo>/catalogo-servicios/<int:posicion>', methods=['PUT'])

@@ -178,3 +178,68 @@
     font-style: italic;
     padding: 8px 0;
 }
+.neg-catalogo-wrap {
+    margin: 12px 0 8px;
+}
+.neg-catalogo-titulo {
+    margin: 0 0 8px;
+    font-size: 0.9rem;
+    color: #cbd5e1;
+    font-weight: 600;
+}
+.neg-catalogo-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 180px;
+    overflow-y: auto;
+    margin-bottom: 8px;
+}
+.neg-catalogo-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.2);
+    color: #e2e8f0;
+    cursor: pointer;
+    font-size: 0.88rem;
+    transition: border-color 0.15s, background 0.15s;
+}
+.neg-catalogo-item:hover {
+    border-color: rgba(99, 102, 241, 0.5);
+    background: rgba(99, 102, 241, 0.1);
+}
+.neg-catalogo-item.selected {
+    border-color: rgba(99, 102, 241, 0.85);
+    background: rgba(99, 102, 241, 0.2);
+}
+.neg-catalogo-desc {
+    flex: 1;
+    word-break: break-word;
+}
+.neg-catalogo-precio {
+    flex-shrink: 0;
+    color: #86efac;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+.neg-catalogo-otro {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(0, 0, 0, 0.25);
+    color: #e2e8f0;
+    font-size: 0.88rem;
+    box-sizing: border-box;
+}
+.neg-acciones-form-servicio {
+    flex-direction: column;
+    align-items: stretch !important;
+}

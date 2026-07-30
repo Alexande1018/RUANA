@@ -86,6 +86,28 @@ class TestNegociacionGuiada(unittest.TestCase):
         self.assertEqual(r['negociacion']['campos']['fecha']['valor'], '2026-08-05')
         self.assertEqual(r['negociacion']['campos']['fecha']['propuesto_por'], 'profesional')
 
+    def test_cerrar_negociacion_ambas_partes(self):
+        cid = self._crear_aliados_y_contacto()
+        r = self.db.cerrar_negociacion(cid, '90001')
+        self.assertEqual(r['status'], 'success')
+        self.assertEqual(r['estado'], 'cerrado_no_concretado')
+        neg = self.db.obtener_negociacion_contacto(cid, '90002')
+        self.assertEqual(neg['accion']['tipo'], 'cerrado')
+        r2 = self.db.cerrar_negociacion(cid, '90002')
+        self.assertEqual(r2['status'], 'error')
+
+    def test_catalogo_servicios_configurados(self):
+        self.db.crear_aliado(
+            codigo='90002', nombre='Pro', marca='M', oficio='Fontanería',
+            codigo_postal='28001', email='90002@test.com',
+            telefono='+34600000002', estado='activo', score=50,
+        )
+        r = self.db.guardar_catalogo_servicio_aliado('90002', 1, 'Grifo', '80 EUR')
+        self.assertEqual(r['status'], 'success')
+        items = self.db.listar_catalogo_servicios_configurados('90002')
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]['descripcion'], 'Grifo')
+
 
 if __name__ == '__main__':
     unittest.main()

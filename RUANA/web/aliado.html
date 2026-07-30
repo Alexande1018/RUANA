@@ -2606,6 +2606,11 @@
                 <input type="checkbox" id="check-contacto-urgente" style="width:18px; height:18px;">
                 <span><strong>Marcar como urgente</strong> — el profesional lo verá resaltado</span>
             </label>
+            <div id="contacto-previo-catalogo-wrap" class="neg-catalogo-wrap" style="display:none;">
+                <p class="neg-catalogo-titulo">Elige el servicio que necesitas:</p>
+                <div id="contacto-previo-catalogo-list" class="neg-catalogo-list"></div>
+                <input type="text" id="contacto-previo-servicio-otro" class="neg-catalogo-otro" placeholder="O escribe otro servicio…" autocomplete="off">
+            </div>
             <div class="modal-contacto-actions">
                 <button id="btn-contacto-previo-confirm" class="modal-contacto-btn confirm">Iniciar negociación</button>
                 <button id="btn-contacto-previo-cancel" class="modal-contacto-btn cancel">Cancelar</button>
@@ -2620,7 +2625,7 @@
                 <h3 class="neg-modal-title" id="neg-modal-title">Negociación guiada RUANA</h3>
                 <span class="chat-urgente-badge" id="neg-urgente-badge" style="display:none;">URGENTE</span>
                 <div style="display:flex; gap:10px; align-items:center;">
-                    <button type="button" class="chat-btn-finalizar" id="neg-btn-finalizar" aria-label="Ocultar del panel">Ocultar del panel</button>
+                    <button type="button" class="chat-btn-finalizar" id="neg-btn-cerrar-negociacion" aria-label="Cerrar negociación">Cerrar negociación</button>
                     <button type="button" class="chat-btn-volver-panel" id="neg-btn-cerrar" aria-label="Volver al panel">Volver al panel</button>
                 </div>
             </div>
@@ -5972,18 +5977,84 @@
             /**
              * Mostrar modal previo a contactar.
              */
-            mostrarAvisoPrevioContacto(profesional) {
+            async mostrarAvisoPrevioContacto(profesional) {
                 this.profesionalSeleccionado = profesional;
+                this._catalogoPrevioItems = [];
                 const modal = document.getElementById('modal-contacto-previo');
                 const textoEl = document.getElementById('modal-contacto-previo-text');
+                const catalogoWrap = document.getElementById('contacto-previo-catalogo-wrap');
+                const catalogoList = document.getElementById('contacto-previo-catalogo-list');
+                const inputOtro = document.getElementById('contacto-previo-servicio-otro');
+                if (inputOtro) inputOtro.value = '';
                 if (textoEl && profesional) {
                     const nombre = this.escapeHtml(profesional.nombre || '');
                     const oficio = this.escapeHtml(profesional.oficio || '');
                     textoEl.innerHTML = `Vas a iniciar un contacto RUANA con <strong>${nombre}</strong> (${oficio}). Este contacto contará en tu historial y métricas personales.`;
                 }
+                const profesionalCodigo = (profesional && (profesional.codigo || '').toString().trim())
+                    || (profesional && profesional.id != null ? String(profesional.id).padStart(5, '0') : '');
+                if (catalogoList) catalogoList.innerHTML = '';
+                if (catalogoWrap) catalogoWrap.style.display = 'none';
+                if (profesionalCodigo) {
+                    await this._cargarCatalogoEnPrevioContacto(profesionalCodigo);
+                }
                 if (modal) {
                     modal.classList.add('show');
                 }
+            }
+
+            async _cargarCatalogoEnPrevioContacto(profesionalCodigo) {
+                const catalogoWrap = document.getElementById('contacto-previo-catalogo-wrap');
+                const catalogoList = document.getElementById('contacto-previo-catalogo-list');
+                const inputOtro = document.getElementById('contacto-previo-servicio-otro');
+                if (!catalogoList || !profesionalCodigo) return;
+                try {
+                    const resp = await fetch(`/api/aliados/${encodeURIComponent(profesionalCodigo)}/catalogo-servicios`, {
+                        credentials: 'same-origin',
+                        headers: getRuanaAuthHeaders(),
+                    });
+                    const data = await resp.json();
+                    const servicios = (data.status === 'success' && Array.isArray(data.servicios))
+                        ? data.servicios.filter(s => s.configurado && s.descripcion)
+                        : [];
+                    this._catalogoPrevioItems = servicios;
+                    if (!servicios.length) {
+                        if (catalogoWrap) catalogoWrap.style.display = 'none';
+                        return;
+                    }
+                    if (catalogoWrap) catalogoWrap.style.display = 'block';
+                    catalogoList.innerHTML = servicios.map((s, idx) => {
+                        const desc = this.escapeHtml(s.descripcion || '');
+                        const precio = s.precio ? `<span class="neg-catalogo-precio">${this.escapeHtml(String(s.precio))}</span>` : '';
+                        return `<button type="button" class="neg-catalogo-item" data-idx="${idx}"><span class="neg-catalogo-desc">${desc}</span>${precio}</button>`;
+                    }).join('');
+                    catalogoList.querySelectorAll('.neg-catalogo-item').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            catalogoList.querySelectorAll('.neg-catalogo-item').forEach(b => b.classList.remove('selected'));
+                            btn.classList.add('selected');
+                            const idx = parseInt(btn.getAttribute('data-idx') || '-1', 10);
+                            const item = this._catalogoPrevioItems[idx];
+                            if (inputOtro && item) inputOtro.value = item.descripcion || '';
+                        });
+                    });
+                } catch (e) {
+                    if (catalogoWrap) catalogoWrap.style.display = 'none';
+                }
+            }
+
+            _obtenerServicioSeleccionadoPrevio(profesional) {
+                const inputOtro = document.getElementById('contacto-previo-servicio-otro');
+                const custom = inputOtro ? String(inputOtro.value || '').trim() : '';
+                if (custom) return custom;
+                const catalogoList = document.getElementById('contacto-previo-catalogo-list');
+                const selected = catalogoList ? catalogoList.querySelector('.neg-catalogo-item.selected') : null;
+                if (selected) {
+                    const idx = parseInt(selected.getAttribute('data-idx') || '-1', 10);
+                    const item = (this._catalogoPrevioItems || [])[idx];
+                    if (item && item.descripcion) return item.descripcion;
+                }
+                if ((this._catalogoPrevioItems || []).length > 0) return '';
+                return (profesional && profesional.oficio) || 'Servicio RUANA';
             }
 
             /**
@@ -6010,7 +6081,11 @@
                     alert('No se pudo obtener el código del profesional. Vuelve al directorio e inténtalo de nuevo.');
                     return;
                 }
-                const servicio = profesional.oficio || 'Servicio RUANA';
+                const servicio = this._obtenerServicioSeleccionadoPrevio(profesional);
+                if (!servicio) {
+                    alert('Elige un servicio del catálogo o escribe cuál necesitas.');
+                    return;
+                }
                 const btnConfirm = document.getElementById('btn-contacto-previo-confirm');
                 if (btnConfirm) btnConfirm.disabled = true;
 
@@ -6033,6 +6108,10 @@
                     if (modalPrevio) modalPrevio.classList.remove('show');
                     const checkUrgente = document.getElementById('check-contacto-urgente');
                     if (checkUrgente) checkUrgente.checked = false;
+                    const inputOtro = document.getElementById('contacto-previo-servicio-otro');
+                    if (inputOtro) inputOtro.value = '';
+                    const catalogoList = document.getElementById('contacto-previo-catalogo-list');
+                    if (catalogoList) catalogoList.innerHTML = '';
                     await this.cargarContactosPendientes();
                     await this.refreshAfterAction(['metricas', 'solicitudes', 'directorio', 'alertas', 'contactos']);
                     this.abrirNegociacionContacto(data.id, profesional, { es_urgente: !!data.es_urgente });

@@ -2728,6 +2728,43 @@ class DBManager:
                 if conn:
                     conn.close()
 
+    def listar_catalogo_servicios_configurados(self, codigo_aliado: str) -> List[Dict[str, Any]]:
+        """Solo posiciones con descripción y precio (para elegir al contactar)."""
+        return [s for s in self.listar_catalogo_servicios_aliado(codigo_aliado) if s.get('configurado')]
+
+    def puede_ver_catalogo_aliado(self, visor_codigo: str, objetivo_codigo: str) -> bool:
+        """Catálogo privado visible al propio aliado, directorio o contacto activo."""
+        visor = (visor_codigo or '').strip()
+        objetivo = (objetivo_codigo or '').strip()
+        if not visor or not objetivo:
+            return False
+        if visor == objetivo:
+            return True
+        for aliado in self.listar_aliados_directorio_grupo(visor):
+            if (aliado.get('codigo') or '').strip() == objetivo:
+                return True
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT 1 FROM contactos_ruana
+                    WHERE ((solicitante_codigo = ? AND profesional_codigo = ?)
+                        OR (solicitante_codigo = ? AND profesional_codigo = ?))
+                      AND estado NOT IN ('trabajo_cerrado', 'no_concretado', 'cerrado_no_concretado')
+                    LIMIT 1
+                    """,
+                    (visor, objetivo, objetivo, visor),
+                )
+                return cursor.fetchone() is not None
+            except Exception:
+                return False
+            finally:
+                if conn:
+                    conn.close()
+
     def guardar_catalogo_servicio_aliado(
         self,
         codigo_aliado: str,
@@ -7096,6 +7133,68 @@ class DBManager:
             finally:
                 if conn:
                     conn.close()
+
+    def cerrar_negociacion(self, contacto_id: int, actor_codigo: str,
+                           motivo: str = '') -> Dict[str, Any]:
+        """
+        Cierra la negociación para ambas partes (no concretado).
+        Solo solicitante o profesional del contacto. Registra evento en timeline.
+        """
+        codigo = (actor_codigo or '').strip()
+        sol = prof = None
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                contacto = self._cargar_contacto_negociacion(cursor, contacto_id)
+                if not contacto:
+                    return {'status': 'error', 'message': 'Contacto no encontrado'}
+                sol = str(contacto.get('solicitante_codigo') or '').strip()
+                pro = str(contacto.get('profesional_codigo') or '').strip()
+                rol = neg_mgr._rol_en_contacto(codigo, sol, pro)
+                if not rol:
+                    return {'status': 'error', 'message': 'No autorizado'}
+                estado_actual = (contacto.get('estado') or '').strip()
+                if estado_actual in self._ESTADOS_FINALES_CONTACTO:
+                    return {
+                        'status': 'error',
+                        'message': f'El contacto ya está cerrado ({estado_actual}).',
+                    }
+                quien = 'contratante' if rol == 'solicitante' else 'profesional'
+                msg_evento = (
+                    f'La negociación ha sido cerrada por el {quien}. '
+                    'El contacto queda finalizado sin acuerdo.'
+                )
+                self._insertar_evento_negociacion(
+                    cursor, contacto_id, neg_mgr.TIPO_SISTEMA, None, None, codigo, msg_evento,
+                )
+                cursor.execute("""
+                    UPDATE contactos_ruana
+                    SET estado = 'cerrado_no_concretado',
+                        pendiente_resolucion = 0,
+                        fecha_no_concretado = CURRENT_TIMESTAMP,
+                        actualizado_en = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                """, (contacto_id,))
+                detalles = f'aliados={sol},{pro} motivo={motivo or "cerrar_negociacion"} actor={codigo}'
+                self._audit_log(cursor, 'contacto', contacto_id, 'cerrar_negociacion',
+                                'aliado', codigo, detalles)
+                conn.commit()
+            except Exception as e:
+                if conn:
+                    conn.rollback()
+                return {'status': 'error', 'message': str(e)}
+            finally:
+                if conn:
+                    conn.close()
+
+        if sol:
+            self.aplicar_cambio_score(sol, -1, 'contacto_cerrado_no_concretado')
+        if prof:
+            self.aplicar_cambio_score(prof, -1, 'contacto_cerrado_no_concretado')
+        return {'status': 'success', 'id': contacto_id, 'estado': 'cerrado_no_concretado'}
 
     def listar_negociaciones_admin(self, limite: int = 20, offset: int = 0) -> List[Dict[str, Any]]:
         with self._lock:

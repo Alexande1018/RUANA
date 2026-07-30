@@ -31,9 +31,9 @@
 
         _bindModal() {
             const cerrar = document.getElementById('neg-btn-cerrar');
-            const finalizar = document.getElementById('neg-btn-finalizar');
+            const cerrarNeg = document.getElementById('neg-btn-cerrar-negociacion');
             if (cerrar) cerrar.addEventListener('click', () => this.cerrar());
-            if (finalizar) finalizar.addEventListener('click', () => this.finalizarPanel());
+            if (cerrarNeg) cerrarNeg.addEventListener('click', () => this.confirmarCerrarNegociacion());
             const overlay = document.getElementById('modal-negociacion-guiada');
             if (overlay) {
                 overlay.addEventListener('click', (e) => {
@@ -97,6 +97,16 @@
             this.renderResumen();
             this.renderAcciones();
             this.renderAcuerdoFinal();
+            this.renderBotonesHeader();
+        }
+
+        renderBotonesHeader() {
+            const btnCerrarNeg = document.getElementById('neg-btn-cerrar-negociacion');
+            if (!btnCerrarNeg) return;
+            const estado = this.data.estado_contacto || '';
+            const cerrado = ['cerrado_no_concretado', 'no_concretado', 'trabajo_cerrado', 'acuerdo_alcanzado'].includes(estado)
+                || this.data.acuerdo_alcanzado;
+            btnCerrarNeg.style.display = cerrado ? 'none' : '';
         }
 
         renderTimeline() {
@@ -158,6 +168,10 @@
                 el.innerHTML = '<p class="neg-esperar-msg">Negociación completada. Espera a realizar el servicio para cerrar el contacto.</p>';
                 return;
             }
+            if (acc.tipo === 'cerrado') {
+                el.innerHTML = `<p class="neg-esperar-msg">${this.escapeHtml(acc.mensaje || 'Negociación cerrada.')}</p>`;
+                return;
+            }
             if (acc.tipo === 'esperar' || acc.tipo === 'resumen') {
                 el.innerHTML = `<p class="neg-esperar-msg">${this.escapeHtml(acc.mensaje || 'Esperando a la otra parte.')}</p>`;
                 return;
@@ -166,14 +180,22 @@
                 const campo = acc.campo;
                 const inputType = INPUT_TYPES[campo] || 'text';
                 const isTextarea = inputType === 'textarea';
+                const catalogoHtml = campo === 'servicio'
+                    ? '<div id="neg-catalogo-servicios" class="neg-catalogo-list"></div>'
+                    : '';
                 const inputHtml = isTextarea
                     ? `<textarea id="neg-input-valor" placeholder="${this.escapeHtml(acc.label)}"></textarea>`
                     : `<input id="neg-input-valor" type="${inputType}" ${campo === 'precio' ? 'step="0.01" min="0"' : ''} placeholder="${this.escapeHtml(acc.label)}" />`;
-                el.innerHTML = `<div class="neg-acciones-form">
+                el.innerHTML = `<div class="neg-acciones-form neg-acciones-form-servicio">
                     <label style="width:100%;color:#94a3b8;font-size:0.85rem;">Proponer: ${this.escapeHtml(acc.label)}</label>
+                    ${catalogoHtml}
                     ${inputHtml}
                     <button type="button" class="neg-btn neg-btn-primary" id="neg-btn-proponer">Proponer</button>
                 </div>`;
+                if (campo === 'servicio') {
+                    const profCodigo = (this.data.profesional_codigo || '').trim();
+                    if (profCodigo) this._cargarCatalogoServicios(profCodigo, 'neg-catalogo-servicios', 'neg-input-valor');
+                }
                 document.getElementById('neg-btn-proponer').addEventListener('click', () => this.proponer(campo));
                 return;
             }
@@ -252,10 +274,61 @@
             }
         }
 
-        async finalizarPanel() {
-            if (!this.contactoId) return;
+        async _cargarCatalogoServicios(codigoProfesional, containerId, inputId) {
+            const container = document.getElementById(containerId);
+            if (!container || !codigoProfesional) return;
+            container.innerHTML = '<p class="neg-esperar-msg">Cargando catálogo…</p>';
             try {
-                const resp = await fetch(`/api/contactos/${this.contactoId}/finalizar-chat`, {
+                const resp = await fetch(`/api/aliados/${encodeURIComponent(codigoProfesional)}/catalogo-servicios`, {
+                    credentials: 'same-origin',
+                    headers: getAuthHeaders(),
+                });
+                const data = await resp.json();
+                const servicios = (data.status === 'success' && Array.isArray(data.servicios))
+                    ? data.servicios.filter(s => s.configurado && s.descripcion)
+                    : [];
+                if (!servicios.length) {
+                    container.innerHTML = '';
+                    return;
+                }
+                container.innerHTML = servicios.map((s, idx) => {
+                    const desc = s.descripcion || '';
+                    const precio = s.precio ? String(s.precio) : '';
+                    const descHtml = this.escapeHtml(desc);
+                    const precioHtml = precio ? this.escapeHtml(precio) : '';
+                    return `<button type="button" class="neg-catalogo-item" data-idx="${idx}">
+                        <span class="neg-catalogo-desc">${descHtml}</span>
+                        ${precioHtml ? `<span class="neg-catalogo-precio">${precioHtml}</span>` : ''}
+                    </button>`;
+                }).join('');
+                container._catalogoItems = servicios;
+                container.querySelectorAll('.neg-catalogo-item').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        container.querySelectorAll('.neg-catalogo-item').forEach(b => b.classList.remove('selected'));
+                        btn.classList.add('selected');
+                        const idx = parseInt(btn.getAttribute('data-idx') || '-1', 10);
+                        const item = container._catalogoItems[idx];
+                        const input = document.getElementById(inputId);
+                        if (input && item) input.value = item.descripcion || '';
+                    });
+                });
+            } catch (e) {
+                container.innerHTML = '';
+            }
+        }
+
+        async confirmarCerrarNegociacion() {
+            if (!this.contactoId) return;
+            const mensaje = '¿Cerrar esta negociación?\n\nSe finalizará la conversación para ambas partes y el contacto quedará registrado como no concretado.';
+            let ok = false;
+            if (typeof global.RuanaUI !== 'undefined' && typeof global.RuanaUI.confirm === 'function') {
+                ok = await global.RuanaUI.confirm(mensaje, { title: 'Cerrar negociación', confirmText: 'Sí, cerrar', cancelText: 'Cancelar' });
+            } else {
+                ok = window.confirm(mensaje);
+            }
+            if (!ok) return;
+            try {
+                const resp = await fetch(`/api/contactos/${this.contactoId}/negociacion/cerrar`, {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
@@ -263,12 +336,15 @@
                 });
                 const data = await resp.json();
                 if (data.status === 'success') {
-                    this.cerrar();
+                    await this.refrescar();
                     if (this.panel && typeof this.panel.cargarContactosPendientes === 'function') {
                         await this.panel.cargarContactosPendientes();
                     }
+                    if (this.panel && typeof this.panel.refreshAfterAction === 'function') {
+                        await this.panel.refreshAfterAction(['metricas', 'contactos', 'alertas']);
+                    }
                 } else {
-                    alert(data.message || 'No se pudo ocultar del panel');
+                    alert(data.message || 'No se pudo cerrar la negociación');
                 }
             } catch (e) {
                 alert('Error de conexión');

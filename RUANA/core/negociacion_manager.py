@@ -138,6 +138,8 @@ def resumen_acuerdo(estado: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 def accion_disponible(estado: Dict[str, Any], rol: str, contacto_estado: str) -> Dict[str, Any]:
     """Indica qué puede hacer el usuario en el paso actual."""
+    if contacto_estado in ('cerrado_no_concretado', 'no_concretado', 'trabajo_cerrado'):
+        return {'tipo': 'cerrado', 'mensaje': 'Esta negociación está cerrada.'}
     if contacto_estado == 'acuerdo_alcanzado':
         return {'tipo': 'resumen', 'mensaje': 'Acuerdo alcanzado. Cuando se realice el servicio, usa el seguimiento del contacto.'}
     if estado.get('completo'):
@@ -333,6 +335,8 @@ def construir_payload(
     return {
         'contacto_id': contacto.get('id'),
         'estado_contacto': contacto_estado,
+        'solicitante_codigo': contacto.get('solicitante_codigo'),
+        'profesional_codigo': contacto.get('profesional_codigo'),
         'acuerdo_alcanzado': contacto_estado == 'acuerdo_alcanzado' or bool(estado.get('completo')),
         'negociacion': estado,
         'resumen': resumen_acuerdo(estado),
