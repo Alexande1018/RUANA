@@ -16,7 +16,7 @@
         { id: 'solicitudes', label: 'Solicitudes', group: 'Operaciones', target: '#solicitudes-admin-wrap', icon: 'inbox' },
         { id: 'competencias', label: 'Competencias', group: 'Operaciones', target: '#competencias-activas-wrap', icon: 'zap' },
         { id: 'suplentes', label: 'Suplentes en espera', group: 'Operaciones', target: '#suplentes-espera-wrap', icon: 'users' },
-        { id: 'chats', label: 'Registro de chats', group: 'Operaciones', target: '#conversaciones-ruana-wrap', icon: 'message' },
+        { id: 'chats', label: 'Negociaciones guiadas', group: 'Operaciones', target: '#conversaciones-ruana-wrap', icon: 'message' },
         { id: 'centro-comunicacion', label: 'Centro de comunicación', group: 'Operaciones', target: '#centro-comunicacion-admin-wrap', icon: 'message' },
         { id: 'aliados', label: 'Control de aliados', group: 'Red', target: '#control-aliados-wrap', icon: 'network' },
         { id: 'trazabilidad', label: 'Trazabilidad', group: 'Sistema', target: '.eventos-trazabilidad', icon: 'list' },

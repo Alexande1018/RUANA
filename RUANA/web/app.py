@@ -1412,89 +1412,110 @@ def health():
     })
 
 
-# ========== Chat RUANA (path de un solo segmento para evitar 404) ==========
-def _chat_payload_from_messages(mensajes, estado):
-    """Construye una respuesta de chat coherente entre lista visible y contador."""
-    mensajes_list = mensajes if isinstance(mensajes, list) else []
-    chat_max = int(estado.get('chat_max_mensajes') or 30)
-    chat_expirado = bool(estado.get('chat_expirado', False))
-    mensajes_restantes = 0 if chat_expirado else max(0, chat_max - len(mensajes_list))
-    return {
-        'status': 'success',
-        'mensajes': mensajes_list,
-        'chat_expirado': chat_expirado,
-        'mensajes_restantes': mensajes_restantes,
-        'chat_referencia_en': estado.get('chat_referencia_en'),
-        'chat_expira_en': estado.get('chat_expira_en'),
-        'chat_horas_restantes': 0 if chat_expirado else estado.get('chat_horas_restantes'),
-        'chat_horas_vigencia': estado.get('chat_horas_vigencia'),
-        'chat_max_mensajes': chat_max,
-    }
+# ========== Negociación guiada RUANA (sustituye chat libre) ==========
+
+def _priorizar_contactos_negociacion(contactos):
+    """Prioriza contactos con negociación en curso sobre los recién creados."""
+    def en_curso(c):
+        if c.get('estado') == 'acuerdo_alcanzado':
+            return 1
+        if c.get('negociacion_completa'):
+            return 1
+        return 0
+    return sorted(contactos or [], key=en_curso)
 
 
-def _priorizar_contactos_con_mensajes(contactos):
-    """Evita que un contacto abierto vacío tape una conversación activa en el banner."""
-    def tiene_mensajes(contacto):
-        try:
-            return int(contacto.get('num_mensajes') or 0) > 0
-        except (TypeError, ValueError):
-            return False
-
-    return sorted(contactos or [], key=lambda c: 0 if tiene_mensajes(c) else 1)
-
-
-@app.route('/api/chat_mensajes', methods=['GET'])
+@app.route('/api/contactos/<int:contacto_id>/negociacion', methods=['GET'])
 @require_aliado
-def chat_mensajes_get():
-    """GET /api/chat_mensajes?contacto_id=1  ? lista mensajes (codigo desde sesi?n)."""
-    try:
-        contacto_id = request.args.get('contacto_id', type=int)
-        codigo = _aliado_codigo()
-        if not contacto_id or not codigo:
-            return jsonify({'status': 'error', 'message': 'contacto_id obligatorio y sesi?n v?lida'}), 400
-        db = get_db()
-        contacto = db.obtener_contacto_resumen(contacto_id)
-        if not contacto:
-            return jsonify({'status': 'error', 'message': 'Contacto no encontrado'}), 404
-        sol = str(contacto.get('solicitante_codigo') or '').strip()
-        pro = str(contacto.get('profesional_codigo') or '').strip()
-        if codigo not in (sol, pro):
-            return jsonify({'status': 'error', 'message': 'No tienes permiso para ver este chat'}), 403
-        mensajes = db.listar_mensajes_contacto(contacto_id)
-        estado = db.estado_chat_contacto(contacto_id, codigo)
-        return jsonify(_chat_payload_from_messages(mensajes, estado))
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+def negociacion_get(contacto_id):
+    """GET estado completo de la negociación guiada."""
+    codigo = _aliado_codigo()
+    if not codigo:
+        return jsonify({'status': 'error', 'message': 'Sesión expirada'}), 401
+    db = get_db()
+    result = db.obtener_negociacion_contacto(contacto_id, codigo)
+    code = 200 if result.get('status') == 'success' else 400
+    if result.get('message') == 'Contacto no encontrado':
+        code = 404
+    elif result.get('message') == 'No autorizado':
+        code = 403
+    return jsonify(result), code
+
+
+@app.route('/api/contactos/<int:contacto_id>/negociacion/proponer', methods=['POST'])
+@require_aliado
+def negociacion_proponer(contacto_id):
+    """POST propuesta de valor en el paso actual (solo contratante)."""
+    codigo = _aliado_codigo()
+    if not codigo:
+        return jsonify({'status': 'error', 'message': 'Sesión expirada'}), 401
+    data = request.get_json() or {}
+    campo = (data.get('campo') or '').strip()
+    valor = (data.get('valor') or '').strip()
+    if not campo:
+        return jsonify({'status': 'error', 'message': 'campo es obligatorio'}), 400
+    db = get_db()
+    result = db.proponer_negociacion(contacto_id, codigo, campo, valor)
+    return jsonify(result), 200 if result.get('status') == 'success' else 400
+
+
+@app.route('/api/contactos/<int:contacto_id>/negociacion/aceptar', methods=['POST'])
+@require_aliado
+def negociacion_aceptar(contacto_id):
+    """POST aceptar propuesta vigente de un campo."""
+    codigo = _aliado_codigo()
+    if not codigo:
+        return jsonify({'status': 'error', 'message': 'Sesión expirada'}), 401
+    data = request.get_json() or {}
+    campo = (data.get('campo') or '').strip()
+    obs_prof = (data.get('observaciones_profesional') or '').strip()
+    if not campo:
+        return jsonify({'status': 'error', 'message': 'campo es obligatorio'}), 400
+    db = get_db()
+    result = db.aceptar_negociacion(contacto_id, codigo, campo, obs_prof)
+    return jsonify(result), 200 if result.get('status') == 'success' else 400
+
+
+@app.route('/api/contactos/<int:contacto_id>/negociacion/contraoferta', methods=['POST'])
+@require_aliado
+def negociacion_contraoferta(contacto_id):
+    """POST contraoferta sobre un campo en negociación."""
+    codigo = _aliado_codigo()
+    if not codigo:
+        return jsonify({'status': 'error', 'message': 'Sesión expirada'}), 401
+    data = request.get_json() or {}
+    campo = (data.get('campo') or '').strip()
+    valor = (data.get('valor') or '').strip()
+    renegociar = data.get('renegociar') in (True, 1, '1', 'true', 'True')
+    if not campo or not valor:
+        return jsonify({'status': 'error', 'message': 'campo y valor son obligatorios'}), 400
+    db = get_db()
+    result = db.contraoferta_negociacion(contacto_id, codigo, campo, valor, renegociar=renegociar)
+    return jsonify(result), 200 if result.get('status') == 'success' else 400
+
+
+# Rutas legacy de chat libre — redirigen a negociación guiada
+@app.route('/api/chat_mensajes', methods=['GET'])
+@app.route('/api/chat/mensajes', methods=['GET'])
+@app.route('/api/contactos/<int:contacto_id>/mensajes', methods=['GET'])
+@require_aliado
+def chat_legacy_get_redirect(contacto_id=None):
+    cid = contacto_id or request.args.get('contacto_id', type=int)
+    if not cid:
+        return jsonify({'status': 'error', 'message': 'El chat libre fue reemplazado por negociación guiada. Usa GET /api/contactos/<id>/negociacion'}), 410
+    return negociacion_get(cid)
 
 
 @app.route('/api/chat_enviar', methods=['POST', 'OPTIONS'])
-def chat_enviar_post():
-    """POST /api/chat_enviar  body: { contacto_id, texto }. emisor = aliado en sesi?n."""
+@app.route('/api/chat/enviar', methods=['POST'])
+@app.route('/api/contactos/<int:contacto_id>/mensajes', methods=['POST'])
+def chat_legacy_post_disabled(contacto_id=None):
     if request.method == 'OPTIONS':
         return '', 200
-    if not _aliado_session_valid():
-        return jsonify({'status': 'error', 'message': 'Sesi?n expirada o no autorizado'}), 401
-    emisor_codigo = _aliado_codigo()
-    try:
-        data = request.get_json() or {}
-        contacto_id = data.get('contacto_id')
-        if contacto_id is not None:
-            try:
-                contacto_id = int(contacto_id)
-            except (TypeError, ValueError):
-                contacto_id = None
-        texto = data.get('texto')
-        if not contacto_id:
-            return jsonify({'status': 'error', 'message': 'contacto_id es obligatorio'}), 400
-        if not emisor_codigo:
-            return jsonify({'status': 'error', 'message': 'Sesi?n expirada'}), 401
-        db = get_db()
-        result = db.enviar_mensaje_chat(contacto_id, emisor_codigo, texto or '')
-        if result.get('status') != 'success':
-            return jsonify(result), 400
-        return jsonify(result), 201
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+    return jsonify({
+        'status': 'error',
+        'message': 'El chat libre fue reemplazado por negociación guiada. Usa /api/contactos/<id>/negociacion/proponer, /aceptar o /contraoferta',
+    }), 410
 
 
 # ================================================
@@ -1678,97 +1699,6 @@ def marcar_contacto_en_conversacion(contacto_id):
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
-@app.route('/api/contactos/<int:contacto_id>/mensajes', methods=['GET', 'POST'])
-@require_aliado
-def api_contactos_mensajes(contacto_id):
-    """
-    GET /api/contactos/<id>/mensajes  ? lista mensajes (codigo desde sesi?n).
-    POST /api/contactos/<id>/mensajes  ? body: { texto }  ? env?a mensaje (emisor = sesi?n).
-    """
-    codigo = _aliado_codigo()
-    if not codigo:
-        return jsonify({'status': 'error', 'message': 'Sesi?n expirada'}), 401
-    if request.method == 'GET':
-        try:
-            db = get_db()
-            contacto = db.obtener_contacto_resumen(contacto_id)
-            if not contacto:
-                return jsonify({'status': 'error', 'message': 'Contacto no encontrado'}), 404
-            sol = str(contacto.get('solicitante_codigo') or '').strip()
-            pro = str(contacto.get('profesional_codigo') or '').strip()
-            if codigo not in (sol, pro):
-                return jsonify({'status': 'error', 'message': 'No tienes permiso para ver este chat'}), 403
-            mensajes = db.listar_mensajes_contacto(contacto_id)
-            estado = db.estado_chat_contacto(contacto_id, codigo)
-            return jsonify(_chat_payload_from_messages(mensajes, estado))
-        except Exception as e:
-            return jsonify({'status': 'error', 'message': str(e)}), 500
-
-    # POST
-    try:
-        data = request.get_json() or {}
-        texto = data.get('texto')
-        db = get_db()
-        result = db.enviar_mensaje_chat(contacto_id, codigo, texto or '')
-        if result.get('status') != 'success':
-            return jsonify(result), 400
-        return jsonify(result), 201
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-
-# ========== Chat RUANA (rutas simples: Aliado y Profesional) ==========
-@app.route('/api/chat/mensajes', methods=['GET'])
-@require_aliado
-def chat_get_mensajes():
-    """GET /api/chat/mensajes?contacto_id=1  ? lista mensajes del chat (codigo desde sesi?n)."""
-    try:
-        contacto_id = request.args.get('contacto_id', type=int)
-        codigo = _aliado_codigo()
-        if not contacto_id or not codigo:
-            return jsonify({'status': 'error', 'message': 'contacto_id es obligatorio'}), 400
-        db = get_db()
-        contacto = db.obtener_contacto_resumen(contacto_id)
-        if not contacto:
-            return jsonify({'status': 'error', 'message': 'Contacto no encontrado'}), 404
-        sol = str(contacto.get('solicitante_codigo') or '').strip()
-        pro = str(contacto.get('profesional_codigo') or '').strip()
-        if codigo not in (sol, pro):
-            return jsonify({'status': 'error', 'message': 'No tienes permiso para ver este chat'}), 403
-        mensajes = db.listar_mensajes_contacto(contacto_id)
-        estado = db.estado_chat_contacto(contacto_id, codigo)
-        return jsonify(_chat_payload_from_messages(mensajes, estado))
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-
-@app.route('/api/chat/enviar', methods=['POST'])
-@require_aliado
-def chat_enviar():
-    """POST /api/chat/enviar  body: { contacto_id, texto }  ? env?a mensaje (emisor = sesi?n)."""
-    try:
-        data = request.get_json() or {}
-        contacto_id = data.get('contacto_id')
-        if contacto_id is not None:
-            try:
-                contacto_id = int(contacto_id)
-            except (TypeError, ValueError):
-                contacto_id = None
-        emisor_codigo = _aliado_codigo()
-        texto = data.get('texto')
-        if not contacto_id:
-            return jsonify({'status': 'error', 'message': 'contacto_id es obligatorio'}), 400
-        if not emisor_codigo:
-            return jsonify({'status': 'error', 'message': 'Sesi?n expirada'}), 401
-        db = get_db()
-        result = db.enviar_mensaje_chat(contacto_id, emisor_codigo, texto or '')
-        if result.get('status') != 'success':
-            return jsonify(result), 400
-        return jsonify(result), 201
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-
 @app.route('/api/contactos/<int:contacto_id>/declarar-importe', methods=['POST'])
 @require_aliado
 def declarar_importe_contacto(contacto_id):
@@ -1851,7 +1781,7 @@ def contactos_abiertos_por_codigo(codigo_aliado):
 
         db = get_db()
         contactos = db.obtener_contactos_abiertos_por_codigo(codigo_aliado)
-        contactos = _priorizar_contactos_con_mensajes(contactos)
+        contactos = _priorizar_contactos_negociacion(contactos)
 
         return jsonify({
             'status': 'success',
@@ -3976,44 +3906,13 @@ def admin_competencias_historial():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
-@app.route('/api/admin/chat-messages', methods=['GET'])
-@require_admin
-def admin_chat_messages():
-    """
-    GET /api/admin/chat-messages?limit=50&page=1
-    Registro bruto: Fecha, Emisor, Receptor, Mensaje. Paginaci?n real.
-    Acepta page (1-based) o offset. page=1 ? primeras 50, page=2 ? siguientes 50.
-    """
-    try:
-        limit = request.args.get('limit', 50, type=int)
-        limit = min(max(1, limit), 100)
-        page = request.args.get('page', type=int)
-        offset = request.args.get('offset', type=int)
-        if page is not None and page >= 1:
-            offset = (page - 1) * limit
-        elif offset is None:
-            offset = 0
-        offset = max(0, offset)
-        db = get_db()
-        lista = db.listar_chat_messages(limit=limit, offset=offset)
-        has_more = len(lista) == limit
-        return jsonify({
-            'status': 'success',
-            'messages': lista,
-            'page': (offset // limit) + 1 if limit else 1,
-            'limit': limit,
-            'has_more': has_more,
-        })
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-
+@app.route('/api/admin/negociaciones', methods=['GET'])
 @app.route('/api/admin/chats', methods=['GET'])
 @require_admin
-def admin_chats():
+def admin_negociaciones():
     """
-    GET /api/admin/chats?limite=10&offset=0
-    Contactos con mensajes (paginado). Orden: más reciente primero.
+    GET /api/admin/negociaciones — listado de negociaciones guiadas (paginado).
+    Alias legacy: /api/admin/chats
     """
     try:
         limite = request.args.get('limite', 10, type=int)
@@ -4021,57 +3920,77 @@ def admin_chats():
         offset = request.args.get('offset', 0, type=int)
         offset = max(0, offset)
         db = get_db()
-        raw = db.listar_conversaciones_admin(limite=limite, offset=offset)
+        raw = db.listar_negociaciones_admin(limite=limite, offset=offset)
         conversaciones = []
         for c in raw:
             conversaciones.append({
                 'contacto_id': c.get('contacto_id'),
-                'solicitante': c.get('solicitante') or '',
-                'profesional': c.get('profesional') or '',
-                'ultimo_mensaje': (c.get('ultimo_mensaje') or '')[:200],
+                'solicitante': c.get('solicitante_codigo') or '',
+                'profesional': c.get('profesional_codigo') or '',
+                'estado': c.get('estado') or '',
+                'paso_actual': c.get('paso_actual') or '',
+                'acuerdo_completo': c.get('acuerdo_completo', False),
+                'precio_acordado': c.get('precio_acordado') or '',
+                'ultimo_evento': (c.get('ultimo_evento') or '')[:200],
                 'fecha_ultimo': c.get('fecha_ultimo'),
-                'num_mensajes': c.get('num_mensajes', 0),
-                'mensajes': c.get('mensajes') or [],
+                'num_eventos': c.get('num_eventos', 0),
+                'es_urgente': c.get('es_urgente', False),
             })
-        if len(conversaciones) == 0:
-            print("ADMIN_CHATS_EMPTY")
-        return jsonify({'status': 'success', 'conversaciones': conversaciones})
+        return jsonify({'status': 'success', 'conversaciones': conversaciones, 'negociaciones': conversaciones})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+@app.route('/api/admin/contactos/<int:contacto_id>/negociacion', methods=['GET'])
 @app.route('/api/admin/contactos/<int:contacto_id>/mensajes', methods=['GET'])
 @require_admin
-def admin_get_mensajes_chat(contacto_id):
-    """
-    GET /api/admin/contactos/<id>/mensajes
-    Admin puede ver todos los mensajes del chat de un contacto.
-    Incluye remitente: 'solicitante' | 'profesional' para cada mensaje.
-    """
+def admin_get_negociacion(contacto_id):
+    """Detalle de negociación guiada para admin."""
     try:
         db = get_db()
-        mensajes = db.listar_mensajes_contacto(contacto_id)
         contacto = db.obtener_contacto_resumen(contacto_id)
-        sol = (contacto or {}).get('solicitante_codigo') or ''
-        prof = (contacto or {}).get('profesional_codigo') or ''
-        out = []
-        for m in mensajes:
-            emisor = m.get('emisor_codigo') or ''
-            remitente = 'solicitante' if emisor == sol else ('profesional' if emisor == prof else 'aliado')
-            out.append({
-                'id': m.get('id'),
-                'emisor_codigo': emisor,
-                'texto': m.get('texto'),
-                'creado_en': m.get('creado_en'),
-                'remitente': remitente,
-            })
+        if not contacto:
+            return jsonify({'status': 'error', 'message': 'Contacto no encontrado'}), 404
+        eventos = db.listar_eventos_negociacion(contacto_id)
+        from core import negociacion_manager as neg_mgr
+        neg = neg_mgr.parse_negociacion(contacto.get('negociacion_json'))
         return jsonify({
             'status': 'success',
-            'mensajes': out,
-            'contacto': contacto
+            'contacto_id': contacto_id,
+            'solicitante': contacto.get('solicitante_codigo'),
+            'profesional': contacto.get('profesional_codigo'),
+            'estado_contacto': contacto.get('estado'),
+            'resumen': neg_mgr.resumen_acuerdo(neg),
+            'negociacion': neg,
+            'eventos': eventos,
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/contactos/<int:contacto_id>/negociacion', methods=['DELETE'])
+@require_admin
+def admin_eliminar_negociacion(contacto_id):
+    """Elimina contacto y toda su negociación."""
+    try:
+        admin_codigo = _admin_codigo() or ''
+        db = get_db()
+        result = db.eliminar_negociacion_admin(contacto_id, admin_codigo)
+        code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/chat-messages', methods=['GET'])
+@require_admin
+def admin_chat_messages_legacy():
+    """Legacy — redirige a negociaciones."""
+    return jsonify({
+        'status': 'error',
+        'message': 'El registro de chat libre fue reemplazado. Usa GET /api/admin/negociaciones',
+        'messages': [],
+    }), 410
 
 
 @app.route('/api/admin/conflictos-pago/<int:contacto_id>/resolver', methods=['POST'])

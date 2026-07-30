@@ -1,0 +1,180 @@
+/* Negociación guiada RUANA */
+.neg-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10050;
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(6px);
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+.neg-modal-overlay.show {
+    display: flex;
+}
+.neg-modal-content {
+    width: min(920px, 100%);
+    max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(145deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.98));
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 16px;
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+}
+.neg-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    flex-wrap: wrap;
+}
+.neg-modal-title {
+    margin: 0;
+    font-size: 1.15rem;
+    color: #f1f5f9;
+}
+.neg-modal-body {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 0;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+@media (max-width: 768px) {
+    .neg-modal-body {
+        grid-template-columns: 1fr;
+    }
+    .neg-resumen-panel {
+        border-left: none !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        max-height: 200px;
+    }
+}
+.neg-timeline {
+    padding: 16px 20px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 280px;
+    max-height: 52vh;
+}
+.neg-evento {
+    margin-bottom: 14px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.25);
+    border-left: 3px solid rgba(99, 102, 241, 0.6);
+    font-size: 0.92rem;
+    color: #cbd5e1;
+    line-height: 1.45;
+}
+.neg-evento.sistema {
+    border-left-color: rgba(34, 197, 94, 0.7);
+    background: rgba(34, 197, 94, 0.08);
+}
+.neg-evento-meta {
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-top: 4px;
+}
+.neg-resumen-panel {
+    padding: 16px;
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.15);
+}
+.neg-resumen-panel h4 {
+    margin: 0 0 12px;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #94a3b8;
+}
+.neg-resumen-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 10px;
+    font-size: 0.85rem;
+}
+.neg-resumen-label {
+    color: #94a3b8;
+    flex-shrink: 0;
+}
+.neg-resumen-valor {
+    color: #e2e8f0;
+    text-align: right;
+    word-break: break-word;
+}
+.neg-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.neg-badge.pendiente { background: rgba(100, 116, 139, 0.35); color: #cbd5e1; }
+.neg-badge.en_negociacion { background: rgba(234, 179, 8, 0.25); color: #fde68a; }
+.neg-badge.confirmado { background: rgba(34, 197, 94, 0.25); color: #86efac; }
+.neg-acciones {
+    padding: 14px 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(0, 0, 0, 0.2);
+}
+.neg-acciones-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: flex-end;
+}
+.neg-acciones-form input,
+.neg-acciones-form textarea {
+    flex: 1;
+    min-width: 180px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(0, 0, 0, 0.35);
+    color: #e2e8f0;
+    font-size: 0.95rem;
+}
+.neg-acciones-form textarea {
+    min-height: 60px;
+    resize: vertical;
+}
+.neg-btn {
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+.neg-btn-primary { background: #22c55e; color: #052e16; }
+.neg-btn-secondary { background: rgba(255, 255, 255, 0.12); color: #e2e8f0; }
+.neg-btn-warn { background: rgba(234, 179, 8, 0.85); color: #422006; }
+.neg-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.neg-acuerdo-resumen {
+    padding: 16px;
+    margin: 12px 0;
+    border-radius: 12px;
+    background: rgba(34, 197, 94, 0.12);
+    border: 1px solid rgba(34, 197, 94, 0.35);
+}
+.neg-acuerdo-resumen h3 {
+    margin: 0 0 12px;
+    color: #86efac;
+    font-size: 1rem;
+}
+.neg-esperar-msg {
+    color: #94a3b8;
+    font-style: italic;
+    padding: 8px 0;
+}
