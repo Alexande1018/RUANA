@@ -41,6 +41,8 @@
             this.contactoId = null;
             this.data = null;
             this._pollId = null;
+            this._drafts = {};
+            this._lastAccionKey = '';
             this._bindModal();
         }
 
@@ -73,11 +75,61 @@
             if (modal) modal.classList.remove('show');
             this.contactoId = null;
             this.data = null;
+            this._drafts = {};
+            this._lastAccionKey = '';
+        }
+
+        _accionKey(acc) {
+            if (!acc) return '';
+            return [
+                acc.tipo,
+                acc.campo || '',
+                acc.valor_actual || '',
+                acc.modificar_propia ? '1' : '0',
+            ].join('|');
+        }
+
+        _formularioEnUso() {
+            const wrap = document.getElementById('neg-acciones-wrap');
+            return !!(wrap && document.activeElement && wrap.contains(document.activeElement));
+        }
+
+        _guardarBorradoresFormulario(campo) {
+            if (!campo) return;
+            const input = document.getElementById('neg-input-valor');
+            if (input) this._drafts[campo] = input.value;
+            const contra = document.getElementById('neg-input-contraoferta');
+            if (contra) this._drafts[`contra_${campo}`] = contra.value;
+        }
+
+        _valorBorrador(campo, fallback) {
+            const draft = this._drafts[campo];
+            if (draft !== undefined && draft !== null && String(draft).length > 0) {
+                return String(draft);
+            }
+            return fallback || '';
+        }
+
+        _enlazarGuardadoBorrador(campo) {
+            const guardar = () => this._guardarBorradoresFormulario(campo);
+            const input = document.getElementById('neg-input-valor');
+            if (input) {
+                input.addEventListener('input', guardar);
+                input.addEventListener('change', guardar);
+            }
+            const contra = document.getElementById('neg-input-contraoferta');
+            if (contra) {
+                contra.addEventListener('input', guardar);
+                contra.addEventListener('change', guardar);
+            }
         }
 
         iniciarPolling() {
             this.detenerPolling();
-            this._pollId = setInterval(() => this.refrescar(true), 2500);
+            this._pollId = setInterval(() => {
+                if (this._formularioEnUso()) return;
+                this.refrescar(true);
+            }, 2500);
         }
 
         detenerPolling() {
@@ -195,6 +247,13 @@
             const el = document.getElementById('neg-acciones-wrap');
             if (!el || !this.data.accion) return;
             const acc = this.data.accion;
+            const accionKey = this._accionKey(acc);
+
+            if (acc.campo) this._guardarBorradoresFormulario(acc.campo);
+            if (this._formularioEnUso() && accionKey === this._lastAccionKey) {
+                return;
+            }
+            this._lastAccionKey = accionKey;
 
             if (this.data.acuerdo_alcanzado || this.data.estado_contacto === 'acuerdo_alcanzado') {
                 el.innerHTML = '<p class="neg-esperar-msg">Negociación completada. Cuando se realice el servicio, indica el resultado desde tu panel.</p>';
@@ -232,7 +291,7 @@
             const catalogoHtml = campo === 'servicio'
                 ? '<div id="neg-catalogo-servicios" class="neg-catalogo-list"></div>'
                 : '';
-            const valorInicial = acc.valor_actual || acc.valor_sugerido || '';
+            const valorInicial = this._valorBorrador(campo, acc.valor_actual || acc.valor_sugerido || '');
             const inputHtml = isTextarea
                 ? `<textarea id="neg-input-valor" placeholder="${this.escapeHtml(acc.label)}">${this.escapeHtml(valorInicial)}</textarea>`
                 : `<input id="neg-input-valor" type="${inputType}" ${campo === 'precio' ? 'step="0.01" min="0"' : ''} placeholder="${this.escapeHtml(acc.label)}" value="${this.escapeHtml(valorInicial)}" />`;
@@ -248,6 +307,7 @@
                 const profCodigo = (this.data.profesional_codigo || '').trim();
                 if (profCodigo) this._cargarCatalogoServicios(profCodigo, 'neg-catalogo-servicios', 'neg-input-valor');
             }
+            this._enlazarGuardadoBorrador(campo);
             document.getElementById('neg-btn-proponer').addEventListener('click', () => this.proponer(campo));
         }
 
@@ -255,6 +315,7 @@
             const el = document.getElementById('neg-acciones-wrap');
             const campo = acc.campo;
             const valorActual = acc.valor_actual || '';
+            const valorContra = this._valorBorrador(`contra_${campo}`, '');
             el.innerHTML = `<div class="neg-acciones-form" style="flex-direction:column;align-items:stretch;">
                 <p class="neg-accion-mensaje">${this.escapeHtml(acc.mensaje || '')}</p>
                 <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
@@ -262,11 +323,12 @@
                     <button type="button" class="neg-btn neg-btn-warn" id="neg-btn-contraoferta-toggle">Sugerir cambio</button>
                 </div>
                 <div id="neg-contraoferta-form" style="display:none;margin-top:10px;">
-                    <input id="neg-input-contraoferta" type="${INPUT_TYPES[campo] === 'textarea' ? 'text' : (INPUT_TYPES[campo] || 'text')}" placeholder="Tu alternativa" value="" />
+                    <input id="neg-input-contraoferta" type="${INPUT_TYPES[campo] === 'textarea' ? 'text' : (INPUT_TYPES[campo] || 'text')}" placeholder="Tu alternativa" value="${this.escapeHtml(valorContra)}" />
                     ${campo === 'observaciones' ? '<textarea id="neg-input-obs-prof" placeholder="Tus observaciones (opcional)" style="margin-top:8px;width:100%;"></textarea>' : ''}
                     <button type="button" class="neg-btn neg-btn-warn" id="neg-btn-contraoferta" style="margin-top:8px;">Enviar alternativa</button>
                 </div>
             </div>`;
+            this._enlazarGuardadoBorrador(campo);
             document.getElementById('neg-btn-aceptar').addEventListener('click', () => this.aceptar(campo));
             document.getElementById('neg-btn-contraoferta-toggle').addEventListener('click', () => {
                 const f = document.getElementById('neg-contraoferta-form');
@@ -312,6 +374,11 @@
                     return;
                 }
                 this.data = data;
+                if (body && body.campo) {
+                    delete this._drafts[body.campo];
+                    delete this._drafts[`contra_${body.campo}`];
+                }
+                this._lastAccionKey = '';
                 this.render();
                 if (this.panel && typeof this.panel.cargarContactosPendientes === 'function') {
                     await this.panel.cargarContactosPendientes();
