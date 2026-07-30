@@ -1846,7 +1846,7 @@
         .ruana-tour-replay {
             position: fixed;
             right: 18px;
-            bottom: 18px;
+            bottom: 96px;
             z-index: 1200;
             border-radius: 999px;
             border: 1px solid rgba(255,255,255,0.16);
@@ -1902,7 +1902,7 @@
             .ruana-tour-arrow { display: none; }
             .ruana-tour-replay {
                 right: 12px;
-                bottom: 12px;
+                bottom: 84px;
             }
         }
 
@@ -2712,17 +2712,18 @@
 
             buildSteps() {
                 return [
-                    { selector: '.perfil-block', title: '¡Bienvenido a RUANA!', copy: '<strong>Recomienda. Colabora. Gana confianza.</strong><br><br>Tu Score, medallas y etiquetas reflejan tu reputación. Cuanto mayor sea tu confianza, más oportunidades de negocio conseguirás.', placement: 'bottom' },
-                    { selector: '#perfil-avatar', title: 'Tu foto o logo', copy: 'Aquí subes tu foto o el logo de tu negocio. Cuando te ven claro, confían más rápido en ti.', placement: 'right' },
-                    { selector: '#detail-descripcion-wrap', title: 'Tu descripción sí importa', copy: 'Esta parte se puede editar y la verán otros aliados. Cuéntales en corto qué haces y en qué eres bueno.', placement: 'bottom' },
-                    { selector: '#perfil-status', title: 'Tus etiquetas RUANA', copy: 'Las etiquetas son el reconocimiento que la comunidad RUANA te otorga. Permiten que los demás aliados identifiquen tu nivel de confianza y trayectoria dentro de la red.<br><br><span style="color:#ef4444;font-weight:700">● COMPETENCIA</span><br><span style="color:#eab308;font-weight:700">● EN RIESGO</span><br><span style="color:#22c55e;font-weight:700">● ESTABLE</span><br><span style="color:#ffd700;font-weight:700">● DESTACADO</span><br><span style="color:#60a5fa;font-weight:800">◆ ÉLITE</span><br><br>Se desbloquean automáticamente a medida que tu Score RUANA crece, reflejando tu progreso y reputación.', placement: 'left' },
-                    { selector: '.metricas-block', title: 'Tus métricas', copy: 'Aquí miras cómo vas en solicitudes, red y score. Es tu tablero para tomar mejores decisiones.', placement: 'bottom' },
-                    { selector: '.directorio-panel', title: 'Dónde elegir profesionales', copy: 'En el directorio filtras por nombre, oficio o zona para encontrar rápido a la persona adecuada.', placement: 'top' },
-                    { selector: '#solicitudes-entrantes-wrap', title: 'Solicitudes de otros aliados', copy: 'Aquí ayudas aceptando o recomendando a alguien que conozcas. Todo queda trazado dentro de RUANA.', placement: 'top' },
-                    { selector: '#btn-invitar-aliado', title: 'Código para invitar aliados', copy: 'Desde este botón se genera el código para que otro profesional se registre en RUANA.', placement: 'bottom' },
-                    { selector: '.crear-solicitud-zone', title: 'Tus solicitudes propias', copy: 'Aquí eliges el oficio y escribes qué necesitas. Lo mandas y tu grupo te responde.', placement: 'left' },
-                    { selector: '#metrica-card-score', title: 'Score RUANA en simple', copy: 'Tu score sube cuando cumples y colaboras; baja con impagos, incumplimientos o contactos mal cerrados.<br><br><strong>Tu score sube por acciones como:</strong> cierres reales, puntualidad, comunicación, importes coherentes, evidencias, respuesta rápida, feedback positivo, cumplimiento y colaboración.<br><br><strong>Tu score bajará por acciones como:</strong> contactos sin cerrar, impagos, datos falsos, incumplimientos, disputas repetidas, ausencias sin aviso, importes inconsistentes, mala calidad recurrente y romper reglas.<br><br><strong>A partir de los 100 puntos, tu Score RUANA será visible para los demás aliados, aumentando tu credibilidad y facilitando que otros confíen en ti para nuevas oportunidades.</strong>', placement: 'bottom' },
-                    { selector: '.ruana-brand', title: '¡Empieza a construir tu reputación!', copy: 'Visita la Landing Page para conocer las reglas de RUANA. Cuanto mejor conozcas la comunidad, más confianza generarás y más oportunidades recibirás.', placement: 'bottom', final: true }
+                    { selector: '.perfil-block', title: 'Bienvenido a tu panel RUANA', copy: '<strong>Todo empieza aquí.</strong><br><br>Tu perfil, reputación y actividad viven en esta vista. Mantenerla actualizada aumenta tu confianza dentro de la red.', placement: 'bottom' },
+                    { selector: '#perfil-avatar', title: 'Foto o logo del negocio', copy: 'Una imagen clara te hace más reconocible y profesional ante otros aliados.', placement: 'right' },
+                    { selector: '#detail-descripcion-wrap', title: 'Tu propuesta en una línea', copy: 'Edita esta descripción para explicar rápido qué haces y en qué destacas.', placement: 'bottom' },
+                    { selector: '#perfil-status', title: 'Etiqueta de reputación RUANA', copy: 'Tu etiqueta se actualiza según tu comportamiento y score: cumplimiento, comunicación y calidad de tus cierres.', placement: 'left' },
+                    { selector: '.metricas-block', title: 'Métricas que importan', copy: 'Aquí ves tu progreso real: solicitudes, red de aliados y evolución del score.', placement: 'bottom' },
+                    { selector: '.directorio-panel', title: 'Directorio inteligente', copy: 'Filtra por nombre, oficio o zona para encontrar al profesional adecuado en segundos.', placement: 'top' },
+                    { selector: '#solicitudes-entrantes-wrap', title: 'Solicitudes del grupo', copy: 'Responde o recomienda cuando puedas aportar. Todo queda trazado y fortalece tu reputación.', placement: 'top' },
+                    { selector: '.crear-solicitud-zone', title: 'Pide ayuda a tu red', copy: 'Describe lo que necesitas y envíalo al grupo para activar nuevas oportunidades.', placement: 'left' },
+                    { selector: '#btn-invitar-aliado', title: 'Invita nuevos aliados', copy: 'Genera códigos para sumar talento a tu red y hacer tu grupo más sólido.', placement: 'bottom' },
+                    { selector: '#metrica-card-score', title: 'Score RUANA', copy: 'Sube cuando cumples y colaboras; baja con incumplimientos o malos cierres. Es tu credencial de confianza en la comunidad.', placement: 'bottom' },
+                    { selector: '#ruana-help-fab', title: 'Habla con el equipo RUANA', copy: 'Desde este botón flotante puedes abrir soporte, enviar consultas y seguir respuestas sin salir del panel.', placement: 'left' },
+                    { selector: '.ruana-brand', title: 'Listo para empezar', copy: 'Cuando quieras, repite este tour desde el botón flotante “Ver tour RUANA”.', placement: 'bottom', final: true }
                 ];
             }
 
