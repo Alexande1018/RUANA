@@ -178,6 +178,26 @@
     font-style: italic;
     padding: 8px 0;
 }
+.neg-paso-actual {
+    margin: 4px 0 0;
+    font-size: 0.82rem;
+    color: #94a3b8;
+    font-weight: 400;
+}
+.neg-accion-mensaje {
+    margin: 0 0 10px;
+    color: #e2e8f0;
+    font-size: 0.92rem;
+    line-height: 1.45;
+}
+.neg-accion-info {
+    padding: 4px 0;
+}
+.neg-esperar-hint {
+    margin: 8px 0 0;
+    font-size: 0.8rem;
+    color: #64748b;
+}
 .neg-catalogo-wrap {
     margin: 12px 0 8px;
 }

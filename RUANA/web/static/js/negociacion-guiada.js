@@ -13,6 +13,21 @@
         observaciones: 'textarea',
     };
 
+    const ESTADO_LABELS = {
+        pendiente: 'Pendiente',
+        en_negociacion: 'En negociación',
+        confirmado: 'Confirmado',
+    };
+
+    const PASO_LABELS = {
+        servicio: 'Servicio',
+        fecha: 'Fecha',
+        hora: 'Hora',
+        direccion: 'Dirección',
+        precio: 'Precio',
+        observaciones: 'Observaciones',
+    };
+
     function getAuthHeaders(extra) {
         if (typeof global.getRuanaAuthHeaders === 'function') {
             return global.getRuanaAuthHeaders(extra || {});
@@ -62,7 +77,7 @@
 
         iniciarPolling() {
             this.detenerPolling();
-            this._pollId = setInterval(() => this.refrescar(true), 5000);
+            this._pollId = setInterval(() => this.refrescar(true), 2500);
         }
 
         detenerPolling() {
@@ -93,11 +108,21 @@
 
         render() {
             if (!this.data) return;
+            this.renderPasoActual();
             this.renderTimeline();
             this.renderResumen();
             this.renderAcciones();
             this.renderAcuerdoFinal();
             this.renderBotonesHeader();
+        }
+
+        renderPasoActual() {
+            const el = document.getElementById('neg-paso-actual');
+            if (!el) return;
+            const paso = this.data.paso_actual || (this.data.accion && this.data.accion.campo) || 'servicio';
+            const label = PASO_LABELS[paso] || paso;
+            const rol = this.data.rol === 'profesional' ? 'Profesional' : 'Contratante';
+            el.textContent = `Paso actual: ${label} · Tu rol: ${rol}`;
         }
 
         renderBotonesHeader() {
@@ -114,7 +139,7 @@
             if (!el) return;
             const eventos = Array.isArray(this.data.eventos) ? this.data.eventos : [];
             if (!eventos.length) {
-                el.innerHTML = '<p class="neg-esperar-msg">RUANA guiará el acuerdo paso a paso.</p>';
+                el.innerHTML = '<p class="neg-esperar-msg">RUANA os guiará paso a paso hasta alcanzar un acuerdo.</p>';
                 return;
             }
             el.innerHTML = eventos.map(ev => {
@@ -134,7 +159,8 @@
             const items = Array.isArray(this.data.resumen) ? this.data.resumen : [];
             el.innerHTML = items.map(item => {
                 const estado = item.estado || 'pendiente';
-                const badge = `<span class="neg-badge ${estado}">${estado.replace('_', ' ')}</span>`;
+                const estadoLabel = item.estado_label || ESTADO_LABELS[estado] || estado;
+                const badge = `<span class="neg-badge ${estado}">${this.escapeHtml(estadoLabel)}</span>`;
                 const val = item.valor ? this.escapeHtml(String(item.valor)) : '—';
                 return `<div class="neg-resumen-item">
                     <span class="neg-resumen-label">${this.escapeHtml(item.label || item.campo)}</span>
@@ -152,7 +178,7 @@
                 return;
             }
             wrap.style.display = 'block';
-            const items = (this.data.resumen || []).filter(i => i.valor);
+            const items = (this.data.resumen || []).filter(i => i.valor && i.campo !== 'observaciones_profesional');
             wrap.innerHTML = `<div class="neg-acuerdo-resumen">
                 <h3>Acuerdo alcanzado</h3>
                 ${items.map(i => `<p><strong>${this.escapeHtml(i.label)}:</strong> ${this.escapeHtml(String(i.valor))}</p>`).join('')}
@@ -164,69 +190,90 @@
             const el = document.getElementById('neg-acciones-wrap');
             if (!el || !this.data.accion) return;
             const acc = this.data.accion;
+
             if (this.data.acuerdo_alcanzado || this.data.estado_contacto === 'acuerdo_alcanzado') {
-                el.innerHTML = '<p class="neg-esperar-msg">Negociación completada. Espera a realizar el servicio para cerrar el contacto.</p>';
+                el.innerHTML = '<p class="neg-esperar-msg">Negociación completada. Cuando se realice el servicio, indica el resultado desde tu panel.</p>';
                 return;
             }
             if (acc.tipo === 'cerrado') {
                 el.innerHTML = `<p class="neg-esperar-msg">${this.escapeHtml(acc.mensaje || 'Negociación cerrada.')}</p>`;
                 return;
             }
-            if (acc.tipo === 'esperar' || acc.tipo === 'resumen') {
-                el.innerHTML = `<p class="neg-esperar-msg">${this.escapeHtml(acc.mensaje || 'Esperando a la otra parte.')}</p>`;
+            if (acc.tipo === 'resumen') {
+                el.innerHTML = `<p class="neg-esperar-msg">${this.escapeHtml(acc.mensaje || '')}</p>`;
+                return;
+            }
+            if (acc.tipo === 'esperar') {
+                el.innerHTML = `<div class="neg-accion-info">
+                    <p class="neg-accion-mensaje">${this.escapeHtml(acc.mensaje || 'Esperando a la otra parte.')}</p>
+                    <p class="neg-esperar-hint">RUANA actualizará esta pantalla automáticamente en cuanto haya novedades.</p>
+                </div>`;
                 return;
             }
             if (acc.tipo === 'proponer') {
-                const campo = acc.campo;
-                const inputType = INPUT_TYPES[campo] || 'text';
-                const isTextarea = inputType === 'textarea';
-                const catalogoHtml = campo === 'servicio'
-                    ? '<div id="neg-catalogo-servicios" class="neg-catalogo-list"></div>'
-                    : '';
-                const inputHtml = isTextarea
-                    ? `<textarea id="neg-input-valor" placeholder="${this.escapeHtml(acc.label)}"></textarea>`
-                    : `<input id="neg-input-valor" type="${inputType}" ${campo === 'precio' ? 'step="0.01" min="0"' : ''} placeholder="${this.escapeHtml(acc.label)}" />`;
-                el.innerHTML = `<div class="neg-acciones-form neg-acciones-form-servicio">
-                    <label style="width:100%;color:#94a3b8;font-size:0.85rem;">Proponer: ${this.escapeHtml(acc.label)}</label>
-                    ${catalogoHtml}
-                    ${inputHtml}
-                    <button type="button" class="neg-btn neg-btn-primary" id="neg-btn-proponer">Proponer</button>
-                </div>`;
-                if (campo === 'servicio') {
-                    const profCodigo = (this.data.profesional_codigo || '').trim();
-                    if (profCodigo) this._cargarCatalogoServicios(profCodigo, 'neg-catalogo-servicios', 'neg-input-valor');
-                }
-                document.getElementById('neg-btn-proponer').addEventListener('click', () => this.proponer(campo));
+                this._renderFormProponer(acc);
                 return;
             }
             if (acc.tipo === 'responder') {
-                const campo = acc.campo;
-                const valorActual = acc.valor_actual || '';
-                el.innerHTML = `<div class="neg-acciones-form" style="flex-direction:column;align-items:stretch;">
-                    <p style="margin:0;color:#e2e8f0;">Propuesta de ${acc.propuesto_por === 'solicitante' ? 'contratante' : 'profesional'} — <strong>${this.escapeHtml(acc.label)}</strong>: «${this.escapeHtml(valorActual)}»</p>
-                    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
-                        <button type="button" class="neg-btn neg-btn-primary" id="neg-btn-aceptar">Aceptar</button>
-                        <button type="button" class="neg-btn neg-btn-warn" id="neg-btn-contraoferta-toggle">Proponer cambio</button>
-                    </div>
-                    <div id="neg-contraoferta-form" style="display:none;margin-top:10px;">
-                        <input id="neg-input-contraoferta" type="${INPUT_TYPES[campo] === 'textarea' ? 'text' : (INPUT_TYPES[campo] || 'text')}" placeholder="Tu contraoferta" value="" />
-                        ${campo === 'observaciones' ? '<textarea id="neg-input-obs-prof" placeholder="Tus observaciones (opcional)" style="margin-top:8px;width:100%;"></textarea>' : ''}
-                        <button type="button" class="neg-btn neg-btn-warn" id="neg-btn-contraoferta" style="margin-top:8px;">Enviar contraoferta</button>
-                    </div>
-                </div>`;
-                document.getElementById('neg-btn-aceptar').addEventListener('click', () => this.aceptar(campo));
-                document.getElementById('neg-btn-contraoferta-toggle').addEventListener('click', () => {
-                    const f = document.getElementById('neg-contraoferta-form');
-                    if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
-                });
-                document.getElementById('neg-btn-contraoferta').addEventListener('click', () => this.contraoferta(campo));
+                this._renderFormResponder(acc);
             }
+        }
+
+        _renderFormProponer(acc) {
+            const el = document.getElementById('neg-acciones-wrap');
+            const campo = acc.campo;
+            const inputType = INPUT_TYPES[campo] || 'text';
+            const isTextarea = inputType === 'textarea';
+            const catalogoHtml = campo === 'servicio'
+                ? '<div id="neg-catalogo-servicios" class="neg-catalogo-list"></div>'
+                : '';
+            const valorInicial = acc.valor_actual || acc.valor_sugerido || '';
+            const inputHtml = isTextarea
+                ? `<textarea id="neg-input-valor" placeholder="${this.escapeHtml(acc.label)}">${this.escapeHtml(valorInicial)}</textarea>`
+                : `<input id="neg-input-valor" type="${inputType}" ${campo === 'precio' ? 'step="0.01" min="0"' : ''} placeholder="${this.escapeHtml(acc.label)}" value="${this.escapeHtml(valorInicial)}" />`;
+            const btnLabel = acc.modificar_propia ? 'Actualizar propuesta' : 'Enviar propuesta';
+            el.innerHTML = `<div class="neg-acciones-form neg-acciones-form-servicio">
+                <p class="neg-accion-mensaje">${this.escapeHtml(acc.mensaje || '')}</p>
+                <label style="width:100%;color:#94a3b8;font-size:0.85rem;">${this.escapeHtml(acc.label)}</label>
+                ${catalogoHtml}
+                ${inputHtml}
+                <button type="button" class="neg-btn neg-btn-primary" id="neg-btn-proponer">${btnLabel}</button>
+            </div>`;
+            if (campo === 'servicio') {
+                const profCodigo = (this.data.profesional_codigo || '').trim();
+                if (profCodigo) this._cargarCatalogoServicios(profCodigo, 'neg-catalogo-servicios', 'neg-input-valor');
+            }
+            document.getElementById('neg-btn-proponer').addEventListener('click', () => this.proponer(campo));
+        }
+
+        _renderFormResponder(acc) {
+            const el = document.getElementById('neg-acciones-wrap');
+            const campo = acc.campo;
+            const valorActual = acc.valor_actual || '';
+            el.innerHTML = `<div class="neg-acciones-form" style="flex-direction:column;align-items:stretch;">
+                <p class="neg-accion-mensaje">${this.escapeHtml(acc.mensaje || '')}</p>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
+                    <button type="button" class="neg-btn neg-btn-primary" id="neg-btn-aceptar">Confirmar</button>
+                    <button type="button" class="neg-btn neg-btn-warn" id="neg-btn-contraoferta-toggle">Sugerir cambio</button>
+                </div>
+                <div id="neg-contraoferta-form" style="display:none;margin-top:10px;">
+                    <input id="neg-input-contraoferta" type="${INPUT_TYPES[campo] === 'textarea' ? 'text' : (INPUT_TYPES[campo] || 'text')}" placeholder="Tu alternativa" value="" />
+                    ${campo === 'observaciones' ? '<textarea id="neg-input-obs-prof" placeholder="Tus observaciones (opcional)" style="margin-top:8px;width:100%;"></textarea>' : ''}
+                    <button type="button" class="neg-btn neg-btn-warn" id="neg-btn-contraoferta" style="margin-top:8px;">Enviar alternativa</button>
+                </div>
+            </div>`;
+            document.getElementById('neg-btn-aceptar').addEventListener('click', () => this.aceptar(campo));
+            document.getElementById('neg-btn-contraoferta-toggle').addEventListener('click', () => {
+                const f = document.getElementById('neg-contraoferta-form');
+                if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
+            });
+            document.getElementById('neg-btn-contraoferta').addEventListener('click', () => this.contraoferta(campo));
         }
 
         async proponer(campo) {
             const input = document.getElementById('neg-input-valor');
             const valor = input ? String(input.value || '').trim() : '';
-            if (!valor) { alert('Introduce un valor'); return; }
+            if (!valor) { alert('Introduce un valor para continuar'); return; }
             await this._post(`/api/contactos/${this.contactoId}/negociacion/proponer`, { campo, valor });
         }
 
@@ -242,7 +289,7 @@
         async contraoferta(campo) {
             const input = document.getElementById('neg-input-contraoferta');
             const valor = input ? String(input.value || '').trim() : '';
-            if (!valor) { alert('Introduce tu contraoferta'); return; }
+            if (!valor) { alert('Introduce tu alternativa'); return; }
             await this._post(`/api/contactos/${this.contactoId}/negociacion/contraoferta`, { campo, valor });
         }
 
@@ -264,11 +311,10 @@
                 if (this.panel && typeof this.panel.cargarContactosPendientes === 'function') {
                     await this.panel.cargarContactosPendientes();
                 }
-                if (data.completo || data.acuerdo_alcanzado) {
-                    if (this.panel && typeof this.panel.cargarContactosPendientes === 'function') {
-                        await this.panel.cargarContactosPendientes();
-                    }
+                if (this.panel && typeof this.panel.refreshAfterAction === 'function') {
+                    await this.panel.refreshAfterAction(['contactos', 'alertas', 'metricas']);
                 }
+                setTimeout(() => this.refrescar(true), 400);
             } catch (e) {
                 alert('Error de conexión');
             }
@@ -292,10 +338,8 @@
                     return;
                 }
                 container.innerHTML = servicios.map((s, idx) => {
-                    const desc = s.descripcion || '';
-                    const precio = s.precio ? String(s.precio) : '';
-                    const descHtml = this.escapeHtml(desc);
-                    const precioHtml = precio ? this.escapeHtml(precio) : '';
+                    const descHtml = this.escapeHtml(s.descripcion || '');
+                    const precioHtml = s.precio ? this.escapeHtml(String(s.precio)) : '';
                     return `<button type="button" class="neg-catalogo-item" data-idx="${idx}">
                         <span class="neg-catalogo-desc">${descHtml}</span>
                         ${precioHtml ? `<span class="neg-catalogo-precio">${precioHtml}</span>` : ''}

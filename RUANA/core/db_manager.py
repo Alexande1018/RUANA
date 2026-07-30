@@ -6898,31 +6898,29 @@ class DBManager:
 
     def _iniciar_negociacion_en_cursor(self, cursor, contacto_id: int, servicio: str,
                                         solicitante_codigo: str) -> None:
-        estado = neg_mgr.estado_inicial(servicio)
+        estado = neg_mgr.estado_inicial()
         neg_json = neg_mgr.serializar_negociacion(estado)
         cursor.execute(
             "UPDATE contactos_ruana SET negociacion_json = ?, actualizado_en = CURRENT_TIMESTAMP WHERE id = ?",
             (neg_json, contacto_id),
         )
-        msg = neg_mgr._mensaje_evento(
-            neg_mgr.TIPO_SISTEMA, 'servicio', 'solicitante',
-            extra='RUANA ha iniciado la negociación guiada. El contratante propone el servicio.',
-        )
-        if servicio.strip():
-            msg2 = neg_mgr._mensaje_evento(neg_mgr.TIPO_PROPUESTA, 'servicio', 'solicitante', servicio.strip())
-            cursor.execute("""
-                INSERT INTO negociacion_eventos (contacto_id, tipo, campo, valor, emisor_codigo, mensaje)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (contacto_id, neg_mgr.TIPO_SISTEMA, 'servicio', servicio.strip(), solicitante_codigo, msg))
-            cursor.execute("""
-                INSERT INTO negociacion_eventos (contacto_id, tipo, campo, valor, emisor_codigo, mensaje)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (contacto_id, neg_mgr.TIPO_PROPUESTA, 'servicio', servicio.strip(), solicitante_codigo, msg2))
+        servicio_txt = (servicio or '').strip()
+        if servicio_txt:
+            extra = (
+                f'RUANA ha iniciado la negociación guiada. '
+                f'El contratante ha indicado «{servicio_txt}» como servicio solicitado; '
+                f'confírmalo o ajústalo en el primer paso.'
+            )
         else:
-            cursor.execute("""
-                INSERT INTO negociacion_eventos (contacto_id, tipo, campo, valor, emisor_codigo, mensaje)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (contacto_id, neg_mgr.TIPO_SISTEMA, 'servicio', '', solicitante_codigo, msg))
+            extra = (
+                'RUANA ha iniciado la negociación guiada. '
+                'El contratante propondrá el servicio en el primer paso.'
+            )
+        msg = neg_mgr._mensaje_evento(neg_mgr.TIPO_SISTEMA, 'servicio', 'solicitante', extra=extra)
+        cursor.execute("""
+            INSERT INTO negociacion_eventos (contacto_id, tipo, campo, valor, emisor_codigo, mensaje)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (contacto_id, neg_mgr.TIPO_SISTEMA, 'servicio', servicio_txt or None, solicitante_codigo, msg))
 
     def _insertar_evento_negociacion(self, cursor, contacto_id: int, tipo: str, campo: str,
                                       valor: str, emisor_codigo: str, mensaje: str) -> None:
@@ -8752,6 +8750,13 @@ class DBManager:
                     neg = neg_mgr.parse_negociacion(d.get('negociacion_json'))
                     d['negociacion_completa'] = bool(neg.get('completo')) or d.get('estado') == 'acuerdo_alcanzado'
                     d['paso_negociacion'] = neg.get('paso_actual')
+                    paso = neg.get('paso_actual') or 'servicio'
+                    campo = (neg.get('campos') or {}).get(paso, {})
+                    d['negociacion_paso_label'] = neg_mgr.CAMPOS_LABELS.get(paso, paso)
+                    d['negociacion_paso_estado'] = campo.get('estado') or neg_mgr.ESTADO_PENDIENTE
+                    d['negociacion_paso_estado_label'] = neg_mgr.ESTADO_LABELS.get(
+                        d['negociacion_paso_estado'], d['negociacion_paso_estado']
+                    )
                     result.append(d)
                 return result
             except Exception as e:

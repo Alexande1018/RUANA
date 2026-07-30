@@ -23,6 +23,12 @@ ESTADO_PENDIENTE = 'pendiente'
 ESTADO_EN_NEGOCIACION = 'en_negociacion'
 ESTADO_CONFIRMADO = 'confirmado'
 
+ESTADO_LABELS = {
+    ESTADO_PENDIENTE: 'Pendiente',
+    ESTADO_EN_NEGOCIACION: 'En negociación',
+    ESTADO_CONFIRMADO: 'Confirmado',
+}
+
 TIPO_SISTEMA = 'sistema'
 TIPO_PROPUESTA = 'propuesta'
 TIPO_ACEPTACION = 'aceptacion'
@@ -38,40 +44,58 @@ def _campo_vacio() -> Dict[str, Any]:
     }
 
 
-def estado_inicial(servicio_inicial: str = '') -> Dict[str, Any]:
-    estado = {
+def estado_inicial(_servicio_inicial: str = '') -> Dict[str, Any]:
+    """Estado vacío: el contratante envía la primera propuesta desde el modal."""
+    return {
         'paso_actual': 'servicio',
         'campos': {c: _campo_vacio() for c in CAMPOS_ORDEN},
         'observaciones_profesional': {'valor': '', 'estado': ESTADO_PENDIENTE, 'confirmado_en': None},
         'completo': False,
     }
-    servicio = (servicio_inicial or '').strip()
-    if servicio:
-        estado['campos']['servicio'] = {
-            'valor': servicio,
-            'estado': ESTADO_EN_NEGOCIACION,
-            'propuesto_por': 'solicitante',
-            'confirmado_en': None,
-        }
-    return estado
 
 
 def parse_negociacion(raw: Any) -> Dict[str, Any]:
     if not raw:
         return estado_inicial()
     if isinstance(raw, dict):
-        return raw
+        return normalizar_estado(raw)
     try:
         data = json.loads(raw)
         if isinstance(data, dict):
-            return data
+            return normalizar_estado(data)
     except (TypeError, ValueError, json.JSONDecodeError):
         pass
     return estado_inicial()
 
 
+def normalizar_estado(estado: Dict[str, Any]) -> Dict[str, Any]:
+    """Sincroniza paso_actual y completo con los campos reales. Evita estados imposibles."""
+    if not isinstance(estado, dict):
+        return estado_inicial()
+    campos = estado.get('campos')
+    if not isinstance(campos, dict):
+        estado['campos'] = {c: _campo_vacio() for c in CAMPOS_ORDEN}
+    else:
+        for c in CAMPOS_ORDEN:
+            if c not in campos or not isinstance(campos[c], dict):
+                campos[c] = _campo_vacio()
+    siguiente = _siguiente_paso(estado)
+    if siguiente:
+        estado['paso_actual'] = siguiente
+        estado['completo'] = False
+    elif _todos_campos_confirmados(estado):
+        estado['completo'] = True
+        estado['paso_actual'] = CAMPOS_ORDEN[-1]
+    else:
+        estado['paso_actual'] = estado.get('paso_actual') or 'servicio'
+        estado['completo'] = False
+    if 'observaciones_profesional' not in estado or not isinstance(estado['observaciones_profesional'], dict):
+        estado['observaciones_profesional'] = {'valor': '', 'estado': ESTADO_PENDIENTE, 'confirmado_en': None}
+    return estado
+
+
 def serializar_negociacion(estado: Dict[str, Any]) -> str:
-    return json.dumps(estado, ensure_ascii=False)
+    return json.dumps(normalizar_estado(estado), ensure_ascii=False)
 
 
 def _rol_en_contacto(codigo: str, solicitante: str, profesional: str) -> Optional[str]:
@@ -85,6 +109,10 @@ def _rol_en_contacto(codigo: str, solicitante: str, profesional: str) -> Optiona
 
 def _nombre_rol(rol: str) -> str:
     return 'contratante' if rol == 'solicitante' else 'profesional'
+
+
+def _otro_rol(rol: str) -> str:
+    return 'profesional' if rol == 'solicitante' else 'solicitante'
 
 
 def _siguiente_paso(estado: Dict[str, Any]) -> Optional[str]:
@@ -102,73 +130,135 @@ def _mensaje_evento(tipo: str, campo: str, rol: str, valor: str = '', extra: str
     label = CAMPOS_LABELS.get(campo, campo)
     quien = _nombre_rol(rol)
     if tipo == TIPO_SISTEMA:
-        return extra or f'RUANA ha iniciado la negociación guiada.'
+        return extra or 'RUANA ha iniciado la negociación guiada.'
     if tipo == TIPO_PROPUESTA:
         return f'El {quien} propone {label.lower()}: «{valor}».'
     if tipo == TIPO_CONTRAOFERTA:
-        return f'El {quien} propone cambiar {label.lower()} a: «{valor}».'
+        return f'El {quien} sugiere cambiar {label.lower()} a: «{valor}».'
     if tipo == TIPO_ACEPTACION:
-        return f'El {quien} acepta {label.lower()}: «{valor}».'
+        return f'El {quien} confirma {label.lower()}: «{valor}».'
     return extra or ''
 
 
 def resumen_acuerdo(estado: Dict[str, Any]) -> List[Dict[str, Any]]:
+    estado = normalizar_estado(estado)
     items = []
     for campo in CAMPOS_ORDEN:
         c = estado['campos'][campo]
+        est = c.get('estado') or ESTADO_PENDIENTE
         items.append({
             'campo': campo,
             'label': CAMPOS_LABELS[campo],
             'valor': c.get('valor') or '',
-            'estado': c.get('estado') or ESTADO_PENDIENTE,
+            'estado': est,
+            'estado_label': ESTADO_LABELS.get(est, est),
             'propuesto_por': c.get('propuesto_por'),
             'confirmado_en': c.get('confirmado_en'),
         })
     obs_prof = estado.get('observaciones_profesional') or {}
+    obs_est = obs_prof.get('estado') or ESTADO_PENDIENTE
     items.append({
         'campo': 'observaciones_profesional',
         'label': 'Observaciones del profesional',
         'valor': obs_prof.get('valor') or '',
-        'estado': obs_prof.get('estado') or ESTADO_PENDIENTE,
+        'estado': obs_est,
+        'estado_label': ESTADO_LABELS.get(obs_est, obs_est),
         'propuesto_por': 'profesional' if obs_prof.get('valor') else None,
         'confirmado_en': obs_prof.get('confirmado_en'),
     })
     return items
 
 
+def _mensaje_proponer(campo: str, rol: str) -> str:
+    label = CAMPOS_LABELS.get(campo, campo).lower()
+    if campo == 'servicio':
+        return 'Indica qué servicio necesitas. Puedes elegir del catálogo del profesional o escribirlo tú.'
+    if rol == 'solicitante':
+        return f'Propón la {label} para continuar con el acuerdo.'
+    return f'Indica la {label}.'
+
+
+def _mensaje_esperar_turno(campo: str, rol: str, valor: str, propuesto_por: str) -> str:
+    label = CAMPOS_LABELS.get(campo, campo).lower()
+    otro = _nombre_rol(_otro_rol(rol))
+    if propuesto_por == rol:
+        return (
+            f'Has propuesto {label}: «{valor}». '
+            f'RUANA ha enviado tu propuesta al {otro}. Te avisaremos en cuanto responda.'
+        )
+    return f'Espera a que el {otro} proponga {label}.'
+
+
+def _mensaje_esperar_otro(campo: str, rol: str) -> str:
+    label = CAMPOS_LABELS.get(campo, campo).lower()
+    otro = _nombre_rol(_otro_rol(rol))
+    if rol == 'profesional' and campo == 'servicio':
+        return f'El contratante indicará el {label}. Te avisaremos en cuanto lo proponga.'
+    return f'Espera a que el {otro} proponga {label}.'
+
+
 def accion_disponible(estado: Dict[str, Any], rol: str, contacto_estado: str) -> Dict[str, Any]:
-    """Indica qué puede hacer el usuario en el paso actual."""
+    """Indica qué puede hacer el usuario. Nunca devuelve espera sin contexto."""
     if contacto_estado in ('cerrado_no_concretado', 'no_concretado', 'trabajo_cerrado'):
         return {'tipo': 'cerrado', 'mensaje': 'Esta negociación está cerrada.'}
     if contacto_estado == 'acuerdo_alcanzado':
-        return {'tipo': 'resumen', 'mensaje': 'Acuerdo alcanzado. Cuando se realice el servicio, usa el seguimiento del contacto.'}
-    if estado.get('completo'):
-        return {'tipo': 'resumen', 'mensaje': 'Negociación completa pendiente de cierre automático.'}
+        return {
+            'tipo': 'resumen',
+            'mensaje': 'Acuerdo alcanzado. Cuando se realice el servicio, usa el seguimiento del contacto en tu panel.',
+        }
 
-    paso = estado.get('paso_actual') or _siguiente_paso(estado) or 'servicio'
+    estado = normalizar_estado(estado)
+    if estado.get('completo'):
+        return {
+            'tipo': 'resumen',
+            'mensaje': 'Negociación completada. Revisa el resumen del acuerdo.',
+        }
+
+    paso = _siguiente_paso(estado) or estado.get('paso_actual') or 'servicio'
     campo_data = estado['campos'].get(paso, _campo_vacio())
     campo_estado = campo_data.get('estado', ESTADO_PENDIENTE)
     propuesto_por = campo_data.get('propuesto_por')
+    valor = campo_data.get('valor') or ''
+
+    base = {'campo': paso, 'label': CAMPOS_LABELS[paso], 'paso_actual': paso}
 
     if campo_estado == ESTADO_PENDIENTE:
-        if paso == 'servicio' and rol == 'solicitante':
-            return {'tipo': 'proponer', 'campo': paso, 'label': CAMPOS_LABELS[paso]}
-        if paso != 'servicio' and rol == 'solicitante':
-            return {'tipo': 'proponer', 'campo': paso, 'label': CAMPOS_LABELS[paso]}
-        return {'tipo': 'esperar', 'campo': paso, 'mensaje': f'Esperando propuesta de {CAMPOS_LABELS[paso].lower()}.'}
+        if rol == 'solicitante':
+            return {
+                **base,
+                'tipo': 'proponer',
+                'mensaje': _mensaje_proponer(paso, rol),
+            }
+        return {
+            **base,
+            'tipo': 'esperar',
+            'mensaje': _mensaje_esperar_otro(paso, rol),
+        }
 
     if campo_estado == ESTADO_EN_NEGOCIACION:
         if propuesto_por == rol:
-            return {'tipo': 'esperar', 'campo': paso, 'mensaje': f'Esperando respuesta sobre {CAMPOS_LABELS[paso].lower()}.'}
+            return {
+                **base,
+                'tipo': 'proponer',
+                'mensaje': _mensaje_esperar_turno(paso, rol, valor, propuesto_por),
+                'valor_actual': valor,
+                'modificar_propia': True,
+            }
         return {
+            **base,
             'tipo': 'responder',
-            'campo': paso,
-            'label': CAMPOS_LABELS[paso],
-            'valor_actual': campo_data.get('valor') or '',
+            'mensaje': (
+                f'El {_nombre_rol(propuesto_por or "solicitante")} propone {CAMPOS_LABELS[paso].lower()}: '
+                f'«{valor}». ¿Lo confirmas o prefieres sugerir un cambio?'
+            ),
+            'valor_actual': valor,
             'propuesto_por': propuesto_por,
         }
 
-    return {'tipo': 'esperar', 'campo': paso, 'mensaje': 'Negociación en curso.'}
+    # Campo confirmado pero aún no avanzó (normalizar lo corrige; fallback seguro)
+    if rol == 'solicitante':
+        return {**base, 'tipo': 'proponer', 'mensaje': _mensaje_proponer(paso, rol)}
+    return {**base, 'tipo': 'esperar', 'mensaje': _mensaje_esperar_otro(paso, rol)}
 
 
 def proponer_campo(
@@ -182,20 +272,22 @@ def proponer_campo(
         raise ValueError('El valor es obligatorio')
     if campo not in CAMPOS_ORDEN:
         raise ValueError('Campo no válido')
-
-    paso_permitido = estado.get('paso_actual') or _siguiente_paso(estado)
-    if campo != paso_permitido:
-        # Solo se negocia el punto en disputa si ya fue confirmado parcialmente
-        c = estado['campos'][campo]
-        if c['estado'] == ESTADO_CONFIRMADO:
-            raise ValueError(f'Solo puedes negociar el punto actual ({CAMPOS_LABELS.get(paso_permitido, paso_permitido)})')
-        if c['estado'] != ESTADO_EN_NEGOCIACION:
-            raise ValueError(f'El campo {CAMPOS_LABELS[campo]} no está en negociación')
-
     if rol != 'solicitante':
-        raise ValueError('Solo el contratante puede iniciar o proponer un nuevo valor en el paso actual')
+        raise ValueError('Solo el contratante puede proponer un nuevo paso')
 
-    if estado['campos'][campo]['estado'] == ESTADO_PENDIENTE and campo == paso_permitido:
+    estado = normalizar_estado(estado)
+    paso_permitido = _siguiente_paso(estado)
+    if not paso_permitido:
+        raise ValueError('La negociación ya está completa')
+
+    c = estado['campos'][campo]
+    if campo != paso_permitido:
+        if c['estado'] == ESTADO_EN_NEGOCIACION and c.get('propuesto_por') == rol:
+            pass  # modificar propia propuesta en curso
+        elif c['estado'] != ESTADO_EN_NEGOCIACION:
+            raise ValueError(f'Solo puedes avanzar en el paso actual ({CAMPOS_LABELS.get(paso_permitido, paso_permitido)})')
+
+    if c['estado'] == ESTADO_PENDIENTE:
         estado['campos'][campo] = {
             'valor': valor,
             'estado': ESTADO_EN_NEGOCIACION,
@@ -204,9 +296,20 @@ def proponer_campo(
         }
         estado['paso_actual'] = campo
         msg = _mensaje_evento(TIPO_PROPUESTA, campo, rol, valor)
-        return estado, msg, TIPO_PROPUESTA
+        return normalizar_estado(estado), msg, TIPO_PROPUESTA
 
-    raise ValueError('Usa contraoferta si necesitas cambiar una propuesta en curso')
+    if c['estado'] == ESTADO_EN_NEGOCIACION and c.get('propuesto_por') == rol:
+        estado['campos'][campo] = {
+            'valor': valor,
+            'estado': ESTADO_EN_NEGOCIACION,
+            'propuesto_por': rol,
+            'confirmado_en': None,
+        }
+        estado['paso_actual'] = campo
+        msg = _mensaje_evento(TIPO_PROPUESTA, campo, rol, valor)
+        return normalizar_estado(estado), msg, TIPO_PROPUESTA
+
+    raise ValueError('Usa contraoferta si necesitas responder a una propuesta de la otra parte')
 
 
 def contraoferta_campo(
@@ -221,13 +324,14 @@ def contraoferta_campo(
     if campo not in CAMPOS_ORDEN:
         raise ValueError('Campo no válido')
 
+    estado = normalizar_estado(estado)
     c = estado['campos'][campo]
     if c['estado'] != ESTADO_EN_NEGOCIACION:
         raise ValueError(f'{CAMPOS_LABELS[campo]} no está en negociación')
 
     propuesto_por = c.get('propuesto_por')
     if propuesto_por == rol:
-        raise ValueError('No puedes contraofertar tu propia propuesta; espera la respuesta de la otra parte')
+        raise ValueError('No puedes contraofertar tu propia propuesta; modifícala o espera la respuesta')
 
     estado['campos'][campo] = {
         'valor': valor,
@@ -237,7 +341,7 @@ def contraoferta_campo(
     }
     estado['paso_actual'] = campo
     msg = _mensaje_evento(TIPO_CONTRAOFERTA, campo, rol, valor)
-    return estado, msg, TIPO_CONTRAOFERTA
+    return normalizar_estado(estado), msg, TIPO_CONTRAOFERTA
 
 
 def aceptar_campo(
@@ -249,13 +353,14 @@ def aceptar_campo(
     if campo not in CAMPOS_ORDEN:
         raise ValueError('Campo no válido')
 
+    estado = normalizar_estado(estado)
     c = estado['campos'][campo]
     if c['estado'] != ESTADO_EN_NEGOCIACION:
-        raise ValueError(f'{CAMPOS_LABELS[campo]} no tiene una propuesta pendiente de aceptación')
+        raise ValueError(f'{CAMPOS_LABELS[campo]} no tiene una propuesta pendiente de confirmación')
 
     propuesto_por = c.get('propuesto_por')
     if propuesto_por == rol:
-        raise ValueError('No puedes aceptar tu propia propuesta')
+        raise ValueError('No puedes confirmar tu propia propuesta')
 
     valor = c.get('valor') or ''
     ahora = datetime.now(timezone.utc).isoformat()
@@ -291,6 +396,7 @@ def aceptar_campo(
             estado['observaciones_profesional']['confirmado_en'] = ahora
         estado['completo'] = True
 
+    estado = normalizar_estado(estado)
     msg = _mensaje_evento(TIPO_ACEPTACION, campo, rol, valor)
     return estado, msg, TIPO_ACEPTACION, completo
 
@@ -303,11 +409,11 @@ def reabrir_campo_negociacion(estado: Dict[str, Any], rol: str, campo: str, valo
     if campo not in CAMPOS_ORDEN:
         raise ValueError('Campo no válido')
 
+    estado = normalizar_estado(estado)
     c = estado['campos'][campo]
     if c['estado'] != ESTADO_CONFIRMADO:
         raise ValueError('Solo se puede renegociar un punto ya confirmado mediante contraoferta')
 
-    # Desconfirmar este y posteriores
     idx = CAMPOS_ORDEN.index(campo)
     for i in range(idx, len(CAMPOS_ORDEN)):
         cf = CAMPOS_ORDEN[i]
@@ -322,7 +428,7 @@ def reabrir_campo_negociacion(estado: Dict[str, Any], rol: str, campo: str, valo
     }
     estado['paso_actual'] = campo
     msg = _mensaje_evento(TIPO_CONTRAOFERTA, campo, rol, valor)
-    return estado, msg
+    return normalizar_estado(estado), msg
 
 
 def construir_payload(
@@ -332,17 +438,25 @@ def construir_payload(
 ) -> Dict[str, Any]:
     estado = parse_negociacion(contacto.get('negociacion_json'))
     contacto_estado = contacto.get('estado') or ''
+    servicio_contacto = (contacto.get('servicio') or '').strip()
+    accion = accion_disponible(estado, rol, contacto_estado)
+    if accion.get('tipo') == 'proponer' and accion.get('campo') == 'servicio' and servicio_contacto:
+        paso_servicio = estado['campos'].get('servicio', _campo_vacio())
+        if paso_servicio.get('estado') == ESTADO_PENDIENTE:
+            accion['valor_sugerido'] = servicio_contacto
     return {
         'contacto_id': contacto.get('id'),
         'estado_contacto': contacto_estado,
+        'rol': rol,
         'solicitante_codigo': contacto.get('solicitante_codigo'),
         'profesional_codigo': contacto.get('profesional_codigo'),
+        'servicio_contacto': servicio_contacto,
         'acuerdo_alcanzado': contacto_estado == 'acuerdo_alcanzado' or bool(estado.get('completo')),
         'negociacion': estado,
         'resumen': resumen_acuerdo(estado),
         'paso_actual': estado.get('paso_actual'),
         'eventos': eventos,
-        'accion': accion_disponible(estado, rol, contacto_estado),
+        'accion': accion,
         'campos_labels': CAMPOS_LABELS,
         'campos_orden': CAMPOS_ORDEN,
     }

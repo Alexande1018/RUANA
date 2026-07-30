@@ -2622,7 +2622,10 @@
     <div class="neg-modal-overlay" id="modal-negociacion-guiada">
         <div class="neg-modal-content">
             <div class="neg-modal-header">
-                <h3 class="neg-modal-title" id="neg-modal-title">Negociación guiada RUANA</h3>
+                <div>
+                    <h3 class="neg-modal-title" id="neg-modal-title">Negociación guiada RUANA</h3>
+                    <p class="neg-paso-actual" id="neg-paso-actual"></p>
+                </div>
                 <span class="chat-urgente-badge" id="neg-urgente-badge" style="display:none;">URGENTE</span>
                 <div style="display:flex; gap:10px; align-items:center;">
                     <button type="button" class="chat-btn-finalizar" id="neg-btn-cerrar-negociacion" aria-label="Cerrar negociación">Cerrar negociación</button>
@@ -5639,6 +5642,9 @@
                     }
                     if (estado === 'acuerdo_alcanzado' || this.contactoActual.negociacion_completa) {
                         mensaje = '**Acuerdo alcanzado.** Revisa el resumen en negociación. Cuando se realice el servicio, indica si hubo trabajo o no.';
+                    } else if (this.contactoActual.negociacion_paso_label) {
+                        const pasoEst = this.contactoActual.negociacion_paso_estado_label || '';
+                        mensaje = `**Negociación en curso** — paso: ${this.contactoActual.negociacion_paso_label}${pasoEst ? ' (' + pasoEst + ')' : ''}. Abre la negociación para continuar.`;
                     } else if (estado === 'importe_en_disputa') {
                         mensaje = 'Existe una declaración diferente por la otra parte. RUANA ha marcado este contacto como importe en disputa. Debes aclararlo para proteger tu reputación.';
                     } else if (estado !== 'acuerdo_alcanzado') {
