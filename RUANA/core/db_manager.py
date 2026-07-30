@@ -122,10 +122,11 @@ class DBManager:
             self._migrar_aliados_foto_perfil(conn, cursor)
             self._migrar_aliados_invitado_por(conn, cursor)
             self._migrar_contactos_es_urgente(conn, cursor)
+            self._migrar_negociacion_guiada(conn, cursor)
             self._migrar_aliado_accesos_dia(conn, cursor)
             self._migrar_centro_comunicacion_ruana(conn, cursor)
             conn.commit()
-            print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil + linaje + urgente + accesos día + retador)")
+            print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil + linaje + urgente + negociación guiada + accesos día + retador)")
         except Exception as e:
             print(f"[RUANA][DB] Error inicializando esquema Postgres: {e}")
         finally:
@@ -794,6 +795,7 @@ class DBManager:
 
     def _migrar_negociacion_guiada(self, conn, cursor) -> None:
         """Tabla de eventos y columna negociacion_json para negociación guiada (sustituye chat libre)."""
+        id_col = "SERIAL PRIMARY KEY" if self.backend == "postgres" else "INTEGER PRIMARY KEY AUTOINCREMENT"
         if self.backend == "postgres":
             cursor.execute("""
                 ALTER TABLE contactos_ruana
@@ -806,7 +808,7 @@ class DBManager:
                 cursor.execute("ALTER TABLE contactos_ruana ADD COLUMN negociacion_json TEXT")
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS negociacion_eventos (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id %s,
                 contacto_id INTEGER NOT NULL,
                 tipo TEXT NOT NULL,
                 campo TEXT,
@@ -816,7 +818,7 @@ class DBManager:
                 creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(contacto_id) REFERENCES contactos_ruana(id)
             )
-        """)
+        """ % id_col)
         cursor.execute(
             "CREATE INDEX IF NOT EXISTS idx_negociacion_eventos_contacto ON negociacion_eventos(contacto_id)"
         )
