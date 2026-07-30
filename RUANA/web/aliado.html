@@ -1727,7 +1727,9 @@
         body.ruana-tour-active .panel-container,
         body.ruana-tour-active #btn-logout,
         body.ruana-tour-active .ruana-help-fab,
-        body.ruana-tour-active .ruana-tour-replay {
+        body.ruana-tour-active .ruana-tour-replay,
+        body.ruana-tour-active .aliado-shell-nav,
+        body.ruana-tour-active .aliado-shell-bottom {
             pointer-events: none !important;
             user-select: none;
         }
@@ -2805,13 +2807,14 @@
         class RuanaOnboardingTour {
             constructor(panel) {
                 this.panel = panel;
-                this.storageKeyBase = 'ruana_onboarding_completed_v3';
+                this.storageKeyBase = 'ruana_onboarding_completed_v4';
                 this.stepIndex = 0;
-                this.steps = this.buildSteps();
+                this.steps = [];
                 this.activeTarget = null;
                 this.cloud = null;
                 this.arrow = null;
-                                this.stepListener = null;
+                this.renderToken = 0;
+                this.stepListener = null;
                 this.boundEsc = (event) => {
                     if (event.key === 'Escape') this.finish(false);
                 };
@@ -2834,32 +2837,146 @@
                 return `${this.storageKeyBase}_${codigo}`;
             }
 
+            isElementUsable(el) {
+                if (!el) return false;
+                const style = window.getComputedStyle(el);
+                if (style.display === 'none' || style.visibility === 'hidden') return false;
+                return true;
+            }
+
+            pickNavSelector() {
+                const bottom = document.getElementById('aliado-shell-bottom');
+                if (this.isElementUsable(bottom)) return '#aliado-shell-bottom';
+                const side = document.querySelector('.aliado-shell-nav-list');
+                if (this.isElementUsable(side)) return '.aliado-shell-nav-list';
+                return null;
+            }
+
             buildSteps() {
-                return [
-                    { selector: '.perfil-block', title: 'Bienvenido a tu panel RUANA', copy: '<strong>Todo empieza aquí.</strong><br><br>Tu perfil, reputación y actividad viven en esta vista. Mantenerla actualizada aumenta tu confianza dentro de la red.', placement: 'bottom' },
-                    { selector: '#perfil-avatar', title: 'Foto o logo del negocio', copy: 'Una imagen clara te hace más reconocible y profesional ante otros aliados.', placement: 'right' },
-                    { selector: '#detail-descripcion-wrap', title: 'Tu propuesta en una línea', copy: 'Edita esta descripción para explicar rápido qué haces y en qué destacas.', placement: 'bottom' },
-                    { selector: '#perfil-status', title: 'Etiqueta de reputación RUANA', copy: 'Tu etiqueta se actualiza según tu comportamiento y score: cumplimiento, comunicación y calidad de tus cierres.', placement: 'left' },
-                    { selector: '.metricas-block', title: 'Métricas que importan', copy: 'Aquí ves tu progreso real: solicitudes, red de aliados y evolución del score.', placement: 'bottom' },
-                    { selector: '.directorio-panel', title: 'Directorio inteligente', copy: 'Filtra por nombre, oficio o zona para encontrar al profesional adecuado en segundos.', placement: 'top' },
-                    { selector: '#solicitudes-entrantes-wrap', title: 'Solicitudes del grupo', copy: 'Responde o recomienda cuando puedas aportar. Todo queda trazado y fortalece tu reputación.', placement: 'top' },
-                    { selector: '.crear-solicitud-zone', title: 'Pide ayuda a tu red', copy: 'Describe lo que necesitas y envíalo al grupo para activar nuevas oportunidades.', placement: 'left' },
-                    { selector: '#btn-invitar-aliado', title: 'Invita nuevos aliados', copy: 'Genera códigos para sumar talento a tu red y hacer tu grupo más sólido.', placement: 'bottom' },
-                    { selector: '#metrica-card-score', title: 'Score RUANA', copy: 'Sube cuando cumples y colaboras; baja con incumplimientos o malos cierres. Es tu credencial de confianza en la comunidad.', placement: 'bottom' },
-                    { selector: '#ruana-help-fab', title: 'Habla con el equipo RUANA', copy: 'Desde este botón flotante puedes abrir soporte, enviar consultas y seguir respuestas sin salir del panel.', placement: 'left' },
-                    { selector: '.ruana-brand', title: 'Listo para empezar', copy: 'Cuando quieras, repite este tour desde el botón flotante “Ver tour RUANA”.', placement: 'bottom', final: true }
-                ];
+                const navSelector = this.pickNavSelector();
+                const candidates = [
+                    {
+                        selector: '#inicio-identity',
+                        module: 'inicio',
+                        title: 'Tu centro operativo',
+                        copy: '<strong>Bienvenido a tu panel RUANA.</strong><br><br>Aquí ves quién eres, tu estado y tu Score. Desde Inicio controlas el resto de la app.',
+                        placement: 'bottom'
+                    },
+                    {
+                        selector: '.inicio-quick-grid',
+                        module: 'inicio',
+                        title: 'Atajos a cada módulo',
+                        copy: 'Un toque te lleva a Directorio, Solicitudes, Conexiones o Perfil. Es la forma más rápida de moverte.',
+                        placement: 'bottom'
+                    },
+                    {
+                        selector: '#inicio-tasks',
+                        module: 'inicio',
+                        title: 'Qué hacer hoy',
+                        copy: 'RUANA te deja pendientes claros: contactos, avisos, score o solicitudes por atender.',
+                        placement: 'top'
+                    },
+                    {
+                        selector: '.metricas-block',
+                        module: 'inicio',
+                        title: 'Tu radar de actividad',
+                        copy: 'Solicitudes, red de aliados y Score: el pulso de tu trabajo en el grupo.',
+                        placement: 'top'
+                    },
+                    {
+                        selector: '#metrica-card-score',
+                        module: 'inicio',
+                        title: 'Score de confianza',
+                        copy: 'Sube con perfil completo, respuestas rápidas y buenos cierres. Es tu credencial ante la red.',
+                        placement: 'left'
+                    },
+                    navSelector ? {
+                        selector: navSelector,
+                        module: null,
+                        title: 'Navegación por módulos',
+                        copy: 'Inicio · Directorio · Solicitudes · Conexiones · Perfil. Cada sección es un espacio propio; cambia cuando lo necesites.',
+                        placement: 'top'
+                    } : null,
+                    {
+                        selector: '.directorio-panel',
+                        module: 'directorio',
+                        title: 'Directorio del grupo',
+                        copy: 'Busca por nombre, oficio o zona y abre el detalle del profesional para contactarlo.',
+                        placement: 'bottom'
+                    },
+                    {
+                        selector: '#solicitudes-entrantes-wrap',
+                        module: 'solicitudes',
+                        title: 'Bandeja de solicitudes',
+                        copy: 'Aquí llegan las peticiones del grupo. Responde, recomienda o negocia sin salir del panel.',
+                        placement: 'bottom'
+                    },
+                    {
+                        selector: '.crear-solicitud-zone',
+                        module: 'conexiones',
+                        title: 'Nueva conexión',
+                        copy: 'Describe el oficio y lo que necesitas. Tu solicitud llega a todos los aliados del grupo.',
+                        placement: 'top'
+                    },
+                    {
+                        selector: '.perfil-block',
+                        module: 'perfil',
+                        title: 'Tu perfil público',
+                        copy: 'Foto, datos, estado y descripción: lo que ven cuando alguien te encuentra en la red.',
+                        placement: 'bottom'
+                    },
+                    {
+                        selector: '#detail-descripcion-wrap',
+                        module: 'perfil',
+                        title: 'Tu propuesta en claro',
+                        copy: 'Edita la descripción para explicar qué haces y en qué destacas. Cuanto más clara, más contactos útiles.',
+                        placement: 'bottom'
+                    },
+                    {
+                        selector: '#catalogo-servicios-wrap',
+                        module: 'perfil',
+                        title: 'Catálogo de servicios',
+                        copy: 'Define hasta 10 servicios con descripción y precio. Así te encuentran por lo que realmente ofreces.',
+                        placement: 'top'
+                    },
+                    {
+                        selector: '#btn-invitar-aliado',
+                        module: 'perfil',
+                        title: 'Invita nuevos aliados',
+                        copy: 'Genera un código para sumar talento de confianza y fortalecer tu grupo.',
+                        placement: 'top'
+                    },
+                    {
+                        selector: '#ruana-help-fab',
+                        module: null,
+                        title: 'Habla con el equipo RUANA',
+                        copy: 'Abre soporte desde este botón flotante: consultas, incidencias e ideas, sin salir del panel.',
+                        placement: 'left'
+                    },
+                    {
+                        selector: '#btn-replay-onboarding',
+                        module: null,
+                        title: 'Tour cuando lo necesites',
+                        copy: 'Puedes repetir esta guía cuando quieras con “Ver tour RUANA”. Listo para trabajar.',
+                        placement: 'left',
+                        final: true
+                    }
+                ].filter(Boolean);
+
+                return candidates.filter((step) => {
+                    try {
+                        const el = document.querySelector(step.selector);
+                        return !!el;
+                    } catch (_) {
+                        return false;
+                    }
+                });
             }
 
             shouldAutoStart() {
                 try {
                     const key = this.getStorageKey();
                     if (localStorage.getItem(key) === 'true') return false;
-                    // Compatibilidad: si ya completó la versión anterior global, no reactivar.
-                    if (localStorage.getItem('ruana_onboarding_completed_v2') === 'true') {
-                        localStorage.setItem(key, 'true');
-                        return false;
-                    }
                     return true;
                 } catch (_) {
                     return true;
@@ -2873,6 +2990,8 @@
             start(force = false) {
                 if (!force && !this.shouldAutoStart()) return;
                 if (this.cloud) return;
+                this.steps = this.buildSteps();
+                if (!this.steps.length) return;
                 // Autoarranque solo una vez: se marca al abrirse, aunque el usuario lo cierre a mitad.
                 if (!force) this.markSeen();
                 document.body.classList.add('ruana-tour-active');
@@ -2898,34 +3017,53 @@
                 requestAnimationFrame(() => this.cloud.classList.add('is-visible'));
             }
 
+            prepareModule(step) {
+                if (!step) return;
+                if (step.module && window.AliadoShell && typeof window.AliadoShell.show === 'function') {
+                    window.AliadoShell.show(step.module, { skipScroll: true, instant: true });
+                    return;
+                }
+                if (window.AliadoShell && typeof window.AliadoShell.ensureModuleForSelector === 'function') {
+                    window.AliadoShell.ensureModuleForSelector(step.selector);
+                }
+            }
+
             renderStep() {
                 if (!this.cloud) return;
                 const step = this.steps[this.stepIndex];
                 if (!step) return;
+                const token = ++this.renderToken;
 
-                if (window.AliadoShell && typeof window.AliadoShell.ensureModuleForSelector === 'function') {
-                    window.AliadoShell.ensureModuleForSelector(step.selector);
-                }
+                this.prepareModule(step);
 
-                const target = document.querySelector(step.selector);
+                const apply = () => {
+                    if (!this.cloud || this.renderToken !== token) return;
 
+                    const target = document.querySelector(step.selector);
 
-                if (this.activeTarget) this.activeTarget.classList.remove('ruana-tour-target');
-                this.activeTarget = target;
-                if (target) {
-                    target.classList.add('ruana-tour-target');
-                    target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
-                }
+                    if (this.activeTarget) this.activeTarget.classList.remove('ruana-tour-target');
+                    this.activeTarget = target;
+                    if (target) {
+                        target.classList.add('ruana-tour-target');
+                        target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                    }
 
-                this.cloud.querySelector('.ruana-tour-cloud-title').textContent = step.title;
-                this.cloud.querySelector('.ruana-tour-cloud-copy').innerHTML = step.copy || '';
-                this.cloud.classList.remove('is-step-entering');
-                void this.cloud.offsetWidth;
-                this.cloud.classList.add('is-step-entering');
+                    this.cloud.querySelector('.ruana-tour-cloud-title').textContent = step.title;
+                    this.cloud.querySelector('.ruana-tour-cloud-copy').innerHTML = step.copy || '';
+                    this.cloud.classList.remove('is-step-entering');
+                    void this.cloud.offsetWidth;
+                    this.cloud.classList.add('is-step-entering');
 
-                this.positionCloud(target, step.placement || 'bottom');
-                this.positionArrow(target);
+                    const paint = () => {
+                        if (!this.cloud || this.renderToken !== token) return;
+                        this.positionCloud(target, step.placement || 'bottom');
+                        this.positionArrow(target);
+                    };
+                    requestAnimationFrame(() => setTimeout(paint, target ? 120 : 0));
+                };
 
+                // Esperar a que el módulo activo pinte layout/animación antes de medir.
+                requestAnimationFrame(() => setTimeout(apply, step.module ? 300 : 40));
             }
 
             positionCloud(target, placement) {
@@ -3032,6 +3170,7 @@
             finish(markComplete) {
                 // Cualquier cierre (completar, ✕ o Escape) evita un nuevo autoarranque.
                 this.markSeen();
+                this.renderToken += 1;
                 if (markComplete) {
                     this.playFinale();
                     if (window.RuanaUI && typeof window.RuanaUI.toast === 'function') {
@@ -3053,6 +3192,9 @@
                     arrow.remove();
                 }
                 document.body.classList.remove('ruana-tour-active');
+                if (window.AliadoShell && typeof window.AliadoShell.show === 'function') {
+                    window.AliadoShell.show('inicio', { skipScroll: true, instant: true });
+                }
             }
         }
 
