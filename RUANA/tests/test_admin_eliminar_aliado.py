@@ -52,6 +52,44 @@ def test_eliminar_perfil_activo_expulsa_aliado(sqlite_db):
 
     aliado = sqlite_db.obtener_aliado_por_codigo("90001")
     assert aliado["estado"] == "expulsado"
+    assert aliado["email"] == "liberado+90001@ruana.invalid"
+    assert aliado["telefono"] == "LIBERADO-90001"
+
+
+def test_eliminar_perfil_libera_email_y_telefono_para_nuevo_registro(sqlite_db):
+    email = "reutilizar@example.com"
+    telefono = "+34600111222"
+    sqlite_db.crear_aliado(
+        codigo="90010",
+        nombre="Aliado Reutilizable",
+        marca="Marca",
+        oficio="Electricidad",
+        codigo_postal="28001",
+        email=email,
+        telefono=telefono,
+        estado="activo",
+        score=50,
+        especializacion="Averías y reparaciones eléctricas",
+    )
+
+    eliminacion = sqlite_db.eliminar_perfil_aliado_admin("90010")
+    assert eliminacion["status"] == "success"
+
+    nuevo = sqlite_db.crear_aliado(
+        codigo="90011",
+        nombre="Nuevo Aliado",
+        marca="Marca",
+        oficio="Electricidad",
+        codigo_postal="28001",
+        email=email,
+        telefono=telefono,
+        estado="activo",
+        score=50,
+        especializacion="Averías y reparaciones eléctricas",
+    )
+    assert nuevo["status"] == "success"
+    assert nuevo["email"] == email
+    assert nuevo["telefono"] == telefono
 
 
 def test_eliminar_perfil_rechaza_pendiente_validacion(sqlite_db):
@@ -71,7 +109,10 @@ def test_eliminar_perfil_rechaza_pendiente_validacion(sqlite_db):
     result = sqlite_db.eliminar_perfil_aliado_admin("90002")
     assert result["status"] == "success"
     assert result["accion"] == "rechazado"
-    assert sqlite_db.obtener_aliado_por_codigo("90002")["estado"] == "rechazado"
+    aliado = sqlite_db.obtener_aliado_por_codigo("90002")
+    assert aliado["estado"] == "rechazado"
+    assert aliado["email"] == "liberado+90002@ruana.invalid"
+    assert aliado["telefono"] == "LIBERADO-90002"
 
 
 def test_eliminar_perfil_bloquea_sistema(sqlite_db):

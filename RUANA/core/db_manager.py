@@ -30,6 +30,11 @@ SUFIJOS_GRUPO = (
 MAX_GRUPOS_POR_CP = 5
 # Columna de foto pública de perfil en aliados (SQLite y Postgres deben mantenerla sincronizada).
 ALIADO_FOTO_PERFIL_COLUMN = "foto_perfil_url"
+# Estados en los que email/teléfono quedan liberados para nuevo registro.
+ESTADOS_ALIADO_CONTACTO_LIBERADO = ('expulsado', 'rechazado')
+SQL_ESTADO_CONTACTO_OCUPADO = (
+    "LOWER(TRIM(COALESCE(estado, ''))) NOT IN ('expulsado', 'rechazado')"
+)
 # IMPORTANTE: Todos los componentes (Flask, scripts, motores) deben usar
 # EXCLUSIVAMENTE este valor como fuente de verdad para `ruana.db`.
 DB_PATH = str(
@@ -44,6 +49,14 @@ DB_PATH = str(
 # Formato de código RUANA invitación oficio: RUANA-{grupo_id}-{OFICIO_NORM}-{4chars}
 # Usado por generar_invitacion_oficio y validar_invitacion_oficio para consistencia.
 RUANA_CODIGO_INVITACION_REGEX = r'^RUANA-\d+-[A-Z0-9]+-[A-Z0-9]{4}$'
+
+
+def _email_liberado_aliado(codigo: str) -> str:
+    return f'liberado+{codigo}@ruana.invalid'
+
+
+def _telefono_liberado_aliado(codigo: str) -> str:
+    return f'LIBERADO-{codigo}'
 
 
 class DBManager:
@@ -2175,11 +2188,17 @@ class DBManager:
                 if cursor.fetchone():
                     return {'status': 'error', 'message': f'Código {codigo} ya existe'}
 
-                cursor.execute("SELECT id FROM aliados WHERE email = ?", (email,))
+                cursor.execute(
+                    f"SELECT id FROM aliados WHERE email = ? AND {SQL_ESTADO_CONTACTO_OCUPADO}",
+                    (email,),
+                )
                 if cursor.fetchone():
                     return {'status': 'error', 'message': f'El email {email} ya está registrado'}
 
-                cursor.execute("SELECT id FROM aliados WHERE telefono = ?", (telefono,))
+                cursor.execute(
+                    f"SELECT id FROM aliados WHERE telefono = ? AND {SQL_ESTADO_CONTACTO_OCUPADO}",
+                    (telefono,),
+                )
                 if cursor.fetchone():
                     return {'status': 'error', 'message': f'El teléfono {telefono} ya está registrado'}
 
@@ -2318,11 +2337,17 @@ class DBManager:
                 if estado_actual != 'pendiente_completar':
                     return {'status': 'error', 'message': 'Codigo de invitacion ya usado'}
 
-                cursor.execute("SELECT id FROM aliados WHERE email = ? AND codigo != ?", (email, codigo))
+                cursor.execute(
+                    f"SELECT id FROM aliados WHERE email = ? AND codigo != ? AND {SQL_ESTADO_CONTACTO_OCUPADO}",
+                    (email, codigo),
+                )
                 if cursor.fetchone():
                     return {'status': 'error', 'message': f'El email {email} ya esta registrado'}
 
-                cursor.execute("SELECT id FROM aliados WHERE telefono = ? AND codigo != ?", (telefono, codigo))
+                cursor.execute(
+                    f"SELECT id FROM aliados WHERE telefono = ? AND codigo != ? AND {SQL_ESTADO_CONTACTO_OCUPADO}",
+                    (telefono, codigo),
+                )
                 if cursor.fetchone():
                     return {'status': 'error', 'message': f'El telefono {telefono} ya esta registrado'}
 
@@ -2483,14 +2508,20 @@ class DBManager:
                     }
 
                 # Reutilizar las mismas validaciones de email/teléfono que crear_aliado
-                cursor.execute("SELECT id FROM aliados WHERE email = ?", (email,))
+                cursor.execute(
+                    f"SELECT id FROM aliados WHERE email = ? AND {SQL_ESTADO_CONTACTO_OCUPADO}",
+                    (email,),
+                )
                 if cursor.fetchone():
                     return {
                         'status': 'error',
                         'message': f'El email {email} ya está registrado'
                     }
 
-                cursor.execute("SELECT id FROM aliados WHERE telefono = ?", (telefono,))
+                cursor.execute(
+                    f"SELECT id FROM aliados WHERE telefono = ? AND {SQL_ESTADO_CONTACTO_OCUPADO}",
+                    (telefono,),
+                )
                 if cursor.fetchone():
                     return {
                         'status': 'error',
@@ -6590,13 +6621,28 @@ class DBManager:
 
     def rechazar_aliado_pendiente(self, codigo: str) -> Dict[str, Any]:
         """Rechaza un aliado en pendiente_validacion: estado pasa a rechazado. No podrá entrar al panel."""
+        codigo = (codigo or '').strip()
         with self._lock:
             try:
                 conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
-                    "UPDATE aliados SET estado = 'rechazado', actualizado_en = CURRENT_TIMESTAMP WHERE codigo = ? AND estado = 'pendiente_validacion'",
-                    (codigo.strip(),)
+                    f"""
+                    UPDATE aliados
+                    SET estado = 'rechazado',
+                        email = ?,
+                        telefono = ?,
+                        qr_paypal_path = NULL,
+                        bizum_num = NULL,
+                        {ALIADO_FOTO_PERFIL_COLUMN} = NULL,
+                        actualizado_en = CURRENT_TIMESTAMP
+                    WHERE codigo = ? AND estado = 'pendiente_validacion'
+                    """,
+                    (
+                        _email_liberado_aliado(codigo),
+                        _telefono_liberado_aliado(codigo),
+                        codigo,
+                    ),
                 )
                 conn.commit()
                 if cursor.rowcount > 0:
@@ -10989,8 +11035,8 @@ class DBManager:
         """
         Elimina el perfil de un aliado desde el panel admin.
         - pendiente_completar: borrado físico (placeholder).
-        - pendiente_validacion: pasa a rechazado.
-        - resto de estados operativos: pasa a expulsado (código desactivado).
+        - pendiente_validacion: pasa a rechazado y libera email/teléfono.
+        - resto de estados operativos: pasa a expulsado y libera email/teléfono.
         """
         codigo = (codigo_aliado or '').strip()
         if not codigo:
@@ -11033,23 +11079,43 @@ class DBManager:
                     nuevo_estado = None
                 elif estado_actual == 'pendiente_validacion':
                     cursor.execute(
-                        """
+                        f"""
                         UPDATE aliados
-                        SET estado = 'rechazado', actualizado_en = CURRENT_TIMESTAMP
+                        SET estado = 'rechazado',
+                            email = ?,
+                            telefono = ?,
+                            qr_paypal_path = NULL,
+                            bizum_num = NULL,
+                            {ALIADO_FOTO_PERFIL_COLUMN} = NULL,
+                            actualizado_en = CURRENT_TIMESTAMP
                         WHERE codigo = ?
                         """,
-                        (codigo,),
+                        (
+                            _email_liberado_aliado(codigo),
+                            _telefono_liberado_aliado(codigo),
+                            codigo,
+                        ),
                     )
                     accion = 'rechazado'
                     nuevo_estado = 'rechazado'
                 else:
                     cursor.execute(
-                        """
+                        f"""
                         UPDATE aliados
-                        SET estado = 'expulsado', actualizado_en = CURRENT_TIMESTAMP
+                        SET estado = 'expulsado',
+                            email = ?,
+                            telefono = ?,
+                            qr_paypal_path = NULL,
+                            bizum_num = NULL,
+                            {ALIADO_FOTO_PERFIL_COLUMN} = NULL,
+                            actualizado_en = CURRENT_TIMESTAMP
                         WHERE codigo = ?
                         """,
-                        (codigo,),
+                        (
+                            _email_liberado_aliado(codigo),
+                            _telefono_liberado_aliado(codigo),
+                            codigo,
+                        ),
                     )
                     accion = 'expulsado'
                     nuevo_estado = 'expulsado'
