@@ -15,6 +15,7 @@ import threading
 
 from core.postgres_compat import connect as pg_compat_connect
 from core.settings import get_settings
+from core import negociacion_manager as neg_mgr
 
 
 # Ruta ABSOLUTA única a la base de datos de RUANA.
@@ -475,6 +476,7 @@ class DBManager:
                 self._migrar_contactos_posponer_recordatorio(conn, cursor)
                 self._migrar_contactos_fecha_pospuesto_hasta(conn, cursor)
                 self._migrar_chat_mensajes(conn, cursor)
+                self._migrar_negociacion_guiada(conn, cursor)
                 self._migrar_contactos_motivo_contacto(conn, cursor)
                 self._migrar_contactos_es_urgente(conn, cursor)
                 self._migrar_drop_chat_messages(conn, cursor)
@@ -765,6 +767,35 @@ class DBManager:
             )
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_chat_mensajes_contacto ON chat_mensajes(contacto_id)")
+
+    def _migrar_negociacion_guiada(self, conn, cursor) -> None:
+        """Tabla de eventos y columna negociacion_json para negociación guiada (sustituye chat libre)."""
+        if self.backend == "postgres":
+            cursor.execute("""
+                ALTER TABLE contactos_ruana
+                ADD COLUMN IF NOT EXISTS negociacion_json JSONB DEFAULT '{}'::jsonb
+            """)
+        else:
+            cursor.execute("PRAGMA table_info(contactos_ruana)")
+            columnas = [row[1] for row in cursor.fetchall()]
+            if 'negociacion_json' not in columnas:
+                cursor.execute("ALTER TABLE contactos_ruana ADD COLUMN negociacion_json TEXT")
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS negociacion_eventos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                contacto_id INTEGER NOT NULL,
+                tipo TEXT NOT NULL,
+                campo TEXT,
+                valor TEXT,
+                emisor_codigo TEXT,
+                mensaje TEXT NOT NULL,
+                creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(contacto_id) REFERENCES contactos_ruana(id)
+            )
+        """)
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_negociacion_eventos_contacto ON negociacion_eventos(contacto_id)"
+        )
 
     def _migrar_contactos_motivo_contacto(self, conn, cursor) -> None:
         """Añade motivo_contacto al contacto (obligatorio antes de iniciar chat)."""
@@ -6678,7 +6709,324 @@ class DBManager:
     # OPERACIONES CONTACTOS RUANA
     # ===============================================
 
-    # Limites chat RUANA: 30 mensajes totales por conversacion, 48h de vigencia.
+    # ===============================================
+    # NEGOCIACIÓN GUIADA (sustituye chat libre)
+    # ===============================================
+
+    def _iniciar_negociacion_en_cursor(self, cursor, contacto_id: int, servicio: str,
+                                        solicitante_codigo: str) -> None:
+        estado = neg_mgr.estado_inicial(servicio)
+        neg_json = neg_mgr.serializar_negociacion(estado)
+        cursor.execute(
+            "UPDATE contactos_ruana SET negociacion_json = ?, actualizado_en = CURRENT_TIMESTAMP WHERE id = ?",
+            (neg_json, contacto_id),
+        )
+        msg = neg_mgr._mensaje_evento(
+            neg_mgr.TIPO_SISTEMA, 'servicio', 'solicitante',
+            extra='RUANA ha iniciado la negociación guiada. El contratante propone el servicio.',
+        )
+        if servicio.strip():
+            msg2 = neg_mgr._mensaje_evento(neg_mgr.TIPO_PROPUESTA, 'servicio', 'solicitante', servicio.strip())
+            cursor.execute("""
+                INSERT INTO negociacion_eventos (contacto_id, tipo, campo, valor, emisor_codigo, mensaje)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (contacto_id, neg_mgr.TIPO_SISTEMA, 'servicio', servicio.strip(), solicitante_codigo, msg))
+            cursor.execute("""
+                INSERT INTO negociacion_eventos (contacto_id, tipo, campo, valor, emisor_codigo, mensaje)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (contacto_id, neg_mgr.TIPO_PROPUESTA, 'servicio', servicio.strip(), solicitante_codigo, msg2))
+        else:
+            cursor.execute("""
+                INSERT INTO negociacion_eventos (contacto_id, tipo, campo, valor, emisor_codigo, mensaje)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (contacto_id, neg_mgr.TIPO_SISTEMA, 'servicio', '', solicitante_codigo, msg))
+
+    def _insertar_evento_negociacion(self, cursor, contacto_id: int, tipo: str, campo: str,
+                                      valor: str, emisor_codigo: str, mensaje: str) -> None:
+        cursor.execute("""
+            INSERT INTO negociacion_eventos (contacto_id, tipo, campo, valor, emisor_codigo, mensaje)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (contacto_id, tipo, campo or None, valor or None, emisor_codigo or None, mensaje))
+
+    def _cargar_contacto_negociacion(self, cursor, contacto_id: int) -> Optional[Dict[str, Any]]:
+        cursor.execute("SELECT * FROM contactos_ruana WHERE id = ?", (contacto_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def listar_eventos_negociacion(self, contacto_id: int) -> List[Dict[str, Any]]:
+        with self._lock:
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id, contacto_id, tipo, campo, valor, emisor_codigo, mensaje, creado_en
+                    FROM negociacion_eventos
+                    WHERE contacto_id = ?
+                    ORDER BY id ASC
+                """, (contacto_id,))
+                return [dict(r) for r in cursor.fetchall()]
+            except Exception as e:
+                print(f"Error listar_eventos_negociacion: {e}")
+                return []
+            finally:
+                conn.close()
+
+    def obtener_negociacion_contacto(self, contacto_id: int, codigo_aliado: str) -> Dict[str, Any]:
+        codigo = (codigo_aliado or '').strip()
+        with self._lock:
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                contacto = self._cargar_contacto_negociacion(cursor, contacto_id)
+                if not contacto:
+                    return {'status': 'error', 'message': 'Contacto no encontrado'}
+                sol = str(contacto.get('solicitante_codigo') or '').strip()
+                pro = str(contacto.get('profesional_codigo') or '').strip()
+                rol = neg_mgr._rol_en_contacto(codigo, sol, pro)
+                if not rol:
+                    return {'status': 'error', 'message': 'No autorizado'}
+                eventos = self.listar_eventos_negociacion(contacto_id)
+                payload = neg_mgr.construir_payload(contacto, eventos, rol)
+                return {'status': 'success', **payload}
+            except Exception as e:
+                return {'status': 'error', 'message': str(e)}
+            finally:
+                conn.close()
+
+    def proponer_negociacion(self, contacto_id: int, codigo_aliado: str,
+                             campo: str, valor: str) -> Dict[str, Any]:
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                contacto = self._cargar_contacto_negociacion(cursor, contacto_id)
+                if not contacto:
+                    return {'status': 'error', 'message': 'Contacto no encontrado'}
+                if contacto.get('estado') in ('trabajo_cerrado', 'no_concretado', 'cerrado_no_concretado', 'acuerdo_alcanzado'):
+                    return {'status': 'error', 'message': 'Este contacto ya no admite cambios en la negociación'}
+                sol = str(contacto.get('solicitante_codigo') or '').strip()
+                pro = str(contacto.get('profesional_codigo') or '').strip()
+                rol = neg_mgr._rol_en_contacto(codigo_aliado, sol, pro)
+                if not rol:
+                    return {'status': 'error', 'message': 'No autorizado'}
+                estado = neg_mgr.parse_negociacion(contacto.get('negociacion_json'))
+                estado, msg, tipo = neg_mgr.proponer_campo(estado, rol, campo, valor)
+                neg_json = neg_mgr.serializar_negociacion(estado)
+                cursor.execute(
+                    "UPDATE contactos_ruana SET negociacion_json = ?, actualizado_en = CURRENT_TIMESTAMP WHERE id = ?",
+                    (neg_json, contacto_id),
+                )
+                self._insertar_evento_negociacion(cursor, contacto_id, tipo, campo, valor, codigo_aliado, msg)
+                conn.commit()
+                eventos = self.listar_eventos_negociacion(contacto_id)
+                contacto = self._cargar_contacto_negociacion(cursor, contacto_id)
+                payload = neg_mgr.construir_payload(contacto, eventos, rol)
+                return {'status': 'success', 'message': msg, **payload}
+            except ValueError as ve:
+                if conn:
+                    conn.rollback()
+                return {'status': 'error', 'message': str(ve)}
+            except Exception as e:
+                if conn:
+                    conn.rollback()
+                return {'status': 'error', 'message': str(e)}
+            finally:
+                if conn:
+                    conn.close()
+
+    def contraoferta_negociacion(self, contacto_id: int, codigo_aliado: str,
+                                  campo: str, valor: str, renegociar: bool = False) -> Dict[str, Any]:
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                contacto = self._cargar_contacto_negociacion(cursor, contacto_id)
+                if not contacto:
+                    return {'status': 'error', 'message': 'Contacto no encontrado'}
+                if contacto.get('estado') in ('trabajo_cerrado', 'no_concretado', 'cerrado_no_concretado'):
+                    return {'status': 'error', 'message': 'Este contacto ya está cerrado'}
+                sol = str(contacto.get('solicitante_codigo') or '').strip()
+                pro = str(contacto.get('profesional_codigo') or '').strip()
+                rol = neg_mgr._rol_en_contacto(codigo_aliado, sol, pro)
+                if not rol:
+                    return {'status': 'error', 'message': 'No autorizado'}
+                estado = neg_mgr.parse_negociacion(contacto.get('negociacion_json'))
+                if renegociar:
+                    estado, msg = neg_mgr.reabrir_campo_negociacion(estado, rol, campo, valor)
+                    tipo = neg_mgr.TIPO_CONTRAOFERTA
+                else:
+                    estado, msg, tipo = neg_mgr.contraoferta_campo(estado, rol, campo, valor)
+                neg_json = neg_mgr.serializar_negociacion(estado)
+                nuevo_estado_contacto = contacto.get('estado')
+                if contacto.get('estado') == 'acuerdo_alcanzado':
+                    nuevo_estado_contacto = 'iniciado'
+                cursor.execute("""
+                    UPDATE contactos_ruana
+                    SET negociacion_json = ?, estado = ?, actualizado_en = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                """, (neg_json, nuevo_estado_contacto, contacto_id))
+                self._insertar_evento_negociacion(cursor, contacto_id, tipo, campo, valor, codigo_aliado, msg)
+                conn.commit()
+                eventos = self.listar_eventos_negociacion(contacto_id)
+                contacto = self._cargar_contacto_negociacion(cursor, contacto_id)
+                payload = neg_mgr.construir_payload(contacto, eventos, rol)
+                return {'status': 'success', 'message': msg, **payload}
+            except ValueError as ve:
+                if conn:
+                    conn.rollback()
+                return {'status': 'error', 'message': str(ve)}
+            except Exception as e:
+                if conn:
+                    conn.rollback()
+                return {'status': 'error', 'message': str(e)}
+            finally:
+                if conn:
+                    conn.close()
+
+    def aceptar_negociacion(self, contacto_id: int, codigo_aliado: str, campo: str,
+                            observaciones_profesional: str = '') -> Dict[str, Any]:
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                contacto = self._cargar_contacto_negociacion(cursor, contacto_id)
+                if not contacto:
+                    return {'status': 'error', 'message': 'Contacto no encontrado'}
+                sol = str(contacto.get('solicitante_codigo') or '').strip()
+                pro = str(contacto.get('profesional_codigo') or '').strip()
+                rol = neg_mgr._rol_en_contacto(codigo_aliado, sol, pro)
+                if not rol:
+                    return {'status': 'error', 'message': 'No autorizado'}
+                estado = neg_mgr.parse_negociacion(contacto.get('negociacion_json'))
+                estado, msg, tipo, completo = neg_mgr.aceptar_campo(
+                    estado, rol, campo, observaciones_profesional
+                )
+                neg_json = neg_mgr.serializar_negociacion(estado)
+                nuevo_estado = contacto.get('estado') or 'iniciado'
+                if completo:
+                    nuevo_estado = 'acuerdo_alcanzado'
+                    cursor.execute(
+                        "UPDATE contactos_ruana SET fecha_trabajo_en_progreso = COALESCE(fecha_trabajo_en_progreso, CURRENT_TIMESTAMP) WHERE id = ?",
+                        (contacto_id,),
+                    )
+                    msg_sistema = (
+                        'Acuerdo alcanzado. Resumen: '
+                        + ', '.join(
+                            f"{neg_mgr.CAMPOS_LABELS[c]}: {estado['campos'][c]['valor']}"
+                            for c in neg_mgr.CAMPOS_ORDEN
+                        )
+                    )
+                    self._insertar_evento_negociacion(
+                        cursor, contacto_id, neg_mgr.TIPO_SISTEMA, None, '', None, msg_sistema
+                    )
+                cursor.execute("""
+                    UPDATE contactos_ruana
+                    SET negociacion_json = ?, estado = ?, actualizado_en = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                """, (neg_json, nuevo_estado, contacto_id))
+                self._insertar_evento_negociacion(cursor, contacto_id, tipo, campo,
+                    estado['campos'][campo]['valor'], codigo_aliado, msg)
+                conn.commit()
+                eventos = self.listar_eventos_negociacion(contacto_id)
+                contacto = self._cargar_contacto_negociacion(cursor, contacto_id)
+                payload = neg_mgr.construir_payload(contacto, eventos, rol)
+                return {'status': 'success', 'message': msg, 'completo': completo, **payload}
+            except ValueError as ve:
+                if conn:
+                    conn.rollback()
+                return {'status': 'error', 'message': str(ve)}
+            except Exception as e:
+                if conn:
+                    conn.rollback()
+                return {'status': 'error', 'message': str(e)}
+            finally:
+                if conn:
+                    conn.close()
+
+    def listar_negociaciones_admin(self, limite: int = 20, offset: int = 0) -> List[Dict[str, Any]]:
+        with self._lock:
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT c.id AS contacto_id, c.solicitante_codigo, c.profesional_codigo,
+                           c.servicio, c.estado, COALESCE(c.es_urgente, 0) AS es_urgente,
+                           c.negociacion_json, c.creado_en, c.actualizado_en,
+                           (SELECT mensaje FROM negociacion_eventos e
+                            WHERE e.contacto_id = c.id ORDER BY e.id DESC LIMIT 1) AS ultimo_evento,
+                           (SELECT creado_en FROM negociacion_eventos e
+                            WHERE e.contacto_id = c.id ORDER BY e.id DESC LIMIT 1) AS fecha_ultimo,
+                           (SELECT COUNT(*) FROM negociacion_eventos e WHERE e.contacto_id = c.id) AS num_eventos
+                    FROM contactos_ruana c
+                    WHERE EXISTS (SELECT 1 FROM negociacion_eventos e WHERE e.contacto_id = c.id)
+                    ORDER BY c.actualizado_en DESC
+                    LIMIT ? OFFSET ?
+                """, (limite, offset))
+                rows = cursor.fetchall()
+                result = []
+                for row in rows:
+                    d = dict(row)
+                    neg = neg_mgr.parse_negociacion(d.get('negociacion_json'))
+                    d['paso_actual'] = neg.get('paso_actual')
+                    d['acuerdo_completo'] = bool(neg.get('completo')) or d.get('estado') == 'acuerdo_alcanzado'
+                    d['es_urgente'] = bool(int(d.get('es_urgente') or 0))
+                    precio = neg.get('campos', {}).get('precio', {}).get('valor') or ''
+                    d['precio_acordado'] = precio
+                    result.append(d)
+                return result
+            except Exception as e:
+                print(f"Error listar_negociaciones_admin: {e}")
+                return []
+            finally:
+                conn.close()
+
+    def eliminar_negociacion_admin(self, contacto_id: int, admin_codigo: str = '') -> Dict[str, Any]:
+        """Elimina contacto y toda su negociación (solo admin)."""
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                cursor.execute("SELECT id FROM contactos_ruana WHERE id = ?", (contacto_id,))
+                if not cursor.fetchone():
+                    return {'status': 'error', 'message': 'Contacto no encontrado'}
+                for tabla in (
+                    'negociacion_eventos', 'chat_mensajes', 'confirmaciones_trabajo',
+                    'contacto_panel_oculto', 'contacto_penalizaciones_aplicadas',
+                    'chat_mensajes', 'ingresos_ruana', 'payment_conflicts',
+                ):
+                    try:
+                        cursor.execute(f"DELETE FROM {tabla} WHERE contacto_id = ?", (contacto_id,))
+                    except Exception:
+                        pass
+                try:
+                    cursor.execute("DELETE FROM notificaciones_aliado WHERE metadata LIKE ?",
+                                   (f'%"contacto_id": {contacto_id}%',))
+                except Exception:
+                    pass
+                cursor.execute("DELETE FROM contactos_ruana WHERE id = ?", (contacto_id,))
+                self._audit_log(cursor, 'contacto', contacto_id, 'negociacion_eliminada_admin',
+                                'admin', admin_codigo or '', f'contacto_id={contacto_id}')
+                conn.commit()
+                return {'status': 'success', 'message': 'Negociación eliminada', 'contacto_id': contacto_id}
+            except Exception as e:
+                if conn:
+                    conn.rollback()
+                return {'status': 'error', 'message': str(e)}
+            finally:
+                if conn:
+                    conn.close()
+
+    # Limites chat RUANA (legacy — chat libre deshabilitado; negociación guiada activa).
     CHAT_MAX_MENSAJES_TOTAL = 30
     CHAT_MAX_MENSAJES_POR_USUARIO = CHAT_MAX_MENSAJES_TOTAL
     CHAT_HORAS_VIGENCIA = 48
@@ -6756,6 +7104,12 @@ class DBManager:
                     """, (solicitante_codigo, profesional_codigo, servicio or ''))
 
                 contacto_id = cursor.lastrowid
+
+                # Iniciar negociación guiada con servicio propuesto por el contratante
+                self._iniciar_negociacion_en_cursor(
+                    cursor, contacto_id, servicio or '', solicitante_codigo
+                )
+
                 conn.commit()
 
                 return {
@@ -8085,80 +8439,32 @@ class DBManager:
     
     def obtener_contactos_abiertos_por_codigo(self, codigo_aliado: str) -> List[Dict[str, Any]]:
         """
-        Contactos RUANA abiertos para un aliado que deben mostrarse como alerta activa.
-        Se excluyen: posponer_recordatorio=1 y fecha_pospuesto_hasta > now; y contactos con chat expirado
-        (más de CHAT_HORAS_VIGENCIA desde última actividad: último mensaje o max(fecha_aceptacion, creado_en)).
-        Comparación con TRIM para evitar fallos por espacios en solicitante_codigo/profesional_codigo.
+        Contactos RUANA abiertos para alerta activa (negociación guiada + seguimiento post-servicio).
+        Excluye posponer_recordatorio activo y contactos ocultos del panel.
         """
         codigo_aliado = (codigo_aliado or "").strip()
         if not codigo_aliado:
             return []
-        horas_vigencia = self.CHAT_HORAS_VIGENCIA
+        estados_abiertos = (
+            'iniciado', 'aceptado', 'trabajo_en_progreso', 'importe_en_disputa',
+            'en_conversacion', 'acuerdo_alcanzado',
+        )
         with self._lock:
             try:
                 conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
-
+                placeholders = ','.join('?' for _ in estados_abiertos)
+                posponer_sql = (
+                    "(COALESCE(c.posponer_recordatorio, 0) = 0) OR "
+                    "(c.fecha_pospuesto_hasta IS NOT NULL AND datetime(c.fecha_pospuesto_hasta) <= datetime('now'))"
+                )
                 if self.backend == "postgres":
-                    cutoff = datetime.now(timezone.utc) - timedelta(hours=horas_vigencia)
-                    cursor.execute("""
-                    SELECT *
-                    FROM (
-                        SELECT
-                            c.id,
-                            c.solicitante_codigo,
-                            c.profesional_codigo,
-                            c.servicio,
-                            c.estado,
-                            c.pendiente_resolucion,
-                            COALESCE(c.posponer_recordatorio, 0) AS posponer_recordatorio,
-                            c.fecha_pospuesto_hasta,
-                            c.fecha_aceptacion,
-                            c.fecha_trabajo_en_progreso,
-                            c.fecha_cierre,
-                            c.fecha_disputa,
-                            c.creado_en,
-                            c.actualizado_en,
-                            COALESCE(c.es_urgente, 0) AS es_urgente,
-                            c.urgente_marcado_en,
-                            c.motivo_contacto,
-                            (SELECT COUNT(*) FROM chat_mensajes m WHERE m.contacto_id = c.id) AS num_mensajes,
-                            (SELECT 1 FROM confirmaciones_trabajo ct INNER JOIN aliados a ON a.id = ct.aliado_id WHERE ct.contacto_id = c.id AND TRIM(CAST(a.codigo AS TEXT)) = ?) AS ya_declaraste_importe,
-                            COALESCE(
-                                (SELECT MAX(m.creado_en) FROM chat_mensajes m WHERE m.contacto_id = c.id),
-                                (SELECT MAX(ts) FROM (VALUES (c.fecha_aceptacion), (c.creado_en)) AS refs(ts) WHERE ts IS NOT NULL)
-                            ) AS chat_ref
-                        FROM contactos_ruana c
-                        WHERE (TRIM(COALESCE(c.solicitante_codigo, '')) = ? OR TRIM(COALESCE(c.profesional_codigo, '')) = ?)
-                          AND c.estado IN ('iniciado', 'aceptado', 'trabajo_en_progreso', 'importe_en_disputa', 'en_conversacion', 'chat_agotado')
-                          AND (
-                              (COALESCE(c.posponer_recordatorio, 0) = 0)
-                              OR (c.fecha_pospuesto_hasta IS NOT NULL AND c.fecha_pospuesto_hasta <= now())
-                          )
-                          AND NOT EXISTS (
-                              SELECT 1 FROM contacto_panel_oculto o
-                              WHERE o.contacto_id = c.id AND TRIM(COALESCE(o.codigo_aliado, '')) = ?
-                          )
-                    ) abierto
-                    WHERE abierto.chat_ref IS NULL OR abierto.chat_ref >= ?
-                    ORDER BY CASE WHEN abierto.num_mensajes > 0 THEN 0 ELSE 1 END,
-                             abierto.chat_ref DESC,
-                             abierto.creado_en DESC
-                    """, (codigo_aliado, codigo_aliado, codigo_aliado, codigo_aliado, cutoff))
-
-                    rows = cursor.fetchall()
-                    result = []
-                    for row in rows:
-                        d = dict(row)
-                        d['num_mensajes'] = d.get('num_mensajes') or 0
-                        d['ya_declaraste_importe'] = d.get('ya_declaraste_importe') is not None
-                        d['es_urgente'] = bool(int(d.get('es_urgente') or 0))
-                        result.append(d)
-                    return result
-
-                # Referencia de vigencia: último mensaje del chat o, si no hay mensajes, el más reciente de fecha_aceptacion/creado_en
-                cursor.execute("""
+                    posponer_sql = (
+                        "(COALESCE(c.posponer_recordatorio, 0) = 0) OR "
+                        "(c.fecha_pospuesto_hasta IS NOT NULL AND c.fecha_pospuesto_hasta <= now())"
+                    )
+                cursor.execute(f"""
                     SELECT
                         c.id,
                         c.solicitante_codigo,
@@ -8177,44 +8483,30 @@ class DBManager:
                         COALESCE(c.es_urgente, 0) AS es_urgente,
                         c.urgente_marcado_en,
                         c.motivo_contacto,
-                        (SELECT COUNT(*) FROM chat_mensajes m WHERE m.contacto_id = c.id) AS num_mensajes,
-                        (SELECT 1 FROM confirmaciones_trabajo ct INNER JOIN aliados a ON a.id = ct.aliado_id WHERE ct.contacto_id = c.id AND TRIM(CAST(a.codigo AS TEXT)) = ?) AS ya_declaraste_importe
+                        c.negociacion_json,
+                        (SELECT 1 FROM confirmaciones_trabajo ct
+                         INNER JOIN aliados a ON a.id = ct.aliado_id
+                         WHERE ct.contacto_id = c.id AND TRIM(CAST(a.codigo AS TEXT)) = ?) AS ya_declaraste_importe
                     FROM contactos_ruana c
                     WHERE (TRIM(COALESCE(c.solicitante_codigo, '')) = ? OR TRIM(COALESCE(c.profesional_codigo, '')) = ?)
-                      AND c.estado IN ('iniciado', 'aceptado', 'trabajo_en_progreso', 'importe_en_disputa', 'en_conversacion', 'chat_agotado')
-                      AND (
-                          (COALESCE(c.posponer_recordatorio, 0) = 0)
-                          OR (c.fecha_pospuesto_hasta IS NOT NULL AND datetime(c.fecha_pospuesto_hasta) <= datetime('now'))
-                      )
-                      AND (
-                          COALESCE(
-                              (SELECT MAX(m.creado_en) FROM chat_mensajes m WHERE m.contacto_id = c.id),
-                              (SELECT MAX(ts) FROM (SELECT c.fecha_aceptacion AS ts UNION ALL SELECT c.creado_en) WHERE ts IS NOT NULL)
-                          ) IS NULL
-                          OR datetime(COALESCE(
-                              (SELECT MAX(m.creado_en) FROM chat_mensajes m WHERE m.contacto_id = c.id),
-                              (SELECT MAX(ts) FROM (SELECT c.fecha_aceptacion AS ts UNION ALL SELECT c.creado_en) WHERE ts IS NOT NULL)
-                          )) >= datetime('now', ?)
-                      )
+                      AND c.estado IN ({placeholders})
+                      AND ({posponer_sql})
                       AND NOT EXISTS (
                           SELECT 1 FROM contacto_panel_oculto o
                           WHERE o.contacto_id = c.id AND TRIM(COALESCE(o.codigo_aliado, '')) = ?
                       )
-                    ORDER BY CASE WHEN num_mensajes > 0 THEN 0 ELSE 1 END,
-                             COALESCE(
-                                 (SELECT MAX(m.creado_en) FROM chat_mensajes m WHERE m.contacto_id = c.id),
-                                 (SELECT MAX(ts) FROM (SELECT c.fecha_aceptacion AS ts UNION ALL SELECT c.creado_en) WHERE ts IS NOT NULL)
-                             ) DESC,
-                             c.creado_en DESC
-                """, (codigo_aliado, codigo_aliado, codigo_aliado, f'-{horas_vigencia} hours', codigo_aliado))
+                    ORDER BY c.actualizado_en DESC, c.creado_en DESC
+                """, (codigo_aliado, codigo_aliado, codigo_aliado, *estados_abiertos, codigo_aliado))
 
                 rows = cursor.fetchall()
                 result = []
                 for row in rows:
                     d = dict(row)
-                    d['num_mensajes'] = d.get('num_mensajes') or 0
                     d['ya_declaraste_importe'] = d.get('ya_declaraste_importe') is not None
                     d['es_urgente'] = bool(int(d.get('es_urgente') or 0))
+                    neg = neg_mgr.parse_negociacion(d.get('negociacion_json'))
+                    d['negociacion_completa'] = bool(neg.get('completo')) or d.get('estado') == 'acuerdo_alcanzado'
+                    d['paso_negociacion'] = neg.get('paso_actual')
                     result.append(d)
                 return result
             except Exception as e:
@@ -8240,6 +8532,7 @@ class DBManager:
                 motivo_col = ', motivo_contacto' if 'motivo_contacto' in cols else ''
                 apoyo_col = ', apoyo_ruana' if 'apoyo_ruana' in cols else ''
                 urgente_col = ', COALESCE(es_urgente, 0) AS es_urgente, urgente_marcado_en' if 'es_urgente' in cols else ''
+                neg_col = ', negociacion_json' if 'negociacion_json' in cols else ''
                 cursor.execute(f"""
                     SELECT
                         id, solicitante_codigo, profesional_codigo, servicio, estado,
@@ -8248,6 +8541,7 @@ class DBManager:
                         {apoyo_col}
                         {motivo_col}
                         {urgente_col}
+                        {neg_col}
                     FROM contactos_ruana
                     WHERE id = ?
                 """, (contacto_id,))

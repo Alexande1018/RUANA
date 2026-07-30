@@ -2066,7 +2066,8 @@
     <link rel="stylesheet" href="/static/css/panel-premium.css">
     <link rel="stylesheet" href="/static/css/auth-premium.css">
     <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
-    <script src="/static/js/ruana-ui.js" defer></script>
+    <link rel="stylesheet" href="/static/css/negociacion-guiada.css">
+    <script src="/static/js/negociacion-guiada.js" defer></script>
 </head>
 <body class="panel-loading">
     <a href="/" class="ruana-brand ruana-brand-watermark" aria-label="RUANA inicio">
@@ -2119,7 +2120,7 @@
                 <span id="subir-prueba-resultado" style="margin-left:8px; font-size:0.85rem;"></span>
             </div>
             <div class="contacto-aviso-acciones">
-                <button id="btn-contacto-abrir-chat" class="contacto-aviso-btn" style="background: rgba(34, 197, 94, 0.25); color: #4ade80;">Abrir chat</button>
+                <button id="btn-contacto-abrir-chat" class="contacto-aviso-btn" style="background: rgba(34, 197, 94, 0.25); color: #4ade80;">Abrir negociación</button>
                 <button id="btn-contacto-si-trabajo" class="contacto-aviso-btn si-trabajo">Sí, hubo trabajo</button>
                 <button id="btn-contacto-no-concreto" class="contacto-aviso-btn no-concreto">No se concretó</button>
                 <button id="btn-contacto-sigue" class="contacto-aviso-btn sigue">Sigue en conversación</button>
@@ -2485,41 +2486,32 @@
                 <span><strong>Marcar como urgente</strong> — el profesional lo verá resaltado</span>
             </label>
             <div class="modal-contacto-actions">
-                <button id="btn-motivo-confirm" class="modal-contacto-btn confirm">Iniciar chat</button>
+                <button id="btn-motivo-confirm" class="modal-contacto-btn confirm">Iniciar negociación</button>
                 <button id="btn-motivo-cancel" class="modal-contacto-btn cancel">Cancelar</button>
             </div>
         </div>
     </div>
 
-    <!-- Modal Chat interno RUANA -->
-    <div class="modal-contacto-overlay chat-modal-overlay" id="modal-chat-ruana" style="display: none;">
-        <div class="chat-modal-content">
-            <div class="chat-modal-header">
-                <h3 class="chat-modal-title" id="chat-modal-title">Chat RUANA</h3>
-                <span class="chat-urgente-badge" id="chat-urgente-badge" style="display:none;">URGENTE</span>
+    <!-- Modal negociación guiada RUANA -->
+    <div class="neg-modal-overlay" id="modal-negociacion-guiada">
+        <div class="neg-modal-content">
+            <div class="neg-modal-header">
+                <h3 class="neg-modal-title" id="neg-modal-title">Negociación guiada RUANA</h3>
+                <span class="chat-urgente-badge" id="neg-urgente-badge" style="display:none;">URGENTE</span>
                 <div style="display:flex; gap:10px; align-items:center;">
-                    <button type="button" class="chat-btn-finalizar" id="ruana-chat-finalizar" aria-label="Finalizar chat y quitarlo del panel">Finalizar chat</button>
-                    <button type="button" class="chat-btn-volver-panel" id="ruana-chat-cerrar" aria-label="Volver al panel personal">Volver al panel</button>
+                    <button type="button" class="chat-btn-finalizar" id="neg-btn-finalizar" aria-label="Ocultar del panel">Ocultar del panel</button>
+                    <button type="button" class="chat-btn-volver-panel" id="neg-btn-cerrar" aria-label="Volver al panel">Volver al panel</button>
                 </div>
             </div>
-            <div class="chat-aviso-urgente" id="chat-aviso-urgente" style="display:none;">
-                Este contacto fue marcado como <strong>URGENTE</strong> por el solicitante.
+            <div id="neg-acuerdo-final" style="display:none;padding:0 20px;"></div>
+            <div class="neg-modal-body">
+                <div class="neg-timeline" id="neg-timeline"></div>
+                <div class="neg-resumen-panel">
+                    <h4>Estado del acuerdo</h4>
+                    <div id="neg-resumen-lista"></div>
+                </div>
             </div>
-            <div class="chat-aviso-refrescar" style="display: none;">
-                <!-- Mensaje retirado: el botón "Volver al panel" cierra el modal sin necesidad de refrescar -->
-            </div>
-            <div class="chat-aviso-límites" id="chat-aviso-limites">
-                Máximo 30 mensajes por chat. Usa el chat para coordinar el servicio e intercambiar datos de contacto. Válido 48h.
-            </div>
-            <div class="chat-mensajes-restantes" id="chat-mensajes-restantes"></div>
-            <div class="chat-mensajes-wrap">
-                <div class="chat-mensajes-list" id="chat-mensajes-list"></div>
-            </div>
-            <div class="chat-input-wrap">
-                <textarea id="chat-input-texto" class="chat-input-texto" placeholder="Escribe un mensaje..." rows="2" maxlength="2000" aria-describedby="chat-input-error"></textarea>
-                <button type="button" class="chat-btn-enviar" id="chat-btn-enviar">Enviar</button>
-            </div>
-            <div id="chat-input-error" class="chat-input-error" role="alert" style="display:none; color:#ef4444; font-size:0.85rem; margin:4px 12px 0; padding:0;"></div>
+            <div class="neg-acciones" id="neg-acciones-wrap"></div>
         </div>
     </div>
 
@@ -3025,14 +3017,7 @@
                 this.contactosAbiertos = [];
                 this.contactoActual = null;
                 this.profesionalSeleccionado = null;
-                this.chatContactoId = null;
-                this.chatExpirado = false;
-                this.chatMaxMensajes = 30;
-                this.mensajesRestantes = this.chatMaxMensajes;
-                this.chatHorasRestantes = null;
-                this.chatHorasVigencia = 48;
-                this.chatExpiraEn = null;
-                this._chatPollingIntervalId = null;
+                this.negociacionGuiada = null;
                 this.notificaciones = [];
                 this.soporteConversations = [];
                 this.soporteMensajes = [];
@@ -3064,6 +3049,9 @@
             async init() {
                 // Configurar listeners primero (SIEMPRE)
                 this.setupEventListeners();
+                if (typeof NegociacionGuiada !== 'undefined') {
+                    this.negociacionGuiada = new NegociacionGuiada(this);
+                }
                 
                 // Luego, cargar datos estrictamente desde la API real
                 await this.loadData();
@@ -4277,7 +4265,7 @@
                 const btnNoConcreto = document.getElementById('btn-contacto-no-concreto');
                 const btnSigue = document.getElementById('btn-contacto-sigue');
                 if (btnAbrirChat) {
-                    btnAbrirChat.addEventListener('click', () => this.abrirChatDesdeContactoActual());
+                    btnAbrirChat.addEventListener('click', () => this.abrirNegociacionDesdeContactoActual());
                 }
                 if (btnSiTrabajo) {
                     btnSiTrabajo.addEventListener('click', () => this.handleAvisoSiHuboTrabajo());
@@ -4443,39 +4431,6 @@
                     });
                 }
 
-                // Chat RUANA: cerrar y enviar
-                const chatBtnEnviar = document.getElementById('chat-btn-enviar');
-                const chatInputTexto = document.getElementById('chat-input-texto');
-                if (chatBtnEnviar) chatBtnEnviar.addEventListener('click', () => this.enviarMensajeChat());
-                if (chatInputTexto) {
-                    chatInputTexto.addEventListener('keydown', (e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            this.enviarMensajeChat();
-                        }
-                    });
-                    chatInputTexto.addEventListener('input', () => {
-                        const err = document.getElementById('chat-input-error');
-                        if (err) { err.style.display = 'none'; err.textContent = ''; }
-                        this.actualizarUIEstadoChat();
-                    });
-                }
-                const modalChat = document.getElementById('modal-chat-ruana');
-                if (modalChat) {
-                    modalChat.addEventListener('click', (e) => {
-                        // Cerrar al hacer clic en el overlay (fondo) o en "Volver al panel"
-                        if (e.target === modalChat || e.target.closest('#ruana-chat-cerrar')) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            this.cerrarChat();
-                        }
-                    });
-                }
-                const btnFinalizarChat = document.getElementById('ruana-chat-finalizar');
-                if (btnFinalizarChat) {
-                    btnFinalizarChat.addEventListener('click', () => this.finalizarChatDesdeModal());
-                }
-                window.ruanaCerrarChat = () => this.cerrarChat();
 
                 // Modal importe
                 const modalImporte = document.getElementById('modal-contacto-importe');
@@ -4795,7 +4750,7 @@
                     const oficio = prof.oficio || '(sin oficio)';
                     const zona = prof.zona || prof.codigo_postal || '(sin zona)';
                     const descripcionServicio = (prof.descripcion_servicio || prof.descripcion || '').trim();
-                    const badgeTexto = tieneConversacion ? 'Conversación activa' : (esIncompleto ? 'Perfil incompleto' : 'DISPONIBLE');
+                    const badgeTexto = tieneConversacion ? 'Negociación activa' : (esIncompleto ? 'Perfil incompleto' : 'DISPONIBLE');
                     const scoreMeta = this._scoreEtiquetaMeta(prof.score, prof.estado_ruana);
 
                     const badgeRuana = tieneConversacion ? 'conversacion-activa' : (esIncompleto ? 'perfil-incompleto' : '');
@@ -4824,7 +4779,7 @@
                         ${descripcionServicio ? `<div class="profesional-descripcion">${this.escapeHtml(descripcionServicio)}</div>` : ''}
                         <div class="profesional-acciones">
                             ${tieneConversacion
-                                ? `<button type="button" class="btn-abrir-chat" data-contacto-id="${contactoExistente.id}" data-id="${prof.id || 0}"><i data-lucide="message-circle" style="width:16px;height:16px;vertical-align:-2px;margin-right:4px"></i>Abrir conversación</button>`
+                                ? `<button type="button" class="btn-abrir-chat" data-contacto-id="${contactoExistente.id}" data-id="${prof.id || 0}"><i data-lucide="message-circle" style="width:16px;height:16px;vertical-align:-2px;margin-right:4px"></i>Abrir negociación</button>`
                                 : `<button type="button" class="btn-contactar" data-id="${prof.id || 0}"><i data-lucide="handshake" style="width:16px;height:16px;vertical-align:-2px;margin-right:4px"></i>Contactar</button>`
                             }
                         </div>
@@ -5421,29 +5376,28 @@
                     const estado = this.contactoActual.estado;
                     const numMensajes = parseInt(this.contactoActual.num_mensajes, 10) || 0;
                     const yaDeclaraste = this.contactoActual.ya_declaraste_importe === true;
-                    let mensaje = 'Tienes un contacto activo. Usa **Abrir chat** para ver y responder los mensajes (se actualizan solos). Cuando lo consideres oportuno, indícanos el resultado.';
+                    let mensaje = 'Tienes un contacto activo. Usa **Abrir negociación** para avanzar en el acuerdo guiado por RUANA. Cuando se realice el servicio, indícanos el resultado.';
                     if (this.contactoActual.es_urgente) {
                         mensaje = '**URGENTE.** ' + mensaje;
                     }
-                    if (estado === 'chat_agotado') {
-                        mensaje = 'Has alcanzado el límite de mensajes del chat. **Para continuar, cierra el contacto** indicando si hubo trabajo o no.';
+                    if (estado === 'acuerdo_alcanzado' || this.contactoActual.negociacion_completa) {
+                        mensaje = '**Acuerdo alcanzado.** Revisa el resumen en negociación. Cuando se realice el servicio, indica si hubo trabajo o no.';
                     } else if (estado === 'importe_en_disputa') {
                         mensaje = 'Existe una declaración diferente por la otra parte. RUANA ha marcado este contacto como importe en disputa. Debes aclararlo para proteger tu reputación.';
+                    } else if (estado !== 'acuerdo_alcanzado') {
+                        mensaje += ' RUANA irá guiándoos paso a paso: servicio, fecha, hora, dirección, precio y observaciones.';
                     }
                     if (estado === 'trabajo_cerrado') {
-                        mensaje = '**Trabajo cerrado.** Importe acordado por ambas partes. Puedes ver el Apoyo RUANA pendiente en la sección correspondiente.';
+                        mensaje = '**Trabajo cerrado.** Importe acordado. Puedes ver el Apoyo RUANA pendiente en la sección correspondiente.';
                     } else if (yaDeclaraste && estado !== 'importe_en_disputa') {
-                        mensaje += ' **Ya declaraste tu importe.** Falta que la otra parte declare el suyo desde su panel para cerrar el contacto.';
-                    }
-                    if (estado !== 'chat_agotado' && numMensajes > 0) {
-                        mensaje += ' **Hay ' + numMensajes + ' mensaje' + (numMensajes === 1 ? '' : 's') + ' en esta conversación.** Abre el chat para verlos.';
+                        mensaje += ' **Ya confirmaste el importe.**';
                     }
                     if (textoEl) {
                         textoEl.innerHTML = mensaje.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
                     }
-                    // En chat_agotado ocultar "Sigue en conversación" (solo cierre tiene sentido)
+                    // Ocultar "Sigue en conversación" tras acuerdo alcanzado
                     const btnSigue = document.getElementById('btn-contacto-sigue');
-                    if (btnSigue) btnSigue.style.display = (estado === 'chat_agotado') ? 'none' : '';
+                    if (btnSigue) btnSigue.style.display = (estado === 'acuerdo_alcanzado') ? 'none' : '';
 
                     const subirPruebaEl = document.getElementById('contacto-aviso-subir-prueba');
                     const codigoAliado = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
@@ -5896,7 +5850,7 @@
                     // No marcar en-conversacion aquí: ocultaría la alerta para el profesional,
                     // que debe ver el nuevo contacto y poder abrir el chat. "Sigue en conversación"
                     // se usa solo cuando el usuario lo pulsa explícitamente desde la alerta.
-                    this.abrirChatContacto(contactoId, profesional, { es_urgente: !!data.es_urgente });
+                    this.abrirNegociacionContacto(contactoId, profesional, { es_urgente: !!data.es_urgente });
                 } catch (e) {
                     console.error('Error de red:', e);
                     alert('Error de conexión al registrar el contacto.');
@@ -5905,263 +5859,32 @@
                 }
             }
 
-            /**
-             * Abre el modal de chat RUANA con el contacto dado.
-             * profesional: { nombre } opcional (al abrir desde directorio). Si no, se muestra "Conversación RUANA".
-             */
-            abrirChatContacto(contactoId, profesional, opts) {
-                this.chatContactoId = contactoId;
-                this.chatProfesionalNombre = profesional && profesional.nombre ? profesional.nombre : '';
-                const titleEl = document.getElementById('chat-modal-title');
-                if (titleEl) titleEl.textContent = 'Chat RUANA';
-                const modal = document.getElementById('modal-chat-ruana');
-                if (modal) {
-                    modal.classList.add('show');
-                    modal.style.display = 'flex';
+            abrirNegociacionContacto(contactoId, profesional, opts) {
+                if (!this.negociacionGuiada) {
+                    alert('Negociación guiada no disponible.');
+                    return;
+                }
+                let titulo = 'Negociación guiada RUANA';
+                if (profesional && profesional.nombre) {
+                    titulo += ' · ' + profesional.nombre;
                 }
                 let esUrgente = !!(opts && opts.es_urgente);
                 if (!esUrgente && this.contactoActual && Number(this.contactoActual.id) === Number(contactoId)) {
                     esUrgente = !!this.contactoActual.es_urgente;
                 }
-                if (!esUrgente && Array.isArray(this.contactosAbiertos)) {
-                    const found = this.contactosAbiertos.find(c => Number(c.id) === Number(contactoId));
-                    if (found) esUrgente = !!found.es_urgente;
-                }
-                this.actualizarChatUrgenteUI(esUrgente);
-                this.cargarMensajesChat();
-                this.iniciarPollingChat();
-                const input = document.getElementById('chat-input-texto');
-                if (input) { input.value = ''; input.focus(); }
-                // Refrescar flag desde API por si se abrió sin contexto local
-                if (!esUrgente) {
-                    fetch('/api/contactos/' + encodeURIComponent(contactoId), { credentials: 'same-origin', headers: getRuanaAuthHeaders() })
-                        .then(r => r.ok ? r.json() : null)
-                        .then(data => {
-                            if (data && data.status === 'success' && data.contacto && data.contacto.es_urgente) {
-                                this.actualizarChatUrgenteUI(true);
-                            }
-                        })
-                        .catch(() => {});
-                }
-            }
-
-            actualizarChatUrgenteUI(esUrgente) {
-                const content = document.querySelector('#modal-chat-ruana .chat-modal-content');
-                const badge = document.getElementById('chat-urgente-badge');
-                const aviso = document.getElementById('chat-aviso-urgente');
-                if (content) content.classList.toggle('chat-urgente', !!esUrgente);
+                const badge = document.getElementById('neg-urgente-badge');
                 if (badge) badge.style.display = esUrgente ? 'inline-block' : 'none';
-                if (aviso) aviso.style.display = esUrgente ? 'block' : 'none';
+                this.negociacionGuiada.abrir(contactoId, titulo);
             }
 
-            /**
-             * Abre el chat desde el aviso de contacto pendiente (visible para solicitante y profesional)
-             */
-            abrirChatDesdeContactoActual() {
+            abrirNegociacionDesdeContactoActual() {
                 if (!this.contactoActual || !this.contactoActual.id) return;
-                this.abrirChatContacto(this.contactoActual.id, null);
+                this.abrirNegociacionContacto(this.contactoActual.id, null);
             }
 
-            cerrarChat() {
-                this.detenerPollingChat();
-                this.chatContactoId = null;
-                this.chatProfesionalNombre = null;
-                const modal = document.getElementById('modal-chat-ruana');
-                if (modal) {
-                    modal.classList.remove('show');
-                    modal.style.display = 'none';
-                    modal.setAttribute('aria-hidden', 'true');
-                }
-            }
-
-            /**
-             * Finalizar chat: oculta este contacto del panel personal y cierra el modal.
-             */
-            async finalizarChatDesdeModal() {
-                const contactoId = this.chatContactoId;
-                if (!contactoId) return;
-                const base = (typeof getApiBase === 'function') ? getApiBase() : '';
-                const opts = {
-                    method: 'POST',
-                    headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
-                    credentials: 'same-origin',
-                    body: JSON.stringify({})
-                };
-                const urls = [
-                    base + '/api/contactos/' + encodeURIComponent(contactoId) + '/finalizar-chat',
-                    base + '/api/contactos/' + encodeURIComponent(contactoId) + '/finalizar_chat'
-                ];
-                let resp = null;
-                let lastData = null;
-                for (const url of urls) {
-                    resp = await fetch(url, opts);
-                    try {
-                        lastData = await resp.json();
-                    } catch (_) {
-                        lastData = { status: 'error', message: 'Respuesta inválida' };
-                    }
-                    if (resp.ok) break;
-                    if (resp.status !== 404) break;
-                }
-                if (!resp || !resp.ok) {
-                    alert(lastData && lastData.message ? lastData.message : 'Recurso no encontrado. Reinicia el servidor (python web/run.py) y vuelve a intentar.');
-                    return;
-                }
-                if (lastData && lastData.status !== 'success') {
-                    alert(lastData.message || 'No se pudo finalizar el chat.');
-                    return;
-                }
-                this.cerrarChat();
-                const avisoEl = document.getElementById('contacto-aviso-persistente');
-                if (avisoEl) avisoEl.style.display = 'none';
-                this.contactoActual = null;
-                await this.cargarContactosPendientes();
-                // Actualizar directorio: el profesional pasa de "Conversación activa" a "DISPONIBLE"
-                this.renderProfesionales();
-                await this.refreshAfterAction(['metricas', 'solicitudes', 'directorio', 'alertas', 'contactos']);
-            }
-
-            /** Polling: actualiza mensajes cada 5 s mientras el modal está abierto. */
-            iniciarPollingChat() {
-                this.detenerPollingChat();
-                const self = this;
-                this._chatPollingIntervalId = setInterval(function () {
-                    if (self.chatContactoId) self.cargarMensajesChat(true);
-                }, 5000);
-            }
-
-            detenerPollingChat() {
-                if (this._chatPollingIntervalId) {
-                    clearInterval(this._chatPollingIntervalId);
-                    this._chatPollingIntervalId = null;
-                }
-            }
-
-            /**
-             * @param {boolean} [silent] - Si true, no muestra "Cargando..." (para polling en segundo plano).
-             */
-            async cargarMensajesChat(silent) {
-                const contactoId = this.chatContactoId != null ? Number(this.chatContactoId) : 0;
-                if (!contactoId || isNaN(contactoId)) return;
-                const codigo = (this.codigoAliado || (this.aliado && this.aliado.codigo) || '').toString().trim();
-                const list = document.getElementById('chat-mensajes-list');
-                if (list && !silent) list.innerHTML = '<p class="chat-loading">Cargando...</p>';
-                try {
-                    const base = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
-                    const url = `${base}/api/chat_mensajes?contacto_id=${contactoId}`;
-                    const resp = await fetch(url, { credentials: 'same-origin', headers: getRuanaAuthHeaders() });
-                    const data = await resp.json().catch(() => ({}));
-                    const mensajes = Array.isArray(data.mensajes) ? data.mensajes : [];
-                    if (data.status === 'success') {
-                        this.renderMensajesChat(mensajes);
-                    } else {
-                        if (list && !silent) list.innerHTML = '<p class="chat-loading" style="color:#eab308;">' + (data.message || 'No se pudieron cargar los mensajes.') + '</p>';
-                    }
-                    this.chatExpirado = !!data.chat_expirado;
-                    this.chatMaxMensajes = data.chat_max_mensajes != null ? Number(data.chat_max_mensajes) : this.chatMaxMensajes;
-                    this.mensajesRestantes = data.mensajes_restantes != null ? data.mensajes_restantes : this.chatMaxMensajes;
-                    this.chatHorasRestantes = data.chat_horas_restantes != null ? Number(data.chat_horas_restantes) : null;
-                    this.chatHorasVigencia = data.chat_horas_vigencia != null ? Number(data.chat_horas_vigencia) : 48;
-                    this.chatExpiraEn = data.chat_expira_en || null;
-                    this.actualizarUIEstadoChat();
-                } catch (e) {
-                    console.error('Error cargando mensajes:', e);
-                    if (list && !silent) list.innerHTML = '<p class="chat-loading" style="color:#ef4444;">Error de conexión. Revisa que el servidor esté en marcha.</p>';
-                    this.chatExpirado = false;
-                    this.mensajesRestantes = this.chatMaxMensajes;
-                    this.chatHorasRestantes = null;
-                    this.chatHorasVigencia = 48;
-                    this.chatExpiraEn = null;
-                    this.actualizarUIEstadoChat();
-                }
-            }
-
-            actualizarUIEstadoChat() {
-                const restantesEl = document.getElementById('chat-mensajes-restantes');
-                const input = document.getElementById('chat-input-texto');
-                const btnEnviar = document.getElementById('chat-btn-enviar');
-                const puedeEnviar = !this.chatExpirado && this.mensajesRestantes > 0;
-                const tieneTexto = input && (input.value || '').trim().length > 0;
-                if (restantesEl) {
-                    if (this.chatExpirado) {
-                        restantesEl.textContent = 'Chat caducado. Cierra el contacto desde el panel para resolver.';
-                        restantesEl.classList.add('expirado');
-                    } else {
-                        const partesEstado = ['Mensajes restantes: ' + this.mensajesRestantes + ' de ' + this.chatMaxMensajes];
-                        const horas = Number(this.chatHorasRestantes);
-                        if (!isNaN(horas)) {
-                            partesEstado.push(horas <= 0 ? 'Disponible menos de 1 h' : 'Disponible ' + horas + ' h');
-                        }
-                        restantesEl.textContent = partesEstado.join(' · ');
-                        restantesEl.classList.remove('expirado');
-                    }
-                }
-                if (input) input.disabled = !puedeEnviar;
-                if (btnEnviar) btnEnviar.disabled = !puedeEnviar || !tieneTexto;
-            }
-
-            renderMensajesChat(mensajes) {
-                const list = document.getElementById('chat-mensajes-list');
-                if (!list) return;
-                const codigo = (this.codigoAliado || (this.aliado && this.aliado.codigo) || '').toString().trim();
-                if (!mensajes || mensajes.length === 0) {
-                    list.innerHTML = '<p class="chat-loading" style="color:#888;">Sin mensajes aún. Escribe el primero.</p>';
-                    return;
-                }
-                list.innerHTML = mensajes.map(m => {
-                    const esMio = (m.emisor_codigo || '') === codigo;
-                    const emisorNombre = m.emisor_nombre || m.emisor_codigo || 'Aliado';
-                    const fecha = m.creado_en ? new Date(m.creado_en).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '';
-                    const leido = m.leido === 1 || m.leido === true;
-                    const estadoLeido = esMio ? (leido ? '<span class="chat-leido" title="Leído">✓✓</span>' : '<span class="chat-leido pendiente" title="Enviado">✓</span>') : '';
-                    return `<div class="chat-msg ${esMio ? 'mio' : 'otro'}"><div class="chat-msg-remitente">${esMio ? 'Tú' : this.escapeHtml(emisorNombre)}</div><div class="chat-msg-texto">${this.escapeHtml(m.texto || '')}</div><div class="chat-msg-meta">${fecha} ${estadoLeido}</div></div>`;
-                }).join('');
-                if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons(list);
-                const wrap = list.closest('.chat-mensajes-wrap');
-                if (wrap) wrap.scrollTop = wrap.scrollHeight;
-            }
-
-            async enviarMensajeChat() {
-                const contactoId = this.chatContactoId != null ? Number(this.chatContactoId) : 0;
-                if (!contactoId || isNaN(contactoId)) return;
-                const input = document.getElementById('chat-input-texto');
-                const texto = input && input.value ? input.value.trim() : '';
-                const errorEl = document.getElementById('chat-input-error');
-                if (!texto) {
-                    if (errorEl) {
-                        errorEl.textContent = 'Escribe un mensaje antes de enviar.';
-                        errorEl.style.display = 'block';
-                    }
-                    return;
-                }
-                if (errorEl) { errorEl.style.display = 'none'; errorEl.textContent = ''; }
-                const codigo = (this.codigoAliado || (this.aliado && this.aliado.codigo) || '').toString().trim();
-                if (!codigo) {
-                    alert('No se pudo identificar tu código RUANA.');
-                    return;
-                }
-                try {
-                    const base = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
-                    const resp = await fetch(base + '/api/chat_enviar', {
-                        method: 'POST',
-                        headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
-                        credentials: 'same-origin',
-                        body: JSON.stringify({
-                            contacto_id: contactoId,
-                            texto: texto
-                        })
-                    });
-                    const data = await resp.json().catch(() => ({}));
-                    if (resp.ok && data.status === 'success') {
-                        input.value = '';
-                        this.cargarMensajesChat();
-                    } else {
-                        alert(data.message || 'No se pudo enviar el mensaje.');
-                    }
-                } catch (e) {
-                    console.error('Error enviando mensaje:', e);
-                    alert('Error de conexión.');
-                }
+            /** Alias legacy */
+            abrirChatContacto(contactoId, profesional, opts) {
+                this.abrirNegociacionContacto(contactoId, profesional, opts);
             }
 
             /**

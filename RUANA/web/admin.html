@@ -1570,20 +1570,22 @@
             <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="suplentes-espera-empty">No hay aliados en lista de espera.</p>
         </div>
 
-        <!-- CAPA 3.7: Registro de chats (solicitante y profesional) -->
+        <!-- CAPA 3.7: Negociaciones guiadas -->
         <div class="conversaciones-ruana-wrap" id="conversaciones-ruana-wrap">
-            <h2 class="seccion-titulo">Registro de chats entre solicitante y profesional</h2>
-            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Conversaciones por contacto. Historial completo por conversación.</p>
+            <h2 class="seccion-titulo">Negociaciones guiadas entre contratante y profesional</h2>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Acuerdos estructurados por RUANA. Historial de eventos por contacto.</p>
             <div class="movimiento-24h-tabla-wrap">
                 <div class="movimiento-24h-tabla-scroll">
                     <table class="movimiento-24h-tabla" id="tabla-conversaciones">
                         <thead>
                             <tr>
-                                <th>ID contacto</th>
+                                <th>ID</th>
                                 <th>Solicitante</th>
                                 <th>Profesional</th>
-                                <th>Urgente</th>
-                                <th>Último mensaje</th>
+                                <th>Estado</th>
+                                <th>Paso</th>
+                                <th>Precio</th>
+                                <th>Último evento</th>
                                 <th>Fecha</th>
                                 <th></th>
                             </tr>
@@ -1592,7 +1594,7 @@
                     </table>
                 </div>
             </div>
-            <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="conversaciones-empty">Sin mensajes aún</p>
+            <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="conversaciones-empty">Sin negociaciones aún</p>
             <div class="conversaciones-load-more" id="conversaciones-load-more-wrap" style="margin-top: 12px; display: none; flex-wrap: wrap; gap: 10px; align-items: center;">
                 <button type="button" class="btn-admin-action" id="btn-conversaciones-mostrar-mas">Mostrar más</button>
                 <button type="button" class="btn-admin-action" id="btn-conversaciones-mostrar-menos" style="display: none;">Mostrar menos</button>
@@ -1640,12 +1642,14 @@
             <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="centro-comunicacion-admin-empty">Sin conversaciones en este filtro.</p>
         </div>
 
-        <!-- Modal ver chat -->
+        <!-- Modal ver negociación -->
         <div class="modal-overlay admin-modal" id="modal-ver-chat" style="display: none; align-items: center; justify-content: center;">
-            <div class="modal-content" style="max-width: 520px; max-height: 80vh; display: flex; flex-direction: column;">
-                <h3 class="modal-title" id="modal-chat-titulo">Chat del contacto</h3>
+            <div class="modal-content" style="max-width: 620px; max-height: 85vh; display: flex; flex-direction: column;">
+                <h3 class="modal-title" id="modal-chat-titulo">Negociación del contacto</h3>
+                <div id="admin-neg-resumen" style="margin:8px 0; font-size:0.9rem; color:#cbd5e1;"></div>
                 <div id="admin-chat-mensajes" style="flex:1; min-height: 200px; max-height: 360px; overflow-y: auto; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 8px; margin: 12px 0;"></div>
-                <div class="modal-actions">
+                <div class="modal-actions" style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <button type="button" class="btn-admin-action danger" id="btn-eliminar-negociacion">Eliminar negociación</button>
                     <button type="button" class="btn-admin-action" id="btn-cerrar-ver-chat">Cerrar</button>
                 </div>
             </div>
@@ -4302,24 +4306,31 @@
 
             appendConversacionRow(tbody, c) {
                 const id = c.contacto_id != null ? c.contacto_id : c.id;
-                const ultimoTexto = (c.ultimo_mensaje || '').substring(0, 80) + ((c.ultimo_mensaje || '').length > 80 ? '…' : '');
+                const ultimoTexto = (c.ultimo_evento || c.ultimo_mensaje || '').substring(0, 80) + ((c.ultimo_evento || c.ultimo_mensaje || '').length > 80 ? '…' : '');
                 const fecha = c.fecha_ultimo ? this.formatearHora(c.fecha_ultimo) : '—';
-                const urgenteHtml = c.es_urgente
-                    ? '<span class="estado-pago-badge" style="background:rgba(180,83,9,0.35);color:#fde68a;border:1px solid rgba(251,191,36,0.5);">URGENTE</span>'
-                    : '—';
+                const estadoHtml = c.acuerdo_completo
+                    ? '<span class="estado-pago-badge" style="background:rgba(34,197,94,0.25);color:#86efac;">ACUERDO</span>'
+                    : this.escapeHtml(c.estado || '—');
                 const tr = document.createElement('tr');
                 if (c.es_urgente) tr.style.background = 'rgba(180, 83, 9, 0.12)';
                 tr.innerHTML = `
                     <td>${id}</td>
                     <td>${this.escapeHtml(c.solicitante || '')}</td>
                     <td>${this.escapeHtml(c.profesional || '')}</td>
-                    <td>${urgenteHtml}</td>
+                    <td>${estadoHtml}</td>
+                    <td>${this.escapeHtml(c.paso_actual || '—')}</td>
+                    <td>${this.escapeHtml(String(c.precio_acordado || '—'))}</td>
                     <td>${this.escapeHtml(ultimoTexto) || '—'}</td>
                     <td>${fecha}</td>
-                    <td><button type="button" class="btn-accion btn-ver-chat" data-contacto-id="${id}">Ver chat</button></td>
+                    <td style="white-space:nowrap;">
+                        <button type="button" class="btn-accion btn-ver-chat" data-contacto-id="${id}">Ver</button>
+                        <button type="button" class="btn-accion btn-eliminar-neg" data-contacto-id="${id}" style="margin-left:6px;color:#f87171;">Eliminar</button>
+                    </td>
                 `;
                 const btn = tr.querySelector('.btn-ver-chat');
+                const btnDel = tr.querySelector('.btn-eliminar-neg');
                 if (btn) btn.addEventListener('click', () => this.abrirModalVerChat(id));
+                if (btnDel) btnDel.addEventListener('click', () => this.eliminarNegociacion(id));
                 tbody.appendChild(tr);
             }
 
@@ -4673,38 +4684,73 @@
             }
 
             async abrirModalVerChat(contactoId) {
+                this._negociacionContactoId = contactoId;
                 const modal = document.getElementById('modal-ver-chat');
                 const titulo = document.getElementById('modal-chat-titulo');
                 const cont = document.getElementById('admin-chat-mensajes');
+                const resumenEl = document.getElementById('admin-neg-resumen');
                 if (!modal || !cont) return;
-                if (titulo) titulo.textContent = 'Chat del contacto #' + contactoId;
+                if (titulo) titulo.textContent = 'Negociación del contacto #' + contactoId;
                 cont.innerHTML = '<p style="color:#888;">Cargando...</p>';
+                if (resumenEl) resumenEl.textContent = '';
                 modal.style.display = 'flex';
                 const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+                const btnDel = document.getElementById('btn-eliminar-negociacion');
+                if (btnDel && !btnDel._bound) {
+                    btnDel._bound = true;
+                    btnDel.addEventListener('click', () => this.eliminarNegociacion(this._negociacionContactoId));
+                }
                 try {
-                    const r = await fetch(`/api/admin/contactos/${contactoId}/mensajes`, { method: 'GET', credentials: 'same-origin', headers: authHeaders });
+                    const r = await fetch(`/api/admin/contactos/${contactoId}/negociacion`, { method: 'GET', credentials: 'same-origin', headers: authHeaders });
                     const data = await r.json().catch(() => null);
                     if (r.status === 401) { this._adminSessionExpired(); return; }
                     if (!data || data.status !== 'success') {
-                        cont.innerHTML = '<p style="color:#f87171;">No se pudieron cargar los mensajes.</p>';
+                        cont.innerHTML = '<p style="color:#f87171;">No se pudo cargar la negociación.</p>';
                         return;
                     }
-                    const mensajes = Array.isArray(data.mensajes) ? data.mensajes : [];
-                    if (!mensajes.length) {
-                        cont.innerHTML = '<p style="color:#888;">Sin mensajes aún</p>';
+                    if (resumenEl && Array.isArray(data.resumen)) {
+                        resumenEl.innerHTML = data.resumen.map(item =>
+                            `<span style="margin-right:12px;"><strong>${this.escapeHtml(item.label)}:</strong> ${this.escapeHtml(String(item.valor || '—'))} (${item.estado})</span>`
+                        ).join('');
+                    }
+                    const eventos = Array.isArray(data.eventos) ? data.eventos : [];
+                    if (!eventos.length) {
+                        cont.innerHTML = '<p style="color:#888;">Sin eventos aún</p>';
                         return;
                     }
-                    const etiquetaMap = { solicitante: 'Solicitante', profesional: 'Profesional', aliado: 'Aliado' };
-                    cont.innerHTML = mensajes.map(m => {
-                        const remitente = (m.remitente || '').toLowerCase();
-                        const nombreRemitente = etiquetaMap[remitente] || remitente || '—';
-                        const esSol = remitente === 'solicitante';
-                        const fecha = m.creado_en ? new Date(m.creado_en).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '';
-                        return `<div style="margin-bottom:12px; padding:10px 12px; border-radius:8px; background:${esSol ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.06)'}; border-left:3px solid ${esSol ? '#22c55e' : '#666'}"><strong>${this.escapeHtml(nombreRemitente)}</strong> — ${fecha}<br>${this.escapeHtml(m.texto || '')}</div>`;
+                    cont.innerHTML = eventos.map(ev => {
+                        const fecha = ev.creado_en ? new Date(ev.creado_en).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '';
+                        return `<div style="margin-bottom:12px; padding:10px 12px; border-radius:8px; background:rgba(255,255,255,0.06); border-left:3px solid ${ev.tipo === 'sistema' ? '#22c55e' : '#6366f1'}"><strong>${this.escapeHtml(ev.tipo || '')}</strong> — ${fecha}<br>${this.escapeHtml(ev.mensaje || '')}</div>`;
                     }).join('');
                     cont.scrollTop = cont.scrollHeight;
                 } catch (e) {
                     cont.innerHTML = '<p style="color:#f87171;">Error de conexión.</p>';
+                }
+            }
+
+            async eliminarNegociacion(contactoId) {
+                if (!contactoId) return;
+                if (!confirm('¿Eliminar esta negociación y todo el contacto asociado? Esta acción no se puede deshacer.')) return;
+                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+                try {
+                    const r = await fetch(`/api/admin/contactos/${contactoId}/negociacion`, {
+                        method: 'DELETE',
+                        credentials: 'same-origin',
+                        headers: authHeaders,
+                    });
+                    const data = await r.json().catch(() => ({}));
+                    if (r.status === 401) { this._adminSessionExpired(); return; }
+                    if (data.status !== 'success') {
+                        alert(data.message || 'No se pudo eliminar');
+                        return;
+                    }
+                    const modal = document.getElementById('modal-ver-chat');
+                    if (modal) modal.style.display = 'none';
+                    this._conversacionesList = (this._conversacionesList || []).filter(c => (c.contacto_id || c.id) !== contactoId);
+                    this.renderConversaciones(this._conversacionesList);
+                    this.showToast('Negociación eliminada', 'success');
+                } catch (e) {
+                    alert('Error de conexión');
                 }
             }
 
