@@ -101,6 +101,11 @@
                 }
                 this.data = data;
                 this.render();
+                const estadoCerrado = ['cerrado_no_concretado', 'no_concretado', 'trabajo_cerrado'].includes(data.estado_contacto || '')
+                    || (data.accion && data.accion.tipo === 'cerrado');
+                if (estadoCerrado && this.panel && typeof this.panel.finalizarContactoCerradoEnUI === 'function') {
+                    await this.panel.finalizarContactoCerradoEnUI(this.contactoId, { cerrarModal: true });
+                }
             } catch (e) {
                 if (!silent) console.error(e);
             }
@@ -379,13 +384,12 @@
                     body: JSON.stringify({}),
                 });
                 const data = await resp.json();
-                if (data.status === 'success') {
-                    await this.refrescar();
-                    if (this.panel && typeof this.panel.cargarContactosPendientes === 'function') {
-                        await this.panel.cargarContactosPendientes();
-                    }
-                    if (this.panel && typeof this.panel.refreshAfterAction === 'function') {
-                        await this.panel.refreshAfterAction(['metricas', 'contactos', 'alertas']);
+                const yaCerrado = data.status !== 'success' && /ya está cerrado|estado final/i.test(data.message || '');
+                if (data.status === 'success' || yaCerrado) {
+                    if (this.panel && typeof this.panel.finalizarContactoCerradoEnUI === 'function') {
+                        await this.panel.finalizarContactoCerradoEnUI(this.contactoId);
+                    } else {
+                        this.cerrar();
                     }
                 } else {
                     alert(data.message || 'No se pudo cerrar la negociación');

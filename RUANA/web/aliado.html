@@ -5594,6 +5594,26 @@
             }
 
             /**
+             * Tras cerrar un contacto (negociación / no concretado): oculta aviso, cierra modal y refresca UI.
+             */
+            async finalizarContactoCerradoEnUI(contactoId, opts) {
+                const options = opts || {};
+                const id = contactoId != null ? Number(contactoId) : null;
+                if (id != null && this.contactoActual && Number(this.contactoActual.id) === id) {
+                    this.contactoActual = null;
+                }
+                if (Array.isArray(this.contactosAbiertos) && id != null) {
+                    this.contactosAbiertos = this.contactosAbiertos.filter(c => Number(c.id) !== id);
+                }
+                const avisoEl = document.getElementById('contacto-aviso-persistente');
+                if (avisoEl) avisoEl.style.display = 'none';
+                if (options.cerrarModal !== false && this.negociacionGuiada && typeof this.negociacionGuiada.cerrar === 'function') {
+                    this.negociacionGuiada.cerrar();
+                }
+                await this.refreshAfterAction(['contactos', 'directorio', 'alertas', 'metricas']);
+            }
+
+            /**
              * Cargar contactos RUANA abiertos para este aliado y mostrar aviso si aplica
              */
             async cargarContactosPendientes() {
@@ -6384,12 +6404,7 @@
                         alert(data.message || 'No se pudo marcar como no concretado.');
                         return;
                     }
-                    // Ocultar la alerta de inmediato (éste cerró o el otro ya lo había cerrado)
-                    const avisoEl = document.getElementById('contacto-aviso-persistente');
-                    if (avisoEl) avisoEl.style.display = 'none';
-                    this.contactoActual = null;
-                    await this.cargarContactosPendientes();
-                    await this.refreshAfterAction(['metricas', 'solicitudes', 'alertas', 'contactos']);
+                    await this.finalizarContactoCerradoEnUI(contactoId);
                 } catch (e) {
                     if (modal) modal.classList.remove('show');
                     console.error('Error marcando no concretado:', e);

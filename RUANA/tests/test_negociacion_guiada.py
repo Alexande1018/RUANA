@@ -141,6 +141,23 @@ class TestNegociacionGuiada(unittest.TestCase):
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0]['descripcion'], 'Grifo')
 
+    def test_cerrar_negociacion_excluye_contacto_abierto(self):
+        cid = self._crear_aliados_y_contacto()
+        self.db.cerrar_negociacion(cid, '90001')
+        abiertos_sol = self.db.obtener_contactos_abiertos_por_codigo('90001')
+        abiertos_pro = self.db.obtener_contactos_abiertos_por_codigo('90002')
+        ids_sol = [c['id'] for c in abiertos_sol]
+        ids_pro = [c['id'] for c in abiertos_pro]
+        self.assertNotIn(cid, ids_sol)
+        self.assertNotIn(cid, ids_pro)
+
+    def test_no_concretado_excluye_contacto_abierto(self):
+        cid = self._crear_aliados_y_contacto()
+        r = self.db.marcar_cerrado_no_concretado(cid, actor_codigo='90002')
+        self.assertEqual(r['status'], 'success')
+        abiertos = self.db.obtener_contactos_abiertos_por_codigo('90001')
+        self.assertTrue(all(c['id'] != cid for c in abiertos))
+
     def test_modificar_propia_propuesta_servicio(self):
         cid = self._crear_aliados_y_contacto()
         self.db.proponer_negociacion(cid, '90001', 'servicio', 'Grifo')

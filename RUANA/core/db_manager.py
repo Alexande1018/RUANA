@@ -7211,6 +7211,7 @@ class DBManager:
                            (SELECT COUNT(*) FROM negociacion_eventos e WHERE e.contacto_id = c.id) AS num_eventos
                     FROM contactos_ruana c
                     WHERE EXISTS (SELECT 1 FROM negociacion_eventos e WHERE e.contacto_id = c.id)
+                      AND c.estado NOT IN ('cerrado_no_concretado', 'no_concretado', 'trabajo_cerrado')
                     ORDER BY c.actualizado_en DESC
                     LIMIT ? OFFSET ?
                 """, (limite, offset))
