@@ -30,6 +30,7 @@ from core.db_manager import get_db, DB_PATH, RUANA_CODIGO_INVITACION_REGEX
 from core.settings import get_settings
 from core.storage_manager import upload_ruana_file, upload_foto_perfil_file
 from core.admin_auth import verify_admin_login, change_admin_password
+from core.email_service import enviar_correo_bienvenida_aliado
 
 # Obtener ruta absoluta de la carpeta web
 web_dir = Path(__file__).parent.absolute()
@@ -2179,6 +2180,18 @@ def registrar_aliado():
 
         # Asegurar red completa: invitaciones pendientes de sync y huérfanos bajo admin
         db.sincronizar_referidos_completo()
+
+        # Envío de correo de bienvenida (no bloquea el registro si falla)
+        codigo_aliado = (result.get('codigo') or '').strip()
+        if codigo_aliado:
+            try:
+                enviar_correo_bienvenida_aliado(
+                    nombre=nombre,
+                    email=email,
+                    codigo=codigo_aliado,
+                )
+            except Exception as email_err:
+                print(f"[RUANA][EMAIL] Error inesperado al enviar correo de bienvenida: {email_err}")
 
         return jsonify(result), 201
         
