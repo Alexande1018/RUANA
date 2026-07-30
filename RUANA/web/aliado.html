@@ -2627,18 +2627,21 @@
                     <p class="neg-paso-actual" id="neg-paso-actual"></p>
                 </div>
                 <span class="chat-urgente-badge" id="neg-urgente-badge" style="display:none;">URGENTE</span>
-                <div style="display:flex; gap:10px; align-items:center;">
-                    <button type="button" class="chat-btn-finalizar" id="neg-btn-cerrar-negociacion" aria-label="Cerrar negociación">Cerrar negociación</button>
-                    <button type="button" class="chat-btn-volver-panel" id="neg-btn-cerrar" aria-label="Volver al panel">Volver al panel</button>
+                <div class="neg-modal-header-actions">
+                    <button type="button" class="chat-btn-finalizar" id="neg-btn-cerrar-negociacion" aria-label="Cerrar negociación">Cerrar</button>
+                    <button type="button" class="chat-btn-volver-panel" id="neg-btn-cerrar" aria-label="Volver al panel">Panel</button>
                 </div>
             </div>
-            <div id="neg-acuerdo-final" style="display:none;padding:0 20px;"></div>
+            <div id="neg-acuerdo-final" style="display:none;"></div>
             <div class="neg-modal-body">
-                <div class="neg-timeline" id="neg-timeline"></div>
-                <div class="neg-resumen-panel">
+                <div class="neg-chat-main">
+                    <button type="button" class="neg-resumen-toggle" id="neg-resumen-toggle">Ver resumen</button>
+                    <div class="neg-timeline" id="neg-timeline"></div>
+                </div>
+                <aside class="neg-resumen-panel" id="neg-resumen-panel">
                     <h4>Estado del acuerdo</h4>
                     <div id="neg-resumen-lista"></div>
-                </div>
+                </aside>
             </div>
             <div class="neg-acciones" id="neg-acciones-wrap"></div>
         </div>
@@ -5668,7 +5671,7 @@
                     } else if (estado === 'importe_en_disputa') {
                         mensaje = 'Existe una declaración diferente por la otra parte. RUANA ha marcado este contacto como importe en disputa. Debes aclararlo para proteger tu reputación.';
                     } else if (estado !== 'acuerdo_alcanzado') {
-                        mensaje += ' RUANA irá guiándoos paso a paso: servicio, fecha, hora, dirección, observaciones y precio.';
+                        mensaje += ' Te haré unas preguntas sobre el encargo y luego enviaré todo al profesional para que lo confirme. El precio lo propondrá el profesional.';
                     }
                     if (estado === 'trabajo_cerrado') {
                         mensaje = '**Trabajo cerrado.** Importe acordado. Puedes ver el Apoyo RUANA pendiente en la sección correspondiente.';

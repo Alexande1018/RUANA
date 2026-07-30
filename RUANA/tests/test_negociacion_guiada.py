@@ -38,8 +38,9 @@ class TestNegociacionGuiada(unittest.TestCase):
         cid = self._crear_aliados_y_contacto()
         sol = self.db.obtener_negociacion_contacto(cid, '90001')
         self.assertEqual(sol['status'], 'success')
-        self.assertEqual(sol['accion']['tipo'], 'proponer_completo')
+        self.assertEqual(sol['accion']['tipo'], 'wizard_contratante')
         self.assertEqual(sol['accion'].get('valores_sugeridos', {}).get('servicio'), 'Reparación grifo')
+        self.assertNotIn('precio', sol['accion'].get('campos', []))
 
         pro = self.db.obtener_negociacion_contacto(cid, '90002')
         self.assertEqual(pro['accion']['tipo'], 'esperar')
@@ -52,15 +53,14 @@ class TestNegociacionGuiada(unittest.TestCase):
             'fecha': '2026-08-15',
             'hora': '10:00',
             'direccion': 'Calle Mayor 1',
-            'precio': '150',
             'observaciones': 'Llevar herramientas',
         }
         r = self.db.proponer_propuesta_completa_negociacion(cid, '90001', valores)
         self.assertEqual(r['status'], 'success', r.get('message'))
+        self.assertEqual(r['negociacion']['campos']['precio']['estado'], neg_mgr.ESTADO_PENDIENTE)
 
         sol = self.db.obtener_negociacion_contacto(cid, '90001')
         self.assertEqual(sol['accion']['tipo'], 'esperar')
-        self.assertIn('propuesta completa', sol['accion']['mensaje'].lower())
 
         pro = self.db.obtener_negociacion_contacto(cid, '90002')
         self.assertEqual(pro['accion']['tipo'], 'responder')
@@ -70,7 +70,18 @@ class TestNegociacionGuiada(unittest.TestCase):
             ok = self.db.aceptar_negociacion(cid, '90002', campo)
             self.assertEqual(ok['status'], 'success', ok.get('message'))
 
-        ok = self.db.aceptar_negociacion(cid, '90002', 'precio')
+        pro_precio = self.db.obtener_negociacion_contacto(cid, '90002')
+        self.assertEqual(pro_precio['accion']['tipo'], 'proponer')
+        self.assertEqual(pro_precio['accion']['campo'], 'precio')
+
+        r_precio = self.db.proponer_negociacion(cid, '90002', 'precio', '150')
+        self.assertEqual(r_precio['status'], 'success', r_precio.get('message'))
+
+        sol_precio = self.db.obtener_negociacion_contacto(cid, '90001')
+        self.assertEqual(sol_precio['accion']['tipo'], 'responder')
+        self.assertEqual(sol_precio['accion']['campo'], 'precio')
+
+        ok = self.db.aceptar_negociacion(cid, '90001', 'precio')
         self.assertEqual(ok['status'], 'success', ok.get('message'))
 
         final = self.db.obtener_negociacion_contacto(cid, '90001')
@@ -104,8 +115,8 @@ class TestNegociacionGuiada(unittest.TestCase):
             ('90002', 'aceptar', 'direccion', ''),
             ('90001', 'proponer', 'observaciones', 'Llevar herramientas'),
             ('90002', 'aceptar', 'observaciones', 'Acceso por portal B'),
-            ('90001', 'proponer', 'precio', '150'),
-            ('90002', 'aceptar', 'precio', ''),
+            ('90002', 'proponer', 'precio', '150'),
+            ('90001', 'aceptar', 'precio', ''),
         ]
         for codigo, accion, campo, valor in pasos:
             if accion == 'aceptar':

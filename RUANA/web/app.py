@@ -1473,7 +1473,6 @@ def negociacion_proponer_completa(contacto_id):
         'hora': (data.get('hora') or '').strip(),
         'direccion': (data.get('direccion') or '').strip(),
         'observaciones': (data.get('observaciones') or '').strip(),
-        'precio': (data.get('precio') or '').strip(),
     }
     db = get_db()
     result = db.proponer_propuesta_completa_negociacion(contacto_id, codigo, campos)
