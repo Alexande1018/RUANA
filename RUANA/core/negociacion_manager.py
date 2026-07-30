@@ -1,6 +1,6 @@
 """
 Negociación guiada RUANA — sustituye el chat libre.
-Cada contacto avanza por pasos: servicio, fecha, hora, dirección, precio, observaciones.
+Cada contacto avanza por pasos: servicio, fecha, hora, dirección, observaciones, precio.
 """
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-CAMPOS_ORDEN = ['servicio', 'fecha', 'hora', 'direccion', 'precio', 'observaciones']
+CAMPOS_ORDEN = ['servicio', 'fecha', 'hora', 'direccion', 'observaciones', 'precio']
 
 CAMPOS_LABELS = {
     'servicio': 'Servicio',
@@ -216,7 +216,7 @@ def _propuesta_completa_en_revision(estado: Dict[str, Any]) -> bool:
 
 def _mensaje_proponer_completo() -> str:
     return (
-        'Completa todos los datos del encargo — servicio, fecha, hora, dirección, precio y observaciones — '
+        'Completa todos los datos del encargo — servicio, fecha, hora, dirección, observaciones y precio — '
         'y envía la propuesta al profesional. Él la revisará y confirmará cada punto.'
     )
 

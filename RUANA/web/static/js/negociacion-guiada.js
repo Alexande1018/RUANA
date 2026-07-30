@@ -336,7 +336,9 @@
 
         _renderFormProponerCompleto(acc) {
             const el = document.getElementById('neg-acciones-wrap');
-            const campos = Array.isArray(acc.campos) ? acc.campos : ['servicio', 'fecha', 'hora', 'direccion', 'precio', 'observaciones'];
+            const campos = Array.isArray(acc.campos) ? acc.campos
+                : (this.data && Array.isArray(this.data.campos_orden) ? this.data.campos_orden
+                    : ['servicio', 'fecha', 'hora', 'direccion', 'observaciones', 'precio']);
             const sugeridos = acc.valores_sugeridos || {};
             const labels = (this.data && this.data.campos_labels) || PASO_LABELS;
 
@@ -378,7 +380,10 @@
         async proponerCompleta() {
             const body = {};
             let vacio = false;
-            ['servicio', 'fecha', 'hora', 'direccion', 'precio', 'observaciones'].forEach(campo => {
+            const camposOrden = (this.data && Array.isArray(this.data.campos_orden))
+                ? this.data.campos_orden
+                : ['servicio', 'fecha', 'hora', 'direccion', 'observaciones', 'precio'];
+            camposOrden.forEach(campo => {
                 const input = document.querySelector(`[data-neg-campo="${campo}"]`);
                 const valor = input ? String(input.value || '').trim() : '';
                 if (!valor) vacio = true;

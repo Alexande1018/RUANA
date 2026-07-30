@@ -66,11 +66,11 @@ class TestNegociacionGuiada(unittest.TestCase):
         self.assertEqual(pro['accion']['tipo'], 'responder')
         self.assertEqual(pro['accion']['campo'], 'servicio')
 
-        for campo in ('servicio', 'fecha', 'hora', 'direccion', 'precio'):
+        for campo in ('servicio', 'fecha', 'hora', 'direccion', 'observaciones'):
             ok = self.db.aceptar_negociacion(cid, '90002', campo)
             self.assertEqual(ok['status'], 'success', ok.get('message'))
 
-        ok = self.db.aceptar_negociacion(cid, '90002', 'observaciones', 'Acceso por portal B')
+        ok = self.db.aceptar_negociacion(cid, '90002', 'precio')
         self.assertEqual(ok['status'], 'success', ok.get('message'))
 
         final = self.db.obtener_negociacion_contacto(cid, '90001')
@@ -102,10 +102,10 @@ class TestNegociacionGuiada(unittest.TestCase):
             ('90002', 'aceptar', 'hora', ''),
             ('90001', 'proponer', 'direccion', 'Calle Mayor 1'),
             ('90002', 'aceptar', 'direccion', ''),
-            ('90001', 'proponer', 'precio', '150'),
-            ('90002', 'aceptar', 'precio', ''),
             ('90001', 'proponer', 'observaciones', 'Llevar herramientas'),
             ('90002', 'aceptar', 'observaciones', 'Acceso por portal B'),
+            ('90001', 'proponer', 'precio', '150'),
+            ('90002', 'aceptar', 'precio', ''),
         ]
         for codigo, accion, campo, valor in pasos:
             if accion == 'aceptar':
