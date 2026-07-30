@@ -2844,17 +2844,38 @@
                 return true;
             }
 
-            pickNavSelector() {
+            pickNavStep() {
                 const bottom = document.getElementById('aliado-shell-bottom');
-                if (this.isElementUsable(bottom)) return '#aliado-shell-bottom';
-                const side = document.querySelector('.aliado-shell-nav-list');
-                if (this.isElementUsable(side)) return '.aliado-shell-nav-list';
+                if (this.isElementUsable(bottom)) {
+                    return {
+                        selector: '#aliado-shell-bottom',
+                        module: null,
+                        title: 'Menú de la app',
+                        copy: '<strong>Empieza por este menú.</strong><br><br>Inicio · Directorio · Solicitudes · Conexiones · Perfil. Cada botón abre su propio espacio de trabajo.',
+                        placement: 'top',
+                        anchor: 'center',
+                        skipScroll: true
+                    };
+                }
+                const side = document.querySelector('.aliado-shell-nav');
+                if (this.isElementUsable(side)) {
+                    return {
+                        selector: '.aliado-shell-nav',
+                        module: null,
+                        title: 'Menú de la app',
+                        copy: '<strong>Empieza por este menú.</strong><br><br>Está a la izquierda: Inicio, Directorio, Solicitudes, Conexiones y Perfil. Úsalo para moverte por toda la app.',
+                        placement: 'right',
+                        anchor: 'start',
+                        skipScroll: true
+                    };
+                }
                 return null;
             }
 
             buildSteps() {
-                const navSelector = this.pickNavSelector();
+                const navStep = this.pickNavStep();
                 const candidates = [
+                    navStep,
                     {
                         selector: '#inicio-identity',
                         module: 'inicio',
@@ -2890,18 +2911,11 @@
                         copy: 'Sube con perfil completo, respuestas rápidas y buenos cierres. Es tu credencial ante la red.',
                         placement: 'left'
                     },
-                    navSelector ? {
-                        selector: navSelector,
-                        module: null,
-                        title: 'Navegación por módulos',
-                        copy: 'Inicio · Directorio · Solicitudes · Conexiones · Perfil. Cada sección es un espacio propio; cambia cuando lo necesites.',
-                        placement: 'top'
-                    } : null,
                     {
                         selector: '.directorio-panel',
                         module: 'directorio',
                         title: 'Directorio del grupo',
-                        copy: 'Busca por nombre, oficio o zona y abre el detalle del profesional para contactarlo.',
+                        copy: 'Busca por nombre, oficio o zona. Con <strong>Contactar</strong> abres un chat privado con el aliado para conversar y gestionar la contratación.',
                         placement: 'bottom'
                     },
                     {
@@ -2935,8 +2949,8 @@
                     {
                         selector: '#catalogo-servicios-wrap',
                         module: 'perfil',
-                        title: 'Catálogo de servicios',
-                        copy: 'Define hasta 10 servicios con descripción y precio. Así te encuentran por lo que realmente ofreces.',
+                        title: 'Catálogo de oficios',
+                        copy: 'Los oficios y servicios que publiques aquí serán visibles para los aliados que buscan un profesional. Mantén esta información actualizada para aumentar tus oportunidades de recibir encargos.<br><br>Al seleccionar <strong>Contactar</strong> desde el catálogo se abre un chat privado entre ambos aliados para iniciar la conversación y gestionar la posible contratación del servicio.',
                         placement: 'top'
                     },
                     {
@@ -3045,7 +3059,9 @@
                     this.activeTarget = target;
                     if (target) {
                         target.classList.add('ruana-tour-target');
-                        target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                        if (!step.skipScroll) {
+                            target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                        }
                     }
 
                     this.cloud.querySelector('.ruana-tour-cloud-title').textContent = step.title;
@@ -3056,8 +3072,8 @@
 
                     const paint = () => {
                         if (!this.cloud || this.renderToken !== token) return;
-                        this.positionCloud(target, step.placement || 'bottom');
-                        this.positionArrow(target);
+                        this.positionCloud(target, step.placement || 'bottom', step.anchor || 'center');
+                        this.positionArrow(target, step.anchor || 'center');
                     };
                     requestAnimationFrame(() => setTimeout(paint, target ? 120 : 0));
                 };
@@ -3066,14 +3082,25 @@
                 requestAnimationFrame(() => setTimeout(apply, step.module ? 300 : 40));
             }
 
-            positionCloud(target, placement) {
+            positionCloud(target, placement, anchor) {
                 if (!this.cloud) return;
                 const margin = 14;
                 const viewportPadding = 10;
                 const vw = window.innerWidth;
                 const vh = window.innerHeight;
+                const align = anchor || 'center';
                 const r = target ? target.getBoundingClientRect() : { top: vh * 0.4, left: vw * 0.5, width: 0, height: 0, right: vw * 0.5, bottom: vh * 0.5 };
                 const c = this.cloud.getBoundingClientRect();
+
+                const sideTop = () => {
+                    if (align === 'start') {
+                        return r.top + Math.min(28, Math.max(8, r.height * 0.06));
+                    }
+                    if (align === 'end') {
+                        return r.bottom - c.height - Math.min(28, Math.max(8, r.height * 0.06));
+                    }
+                    return r.top + (r.height / 2) - (c.height / 2);
+                };
 
                 const calcPos = (place) => {
                     let top = r.bottom + margin;
@@ -3081,10 +3108,10 @@
                     if (place === 'top') {
                         top = r.top - c.height - margin;
                     } else if (place === 'left') {
-                        top = r.top + (r.height / 2) - (c.height / 2);
+                        top = sideTop();
                         left = r.left - c.width - margin;
                     } else if (place === 'right') {
-                        top = r.top + (r.height / 2) - (c.height / 2);
+                        top = sideTop();
                         left = r.right + margin;
                     }
                     return { top, left };
@@ -3097,8 +3124,11 @@
                     return overflowTop + overflowBottom + overflowLeft + overflowRight;
                 };
 
-                const options = [placement, 'bottom', 'top', 'right', 'left']
-                    .filter((v, idx, arr) => arr.indexOf(v) === idx);
+                // Para el menú lateral, priorizar right/left y no “caer” a top/bottom (centra la nube en pantalla).
+                const options = (align === 'start' && (placement === 'right' || placement === 'left'))
+                    ? [placement, placement === 'right' ? 'left' : 'right']
+                    : [placement, 'bottom', 'top', 'right', 'left']
+                        .filter((v, idx, arr) => arr.indexOf(v) === idx);
                 let bestPlacement = options[0];
                 let bestPos = calcPos(bestPlacement);
                 let bestScore = scorePos(bestPos);
@@ -3119,7 +3149,7 @@
                 this.cloud.dataset.placement = bestPlacement;
             }
 
-            positionArrow(target) {
+            positionArrow(target, anchor) {
                 if (!this.arrow) return;
                 if (!target || window.innerWidth < 721) {
                     this.arrow.style.display = 'none';
@@ -3128,10 +3158,16 @@
                 this.arrow.style.display = '';
                 const tr = target.getBoundingClientRect();
                 const cr = this.cloud.getBoundingClientRect();
+                const align = anchor || 'center';
                 const x1 = cr.left + cr.width / 2;
                 const y1 = cr.top + cr.height / 2;
                 const x2 = tr.left + tr.width / 2;
-                const y2 = tr.top + tr.height / 2;
+                let y2 = tr.top + tr.height / 2;
+                if (align === 'start') {
+                    y2 = tr.top + Math.min(56, Math.max(24, tr.height * 0.12));
+                } else if (align === 'end') {
+                    y2 = tr.bottom - Math.min(56, Math.max(24, tr.height * 0.12));
+                }
                 const dx = x2 - x1;
                 const dy = y2 - y1;
                 const length = Math.max(22, Math.min(Math.hypot(dx, dy) - 18, 220));

@@ -33,6 +33,7 @@
         '#module-perfil': 'perfil',
         '#ruana-help-fab': null,
         '#btn-replay-onboarding': null,
+        '.aliado-shell-nav': null,
         '.aliado-shell-nav-list': null,
         '#aliado-shell-bottom': null,
         '.ruana-brand': null
