@@ -3209,9 +3209,17 @@
                 
                 // Luego, cargar datos estrictamente desde la API real
                 await this.loadData();
-                await this.fetchCentroComunicacionSnapshot();
-                await this.cargarMetodosPagoRuana();
-                await this.cargarContactosPendientes();
+                const bootstrapTasks = await Promise.allSettled([
+                    this.fetchCentroComunicacionSnapshot(),
+                    this.cargarMetodosPagoRuana(),
+                    this.cargarContactosPendientes()
+                ]);
+                bootstrapTasks.forEach((task, idx) => {
+                    if (task.status === 'rejected') {
+                        const labels = ['centro-comunicacion', 'metodos-pago', 'contactos-pendientes'];
+                        console.error(`Error en carga inicial (${labels[idx]}):`, task.reason);
+                    }
+                });
                 
                 // Finalmente, renderizar y evaluar banners según estado actual
                 this.render();
@@ -3424,25 +3432,25 @@
                             console.error('Error refrescando datos aliado:', e);
                         }
 
-                        // Cargar notificaciones explícitamente (mensajes de RUANA: comprobante rechazado, etc.)
-                        try {
-                            const respNotif = await fetch(apiBase + '/api/aliados/' + encodeURIComponent(this.codigoAliado) + '/notificaciones?limite=50', { credentials: 'same-origin', headers: getRuanaAuthHeaders() });
-                            if (respNotif.ok) {
+                        const [notificacionesTask, solicitudesTask, directorioTask] = await Promise.allSettled([
+                            (async () => {
+                                // Cargar notificaciones explícitamente (mensajes de RUANA: comprobante rechazado, etc.)
+                                const respNotif = await fetch(apiBase + '/api/aliados/' + encodeURIComponent(this.codigoAliado) + '/notificaciones?limite=50', {
+                                    credentials: 'same-origin',
+                                    headers: getRuanaAuthHeaders()
+                                });
+                                if (!respNotif.ok) return;
                                 const dataNotif = await respNotif.json();
                                 if (dataNotif.status === 'success' && Array.isArray(dataNotif.notificaciones)) {
                                     this.notificaciones = dataNotif.notificaciones;
                                 }
-                            }
-                        } catch (e) {
-                            console.error('Error cargando notificaciones:', e);
-                        }
-
-                        try {
-                            const respSol = await fetch(apiBase + '/api/solicitudes?codigo=' + encodeURIComponent(this.codigoAliado), {
-                                credentials: 'same-origin',
-                                headers: getRuanaAuthHeaders()
-                            });
-                            if (respSol.ok) {
+                            })(),
+                            (async () => {
+                                const respSol = await fetch(apiBase + '/api/solicitudes?codigo=' + encodeURIComponent(this.codigoAliado), {
+                                    credentials: 'same-origin',
+                                    headers: getRuanaAuthHeaders()
+                                });
+                                if (!respSol.ok) return;
                                 const dataSol = await respSol.json();
                                 if (dataSol && typeof dataSol === 'object' && !Array.isArray(dataSol)) {
                                     this.solicitudesEntrantes = Array.isArray(dataSol.entrantes) ? dataSol.entrantes : [];
@@ -3453,22 +3461,29 @@
                                     this.solicitudesPropias = [];
                                     this.solicitudesHistorial = [];
                                 }
-                            }
-                        } catch (e) {
-                            console.error('Error cargando solicitudes de grupo:', e);
-                        }
-
-                        // Directorio: todos los profesionales del mismo grupo (API dedicada)
-                        try {
-                            const respDirectorio = await fetch('/api/aliados/directorio', { credentials: 'same-origin', headers: getRuanaAuthHeaders() });
-                            if (respDirectorio.ok) {
+                            })(),
+                            (async () => {
+                                // Directorio: todos los profesionales del mismo grupo (API dedicada)
+                                const respDirectorio = await fetch('/api/aliados/directorio', {
+                                    credentials: 'same-origin',
+                                    headers: getRuanaAuthHeaders()
+                                });
+                                if (!respDirectorio.ok) return;
                                 const dataDirectorio = await respDirectorio.json();
                                 if (dataDirectorio.status === 'success' && Array.isArray(dataDirectorio.aliados)) {
                                     this.profesionales = dataDirectorio.aliados;
                                 }
-                            }
-                        } catch (e) {
-                            console.error('Error cargando directorio de profesionales:', e);
+                            })()
+                        ]);
+
+                        if (notificacionesTask.status === 'rejected') {
+                            console.error('Error cargando notificaciones:', notificacionesTask.reason);
+                        }
+                        if (solicitudesTask.status === 'rejected') {
+                            console.error('Error cargando solicitudes de grupo:', solicitudesTask.reason);
+                        }
+                        if (directorioTask.status === 'rejected') {
+                            console.error('Error cargando directorio de profesionales:', directorioTask.reason);
                         }
                     }
 
