@@ -24,6 +24,7 @@
         '.crear-solicitud-zone': 'conexiones',
         '#module-conexiones': 'conexiones',
         '.perfil-block': 'perfil',
+        '.perfil-header': 'perfil',
         '#perfil-avatar': 'perfil',
         '#perfil-nombre': 'perfil',
         '#detail-descripcion-wrap': 'perfil',

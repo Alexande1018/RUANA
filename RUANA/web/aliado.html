@@ -2939,11 +2939,12 @@
                         placement: 'top'
                     },
                     {
-                        selector: '.perfil-block',
+                        selector: '.perfil-header',
                         module: 'perfil',
                         title: 'Tu perfil público',
                         copy: 'Foto, datos, estado y descripción: lo que ven cuando alguien te encuentra en la red.',
-                        placement: 'bottom'
+                        placement: 'bottom',
+                        scrollBlock: 'start'
                     },
                     {
                         selector: '#detail-descripcion-wrap',
@@ -3066,7 +3067,11 @@
                     if (target) {
                         target.classList.add('ruana-tour-target');
                         if (!step.skipScroll) {
-                            target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                            target.scrollIntoView({
+                                behavior: 'smooth',
+                                block: step.scrollBlock || 'center',
+                                inline: 'nearest'
+                            });
                         }
                     }
 
