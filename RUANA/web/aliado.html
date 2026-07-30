@@ -3207,8 +3207,21 @@
                 // Configurar listeners primero (SIEMPRE)
                 this.setupEventListeners();
                 
-                // Luego, cargar datos estrictamente desde la API real
+                // Luego, cargar datos base para pintar el panel lo antes posible
                 await this.loadData();
+
+                // Render temprano: el usuario entra al panel sin esperar sincronizaciones largas.
+                this.render();
+                this.renderAlertas();
+                this.setPanelLoading(false);
+                this.initOnboarding();
+                this.startAutoSync();
+
+                // Sincronización post-render en segundo plano (mismo comportamiento final).
+                this.runWarmupSync();
+            }
+
+            async runWarmupSync() {
                 const bootstrapTasks = await Promise.allSettled([
                     this.fetchCentroComunicacionSnapshot(),
                     this.cargarMetodosPagoRuana(),
@@ -3217,16 +3230,13 @@
                 bootstrapTasks.forEach((task, idx) => {
                     if (task.status === 'rejected') {
                         const labels = ['centro-comunicacion', 'metodos-pago', 'contactos-pendientes'];
-                        console.error(`Error en carga inicial (${labels[idx]}):`, task.reason);
+                        console.error(`Error en carga de fondo (${labels[idx]}):`, task.reason);
                     }
                 });
-                
-                // Finalmente, renderizar y evaluar banners según estado actual
-                this.render();
+                this.renderCentroComunicacion();
                 this.renderAlertas();
-                this.setPanelLoading(false);
-                this.initOnboarding();
-                this.startAutoSync();
+                this.renderNotificaciones();
+                this.renderListaPagosPendientes();
             }
 
             initOnboarding() {
@@ -3411,22 +3421,29 @@
                     // Refrescar datos del aliado desde la API (sesión cookie; backend usa sesión)
                     const apiBase = getApiBase();
                     if (this.codigoAliado) {
+                        const fetchedAtRaw = sessionStorage.getItem('ruana_aliado_data_fetched_at');
+                        const fetchedAt = fetchedAtRaw ? Number(fetchedAtRaw) : 0;
+                        const fetchedRecently = Number.isFinite(fetchedAt) && fetchedAt > 0 && (Date.now() - fetchedAt) < 15000;
                         try {
-                            const respDatos = await fetch(apiBase + '/api/aliado/datos', { credentials: 'same-origin', headers: getRuanaAuthHeaders() });
-                            if (respDatos.ok) {
-                                const dataDatos = await respDatos.json();
-                                if (dataDatos.status === 'success' && dataDatos.aliado) {
-                                    this.aliado = { ...(this.aliado || {}), ...dataDatos.aliado };
-                                    this.notificaciones = Array.isArray(dataDatos.notificaciones) ? dataDatos.notificaciones : [];
+                            // Evita fetch duplicado inmediato tras bootstrap (DOMContentLoaded ya lo hizo).
+                            if (!fetchedRecently) {
+                                const respDatos = await fetch(apiBase + '/api/aliado/datos', { credentials: 'same-origin', headers: getRuanaAuthHeaders() });
+                                if (respDatos.ok) {
+                                    const dataDatos = await respDatos.json();
+                                    if (dataDatos.status === 'success' && dataDatos.aliado) {
+                                        this.aliado = { ...(this.aliado || {}), ...dataDatos.aliado };
+                                        this.notificaciones = Array.isArray(dataDatos.notificaciones) ? dataDatos.notificaciones : [];
+                                    }
+                                } else if (respDatos.status === 403) {
+                                    // Cuenta pendiente de validación: no puede acceder al panel
+                                    const errData = await respDatos.json().catch(() => ({}));
+                                    sessionStorage.removeItem('ruana_aliado_data');
+                                    sessionStorage.removeItem('ruana_codigo_aliado');
+                                    sessionStorage.removeItem('ruana_aliado_data_fetched_at');
+                                    alert(errData.message || 'Tu cuenta está pendiente de validación. Un administrador debe activarla.');
+                                    window.location.href = '/';
+                                    return;
                                 }
-                            } else if (respDatos.status === 403) {
-                                // Cuenta pendiente de validación: no puede acceder al panel
-                                const errData = await respDatos.json().catch(() => ({}));
-                                sessionStorage.removeItem('ruana_aliado_data');
-                                sessionStorage.removeItem('ruana_codigo_aliado');
-                                alert(errData.message || 'Tu cuenta está pendiente de validación. Un administrador debe activarla.');
-                                window.location.href = '/';
-                                return;
                             }
                         } catch (e) {
                             console.error('Error refrescando datos aliado:', e);
@@ -6632,6 +6649,7 @@
             }
             sessionStorage.setItem('ruana_codigo_aliado', sesionData.codigo);
             sessionStorage.setItem('ruana_aliado_data', JSON.stringify(datos.aliado));
+            sessionStorage.setItem('ruana_aliado_data_fetched_at', String(Date.now()));
             new PrivatePanel();
         });
     </script>
