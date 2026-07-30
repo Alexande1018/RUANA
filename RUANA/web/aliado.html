@@ -2600,41 +2600,15 @@
             <ul class="modal-contacto-list">
                 <li>Cada contacto abierto cuenta en tus métricas personales.</li>
                 <li>Si no declaras el resultado, tu panel mostrará avisos permanentes.</li>
-                <li>RUANA registra este contacto como parte de tu historial.</li>
+                <li>RUANA registrará este contacto y guiará la negociación paso a paso.</li>
             </ul>
-            <div class="modal-contacto-actions">
-                <button id="btn-contacto-previo-confirm" class="modal-contacto-btn confirm">Entiendo y continuar</button>
-                <button id="btn-contacto-previo-cancel" class="modal-contacto-btn cancel">Cancelar</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal Motivo de contacto (obligatorio antes de iniciar chat) -->
-    <div class="modal-contacto-overlay" id="modal-motivo-contacto">
-        <div class="modal-contacto-content">
-            <div class="modal-contacto-title">Motivo del contacto</div>
-            <div class="modal-contacto-text">Elige el motivo por el que contactas a este profesional. Es obligatorio para iniciar la conversación.</div>
-            <label class="modal-importe-label" for="select-motivo-contacto" style="display:block; margin-top:12px;">Motivo</label>
-            <select id="select-motivo-contacto" class="chat-input-texto" style="width:100%; margin-bottom:4px;" aria-describedby="motivo-contacto-error" aria-invalid="false">
-                <option value="">— Elige un motivo —</option>
-                <option value="Solicitar presupuesto">Solicitar presupuesto</option>
-                <option value="Coordinar fecha o servicio">Coordinar fecha o servicio</option>
-                <option value="Emergencia">Emergencia</option>
-                <option value="Consulta general">Consulta general</option>
-                <option value="Otro">Otro</option>
-            </select>
-            <div id="motivo-contacto-error" class="motivo-contacto-error" role="alert" style="display:none; color:#ef4444; font-size:0.85rem; margin-bottom:12px;"></div>
-            <div id="motivo-otro-wrap" style="display:none;">
-                <label class="modal-importe-label" for="input-motivo-otro">Especifica (breve)</label>
-                <input type="text" id="input-motivo-otro" class="chat-input-texto" placeholder="Ej: Reparación urgente" maxlength="200" style="width:100%; margin-bottom:12px;">
-            </div>
             <label class="motivo-urgente-label" for="check-contacto-urgente" style="display:flex; align-items:center; gap:10px; margin:12px 0 4px; cursor:pointer;">
                 <input type="checkbox" id="check-contacto-urgente" style="width:18px; height:18px;">
                 <span><strong>Marcar como urgente</strong> — el profesional lo verá resaltado</span>
             </label>
             <div class="modal-contacto-actions">
-                <button id="btn-motivo-confirm" class="modal-contacto-btn confirm">Iniciar negociación</button>
-                <button id="btn-motivo-cancel" class="modal-contacto-btn cancel">Cancelar</button>
+                <button id="btn-contacto-previo-confirm" class="modal-contacto-btn confirm">Iniciar negociación</button>
+                <button id="btn-contacto-previo-cancel" class="modal-contacto-btn cancel">Cancelar</button>
             </div>
         </div>
     </div>
@@ -4690,43 +4664,12 @@
                 const btnPrevioConfirm = document.getElementById('btn-contacto-previo-confirm');
                 const btnPrevioCancel = document.getElementById('btn-contacto-previo-cancel');
                 if (btnPrevioConfirm) {
-                    btnPrevioConfirm.addEventListener('click', () => this.confirmarContactoPrevio());
+                    btnPrevioConfirm.addEventListener('click', () => this.crearContactoYAbrirNegociacion());
                 }
                 if (btnPrevioCancel && modalPrevio) {
                     btnPrevioCancel.addEventListener('click', () => {
                         modalPrevio.classList.remove('show');
                         this.profesionalSeleccionado = null;
-                    });
-                }
-
-                // Modal motivo de contacto
-                const modalMotivo = document.getElementById('modal-motivo-contacto');
-                const btnMotivoConfirm = document.getElementById('btn-motivo-confirm');
-                const btnMotivoCancel = document.getElementById('btn-motivo-cancel');
-                const selectMotivo = document.getElementById('select-motivo-contacto');
-                const motivoOtroWrap = document.getElementById('motivo-otro-wrap');
-                if (btnMotivoConfirm) btnMotivoConfirm.addEventListener('click', () => this.confirmarMotivoYCrearContacto());
-                if (btnMotivoCancel && modalMotivo) {
-                    btnMotivoCancel.addEventListener('click', () => {
-                        modalMotivo.classList.remove('show');
-                        this.profesionalSeleccionado = null;
-                    });
-                }
-                if (selectMotivo && motivoOtroWrap) {
-                    selectMotivo.addEventListener('change', () => {
-                        motivoOtroWrap.style.display = selectMotivo.value === 'Otro' ? 'block' : 'none';
-                        const errEl = document.getElementById('motivo-contacto-error');
-                        if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
-                        if (selectMotivo) selectMotivo.setAttribute('aria-invalid', 'false');
-                    });
-                }
-                const inputMotivoOtro = document.getElementById('input-motivo-otro');
-                if (inputMotivoOtro) {
-                    inputMotivoOtro.addEventListener('input', () => {
-                        const errEl = document.getElementById('motivo-contacto-error');
-                        if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
-                        const sel = document.getElementById('select-motivo-contacto');
-                        if (sel) sel.setAttribute('aria-invalid', 'false');
                     });
                 }
 
@@ -6043,83 +5986,19 @@
             }
 
             /**
-             * Confirmar aviso previo → abrir modal motivo de contacto (obligatorio)
+             * Crear contacto e iniciar negociación guiada (sin modal de motivo).
              */
-            confirmarContactoPrevio() {
+            async crearContactoYAbrirNegociacion() {
                 const modalPrevio = document.getElementById('modal-contacto-previo');
                 if (!this.profesionalSeleccionado) {
                     if (modalPrevio) modalPrevio.classList.remove('show');
-                    return;
-                }
-                if (modalPrevio) modalPrevio.classList.remove('show');
-                const modalMotivo = document.getElementById('modal-motivo-contacto');
-                const select = document.getElementById('select-motivo-contacto');
-                const otroWrap = document.getElementById('motivo-otro-wrap');
-                const inputOtro = document.getElementById('input-motivo-otro');
-                if (select) select.value = '';
-                if (inputOtro) inputOtro.value = '';
-                if (otroWrap) otroWrap.style.display = 'none';
-                const checkUrgente = document.getElementById('check-contacto-urgente');
-                if (checkUrgente) checkUrgente.checked = false;
-                const errMotivo = document.getElementById('motivo-contacto-error');
-                if (errMotivo) { errMotivo.style.display = 'none'; errMotivo.textContent = ''; }
-                if (modalMotivo) modalMotivo.classList.add('show');
-            }
-
-            /**
-             * Obtener motivo seleccionado (valor del select o "Otro: " + texto)
-             */
-            getMotivoContacto() {
-                const select = document.getElementById('select-motivo-contacto');
-                const inputOtro = document.getElementById('input-motivo-otro');
-                const valor = select ? select.value : '';
-                if (valor === 'Otro' && inputOtro && inputOtro.value.trim()) {
-                    return 'Otro: ' + inputOtro.value.trim();
-                }
-                return valor ? valor.trim() : '';
-            }
-
-            /**
-             * Confirmar motivo e iniciar chat: crear contacto con motivo_contacto y abrir chat
-             */
-            ocultarErrorMotivoContacto() {
-                const errEl = document.getElementById('motivo-contacto-error');
-                const select = document.getElementById('select-motivo-contacto');
-                if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
-                if (select) select.setAttribute('aria-invalid', 'false');
-            }
-
-            mostrarErrorMotivoContacto(mensaje) {
-                const errEl = document.getElementById('motivo-contacto-error');
-                const select = document.getElementById('select-motivo-contacto');
-                if (errEl) { errEl.textContent = mensaje; errEl.style.display = 'block'; }
-                if (select) select.setAttribute('aria-invalid', 'true');
-            }
-
-            async confirmarMotivoYCrearContacto() {
-                const modalMotivo = document.getElementById('modal-motivo-contacto');
-                if (!this.profesionalSeleccionado) {
-                    if (modalMotivo) modalMotivo.classList.remove('show');
-                    return;
-                }
-                this.ocultarErrorMotivoContacto();
-                const select = document.getElementById('select-motivo-contacto');
-                const inputOtro = document.getElementById('input-motivo-otro');
-                const valorSelect = select ? select.value : '';
-                const motivo = this.getMotivoContacto();
-                if (!motivo) {
-                    if (valorSelect === 'Otro' && inputOtro && !inputOtro.value.trim()) {
-                        this.mostrarErrorMotivoContacto('Si eliges Otro, escribe brevemente el motivo.');
-                    } else {
-                        this.mostrarErrorMotivoContacto('Elige un motivo de contacto para continuar.');
-                    }
                     return;
                 }
 
                 const codigoSolicitante = this.codigoAliado || (this.aliado && this.aliado.codigo);
                 if (!codigoSolicitante) {
                     alert('No se pudo determinar tu código RUANA. Vuelve a entrar desde el inicio.');
-                    if (modalMotivo) modalMotivo.classList.remove('show');
+                    if (modalPrevio) modalPrevio.classList.remove('show');
                     this.profesionalSeleccionado = null;
                     return;
                 }
@@ -6131,6 +6010,8 @@
                     return;
                 }
                 const servicio = profesional.oficio || 'Servicio RUANA';
+                const btnConfirm = document.getElementById('btn-contacto-previo-confirm');
+                if (btnConfirm) btnConfirm.disabled = true;
 
                 try {
                     const resp = await fetch('/api/contactos', {
@@ -6140,7 +6021,6 @@
                         body: JSON.stringify({
                             profesional_codigo: profesionalCodigo,
                             servicio,
-                            motivo_contacto: motivo,
                             es_urgente: !!(document.getElementById('check-contacto-urgente') || {}).checked
                         })
                     });
@@ -6149,20 +6029,17 @@
                         alert(data.message || 'No se pudo registrar el contacto. Revisa que ambos códigos existan.');
                         return;
                     }
-                    if (modalMotivo) modalMotivo.classList.remove('show');
+                    if (modalPrevio) modalPrevio.classList.remove('show');
                     const checkUrgente = document.getElementById('check-contacto-urgente');
                     if (checkUrgente) checkUrgente.checked = false;
                     await this.cargarContactosPendientes();
                     await this.refreshAfterAction(['metricas', 'solicitudes', 'directorio', 'alertas', 'contactos']);
-                    const contactoId = data.id;
-                    // No marcar en-conversacion aquí: ocultaría la alerta para el profesional,
-                    // que debe ver el nuevo contacto y poder abrir el chat. "Sigue en conversación"
-                    // se usa solo cuando el usuario lo pulsa explícitamente desde la alerta.
-                    this.abrirNegociacionContacto(contactoId, profesional, { es_urgente: !!data.es_urgente });
+                    this.abrirNegociacionContacto(data.id, profesional, { es_urgente: !!data.es_urgente });
                 } catch (e) {
                     console.error('Error de red:', e);
                     alert('Error de conexión al registrar el contacto.');
                 } finally {
+                    if (btnConfirm) btnConfirm.disabled = false;
                     this.profesionalSeleccionado = null;
                 }
             }

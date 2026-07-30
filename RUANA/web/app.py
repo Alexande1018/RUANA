@@ -1528,7 +1528,7 @@ def crear_contacto():
     """
     POST /api/contactos
     Crea un contacto RUANA. solicitante_codigo debe ser el aliado en sesi?n (no se conf?a en body).
-        Body JSON: profesional_codigo, servicio, motivo_contacto, es_urgente (opcional).
+        Body JSON: profesional_codigo, servicio, motivo_contacto (opcional), es_urgente (opcional).
     """
     try:
         solicitante_codigo = _aliado_codigo()
@@ -1537,7 +1537,7 @@ def crear_contacto():
         data = request.get_json() or {}
         profesional_codigo = (data.get('profesional_codigo') or '').strip()
         servicio = (data.get('servicio') or '').strip()
-        motivo_contacto = (data.get('motivo_contacto') or '').strip()
+        motivo_contacto = (data.get('motivo_contacto') or '').strip() or 'Negociación guiada'
         es_urgente_raw = data.get('es_urgente', False)
         es_urgente = es_urgente_raw in (True, 1, '1', 'true', 'True', 'yes', 'on')
 
@@ -1545,11 +1545,6 @@ def crear_contacto():
             return jsonify({
                 'status': 'error',
                 'message': 'profesional_codigo es obligatorio'
-            }), 400
-        if not motivo_contacto:
-            return jsonify({
-                'status': 'error',
-                'message': 'Debes elegir un motivo de contacto antes de iniciar la conversaci?n'
             }), 400
 
         db = get_db()
