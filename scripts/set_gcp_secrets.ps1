@@ -54,6 +54,14 @@ Set-SecretValue -Name "ruana-supabase-service-role-key" -Value $env:SUPABASE_SER
 Set-SecretValue -Name "ruana-supabase-anon-key" -Value $env:SUPABASE_ANON_KEY
 Set-SecretValue -Name "ruana-flask-secret-key" -Value $env:FLASK_SECRET_KEY
 
+if ($env:RUANA_SMTP_PASSWORD) {
+    Set-SecretValue -Name "ruana-smtp-password" -Value $env:RUANA_SMTP_PASSWORD
+    Write-Host "Secret ruana-smtp-password updated from RUANA_SMTP_PASSWORD"
+}
+else {
+    Write-Warning "RUANA_SMTP_PASSWORD not set. Welcome emails will not be sent until configured."
+}
+
 $adminCredentialsPath = if ($env:RUANA_ADMIN_CREDENTIALS_PATH) { $env:RUANA_ADMIN_CREDENTIALS_PATH } else { ".local-secrets/admin_credentials.json" }
 if (Test-Path -LiteralPath $adminCredentialsPath) {
     $adminCredentialsJson = [System.IO.File]::ReadAllText((Resolve-Path -LiteralPath $adminCredentialsPath))
@@ -72,7 +80,18 @@ if ($serviceAccounts -notcontains $runtimeServiceAccount) {
     Start-Sleep -Seconds 5
 }
 
-foreach ($secretName in @("ruana-database-url", "ruana-supabase-service-role-key", "ruana-supabase-anon-key", "ruana-flask-secret-key", "ruana-admin-credentials")) {
+$secretNamesForIam = @(
+    "ruana-database-url",
+    "ruana-supabase-service-role-key",
+    "ruana-supabase-anon-key",
+    "ruana-flask-secret-key",
+    "ruana-admin-credentials"
+)
+if ($env:RUANA_SMTP_PASSWORD) {
+    $secretNamesForIam += "ruana-smtp-password"
+}
+
+foreach ($secretName in $secretNamesForIam) {
     Invoke-RuanaNativeCommand -FilePath $gcloud -Arguments @(
         "secrets", "add-iam-policy-binding", $secretName,
         "--member", "serviceAccount:$runtimeServiceAccount",
