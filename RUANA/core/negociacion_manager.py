@@ -197,6 +197,30 @@ def _mensaje_esperar_otro(campo: str, rol: str) -> str:
     return f'Espera a que el {otro} proponga {label}.'
 
 
+def _todos_campos_pendientes(estado: Dict[str, Any]) -> bool:
+    return all(
+        estado['campos'][c].get('estado', ESTADO_PENDIENTE) == ESTADO_PENDIENTE
+        for c in CAMPOS_ORDEN
+    )
+
+
+def _propuesta_completa_en_revision(estado: Dict[str, Any]) -> bool:
+    """Propuesta enviada por el contratante; el profesional confirma punto por punto."""
+    campos = estado['campos']
+    if any(campos[c].get('estado') == ESTADO_PENDIENTE for c in CAMPOS_ORDEN):
+        return False
+    if all(campos[c].get('estado') == ESTADO_CONFIRMADO for c in CAMPOS_ORDEN):
+        return False
+    return any(campos[c].get('estado') == ESTADO_EN_NEGOCIACION for c in CAMPOS_ORDEN)
+
+
+def _mensaje_proponer_completo() -> str:
+    return (
+        'Completa todos los datos del encargo — servicio, fecha, hora, dirección, precio y observaciones — '
+        'y envía la propuesta al profesional. Él la revisará y confirmará cada punto.'
+    )
+
+
 def accion_disponible(estado: Dict[str, Any], rol: str, contacto_estado: str) -> Dict[str, Any]:
     """Indica qué puede hacer el usuario. Nunca devuelve espera sin contexto."""
     if contacto_estado in ('cerrado_no_concretado', 'no_concretado', 'trabajo_cerrado'):
@@ -212,6 +236,30 @@ def accion_disponible(estado: Dict[str, Any], rol: str, contacto_estado: str) ->
         return {
             'tipo': 'resumen',
             'mensaje': 'Negociación completada. Revisa el resumen del acuerdo.',
+        }
+
+    if _todos_campos_pendientes(estado):
+        if rol == 'solicitante':
+            return {
+                'tipo': 'proponer_completo',
+                'mensaje': _mensaje_proponer_completo(),
+                'campos': list(CAMPOS_ORDEN),
+            }
+        return {
+            'tipo': 'esperar',
+            'mensaje': 'El contratante está preparando la propuesta con todos los detalles del encargo.',
+        }
+
+    if rol == 'solicitante' and _propuesta_completa_en_revision(estado):
+        paso = _siguiente_paso(estado) or 'servicio'
+        return {
+            'tipo': 'esperar',
+            'campo': paso,
+            'paso_actual': paso,
+            'mensaje': (
+                'Has enviado tu propuesta completa. '
+                'El profesional la revisará y confirmará cada punto, uno a uno.'
+            ),
         }
 
     paso = _siguiente_paso(estado) or estado.get('paso_actual') or 'servicio'
@@ -237,6 +285,15 @@ def accion_disponible(estado: Dict[str, Any], rol: str, contacto_estado: str) ->
 
     if campo_estado == ESTADO_EN_NEGOCIACION:
         if propuesto_por == rol:
+            if rol == 'solicitante' and _propuesta_completa_en_revision(estado):
+                return {
+                    **base,
+                    'tipo': 'esperar',
+                    'mensaje': (
+                        'Has enviado tu propuesta completa. '
+                        'El profesional la revisará y confirmará cada punto, uno a uno.'
+                    ),
+                }
             return {
                 **base,
                 'tipo': 'proponer',
@@ -248,7 +305,7 @@ def accion_disponible(estado: Dict[str, Any], rol: str, contacto_estado: str) ->
             **base,
             'tipo': 'responder',
             'mensaje': (
-                f'El {_nombre_rol(propuesto_por or "solicitante")} propone {CAMPOS_LABELS[paso].lower()}: '
+                f'Revisa la propuesta del contratante — {CAMPOS_LABELS[paso].lower()}: '
                 f'«{valor}». ¿Lo confirmas o prefieres sugerir un cambio?'
             ),
             'valor_actual': valor,
@@ -310,6 +367,45 @@ def proponer_campo(
         return normalizar_estado(estado), msg, TIPO_PROPUESTA
 
     raise ValueError('Usa contraoferta si necesitas responder a una propuesta de la otra parte')
+
+
+def proponer_propuesta_completa(
+    estado: Dict[str, Any],
+    rol: str,
+    valores: Dict[str, str],
+) -> Tuple[Dict[str, Any], str, List[Tuple[str, str, str]]]:
+    """
+    El contratante envía todos los campos a la vez.
+    Devuelve lista de (campo, valor, mensaje_evento) para registrar en timeline.
+    """
+    if rol != 'solicitante':
+        raise ValueError('Solo el contratante puede enviar la propuesta completa')
+
+    estado = normalizar_estado(estado)
+    if not _todos_campos_pendientes(estado):
+        raise ValueError('La propuesta completa solo puede enviarse al inicio, antes de cualquier confirmación')
+
+    eventos: List[Tuple[str, str, str]] = []
+    for campo in CAMPOS_ORDEN:
+        valor = (valores.get(campo) or '').strip()
+        if not valor:
+            raise ValueError(f'{CAMPOS_LABELS[campo]} es obligatorio')
+        estado['campos'][campo] = {
+            'valor': valor,
+            'estado': ESTADO_EN_NEGOCIACION,
+            'propuesto_por': rol,
+            'confirmado_en': None,
+        }
+        msg = _mensaje_evento(TIPO_PROPUESTA, campo, rol, valor)
+        eventos.append((campo, valor, msg))
+
+    estado['paso_actual'] = 'servicio'
+    estado = normalizar_estado(estado)
+    msg_resumen = (
+        'El contratante ha enviado la propuesta completa del encargo. '
+        'El profesional revisará y confirmará cada punto.'
+    )
+    return estado, msg_resumen, eventos
 
 
 def contraoferta_campo(
@@ -440,7 +536,12 @@ def construir_payload(
     contacto_estado = contacto.get('estado') or ''
     servicio_contacto = (contacto.get('servicio') or '').strip()
     accion = accion_disponible(estado, rol, contacto_estado)
-    if accion.get('tipo') == 'proponer' and accion.get('campo') == 'servicio' and servicio_contacto:
+    if accion.get('tipo') == 'proponer_completo':
+        sugeridos: Dict[str, str] = {}
+        if servicio_contacto:
+            sugeridos['servicio'] = servicio_contacto
+        accion['valores_sugeridos'] = sugeridos
+    elif accion.get('tipo') == 'proponer' and accion.get('campo') == 'servicio' and servicio_contacto:
         paso_servicio = estado['campos'].get('servicio', _campo_vacio())
         if paso_servicio.get('estado') == ESTADO_PENDIENTE:
             accion['valor_sugerido'] = servicio_contacto

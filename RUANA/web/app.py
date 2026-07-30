@@ -1459,6 +1459,27 @@ def negociacion_proponer(contacto_id):
     return jsonify(result), 200 if result.get('status') == 'success' else 400
 
 
+@app.route('/api/contactos/<int:contacto_id>/negociacion/proponer-completa', methods=['POST'])
+@require_aliado
+def negociacion_proponer_completa(contacto_id):
+    """POST propuesta completa del contratante (todos los campos a la vez)."""
+    codigo = _aliado_codigo()
+    if not codigo:
+        return jsonify({'status': 'error', 'message': 'Sesión expirada'}), 401
+    data = request.get_json() or {}
+    campos = {
+        'servicio': (data.get('servicio') or '').strip(),
+        'fecha': (data.get('fecha') or '').strip(),
+        'hora': (data.get('hora') or '').strip(),
+        'direccion': (data.get('direccion') or '').strip(),
+        'precio': (data.get('precio') or '').strip(),
+        'observaciones': (data.get('observaciones') or '').strip(),
+    }
+    db = get_db()
+    result = db.proponer_propuesta_completa_negociacion(contacto_id, codigo, campos)
+    return jsonify(result), 200 if result.get('status') == 'success' else 400
+
+
 @app.route('/api/contactos/<int:contacto_id>/negociacion/aceptar', methods=['POST'])
 @require_aliado
 def negociacion_aceptar(contacto_id):

@@ -34,17 +34,48 @@ class TestNegociacionGuiada(unittest.TestCase):
         self.assertEqual(r['status'], 'success', r.get('message'))
         return r['id']
 
-    def test_inicio_solicitante_debe_proponer_servicio(self):
+    def test_inicio_solicitante_debe_proponer_completo(self):
         cid = self._crear_aliados_y_contacto()
         sol = self.db.obtener_negociacion_contacto(cid, '90001')
         self.assertEqual(sol['status'], 'success')
-        self.assertEqual(sol['accion']['tipo'], 'proponer')
-        self.assertEqual(sol['accion']['campo'], 'servicio')
-        self.assertEqual(sol['accion'].get('valor_sugerido'), 'Reparación grifo')
+        self.assertEqual(sol['accion']['tipo'], 'proponer_completo')
+        self.assertEqual(sol['accion'].get('valores_sugeridos', {}).get('servicio'), 'Reparación grifo')
 
         pro = self.db.obtener_negociacion_contacto(cid, '90002')
         self.assertEqual(pro['accion']['tipo'], 'esperar')
         self.assertIn('contratante', pro['accion']['mensaje'].lower())
+
+    def test_propuesta_completa_profesional_confirma_punto_por_punto(self):
+        cid = self._crear_aliados_y_contacto()
+        valores = {
+            'servicio': 'Reparación grifo',
+            'fecha': '2026-08-15',
+            'hora': '10:00',
+            'direccion': 'Calle Mayor 1',
+            'precio': '150',
+            'observaciones': 'Llevar herramientas',
+        }
+        r = self.db.proponer_propuesta_completa_negociacion(cid, '90001', valores)
+        self.assertEqual(r['status'], 'success', r.get('message'))
+
+        sol = self.db.obtener_negociacion_contacto(cid, '90001')
+        self.assertEqual(sol['accion']['tipo'], 'esperar')
+        self.assertIn('propuesta completa', sol['accion']['mensaje'].lower())
+
+        pro = self.db.obtener_negociacion_contacto(cid, '90002')
+        self.assertEqual(pro['accion']['tipo'], 'responder')
+        self.assertEqual(pro['accion']['campo'], 'servicio')
+
+        for campo in ('servicio', 'fecha', 'hora', 'direccion', 'precio'):
+            ok = self.db.aceptar_negociacion(cid, '90002', campo)
+            self.assertEqual(ok['status'], 'success', ok.get('message'))
+
+        ok = self.db.aceptar_negociacion(cid, '90002', 'observaciones', 'Acceso por portal B')
+        self.assertEqual(ok['status'], 'success', ok.get('message'))
+
+        final = self.db.obtener_negociacion_contacto(cid, '90001')
+        self.assertTrue(final.get('acuerdo_alcanzado') or final['negociacion'].get('completo'))
+        self.assertEqual(final['accion']['tipo'], 'resumen')
 
     def test_flujo_servicio_profesional_responde(self):
         cid = self._crear_aliados_y_contacto()

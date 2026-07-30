@@ -263,3 +263,43 @@
     flex-direction: column;
     align-items: stretch !important;
 }
+.neg-form-completo {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.neg-form-completo-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+@media (max-width: 640px) {
+    .neg-form-completo-grid {
+        grid-template-columns: 1fr;
+    }
+}
+.neg-form-completo-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.neg-form-completo-field textarea,
+.neg-form-completo-field input {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(0, 0, 0, 0.25);
+    color: #e2e8f0;
+    font-size: 0.88rem;
+    box-sizing: border-box;
+}
+.neg-form-completo-label {
+    font-size: 0.82rem;
+    color: #94a3b8;
+    font-weight: 600;
+}
+.neg-btn-enviar-completa {
+    align-self: flex-start;
+    margin-top: 4px;
+}

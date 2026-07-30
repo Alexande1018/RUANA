@@ -81,6 +81,7 @@
 
         _accionKey(acc) {
             if (!acc) return '';
+            if (acc.tipo === 'proponer_completo') return 'proponer_completo';
             return [
                 acc.tipo,
                 acc.campo || '',
@@ -95,6 +96,13 @@
         }
 
         _guardarBorradoresFormulario(campo) {
+            const wrap = document.getElementById('neg-acciones-wrap');
+            if (wrap) {
+                wrap.querySelectorAll('[data-neg-campo]').forEach(input => {
+                    const c = input.getAttribute('data-neg-campo');
+                    if (c) this._drafts[c] = input.value;
+                });
+            }
             if (!campo) return;
             const input = document.getElementById('neg-input-valor');
             if (input) this._drafts[campo] = input.value;
@@ -112,6 +120,13 @@
 
         _enlazarGuardadoBorrador(campo) {
             const guardar = () => this._guardarBorradoresFormulario(campo);
+            const wrap = document.getElementById('neg-acciones-wrap');
+            if (wrap) {
+                wrap.querySelectorAll('[data-neg-campo]').forEach(input => {
+                    input.addEventListener('input', guardar);
+                    input.addEventListener('change', guardar);
+                });
+            }
             const input = document.getElementById('neg-input-valor');
             if (input) {
                 input.addEventListener('input', guardar);
@@ -249,7 +264,11 @@
             const acc = this.data.accion;
             const accionKey = this._accionKey(acc);
 
-            if (acc.campo) this._guardarBorradoresFormulario(acc.campo);
+            if (acc.tipo === 'proponer_completo') {
+                this._guardarBorradoresFormulario(null);
+            } else if (acc.campo) {
+                this._guardarBorradoresFormulario(acc.campo);
+            }
             if (this._formularioEnUso() && accionKey === this._lastAccionKey) {
                 return;
             }
@@ -276,6 +295,10 @@
             }
             if (acc.tipo === 'proponer') {
                 this._renderFormProponer(acc);
+                return;
+            }
+            if (acc.tipo === 'proponer_completo') {
+                this._renderFormProponerCompleto(acc);
                 return;
             }
             if (acc.tipo === 'responder') {
@@ -309,6 +332,63 @@
             }
             this._enlazarGuardadoBorrador(campo);
             document.getElementById('neg-btn-proponer').addEventListener('click', () => this.proponer(campo));
+        }
+
+        _renderFormProponerCompleto(acc) {
+            const el = document.getElementById('neg-acciones-wrap');
+            const campos = Array.isArray(acc.campos) ? acc.campos : ['servicio', 'fecha', 'hora', 'direccion', 'precio', 'observaciones'];
+            const sugeridos = acc.valores_sugeridos || {};
+            const labels = (this.data && this.data.campos_labels) || PASO_LABELS;
+
+            const fieldsHtml = campos.map(campo => {
+                const inputType = INPUT_TYPES[campo] || 'text';
+                const label = labels[campo] || PASO_LABELS[campo] || campo;
+                const valorInicial = this._valorBorrador(campo, sugeridos[campo] || '');
+                if (inputType === 'textarea') {
+                    return `<label class="neg-form-completo-field">
+                        <span class="neg-form-completo-label">${this.escapeHtml(label)}</span>
+                        <textarea data-neg-campo="${campo}" placeholder="${this.escapeHtml(label)}">${this.escapeHtml(valorInicial)}</textarea>
+                    </label>`;
+                }
+                const extra = campo === 'precio' ? 'step="0.01" min="0"' : '';
+                return `<label class="neg-form-completo-field">
+                    <span class="neg-form-completo-label">${this.escapeHtml(label)}</span>
+                    <input data-neg-campo="${campo}" type="${inputType}" ${extra} placeholder="${this.escapeHtml(label)}" value="${this.escapeHtml(valorInicial)}" />
+                </label>`;
+            }).join('');
+
+            el.innerHTML = `<div class="neg-form-completo">
+                <p class="neg-accion-mensaje">${this.escapeHtml(acc.mensaje || '')}</p>
+                <div id="neg-catalogo-servicios" class="neg-catalogo-list"></div>
+                <div class="neg-form-completo-grid">${fieldsHtml}</div>
+                <button type="button" class="neg-btn neg-btn-primary neg-btn-enviar-completa" id="neg-btn-proponer-completa">Enviar propuesta al profesional</button>
+            </div>`;
+
+            const profCodigo = (this.data.profesional_codigo || '').trim();
+            if (profCodigo) {
+                this._cargarCatalogoServicios(profCodigo, 'neg-catalogo-servicios', null, (item) => {
+                    const input = document.querySelector('[data-neg-campo="servicio"]');
+                    if (input && item) input.value = item.descripcion || '';
+                });
+            }
+            this._enlazarGuardadoBorrador(null);
+            document.getElementById('neg-btn-proponer-completa').addEventListener('click', () => this.proponerCompleta());
+        }
+
+        async proponerCompleta() {
+            const body = {};
+            let vacio = false;
+            ['servicio', 'fecha', 'hora', 'direccion', 'precio', 'observaciones'].forEach(campo => {
+                const input = document.querySelector(`[data-neg-campo="${campo}"]`);
+                const valor = input ? String(input.value || '').trim() : '';
+                if (!valor) vacio = true;
+                body[campo] = valor;
+            });
+            if (vacio) {
+                alert('Completa todos los campos antes de enviar la propuesta al profesional.');
+                return;
+            }
+            await this._post(`/api/contactos/${this.contactoId}/negociacion/proponer-completa`, body, true);
         }
 
         _renderFormResponder(acc) {
@@ -360,7 +440,7 @@
             await this._post(`/api/contactos/${this.contactoId}/negociacion/contraoferta`, { campo, valor });
         }
 
-        async _post(url, body) {
+        async _post(url, body, limpiarTodosBorradores) {
             try {
                 const resp = await fetch(url, {
                     method: 'POST',
@@ -374,7 +454,9 @@
                     return;
                 }
                 this.data = data;
-                if (body && body.campo) {
+                if (limpiarTodosBorradores) {
+                    this._drafts = {};
+                } else if (body && body.campo) {
                     delete this._drafts[body.campo];
                     delete this._drafts[`contra_${body.campo}`];
                 }
@@ -392,7 +474,7 @@
             }
         }
 
-        async _cargarCatalogoServicios(codigoProfesional, containerId, inputId) {
+        async _cargarCatalogoServicios(codigoProfesional, containerId, inputId, onSelect) {
             const container = document.getElementById(containerId);
             if (!container || !codigoProfesional) return;
             container.innerHTML = '<p class="neg-esperar-msg">Cargando catálogo…</p>';
@@ -409,7 +491,7 @@
                     container.innerHTML = '';
                     return;
                 }
-                container.innerHTML = servicios.map((s, idx) => {
+                container.innerHTML = `<p class="neg-catalogo-titulo">Servicios del profesional (opcional)</p>` + servicios.map((s, idx) => {
                     const descHtml = this.escapeHtml(s.descripcion || '');
                     const precioHtml = s.precio ? this.escapeHtml(String(s.precio)) : '';
                     return `<button type="button" class="neg-catalogo-item" data-idx="${idx}">
@@ -424,8 +506,12 @@
                         btn.classList.add('selected');
                         const idx = parseInt(btn.getAttribute('data-idx') || '-1', 10);
                         const item = container._catalogoItems[idx];
-                        const input = document.getElementById(inputId);
-                        if (input && item) input.value = item.descripcion || '';
+                        if (typeof onSelect === 'function') {
+                            onSelect(item);
+                        } else {
+                            const input = document.getElementById(inputId);
+                            if (input && item) input.value = item.descripcion || '';
+                        }
                     });
                 });
             } catch (e) {
