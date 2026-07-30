@@ -1,5 +1,5 @@
 /**
- * Negociación guiada RUANA — sustituye chat libre.
+ * Negociación guiada RUANA — chat conversacional.
  */
 (function (global) {
     'use strict';
@@ -28,6 +28,15 @@
         observaciones: 'Observaciones',
     };
 
+    const PREGUNTAS_DEFAULT = {
+        servicio: 'Hola, ¿qué servicio necesitas? Puedes elegir del catálogo o escribirlo tú.',
+        fecha: '¿Qué fecha te vendría bien para el servicio?',
+        hora: '¿A qué hora prefieres que vayamos?',
+        direccion: '¿Cuál es la dirección donde realizar el trabajo?',
+        observaciones: '¿Alguna observación adicional? (acceso, detalles del trabajo, etc.)',
+        precio: 'Indica el precio que propones por este encargo.',
+    };
+
     function getAuthHeaders(extra) {
         if (typeof global.getRuanaAuthHeaders === 'function') {
             return global.getRuanaAuthHeaders(extra || {});
@@ -43,6 +52,7 @@
             this._pollId = null;
             this._drafts = {};
             this._lastAccionKey = '';
+            this._wizard = null;
             this._bindModal();
         }
 
@@ -55,6 +65,13 @@
             if (overlay) {
                 overlay.addEventListener('click', (e) => {
                     if (e.target === overlay) this.cerrar();
+                });
+            }
+            const toggleResumen = document.getElementById('neg-resumen-toggle');
+            if (toggleResumen) {
+                toggleResumen.addEventListener('click', () => {
+                    const panel = document.getElementById('neg-resumen-panel');
+                    if (panel) panel.classList.toggle('open');
                 });
             }
         }
@@ -77,10 +94,64 @@
             this.data = null;
             this._drafts = {};
             this._lastAccionKey = '';
+            this._wizard = null;
+        }
+
+        _miCodigo() {
+            if (!this.data) return '';
+            return this.data.rol === 'profesional'
+                ? String(this.data.profesional_codigo || '').trim()
+                : String(this.data.solicitante_codigo || '').trim();
+        }
+
+        _camposSolicitante() {
+            if (this.data && Array.isArray(this.data.campos_solicitante)) {
+                return this.data.campos_solicitante;
+            }
+            return ['servicio', 'fecha', 'hora', 'direccion', 'observaciones'];
+        }
+
+        _preguntasWizard(acc) {
+            if (acc && acc.preguntas) return acc.preguntas;
+            return PREGUNTAS_DEFAULT;
+        }
+
+        _wizardStorageKey() {
+            return `ruana_neg_wizard_${this.contactoId}`;
+        }
+
+        _loadWizard() {
+            if (this._wizard) return this._wizard;
+            try {
+                const raw = sessionStorage.getItem(this._wizardStorageKey());
+                if (raw) this._wizard = JSON.parse(raw);
+            } catch (e) { /* ignore */ }
+            if (!this._wizard) {
+                this._wizard = { historial: [], respuestas: {}, pasoIdx: 0 };
+            }
+            return this._wizard;
+        }
+
+        _saveWizard() {
+            if (!this.contactoId || !this._wizard) return;
+            try {
+                sessionStorage.setItem(this._wizardStorageKey(), JSON.stringify(this._wizard));
+            } catch (e) { /* ignore */ }
+        }
+
+        _clearWizard() {
+            this._wizard = null;
+            if (this.contactoId) {
+                try { sessionStorage.removeItem(this._wizardStorageKey()); } catch (e) { /* ignore */ }
+            }
         }
 
         _accionKey(acc) {
             if (!acc) return '';
+            if (acc.tipo === 'wizard_contratante') {
+                const w = this._loadWizard();
+                return `wizard|${w.pasoIdx}|${w.historial.length}`;
+            }
             return [
                 acc.tipo,
                 acc.campo || '',
@@ -95,6 +166,13 @@
         }
 
         _guardarBorradoresFormulario(campo) {
+            const wrap = document.getElementById('neg-acciones-wrap');
+            if (wrap) {
+                wrap.querySelectorAll('[data-neg-campo]').forEach(input => {
+                    const c = input.getAttribute('data-neg-campo');
+                    if (c) this._drafts[c] = input.value;
+                });
+            }
             if (!campo) return;
             const input = document.getElementById('neg-input-valor');
             if (input) this._drafts[campo] = input.value;
@@ -112,6 +190,13 @@
 
         _enlazarGuardadoBorrador(campo) {
             const guardar = () => this._guardarBorradoresFormulario(campo);
+            const wrap = document.getElementById('neg-acciones-wrap');
+            if (wrap) {
+                wrap.querySelectorAll('[data-neg-campo]').forEach(input => {
+                    input.addEventListener('input', guardar);
+                    input.addEventListener('change', guardar);
+                });
+            }
             const input = document.getElementById('neg-input-valor');
             if (input) {
                 input.addEventListener('input', guardar);
@@ -151,7 +236,11 @@
                     if (!silent) alert(data.message || 'No se pudo cargar la negociación');
                     return;
                 }
+                const prevTipo = this.data && this.data.accion && this.data.accion.tipo;
                 this.data = data;
+                if (prevTipo === 'wizard_contratante' && data.accion && data.accion.tipo !== 'wizard_contratante') {
+                    this._clearWizard();
+                }
                 this.render();
                 const estadoCerrado = ['cerrado_no_concretado', 'no_concretado', 'trabajo_cerrado'].includes(data.estado_contacto || '')
                     || (data.accion && data.accion.tipo === 'cerrado');
@@ -179,7 +268,7 @@
             const paso = this.data.paso_actual || (this.data.accion && this.data.accion.campo) || 'servicio';
             const label = PASO_LABELS[paso] || paso;
             const rol = this.data.rol === 'profesional' ? 'Profesional' : 'Contratante';
-            el.textContent = `Paso actual: ${label} · Tu rol: ${rol}`;
+            el.textContent = `${label} · ${rol}`;
         }
 
         renderBotonesHeader() {
@@ -191,22 +280,75 @@
             btnCerrarNeg.style.display = cerrado ? 'none' : '';
         }
 
+        _bubbleHtml(tipo, texto, meta) {
+            const cls = tipo === 'mine' ? 'neg-bubble mine'
+                : tipo === 'system' ? 'neg-bubble system'
+                    : 'neg-bubble theirs';
+            return `<div class="${cls}">
+                <div class="neg-bubble-text">${this.escapeHtml(texto || '')}</div>
+                ${meta ? `<div class="neg-bubble-meta">${this.escapeHtml(meta)}</div>` : ''}
+            </div>`;
+        }
+
+        _formatValor(campo, valor) {
+            if (campo === 'fecha' && valor) {
+                try {
+                    const d = new Date(valor + 'T12:00:00');
+                    return d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+                } catch (e) { /* fallthrough */ }
+            }
+            return valor;
+        }
+
         renderTimeline() {
             const el = document.getElementById('neg-timeline');
             if (!el) return;
-            const eventos = Array.isArray(this.data.eventos) ? this.data.eventos : [];
-            if (!eventos.length) {
-                el.innerHTML = '<p class="neg-esperar-msg">RUANA os guiará paso a paso hasta alcanzar un acuerdo.</p>';
-                return;
+            const miCodigo = this._miCodigo();
+            const profNombre = this.data.profesional_codigo ? `Profesional ${this.data.profesional_codigo}` : 'Profesional';
+            const parts = [];
+
+            const acc = this.data.accion || {};
+            if (acc.tipo === 'wizard_contratante') {
+                const w = this._loadWizard();
+                const preguntas = this._preguntasWizard(acc);
+                const campos = this._camposSolicitante();
+                w.historial.forEach(item => {
+                    if (item.tipo === 'pregunta') {
+                        parts.push(this._bubbleHtml('theirs', item.texto, profNombre));
+                    } else {
+                        parts.push(this._bubbleHtml('mine', this._formatValor(item.campo, item.texto), 'Tú'));
+                    }
+                });
+                if (w.pasoIdx < campos.length) {
+                    const campo = campos[w.pasoIdx];
+                    const pregunta = preguntas[campo] || PREGUNTAS_DEFAULT[campo] || '';
+                    const yaMostrada = w.historial.some(h => h.tipo === 'pregunta' && h.campo === campo);
+                    if (!yaMostrada && pregunta) {
+                        parts.push(this._bubbleHtml('theirs', pregunta, profNombre));
+                    }
+                } else if (w.pasoIdx >= campos.length && campos.length) {
+                    parts.push(this._bubbleHtml('system', 'Revisa tus respuestas y envía todo al profesional cuando estés listo.'));
+                }
             }
-            el.innerHTML = eventos.map(ev => {
-                const cls = ev.tipo === 'sistema' ? 'neg-evento sistema' : 'neg-evento';
-                const fecha = ev.creado_en ? new Date(ev.creado_en).toLocaleString('es-ES') : '';
-                return `<div class="${cls}">
-                    <div>${this.escapeHtml(ev.mensaje || '')}</div>
-                    <div class="neg-evento-meta">${fecha}${ev.emisor_codigo ? ' · ' + this.escapeHtml(ev.emisor_codigo) : ''}</div>
-                </div>`;
-            }).join('');
+
+            const eventos = Array.isArray(this.data.eventos) ? this.data.eventos : [];
+            eventos.forEach(ev => {
+                const fecha = ev.creado_en ? new Date(ev.creado_en).toLocaleString('es-ES', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' }) : '';
+                if (ev.tipo === 'sistema') {
+                    parts.push(this._bubbleHtml('system', ev.mensaje || '', fecha));
+                    return;
+                }
+                const emisor = String(ev.emisor_codigo || '').trim();
+                const esMio = emisor && emisor === miCodigo;
+                const meta = fecha + (emisor ? ` · ${emisor}` : '');
+                parts.push(this._bubbleHtml(esMio ? 'mine' : 'theirs', ev.mensaje || '', meta));
+            });
+
+            if (!parts.length) {
+                el.innerHTML = '<p class="neg-chat-empty">La conversación aparecerá aquí.</p>';
+            } else {
+                el.innerHTML = parts.join('');
+            }
             el.scrollTop = el.scrollHeight;
         }
 
@@ -239,7 +381,7 @@
             wrap.innerHTML = `<div class="neg-acuerdo-resumen">
                 <h3>Acuerdo alcanzado</h3>
                 ${items.map(i => `<p><strong>${this.escapeHtml(i.label)}:</strong> ${this.escapeHtml(String(i.valor))}</p>`).join('')}
-                <p style="margin-top:12px;color:#94a3b8;font-size:0.9rem;">Cuando se realice el servicio, usa el seguimiento del contacto en tu panel para cerrar el encargo.</p>
+                <p class="neg-acuerdo-hint">Cuando se realice el servicio, usa el seguimiento del contacto en tu panel para cerrar el encargo.</p>
             </div>`;
         }
 
@@ -249,14 +391,18 @@
             const acc = this.data.accion;
             const accionKey = this._accionKey(acc);
 
-            if (acc.campo) this._guardarBorradoresFormulario(acc.campo);
+            if (acc.tipo === 'wizard_contratante') {
+                this._guardarBorradoresFormulario(null);
+            } else if (acc.campo) {
+                this._guardarBorradoresFormulario(acc.campo);
+            }
             if (this._formularioEnUso() && accionKey === this._lastAccionKey) {
                 return;
             }
             this._lastAccionKey = accionKey;
 
             if (this.data.acuerdo_alcanzado || this.data.estado_contacto === 'acuerdo_alcanzado') {
-                el.innerHTML = '<p class="neg-esperar-msg">Negociación completada. Cuando se realice el servicio, indica el resultado desde tu panel.</p>';
+                el.innerHTML = '<p class="neg-esperar-msg">Negociación completada.</p>';
                 return;
             }
             if (acc.tipo === 'cerrado') {
@@ -268,10 +414,14 @@
                 return;
             }
             if (acc.tipo === 'esperar') {
-                el.innerHTML = `<div class="neg-accion-info">
-                    <p class="neg-accion-mensaje">${this.escapeHtml(acc.mensaje || 'Esperando a la otra parte.')}</p>
-                    <p class="neg-esperar-hint">RUANA actualizará esta pantalla automáticamente en cuanto haya novedades.</p>
+                el.innerHTML = `<div class="neg-compose-espera">
+                    <p>${this.escapeHtml(acc.mensaje || 'Esperando a la otra parte.')}</p>
+                    <span class="neg-esperar-hint">Se actualizará automáticamente.</span>
                 </div>`;
+                return;
+            }
+            if (acc.tipo === 'wizard_contratante') {
+                this._renderWizardCompose(acc);
                 return;
             }
             if (acc.tipo === 'proponer') {
@@ -283,30 +433,118 @@
             }
         }
 
+        _renderWizardCompose(acc) {
+            const el = document.getElementById('neg-acciones-wrap');
+            const w = this._loadWizard();
+            const campos = this._camposSolicitante();
+            const preguntas = this._preguntasWizard(acc);
+            const sugeridos = acc.valores_sugeridos || {};
+
+            if (w.pasoIdx >= campos.length) {
+                el.innerHTML = `<div class="neg-compose-stack">
+                    <button type="button" class="neg-btn neg-btn-primary neg-btn-block" id="neg-btn-proponer-completa">Enviar todo al profesional</button>
+                </div>`;
+                document.getElementById('neg-btn-proponer-completa').addEventListener('click', () => this.proponerCompleta(w.respuestas));
+                return;
+            }
+
+            const campo = campos[w.pasoIdx];
+            const inputType = INPUT_TYPES[campo] || 'text';
+            const isTextarea = inputType === 'textarea';
+            const valorInicial = this._valorBorrador(campo, w.respuestas[campo] || sugeridos[campo] || '');
+            const catalogoHtml = campo === 'servicio'
+                ? '<div id="neg-catalogo-servicios" class="neg-catalogo-list"></div>'
+                : '';
+            const inputHtml = isTextarea
+                ? `<textarea id="neg-input-valor" class="neg-compose-input" placeholder="Escribe tu respuesta…" rows="2">${this.escapeHtml(valorInicial)}</textarea>`
+                : `<input id="neg-input-valor" class="neg-compose-input" type="${inputType}" ${campo === 'precio' ? 'step="0.01" min="0"' : ''} placeholder="Escribe tu respuesta…" value="${this.escapeHtml(valorInicial)}" />`;
+
+            el.innerHTML = `<div class="neg-compose-stack">
+                ${catalogoHtml}
+                <div class="neg-compose-row">
+                    ${inputHtml}
+                    <button type="button" class="neg-btn neg-btn-primary neg-btn-send" id="neg-btn-wizard-enviar" aria-label="Enviar respuesta">➤</button>
+                </div>
+            </div>`;
+
+            if (campo === 'servicio') {
+                const profCodigo = (this.data.profesional_codigo || '').trim();
+                if (profCodigo) this._cargarCatalogoServicios(profCodigo, 'neg-catalogo-servicios', 'neg-input-valor');
+            }
+            this._enlazarGuardadoBorrador(campo);
+
+            const enviar = () => this._wizardEnviarRespuesta(acc, campo, preguntas);
+            document.getElementById('neg-btn-wizard-enviar').addEventListener('click', enviar);
+            const input = document.getElementById('neg-input-valor');
+            if (input) {
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !isTextarea) {
+                        e.preventDefault();
+                        enviar();
+                    }
+                });
+            }
+        }
+
+        _wizardEnviarRespuesta(acc, campo, preguntas) {
+            const input = document.getElementById('neg-input-valor');
+            const valor = input ? String(input.value || '').trim() : '';
+            if (!valor) {
+                alert('Escribe una respuesta para continuar.');
+                return;
+            }
+            const w = this._loadWizard();
+            const campos = this._camposSolicitante();
+            const pregunta = (preguntas || this._preguntasWizard(acc))[campo] || PREGUNTAS_DEFAULT[campo] || '';
+            if (!w.historial.some(h => h.tipo === 'pregunta' && h.campo === campo)) {
+                w.historial.push({ tipo: 'pregunta', campo, texto: pregunta });
+            }
+            w.historial.push({ tipo: 'respuesta', campo, texto: valor });
+            w.respuestas[campo] = valor;
+            w.pasoIdx = campos.indexOf(campo) + 1;
+            delete this._drafts[campo];
+            this._saveWizard();
+            this._lastAccionKey = '';
+            this.render();
+            const nextInput = document.getElementById('neg-input-valor');
+            if (nextInput) nextInput.focus();
+        }
+
+        async proponerCompleta(respuestasPrecargadas) {
+            const body = respuestasPrecargadas || {};
+            const campos = this._camposSolicitante();
+            if (!Object.keys(body).length) {
+                campos.forEach(campo => {
+                    const input = document.querySelector(`[data-neg-campo="${campo}"]`);
+                    body[campo] = input ? String(input.value || '').trim() : '';
+                });
+            }
+            for (const campo of campos) {
+                if (!String(body[campo] || '').trim()) {
+                    alert('Completa todos los campos antes de enviar al profesional.');
+                    return;
+                }
+            }
+            await this._post(`/api/contactos/${this.contactoId}/negociacion/proponer-completa`, body, true);
+            this._clearWizard();
+        }
+
         _renderFormProponer(acc) {
             const el = document.getElementById('neg-acciones-wrap');
             const campo = acc.campo;
             const inputType = INPUT_TYPES[campo] || 'text';
             const isTextarea = inputType === 'textarea';
-            const catalogoHtml = campo === 'servicio'
-                ? '<div id="neg-catalogo-servicios" class="neg-catalogo-list"></div>'
-                : '';
             const valorInicial = this._valorBorrador(campo, acc.valor_actual || acc.valor_sugerido || '');
             const inputHtml = isTextarea
-                ? `<textarea id="neg-input-valor" placeholder="${this.escapeHtml(acc.label)}">${this.escapeHtml(valorInicial)}</textarea>`
-                : `<input id="neg-input-valor" type="${inputType}" ${campo === 'precio' ? 'step="0.01" min="0"' : ''} placeholder="${this.escapeHtml(acc.label)}" value="${this.escapeHtml(valorInicial)}" />`;
-            const btnLabel = acc.modificar_propia ? 'Actualizar propuesta' : 'Enviar propuesta';
-            el.innerHTML = `<div class="neg-acciones-form neg-acciones-form-servicio">
-                <p class="neg-accion-mensaje">${this.escapeHtml(acc.mensaje || '')}</p>
-                <label style="width:100%;color:#94a3b8;font-size:0.85rem;">${this.escapeHtml(acc.label)}</label>
-                ${catalogoHtml}
-                ${inputHtml}
-                <button type="button" class="neg-btn neg-btn-primary" id="neg-btn-proponer">${btnLabel}</button>
+                ? `<textarea id="neg-input-valor" class="neg-compose-input" placeholder="Escribe…" rows="2">${this.escapeHtml(valorInicial)}</textarea>`
+                : `<input id="neg-input-valor" class="neg-compose-input" type="${inputType}" ${campo === 'precio' ? 'step="0.01" min="0"' : ''} placeholder="${campo === 'precio' ? 'Precio en €' : 'Escribe…'}" value="${this.escapeHtml(valorInicial)}" />`;
+            const btnLabel = acc.modificar_propia ? 'Actualizar' : (campo === 'precio' ? 'Proponer precio' : 'Enviar');
+            el.innerHTML = `<div class="neg-compose-stack">
+                <div class="neg-compose-row">
+                    ${inputHtml}
+                    <button type="button" class="neg-btn neg-btn-primary neg-btn-send" id="neg-btn-proponer">${btnLabel}</button>
+                </div>
             </div>`;
-            if (campo === 'servicio') {
-                const profCodigo = (this.data.profesional_codigo || '').trim();
-                if (profCodigo) this._cargarCatalogoServicios(profCodigo, 'neg-catalogo-servicios', 'neg-input-valor');
-            }
             this._enlazarGuardadoBorrador(campo);
             document.getElementById('neg-btn-proponer').addEventListener('click', () => this.proponer(campo));
         }
@@ -316,16 +554,20 @@
             const campo = acc.campo;
             const valorActual = acc.valor_actual || '';
             const valorContra = this._valorBorrador(`contra_${campo}`, '');
-            el.innerHTML = `<div class="neg-acciones-form" style="flex-direction:column;align-items:stretch;">
-                <p class="neg-accion-mensaje">${this.escapeHtml(acc.mensaje || '')}</p>
-                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
-                    <button type="button" class="neg-btn neg-btn-primary" id="neg-btn-aceptar">Confirmar</button>
-                    <button type="button" class="neg-btn neg-btn-warn" id="neg-btn-contraoferta-toggle">Sugerir cambio</button>
+            const label = PASO_LABELS[campo] || campo;
+            el.innerHTML = `<div class="neg-compose-stack">
+                <div class="neg-respuesta-valor">
+                    <span class="neg-respuesta-label">${this.escapeHtml(label)}:</span>
+                    <strong>${this.escapeHtml(String(valorActual))}</strong>
                 </div>
-                <div id="neg-contraoferta-form" style="display:none;margin-top:10px;">
-                    <input id="neg-input-contraoferta" type="${INPUT_TYPES[campo] === 'textarea' ? 'text' : (INPUT_TYPES[campo] || 'text')}" placeholder="Tu alternativa" value="${this.escapeHtml(valorContra)}" />
-                    ${campo === 'observaciones' ? '<textarea id="neg-input-obs-prof" placeholder="Tus observaciones (opcional)" style="margin-top:8px;width:100%;"></textarea>' : ''}
-                    <button type="button" class="neg-btn neg-btn-warn" id="neg-btn-contraoferta" style="margin-top:8px;">Enviar alternativa</button>
+                <div class="neg-compose-actions">
+                    <button type="button" class="neg-btn neg-btn-primary neg-btn-block" id="neg-btn-aceptar">Confirmar</button>
+                    <button type="button" class="neg-btn neg-btn-secondary neg-btn-block" id="neg-btn-contraoferta-toggle">Sugerir cambio</button>
+                </div>
+                <div id="neg-contraoferta-form" class="neg-contraoferta-form" style="display:none;">
+                    <input id="neg-input-contraoferta" class="neg-compose-input" type="${INPUT_TYPES[campo] === 'textarea' ? 'text' : (INPUT_TYPES[campo] || 'text')}" placeholder="Tu alternativa" value="${this.escapeHtml(valorContra)}" />
+                    ${campo === 'observaciones' ? '<textarea id="neg-input-obs-prof" class="neg-compose-input" placeholder="Tus observaciones (opcional)" rows="2"></textarea>' : ''}
+                    <button type="button" class="neg-btn neg-btn-warn neg-btn-block" id="neg-btn-contraoferta">Enviar alternativa</button>
                 </div>
             </div>`;
             this._enlazarGuardadoBorrador(campo);
@@ -360,7 +602,7 @@
             await this._post(`/api/contactos/${this.contactoId}/negociacion/contraoferta`, { campo, valor });
         }
 
-        async _post(url, body) {
+        async _post(url, body, limpiarTodosBorradores) {
             try {
                 const resp = await fetch(url, {
                     method: 'POST',
@@ -374,7 +616,9 @@
                     return;
                 }
                 this.data = data;
-                if (body && body.campo) {
+                if (limpiarTodosBorradores) {
+                    this._drafts = {};
+                } else if (body && body.campo) {
                     delete this._drafts[body.campo];
                     delete this._drafts[`contra_${body.campo}`];
                 }
@@ -392,7 +636,7 @@
             }
         }
 
-        async _cargarCatalogoServicios(codigoProfesional, containerId, inputId) {
+        async _cargarCatalogoServicios(codigoProfesional, containerId, inputId, onSelect) {
             const container = document.getElementById(containerId);
             if (!container || !codigoProfesional) return;
             container.innerHTML = '<p class="neg-esperar-msg">Cargando catálogo…</p>';
@@ -424,8 +668,12 @@
                         btn.classList.add('selected');
                         const idx = parseInt(btn.getAttribute('data-idx') || '-1', 10);
                         const item = container._catalogoItems[idx];
-                        const input = document.getElementById(inputId);
-                        if (input && item) input.value = item.descripcion || '';
+                        if (typeof onSelect === 'function') {
+                            onSelect(item);
+                        } else {
+                            const input = document.getElementById(inputId);
+                            if (input && item) input.value = item.descripcion || '';
+                        }
                     });
                 });
             } catch (e) {

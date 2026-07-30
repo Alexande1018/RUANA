@@ -7019,6 +7019,56 @@ class DBManager:
                 if conn:
                     conn.close()
 
+    def proponer_propuesta_completa_negociacion(
+        self, contacto_id: int, codigo_aliado: str, valores: Dict[str, str],
+    ) -> Dict[str, Any]:
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                contacto = self._cargar_contacto_negociacion(cursor, contacto_id)
+                if not contacto:
+                    return {'status': 'error', 'message': 'Contacto no encontrado'}
+                if contacto.get('estado') in ('trabajo_cerrado', 'no_concretado', 'cerrado_no_concretado', 'acuerdo_alcanzado'):
+                    return {'status': 'error', 'message': 'Este contacto ya no admite cambios en la negociación'}
+                sol = str(contacto.get('solicitante_codigo') or '').strip()
+                pro = str(contacto.get('profesional_codigo') or '').strip()
+                rol = neg_mgr._rol_en_contacto(codigo_aliado, sol, pro)
+                if not rol:
+                    return {'status': 'error', 'message': 'No autorizado'}
+                estado = neg_mgr.parse_negociacion(contacto.get('negociacion_json'))
+                estado, msg_resumen, eventos = neg_mgr.proponer_propuesta_completa(estado, rol, valores)
+                neg_json = neg_mgr.serializar_negociacion(estado)
+                cursor.execute(
+                    "UPDATE contactos_ruana SET negociacion_json = ?, actualizado_en = CURRENT_TIMESTAMP WHERE id = ?",
+                    (neg_json, contacto_id),
+                )
+                self._insertar_evento_negociacion(
+                    cursor, contacto_id, neg_mgr.TIPO_SISTEMA, None, None, codigo_aliado, msg_resumen,
+                )
+                for campo, valor, msg in eventos:
+                    self._insertar_evento_negociacion(
+                        cursor, contacto_id, neg_mgr.TIPO_PROPUESTA, campo, valor, codigo_aliado, msg,
+                    )
+                conn.commit()
+                eventos_list = self.listar_eventos_negociacion(contacto_id)
+                contacto = self._cargar_contacto_negociacion(cursor, contacto_id)
+                payload = neg_mgr.construir_payload(contacto, eventos_list, rol)
+                return {'status': 'success', 'message': msg_resumen, **payload}
+            except ValueError as ve:
+                if conn:
+                    conn.rollback()
+                return {'status': 'error', 'message': str(ve)}
+            except Exception as e:
+                if conn:
+                    conn.rollback()
+                return {'status': 'error', 'message': str(e)}
+            finally:
+                if conn:
+                    conn.close()
+
     def contraoferta_negociacion(self, contacto_id: int, codigo_aliado: str,
                                   campo: str, valor: str, renegociar: bool = False) -> Dict[str, Any]:
         with self._lock:

@@ -1,4 +1,4 @@
-/* Negociación guiada RUANA */
+/* Negociación guiada RUANA — layout chat */
 .neg-modal-overlay {
     display: none;
     position: fixed;
@@ -6,91 +6,184 @@
     z-index: 10050;
     background: rgba(0, 0, 0, 0.72);
     backdrop-filter: blur(6px);
-    align-items: center;
+    align-items: stretch;
     justify-content: center;
-    padding: 16px;
+    padding: 0;
 }
 .neg-modal-overlay.show {
     display: flex;
 }
 .neg-modal-content {
     width: min(920px, 100%);
-    max-height: 92vh;
+    height: 100%;
+    max-height: 100dvh;
     display: flex;
     flex-direction: column;
     background: linear-gradient(145deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.98));
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 16px;
+    border: none;
+    border-radius: 0;
     box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
     overflow: hidden;
+}
+@media (min-width: 769px) {
+    .neg-modal-overlay {
+        align-items: center;
+        padding: 16px;
+    }
+    .neg-modal-content {
+        height: auto;
+        max-height: 92vh;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 16px;
+    }
 }
 .neg-modal-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    padding: 16px 20px;
+    gap: 8px;
+    padding: 12px 14px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
     flex-wrap: wrap;
 }
 .neg-modal-title {
     margin: 0;
-    font-size: 1.15rem;
+    font-size: 1rem;
     color: #f1f5f9;
 }
+.neg-modal-header-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-shrink: 0;
+}
+.neg-modal-header-actions .chat-btn-finalizar,
+.neg-modal-header-actions .chat-btn-volver-panel {
+    font-size: 0.78rem;
+    padding: 6px 10px;
+    white-space: nowrap;
+}
 .neg-modal-body {
-    display: grid;
-    grid-template-columns: 1fr 280px;
-    gap: 0;
+    display: flex;
     flex: 1;
     min-height: 0;
     overflow: hidden;
+    position: relative;
+}
+.neg-chat-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+}
+.neg-resumen-toggle {
+    display: none;
+    margin: 8px 12px 0;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(0, 0, 0, 0.25);
+    color: #94a3b8;
+    font-size: 0.78rem;
+    cursor: pointer;
+    align-self: flex-start;
 }
 @media (max-width: 768px) {
-    .neg-modal-body {
-        grid-template-columns: 1fr;
-    }
-    .neg-resumen-panel {
-        border-left: none !important;
-        border-top: 1px solid rgba(255, 255, 255, 0.08);
-        max-height: 200px;
+    .neg-resumen-toggle {
+        display: inline-block;
     }
 }
 .neg-timeline {
-    padding: 16px 20px;
-    overflow-y: auto;
     flex: 1;
-    min-height: 280px;
-    max-height: 52vh;
+    padding: 12px 14px;
+    overflow-y: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    -webkit-overflow-scrolling: touch;
 }
-.neg-evento {
-    margin-bottom: 14px;
+.neg-chat-empty {
+    color: #64748b;
+    font-size: 0.88rem;
+    text-align: center;
+    margin: auto;
+    padding: 24px;
+}
+/* Burbujas de chat */
+.neg-bubble {
+    max-width: 85%;
     padding: 10px 14px;
-    border-radius: 10px;
-    background: rgba(0, 0, 0, 0.25);
-    border-left: 3px solid rgba(99, 102, 241, 0.6);
+    border-radius: 16px;
     font-size: 0.92rem;
-    color: #cbd5e1;
     line-height: 1.45;
+    word-break: break-word;
 }
-.neg-evento.sistema {
-    border-left-color: rgba(34, 197, 94, 0.7);
-    background: rgba(34, 197, 94, 0.08);
+.neg-bubble.theirs {
+    align-self: flex-start;
+    background: rgba(51, 65, 85, 0.85);
+    color: #e2e8f0;
+    border-bottom-left-radius: 4px;
 }
-.neg-evento-meta {
-    font-size: 0.75rem;
+.neg-bubble.mine {
+    align-self: flex-end;
+    background: rgba(34, 197, 94, 0.22);
+    border: 1px solid rgba(34, 197, 94, 0.35);
+    color: #ecfdf5;
+    border-bottom-right-radius: 4px;
+}
+.neg-bubble.system {
+    align-self: center;
+    max-width: 92%;
+    background: rgba(99, 102, 241, 0.12);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    color: #c7d2fe;
+    font-size: 0.82rem;
+    text-align: center;
+    border-radius: 12px;
+}
+.neg-bubble-text {
+    white-space: pre-wrap;
+}
+.neg-bubble-meta {
+    font-size: 0.68rem;
     color: #64748b;
     margin-top: 4px;
 }
+.neg-bubble.mine .neg-bubble-meta {
+    color: rgba(134, 239, 172, 0.65);
+    text-align: right;
+}
+/* Panel resumen */
 .neg-resumen-panel {
-    padding: 16px;
+    width: 260px;
+    flex-shrink: 0;
+    padding: 12px;
     border-left: 1px solid rgba(255, 255, 255, 0.08);
     overflow-y: auto;
     background: rgba(0, 0, 0, 0.15);
 }
+@media (max-width: 768px) {
+    .neg-resumen-panel {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: min(280px, 85vw);
+        z-index: 5;
+        transform: translateX(100%);
+        transition: transform 0.25s ease;
+        box-shadow: -8px 0 24px rgba(0, 0, 0, 0.35);
+    }
+    .neg-resumen-panel.open {
+        transform: translateX(0);
+    }
+}
 .neg-resumen-panel h4 {
-    margin: 0 0 12px;
-    font-size: 0.85rem;
+    margin: 0 0 10px;
+    font-size: 0.78rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: #94a3b8;
@@ -100,8 +193,8 @@
     justify-content: space-between;
     align-items: flex-start;
     gap: 8px;
-    margin-bottom: 10px;
-    font-size: 0.85rem;
+    margin-bottom: 8px;
+    font-size: 0.82rem;
 }
 .neg-resumen-label {
     color: #94a3b8;
@@ -116,150 +209,163 @@
     display: inline-block;
     padding: 2px 8px;
     border-radius: 999px;
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     font-weight: 600;
     text-transform: uppercase;
 }
 .neg-badge.pendiente { background: rgba(100, 116, 139, 0.35); color: #cbd5e1; }
 .neg-badge.en_negociacion { background: rgba(234, 179, 8, 0.25); color: #fde68a; }
 .neg-badge.confirmado { background: rgba(34, 197, 94, 0.25); color: #86efac; }
+/* Zona de composición — sticky abajo */
 .neg-acciones {
-    padding: 14px 20px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(0, 0, 0, 0.2);
+    padding: 10px 12px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(15, 23, 42, 0.98);
+    flex-shrink: 0;
 }
-.neg-acciones-form {
+.neg-compose-stack {
     display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
+    flex-direction: column;
+    gap: 8px;
+}
+.neg-compose-row {
+    display: flex;
+    gap: 8px;
     align-items: flex-end;
 }
-.neg-acciones-form input,
-.neg-acciones-form textarea {
+.neg-compose-input {
     flex: 1;
-    min-width: 180px;
+    min-width: 0;
     padding: 10px 12px;
-    border-radius: 8px;
+    border-radius: 20px;
     border: 1px solid rgba(255, 255, 255, 0.15);
     background: rgba(0, 0, 0, 0.35);
     color: #e2e8f0;
     font-size: 0.95rem;
+    box-sizing: border-box;
 }
-.neg-acciones-form textarea {
-    min-height: 60px;
-    resize: vertical;
+.neg-compose-input:focus {
+    outline: none;
+    border-color: rgba(34, 197, 94, 0.5);
+}
+textarea.neg-compose-input {
+    border-radius: 14px;
+    resize: none;
+    min-height: 44px;
+}
+.neg-btn-send {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.neg-btn-block {
+    width: 100%;
+}
+.neg-compose-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.neg-compose-espera {
+    text-align: center;
+    padding: 4px 0;
+    color: #94a3b8;
+    font-size: 0.88rem;
+}
+.neg-respuesta-valor {
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.25);
+    font-size: 0.88rem;
+    color: #cbd5e1;
+}
+.neg-respuesta-label {
+    color: #94a3b8;
+    margin-right: 6px;
+}
+.neg-contraoferta-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 .neg-btn {
-    padding: 10px 18px;
-    border-radius: 8px;
+    padding: 10px 16px;
+    border-radius: 10px;
     border: none;
     cursor: pointer;
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 0.88rem;
 }
 .neg-btn-primary { background: #22c55e; color: #052e16; }
 .neg-btn-secondary { background: rgba(255, 255, 255, 0.12); color: #e2e8f0; }
 .neg-btn-warn { background: rgba(234, 179, 8, 0.85); color: #422006; }
 .neg-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .neg-acuerdo-resumen {
-    padding: 16px;
-    margin: 12px 0;
-    border-radius: 12px;
-    background: rgba(34, 197, 94, 0.12);
-    border: 1px solid rgba(34, 197, 94, 0.35);
+    padding: 12px 14px;
+    margin: 0;
+    border-bottom: 1px solid rgba(34, 197, 94, 0.25);
+    background: rgba(34, 197, 94, 0.1);
 }
 .neg-acuerdo-resumen h3 {
-    margin: 0 0 12px;
+    margin: 0 0 8px;
     color: #86efac;
-    font-size: 1rem;
+    font-size: 0.95rem;
+}
+.neg-acuerdo-hint {
+    margin-top: 8px;
+    color: #94a3b8;
+    font-size: 0.82rem;
 }
 .neg-esperar-msg {
     color: #94a3b8;
     font-style: italic;
-    padding: 8px 0;
+    padding: 4px 0;
+    font-size: 0.88rem;
 }
 .neg-paso-actual {
-    margin: 4px 0 0;
-    font-size: 0.82rem;
-    color: #94a3b8;
+    margin: 2px 0 0;
+    font-size: 0.78rem;
+    color: #64748b;
     font-weight: 400;
 }
-.neg-accion-mensaje {
-    margin: 0 0 10px;
-    color: #e2e8f0;
-    font-size: 0.92rem;
-    line-height: 1.45;
-}
-.neg-accion-info {
-    padding: 4px 0;
-}
 .neg-esperar-hint {
-    margin: 8px 0 0;
-    font-size: 0.8rem;
+    display: block;
+    margin-top: 4px;
+    font-size: 0.75rem;
     color: #64748b;
-}
-.neg-catalogo-wrap {
-    margin: 12px 0 8px;
-}
-.neg-catalogo-titulo {
-    margin: 0 0 8px;
-    font-size: 0.9rem;
-    color: #cbd5e1;
-    font-weight: 600;
 }
 .neg-catalogo-list {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    max-height: 180px;
+    gap: 4px;
+    max-height: 120px;
     overflow-y: auto;
-    margin-bottom: 8px;
 }
 .neg-catalogo-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     width: 100%;
     text-align: left;
-    padding: 10px 12px;
+    padding: 8px 10px;
     border-radius: 10px;
     border: 1px solid rgba(255, 255, 255, 0.12);
     background: rgba(0, 0, 0, 0.2);
     color: #e2e8f0;
     cursor: pointer;
-    font-size: 0.88rem;
-    transition: border-color 0.15s, background 0.15s;
-}
-.neg-catalogo-item:hover {
-    border-color: rgba(99, 102, 241, 0.5);
-    background: rgba(99, 102, 241, 0.1);
+    font-size: 0.82rem;
 }
 .neg-catalogo-item.selected {
     border-color: rgba(99, 102, 241, 0.85);
     background: rgba(99, 102, 241, 0.2);
 }
-.neg-catalogo-desc {
-    flex: 1;
-    word-break: break-word;
-}
-.neg-catalogo-precio {
-    flex-shrink: 0;
-    color: #86efac;
-    font-size: 0.82rem;
-    font-weight: 600;
-}
-.neg-catalogo-otro {
-    width: 100%;
-    padding: 10px 12px;
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    background: rgba(0, 0, 0, 0.25);
-    color: #e2e8f0;
-    font-size: 0.88rem;
-    box-sizing: border-box;
-}
-.neg-acciones-form-servicio {
-    flex-direction: column;
-    align-items: stretch !important;
-}
+.neg-catalogo-desc { flex: 1; word-break: break-word; }
+.neg-catalogo-precio { flex-shrink: 0; color: #86efac; font-size: 0.78rem; font-weight: 600; }
