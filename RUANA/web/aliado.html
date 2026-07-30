@@ -2380,6 +2380,15 @@
                 </button>
             </div>
 
+            <section class="catalogo-servicios-wrap" id="catalogo-servicios-wrap">
+                <h3 class="catalogo-servicios-title">
+                    <i data-lucide="briefcase-business"></i>
+                    Catálogo de servicios
+                </h3>
+                <p class="catalogo-servicios-subtitle">Configuración privada: hasta 10 servicios con descripción y precio.</p>
+                <div class="catalogo-servicios-grid" id="catalogo-servicios-grid"></div>
+            </section>
+
             <!-- Mi grupo: nombre, estado, oficios representados, oficios faltantes (sin scores ni métricas de otros) -->
             <div class="grupo-panel-block" id="grupo-panel-block" style="display: none;">
                 <h3 class="grupo-panel-title">Mi grupo</h3>
@@ -3807,7 +3816,116 @@
                     statusEl.querySelector('.status-text').textContent = statusTexts[estadoNormalizado] || 'Estado desconocido';
                     this._syncPerfilAvatarEtiqueta(estadoNormalizado);
                 }
+                this.renderCatalogoServicios();
                 this.renderCompetencia();
+            }
+
+            normalizarCatalogoServicios(catalogoRaw) {
+                const byPos = new Map();
+                if (Array.isArray(catalogoRaw)) {
+                    catalogoRaw.forEach((item) => {
+                        const pos = Number(item && item.posicion);
+                        if (!Number.isInteger(pos) || pos < 1 || pos > 10) return;
+                        const descripcion = (item && item.descripcion ? String(item.descripcion) : '').trim();
+                        const precio = (item && item.precio ? String(item.precio) : '').trim();
+                        byPos.set(pos, {
+                            posicion: pos,
+                            descripcion: descripcion || '',
+                            precio: precio || '',
+                            configurado: Boolean(descripcion && precio),
+                        });
+                    });
+                }
+                const out = [];
+                for (let i = 1; i <= 10; i += 1) {
+                    out.push(byPos.get(i) || {
+                        posicion: i,
+                        descripcion: '',
+                        precio: '',
+                        configurado: false,
+                    });
+                }
+                return out;
+            }
+
+            renderCatalogoServicios() {
+                const grid = document.getElementById('catalogo-servicios-grid');
+                if (!grid) return;
+                const aliadoData = this.aliado || {};
+                const catalogo = this.normalizarCatalogoServicios(aliadoData.catalogo_servicios);
+                grid.innerHTML = catalogo.map((servicio) => {
+                    const estado = servicio.configurado
+                        ? '<span class="catalogo-servicio-state ready">Configurado</span>'
+                        : '<span class="catalogo-servicio-state pending">Servicio no configurado</span>';
+                    return `
+                        <article class="catalogo-servicio-card" data-servicio-pos="${servicio.posicion}">
+                            <div class="catalogo-servicio-head">
+                                <span class="catalogo-servicio-num">Servicio ${servicio.posicion}</span>
+                                ${estado}
+                            </div>
+                            <textarea data-servicio-desc="${servicio.posicion}" maxlength="1000" placeholder="Descripción del servicio">${this.escapeHtml(servicio.descripcion || '')}</textarea>
+                            <input type="text" data-servicio-precio="${servicio.posicion}" maxlength="120" placeholder="Precio" value="${this.escapeHtml(servicio.precio || '')}" />
+                            <div class="catalogo-servicio-actions">
+                                <button type="button" class="catalogo-servicio-save" data-servicio-save="${servicio.posicion}">Guardar</button>
+                                <span class="catalogo-servicio-feedback" id="catalogo-servicio-feedback-${servicio.posicion}"></span>
+                            </div>
+                        </article>
+                    `;
+                }).join('');
+                if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons(grid);
+            }
+
+            async guardarCatalogoServicio(posicion) {
+                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
+                if (!codigo) return;
+                const pos = Number(posicion);
+                if (!Number.isInteger(pos) || pos < 1 || pos > 10) return;
+                const inputDesc = document.querySelector(`[data-servicio-desc="${pos}"]`);
+                const inputPrecio = document.querySelector(`[data-servicio-precio="${pos}"]`);
+                const btnSave = document.querySelector(`[data-servicio-save="${pos}"]`);
+                const feedback = document.getElementById(`catalogo-servicio-feedback-${pos}`);
+                if (!inputDesc || !inputPrecio || !btnSave) return;
+                const descripcion = (inputDesc.value || '').trim();
+                const precio = (inputPrecio.value || '').trim();
+                btnSave.disabled = true;
+                if (feedback) feedback.textContent = 'Guardando...';
+                try {
+                    const resp = await fetch(`/api/aliados/${encodeURIComponent(codigo)}/catalogo-servicios/${pos}`, {
+                        method: 'PUT',
+                        headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
+                        credentials: 'same-origin',
+                        body: JSON.stringify({
+                            descripcion: descripcion || null,
+                            precio: precio || null,
+                        })
+                    });
+                    const data = await resp.json();
+                    if (data.status !== 'success') {
+                        if (feedback) feedback.textContent = data.message || 'No se pudo guardar';
+                        return;
+                    }
+                    if (!this.aliado) this.aliado = {};
+                    const current = this.normalizarCatalogoServicios(this.aliado.catalogo_servicios);
+                    const idx = current.findIndex((s) => s.posicion === pos);
+                    if (idx >= 0) {
+                        current[idx] = {
+                            posicion: pos,
+                            descripcion: descripcion,
+                            precio: precio,
+                            configurado: Boolean(descripcion && precio),
+                        };
+                    }
+                    this.aliado.catalogo_servicios = current;
+                    this.renderCatalogoServicios();
+                    if (feedback) feedback.textContent = 'Guardado';
+                    if (typeof RuanaUI !== 'undefined') {
+                        RuanaUI.toast(`Servicio ${pos} guardado`, 'success', 1800);
+                    }
+                } catch (e) {
+                    if (feedback) feedback.textContent = 'Error de conexión';
+                } finally {
+                    btnSave.disabled = false;
+                }
             }
 
             /**
@@ -4697,6 +4815,15 @@
                 if (btnEditarDesc) btnEditarDesc.addEventListener('click', () => this.iniciarEditarDescripcion());
                 if (btnGuardarDesc) btnGuardarDesc.addEventListener('click', () => this.guardarDescripcion());
                 if (btnCancelarDesc) btnCancelarDesc.addEventListener('click', () => this.cancelarEditarDescripcion());
+                const catalogoGrid = document.getElementById('catalogo-servicios-grid');
+                if (catalogoGrid) {
+                    catalogoGrid.addEventListener('click', (e) => {
+                        const btn = e.target.closest('[data-servicio-save]');
+                        if (!btn) return;
+                        const pos = Number(btn.getAttribute('data-servicio-save'));
+                        if (Number.isInteger(pos)) this.guardarCatalogoServicio(pos);
+                    });
+                }
 
                 const inputFotoPerfil = document.getElementById('input-foto-perfil');
                 const btnQuitarFotoPerfil = document.getElementById('btn-quitar-foto-perfil');

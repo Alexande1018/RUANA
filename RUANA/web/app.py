@@ -512,6 +512,8 @@ def get_aliado_datos():
 
             # Notificaciones del aliado (ej. comprobante rechazado con mensaje de admin)
             notificaciones = db.listar_notificaciones_aliado(codigo, limite=50)
+            listar_catalogo = getattr(db, 'listar_catalogo_servicios_aliado', None)
+            aliado_dict['catalogo_servicios'] = listar_catalogo(codigo) if callable(listar_catalogo) else []
 
             return jsonify({
                 'status': 'success',
@@ -2488,6 +2490,55 @@ def actualizar_aliado_db(codigo):
             'status': 'error',
             'message': str(e)
         }), 500
+
+
+@app.route('/api/aliados/<codigo>/catalogo-servicios/<int:posicion>', methods=['PUT'])
+@require_aliado
+def guardar_catalogo_servicio_aliado(codigo, posicion):
+    """
+    PUT /api/aliados/<codigo>/catalogo-servicios/<posicion>
+    Guarda una posición (1..10) del catálogo privado del aliado autenticado.
+    """
+    try:
+        codigo = (codigo or '').strip()
+        if codigo != _aliado_codigo():
+            return jsonify({'status': 'error', 'message': 'No autorizado a actualizar otro aliado'}), 403
+        data = request.get_json() or {}
+        descripcion = data.get('descripcion')
+        precio = data.get('precio')
+        db = get_db()
+        result = db.guardar_catalogo_servicio_aliado(codigo, posicion, descripcion, precio)
+        if result.get('status') != 'success':
+            return jsonify(result), 400
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/aliados/<codigo>/catalogo-servicios', methods=['GET'])
+@require_admin
+def admin_ver_catalogo_servicios_aliado(codigo):
+    """
+    GET /api/admin/aliados/<codigo>/catalogo-servicios
+    Consulta privada del catálogo de servicios del aliado para administración.
+    """
+    try:
+        codigo = (codigo or '').strip()
+        if not codigo:
+            return jsonify({'status': 'error', 'message': 'Código requerido'}), 400
+        db = get_db()
+        aliado = db.obtener_aliado_por_codigo(codigo)
+        if not aliado:
+            return jsonify({'status': 'error', 'message': f'Aliado {codigo} no encontrado'}), 404
+        catalogo = db.listar_catalogo_servicios_aliado(codigo)
+        return jsonify({
+            'status': 'success',
+            'codigo': codigo,
+            'nombre': aliado.get('nombre') or codigo,
+            'catalogo_servicios': catalogo,
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 @app.route('/api/aliados/<codigo>/notificaciones', methods=['GET'])

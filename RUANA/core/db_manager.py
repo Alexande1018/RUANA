@@ -107,6 +107,17 @@ class DBManager:
                     UNIQUE(codigo_campana, codigo_aliado)
                 )
             """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS catalogo_servicios_aliado (
+                    id SERIAL PRIMARY KEY,
+                    aliado_codigo TEXT NOT NULL REFERENCES aliados(codigo) ON DELETE CASCADE,
+                    posicion INTEGER NOT NULL CHECK(posicion BETWEEN 1 AND 10),
+                    descripcion TEXT,
+                    precio TEXT,
+                    actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(aliado_codigo, posicion)
+                )
+            """)
             self._migrar_aliados_foto_perfil(conn, cursor)
             self._migrar_aliados_invitado_por(conn, cursor)
             self._migrar_contactos_es_urgente(conn, cursor)
@@ -315,6 +326,19 @@ class DBManager:
                         FOREIGN KEY(invitador_aliado_id) REFERENCES aliados(id)
                     )
                 """)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS catalogo_servicios_aliado (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        aliado_codigo TEXT NOT NULL,
+                        posicion INTEGER NOT NULL CHECK(posicion BETWEEN 1 AND 10),
+                        descripcion TEXT,
+                        precio TEXT,
+                        actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(aliado_codigo, posicion),
+                        FOREIGN KEY(aliado_codigo) REFERENCES aliados(codigo)
+                    )
+                """)
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_catalogo_servicios_codigo ON catalogo_servicios_aliado(aliado_codigo)")
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS invitacion_campanas (
                         codigo TEXT PRIMARY KEY,
@@ -2617,6 +2641,126 @@ class DBManager:
 
             except Exception as e:
                 return {'status': 'error', 'message': str(e)}
+
+    def listar_catalogo_servicios_aliado(self, codigo_aliado: str) -> List[Dict[str, Any]]:
+        """
+        Devuelve hasta 10 posiciones del catálogo privado del aliado.
+        Siempre retorna 10 elementos (1..10), configurados o vacíos.
+        """
+        codigo = (codigo_aliado or '').strip()
+        if not codigo:
+            return [{'posicion': i, 'descripcion': None, 'precio': None, 'configurado': False} for i in range(1, 11)]
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT posicion, descripcion, precio, actualizado_en
+                    FROM catalogo_servicios_aliado
+                    WHERE aliado_codigo = ?
+                    ORDER BY posicion ASC
+                    """,
+                    (codigo,)
+                )
+                rows = cursor.fetchall()
+                by_pos = {}
+                for row in rows:
+                    item = dict(row)
+                    pos = int(item.get('posicion') or 0)
+                    desc = (item.get('descripcion') or '').strip() or None
+                    price = (item.get('precio') or '').strip() or None
+                    by_pos[pos] = {
+                        'posicion': pos,
+                        'descripcion': desc,
+                        'precio': price,
+                        'configurado': bool(desc and price),
+                        'actualizado_en': item.get('actualizado_en'),
+                    }
+                out: List[Dict[str, Any]] = []
+                for pos in range(1, 11):
+                    out.append(by_pos.get(pos) or {
+                        'posicion': pos,
+                        'descripcion': None,
+                        'precio': None,
+                        'configurado': False,
+                        'actualizado_en': None,
+                    })
+                return out
+            except Exception:
+                return [{'posicion': i, 'descripcion': None, 'precio': None, 'configurado': False} for i in range(1, 11)]
+            finally:
+                if conn:
+                    conn.close()
+
+    def guardar_catalogo_servicio_aliado(
+        self,
+        codigo_aliado: str,
+        posicion: int,
+        descripcion: Optional[str],
+        precio: Optional[str],
+    ) -> Dict[str, Any]:
+        """
+        Guarda una posición (1..10) del catálogo privado del aliado.
+        """
+        codigo = (codigo_aliado or '').strip()
+        if not codigo:
+            return {'status': 'error', 'message': 'Código de aliado requerido'}
+        try:
+            pos = int(posicion)
+        except Exception:
+            return {'status': 'error', 'message': 'Posición inválida'}
+        if pos < 1 or pos > 10:
+            return {'status': 'error', 'message': 'Posición inválida'}
+
+        desc = (descripcion or '').strip()
+        pr = (precio or '').strip()
+        if len(desc) > 1000:
+            return {'status': 'error', 'message': 'La descripción supera el límite de 1000 caracteres'}
+        if len(pr) > 120:
+            return {'status': 'error', 'message': 'El precio supera el límite permitido'}
+
+        # Permitir guardar vacío como "no configurado"
+        desc_db = desc if desc else None
+        pr_db = pr if pr else None
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                cursor.execute("SELECT 1 FROM aliados WHERE codigo = ?", (codigo,))
+                if not cursor.fetchone():
+                    return {'status': 'error', 'message': f'Aliado {codigo} no encontrado'}
+                cursor.execute(
+                    """
+                    INSERT INTO catalogo_servicios_aliado (aliado_codigo, posicion, descripcion, precio, actualizado_en)
+                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(aliado_codigo, posicion)
+                    DO UPDATE SET
+                        descripcion = excluded.descripcion,
+                        precio = excluded.precio,
+                        actualizado_en = CURRENT_TIMESTAMP
+                    """,
+                    (codigo, pos, desc_db, pr_db),
+                )
+                conn.commit()
+                return {
+                    'status': 'success',
+                    'message': 'Servicio guardado',
+                    'servicio': {
+                        'posicion': pos,
+                        'descripcion': desc_db,
+                        'precio': pr_db,
+                        'configurado': bool(desc_db and pr_db),
+                    }
+                }
+            except Exception as e:
+                return {'status': 'error', 'message': str(e)}
+            finally:
+                if conn:
+                    conn.close()
     
     # ===============================================
     # SCORE RUANA (0-500, estado derivado, límites ±10/día)
