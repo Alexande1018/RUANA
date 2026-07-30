@@ -992,6 +992,52 @@
         .linaje-card .sub { font-size: 0.8rem; color: #94a3b8; margin-top: 2px; }
         .linaje-empty { color: #64748b; font-size: 0.85rem; }
 
+        .catalogo-admin-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 12px;
+            max-height: 58vh;
+            overflow: auto;
+            padding-right: 4px;
+        }
+        .catalogo-admin-card {
+            border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 12px;
+            background: rgba(255,255,255,0.04);
+            padding: 10px;
+        }
+        .catalogo-admin-card h4 {
+            margin: 0 0 6px;
+            font-size: 0.85rem;
+            color: #d9f99d;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+        .catalogo-admin-card .estado {
+            font-size: 0.75rem;
+            margin-bottom: 8px;
+            color: #fbbf24;
+            font-weight: 600;
+        }
+        .catalogo-admin-card .estado.ok {
+            color: #4ade80;
+        }
+        .catalogo-admin-card .campo {
+            font-size: 0.78rem;
+            color: #94a3b8;
+            margin-bottom: 4px;
+        }
+        .catalogo-admin-card .valor {
+            font-size: 0.85rem;
+            color: #e2e8f0;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        @media (max-width: 840px) {
+            .catalogo-admin-grid { grid-template-columns: 1fr; }
+        }
+
         .admin-login-tip {
             font-size: 0.75rem;
             color: #777;
@@ -1036,6 +1082,17 @@
             <div class="aliado-detalle-footer">
                 <button type="button" class="admin-login-btn is-danger-outline" id="aliadoDetalleEliminar">Eliminar perfil</button>
                 <button type="button" class="admin-login-btn" id="aliadoDetalleCerrar">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="admin-login-modal hidden" id="aliadoCatalogoModal">
+        <div class="admin-login-card aliado-detalle-card">
+            <h2 id="catalogo-nombre">Catálogo de servicios</h2>
+            <p class="subtitle" id="catalogo-codigo">—</p>
+            <div class="catalogo-admin-grid" id="catalogo-admin-grid"></div>
+            <div class="aliado-detalle-footer">
+                <button type="button" class="admin-login-btn" id="aliadoCatalogoCerrar">Cerrar</button>
             </div>
         </div>
     </div>
@@ -2345,6 +2402,16 @@
                 const cerrarDetalleBtn = document.getElementById('aliadoDetalleCerrar');
                 if (cerrarDetalleBtn) {
                     cerrarDetalleBtn.addEventListener('click', () => this.cerrarModalDetalle());
+                }
+                const cerrarCatalogoBtn = document.getElementById('aliadoCatalogoCerrar');
+                if (cerrarCatalogoBtn) {
+                    cerrarCatalogoBtn.addEventListener('click', () => this.cerrarCatalogoServiciosModal());
+                }
+                const catalogoModal = document.getElementById('aliadoCatalogoModal');
+                if (catalogoModal) {
+                    catalogoModal.addEventListener('click', (e) => {
+                        if (e.target === catalogoModal) this.cerrarCatalogoServiciosModal();
+                    });
                 }
 
                 const eliminarDetalleBtn = document.getElementById('aliadoDetalleEliminar');
@@ -3950,6 +4017,7 @@
                         <div class="aliado-acciones">
                             <button class="btn-accion btn-ver-detalle">Ver Detalle</button>
                             <button class="btn-accion btn-linaje">Ver linaje</button>
+                            <button class="btn-accion btn-catalogo">Ver catálogo</button>
                             <button class="btn-accion danger btn-pausar">Pausar</button>
                         </div>
                     `;
@@ -3968,9 +4036,69 @@
                     if (pausarBtn) {
                         pausarBtn.addEventListener('click', () => this.confirmarPausa(aliado));
                     }
+                    const catalogoBtn = card.querySelector('.btn-catalogo');
+                    if (catalogoBtn) {
+                        catalogoBtn.addEventListener('click', () => this.abrirCatalogoServiciosModal(aliado));
+                    }
 
                     lista.appendChild(card);
                 });
+            }
+
+            abrirCatalogoServiciosModal(aliado) {
+                if (!aliado || !aliado.codigo) return;
+                const modal = document.getElementById('aliadoCatalogoModal');
+                const nombreEl = document.getElementById('catalogo-nombre');
+                const codigoEl = document.getElementById('catalogo-codigo');
+                const grid = document.getElementById('catalogo-admin-grid');
+                if (!modal || !grid) return;
+                if (nombreEl) nombreEl.textContent = `Catálogo de servicios · ${aliado.nombre || aliado.codigo}`;
+                if (codigoEl) codigoEl.textContent = aliado.codigo || '';
+                grid.innerHTML = '<p style="color:#94a3b8;">Cargando catálogo...</p>';
+                modal.classList.remove('hidden');
+
+                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+                fetch('/api/admin/aliados/' + encodeURIComponent(aliado.codigo) + '/catalogo-servicios', {
+                    method: 'GET',
+                    credentials: 'same-origin',
+                    headers: authHeaders,
+                })
+                    .then((resp) => resp.ok ? resp.json() : null)
+                    .then((data) => {
+                        if (!data || data.status !== 'success') {
+                            grid.innerHTML = '<p style="color:#f87171;">No se pudo cargar el catálogo.</p>';
+                            return;
+                        }
+                        const servicios = Array.isArray(data.catalogo_servicios) ? data.catalogo_servicios : [];
+                        if (!servicios.length) {
+                            grid.innerHTML = '<p style="color:#94a3b8;">Sin servicios configurados.</p>';
+                            return;
+                        }
+                        grid.innerHTML = servicios.map((serv) => {
+                            const pos = Number(serv.posicion || 0);
+                            const descripcion = this.escapeHtml(serv.descripcion || '');
+                            const precio = this.escapeHtml(serv.precio || '');
+                            const configurado = Boolean(descripcion && precio);
+                            return `
+                                <article class="catalogo-admin-card">
+                                    <h4>Servicio ${pos}</h4>
+                                    <div class="estado ${configurado ? 'ok' : ''}">${configurado ? 'Configurado' : 'Servicio no configurado'}</div>
+                                    <div class="campo">Descripción</div>
+                                    <div class="valor">${descripcion || '—'}</div>
+                                    <div class="campo" style="margin-top:8px;">Precio</div>
+                                    <div class="valor">${precio || '—'}</div>
+                                </article>
+                            `;
+                        }).join('');
+                    })
+                    .catch(() => {
+                        grid.innerHTML = '<p style="color:#f87171;">Error de red al cargar el catálogo.</p>';
+                    });
+            }
+
+            cerrarCatalogoServiciosModal() {
+                const modal = document.getElementById('aliadoCatalogoModal');
+                if (modal) modal.classList.add('hidden');
             }
 
             abrirLinajeDrawer(aliado) {
