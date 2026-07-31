@@ -6084,7 +6084,7 @@
                         estadoLabel = 'Acuerdo alcanzado';
                         contexto = 'Todos los puntos del encargo están confirmados.';
                         pasoTxt = '';
-                        accionTxt = 'Cuando se realice el servicio, indica si hubo trabajo.';
+                        accionTxt = 'El encargo debería registrarse como trabajo realizado con el precio acordado. Si no ocurrió, usa «Sí, hubo trabajo».';
                         btnPrincipal = 'Ver acuerdo';
                         progresoConf = progresoTotal;
                     } else if (requiereRespuesta) {
@@ -6129,7 +6129,12 @@
                     avisoEl.classList.toggle('encargo-requiere-respuesta', requiereRespuesta);
                     // Ocultar "Sigue en conversación" tras acuerdo alcanzado
                     const btnSigue = document.getElementById('btn-contacto-sigue');
-                    if (btnSigue) btnSigue.style.display = (estado === 'acuerdo_alcanzado') ? 'none' : '';
+                    if (btnSigue) btnSigue.style.display = (estado === 'acuerdo_alcanzado' || estado === 'trabajo_cerrado') ? 'none' : '';
+                    const btnSiTrabajo = document.getElementById('btn-contacto-si-trabajo');
+                    const btnNoConcreto = document.getElementById('btn-contacto-no-concreto');
+                    const ocultarCierreManual = estado === 'trabajo_cerrado';
+                    if (btnSiTrabajo) btnSiTrabajo.style.display = ocultarCierreManual ? 'none' : '';
+                    if (btnNoConcreto) btnNoConcreto.style.display = ocultarCierreManual ? 'none' : '';
 
                     const subirPruebaEl = document.getElementById('contacto-aviso-subir-prueba');
                     const codigoAliado = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';

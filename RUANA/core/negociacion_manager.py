@@ -267,6 +267,19 @@ def meta_negociacion(
         1 for c in CAMPOS_ORDEN if estado['campos'][c].get('estado') == ESTADO_CONFIRMADO
     )
 
+    if contacto_estado == 'trabajo_cerrado':
+        return {
+            'fase': 'cerrado',
+            'progreso_confirmados': total,
+            'progreso_total': total,
+            'turno': 'completado',
+            'requiere_mi_respuesta': False,
+            'paso': None,
+            'paso_label': 'Trabajo cerrado',
+            'contexto': 'El encargo quedó registrado como realizado.',
+            'siguiente_accion': 'Revisa el Apoyo RUANA pendiente si corresponde.',
+        }
+
     if contacto_estado == 'acuerdo_alcanzado' or estado.get('completo'):
         return {
             'fase': 'acuerdo',
@@ -277,7 +290,7 @@ def meta_negociacion(
             'paso': None,
             'paso_label': 'Acuerdo alcanzado',
             'contexto': 'Todos los puntos del encargo están confirmados.',
-            'siguiente_accion': 'Cuando se realice el servicio, indica el resultado desde tu panel.',
+            'siguiente_accion': 'El encargo se registra como trabajo realizado con el precio acordado.',
         }
 
     if _todos_campos_pendientes(estado):
@@ -446,7 +459,7 @@ def accion_disponible(estado: Dict[str, Any], rol: str, contacto_estado: str) ->
     if contacto_estado == 'acuerdo_alcanzado':
         return {
             'tipo': 'resumen',
-            'mensaje': 'Acuerdo alcanzado. Cuando se realice el servicio, usa el seguimiento del contacto en tu panel.',
+            'mensaje': 'Acuerdo alcanzado. El encargo se registra como trabajo realizado con el precio acordado.',
         }
 
     estado = normalizar_estado(estado)

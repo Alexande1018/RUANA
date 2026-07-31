@@ -403,17 +403,26 @@
         renderAcuerdoFinal() {
             const wrap = document.getElementById('neg-acuerdo-final');
             if (!wrap) return;
-            const completo = this.data.acuerdo_alcanzado || this.data.estado_contacto === 'acuerdo_alcanzado';
+            const estado = this.data.estado_contacto || '';
+            const completo = this.data.acuerdo_alcanzado
+                || estado === 'acuerdo_alcanzado'
+                || estado === 'trabajo_cerrado';
             if (!completo) {
                 wrap.style.display = 'none';
                 return;
             }
             wrap.style.display = 'block';
             const items = (this.data.resumen || []).filter(i => i.valor && i.campo !== 'observaciones_profesional');
+            let hint = 'Cuando se realice el servicio, usa el seguimiento del contacto en tu panel para cerrar el encargo.';
+            if (this.data.cierre_automatico || estado === 'trabajo_cerrado') {
+                hint = 'El encargo quedó registrado como trabajo realizado. Si eres el profesional, revisa el Apoyo RUANA pendiente.';
+            } else if (this.data.cierre_aviso) {
+                hint = String(this.data.cierre_aviso);
+            }
             wrap.innerHTML = `<div class="neg-acuerdo-resumen">
                 <h3>Acuerdo alcanzado</h3>
                 ${items.map(i => `<p><strong>${this.escapeHtml(i.label)}:</strong> ${this.escapeHtml(String(i.valor))}</p>`).join('')}
-                <p class="neg-acuerdo-hint">Cuando se realice el servicio, usa el seguimiento del contacto en tu panel para cerrar el encargo.</p>
+                <p class="neg-acuerdo-hint">${this.escapeHtml(hint)}</p>
             </div>`;
         }
 
@@ -433,8 +442,14 @@
             }
             this._lastAccionKey = accionKey;
 
-            if (this.data.acuerdo_alcanzado || this.data.estado_contacto === 'acuerdo_alcanzado') {
-                el.innerHTML = '<p class="neg-esperar-msg">Negociación completada.</p>';
+            if (this.data.acuerdo_alcanzado
+                || this.data.estado_contacto === 'acuerdo_alcanzado'
+                || this.data.estado_contacto === 'trabajo_cerrado') {
+                const cerrado = this.data.cierre_automatico || this.data.estado_contacto === 'trabajo_cerrado';
+                const msg = cerrado
+                    ? 'Negociación completada. Encargo registrado como trabajo realizado.'
+                    : 'Negociación completada.';
+                el.innerHTML = `<p class="neg-esperar-msg">${this.escapeHtml(msg)}</p>`;
                 return;
             }
             if (acc.tipo === 'cerrado') {
@@ -669,6 +684,12 @@
                 }
                 if (this.panel && typeof this.panel.refreshAfterAction === 'function') {
                     await this.panel.refreshAfterAction(['contactos', 'alertas', 'metricas']);
+                }
+                const cerradoAuto = !!(data.cierre_automatico
+                    || data.estado_contacto === 'trabajo_cerrado'
+                    || (data.accion && data.accion.tipo === 'cerrado'));
+                if (cerradoAuto && this.panel && typeof this.panel.cargarPagosApoyoPendientes === 'function') {
+                    await this.panel.cargarPagosApoyoPendientes();
                 }
                 setTimeout(() => this.refrescar(true), 400);
             } catch (e) {
