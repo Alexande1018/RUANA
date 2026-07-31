@@ -508,7 +508,18 @@
         .cp-card .cp-codigo { font-size: 1.1rem; font-weight: 700; color: #e0e0e0; }
         .cp-card .cp-count { font-size: 0.85rem; color: #94a3b8; margin-top: 4px; }
         .grupo-card .grupo-nombre { font-weight: 600; color: #e0e0e0; }
+        .grupo-card .grupo-id {
+            margin-top: 4px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            color: rgba(162, 255, 0, 0.7);
+        }
         .grupo-card .grupo-count { font-size: 0.85rem; color: #94a3b8; margin-top: 4px; }
+        .grupo-card.is-sin-grupo {
+            border-style: dashed;
+            opacity: 0.92;
+        }
 
         .aliados-list {
             display: grid;
@@ -1769,9 +1780,10 @@
             </div>
         </div>
 
-        <!-- CAPA 4: Control de Aliados (navegación jerárquica: CP → Grupo → Tarjetas) -->
+        <!-- CAPA 4: Control de Aliados (navegación jerárquica: CP → Grupo de red → Tarjetas) -->
         <div class="control-aliados" id="control-aliados-wrap">
             <h2 class="seccion-titulo">Control de Aliados</h2>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Explora por código postal y, dentro de cada zona, por grupo de la red.</p>
             <div class="aliados-jerarquia-nav" id="aliados-jerarquia-nav" style="display: none;">
                 <button type="button" class="btn-volver-nivel" id="aliados-btn-volver-cps">← Volver a códigos postales</button>
                 <button type="button" class="btn-volver-nivel" id="aliados-btn-volver-grupos" style="display: none;">← Volver a grupos del CP</button>
@@ -1781,11 +1793,11 @@
             <div class="aliados-nivel aliados-nivel-cps" id="aliados-nivel-cps">
                 <div class="cps-list" id="aliados-cps-list"></div>
             </div>
-            <!-- Nivel 2: Grupos dentro del CP -->
+            <!-- Nivel 2: Grupos de red dentro del CP -->
             <div class="aliados-nivel aliados-nivel-grupos" id="aliados-nivel-grupos" style="display: none;">
                 <div class="grupos-list" id="aliados-grupos-list"></div>
             </div>
-            <!-- Nivel 3: Tarjetas de aliados -->
+            <!-- Nivel 3: Tarjetas de aliados del grupo seleccionado -->
             <div class="aliados-nivel aliados-nivel-tarjetas" id="aliados-nivel-tarjetas" style="display: none;">
                 <div class="aliados-list" id="aliados-admin-list"></div>
             </div>
@@ -1965,6 +1977,7 @@
                 this.aliadosNivel = 'cps';
                 this.aliadosCPSeleccionado = null;
                 this.aliadosGrupoSeleccionado = null;
+                this.aliadosGrupoNombreSeleccionado = null;
                 this._conversacionesList = [];
                 this._conversacionesHasMore = false;
                 this._conversacionesOffset = 0;
@@ -2348,8 +2361,8 @@
                 // Navegación jerárquica aliados: Volver a CPs / Volver a grupos
                 const btnVolverCPs = document.getElementById('aliados-btn-volver-cps');
                 const btnVolverGrupos = document.getElementById('aliados-btn-volver-grupos');
-                if (btnVolverCPs) btnVolverCPs.addEventListener('click', () => { this.aliadosNivel = 'cps'; this.aliadosCPSeleccionado = null; this.aliadosGrupoSeleccionado = null; this.renderAliadosJerarquia(); });
-                if (btnVolverGrupos) btnVolverGrupos.addEventListener('click', () => { this.aliadosNivel = 'grupos'; this.aliadosGrupoSeleccionado = null; this.renderAliadosJerarquia(); });
+                if (btnVolverCPs) btnVolverCPs.addEventListener('click', () => { this.aliadosNivel = 'cps'; this.aliadosCPSeleccionado = null; this.aliadosGrupoSeleccionado = null; this.aliadosGrupoNombreSeleccionado = null; this.renderAliadosJerarquia(); });
+                if (btnVolverGrupos) btnVolverGrupos.addEventListener('click', () => { this.aliadosNivel = 'grupos'; this.aliadosGrupoSeleccionado = null; this.aliadosGrupoNombreSeleccionado = null; this.renderAliadosJerarquia(); });
 
 
                 document.addEventListener('click', function ruanaConversacionesClick(e) {
@@ -3802,34 +3815,35 @@
                 }
             }
 
-            /**
-             * Devuelve el grupo (clave) de un aliado para la jerarquía CP → Grupo → Tarjetas.
-             * Orden: pendientes, retadores, competencia, suplentes_espera, luego estado_panel/estado.
-             */
             esAliadoPlaceholder(a) {
                 if (!a) return false;
                 const est = (a.estado || '').toLowerCase();
                 return est === 'pendiente_completar';
             }
 
-            getGrupoAliado(a) {
-                if (this.esAliadoPlaceholder(a)) return null;
-                const est = (a.estado || '').toLowerCase();
-                if (est === 'en_espera') return 'suplentes_espera';
-                if (est === 'pendiente_validacion') return 'pendientes';
-                if (a.es_retador_activo === true || a.es_suplente_activo === true) return 'retadores';
-                if (a.es_titular_en_competencia === true) return 'competencia';
-                const ep = (a.estado_panel || a.estado || 'activos').toLowerCase();
-                if (ep === 'observacion') return 'observacion';
-                if (ep === 'riesgo') return 'riesgo';
-                if (ep === 'suplentes_espera') return 'suplentes_espera';
-                if (ep === 'suspendido_temporal') return 'pausados';
-                return 'activos';
+            /**
+             * Clave del grupo de red para la jerarquía CP → Grupo → Tarjetas.
+             * Usa grupo_id cuando existe; aliados sin grupo van a una bandeja común.
+             */
+            getClaveGrupoRed(a) {
+                if (!a) return '__sin_grupo__';
+                if (a.grupo_id != null && String(a.grupo_id).trim() !== '') {
+                    return String(a.grupo_id);
+                }
+                return '__sin_grupo__';
             }
 
-            getGrupoNombre(grupoKey) {
-                const nombres = { activos: 'Activos', observacion: 'En Observación', riesgo: 'En Riesgo', retadores: 'Retadores', competencia: 'En Competencia', pendientes: 'Pendientes / Nuevos', pausados: 'Pausados', suplentes_espera: 'Suplentes en Espera' };
-                return nombres[grupoKey] || grupoKey;
+            /**
+             * Etiqueta visible del grupo de red (nombre, o #id, o «Sin grupo»).
+             */
+            getNombreGrupoRed(a) {
+                if (!a) return 'Sin grupo';
+                const nombre = (a.grupo_nombre || '').toString().trim();
+                if (nombre) return nombre;
+                if (a.grupo_id != null && String(a.grupo_id).trim() !== '') {
+                    return 'Grupo #' + a.grupo_id;
+                }
+                return 'Sin grupo';
             }
 
             normalizarCpAliado(a) {
@@ -3849,9 +3863,14 @@
                 if (nivelGrupos) nivelGrupos.style.display = this.aliadosNivel === 'grupos' ? 'block' : 'none';
                 if (nivelTarjetas) nivelTarjetas.style.display = this.aliadosNivel === 'tarjetas' ? 'block' : 'none';
                 if (breadcrumb) {
-                    if (this.aliadosNivel === 'grupos' && this.aliadosCPSeleccionado) breadcrumb.textContent = 'CP ' + this.aliadosCPSeleccionado + ' — Elige un grupo';
-                    else if (this.aliadosNivel === 'tarjetas' && this.aliadosCPSeleccionado && this.aliadosGrupoSeleccionado) breadcrumb.textContent = 'CP ' + this.aliadosCPSeleccionado + ' → ' + this.getGrupoNombre(this.aliadosGrupoSeleccionado);
-                    else breadcrumb.textContent = '';
+                    if (this.aliadosNivel === 'grupos' && this.aliadosCPSeleccionado) {
+                        breadcrumb.textContent = 'CP ' + this.aliadosCPSeleccionado + ' — Elige un grupo';
+                    } else if (this.aliadosNivel === 'tarjetas' && this.aliadosCPSeleccionado && this.aliadosGrupoSeleccionado != null) {
+                        const grupoLabel = this.aliadosGrupoNombreSeleccionado || this.aliadosGrupoSeleccionado;
+                        breadcrumb.textContent = 'CP ' + this.aliadosCPSeleccionado + ' → ' + grupoLabel;
+                    } else {
+                        breadcrumb.textContent = '';
+                    }
                 }
                 if (this.aliadosNivel === 'cps') this.renderAliadosNivel1();
                 else if (this.aliadosNivel === 'grupos') this.renderAliadosNivel2();
@@ -3867,19 +3886,36 @@
                 data.forEach(a => {
                     if (this.esAliadoPlaceholder(a)) return;
                     const cp = this.normalizarCpAliado(a);
-                    byCp.set(cp, (byCp.get(cp) || 0) + 1);
+                    let entry = byCp.get(cp);
+                    if (!entry) {
+                        entry = { count: 0, grupos: new Set() };
+                        byCp.set(cp, entry);
+                    }
+                    entry.count += 1;
+                    entry.grupos.add(this.getClaveGrupoRed(a));
                 });
                 const cps = Array.from(byCp.entries()).sort((x, y) => String(x[0]).localeCompare(String(y[0])));
                 if (cps.length === 0) {
                     list.innerHTML = '<p style="color:#94a3b8; padding:20px;">No hay aliados con código postal.</p>';
                     return;
                 }
-                cps.forEach(([cp, count]) => {
+                cps.forEach(([cp, info]) => {
+                    const count = info.count;
+                    const nGrupos = info.grupos.size;
                     const card = document.createElement('div');
                     card.className = 'cp-card';
                     card.dataset.cp = cp;
-                    card.innerHTML = '<div class="cp-codigo">' + this.escapeHtml(cp) + '</div><div class="cp-count">' + count + ' aliado' + (count !== 1 ? 's' : '') + '</div>';
-                    card.addEventListener('click', () => { this.aliadosCPSeleccionado = cp; this.aliadosNivel = 'grupos'; this.renderAliadosJerarquia(); });
+                    card.innerHTML =
+                        '<div class="cp-codigo">' + this.escapeHtml(cp) + '</div>' +
+                        '<div class="cp-count">' + count + ' aliado' + (count !== 1 ? 's' : '') +
+                        ' · ' + nGrupos + ' grupo' + (nGrupos !== 1 ? 's' : '') + '</div>';
+                    card.addEventListener('click', () => {
+                        this.aliadosCPSeleccionado = cp;
+                        this.aliadosGrupoSeleccionado = null;
+                        this.aliadosGrupoNombreSeleccionado = null;
+                        this.aliadosNivel = 'grupos';
+                        this.renderAliadosJerarquia();
+                    });
                     list.appendChild(card);
                 });
             }
@@ -3890,25 +3926,51 @@
                 list.innerHTML = '';
                 const cp = this.aliadosCPSeleccionado;
                 if (!cp) return this.renderAliadosNivel1();
-                const data = (this._aliadosData || []).filter(a => this.normalizarCpAliado(a) === cp);
+                const data = (this._aliadosData || []).filter(a => {
+                    if (this.esAliadoPlaceholder(a)) return false;
+                    return this.normalizarCpAliado(a) === cp;
+                });
                 const byGrupo = new Map();
                 data.forEach(a => {
-                    const g = this.getGrupoAliado(a);
-                    if (!g) return;
-                    byGrupo.set(g, (byGrupo.get(g) || 0) + 1);
+                    const key = this.getClaveGrupoRed(a);
+                    let entry = byGrupo.get(key);
+                    if (!entry) {
+                        entry = { key, nombre: this.getNombreGrupoRed(a), count: 0 };
+                        byGrupo.set(key, entry);
+                    }
+                    entry.count += 1;
+                    // Preferir un nombre no vacío si llega más tarde
+                    const nombre = this.getNombreGrupoRed(a);
+                    if (nombre && nombre !== 'Sin grupo' && (!entry.nombre || entry.nombre === 'Sin grupo' || entry.nombre.indexOf('Grupo #') === 0)) {
+                        if (nombre.indexOf('Grupo #') !== 0) entry.nombre = nombre;
+                    }
                 });
-                const ordenGrupos = ['activos', 'observacion', 'riesgo', 'retadores', 'competencia', 'pendientes', 'pausados', 'suplentes_espera'];
-                const grupos = ordenGrupos.filter(k => (byGrupo.get(k) || 0) > 0).map(k => [k, byGrupo.get(k)]);
+                const grupos = Array.from(byGrupo.values()).sort((a, b) => {
+                    if (a.key === '__sin_grupo__') return 1;
+                    if (b.key === '__sin_grupo__') return -1;
+                    return String(a.nombre).localeCompare(String(b.nombre), 'es', { sensitivity: 'base' });
+                });
                 if (grupos.length === 0) {
                     list.innerHTML = '<p style="color:#94a3b8; padding:20px;">Ningún grupo con aliados en este CP.</p>';
                     return;
                 }
-                grupos.forEach(([grupoKey, count]) => {
+                grupos.forEach((g) => {
                     const card = document.createElement('div');
-                    card.className = 'grupo-card';
-                    card.dataset.grupo = grupoKey;
-                    card.innerHTML = '<div class="grupo-nombre">' + this.escapeHtml(this.getGrupoNombre(grupoKey)) + '</div><div class="grupo-count">' + count + ' aliado' + (count !== 1 ? 's' : '') + '</div>';
-                    card.addEventListener('click', () => { this.aliadosGrupoSeleccionado = grupoKey; this.aliadosNivel = 'tarjetas'; this.renderAliadosJerarquia(); });
+                    card.className = 'grupo-card' + (g.key === '__sin_grupo__' ? ' is-sin-grupo' : '');
+                    card.dataset.grupo = g.key;
+                    const idLine = (g.key !== '__sin_grupo__')
+                        ? '<div class="grupo-id">ID ' + this.escapeHtml(g.key) + '</div>'
+                        : '';
+                    card.innerHTML =
+                        '<div class="grupo-nombre">' + this.escapeHtml(g.nombre) + '</div>' +
+                        idLine +
+                        '<div class="grupo-count">' + g.count + ' aliado' + (g.count !== 1 ? 's' : '') + '</div>';
+                    card.addEventListener('click', () => {
+                        this.aliadosGrupoSeleccionado = g.key;
+                        this.aliadosGrupoNombreSeleccionado = g.nombre;
+                        this.aliadosNivel = 'tarjetas';
+                        this.renderAliadosJerarquia();
+                    });
                     list.appendChild(card);
                 });
             }
@@ -3916,10 +3978,11 @@
             renderAliadosNivel3() {
                 const cp = this.aliadosCPSeleccionado;
                 const grupo = this.aliadosGrupoSeleccionado;
-                if (!cp || !grupo) return;
+                if (!cp || grupo == null) return;
                 const data = (this._aliadosData || []).filter(a => {
+                    if (this.esAliadoPlaceholder(a)) return false;
                     if (this.normalizarCpAliado(a) !== cp) return false;
-                    return this.getGrupoAliado(a) === grupo;
+                    return this.getClaveGrupoRed(a) === grupo;
                 });
                 this.renderAliados(data);
             }
