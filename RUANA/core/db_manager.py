@@ -7318,23 +7318,6 @@ class DBManager:
             "UPDATE contactos_ruana SET negociacion_json = ?, actualizado_en = CURRENT_TIMESTAMP WHERE id = ?",
             (neg_json, contacto_id),
         )
-        servicio_txt = (servicio or '').strip()
-        if servicio_txt:
-            extra = (
-                f'RUANA ha iniciado la negociación guiada. '
-                f'El contratante ha indicado «{servicio_txt}» como servicio solicitado; '
-                f'confírmalo o ajústalo en el primer paso.'
-            )
-        else:
-            extra = (
-                'RUANA ha iniciado la negociación guiada. '
-                'El contratante propondrá el servicio en el primer paso.'
-            )
-        msg = neg_mgr._mensaje_evento(neg_mgr.TIPO_SISTEMA, 'servicio', 'solicitante', extra=extra)
-        cursor.execute("""
-            INSERT INTO negociacion_eventos (contacto_id, tipo, campo, valor, emisor_codigo, mensaje)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (contacto_id, neg_mgr.TIPO_SISTEMA, 'servicio', servicio_txt or None, solicitante_codigo, msg))
 
     def _insertar_evento_negociacion(self, cursor, contacto_id: int, tipo: str, campo: str,
                                       valor: str, emisor_codigo: str, mensaje: str) -> None:
