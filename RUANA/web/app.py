@@ -1021,6 +1021,20 @@ def dashboard_alt():
     return send_from_directory(str(web_dir), 'dashboard.html')
 
 
+@app.route('/feedback-preview')
+@app.route('/feedback-preview.html')
+def feedback_preview():
+    """Preview del sistema unificado de comunicación visual"""
+    return send_from_directory(str(web_dir), 'feedback-preview.html')
+
+
+@app.route('/aliado-shell-preview')
+@app.route('/aliado-shell-preview.html')
+def aliado_shell_preview():
+    """Preview estático del shell de aliado"""
+    return send_from_directory(str(web_dir), 'aliado-shell-preview.html')
+
+
 @app.route('/static/<path:path>')
 def static_files(path):
     """Sirve archivos est?ticos (CSS, JS, etc)"""

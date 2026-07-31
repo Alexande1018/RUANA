@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RUANA — Preview Sistema de Comunicación Visual</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/ruana-feedback.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            min-height: 100vh;
+            background: var(--ruana-bg);
+            color: var(--ruana-text);
+            font-family: var(--ruana-font);
+            padding: 40px 24px 80px;
+        }
+
+        .preview-header {
+            max-width: 960px;
+            margin: 0 auto 48px;
+        }
+
+        .preview-header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            margin-bottom: 8px;
+        }
+
+        .preview-header p {
+            color: var(--ruana-text-muted);
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        .preview-grid {
+            max-width: 960px;
+            margin: 0 auto;
+            display: grid;
+            gap: 32px;
+        }
+
+        .preview-section {
+            padding: 28px;
+            border-radius: 24px;
+            border: 1px solid var(--ruana-border);
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .preview-section h2 {
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--ruana-text-subtle);
+            margin-bottom: 20px;
+        }
+
+        .preview-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .preview-btn {
+            min-height: 44px;
+            padding: 10px 18px;
+            border-radius: 14px;
+            border: 1px solid var(--ruana-border-strong);
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--ruana-text-soft);
+            font-size: 0.88rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 180ms ease, border-color 180ms ease;
+        }
+
+        .preview-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .preview-stack {
+            display: grid;
+            gap: 14px;
+        }
+
+        .preview-note {
+            font-size: 0.82rem;
+            color: var(--ruana-text-subtle);
+            margin-top: 12px;
+        }
+    </style>
+</head>
+<body>
+    <header class="preview-header">
+        <h1>Sistema de comunicación visual RUANA</h1>
+        <p>Preview del sistema unificado: toasts, confirmaciones, banners, advertencias, errores, éxito y estados de carga. Diseño coherente con identidad RUANA — suave, moderno y confiable.</p>
+    </header>
+
+    <main class="preview-grid">
+        <section class="preview-section" id="section-toasts">
+            <h2>1 · Toasts temporales</h2>
+            <div class="preview-actions">
+                <button type="button" class="preview-btn" data-toast="success">Éxito — Perfil actualizado</button>
+                <button type="button" class="preview-btn" data-toast="payment">Éxito — Pago realizado</button>
+                <button type="button" class="preview-btn" data-toast="info">Info — Mensaje enviado</button>
+                <button type="button" class="preview-btn" data-toast="warning">Advertencia</button>
+            </div>
+            <p class="preview-note">Aparecen en la esquina superior, no bloquean la interacción, desaparecen automáticamente.</p>
+        </section>
+
+        <section class="preview-section" id="section-errors">
+            <h2>2 · Errores con acción</h2>
+            <div class="preview-actions">
+                <button type="button" class="preview-btn" data-error="connection">Error de conexión</button>
+                <button type="button" class="preview-btn" data-error="send">Error al enviar</button>
+            </div>
+        </section>
+
+        <section class="preview-section" id="section-confirm">
+            <h2>3 · Confirmaciones</h2>
+            <div class="preview-actions">
+                <button type="button" class="preview-btn" data-confirm="default">Confirmar acción</button>
+                <button type="button" class="preview-btn" data-confirm="danger">Eliminar conversación</button>
+                <button type="button" class="preview-btn" data-confirm="warning">Cancelar solicitud</button>
+            </div>
+        </section>
+
+        <section class="preview-section" id="section-banners">
+            <h2>4 · Banners informativos</h2>
+            <div class="preview-stack">
+                <div class="ruana-feedback ruana-feedback--banner ruana-feedback--info">
+                    <span class="ruana-feedback__icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>
+                    <div class="ruana-feedback__content">
+                        <div class="ruana-feedback__title">Identidad verificada</div>
+                        <div class="ruana-feedback__message">Tu perfil ha sido verificado correctamente. Los aliados verán el distintivo de confianza.</div>
+                    </div>
+                </div>
+                <div class="ruana-feedback ruana-feedback--banner ruana-feedback--success">
+                    <span class="ruana-feedback__icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
+                    <div class="ruana-feedback__content">
+                        <div class="ruana-feedback__title">Nuevo aliado disponible</div>
+                        <div class="ruana-feedback__message">Hay un profesional de fontanería cerca de tu zona.</div>
+                    </div>
+                </div>
+                <div class="ruana-feedback ruana-feedback--banner ruana-feedback--warning">
+                    <span class="ruana-feedback__icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+                    <div class="ruana-feedback__content">
+                        <div class="ruana-feedback__title">Pago pendiente</div>
+                        <div class="ruana-feedback__message">Tienes un apoyo RUANA pendiente de regularizar.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="preview-section" id="section-warnings">
+            <h2>5 · Advertencias</h2>
+            <div class="preview-stack">
+                <div class="ruana-feedback ruana-feedback--banner ruana-feedback--warning">
+                    <span class="ruana-feedback__icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+                    <div class="ruana-feedback__content">
+                        <div class="ruana-feedback__title">Quedan pocas horas para responder</div>
+                        <div class="ruana-feedback__message">Responde antes de que expire el plazo de la solicitud.</div>
+                    </div>
+                </div>
+                <div class="ruana-feedback ruana-feedback--banner ruana-feedback--warning">
+                    <span class="ruana-feedback__icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+                    <div class="ruana-feedback__content">
+                        <div class="ruana-feedback__title">Tu perfil está incompleto</div>
+                        <div class="ruana-feedback__message">Completa tu descripción y servicios para aparecer en el directorio.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="preview-section" id="section-success-inline">
+            <h2>6 · Mensajes de éxito inline</h2>
+            <div class="ruana-feedback ruana-feedback--inline-success show">
+                <div class="ruana-feedback__title">✓ Perfil actualizado</div>
+                <div class="ruana-feedback__message">Todos los cambios se han guardado correctamente.</div>
+            </div>
+            <div class="form-success" style="margin-top:14px;">Código copiado al portapapeles.</div>
+        </section>
+
+        <section class="preview-section" id="section-errors-inline">
+            <h2>7 · Errores inline (formularios)</h2>
+            <div class="form-error">Introduce un código de invitación válido.</div>
+            <div class="ruana-feedback ruana-feedback--banner ruana-feedback--error" style="margin-top:14px;">
+                <span class="ruana-feedback__icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
+                <div class="ruana-feedback__content">
+                    <div class="ruana-feedback__title">No pudimos cargar tu panel</div>
+                    <div class="ruana-feedback__message">Comprueba tu conexión e inténtalo de nuevo.</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="preview-section" id="section-loading">
+            <h2>8 · Estados de carga contextual</h2>
+            <div class="preview-actions">
+                <button type="button" class="preview-btn" data-loading="search">Buscando aliados...</button>
+                <button type="button" class="preview-btn" data-loading="chat">Preparando conversación...</button>
+                <button type="button" class="preview-btn" data-loading="verify">Verificando información...</button>
+            </div>
+            <div class="ruana-page-loader compact" style="margin-top:20px;">
+                <div class="ruana-loader-orbit" aria-hidden="true">
+                    <div class="ruana-loader-ring"></div>
+                    <div class="ruana-loader-line line-a"></div>
+                    <div class="ruana-loader-line line-b"></div>
+                    <div class="ruana-loader-line line-c"></div>
+                    <div class="ruana-loader-node node-a"></div>
+                    <div class="ruana-loader-node node-b"></div>
+                    <div class="ruana-loader-node node-c"></div>
+                    <div class="ruana-loader-core"></div>
+                </div>
+                <div class="ruana-loader-title">Enviando solicitud...</div>
+                <p class="ruana-loader-copy">Estamos conectando con el profesional seleccionado.</p>
+            </div>
+        </section>
+    </main>
+
+    <script src="/static/js/ruana-ui.js"></script>
+    <script>
+        document.querySelectorAll('[data-toast]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const kind = btn.getAttribute('data-toast');
+                if (kind === 'success') {
+                    RuanaUI.success('Perfil actualizado', 'Todos los cambios se han guardado correctamente.');
+                } else if (kind === 'payment') {
+                    RuanaUI.success('Pago realizado', 'El apoyo RUANA se ha registrado correctamente.');
+                } else if (kind === 'info') {
+                    RuanaUI.info('Mensaje enviado', 'Tu mensaje llegó al equipo RUANA.');
+                } else if (kind === 'warning') {
+                    RuanaUI.warning('Completa tu perfil', 'Añade una descripción para aparecer en el directorio.');
+                }
+            });
+        });
+
+        document.querySelectorAll('[data-error]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const kind = btn.getAttribute('data-error');
+                if (kind === 'connection') {
+                    RuanaUI.error('Sin conexión', 'No hemos podido conectar con RUANA. Comprueba tu conexión e inténtalo de nuevo.', {
+                        actions: [{ label: 'Reintentar', primary: true, onClick: function () {} }]
+                    });
+                } else {
+                    RuanaUI.error('No se envió el mensaje', 'No hemos podido enviar el mensaje. Comprueba tu conexión e inténtalo de nuevo.', {
+                        actions: [
+                            { label: 'Reintentar', primary: true, onClick: function () {} },
+                            { label: 'Volver', onClick: function () {} }
+                        ]
+                    });
+                }
+            });
+        });
+
+        document.querySelectorAll('[data-confirm]').forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+                const kind = btn.getAttribute('data-confirm');
+                if (kind === 'danger') {
+                    await RuanaUI.confirm('Esta acción eliminará la conversación y no se puede deshacer.', {
+                        title: 'Eliminar conversación',
+                        confirmLabel: 'Eliminar',
+                        variant: 'danger'
+                    });
+                } else if (kind === 'warning') {
+                    await RuanaUI.confirm('Si cancelas, la solicitud volverá a estar disponible para otros aliados.', {
+                        title: 'Cancelar solicitud',
+                        confirmLabel: 'Sí, cancelar',
+                        variant: 'warning'
+                    });
+                } else {
+                    await RuanaUI.confirm('¿Confirmas que quieres continuar con esta acción?', {
+                        title: 'Confirmar',
+                        confirmLabel: 'Continuar'
+                    });
+                }
+            });
+        });
+
+        const loadingMessages = {
+            search: ['Buscando aliados cercanos...', 'Explorando profesionales en tu zona.'],
+            chat: ['Preparando tu conversación...', 'Cargando el historial de mensajes.'],
+            verify: ['Verificando información...', 'Estamos validando los datos de tu perfil.']
+        };
+
+        document.querySelectorAll('[data-loading]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const kind = btn.getAttribute('data-loading');
+                const msgs = loadingMessages[kind] || ['Cargando...', ''];
+                RuanaUI.loading.show(msgs[0], msgs[1]);
+                setTimeout(function () { RuanaUI.loading.hide(); }, 2200);
+            });
+        });
+
+        // Toast de bienvenida al cargar
+        setTimeout(function () {
+            RuanaUI.info('Preview cargado', 'Explora cada sección para ver el sistema de comunicación visual.');
+        }, 400);
+    </script>
+</body>
+</html>

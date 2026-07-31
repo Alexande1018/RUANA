@@ -368,19 +368,7 @@ body::after {
     box-shadow: 0 0 16px rgba(184, 232, 106, 0.45);
 }
 
-/* ——— Toasts y diálogos ——— */
-.ruana-toast {
-    animation: ruana-enter 320ms var(--ruana-ease-out);
-}
-
-.ruana-dialog {
-    animation: ruana-enter 280ms var(--ruana-ease-out);
-}
-
-@keyframes ruana-enter {
-    from { opacity: 0; transform: translateY(8px) scale(0.97); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
-}
+/* ——— Toasts y diálogos: animación unificada en ruana-feedback.css ——— */
 
 /* ——— Admin shell ——— */
 .admin-shell-nav-item.is-active,

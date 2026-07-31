@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RUANA - Panel Privado del Aliado</title>
     <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/ruana-feedback.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -2307,7 +2308,13 @@
 
     <div class="panel-container">
         <!-- CONTENEDOR DE ERROR F06 -->
-        <div id="error-bootstrap" style="display:none; margin-bottom:24px; padding:16px; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); border-radius:8px; color:#ef4444; font-weight:500; text-align:center;"></div>
+        <div id="error-bootstrap" class="ruana-feedback ruana-feedback--banner ruana-feedback--error" style="display:none;" role="alert">
+            <span class="ruana-feedback__icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
+            <div class="ruana-feedback__content">
+                <div class="ruana-feedback__title">No pudimos cargar tu panel</div>
+                <div class="ruana-feedback__message" id="error-bootstrap-text"></div>
+            </div>
+        </div>
         <div id="panel-loading" class="panel-loading-state ruana-page-loader" role="status" aria-live="polite">
             <div class="ruana-loader-orbit" aria-hidden="true">
                 <div class="ruana-loader-ring"></div>
@@ -2325,13 +2332,21 @@
 
         <div class="aliado-shell-alerts" id="aliado-shell-alerts">
         <!-- Banner: Tienes un mensaje nuevo de RUANA -->
-        <div id="banner-mensaje-nuevo-ruana" style="display:none; margin-bottom:0; padding:16px 20px; background:rgba(234,179,8,0.2); border:1px solid rgba(234,179,8,0.5); border-radius:8px; color:#eab308; font-weight:600; text-align:center;">
-            ⚠️ Tienes un mensaje nuevo de RUANA
+        <div id="banner-mensaje-nuevo-ruana" class="ruana-feedback ruana-feedback--banner ruana-feedback--warning" style="display:none;">
+            <span class="ruana-feedback__icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+            <div class="ruana-feedback__content">
+                <div class="ruana-feedback__title">Mensaje nuevo de RUANA</div>
+                <div class="ruana-feedback__message">Tienes un mensaje nuevo pendiente de revisar.</div>
+            </div>
         </div>
 
         <!-- Aviso pagos RUANA pendientes (no bloquea acceso; no puede aceptar nuevos trabajos) -->
-        <div id="aviso-pagos-pendientes-banner" style="display:none; margin-bottom:0; padding:16px 20px; background:rgba(234,179,8,0.15); border:1px solid rgba(234,179,8,0.4); border-radius:8px; color:#eab308; font-weight:500; text-align:center;">
-            Tienes pagos pendientes con RUANA. No podrás aceptar nuevos trabajos hasta regularizar la situación.
+        <div id="aviso-pagos-pendientes-banner" class="ruana-feedback ruana-feedback--banner ruana-feedback--warning" style="display:none;">
+            <span class="ruana-feedback__icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>
+            <div class="ruana-feedback__content">
+                <div class="ruana-feedback__title">Pagos pendientes</div>
+                <div class="ruana-feedback__message">Tienes pagos pendientes con RUANA. No podrás aceptar nuevos trabajos hasta regularizar la situación.</div>
+            </div>
         </div>
         
         <!-- Seguimiento del encargo RUANA -->
@@ -5803,8 +5818,8 @@
 
                 const bannerMensaje = document.getElementById('banner-mensaje-nuevo-ruana');
                 const bannerPagos = document.getElementById('aviso-pagos-pendientes-banner');
-                if (bannerMensaje) bannerMensaje.style.display = hayNotifNoLeidas ? 'block' : 'none';
-                if (bannerPagos) bannerPagos.style.display = hayPagosPendientes ? 'block' : 'none';
+                if (bannerMensaje) bannerMensaje.style.display = hayNotifNoLeidas ? 'flex' : 'none';
+                if (bannerPagos) bannerPagos.style.display = hayPagosPendientes ? 'flex' : 'none';
             }
 
             async cargarMetodosPagoRuana() {
@@ -7273,8 +7288,10 @@
                 const loadingEl = document.getElementById('panel-loading');
                 if (loadingEl) loadingEl.style.display = 'none';
                 if (errorContainer) {
-                    errorContainer.textContent = 'No se pudieron cargar tus datos. Intenta de nuevo desde el inicio.';
-                    errorContainer.style.display = 'block';
+                    const textEl = document.getElementById('error-bootstrap-text');
+                    const msg = 'No se pudieron cargar tus datos. Intenta de nuevo desde el inicio.';
+                    if (textEl) textEl.textContent = msg;
+                    errorContainer.style.display = 'flex';
                 }
                 return;
             }
