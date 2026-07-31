@@ -984,12 +984,16 @@ body.aliado-app > .ruana-brand-watermark {
         right: auto;
         left: 12px;
         min-height: 38px;
-        padding: 8px 12px;
-        font-size: 0.78rem;
+        padding: 8px 11px;
+        font-size: 0.72rem;
+        max-width: calc(100vw - 140px);
     }
 
     body.aliado-app .btn-invitar-global-label {
         display: inline;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .inicio-identity {

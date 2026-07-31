@@ -119,6 +119,6 @@ def test_aliado_perfil_tiene_boton_generar_codigo_invitacion():
     assert 'id="btn-invitar-global"' in text
     assert 'id="btn-invitar-nav"' in text
     assert 'data-action="invitar-aliado"' in text
-    assert "Generar código de invitación" in text
+    assert "Ampliar mi red" in text
     assert "generarCodigoInvitacionPerfil" in text
     assert "/api/invitaciones/crear" in text
