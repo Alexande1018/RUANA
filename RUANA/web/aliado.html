@@ -6696,10 +6696,10 @@
                         // Actualizar lista de Apoyo RUANA pendiente de pago (lógica de cobro: profesional ve el importe a abonar)
                         await this.cargarPagosApoyoPendientes();
                     } else if (data.estado === 'importe_en_disputa') {
-                        const aviso = document.getElementById('contacto-aviso-texto');
-                        if (aviso) {
-                            aviso.textContent = 'Los importes declarados no coinciden. Para continuar, por favor adjunta un comprobante de pago.';
-                        }
+                        const ctx = document.getElementById('contacto-aviso-contexto');
+                        const acc = document.getElementById('contacto-aviso-accion');
+                        if (ctx) ctx.textContent = 'Los importes declarados no coinciden.';
+                        if (acc) acc.textContent = 'Adjunta un comprobante de pago para continuar.';
                     }
                     // Cerrar la ventana del modal
                     if (modal) modal.classList.remove('show');
