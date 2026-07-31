@@ -60,7 +60,8 @@ class TestNegociacionGuiada(unittest.TestCase):
         self.assertEqual(r['negociacion']['campos']['precio']['estado'], neg_mgr.ESTADO_PENDIENTE)
 
         sol = self.db.obtener_negociacion_contacto(cid, '90001')
-        self.assertEqual(sol['accion']['tipo'], 'esperar')
+        self.assertEqual(sol['accion']['tipo'], 'proponer')
+        self.assertTrue(sol['accion'].get('modificar_propia'))
 
         pro = self.db.obtener_negociacion_contacto(cid, '90002')
         self.assertEqual(pro['accion']['tipo'], 'responder')
@@ -151,6 +152,55 @@ class TestNegociacionGuiada(unittest.TestCase):
         self.assertEqual(r['status'], 'success')
         self.assertEqual(r['negociacion']['campos']['fecha']['valor'], '2026-08-05')
         self.assertEqual(r['negociacion']['campos']['fecha']['propuesto_por'], 'profesional')
+
+        sol = self.db.obtener_negociacion_contacto(cid, '90001')
+        self.assertEqual(sol['accion']['tipo'], 'responder')
+        self.assertEqual(sol['accion']['campo'], 'fecha')
+        self.assertTrue(sol.get('negociacion_meta', {}).get('requiere_mi_respuesta'))
+
+    def test_contraoferta_propuesta_completa_desbloquea_contratante(self):
+        cid = self._crear_aliados_y_contacto()
+        valores = {
+            'servicio': 'Baño de perro',
+            'fecha': '2026-09-01',
+            'hora': '11:00',
+            'direccion': 'Calle Test 1',
+            'observaciones': 'Perro mediano',
+        }
+        self.db.proponer_propuesta_completa_negociacion(cid, '90001', valores)
+        r = self.db.contraoferta_negociacion(cid, '90002', 'servicio', 'Baño premium perro')
+        self.assertEqual(r['status'], 'success', r.get('message'))
+
+        sol = self.db.obtener_negociacion_contacto(cid, '90001')
+        self.assertEqual(sol['accion']['tipo'], 'responder')
+        self.assertEqual(sol['accion']['campo'], 'servicio')
+        self.assertIn('profesional', sol['accion']['mensaje'].lower())
+
+        ok = self.db.aceptar_negociacion(cid, '90001', 'servicio')
+        self.assertEqual(ok['status'], 'success', ok.get('message'))
+
+    def test_contraoferta_fuera_de_paso_actual_falla(self):
+        cid = self._crear_aliados_y_contacto()
+        valores = {
+            'servicio': 'Servicio A',
+            'fecha': '2026-09-01',
+            'hora': '10:00',
+            'direccion': 'Dir 1',
+            'observaciones': 'Obs',
+        }
+        self.db.proponer_propuesta_completa_negociacion(cid, '90001', valores)
+        r = self.db.contraoferta_negociacion(cid, '90002', 'fecha', '2026-09-05')
+        self.assertEqual(r['status'], 'error')
+        self.assertIn('paso actual', (r.get('message') or '').lower())
+
+    def test_meta_negociacion_requiere_respuesta(self):
+        cid = self._crear_aliados_y_contacto()
+        self.db.proponer_negociacion(cid, '90001', 'servicio', 'Grifo')
+        self.db.contraoferta_negociacion(cid, '90002', 'servicio', 'Grifo premium')
+        sol = self.db.obtener_negociacion_contacto(cid, '90001')
+        meta = sol.get('negociacion_meta') or {}
+        self.assertTrue(meta.get('requiere_mi_respuesta'))
+        self.assertEqual(meta.get('paso'), 'servicio')
 
     def test_cerrar_negociacion_ambas_partes(self):
         cid = self._crear_aliados_y_contacto()
