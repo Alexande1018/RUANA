@@ -522,6 +522,9 @@
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 12px;
             transition: all 0.3s ease;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }
 
         .aliado-admin-card:hover {
@@ -616,24 +619,29 @@
         }
 
         .aliado-acciones {
-            display: flex;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 8px;
             margin-top: 12px;
         }
 
         .btn-accion {
-            flex: 1;
-            padding: 6px 10px;
+            width: 100%;
+            min-width: 0;
+            padding: 6px 8px;
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 4px;
             color: #bbb;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
             text-transform: uppercase;
-            letter-spacing: 0.3px;
+            letter-spacing: 0.2px;
+            white-space: normal;
+            line-height: 1.25;
+            text-align: center;
         }
 
         .btn-accion:hover {
@@ -3832,6 +3840,17 @@
                 return nombres[grupoKey] || grupoKey;
             }
 
+            getGrupoTerritorialLabel(aliado) {
+                const nombre = ((aliado && aliado.grupo_nombre) || '').trim();
+                if (nombre) return nombre;
+                if (aliado && aliado.grupo_id) return '#' + aliado.grupo_id;
+                const estado = ((aliado && aliado.estado) || '').toLowerCase();
+                if (estado === 'en_espera') return 'Suplente en espera (sin plaza)';
+                if (estado === 'pendiente_validacion') return 'Pendiente de validación';
+                if (estado === 'pendiente_completar') return 'Registro incompleto';
+                return 'Sin grupo asignado';
+            }
+
             normalizarCpAliado(a) {
                 return (a && (a.codigo_postal || a.zona) || '').toString().trim() || '(sin CP)';
             }
@@ -3991,7 +4010,7 @@
                             </div>
                             <div class="aliado-info">
                                 <span class="info-label">Grupo</span>
-                                <span class="info-value">${this.escapeHtml((aliado.grupo_nombre || '').trim() || (aliado.grupo_id ? ('#' + aliado.grupo_id) : '—'))}</span>
+                                <span class="info-value">${this.escapeHtml(this.getGrupoTerritorialLabel(aliado))}</span>
                             </div>
                             <div class="aliado-info">
                                 <span class="info-label">Marca</span>
