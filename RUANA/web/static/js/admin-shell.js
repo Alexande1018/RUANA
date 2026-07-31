@@ -5,24 +5,74 @@
 (function () {
     'use strict';
 
-    const NAV_SECTIONS = [
-        { id: 'overview', label: 'Resumen', group: 'Principal', target: '.estado-global', icon: 'grid' },
-        { id: 'movimiento', label: 'Movimiento 24h', group: 'Principal', target: '.movimiento-sistema', icon: 'activity' },
-        { id: 'salud', label: 'Métricas de salud', group: 'Principal', target: '.metricas-salud', icon: 'heart' },
-        { id: 'pendientes', label: 'Pendientes validación', group: 'Operaciones', target: '#pendientes-validacion-wrap', icon: 'user-check', badge: '#pendientes-validacion-count' },
-        { id: 'conflictos', label: 'Conflictos de pago', group: 'Operaciones', target: '#conflictos-pago-wrap', icon: 'alert' },
-        { id: 'pagos-apoyo', label: 'Pagos Apoyo', group: 'Operaciones', target: '#pagos-apoyo-wrap', icon: 'credit' },
-        { id: 'pagos-revision', label: 'Pagos en revisión', group: 'Operaciones', target: '#pagos-en-revision-wrap', icon: 'clock' },
-        { id: 'solicitudes', label: 'Solicitudes', group: 'Operaciones', target: '#solicitudes-admin-wrap', icon: 'inbox' },
-        { id: 'competencias', label: 'Competencias', group: 'Operaciones', target: '#competencias-activas-wrap', icon: 'zap' },
-        { id: 'suplentes', label: 'Suplentes en espera', group: 'Operaciones', target: '#suplentes-espera-wrap', icon: 'users' },
-        { id: 'chats', label: 'Negociaciones guiadas', group: 'Operaciones', target: '#conversaciones-ruana-wrap', icon: 'message' },
-        { id: 'centro-comunicacion', label: 'Centro de comunicación', group: 'Operaciones', target: '#centro-comunicacion-admin-wrap', icon: 'message' },
-        { id: 'aliados', label: 'Control de aliados', group: 'Red', target: '#control-aliados-wrap', icon: 'network' },
-        { id: 'trazabilidad', label: 'Trazabilidad', group: 'Sistema', target: '.eventos-trazabilidad', icon: 'list' },
-        { id: 'metodos-pago', label: 'Métodos de pago', group: 'Sistema', target: '#metodos-pago-admin-wrap', icon: 'wallet' },
-        { id: 'acciones', label: 'Acciones admin', group: 'Sistema', target: '.acciones-admin:last-of-type', icon: 'settings' }
+    const MODULE_DEFS = [
+        {
+            id: 'resumen',
+            label: 'Resumen',
+            kicker: 'Vista general',
+            subtitle: 'Estado del sistema, movimiento reciente y métricas clave.',
+            icon: 'grid',
+            targets: ['.estado-global', '.movimiento-sistema', '.metricas-salud']
+        },
+        {
+            id: 'operaciones',
+            label: 'Operaciones',
+            kicker: 'Bandeja de trabajo',
+            subtitle: 'Validaciones, pagos, solicitudes, competencias y comunicación.',
+            icon: 'inbox',
+            targets: [
+                '#pendientes-validacion-wrap',
+                '#conflictos-pago-wrap',
+                '#pagos-apoyo-wrap',
+                '#pagos-en-revision-wrap',
+                '#solicitudes-admin-wrap',
+                '#competencias-activas-wrap',
+                '#competencias-pendientes-wrap',
+                '#competencias-historial-wrap',
+                '#suplentes-espera-wrap',
+                '#conversaciones-ruana-wrap',
+                '#centro-comunicacion-admin-wrap'
+            ]
+        },
+        {
+            id: 'red',
+            label: 'Red',
+            kicker: 'Aliados',
+            subtitle: 'Explora y gestiona la red de aliados por CP y grupo.',
+            icon: 'network',
+            targets: ['#control-aliados-wrap']
+        },
+        {
+            id: 'sistema',
+            label: 'Sistema',
+            kicker: 'Configuración',
+            subtitle: 'Trazabilidad, métodos de pago y acciones administrativas.',
+            icon: 'settings',
+            targets: ['.eventos-trazabilidad', '#metodos-pago-admin-wrap', '#acciones-admin-wrap']
+        }
     ];
+
+    const NAV_SECTIONS = [
+        { id: 'overview', label: 'Estado global', group: 'Resumen', module: 'resumen', target: '.estado-global', icon: 'grid' },
+        { id: 'movimiento', label: 'Movimiento 24h', group: 'Resumen', module: 'resumen', target: '.movimiento-sistema', icon: 'activity' },
+        { id: 'salud', label: 'Métricas de salud', group: 'Resumen', module: 'resumen', target: '.metricas-salud', icon: 'heart' },
+        { id: 'pendientes', label: 'Pendientes validación', group: 'Operaciones', module: 'operaciones', target: '#pendientes-validacion-wrap', icon: 'user-check', badge: '#pendientes-validacion-count' },
+        { id: 'conflictos', label: 'Conflictos de pago', group: 'Operaciones', module: 'operaciones', target: '#conflictos-pago-wrap', icon: 'alert' },
+        { id: 'pagos-apoyo', label: 'Pagos Apoyo', group: 'Operaciones', module: 'operaciones', target: '#pagos-apoyo-wrap', icon: 'credit' },
+        { id: 'pagos-revision', label: 'Pagos en revisión', group: 'Operaciones', module: 'operaciones', target: '#pagos-en-revision-wrap', icon: 'clock' },
+        { id: 'solicitudes', label: 'Solicitudes', group: 'Operaciones', module: 'operaciones', target: '#solicitudes-admin-wrap', icon: 'inbox' },
+        { id: 'competencias', label: 'Competencias', group: 'Operaciones', module: 'operaciones', target: '#competencias-activas-wrap', icon: 'zap' },
+        { id: 'suplentes', label: 'Suplentes en espera', group: 'Operaciones', module: 'operaciones', target: '#suplentes-espera-wrap', icon: 'users' },
+        { id: 'chats', label: 'Negociaciones guiadas', group: 'Operaciones', module: 'operaciones', target: '#conversaciones-ruana-wrap', icon: 'message' },
+        { id: 'centro-comunicacion', label: 'Centro de comunicación', group: 'Operaciones', module: 'operaciones', target: '#centro-comunicacion-admin-wrap', icon: 'message' },
+        { id: 'aliados', label: 'Control de aliados', group: 'Red', module: 'red', target: '#control-aliados-wrap', icon: 'network' },
+        { id: 'trazabilidad', label: 'Trazabilidad', group: 'Sistema', module: 'sistema', target: '.eventos-trazabilidad', icon: 'list' },
+        { id: 'metodos-pago', label: 'Métodos de pago', group: 'Sistema', module: 'sistema', target: '#metodos-pago-admin-wrap', icon: 'wallet' },
+        { id: 'acciones', label: 'Acciones admin', group: 'Sistema', module: 'sistema', target: '#acciones-admin-wrap', icon: 'settings' }
+    ];
+
+    let currentModule = 'resumen';
+    let scrollSpyObserver = null;
 
     const ADMIN_DELETE_MOTIVO = 'Gestionado desde panel de administración.';
 
@@ -499,8 +549,160 @@
         return div.innerHTML;
     }
 
+    function buildModules() {
+        const dataContent = document.querySelector('.admin-data-content');
+        if (!dataContent || dataContent.querySelector('.admin-module')) return;
+
+        // Ensure acciones has a stable id even if markup drifts
+        const acciones = dataContent.querySelector('.acciones-admin:not(#metodos-pago-admin-wrap)');
+        if (acciones && !acciones.id) acciones.id = 'acciones-admin-wrap';
+
+        MODULE_DEFS.forEach((mod, idx) => {
+            const els = mod.targets
+                .map((sel) => dataContent.querySelector(sel))
+                .filter(Boolean);
+            if (!els.length) return;
+
+            const pane = document.createElement('section');
+            pane.className = 'admin-module' + (idx === 0 ? ' is-active' : '');
+            pane.setAttribute('data-admin-module', mod.id);
+            pane.setAttribute('aria-hidden', idx === 0 ? 'false' : 'true');
+            pane.innerHTML = `
+                <header class="admin-module-header">
+                    <p class="admin-module-kicker">${escapeHtml(mod.kicker)}</p>
+                    <h2 class="admin-module-title">${escapeHtml(mod.label)}</h2>
+                    <p class="admin-module-subtitle">${escapeHtml(mod.subtitle)}</p>
+                </header>
+                <div class="admin-module-body"></div>
+            `;
+            const body = pane.querySelector('.admin-module-body');
+            els[0].parentNode.insertBefore(pane, els[0]);
+            els.forEach((el) => body.appendChild(el));
+        });
+    }
+
+    function showModule(moduleId, options) {
+        const opts = options || {};
+        const target = MODULE_DEFS.some((m) => m.id === moduleId) ? moduleId : 'resumen';
+        currentModule = target;
+
+        document.querySelectorAll('.admin-module').forEach((pane) => {
+            const active = pane.getAttribute('data-admin-module') === target;
+            pane.classList.toggle('is-active', active);
+            pane.setAttribute('aria-hidden', active ? 'false' : 'true');
+        });
+
+        document.querySelectorAll('[data-admin-module-nav]').forEach((btn) => {
+            btn.classList.toggle('is-active', btn.getAttribute('data-admin-module-nav') === target);
+        });
+
+        renderModuleSwitcher();
+        const search = document.getElementById('adminNavSearch');
+        renderNavItems(search ? search.value : '');
+
+        if (!opts.skipHash) {
+            try {
+                const hash = '#' + target;
+                if (location.hash !== hash) history.replaceState(null, '', hash);
+            } catch (_) { /* ignore */ }
+        }
+
+        if (!opts.skipScroll) {
+            window.scrollTo({ top: 0, behavior: opts.instant ? 'auto' : 'smooth' });
+        }
+
+        setupScrollSpy();
+        return target;
+    }
+
+    function ensureModuleForTarget(selector) {
+        const section = NAV_SECTIONS.find((s) => s.target === selector);
+        if (section && section.module) {
+            showModule(section.module, { skipScroll: true, instant: true });
+            return section.module;
+        }
+        const el = document.querySelector(selector);
+        if (!el) return null;
+        const pane = el.closest('.admin-module');
+        if (pane) {
+            const mod = pane.getAttribute('data-admin-module');
+            showModule(mod, { skipScroll: true, instant: true });
+            return mod;
+        }
+        return null;
+    }
+
+    function navigateTo(selector) {
+        ensureModuleForTarget(selector);
+        const target = document.querySelector(selector);
+        if (!target) return;
+        requestAnimationFrame(() => {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+        const nav = document.getElementById('adminSidebarNav');
+        if (nav) {
+            nav.querySelectorAll('.admin-nav-item').forEach((b) => {
+                b.classList.toggle('is-active', b.getAttribute('data-nav-target') === selector);
+            });
+        }
+        document.getElementById('adminSidebar')?.classList.remove('is-mobile-open');
+    }
+
+    function setupScrollSpy() {
+        if (scrollSpyObserver) {
+            scrollSpyObserver.disconnect();
+            scrollSpyObserver = null;
+        }
+        if (typeof IntersectionObserver === 'undefined') return;
+        const activePane = document.querySelector('.admin-module.is-active');
+        if (!activePane) return;
+        const sections = NAV_SECTIONS.filter((s) => s.module === currentModule);
+        const elements = sections
+            .map((s) => ({ section: s, el: document.querySelector(s.target) }))
+            .filter((x) => x.el);
+
+        scrollSpyObserver = new IntersectionObserver((entries) => {
+            const visible = entries
+                .filter((e) => e.isIntersecting)
+                .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+            if (!visible.length) return;
+            const el = visible[0].target;
+            const match = elements.find((x) => x.el === el);
+            if (!match) return;
+            const nav = document.getElementById('adminSidebarNav');
+            if (!nav) return;
+            nav.querySelectorAll('.admin-nav-item').forEach((b) => {
+                b.classList.toggle('is-active', b.getAttribute('data-nav-target') === match.section.target);
+            });
+        }, { root: null, rootMargin: '-20% 0px -55% 0px', threshold: [0.1, 0.35, 0.6] });
+
+        elements.forEach((x) => scrollSpyObserver.observe(x.el));
+    }
+
+    function buildBottomNav() {
+        if (document.getElementById('adminBottomNav')) return;
+        const nav = document.createElement('nav');
+        nav.className = 'admin-shell-bottom';
+        nav.id = 'adminBottomNav';
+        nav.setAttribute('aria-label', 'Navegación de módulos');
+        nav.innerHTML = MODULE_DEFS.map((mod) => `
+            <button type="button" class="admin-shell-bottom-item${mod.id === 'resumen' ? ' is-active' : ''}" data-admin-module-nav="${mod.id}">
+                ${ICONS[mod.icon] || ''}
+                <span>${escapeHtml(mod.label)}</span>
+            </button>
+        `).join('');
+        document.body.appendChild(nav);
+        nav.querySelectorAll('[data-admin-module-nav]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                showModule(btn.getAttribute('data-admin-module-nav'));
+            });
+        });
+    }
+
     function buildSidebar() {
         if (document.getElementById('adminSidebar')) return;
+
+        buildModules();
 
         const app = document.createElement('div');
         app.className = 'admin-app';
@@ -510,6 +712,11 @@
         sidebar.className = 'admin-sidebar';
         sidebar.id = 'adminSidebar';
         sidebar.innerHTML = `
+            <div class="admin-sidebar-brand">
+                <span class="admin-sidebar-brand-name">RUANA</span>
+                <span class="admin-sidebar-brand-sub">Administración</span>
+            </div>
+            <div class="admin-module-switcher" id="adminModuleSwitcher"></div>
             <div class="admin-sidebar-search">
                 <div class="admin-sidebar-search-wrap">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -534,8 +741,49 @@
             main.appendChild(container);
         }
 
+        renderModuleSwitcher();
         renderNavItems();
         setupNavSearch();
+        buildBottomNav();
+
+        const hash = (location.hash || '').replace(/^#/, '');
+        if (MODULE_DEFS.some((m) => m.id === hash)) {
+            showModule(hash, { skipHash: true, instant: true });
+        } else {
+            showModule('resumen', { skipHash: false, instant: true });
+        }
+
+        // Route KPI shortcuts into modules without changing AdminPanel handlers
+        document.addEventListener('click', (e) => {
+            const pend = e.target.closest && e.target.closest('#indicador-pendientes-validacion');
+            if (pend) {
+                navigateTo('#pendientes-validacion-wrap');
+                return;
+            }
+            const espera = e.target.closest && e.target.closest('#indicador-en-espera');
+            if (espera) {
+                navigateTo('#suplentes-espera-wrap');
+            }
+        }, true);
+
+        window.addEventListener('hashchange', () => {
+            const h = (location.hash || '').replace(/^#/, '');
+            if (MODULE_DEFS.some((m) => m.id === h)) showModule(h, { skipHash: true });
+        });
+    }
+
+    function renderModuleSwitcher() {
+        const wrap = document.getElementById('adminModuleSwitcher');
+        if (!wrap) return;
+        wrap.innerHTML = MODULE_DEFS.map((mod) => `
+            <button type="button" class="admin-module-chip${mod.id === currentModule ? ' is-active' : ''}" data-admin-module-nav="${mod.id}">
+                ${ICONS[mod.icon] || ''}
+                <span>${escapeHtml(mod.label)}</span>
+            </button>
+        `).join('');
+        wrap.querySelectorAll('[data-admin-module-nav]').forEach((btn) => {
+            btn.addEventListener('click', () => showModule(btn.getAttribute('data-admin-module-nav')));
+        });
     }
 
     function renderNavItems(filter) {
@@ -544,16 +792,23 @@
         const q = (filter || '').trim().toLowerCase();
         const groups = {};
         NAV_SECTIONS.forEach((s) => {
-            if (q && !s.label.toLowerCase().includes(q)) return;
+            // When not searching, only show sections of the active module
+            if (!q && s.module !== currentModule) return;
+            if (q && !s.label.toLowerCase().includes(q) && !s.group.toLowerCase().includes(q)) return;
             if (!groups[s.group]) groups[s.group] = [];
             groups[s.group].push(s);
         });
-        nav.innerHTML = Object.keys(groups).map((group) => {
+        const groupKeys = Object.keys(groups);
+        if (!groupKeys.length) {
+            nav.innerHTML = '<p class="admin-nav-empty">Sin resultados</p>';
+            return;
+        }
+        nav.innerHTML = groupKeys.map((group) => {
             const items = groups[group].map((s) => {
                 const badgeEl = s.badge ? document.querySelector(s.badge) : null;
                 const badgeVal = badgeEl ? badgeEl.textContent.trim() : '';
                 const hasBadge = badgeVal && badgeVal !== '—' && badgeVal !== '0';
-                return `<button type="button" class="admin-nav-item" data-nav-target="${s.target}">
+                return `<button type="button" class="admin-nav-item" data-nav-target="${s.target}" data-nav-module="${s.module}">
                     ${ICONS[s.icon] || ''}
                     <span>${escapeHtml(s.label)}</span>
                     ${hasBadge ? `<span class="admin-nav-badge has-items">${escapeHtml(badgeVal)}</span>` : ''}
@@ -564,13 +819,7 @@
 
         nav.querySelectorAll('.admin-nav-item').forEach((btn) => {
             btn.addEventListener('click', () => {
-                const target = document.querySelector(btn.getAttribute('data-nav-target'));
-                if (target) {
-                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    nav.querySelectorAll('.admin-nav-item').forEach((b) => b.classList.remove('is-active'));
-                    btn.classList.add('is-active');
-                }
-                document.getElementById('adminSidebar')?.classList.remove('is-mobile-open');
+                navigateTo(btn.getAttribute('data-nav-target'));
             });
         });
     }
@@ -1062,7 +1311,9 @@
         init,
         enhanceAll,
         logAudit,
-        confirmDanger
+        confirmDanger,
+        showModule,
+        navigateTo
     };
 
     if (document.readyState === 'loading') {

@@ -54,8 +54,79 @@ html.admin-shell-enabled body {
     overflow: hidden;
 }
 
+.admin-sidebar-brand {
+    padding: 18px 16px 10px;
+    border-bottom: 1px solid var(--admin-border);
+}
+
+.admin-sidebar-brand-name {
+    display: block;
+    font-size: 1.05rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: var(--admin-accent);
+    line-height: 1.1;
+}
+
+.admin-sidebar-brand-sub {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--admin-text-faint);
+}
+
+.admin-module-switcher {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    padding: 12px 12px 4px;
+}
+
+.admin-module-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--admin-border);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--admin-text-muted);
+    font-family: inherit;
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.admin-module-chip svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    opacity: 0.85;
+}
+
+.admin-module-chip:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--admin-text);
+}
+
+.admin-module-chip.is-active {
+    border-color: rgba(162, 255, 0, 0.35);
+    background: var(--admin-accent-soft);
+    color: var(--admin-accent);
+}
+
 .admin-sidebar-search {
     padding: 14px 14px 8px;
+}
+
+.admin-nav-empty {
+    margin: 12px 10px;
+    font-size: 0.8rem;
+    color: var(--admin-text-faint);
 }
 
 .admin-sidebar-search input {
@@ -204,6 +275,60 @@ html.admin-shell-enabled .admin-topbar {
 }
 
 /* Section cards */
+/* Modules — hide/show panes; section IDs stay intact inside */
+.admin-module {
+    display: none;
+}
+
+.admin-module.is-active {
+    display: block;
+    animation: admin-module-in 280ms ease both;
+}
+
+@keyframes admin-module-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.admin-module-header {
+    margin-bottom: 22px;
+}
+
+.admin-module-kicker {
+    margin: 0 0 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(162, 255, 0, 0.75);
+}
+
+.admin-module-title {
+    margin: 0 0 8px;
+    font-size: clamp(1.45rem, 2.2vw, 1.85rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: var(--admin-text);
+}
+
+.admin-module-subtitle {
+    margin: 0;
+    max-width: 56ch;
+    font-size: 0.92rem;
+    line-height: 1.5;
+    color: var(--admin-text-muted);
+}
+
+.admin-module-body > * + * {
+    margin-top: 22px;
+}
+
 html.admin-shell-enabled .estado-global,
 html.admin-shell-enabled .movimiento-sistema,
 html.admin-shell-enabled .metricas-salud,
@@ -216,10 +341,64 @@ html.admin-shell-enabled #pagos-apoyo-wrap,
 html.admin-shell-enabled #pagos-en-revision-wrap,
 html.admin-shell-enabled #solicitudes-admin-wrap,
 html.admin-shell-enabled #competencias-activas-wrap,
+html.admin-shell-enabled #competencias-pendientes-wrap,
+html.admin-shell-enabled #competencias-historial-wrap,
 html.admin-shell-enabled #suplentes-espera-wrap,
 html.admin-shell-enabled #conversaciones-ruana-wrap,
+html.admin-shell-enabled #centro-comunicacion-admin-wrap,
+html.admin-shell-enabled #metodos-pago-admin-wrap,
+html.admin-shell-enabled #acciones-admin-wrap,
 html.admin-shell-enabled .movimiento-card {
     scroll-margin-top: calc(var(--admin-topbar-h) + 20px);
+}
+
+/* Bottom nav (mobile) */
+.admin-shell-bottom {
+    display: none;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 120;
+    height: 64px;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
+    background: rgba(8, 9, 14, 0.94);
+    border-top: 1px solid var(--admin-border);
+    backdrop-filter: blur(24px) saturate(170%);
+    -webkit-backdrop-filter: blur(24px) saturate(170%);
+    justify-content: space-around;
+    align-items: stretch;
+    gap: 4px;
+}
+
+.admin-shell-bottom-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border: none;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--admin-text-faint);
+    font-family: inherit;
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: color 160ms ease, background 160ms ease;
+}
+
+.admin-shell-bottom-item svg {
+    width: 20px;
+    height: 20px;
+}
+
+.admin-shell-bottom-item.is-active {
+    color: var(--admin-accent);
+    background: var(--admin-accent-soft);
 }
 
 .admin-section-actions {
@@ -552,6 +731,7 @@ html.admin-shell-enabled table tbody tr {
         transform: translateX(-100%);
         transition: transform 220ms ease;
         box-shadow: var(--admin-shadow);
+        bottom: 64px;
     }
 
     .admin-sidebar.is-mobile-open {
@@ -564,6 +744,18 @@ html.admin-shell-enabled table tbody tr {
 
     .admin-sidebar-toggle {
         display: inline-flex !important;
+    }
+
+    .admin-shell-bottom {
+        display: flex;
+    }
+
+    html.admin-shell-enabled .admin-container {
+        padding: 20px 16px calc(64px + 36px);
+    }
+
+    .admin-module-switcher {
+        display: none;
     }
 }
 

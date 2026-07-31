@@ -32,3 +32,24 @@ def test_admin_shell_css_has_sidebar_layout():
     assert ".admin-sidebar" in text
     assert ".admin-bulk-toolbar" in text
     assert ".admin-danger-modal" in text
+    assert ".admin-module" in text
+    assert ".admin-shell-bottom" in text
+    assert ".admin-module-chip" in text
+
+
+def test_admin_shell_js_has_modules():
+    shell_js = Path(__file__).resolve().parents[1] / "web" / "static" / "js" / "admin-shell.js"
+    text = shell_js.read_text(encoding="utf-8")
+    assert "MODULE_DEFS" in text
+    assert "buildModules" in text
+    assert "showModule" in text
+    assert "data-admin-module" in text
+    assert "acciones-admin-wrap" in text
+    assert "adminBottomNav" in text
+
+
+def test_admin_html_acciones_wrap_id():
+    admin_html = Path(__file__).resolve().parents[1] / "web" / "admin.html"
+    text = admin_html.read_text(encoding="utf-8")
+    assert 'id="acciones-admin-wrap"' in text
+    assert "Panel de administración" in text
