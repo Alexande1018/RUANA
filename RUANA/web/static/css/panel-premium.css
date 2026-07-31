@@ -424,16 +424,25 @@ body:not(.panel-loading) {
 }
 
 .profesional-header {
-    align-items: center;
-    gap: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px 10px;
+    margin-bottom: 10px;
 }
 
 .profesional-identity {
     display: flex;
     align-items: center;
     gap: 14px;
-    flex: 1;
+    flex: 1 1 0;
     min-width: 0;
+}
+
+.profesional-identity > div:last-child {
+    min-width: 0;
+    flex: 1;
 }
 
 .profesional-avatar {
@@ -508,20 +517,35 @@ body:not(.panel-loading) {
     font-size: 1.05rem;
     font-weight: 600;
     color: var(--ruana-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .profesional-oficio-sub {
     font-size: 0.82rem;
     color: var(--ruana-text-muted);
     margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .profesional-badge {
+    flex-shrink: 0;
     padding: 5px 12px;
     border-radius: 999px;
     font-size: 0.68rem;
     letter-spacing: 0.05em;
     border: 1px solid transparent;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.profesional-badge.conversacion-activa {
+    background: rgba(56, 189, 248, 0.12);
+    border-color: rgba(56, 189, 248, 0.28);
+    color: #7dd3fc;
 }
 
 .profesional-badge:not(.perfil-incompleto):not(.espera):not(.conversacion-activa) {
