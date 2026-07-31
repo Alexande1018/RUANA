@@ -879,6 +879,11 @@
                         const aliadosRegistrados = JSON.parse(localStorage.getItem('ruana_aliados') || '{}');
                         aliadosRegistrados[codigoAliado] = aliadoPayload;
                         localStorage.setItem('ruana_aliados', JSON.stringify(aliadosRegistrados));
+
+                        // Tour: solo la primera entrada al panel tras registrarse
+                        try {
+                            localStorage.setItem('ruana_pending_onboarding_' + codigoAliado, '1');
+                        } catch (_) {}
                         
                         // Guardar en sessionStorage solo si está activo (no pendiente, no en_espera)
                         if (estadoBackend !== 'pendiente_validacion' && estadoBackend !== 'en_espera') {

@@ -3033,7 +3033,13 @@
         class RuanaOnboardingTour {
             constructor(panel) {
                 this.panel = panel;
-                this.storageKeyBase = 'ruana_onboarding_completed_v4';
+                // Clave estable (sin versionar): el autoarranque no debe reaparecer al cambiar el tour.
+                this.seenKeyBase = 'ruana_onboarding_seen';
+                this.pendingKeyBase = 'ruana_pending_onboarding';
+                this.legacyCompletedBases = [
+                    'ruana_onboarding_completed_v4',
+                    'ruana_onboarding_completed_v3'
+                ];
                 this.stepIndex = 0;
                 this.steps = [];
                 this.activeTarget = null;
@@ -3054,13 +3060,54 @@
                 };
             }
 
-            getStorageKey() {
+            getAliadoCodigo() {
                 const codigo = (
                     (this.panel && (this.panel.codigoAliado || (this.panel.aliado && this.panel.aliado.codigo))) ||
                     sessionStorage.getItem('ruana_codigo_aliado') ||
-                    'anon'
-                ).toString().trim() || 'anon';
-                return `${this.storageKeyBase}_${codigo}`;
+                    ''
+                ).toString().trim();
+                return codigo || '';
+            }
+
+            getSeenKey(codigo) {
+                const code = codigo || this.getAliadoCodigo();
+                return code ? `${this.seenKeyBase}_${code}` : null;
+            }
+
+            getPendingKey(codigo) {
+                const code = codigo || this.getAliadoCodigo();
+                return code ? `${this.pendingKeyBase}_${code}` : null;
+            }
+
+            /** Compat: claves antiguas por versión del tour. */
+            hasLegacyCompleted(codigo) {
+                const code = codigo || this.getAliadoCodigo();
+                if (!code) return false;
+                try {
+                    for (let i = 0; i < this.legacyCompletedBases.length; i += 1) {
+                        if (localStorage.getItem(`${this.legacyCompletedBases[i]}_${code}`) === 'true') {
+                            return true;
+                        }
+                    }
+                    if (localStorage.getItem('ruana_onboarding_completed_v2') === 'true') return true;
+                } catch (_) {}
+                return false;
+            }
+
+            hasSeen() {
+                const codigo = this.getAliadoCodigo();
+                if (!codigo) return true;
+                try {
+                    const seenKey = this.getSeenKey(codigo);
+                    if (seenKey && localStorage.getItem(seenKey) === 'true') return true;
+                    if (this.hasLegacyCompleted(codigo)) {
+                        this.markSeen();
+                        return true;
+                    }
+                } catch (_) {
+                    return true;
+                }
+                return false;
             }
 
             isElementUsable(el) {
@@ -3216,16 +3263,30 @@
 
             shouldAutoStart() {
                 try {
-                    const key = this.getStorageKey();
-                    if (localStorage.getItem(key) === 'true') return false;
-                    return true;
+                    const codigo = this.getAliadoCodigo();
+                    // Sin código de aliado no autoarrancamos (evita claves anon y repeticiones).
+                    if (!codigo) return false;
+                    if (this.hasSeen()) return false;
+                    const pendingKey = this.getPendingKey(codigo);
+                    return !!(pendingKey && localStorage.getItem(pendingKey) === '1');
                 } catch (_) {
-                    return true;
+                    return false;
                 }
             }
 
             markSeen() {
-                try { localStorage.setItem(this.getStorageKey(), 'true'); } catch (_) {}
+                try {
+                    const codigo = this.getAliadoCodigo();
+                    if (!codigo) return;
+                    const seenKey = this.getSeenKey(codigo);
+                    const pendingKey = this.getPendingKey(codigo);
+                    if (seenKey) localStorage.setItem(seenKey, 'true');
+                    if (pendingKey) localStorage.removeItem(pendingKey);
+                    // Limpia claves legacy para no reactivar el autoarranque.
+                    this.legacyCompletedBases.forEach((base) => {
+                        try { localStorage.removeItem(`${base}_${codigo}`); } catch (_) {}
+                    });
+                } catch (_) {}
             }
 
             start(force = false) {
@@ -3234,7 +3295,8 @@
                 this.steps = this.buildSteps();
                 if (!this.steps.length) return;
                 // Autoarranque solo una vez: se marca al abrirse, aunque el usuario lo cierre a mitad.
-                if (!force) this.markSeen();
+                // El replay manual (force) también marca visto para no dejar pendiente activo.
+                this.markSeen();
                 document.body.classList.add('ruana-tour-active');
                 this.stepIndex = 0;
                 this.createLayer();
