@@ -533,6 +533,7 @@
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 12px;
             transition: all 0.3s ease;
+            overflow: hidden;
             display: flex;
             flex-direction: column;
             min-width: 0;
@@ -3886,6 +3887,17 @@
                 return 'Sin grupo';
             }
 
+            getGrupoTerritorialLabel(aliado) {
+                const nombre = ((aliado && aliado.grupo_nombre) || '').trim();
+                if (nombre) return nombre;
+                if (aliado && aliado.grupo_id) return '#' + aliado.grupo_id;
+                const estado = ((aliado && aliado.estado) || '').toLowerCase();
+                if (estado === 'en_espera') return 'Suplente en espera (sin plaza)';
+                if (estado === 'pendiente_validacion') return 'Pendiente de validación';
+                if (estado === 'pendiente_completar') return 'Registro incompleto';
+                return 'Sin grupo asignado';
+            }
+
             normalizarCpAliado(a) {
                 return (a && (a.codigo_postal || a.zona) || '').toString().trim() || '(sin CP)';
             }
@@ -4098,7 +4110,7 @@
                             </div>
                             <div class="aliado-info">
                                 <span class="info-label">Grupo</span>
-                                <span class="info-value">${this.escapeHtml((aliado.grupo_nombre || '').trim() || (aliado.grupo_id ? ('#' + aliado.grupo_id) : '—'))}</span>
+                                <span class="info-value">${this.escapeHtml(this.getGrupoTerritorialLabel(aliado))}</span>
                             </div>
                             <div class="aliado-info">
                                 <span class="info-label">Marca</span>
