@@ -71,6 +71,9 @@
             this._drafts = {};
             this._lastAccionKey = '';
             this._wizard = null;
+            this._catalogoCache = {};
+            this._catalogoAbierto = false;
+            this._cambiarServicio = false;
             this._bindModal();
         }
 
@@ -115,6 +118,8 @@
             this._drafts = {};
             this._lastAccionKey = '';
             this._wizard = null;
+            this._catalogoAbierto = false;
+            this._cambiarServicio = false;
             if (dataSnapshot && contactoId && this.panel && typeof this.panel.mostrarAcuerdoFlotanteDesdeNegociacion === 'function') {
                 this.panel.mostrarAcuerdoFlotanteDesdeNegociacion(contactoId, dataSnapshot);
             }
@@ -132,6 +137,96 @@
                 return this.data.campos_solicitante;
             }
             return ['servicio', 'fecha', 'hora', 'direccion', 'observaciones'];
+        }
+
+        _camposWizard(acc) {
+            if (acc && Array.isArray(acc.campos) && acc.campos.length) {
+                return acc.campos;
+            }
+            return this._camposSolicitante();
+        }
+
+        _camposWizardActivos(acc) {
+            const base = this._camposWizard(acc);
+            if (this._cambiarServicio && !base.includes('servicio')) {
+                return ['servicio'].concat(base);
+            }
+            return base;
+        }
+
+        _servicioPrecargado() {
+            if (!this.data) return '';
+            const acc = this.data.accion || {};
+            if (acc.servicio_precargado) return String(acc.servicio_precargado).trim();
+            if (this.data.servicio_contacto) return String(this.data.servicio_contacto).trim();
+            const sug = (acc.valores_sugeridos || {}).servicio;
+            return sug ? String(sug).trim() : '';
+        }
+
+        _ensureWizardServicioPrecargado(acc) {
+            const servicio = this._servicioPrecargado();
+            if (!servicio || this._cambiarServicio) return;
+            const w = this._loadWizard();
+            if (!w.respuestas.servicio) {
+                w.respuestas.servicio = servicio;
+            }
+            const yaHistorial = w.historial.some(h =>
+                h.tipo === 'sistema' && h.campo === 'servicio'
+            );
+            if (!yaHistorial) {
+                w.historial.push({
+                    tipo: 'sistema',
+                    campo: 'servicio',
+                    texto: 'Servicio seleccionado al contactar: «' + servicio + '»',
+                });
+            }
+            this._saveWizard();
+        }
+
+        _htmlSelectorServicio(campo) {
+            if (campo !== 'servicio') return '';
+            return '<div class="neg-servicio-compose">' +
+                '<button type="button" class="neg-btn neg-btn-catalogo-toggle" id="neg-btn-mostrar-catalogo">' +
+                    'Mostrar catálogo de servicios' +
+                '</button>' +
+                '<div id="neg-catalogo-panel" class="neg-catalogo-panel" hidden>' +
+                    '<div id="neg-catalogo-servicios" class="neg-catalogo-list"></div>' +
+                    '<label class="neg-catalogo-otro-label" for="neg-input-valor">Otros</label>' +
+                '</div>' +
+            '</div>';
+        }
+
+        _enlazarCatalogoServicio(campo, profCodigo) {
+            if (campo !== 'servicio' || !profCodigo) return;
+            const btnToggle = document.getElementById('neg-btn-mostrar-catalogo');
+            const panel = document.getElementById('neg-catalogo-panel');
+            if (!btnToggle || !panel) return;
+
+            const abrir = () => {
+                panel.hidden = false;
+                this._catalogoAbierto = true;
+                btnToggle.textContent = 'Ocultar catálogo';
+                btnToggle.setAttribute('aria-expanded', 'true');
+                this._cargarCatalogoServicios(profCodigo, 'neg-catalogo-servicios', 'neg-input-valor');
+            };
+
+            const cerrar = () => {
+                panel.hidden = true;
+                this._catalogoAbierto = false;
+                btnToggle.textContent = 'Mostrar catálogo de servicios';
+                btnToggle.setAttribute('aria-expanded', 'false');
+            };
+
+            if (this._catalogoAbierto) {
+                abrir();
+            } else {
+                cerrar();
+            }
+
+            btnToggle.onclick = () => {
+                if (panel.hidden) abrir();
+                else cerrar();
+            };
         }
 
         _preguntasWizard(acc) {
@@ -186,6 +281,7 @@
         }
 
         _formularioEnUso() {
+            if (this._catalogoAbierto) return true;
             const wrap = document.getElementById('neg-acciones-wrap');
             return !!(wrap && document.activeElement && wrap.contains(document.activeElement));
         }
@@ -382,10 +478,12 @@
             if (acc.tipo === 'wizard_contratante') {
                 const w = this._loadWizard();
                 const preguntas = this._preguntasWizard(acc);
-                const campos = this._camposSolicitante();
+                const campos = this._camposWizardActivos(acc);
                 w.historial.forEach(item => {
                     if (item.tipo === 'pregunta') {
                         parts.push(this._bubbleHtml('theirs', item.texto, profNombre));
+                    } else if (item.tipo === 'sistema') {
+                        parts.push(this._bubbleHtml('system', item.texto, ''));
                     } else {
                         parts.push(this._bubbleHtml('mine', this._formatValor(item.campo, item.texto), 'Tú'));
                     }
@@ -473,6 +571,13 @@
             const acc = this.data.accion;
             const accionKey = this._accionKey(acc);
 
+            if (this._catalogoAbierto && (
+                acc.tipo === 'wizard_contratante'
+                || (acc.tipo === 'proponer' && acc.campo === 'servicio')
+            )) {
+                return;
+            }
+
             if (acc.tipo === 'wizard_contratante') {
                 this._guardarBorradoresFormulario(null);
             } else if (acc.campo) {
@@ -525,16 +630,23 @@
 
         _renderWizardCompose(acc) {
             const el = document.getElementById('neg-acciones-wrap');
+            this._ensureWizardServicioPrecargado(acc);
             const w = this._loadWizard();
-            const campos = this._camposSolicitante();
+            const campos = this._camposWizardActivos(acc);
             const preguntas = this._preguntasWizard(acc);
             const sugeridos = acc.valores_sugeridos || {};
+            const servicioPre = this._servicioPrecargado();
 
             if (w.pasoIdx >= campos.length) {
+                const respuestasFinales = Object.assign({}, w.respuestas);
+                if (servicioPre && !respuestasFinales.servicio) {
+                    respuestasFinales.servicio = servicioPre;
+                }
                 el.innerHTML = `<div class="neg-compose-stack">
+                    ${servicioPre ? `<div class="neg-servicio-precargado"><span class="neg-servicio-precargado-label">Servicio</span><span class="neg-servicio-precargado-valor">${this.escapeHtml(servicioPre)}</span></div>` : ''}
                     <button type="button" class="neg-btn neg-btn-primary neg-btn-block" id="neg-btn-proponer-completa">Enviar todo al profesional</button>
                 </div>`;
-                document.getElementById('neg-btn-proponer-completa').addEventListener('click', () => this.proponerCompleta(w.respuestas));
+                document.getElementById('neg-btn-proponer-completa').addEventListener('click', () => this.proponerCompleta(respuestasFinales));
                 return;
             }
 
@@ -542,14 +654,23 @@
             const inputType = INPUT_TYPES[campo] || 'text';
             const isTextarea = inputType === 'textarea';
             const valorInicial = this._valorBorrador(campo, w.respuestas[campo] || sugeridos[campo] || '');
-            const catalogoHtml = campo === 'servicio'
-                ? '<div id="neg-catalogo-servicios" class="neg-catalogo-list"></div>'
+            const servicioBanner = (servicioPre && !this._cambiarServicio && campo !== 'servicio')
+                ? `<div class="neg-servicio-precargado">
+                    <span class="neg-servicio-precargado-label">Servicio</span>
+                    <span class="neg-servicio-precargado-valor">${this.escapeHtml(servicioPre)}</span>
+                    <button type="button" class="neg-btn-link" id="neg-btn-cambiar-servicio">Modificar</button>
+                   </div>`
                 : '';
+            const catalogoHtml = (campo === 'servicio') ? this._htmlSelectorServicio(campo) : '';
+            const otroPlaceholder = campo === 'servicio'
+                ? 'Describe el servicio que necesitas…'
+                : 'Escribe tu respuesta…';
             const inputHtml = isTextarea
-                ? `<textarea id="neg-input-valor" class="neg-compose-input" placeholder="Escribe tu respuesta…" rows="2">${this.escapeHtml(valorInicial)}</textarea>`
-                : `<input id="neg-input-valor" class="neg-compose-input" type="${inputType}" ${campo === 'precio' ? 'step="0.01" min="0"' : ''} placeholder="Escribe tu respuesta…" value="${this.escapeHtml(valorInicial)}" />`;
+                ? `<textarea id="neg-input-valor" class="neg-compose-input" placeholder="${otroPlaceholder}" rows="2">${this.escapeHtml(valorInicial)}</textarea>`
+                : `<input id="neg-input-valor" class="neg-compose-input" type="${inputType}" ${campo === 'precio' ? 'step="0.01" min="0"' : ''} placeholder="${otroPlaceholder}" value="${this.escapeHtml(valorInicial)}" />`;
 
             el.innerHTML = `<div class="neg-compose-stack">
+                ${servicioBanner}
                 ${catalogoHtml}
                 <div class="neg-compose-row">
                     ${inputHtml}
@@ -559,8 +680,19 @@
 
             if (campo === 'servicio') {
                 const profCodigo = (this.data.profesional_codigo || '').trim();
-                if (profCodigo) this._cargarCatalogoServicios(profCodigo, 'neg-catalogo-servicios', 'neg-input-valor');
+                this._enlazarCatalogoServicio(campo, profCodigo);
             }
+
+            const btnCambiar = document.getElementById('neg-btn-cambiar-servicio');
+            if (btnCambiar) {
+                btnCambiar.addEventListener('click', () => {
+                    this._cambiarServicio = true;
+                    this._catalogoAbierto = false;
+                    this._lastAccionKey = '';
+                    this.renderAcciones();
+                });
+            }
+
             this._enlazarGuardadoBorrador(campo);
 
             const enviar = () => this._wizardEnviarRespuesta(acc, campo, preguntas);
@@ -584,7 +716,7 @@
                 return;
             }
             const w = this._loadWizard();
-            const campos = this._camposSolicitante();
+            const campos = this._camposWizardActivos(acc);
             const pregunta = (preguntas || this._preguntasWizard(acc))[campo] || PREGUNTAS_DEFAULT[campo] || '';
             if (!w.historial.some(h => h.tipo === 'pregunta' && h.campo === campo)) {
                 w.historial.push({ tipo: 'pregunta', campo, texto: pregunta });
@@ -592,6 +724,10 @@
             w.historial.push({ tipo: 'respuesta', campo, texto: valor });
             w.respuestas[campo] = valor;
             w.pasoIdx = campos.indexOf(campo) + 1;
+            if (campo === 'servicio') {
+                this._cambiarServicio = false;
+                this._catalogoAbierto = false;
+            }
             delete this._drafts[campo];
             this._saveWizard();
             this._lastAccionKey = '';
@@ -601,7 +737,15 @@
         }
 
         async proponerCompleta(respuestasPrecargadas) {
-            const body = respuestasPrecargadas || {};
+            const body = Object.assign({}, respuestasPrecargadas || {});
+            const servicioPre = this._servicioPrecargado();
+            if (servicioPre && !body.servicio) {
+                body.servicio = servicioPre;
+            }
+            const w = this._loadWizard();
+            if (w && w.respuestas) {
+                Object.assign(body, w.respuestas);
+            }
             const campos = this._camposSolicitante();
             if (!Object.keys(body).length) {
                 campos.forEach(campo => {
@@ -617,6 +761,8 @@
             }
             await this._post(`/api/contactos/${this.contactoId}/negociacion/proponer-completa`, body, true);
             this._clearWizard();
+            this._cambiarServicio = false;
+            this._catalogoAbierto = false;
         }
 
         _renderFormProponer(acc) {
@@ -625,16 +771,23 @@
             const inputType = INPUT_TYPES[campo] || 'text';
             const isTextarea = inputType === 'textarea';
             const valorInicial = this._valorBorrador(campo, acc.valor_actual || acc.valor_sugerido || '');
+            const catalogoHtml = campo === 'servicio' ? this._htmlSelectorServicio(campo) : '';
+            const placeholder = campo === 'servicio' ? 'Describe el servicio…' : (campo === 'precio' ? 'Precio en €' : 'Escribe…');
             const inputHtml = isTextarea
-                ? `<textarea id="neg-input-valor" class="neg-compose-input" placeholder="Escribe…" rows="2">${this.escapeHtml(valorInicial)}</textarea>`
-                : `<input id="neg-input-valor" class="neg-compose-input" type="${inputType}" ${campo === 'precio' ? 'step="0.01" min="0"' : ''} placeholder="${campo === 'precio' ? 'Precio en €' : 'Escribe…'}" value="${this.escapeHtml(valorInicial)}" />`;
+                ? `<textarea id="neg-input-valor" class="neg-compose-input" placeholder="${placeholder}" rows="2">${this.escapeHtml(valorInicial)}</textarea>`
+                : `<input id="neg-input-valor" class="neg-compose-input" type="${inputType}" ${campo === 'precio' ? 'step="0.01" min="0"' : ''} placeholder="${placeholder}" value="${this.escapeHtml(valorInicial)}" />`;
             const btnLabel = acc.modificar_propia ? 'Actualizar' : (campo === 'precio' ? 'Proponer precio' : 'Enviar');
             el.innerHTML = `<div class="neg-compose-stack">
+                ${catalogoHtml}
                 <div class="neg-compose-row">
                     ${inputHtml}
                     <button type="button" class="neg-btn neg-btn-primary neg-btn-send" id="neg-btn-proponer">${btnLabel}</button>
                 </div>
             </div>`;
+            if (campo === 'servicio') {
+                const profCodigo = (this.data.profesional_codigo || '').trim();
+                this._enlazarCatalogoServicio(campo, profCodigo);
+            }
             this._enlazarGuardadoBorrador(campo);
             document.getElementById('neg-btn-proponer').addEventListener('click', () => this.proponer(campo));
         }
@@ -749,18 +902,10 @@
         async _cargarCatalogoServicios(codigoProfesional, containerId, inputId, onSelect) {
             const container = document.getElementById(containerId);
             if (!container || !codigoProfesional) return;
-            container.innerHTML = '<p class="neg-esperar-msg">Cargando catálogo…</p>';
-            try {
-                const resp = await fetch(`/api/aliados/${encodeURIComponent(codigoProfesional)}/catalogo-servicios`, {
-                    credentials: 'same-origin',
-                    headers: getAuthHeaders(),
-                });
-                const data = await resp.json();
-                const servicios = (data.status === 'success' && Array.isArray(data.servicios))
-                    ? data.servicios.filter(s => s.configurado && s.descripcion)
-                    : [];
+
+            const renderItems = (servicios) => {
                 if (!servicios.length) {
-                    container.innerHTML = '';
+                    container.innerHTML = '<p class="neg-catalogo-empty">Este profesional aún no tiene servicios en su catálogo. Usa el campo «Otros».</p>';
                     return;
                 }
                 container.innerHTML = servicios.map((s, idx) => {
@@ -786,8 +931,30 @@
                         }
                     });
                 });
+            };
+
+            if (this._catalogoCache[codigoProfesional]) {
+                renderItems(this._catalogoCache[codigoProfesional]);
+                return;
+            }
+
+            container.innerHTML = '<p class="neg-catalogo-loading">Cargando catálogo…</p>';
+            try {
+                const resp = await fetch(`/api/aliados/${encodeURIComponent(codigoProfesional)}/catalogo-servicios`, {
+                    credentials: 'same-origin',
+                    headers: getAuthHeaders(),
+                });
+                const data = await resp.json();
+                const servicios = (data.status === 'success' && Array.isArray(data.servicios))
+                    ? data.servicios.filter(s => s.configurado && s.descripcion)
+                    : [];
+                this._catalogoCache[codigoProfesional] = servicios;
+                if (!document.getElementById(containerId)) return;
+                renderItems(servicios);
             } catch (e) {
-                container.innerHTML = '';
+                if (container) {
+                    container.innerHTML = '<p class="neg-catalogo-empty">No se pudo cargar el catálogo. Escribe el servicio manualmente.</p>';
+                }
             }
         }
 

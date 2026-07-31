@@ -40,6 +40,8 @@ class TestNegociacionGuiada(unittest.TestCase):
         self.assertEqual(sol['status'], 'success')
         self.assertEqual(sol['accion']['tipo'], 'wizard_contratante')
         self.assertEqual(sol['accion'].get('valores_sugeridos', {}).get('servicio'), 'Reparación grifo')
+        self.assertEqual(sol['accion'].get('servicio_precargado'), 'Reparación grifo')
+        self.assertNotIn('servicio', sol['accion'].get('campos', []))
         self.assertNotIn('precio', sol['accion'].get('campos', []))
 
         pro = self.db.obtener_negociacion_contacto(cid, '90002')
