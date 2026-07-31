@@ -187,12 +187,13 @@ async function closeNoWorkViaUi(page, scenario, roleLabel) {
 
 async function uploadComprobanteViaUi(page, scenario) {
   await test.step('Profesional sube comprobante desde el panel', async () => {
-    await reviewSection(page, scenario, '#pagos-apoyo-ruana-wrap', {
+    await reviewSection(page, scenario, '#ruana-alert-hub', {
       step: 'Revisar Apoyo RUANA pendiente',
-      action: 'El profesional baja hasta el bloque de pagos pendientes.',
-      expected: 'Debe aparecer la accion Enviar comprobante de pago a RUANA.',
-      result: 'El bloque de pago pendiente queda visible.',
+      action: 'El profesional revisa el aviso compacto de Apoyo RUANA.',
+      expected: 'Debe aparecer la tarjeta con accion Gestionar.',
+      result: 'El hub de alertas muestra el pago pendiente.',
     });
+    await clickVisible(page, '[data-alert-action="apoyo-pago"]');
     await clickVisible(page, '.btn-aceptar-pagar');
     await expect(page.locator('#modal-paypal-apoyo')).toHaveClass(/show/);
     await expect(page.locator('#modal-paypal-apoyo')).toContainText('Se te va a redirigir a PayPal');
@@ -675,13 +676,14 @@ test.describe('RUANA QA critica con video human-readable', () => {
     await loginAdminAsUser(page, scenario);
     await adminRejectPaymentViaUi(page, scenario, pagoRechazar.contactoId);
     await openAliadoPanel(page, pagoRechazar.profesionalSession, scenario, 'Profesional con pago rechazado');
-    await reviewSection(page, scenario, '#notificaciones-ruana-wrap', {
+    await reviewSection(page, scenario, '#ruana-alert-hub', {
       step: 'Profesional recibe mensaje de RUANA',
-      action: 'Tras el rechazo, el profesional revisa sus mensajes.',
+      action: 'Tras el rechazo, el profesional revisa el hub de alertas.',
       expected: 'Debe ver una notificacion con el motivo del rechazo.',
-      result: 'El bloque de mensajes de RUANA queda visible.',
+      result: 'La tarjeta de mensajes de RUANA queda visible.',
     });
-    await expect(page.locator('#notificaciones-ruana-wrap')).toContainText('Comprobante ilegible');
+    await clickVisible(page, '[data-alert-action="mensajes-ruana"]');
+    await expect(page.locator('#ruana-alert-hub')).toContainText('Comprobante ilegible');
     await pass(page, scenario, {
       step: 'Notificacion de rechazo visible',
       action: 'El profesional ve el motivo enviado por admin.',
@@ -812,12 +814,13 @@ test.describe('RUANA QA critica con video human-readable', () => {
         await dialog.accept();
       };
       page.on('dialog', dialogHandler);
-      await reviewSection(page, scenario, '#pagos-apoyo-ruana-wrap', {
+      await reviewSection(page, scenario, '#ruana-alert-hub', {
         step: 'Ver pago reclamable',
-        action: 'El profesional ve el pago pendiente antes de reclamar.',
-        expected: 'Debe aparecer Impugnar o reclamar.',
-        result: 'El bloque de Apoyo RUANA queda visible.',
+        action: 'El profesional abre el detalle del Apoyo RUANA pendiente.',
+        expected: 'Debe aparecer Reclamar.',
+        result: 'El hub de Apoyo RUANA queda visible.',
       });
+      await clickVisible(page, '[data-alert-action="apoyo-pago"]');
       await clickVisible(page, '.btn-impugnar-apoyo');
       page.off('dialog', dialogHandler);
       await pass(page, scenario, {

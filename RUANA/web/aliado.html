@@ -6,6 +6,7 @@
     <title>RUANA - Panel Privado del Aliado</title>
     <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="/static/css/ruana-feedback.css">
+    <link rel="stylesheet" href="/static/css/ruana-alert-hub.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -2228,6 +2229,7 @@
     <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
     <script src="/static/js/ruana-atmosphere.js" defer></script>
     <script src="/static/js/ruana-ui.js" defer></script>
+    <script src="/static/js/ruana-alert-hub.js" defer></script>
     <script src="/static/js/aliado-shell.js" defer></script>
     <link rel="stylesheet" href="/static/css/negociacion-guiada.css">
     <script src="/static/js/negociacion-guiada.js" defer></script>
@@ -2331,25 +2333,14 @@
         </div>
 
         <div class="aliado-shell-alerts" id="aliado-shell-alerts">
-        <!-- Banner: Tienes un mensaje nuevo de RUANA -->
-        <div id="banner-mensaje-nuevo-ruana" class="ruana-feedback ruana-feedback--banner ruana-feedback--warning" style="display:none;">
-            <span class="ruana-feedback__icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
-            <div class="ruana-feedback__content">
-                <div class="ruana-feedback__title">Mensaje nuevo de RUANA</div>
-                <div class="ruana-feedback__message">Tienes un mensaje nuevo pendiente de revisar.</div>
-            </div>
+        <!-- Hub compacto: Apoyo RUANA, pagos pendientes, mensajes RUANA -->
+        <div id="ruana-alert-hub" class="ruana-alert-hub" hidden>
+            <div class="ruana-alert-hub__cards"></div>
+            <button type="button" class="ruana-alert-hub__more" hidden>Ver más avisos</button>
+            <div class="ruana-alert-hub__detail" hidden></div>
         </div>
 
-        <!-- Aviso pagos RUANA pendientes (no bloquea acceso; no puede aceptar nuevos trabajos) -->
-        <div id="aviso-pagos-pendientes-banner" class="ruana-feedback ruana-feedback--banner ruana-feedback--warning" style="display:none;">
-            <span class="ruana-feedback__icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>
-            <div class="ruana-feedback__content">
-                <div class="ruana-feedback__title">Pagos pendientes</div>
-                <div class="ruana-feedback__message">Tienes pagos pendientes con RUANA. No podrás aceptar nuevos trabajos hasta regularizar la situación.</div>
-            </div>
-        </div>
-        
-        <!-- Seguimiento del encargo RUANA -->
+        <!-- Seguimiento del encargo RUANA (acción pendiente — workflow activo) -->
         <div id="contacto-aviso-persistente" class="encargo-seguimiento-card" style="display:none;">
             <div class="encargo-seguimiento-top">
                 <span class="encargo-seguimiento-estado" id="contacto-aviso-estado">Encargo activo</span>
@@ -2380,25 +2371,6 @@
             </div>
         </div>
 
-        <!-- Apoyo RUANA pendiente de pago (solo profesional, estado_pago = pendiente_pago) -->
-        <div id="pagos-apoyo-ruana-wrap" class="contacto-aviso" style="display:none; margin-bottom: 0;">
-            <div class="contacto-aviso-header">
-                <span class="contacto-aviso-titulo">Apoyo RUANA pendiente de pago</span>
-            </div>
-            <div class="contacto-aviso-texto">
-                Tienes uno o más contactos cerrados con Apoyo RUANA por abonar. Sube el comprobante de pago para que RUANA lo revise.
-            </div>
-            <div id="pagos-apoyo-ruana-lista" style="margin-top: 12px;"></div>
-        </div>
-
-        <!-- Mensajes de RUANA (notificaciones: comprobante rechazado, etc.) -->
-        <div id="notificaciones-ruana-wrap" class="contacto-aviso" style="display:none; margin-bottom: 0;">
-            <div class="contacto-aviso-header" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
-                <span class="contacto-aviso-titulo">Mensajes de RUANA</span>
-                <button type="button" id="btn-marcar-notificaciones-leidas" class="contacto-aviso-btn" style="display:none;">Marcar mensajes como leídos</button>
-            </div>
-            <div id="notificaciones-ruana-lista" style="margin-top: 12px;"></div>
-        </div>
         </div><!-- /.aliado-shell-alerts -->
 
         <!-- MÓDULO: Inicio (centro operativo) -->
@@ -2831,7 +2803,7 @@
             <div id="contacto-previo-catalogo-wrap" class="neg-catalogo-wrap" style="display:none;">
                 <p class="neg-catalogo-titulo">Elige el servicio que necesitas:</p>
                 <div id="contacto-previo-catalogo-list" class="neg-catalogo-list"></div>
-                <input type="text" id="contacto-previo-servicio-otro" class="neg-catalogo-otro" placeholder="O escribe otro servicio…" autocomplete="off">
+                <input type="text" id="contacto-previo-servicio-otro" class="neg-catalogo-otro" placeholder="Otros — describe el servicio que necesitas…" autocomplete="off">
             </div>
             <div class="modal-contacto-actions">
                 <button id="btn-contacto-previo-confirm" class="modal-contacto-btn confirm">Iniciar negociación</button>
@@ -3658,6 +3630,7 @@
                 this._syncInProgress = false;
                 this._autoSyncIntervalId = null;
                 this._contactoIdImpugnarApoyo = null;
+                this._alertHubState = { showAll: false, expandedDetailId: null };
                 this.metodosPagoRuana = {
                     bizum_num: window.RUANA_BIZUM_NUM || '642868261',
                     iban: window.RUANA_IBAN || 'ES8915830001119028625152',
@@ -3739,7 +3712,7 @@
                     metricas: '.metricas-block',
                     directorio: '.directorio-panel',
                     solicitudes: '.solicitudes-zone',
-                    alertas: '#notificaciones-ruana-wrap',
+                    alertas: '#ruana-alert-hub',
                     centro: '#ruana-help-center'
                 };
                 return (sections || [])
@@ -5511,9 +5484,6 @@
                 if (btnCerrarInv) btnCerrarInv.addEventListener('click', () => this.cerrarModalInvitacionOficio());
                 if (modalInv) modalInv.addEventListener('click', (e) => { if (e.target === modalInv) this.cerrarModalInvitacionOficio(); });
 
-                const btnMarcarNotifLeidas = document.getElementById('btn-marcar-notificaciones-leidas');
-                if (btnMarcarNotifLeidas) btnMarcarNotifLeidas.addEventListener('click', () => this.marcarTodasNotificacionesLeidas());
-
                 // Al volver a la pestaña: recargar datos de alertas y re-evaluar banners
                 document.addEventListener('visibilitychange', () => {
                     if (document.visibilityState !== 'visible' || !this.codigoAliado) return;
@@ -5806,20 +5776,156 @@
                 if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons(document.getElementById('profesionales-list'));
             }
 
-            /**
-             * Muestra u oculta los banners de alerta según el estado actual (solo datos en memoria).
-             * No hace fetch; se basa en this.notificaciones y this.contactosPagoPendiente.
-             */
-            renderAlertas() {
-                const notifs = Array.isArray(this.notificaciones) ? this.notificaciones : [];
-                const contactosPago = Array.isArray(this.contactosPagoPendiente) ? this.contactosPagoPendiente : [];
-                const hayNotifNoLeidas = notifs.some(n => n.leida === 0);
-                const hayPagosPendientes = contactosPago.length > 0;
+            formatApoyoRuana(raw) {
+                const apoyoNum = (raw != null && raw !== '' && !Number.isNaN(Number(raw))) ? Number(raw) : null;
+                if (apoyoNum != null && Number.isFinite(apoyoNum) && apoyoNum > 0) {
+                    return apoyoNum.toFixed(2) + ' €';
+                }
+                return 'Pendiente de cálculo';
+            }
 
-                const bannerMensaje = document.getElementById('banner-mensaje-nuevo-ruana');
-                const bannerPagos = document.getElementById('aviso-pagos-pendientes-banner');
-                if (bannerMensaje) bannerMensaje.style.display = hayNotifNoLeidas ? 'flex' : 'none';
-                if (bannerPagos) bannerPagos.style.display = hayPagosPendientes ? 'flex' : 'none';
+            buildAlertItems() {
+                const items = [];
+                const contactos = Array.isArray(this.contactosPagoPendiente) ? this.contactosPagoPendiente : [];
+                const notifs = (Array.isArray(this.notificaciones) ? this.notificaciones : []).filter(n => n && n.leida === 0);
+                const hub = typeof RuanaAlertHub !== 'undefined' ? RuanaAlertHub : null;
+                const trunc = hub ? hub.truncate.bind(hub) : (s, n) => String(s || '').slice(0, n);
+
+                if (contactos.length > 0) {
+                    const first = contactos[0];
+                    const apoyo = this.formatApoyoRuana(first.apoyo_ruana);
+                    items.push({
+                        id: 'apoyo-pago',
+                        type: 'payment',
+                        priority: 100,
+                        title: contactos.length === 1 ? 'Apoyo RUANA (12%) pendiente' : contactos.length + ' apoyos RUANA pendientes',
+                        description: contactos.length === 1
+                            ? trunc((first.servicio || 'Contacto') + ' · ' + apoyo, 52)
+                            : 'Regulariza el 12% de ' + contactos.length + ' encargos cerrados',
+                        actionLabel: 'Gestionar',
+                        hasDetail: true
+                    });
+                    items.push({
+                        id: 'pagos-restriccion',
+                        type: 'info',
+                        priority: 70,
+                        title: 'Nuevos trabajos limitados',
+                        description: 'Regulariza tus pagos para aceptar encargos',
+                        actionLabel: null,
+                        hasDetail: false
+                    });
+                }
+
+                if (notifs.length > 0) {
+                    const firstN = notifs[0];
+                    items.push({
+                        id: 'mensajes-ruana',
+                        type: 'message',
+                        priority: 90,
+                        title: notifs.length === 1 ? (firstN.titulo || 'Mensaje de RUANA') : notifs.length + ' mensajes de RUANA',
+                        description: notifs.length === 1
+                            ? trunc(firstN.mensaje || '', 56)
+                            : 'Comunicaciones sin leer del equipo RUANA',
+                        actionLabel: 'Ver',
+                        hasDetail: true
+                    });
+                }
+
+                return items.sort((a, b) => b.priority - a.priority);
+            }
+
+            renderAlertDetailPanel(detailEl, detailId) {
+                const hub = typeof RuanaAlertHub !== 'undefined' ? RuanaAlertHub : null;
+                if (!hub) return;
+                const self = this;
+                const titles = {
+                    'apoyo-pago': 'Apoyo RUANA pendiente',
+                    'mensajes-ruana': 'Mensajes de RUANA'
+                };
+                const body = hub.renderDetailHeader(detailEl, titles[detailId] || 'Detalle', function () {
+                    self._alertHubState.expandedDetailId = null;
+                    self.renderAlertHub();
+                });
+
+                if (detailId === 'apoyo-pago') {
+                    const contactos = Array.isArray(this.contactosPagoPendiente) ? this.contactosPagoPendiente : [];
+                    contactos.forEach(c => {
+                        const apoyo = this.formatApoyoRuana(c.apoyo_ruana);
+                        const servicio = this.escapeHtml(c.servicio || 'Contacto');
+                        const apoyoNum = (c.apoyo_ruana != null && c.apoyo_ruana !== '' && !Number.isNaN(Number(c.apoyo_ruana))) ? Number(c.apoyo_ruana) : 0;
+                        const div = document.createElement('div');
+                        div.className = 'ruana-alert-detail-item';
+                        div.innerHTML =
+                            '<div class="ruana-alert-detail-item__text">' +
+                                'Contacto <strong>#' + c.id + '</strong> · ' + servicio +
+                                ' · Apoyo: <strong>' + apoyo + '</strong>' +
+                            '</div>' +
+                            '<div class="ruana-alert-detail-item__actions">' +
+                                '<button type="button" class="ruana-alert-detail-btn ruana-alert-detail-btn--primary btn-aceptar-pagar">Aceptar y pagar</button>' +
+                                '<button type="button" class="ruana-alert-detail-btn btn-impugnar-apoyo">Reclamar</button>' +
+                                '<button type="button" class="ruana-alert-detail-btn btn-enviar-comprobante">Comprobante</button>' +
+                            '</div>';
+                        div.querySelector('.btn-enviar-comprobante')?.addEventListener('click', () => this.abrirModalComprobanteApoyo(c.id));
+                        div.querySelector('.btn-aceptar-pagar')?.addEventListener('click', () => this.abrirModalPagoApoyo(c.id, apoyoNum, c.servicio || 'Contacto'));
+                        div.querySelector('.btn-impugnar-apoyo')?.addEventListener('click', () => this.abrirModalImpugnarApoyo(c.id));
+                        body.appendChild(div);
+                    });
+                } else if (detailId === 'mensajes-ruana') {
+                    const notifs = (Array.isArray(this.notificaciones) ? this.notificaciones : []).filter(n => n && n.leida === 0);
+                    notifs.forEach(n => {
+                        const fecha = (n.creado_en ? new Date(n.creado_en).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '');
+                        const div = document.createElement('div');
+                        div.className = 'ruana-alert-notif is-unread';
+                        div.innerHTML =
+                            '<div class="ruana-alert-notif__head">' +
+                                '<span class="ruana-alert-notif__title">' + this.escapeHtml(n.titulo || 'Mensaje de RUANA') + '</span>' +
+                                (fecha ? '<span class="ruana-alert-notif__date">' + fecha + '</span>' : '') +
+                            '</div>' +
+                            '<div class="ruana-alert-notif__body">' + this.escapeHtml(n.mensaje || '') + '</div>';
+                        body.appendChild(div);
+                    });
+                    const footer = document.createElement('div');
+                    footer.className = 'ruana-alert-hub__detail-footer';
+                    footer.innerHTML = '<button type="button" class="ruana-alert-detail-btn" id="btn-marcar-notificaciones-leidas">Marcar como leídos</button>';
+                    body.appendChild(footer);
+                    footer.querySelector('#btn-marcar-notificaciones-leidas')?.addEventListener('click', () => this.marcarTodasNotificacionesLeidas());
+                }
+            }
+
+            renderAlertHub() {
+                const hubEl = document.getElementById('ruana-alert-hub');
+                if (!hubEl || typeof RuanaAlertHub === 'undefined') return;
+                const items = this.buildAlertItems();
+                const self = this;
+
+                if (items.length === 0) {
+                    this._alertHubState = { showAll: false, expandedDetailId: null };
+                } else if (this._alertHubState.expandedDetailId &&
+                    !items.some(i => i.id === this._alertHubState.expandedDetailId)) {
+                    this._alertHubState.expandedDetailId = null;
+                }
+
+                RuanaAlertHub.render(hubEl, items, this._alertHubState, {
+                    onAction: function (item) {
+                        if (item.hasDetail) {
+                            self._alertHubState.expandedDetailId =
+                                self._alertHubState.expandedDetailId === item.id ? null : item.id;
+                            self._alertHubState.showAll = true;
+                        }
+                        self.renderAlertHub();
+                    },
+                    onShowAll: function () {
+                        self._alertHubState.showAll = true;
+                        self.renderAlertHub();
+                    },
+                    renderDetail: function (detailEl, detailId) {
+                        self.renderAlertDetailPanel(detailEl, detailId);
+                    }
+                });
+            }
+
+            renderAlertas() {
+                this.renderAlertHub();
             }
 
             async cargarMetodosPagoRuana() {
@@ -5873,87 +5979,16 @@
                 }
             }
 
-            /**
-             * Rellena el bloque de "Apoyo RUANA pendiente de pago" desde this.contactosPagoPendiente.
-             * No hace fetch; solo actualiza el DOM. Llamar después de actualizar this.contactosPagoPendiente.
-             */
             renderListaPagosPendientes() {
-                const wrap = document.getElementById('pagos-apoyo-ruana-wrap');
-                const listaEl = document.getElementById('pagos-apoyo-ruana-lista');
-                if (!wrap || !listaEl) return;
-                const contactos = Array.isArray(this.contactosPagoPendiente) ? this.contactosPagoPendiente : [];
-                if (contactos.length === 0) {
-                    wrap.style.display = 'none';
-                    return;
-                }
-                wrap.style.display = 'block';
-                listaEl.innerHTML = '';
-                contactos.forEach(c => {
-                    const raw = c.apoyo_ruana;
-                    const apoyoNum = (raw != null && raw !== '' && !Number.isNaN(Number(raw))) ? Number(raw) : null;
-                    const apoyo = (apoyoNum != null && Number.isFinite(apoyoNum) && apoyoNum > 0)
-                        ? apoyoNum.toFixed(2) + ' €'
-                        : 'Pendiente de cálculo';
-                    const servicio = this.escapeHtml(c.servicio || 'Contacto');
-                    const div = document.createElement('div');
-                    div.className = 'pago-apoyo-item';
-                    div.style.cssText = 'margin-bottom:12px; padding:12px; background: rgba(0,0,0,0.2); border-radius:8px; display:flex; flex-wrap:wrap; align-items:center; gap:12px;';
-                    div.innerHTML = `
-                        <span style="flex:1; min-width:200px;">Contacto #${c.id} · ${servicio} · Apoyo RUANA: <strong>${apoyo}</strong></span>
-                        <div class="pago-apoyo-botones" style="display:flex; flex-wrap:wrap; gap:8px;">
-                            <button type="button" class="contacto-aviso-btn btn-aceptar-pagar">Aceptar y pagar</button>
-                            <button type="button" class="contacto-aviso-btn btn-impugnar-apoyo">Impugnar o reclamar</button>
-                            <button type="button" class="contacto-aviso-btn btn-enviar-comprobante" data-contacto-id="${c.id}">Enviar comprobante de pago a RUANA</button>
-                        </div>
-                    `;
-                    const btnComprobante = div.querySelector('.btn-enviar-comprobante');
-                    const btnAceptarPagar = div.querySelector('.btn-aceptar-pagar');
-                    const btnImpugnar = div.querySelector('.btn-impugnar-apoyo');
-                    if (btnComprobante) btnComprobante.addEventListener('click', () => this.abrirModalComprobanteApoyo(c.id));
-                    const importeParaModal = (apoyoNum != null && Number.isFinite(apoyoNum)) ? apoyoNum : 0;
-                    if (btnAceptarPagar) btnAceptarPagar.addEventListener('click', () => this.abrirModalPagoApoyo(c.id, importeParaModal, c.servicio || 'Contacto'));
-                    if (btnImpugnar) btnImpugnar.addEventListener('click', () => this.abrirModalImpugnarApoyo(c.id));
-                    listaEl.appendChild(div);
-                });
+                this.renderAlertHub();
             }
 
-            /**
-             * Renderizar mensajes de RUANA (notificaciones: comprobante rechazado, pago aceptado, etc.)
-             * No modifica banners; usar renderAlertas() para eso.
-             */
             renderNotificaciones() {
-                const wrap = document.getElementById('notificaciones-ruana-wrap');
-                const list = document.getElementById('notificaciones-ruana-lista');
-                if (!wrap || !list) return;
-                const notifs = Array.isArray(this.notificaciones) ? this.notificaciones : [];
-                // Mostrar solo no leídas (si no hay no leídas, se considera "cerrado")
-                const visibles = notifs.filter(n => n && n.leida === 0);
-                if (visibles.length === 0) {
-                    wrap.style.display = 'none';
-                    return;
-                }
-                wrap.style.display = 'flex';
-                const hayNoLeidas = true;
-                const btnMarcarLeidas = document.getElementById('btn-marcar-notificaciones-leidas');
-                if (btnMarcarLeidas) btnMarcarLeidas.style.display = hayNoLeidas ? 'inline-block' : 'none';
-                list.innerHTML = visibles.map(n => {
-                    const fecha = (n.creado_en ? new Date(n.creado_en).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '');
-                    const titulo = this.escapeHtml(n.titulo || 'Mensaje de RUANA');
-                    const mensaje = this.escapeHtml(n.mensaje || '');
-                    const noLeida = n.leida === 0 ? ' notif-no-leida' : '';
-                    return `<div class="contacto-aviso-texto notificacion-item${noLeida}" data-notif-id="${n.id || ''}">
-                        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:6px;">
-                            <strong style="font-size:0.95rem;">${titulo}</strong>
-                            ${fecha ? `<span class="notif-fecha" style="color:var(--ruana-text-subtle); font-size:0.78rem; white-space:nowrap;">${fecha}</span>` : ''}
-                        </div>
-                        <span style="white-space:pre-wrap; color:var(--ruana-text-muted); font-size:0.88rem; line-height:1.5;">${mensaje}</span>
-                    </div>`;
-                }).join('');
-                if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons(document.getElementById('notificaciones-ruana-lista'));
+                this.renderAlertHub();
             }
 
             /**
-             * Marcar todas las notificaciones del aliado como leídas (cierra alerta "Tienes un mensaje nuevo").
+             * Marcar todas las notificaciones del aliado como leídas.
              */
             async marcarTodasNotificacionesLeidas() {
                 const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';

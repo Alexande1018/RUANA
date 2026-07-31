@@ -1051,6 +1051,13 @@ def aliado_shell_preview():
     return send_from_directory(str(web_dir), 'aliado-shell-preview.html')
 
 
+@app.route('/alert-hub-preview')
+@app.route('/alert-hub-preview.html')
+def alert_hub_preview():
+    """Preview del hub de alertas compactas"""
+    return send_from_directory(str(web_dir), 'alert-hub-preview.html')
+
+
 @app.route('/static/<path:path>')
 def static_files(path):
     """Sirve archivos est?ticos (CSS, JS, etc)"""
