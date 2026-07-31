@@ -1858,14 +1858,20 @@
             right: 18px;
             bottom: 152px;
             z-index: 1200;
+            width: 48px;
+            height: 48px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             border-radius: 999px;
             border: 1px solid rgba(255,255,255,0.16);
             background: rgba(8, 14, 28, 0.72);
             color: #dff7cb;
             backdrop-filter: blur(14px);
             -webkit-backdrop-filter: blur(14px);
-            padding: 10px 14px;
-            font-size: 0.82rem;
+            font-size: 1.2rem;
+            line-height: 1;
             font-weight: 600;
             cursor: pointer;
             transition: background 180ms ease, transform 140ms ease;
@@ -1913,6 +1919,9 @@
             .ruana-tour-replay {
                 right: 12px;
                 bottom: 136px;
+                width: 44px;
+                height: 44px;
+                font-size: 1.1rem;
             }
         }
 
@@ -2775,7 +2784,7 @@
 
 
 
-    <button type="button" id="btn-replay-onboarding" class="ruana-tour-replay" aria-label="Repetir tour de RUANA">✨ Ver tour RUANA</button>
+    <button type="button" id="btn-replay-onboarding" class="ruana-tour-replay" aria-label="Repetir tour de RUANA" title="Tour RUANA">✨</button>
 
     <script>
         /**
@@ -2979,7 +2988,7 @@
                         selector: '#btn-replay-onboarding',
                         module: null,
                         title: 'Tour cuando lo necesites',
-                        copy: 'Puedes repetir esta guía cuando quieras con “Ver tour RUANA”. Listo para trabajar.',
+                        copy: 'Puedes repetir esta guía cuando quieras con el botón ✨. Listo para trabajar.',
                         placement: 'left',
                         final: true
                     }
