@@ -829,4 +829,9 @@ def construir_payload(
             else contacto.get('resumen_dismiss_profesional_en')
         ),
         'acuerdo_alcanzado_en': contacto.get('acuerdo_alcanzado_en'),
+        'importe_acordado': (
+            float(contacto['importe_acordado'])
+            if contacto.get('importe_acordado') is not None
+            else None
+        ),
     }
