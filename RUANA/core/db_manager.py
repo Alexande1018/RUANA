@@ -130,8 +130,9 @@ class DBManager:
             self._migrar_importe_acordado(conn, cursor)
             self._migrar_aliado_accesos_dia(conn, cursor)
             self._migrar_centro_comunicacion_ruana(conn, cursor)
+            self._migrar_aliados_eliminados(conn, cursor)
             conn.commit()
-            print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil + linaje + urgente + negociación guiada + accesos día + retador)")
+            print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil + linaje + urgente + negociación guiada + accesos día + retador + aliados eliminados)")
         except Exception as e:
             print(f"[RUANA][DB] Error inicializando esquema Postgres: {e}")
         finally:
@@ -527,6 +528,7 @@ class DBManager:
                 self._migrar_drop_especializaciones(conn, cursor)
                 self._migrar_retador_rename(conn, cursor)
                 self._migrar_competencia_permanencia(conn, cursor)
+                self._migrar_aliados_eliminados(conn, cursor)
 
                 conn.commit()
                 print(f"[RUANA][DB] Base de datos inicializada en: {self.db_path}")
@@ -11923,6 +11925,183 @@ class DBManager:
                 except Exception:
                     pass
 
+    def _migrar_aliados_eliminados(self, conn, cursor) -> None:
+        """Tabla de archivo: un único registro por aliado eliminado definitivamente."""
+        id_col = "SERIAL PRIMARY KEY" if self.backend == "postgres" else "INTEGER PRIMARY KEY AUTOINCREMENT"
+        cursor.execute(f"""
+            CREATE TABLE IF NOT EXISTS aliados_eliminados (
+                id {id_col},
+                codigo TEXT NOT NULL,
+                nombre TEXT,
+                marca TEXT,
+                oficio TEXT,
+                codigo_postal TEXT,
+                email TEXT,
+                telefono TEXT,
+                estado_anterior TEXT,
+                motivo TEXT,
+                admin_codigo TEXT,
+                eliminado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_aliados_eliminados_codigo ON aliados_eliminados(codigo)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_aliados_eliminados_fecha ON aliados_eliminados(eliminado_en DESC)"
+        )
+
+    def _purga_datos_aliado_completa(self, cursor, codigo: str, aliado_id: int) -> None:
+        """
+        Elimina todos los registros relacionados con un aliado antes del borrado físico.
+        Libera restricciones UNIQUE y referencias en tablas hijas.
+        """
+        codigo = (codigo or '').strip()
+        if not codigo:
+            return
+
+        col_retador = self._columna_retador_competencia(cursor)
+        contacto_filter = (
+            "SELECT id FROM contactos_ruana "
+            "WHERE solicitante_codigo = ? OR profesional_codigo = ?"
+        )
+
+        cursor.execute(
+            f"DELETE FROM negociacion_eventos WHERE contacto_id IN ({contacto_filter})",
+            (codigo, codigo),
+        )
+        cursor.execute(
+            f"DELETE FROM chat_mensajes WHERE contacto_id IN ({contacto_filter}) OR emisor_codigo = ?",
+            (codigo, codigo, codigo),
+        )
+        cursor.execute(
+            f"DELETE FROM contacto_panel_oculto WHERE codigo_aliado = ? "
+            f"OR contacto_id IN ({contacto_filter})",
+            (codigo, codigo, codigo),
+        )
+        cursor.execute(
+            f"DELETE FROM contacto_penalizaciones_aplicadas WHERE contacto_id IN ({contacto_filter})",
+            (codigo, codigo),
+        )
+        cursor.execute(
+            f"DELETE FROM confirmaciones_trabajo WHERE aliado_id = ? "
+            f"OR contacto_id IN ({contacto_filter})",
+            (aliado_id, codigo, codigo),
+        )
+        cursor.execute(
+            "DELETE FROM payment_conflicts WHERE contratante_id = ? OR profesional_id = ?",
+            (aliado_id, aliado_id),
+        )
+        cursor.execute(
+            f"DELETE FROM ingresos_ruana WHERE contacto_id IN ({contacto_filter})",
+            (codigo, codigo),
+        )
+        cursor.execute(
+            "DELETE FROM contactos_ruana WHERE solicitante_codigo = ? OR profesional_codigo = ?",
+            (codigo, codigo),
+        )
+
+        cursor.execute(
+            "DELETE FROM solicitudes WHERE solicitante_codigo = ? OR atendido_por_codigo = ?",
+            (codigo, codigo),
+        )
+        try:
+            cursor.execute("DELETE FROM solicitudes WHERE creado_por_codigo = ?", (codigo,))
+        except Exception:
+            pass
+
+        cursor.execute(
+            f"""
+            DELETE FROM competencia
+            WHERE aliado_original_codigo = ?
+               OR {col_retador} = ?
+               OR ganador_codigo = ?
+            """,
+            (codigo, codigo, codigo),
+        )
+        cursor.execute("DELETE FROM competencia_pendiente WHERE aliado_codigo = ?", (codigo,))
+        cursor.execute("DELETE FROM score_movimientos WHERE codigo_aliado = ?", (codigo,))
+        cursor.execute("DELETE FROM evaluaciones WHERE codigo_aliado = ?", (codigo,))
+        cursor.execute("DELETE FROM evaluaciones_historico WHERE codigo_aliado = ?", (codigo,))
+        cursor.execute("DELETE FROM catalogo_servicios_aliado WHERE aliado_codigo = ?", (codigo,))
+        cursor.execute("DELETE FROM notificaciones_aliado WHERE aliado_codigo = ?", (codigo,))
+
+        cursor.execute(
+            """
+            DELETE FROM ruana_soporte_mensajes
+            WHERE conversacion_id IN (
+                SELECT id FROM ruana_soporte_conversaciones WHERE aliado_codigo = ?
+            )
+            """,
+            (codigo,),
+        )
+        cursor.execute("DELETE FROM ruana_soporte_conversaciones WHERE aliado_codigo = ?", (codigo,))
+        cursor.execute("DELETE FROM aliado_accesos_dia WHERE codigo_aliado = ?", (codigo,))
+        cursor.execute("DELETE FROM invitacion_campana_usos WHERE codigo_aliado = ?", (codigo,))
+        cursor.execute(
+            "DELETE FROM referidos WHERE codigo_referido = ? OR codigo_invitador = ?",
+            (codigo, codigo),
+        )
+        cursor.execute(
+            "DELETE FROM invitaciones WHERE codigo = ? OR invitador_aliado_id = ?",
+            (codigo, aliado_id),
+        )
+        cursor.execute("DELETE FROM invitaciones_oficio WHERE aliado_id = ?", (aliado_id,))
+
+        cursor.execute(
+            """
+            UPDATE aliados
+            SET invitado_por_codigo = NULL, invitado_origen = NULL
+            WHERE invitado_por_codigo = ?
+            """,
+            (codigo,),
+        )
+
+        if self.backend == "postgres":
+            try:
+                cursor.execute("DELETE FROM profiles WHERE aliado_codigo = ?", (codigo,))
+            except Exception:
+                pass
+            try:
+                cursor.execute(
+                    "SELECT auth_user_id FROM aliados WHERE id = ?",
+                    (aliado_id,),
+                )
+                auth_row = cursor.fetchone()
+                auth_user_id = auth_row[0] if auth_row else None
+                if auth_user_id:
+                    cursor.execute("DELETE FROM auth.users WHERE id = ?", (auth_user_id,))
+            except Exception:
+                pass
+
+    def listar_aliados_eliminados(self, limite: int = 200) -> List[Dict[str, Any]]:
+        """Lista el archivo de aliados eliminados definitivamente (solo registro de auditoría)."""
+        with self._lock:
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT id, codigo, nombre, marca, oficio, codigo_postal,
+                           email, telefono, estado_anterior, motivo, admin_codigo, eliminado_en
+                    FROM aliados_eliminados
+                    ORDER BY eliminado_en DESC
+                    LIMIT ?
+                    """,
+                    (max(1, min(limite, 500)),),
+                )
+                rows = cursor.fetchall()
+                return [dict(r) for r in rows] if rows else []
+            except Exception as e:
+                print(f"Error listando aliados eliminados: {e}")
+                return []
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
     def eliminar_perfil_aliado_admin(
         self,
         codigo_aliado: str,
@@ -11930,10 +12109,9 @@ class DBManager:
         admin_codigo: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Elimina el perfil de un aliado desde el panel admin.
-        - pendiente_completar: borrado físico (placeholder).
-        - pendiente_validacion: pasa a rechazado.
-        - resto de estados operativos: pasa a expulsado (código desactivado).
+        Elimina el perfil de un aliado de forma definitiva desde el panel admin.
+        Purga todos los datos relacionados, libera email/teléfono/código y archiva
+        un único registro en aliados_eliminados para auditoría.
         """
         codigo = (codigo_aliado or '').strip()
         if not codigo:
@@ -11944,59 +12122,46 @@ class DBManager:
                 conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
-                    "SELECT id, estado, nombre FROM aliados WHERE codigo = ?",
+                    """
+                    SELECT id, estado, nombre, marca, oficio, codigo_postal, email, telefono
+                    FROM aliados WHERE codigo = ?
+                    """,
                     (codigo,),
                 )
                 row = cursor.fetchone()
                 if not row:
                     return {'status': 'error', 'message': f'Aliado {codigo} no encontrado'}
 
+                aliado_id = row[0]
                 estado_actual = (row[1] or '').strip().lower()
                 nombre = row[2] or ''
+                marca = row[3] or ''
+                oficio = row[4] or ''
+                codigo_postal = row[5] or ''
+                email = row[6] or ''
+                telefono = row[7] or ''
 
                 if estado_actual == 'sistema':
                     return {'status': 'error', 'message': 'No se puede eliminar un aliado del sistema'}
-                if estado_actual == 'expulsado':
-                    return {'status': 'error', 'message': f'El aliado {codigo} ya está expulsado'}
-                if estado_actual == 'rechazado':
-                    return {'status': 'error', 'message': f'El aliado {codigo} ya está rechazado'}
 
                 motivo_txt = (motivo or '').strip() or 'Eliminado desde panel de administración'
 
-                if estado_actual == 'pendiente_completar':
-                    cursor.execute(
-                        """
-                        DELETE FROM aliados
-                        WHERE codigo = ?
-                          AND LOWER(TRIM(COALESCE(estado, ''))) = 'pendiente_completar'
-                        """,
-                        (codigo,),
-                    )
-                    accion = 'eliminado'
-                    nuevo_estado = None
-                elif estado_actual == 'pendiente_validacion':
-                    cursor.execute(
-                        """
-                        UPDATE aliados
-                        SET estado = 'rechazado', actualizado_en = CURRENT_TIMESTAMP
-                        WHERE codigo = ?
-                        """,
-                        (codigo,),
-                    )
-                    accion = 'rechazado'
-                    nuevo_estado = 'rechazado'
-                else:
-                    cursor.execute(
-                        """
-                        UPDATE aliados
-                        SET estado = 'expulsado', actualizado_en = CURRENT_TIMESTAMP
-                        WHERE codigo = ?
-                        """,
-                        (codigo,),
-                    )
-                    accion = 'expulsado'
-                    nuevo_estado = 'expulsado'
+                self._purga_datos_aliado_completa(cursor, codigo, aliado_id)
 
+                cursor.execute(
+                    """
+                    INSERT INTO aliados_eliminados
+                    (codigo, nombre, marca, oficio, codigo_postal, email, telefono,
+                     estado_anterior, motivo, admin_codigo)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        codigo, nombre, marca, oficio, codigo_postal, email, telefono,
+                        estado_actual, motivo_txt, admin_codigo,
+                    ),
+                )
+
+                cursor.execute("DELETE FROM aliados WHERE codigo = ?", (codigo,))
                 if cursor.rowcount <= 0:
                     return {'status': 'error', 'message': f'No se pudo eliminar el perfil de {codigo}'}
 
@@ -12004,13 +12169,13 @@ class DBManager:
                     self._insert_evento_sistema(
                         cursor,
                         tipo="aliado_perfil_eliminado",
-                        descripcion=f"Perfil de aliado {codigo} ({nombre}) eliminado por admin",
+                        descripcion=f"Perfil de aliado {codigo} ({nombre}) eliminado definitivamente por admin",
                         actor_tipo="admin",
                         actor_codigo=admin_codigo,
                         metadata={
                             "codigo_aliado": codigo,
                             "estado_anterior": estado_actual,
-                            "accion": accion,
+                            "accion": "eliminado",
                             "motivo": motivo_txt,
                         },
                     )
@@ -12020,12 +12185,16 @@ class DBManager:
                 conn.commit()
                 return {
                     'status': 'success',
-                    'message': f'Perfil de {codigo} eliminado correctamente',
+                    'message': f'Perfil de {codigo} eliminado definitivamente',
                     'codigo_aliado': codigo,
-                    'accion': accion,
-                    'nuevo_estado': nuevo_estado,
+                    'accion': 'eliminado',
+                    'nuevo_estado': None,
                 }
             except Exception as e:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
                 return {'status': 'error', 'message': str(e)}
             finally:
                 try:
