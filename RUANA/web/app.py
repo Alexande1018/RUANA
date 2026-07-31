@@ -133,6 +133,21 @@ def _ruana_session_invalidate(session_id):
         _RUANA_SESSION_REVOKED.add(sid)
 
 
+def _ruana_session_invalidate_for_codigo(codigo):
+    """Invalida todas las sesiones activas de un aliado (login, caché en memoria)."""
+    codigo_norm = (codigo or '').strip()
+    if not codigo_norm:
+        return
+    with _RUANA_SESSION_LOCK:
+        to_remove = [
+            sid for sid, data in _RUANA_SESSION_STORE.items()
+            if data.get('tipo') == 'aliado' and (data.get('codigo') or '').strip() == codigo_norm
+        ]
+        for sid in to_remove:
+            _RUANA_SESSION_STORE.pop(sid, None)
+            _RUANA_SESSION_REVOKED.add(sid)
+
+
 def _admin_session_valid():
     """True si hay sesi?n admin v?lida (store por header o JWT). No se usa cookie para evitar cruce entre pestañas."""
     s = _get_ruana_session()
@@ -3662,8 +3677,25 @@ def admin_eliminar_aliado():
             motivo=motivo,
             admin_codigo=_admin_codigo() or None,
         )
+        if result.get('status') == 'success':
+            _ruana_session_invalidate_for_codigo(codigo)
         status_code = 200 if result.get('status') == 'success' else 400
         return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/aliados-eliminados', methods=['GET'])
+@require_admin
+def admin_listar_aliados_eliminados():
+    """
+    GET /api/admin/aliados-eliminados
+    Lista el archivo de aliados eliminados definitivamente (solo registro de auditoría).
+    """
+    try:
+        db = get_db()
+        aliados = db.listar_aliados_eliminados()
+        return jsonify({'status': 'success', 'aliados': aliados}), 200
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
