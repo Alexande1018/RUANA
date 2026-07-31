@@ -290,7 +290,7 @@ def meta_negociacion(
             'paso': None,
             'paso_label': 'Acuerdo alcanzado',
             'contexto': 'Todos los puntos del encargo están confirmados.',
-            'siguiente_accion': 'El encargo se registra como trabajo realizado con el precio acordado.',
+            'siguiente_accion': 'Revisa el resumen y cierra la negociación para confirmar el acuerdo.',
         }
 
     if _todos_campos_pendientes(estado):
@@ -459,7 +459,10 @@ def accion_disponible(estado: Dict[str, Any], rol: str, contacto_estado: str) ->
     if contacto_estado == 'acuerdo_alcanzado':
         return {
             'tipo': 'resumen',
-            'mensaje': 'Acuerdo alcanzado. El encargo se registra como trabajo realizado con el precio acordado.',
+            'mensaje': (
+                'Acuerdo alcanzado. Revisa el resumen y cierra la negociación '
+                'para confirmar. Cuando ambas partes cierren, el encargo se registra como trabajo realizado.'
+            ),
         }
 
     estado = normalizar_estado(estado)
@@ -809,4 +812,21 @@ def construir_payload(
         'campos_orden': CAMPOS_ORDEN,
         'campos_solicitante': CAMPOS_SOLICITANTE,
         'negociacion_meta': meta_negociacion(estado, rol, contacto_estado),
+        'cierre_confirmado_solicitante': bool(contacto.get('cierre_confirmado_solicitante_en')),
+        'cierre_confirmado_profesional': bool(contacto.get('cierre_confirmado_profesional_en')),
+        'yo_confirme_cierre': bool(
+            contacto.get('cierre_confirmado_solicitante_en')
+            if rol == 'solicitante'
+            else contacto.get('cierre_confirmado_profesional_en')
+        ),
+        'ambos_confirmaron_cierre': bool(
+            contacto.get('cierre_confirmado_solicitante_en')
+            and contacto.get('cierre_confirmado_profesional_en')
+        ),
+        'resumen_dismissed': bool(
+            contacto.get('resumen_dismiss_solicitante_en')
+            if rol == 'solicitante'
+            else contacto.get('resumen_dismiss_profesional_en')
+        ),
+        'acuerdo_alcanzado_en': contacto.get('acuerdo_alcanzado_en'),
     }

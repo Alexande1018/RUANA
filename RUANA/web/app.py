@@ -1517,7 +1517,10 @@ def negociacion_contraoferta(contacto_id):
 @app.route('/api/contactos/<int:contacto_id>/negociacion/cerrar', methods=['POST'])
 @require_aliado
 def negociacion_cerrar(contacto_id):
-    """POST — cierra la negociación para ambas partes (no concretado)."""
+    """
+    POST — cierra la negociación.
+    Sin acuerdo: no concretado. Con acuerdo: confirmación bilateral → trabajo realizado.
+    """
     codigo = _aliado_codigo()
     if not codigo:
         return jsonify({'status': 'error', 'message': 'Sesión expirada'}), 401
@@ -1526,6 +1529,43 @@ def negociacion_cerrar(contacto_id):
     db = get_db()
     result = db.cerrar_negociacion(contacto_id, codigo, motivo=motivo)
     return jsonify(result), 200 if result.get('status') == 'success' else 400
+
+
+@app.route('/api/contactos/<int:contacto_id>/negociacion/dismiss-resumen', methods=['POST'])
+@require_aliado
+def negociacion_dismiss_resumen(contacto_id):
+    """POST — oculta el panel flotante del resumen del acuerdo para este aliado."""
+    codigo = _aliado_codigo()
+    if not codigo:
+        return jsonify({'status': 'error', 'message': 'Sesión expirada'}), 401
+    db = get_db()
+    result = db.dismiss_resumen_acuerdo(contacto_id, codigo)
+    return jsonify(result), 200 if result.get('status') == 'success' else 400
+
+
+@app.route('/api/aliado/acuerdos', methods=['GET'])
+@require_aliado
+def aliado_listar_acuerdos():
+    """GET — historial «Mis acuerdos» del aliado autenticado."""
+    codigo = _aliado_codigo()
+    if not codigo:
+        return jsonify({'status': 'error', 'message': 'Sesión expirada'}), 401
+    limite = request.args.get('limite', 50, type=int)
+    db = get_db()
+    acuerdos = db.listar_acuerdos_aliado(codigo, limite=limite)
+    return jsonify({'status': 'success', 'acuerdos': acuerdos})
+
+
+@app.route('/api/aliado/resumenes-acuerdo', methods=['GET'])
+@require_aliado
+def aliado_resumenes_acuerdo():
+    """GET — acuerdos con resumen flotante aún visible para el aliado."""
+    codigo = _aliado_codigo()
+    if not codigo:
+        return jsonify({'status': 'error', 'message': 'Sesión expirada'}), 401
+    db = get_db()
+    resumenes = db.listar_resumenes_acuerdo_visibles(codigo)
+    return jsonify({'status': 'success', 'resumenes': resumenes})
 
 
 # Rutas legacy de chat libre — redirigen a negociación guiada

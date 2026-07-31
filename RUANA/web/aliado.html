@@ -2580,6 +2580,22 @@
                 <div class="catalogo-servicios-grid" id="catalogo-servicios-grid"></div>
             </section>
 
+            <section class="mis-acuerdos-wrap" id="mis-acuerdos-wrap">
+                <h3 class="mis-acuerdos-title">
+                    <i data-lucide="handshake"></i>
+                    Mis acuerdos
+                </h3>
+                <p class="mis-acuerdos-subtitle">Historial de encargos acordados: los que contrataste y en los que te contrataron.</p>
+                <div class="mis-acuerdos-filtros" id="mis-acuerdos-filtros">
+                    <button type="button" class="mis-acuerdos-filtro active" data-filtro="todos">Todos</button>
+                    <button type="button" class="mis-acuerdos-filtro" data-filtro="contrate">Contrataste</button>
+                    <button type="button" class="mis-acuerdos-filtro" data-filtro="contratado">Te contrataron</button>
+                </div>
+                <div class="mis-acuerdos-lista" id="mis-acuerdos-lista">
+                    <p class="mis-acuerdos-empty">Aún no tienes acuerdos registrados.</p>
+                </div>
+            </section>
+
             <!-- Mi grupo: nombre, estado, oficios representados, oficios faltantes (sin scores ni métricas de otros) -->
             <div class="grupo-panel-block" id="grupo-panel-block" style="display: none;">
                 <h3 class="grupo-panel-title">Mi grupo</h3>
@@ -2833,9 +2849,26 @@
                     <div id="neg-resumen-lista"></div>
                 </aside>
             </div>
-            <div class="neg-acciones" id="neg-acciones-wrap"></div>
+            <div id="neg-acciones-wrap" class="neg-acciones"></div>
         </div>
     </div>
+
+    <!-- Panel flotante persistente del resumen de acuerdo -->
+    <aside id="acuerdo-flotante" class="acuerdo-flotante" hidden aria-live="polite">
+        <div class="acuerdo-flotante-header">
+            <div>
+                <p class="acuerdo-flotante-kicker">Acuerdo alcanzado</p>
+                <h3 class="acuerdo-flotante-title" id="acuerdo-flotante-title">Resumen</h3>
+            </div>
+            <button type="button" class="acuerdo-flotante-x" id="acuerdo-flotante-dismiss" aria-label="Ocultar resumen">×</button>
+        </div>
+        <div class="acuerdo-flotante-body" id="acuerdo-flotante-body"></div>
+        <p class="acuerdo-flotante-estado" id="acuerdo-flotante-estado"></p>
+        <div class="acuerdo-flotante-actions">
+            <button type="button" class="acuerdo-flotante-btn primary" id="acuerdo-flotante-abrir">Ver negociación</button>
+            <button type="button" class="acuerdo-flotante-btn" id="acuerdo-flotante-confirmar">Confirmar acuerdo</button>
+        </div>
+    </aside>
 
     <!-- Modal confirmar cierre sin trabajo (No se concretó) -->
     <div class="modal-contacto-overlay modal-importe-overlay" id="modal-no-concretado">
@@ -3533,6 +3566,9 @@
                 this.soporteSelectedId = null;
                 this.contactosPagoPendiente = [];
                 this.tienePagosPendientes = false;
+                this.misAcuerdos = [];
+                this.misAcuerdosFiltro = 'todos';
+                this.acuerdoFlotanteActual = null;
                 this.scoreNotifActive = false;
                 this.scoreNotifShownIds = new Set();
                 this._syncInProgress = false;
@@ -3580,11 +3616,13 @@
                 const bootstrapTasks = await Promise.allSettled([
                     this.fetchCentroComunicacionSnapshot(),
                     this.cargarMetodosPagoRuana(),
-                    this.cargarContactosPendientes()
+                    this.cargarContactosPendientes(),
+                    this.cargarMisAcuerdos(),
+                    this.cargarResumenesAcuerdoFlotantes(),
                 ]);
                 bootstrapTasks.forEach((task, idx) => {
                     if (task.status === 'rejected') {
-                        const labels = ['centro-comunicacion', 'metodos-pago', 'contactos-pendientes'];
+                        const labels = ['centro-comunicacion', 'metodos-pago', 'contactos-pendientes', 'mis-acuerdos', 'resumenes-acuerdo'];
                         console.error(`Error en carga de fondo (${labels[idx]}):`, task.reason);
                     }
                 });
@@ -3592,6 +3630,7 @@
                 this.renderAlertas();
                 this.renderNotificaciones();
                 this.renderListaPagosPendientes();
+                this.renderMisAcuerdos();
             }
 
             initOnboarding() {
@@ -4163,7 +4202,194 @@
                     this._syncPerfilAvatarEtiqueta(estadoNormalizado);
                 }
                 this.renderCatalogoServicios();
+                this.renderMisAcuerdos();
                 this.renderCompetencia();
+            }
+
+            async cargarMisAcuerdos() {
+                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
+                if (!codigo) return;
+                try {
+                    const resp = await fetch('/api/aliado/acuerdos', {
+                        credentials: 'same-origin',
+                        headers: getRuanaAuthHeaders(),
+                    });
+                    if (!resp.ok) return;
+                    const data = await resp.json();
+                    this.misAcuerdos = (data.status === 'success' && Array.isArray(data.acuerdos))
+                        ? data.acuerdos
+                        : [];
+                    this.renderMisAcuerdos();
+                } catch (e) {
+                    console.error('Error cargando Mis acuerdos:', e);
+                }
+            }
+
+            renderMisAcuerdos() {
+                const lista = document.getElementById('mis-acuerdos-lista');
+                if (!lista) return;
+                const filtro = this.misAcuerdosFiltro || 'todos';
+                document.querySelectorAll('.mis-acuerdos-filtro').forEach((btn) => {
+                    btn.classList.toggle('active', btn.getAttribute('data-filtro') === filtro);
+                });
+                const items = (this.misAcuerdos || []).filter((a) => {
+                    if (filtro === 'todos') return true;
+                    return a.rol === filtro;
+                });
+                if (!items.length) {
+                    lista.innerHTML = '<p class="mis-acuerdos-empty">Aún no tienes acuerdos en esta vista.</p>';
+                    return;
+                }
+                lista.innerHTML = items.map((a) => {
+                    const badge = a.rol === 'contrate'
+                        ? '<span class="mis-acuerdos-badge contrate">Contrataste</span>'
+                        : '<span class="mis-acuerdos-badge contratado">Te contrataron</span>';
+                    const campos = a.campos || {};
+                    const detalles = ['fecha', 'hora', 'precio', 'direccion']
+                        .filter((k) => campos[k])
+                        .map((k) => `<span>${this.escapeHtml(k)}: ${this.escapeHtml(String(campos[k]))}</span>`)
+                        .join('');
+                    const estadoTxt = a.estado === 'trabajo_cerrado'
+                        ? 'Trabajo cerrado'
+                        : (a.ambos_confirmaron_cierre ? 'Confirmado' : 'Acuerdo pendiente de cierre');
+                    return `<article class="mis-acuerdos-card" data-contacto-id="${a.contacto_id}">
+                        <div class="mis-acuerdos-card-head">
+                            ${badge}
+                            <span class="mis-acuerdos-estado">${this.escapeHtml(estadoTxt)}</span>
+                        </div>
+                        <h4 class="mis-acuerdos-servicio">${this.escapeHtml(a.servicio || 'Servicio')}</h4>
+                        <p class="mis-acuerdos-meta">Con aliado ${this.escapeHtml(a.contraparte_codigo || '—')}</p>
+                        <div class="mis-acuerdos-detalles">${detalles}</div>
+                    </article>`;
+                }).join('');
+            }
+
+            async cargarResumenesAcuerdoFlotantes() {
+                try {
+                    const resp = await fetch('/api/aliado/resumenes-acuerdo', {
+                        credentials: 'same-origin',
+                        headers: getRuanaAuthHeaders(),
+                    });
+                    if (!resp.ok) return;
+                    const data = await resp.json();
+                    const resumenes = (data.status === 'success' && Array.isArray(data.resumenes))
+                        ? data.resumenes
+                        : [];
+                    if (!resumenes.length) {
+                        this.ocultarAcuerdoFlotante();
+                        return;
+                    }
+                    this.mostrarAcuerdoFlotante(resumenes[0]);
+                } catch (e) {
+                    console.error('Error cargando resúmenes de acuerdo:', e);
+                }
+            }
+
+            syncAcuerdoFlotante(data) {
+                if (!data || data.resumen_dismissed) return;
+                const estado = data.estado_contacto || '';
+                if (!(['acuerdo_alcanzado', 'trabajo_cerrado'].includes(estado) || data.acuerdo_alcanzado)) {
+                    return;
+                }
+                this.mostrarAcuerdoFlotante({
+                    contacto_id: data.contacto_id || this.negociacionGuiada && this.negociacionGuiada.contactoId,
+                    estado,
+                    servicio: data.servicio_contacto || '',
+                    resumen: data.resumen || [],
+                    yo_confirme_cierre: !!data.yo_confirme_cierre,
+                    ambos_confirmaron_cierre: !!data.ambos_confirmaron_cierre,
+                    cierre_confirmado_solicitante: !!data.cierre_confirmado_solicitante,
+                    cierre_confirmado_profesional: !!data.cierre_confirmado_profesional,
+                });
+            }
+
+            mostrarAcuerdoFlotanteDesdeNegociacion(contactoId, data) {
+                if (!data || data.resumen_dismissed) return;
+                const estado = data.estado_contacto || '';
+                if (!(data.acuerdo_alcanzado || ['acuerdo_alcanzado', 'trabajo_cerrado'].includes(estado))) {
+                    return;
+                }
+                this.mostrarAcuerdoFlotante({
+                    contacto_id: contactoId,
+                    estado,
+                    servicio: data.servicio_contacto || '',
+                    resumen: data.resumen || [],
+                    yo_confirme_cierre: !!data.yo_confirme_cierre,
+                    ambos_confirmaron_cierre: !!data.ambos_confirmaron_cierre,
+                });
+            }
+
+            mostrarAcuerdoFlotante(item) {
+                const panel = document.getElementById('acuerdo-flotante');
+                if (!panel || !item) return;
+                this.acuerdoFlotanteActual = item;
+                const title = document.getElementById('acuerdo-flotante-title');
+                const body = document.getElementById('acuerdo-flotante-body');
+                const estadoEl = document.getElementById('acuerdo-flotante-estado');
+                const btnConfirmar = document.getElementById('acuerdo-flotante-confirmar');
+                if (title) title.textContent = item.servicio || 'Resumen del acuerdo';
+                const items = Array.isArray(item.resumen)
+                    ? item.resumen.filter((r) => r && r.valor && r.campo !== 'observaciones_profesional')
+                    : [];
+                if (body) {
+                    body.innerHTML = items.length
+                        ? items.map((r) => `<p><strong>${this.escapeHtml(r.label || r.campo)}:</strong> ${this.escapeHtml(String(r.valor))}</p>`).join('')
+                        : '<p>Consulta el detalle en la negociación.</p>';
+                }
+                let estadoTxt = 'Revisa el resumen. Confirma cerrando la negociación.';
+                if (item.estado === 'trabajo_cerrado' || item.ambos_confirmaron_cierre) {
+                    estadoTxt = 'Acuerdo confirmado por ambas partes. Encargo registrado.';
+                } else if (item.yo_confirme_cierre) {
+                    estadoTxt = 'Ya confirmaste. Esperando a la otra parte.';
+                }
+                if (estadoEl) estadoEl.textContent = estadoTxt;
+                if (btnConfirmar) {
+                    const hide = !!(item.yo_confirme_cierre || item.estado === 'trabajo_cerrado' || item.ambos_confirmaron_cierre);
+                    btnConfirmar.style.display = hide ? 'none' : '';
+                    btnConfirmar.disabled = hide;
+                }
+                panel.hidden = false;
+                panel.classList.add('show');
+            }
+
+            ocultarAcuerdoFlotante() {
+                const panel = document.getElementById('acuerdo-flotante');
+                if (panel) {
+                    panel.hidden = true;
+                    panel.classList.remove('show');
+                }
+                this.acuerdoFlotanteActual = null;
+            }
+
+            async dismissAcuerdoFlotante() {
+                const item = this.acuerdoFlotanteActual;
+                if (!item || !item.contacto_id) {
+                    this.ocultarAcuerdoFlotante();
+                    return;
+                }
+                try {
+                    await fetch(`/api/contactos/${item.contacto_id}/negociacion/dismiss-resumen`, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
+                        body: '{}',
+                    });
+                } catch (e) { /* ignore */ }
+                this.ocultarAcuerdoFlotante();
+            }
+
+            async confirmarAcuerdoDesdeFlotante() {
+                const item = this.acuerdoFlotanteActual;
+                if (!item || !item.contacto_id) return;
+                if (this.negociacionGuiada) {
+                    this.negociacionGuiada.contactoId = item.contacto_id;
+                    this.negociacionGuiada.data = Object.assign({}, this.negociacionGuiada.data || {}, {
+                        estado_contacto: item.estado || 'acuerdo_alcanzado',
+                        acuerdo_alcanzado: true,
+                        yo_confirme_cierre: !!item.yo_confirme_cierre,
+                    });
+                    await this.negociacionGuiada.confirmarCerrarNegociacion();
+                }
             }
 
             normalizarCatalogoServicios(catalogoRaw) {
@@ -4892,6 +5118,31 @@
                 document.querySelectorAll('[data-action="invitar-aliado"]').forEach((btn) => {
                     btn.addEventListener('click', () => this.generarCodigoInvitacionPerfil());
                 });
+                const filtrosAcuerdos = document.getElementById('mis-acuerdos-filtros');
+                if (filtrosAcuerdos) {
+                    filtrosAcuerdos.addEventListener('click', (e) => {
+                        const btn = e.target.closest('.mis-acuerdos-filtro');
+                        if (!btn) return;
+                        this.misAcuerdosFiltro = btn.getAttribute('data-filtro') || 'todos';
+                        this.renderMisAcuerdos();
+                    });
+                }
+                const btnFlotanteDismiss = document.getElementById('acuerdo-flotante-dismiss');
+                if (btnFlotanteDismiss) {
+                    btnFlotanteDismiss.addEventListener('click', () => this.dismissAcuerdoFlotante());
+                }
+                const btnFlotanteAbrir = document.getElementById('acuerdo-flotante-abrir');
+                if (btnFlotanteAbrir) {
+                    btnFlotanteAbrir.addEventListener('click', () => {
+                        const item = this.acuerdoFlotanteActual;
+                        if (!item || !item.contacto_id || !this.negociacionGuiada) return;
+                        this.negociacionGuiada.abrir(item.contacto_id, item.servicio || 'Acuerdo alcanzado');
+                    });
+                }
+                const btnFlotanteConfirmar = document.getElementById('acuerdo-flotante-confirmar');
+                if (btnFlotanteConfirmar) {
+                    btnFlotanteConfirmar.addEventListener('click', () => this.confirmarAcuerdoDesdeFlotante());
+                }
                 const btnSoporteEnviar = document.getElementById('ruana-help-send-btn');
                 if (btnSoporteEnviar) btnSoporteEnviar.addEventListener('click', () => this.enviarNuevoMensajeSoporte());
                 const btnSoporteResponder = document.getElementById('ruana-help-reply-btn');
@@ -6084,7 +6335,7 @@
                         estadoLabel = 'Acuerdo alcanzado';
                         contexto = 'Todos los puntos del encargo están confirmados.';
                         pasoTxt = '';
-                        accionTxt = 'El encargo debería registrarse como trabajo realizado con el precio acordado. Si no ocurrió, usa «Sí, hubo trabajo».';
+                        accionTxt = 'Revisa el resumen y cierra la negociación para confirmar. Cuando ambas partes confirmen, el encargo se registra como trabajo realizado.';
                         btnPrincipal = 'Ver acuerdo';
                         progresoConf = progresoTotal;
                     } else if (requiereRespuesta) {

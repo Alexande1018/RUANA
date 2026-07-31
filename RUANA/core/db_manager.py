@@ -126,6 +126,7 @@ class DBManager:
             self._migrar_solicitudes_candidato(conn, cursor)
             self._migrar_contactos_es_urgente(conn, cursor)
             self._migrar_negociacion_guiada(conn, cursor)
+            self._migrar_acuerdo_cierre_bilateral(conn, cursor)
             self._migrar_aliado_accesos_dia(conn, cursor)
             self._migrar_centro_comunicacion_ruana(conn, cursor)
             conn.commit()
@@ -505,6 +506,7 @@ class DBManager:
                 self._migrar_contactos_fecha_pospuesto_hasta(conn, cursor)
                 self._migrar_chat_mensajes(conn, cursor)
                 self._migrar_negociacion_guiada(conn, cursor)
+                self._migrar_acuerdo_cierre_bilateral(conn, cursor)
                 self._migrar_contactos_motivo_contacto(conn, cursor)
                 self._migrar_contactos_es_urgente(conn, cursor)
                 self._migrar_drop_chat_messages(conn, cursor)
@@ -827,6 +829,31 @@ class DBManager:
         cursor.execute(
             "CREATE INDEX IF NOT EXISTS idx_negociacion_eventos_contacto ON negociacion_eventos(contacto_id)"
         )
+
+    def _migrar_acuerdo_cierre_bilateral(self, conn, cursor) -> None:
+        """
+        Columnas para snapshot del acuerdo, confirmación bilateral de cierre
+        y dismiss del resumen flotante por cada parte.
+        """
+        columnas_nuevas = [
+            ('acuerdo_resumen_json', 'TEXT', 'JSONB'),
+            ('acuerdo_alcanzado_en', 'TIMESTAMP', 'TIMESTAMP'),
+            ('cierre_confirmado_solicitante_en', 'TIMESTAMP', 'TIMESTAMP'),
+            ('cierre_confirmado_profesional_en', 'TIMESTAMP', 'TIMESTAMP'),
+            ('resumen_dismiss_solicitante_en', 'TIMESTAMP', 'TIMESTAMP'),
+            ('resumen_dismiss_profesional_en', 'TIMESTAMP', 'TIMESTAMP'),
+        ]
+        if self.backend == "postgres":
+            for nombre, _sqlite_t, pg_t in columnas_nuevas:
+                cursor.execute(
+                    f"ALTER TABLE contactos_ruana ADD COLUMN IF NOT EXISTS {nombre} {pg_t}"
+                )
+            return
+        cursor.execute("PRAGMA table_info(contactos_ruana)")
+        columnas = [row[1] for row in cursor.fetchall()]
+        for nombre, sqlite_t, _pg_t in columnas_nuevas:
+            if nombre not in columnas:
+                cursor.execute(f"ALTER TABLE contactos_ruana ADD COLUMN {nombre} {sqlite_t}")
 
     def _migrar_contactos_motivo_contacto(self, conn, cursor) -> None:
         """Añade motivo_contacto al contacto (obligatorio antes de iniciar chat)."""
@@ -7535,6 +7562,53 @@ class DBManager:
             return None
         return importe if importe > 0 else None
 
+    def _construir_acuerdo_resumen_json(
+        self,
+        estado: Dict[str, Any],
+        contacto: Dict[str, Any],
+    ) -> str:
+        """Snapshot inmutable del acuerdo para historial «Mis acuerdos»."""
+        campos_valores = {}
+        for c in neg_mgr.CAMPOS_ORDEN:
+            campos_valores[c] = (estado.get('campos') or {}).get(c, {}).get('valor')
+        payload = {
+            'contacto_id': contacto.get('id'),
+            'solicitante_codigo': str(contacto.get('solicitante_codigo') or '').strip(),
+            'profesional_codigo': str(contacto.get('profesional_codigo') or '').strip(),
+            'servicio_contacto': (contacto.get('servicio') or '').strip(),
+            'campos': campos_valores,
+            'resumen': neg_mgr.resumen_acuerdo(estado),
+        }
+        return json.dumps(payload, ensure_ascii=False)
+
+    def _flags_cierre_acuerdo(self, contacto: Dict[str, Any], rol: str) -> Dict[str, Any]:
+        conf_sol = bool(contacto.get('cierre_confirmado_solicitante_en'))
+        conf_pro = bool(contacto.get('cierre_confirmado_profesional_en'))
+        yo = conf_sol if rol == 'solicitante' else conf_pro
+        dismiss = bool(
+            contacto.get('resumen_dismiss_solicitante_en')
+            if rol == 'solicitante'
+            else contacto.get('resumen_dismiss_profesional_en')
+        )
+        return {
+            'cierre_confirmado_solicitante': conf_sol,
+            'cierre_confirmado_profesional': conf_pro,
+            'yo_confirme_cierre': yo,
+            'ambos_confirmaron_cierre': conf_sol and conf_pro,
+            'resumen_dismissed': dismiss,
+        }
+
+    def _parse_acuerdo_resumen_campo(self, raw: Any) -> Optional[Dict[str, Any]]:
+        if raw is None or raw == '':
+            return None
+        if isinstance(raw, dict):
+            return raw
+        try:
+            data = json.loads(raw) if isinstance(raw, str) else None
+            return data if isinstance(data, dict) else None
+        except Exception:
+            return None
+
     def _cerrar_encargo_tras_acuerdo(
         self,
         contacto_id: int,
@@ -7545,7 +7619,7 @@ class DBManager:
         payload_base: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
-        Tras «Acuerdo alcanzado», aplica la misma lógica que «Sí hubo trabajo»
+        Tras confirmación bilateral del acuerdo, aplica la misma lógica que «Sí hubo trabajo»
         (declarar importe del contratante → trabajo_cerrado + Apoyo RUANA).
         """
         importe = self._parse_importe_acuerdo(precio_valor)
@@ -7553,7 +7627,7 @@ class DBManager:
             out = dict(payload_base)
             out['cierre_automatico'] = False
             out['cierre_aviso'] = (
-                'Acuerdo alcanzado, pero no se pudo leer el precio acordado. '
+                'Ambas partes confirmaron el acuerdo, pero no se pudo leer el precio. '
                 'Confirma el importe con «Sí, hubo trabajo».'
             )
             return out
@@ -7569,7 +7643,7 @@ class DBManager:
             out = dict(payload_base)
             out['cierre_automatico'] = False
             out['cierre_aviso'] = (cierre or {}).get('message') or (
-                'Acuerdo alcanzado. Confirma el importe con «Sí, hubo trabajo».'
+                'Ambas partes confirmaron el acuerdo. Confirma el importe con «Sí, hubo trabajo».'
             )
             return out
 
@@ -7578,7 +7652,7 @@ class DBManager:
             refreshed['completo'] = True
             refreshed['cierre_automatico'] = True
             refreshed['message'] = (
-                (mensaje_acuerdo or 'Acuerdo alcanzado.')
+                (mensaje_acuerdo or 'Acuerdo confirmado por ambas partes.')
                 + ' Encargo registrado como trabajo realizado.'
             )
             refreshed['estado_cierre'] = cierre.get('estado')
@@ -7592,11 +7666,6 @@ class DBManager:
 
     def aceptar_negociacion(self, contacto_id: int, codigo_aliado: str, campo: str,
                             observaciones_profesional: str = '') -> Dict[str, Any]:
-        completo = False
-        solicitante_codigo = ''
-        precio_valor = None
-        mensaje_acuerdo = ''
-        payload = None
         with self._lock:
             conn = None
             try:
@@ -7617,33 +7686,40 @@ class DBManager:
                 )
                 neg_json = neg_mgr.serializar_negociacion(estado)
                 nuevo_estado = contacto.get('estado') or 'iniciado'
-                solicitante_codigo = sol
+                resumen_json = None
                 if completo:
                     nuevo_estado = 'acuerdo_alcanzado'
+                    resumen_json = self._construir_acuerdo_resumen_json(estado, contacto)
                     cursor.execute(
                         "UPDATE contactos_ruana SET fecha_trabajo_en_progreso = COALESCE(fecha_trabajo_en_progreso, CURRENT_TIMESTAMP) WHERE id = ?",
                         (contacto_id,),
                     )
                     msg_sistema = (
-                        'Acuerdo alcanzado. Resumen: '
+                        'Acuerdo alcanzado. Revisad el resumen y cerrad la negociación '
+                        'para confirmar. Resumen: '
                         + ', '.join(
                             f"{neg_mgr.CAMPOS_LABELS[c]}: {estado['campos'][c]['valor']}"
                             for c in neg_mgr.CAMPOS_ORDEN
                         )
                     )
-                    mensaje_acuerdo = msg_sistema
                     self._insertar_evento_negociacion(
                         cursor, contacto_id, neg_mgr.TIPO_SISTEMA, None, '', None, msg_sistema
                     )
-                    try:
-                        precio_valor = estado['campos']['precio']['valor']
-                    except Exception:
-                        precio_valor = None
-                cursor.execute("""
-                    UPDATE contactos_ruana
-                    SET negociacion_json = ?, estado = ?, actualizado_en = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                """, (neg_json, nuevo_estado, contacto_id))
+                if completo and resumen_json is not None:
+                    cursor.execute("""
+                        UPDATE contactos_ruana
+                        SET negociacion_json = ?, estado = ?,
+                            acuerdo_resumen_json = COALESCE(acuerdo_resumen_json, ?),
+                            acuerdo_alcanzado_en = COALESCE(acuerdo_alcanzado_en, CURRENT_TIMESTAMP),
+                            actualizado_en = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    """, (neg_json, nuevo_estado, resumen_json, contacto_id))
+                else:
+                    cursor.execute("""
+                        UPDATE contactos_ruana
+                        SET negociacion_json = ?, estado = ?, actualizado_en = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    """, (neg_json, nuevo_estado, contacto_id))
                 self._insertar_evento_negociacion(cursor, contacto_id, tipo, campo,
                     estado['campos'][campo]['valor'], codigo_aliado, msg)
                 conn.commit()
@@ -7651,6 +7727,7 @@ class DBManager:
                 contacto = self._cargar_contacto_negociacion(cursor, contacto_id)
                 payload = neg_mgr.construir_payload(contacto, eventos, rol)
                 payload = {'status': 'success', 'message': msg, 'completo': completo, **payload}
+                return payload
             except ValueError as ve:
                 if conn:
                     conn.rollback()
@@ -7663,28 +7740,20 @@ class DBManager:
                 if conn:
                     conn.close()
 
-        if not payload:
-            return {'status': 'error', 'message': 'No se pudo aceptar el punto'}
-
-        if completo:
-            return self._cerrar_encargo_tras_acuerdo(
-                contacto_id,
-                solicitante_codigo,
-                precio_valor,
-                codigo_aliado,
-                mensaje_acuerdo or payload.get('message') or '',
-                payload,
-            )
-        return payload
-
     def cerrar_negociacion(self, contacto_id: int, actor_codigo: str,
                            motivo: str = '') -> Dict[str, Any]:
         """
-        Cierra la negociación para ambas partes (no concretado).
-        Solo solicitante o profesional del contacto. Registra evento en timeline.
+        Cierra la negociación:
+        - Si hay acuerdo alcanzado: confirma el cierre por esta parte (bilateral).
+          Cuando ambas confirman → registra trabajo realizado (Sí hubo trabajo).
+        - Si aún no hay acuerdo: finaliza como no concretado.
         """
         codigo = (actor_codigo or '').strip()
-        sol = prof = None
+        sol = pro = None
+        need_trabajo = False
+        precio_valor = None
+        mensaje_cierre = ''
+        payload_base = None
         with self._lock:
             conn = None
             try:
@@ -7705,26 +7774,103 @@ class DBManager:
                         'status': 'error',
                         'message': f'El contacto ya está cerrado ({estado_actual}).',
                     }
-                quien = 'contratante' if rol == 'solicitante' else 'profesional'
-                msg_evento = (
-                    f'La negociación ha sido cerrada por el {quien}. '
-                    'El contacto queda finalizado sin acuerdo.'
-                )
-                self._insertar_evento_negociacion(
-                    cursor, contacto_id, neg_mgr.TIPO_SISTEMA, None, None, codigo, msg_evento,
-                )
-                cursor.execute("""
-                    UPDATE contactos_ruana
-                    SET estado = 'cerrado_no_concretado',
-                        pendiente_resolucion = 0,
-                        fecha_no_concretado = CURRENT_TIMESTAMP,
-                        actualizado_en = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                """, (contacto_id,))
-                detalles = f'aliados={sol},{pro} motivo={motivo or "cerrar_negociacion"} actor={codigo}'
-                self._audit_log(cursor, 'contacto', contacto_id, 'cerrar_negociacion',
-                                'aliado', codigo, detalles)
-                conn.commit()
+
+                # --- Confirmación bilateral tras acuerdo ---
+                if estado_actual == 'acuerdo_alcanzado' or (
+                    neg_mgr.parse_negociacion(contacto.get('negociacion_json')).get('completo')
+                    and estado_actual not in ('cerrado_no_concretado', 'no_concretado')
+                ):
+                    if estado_actual != 'acuerdo_alcanzado':
+                        cursor.execute("""
+                            UPDATE contactos_ruana
+                            SET estado = 'acuerdo_alcanzado',
+                                acuerdo_alcanzado_en = COALESCE(acuerdo_alcanzado_en, CURRENT_TIMESTAMP),
+                                actualizado_en = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                        """, (contacto_id,))
+                        estado_actual = 'acuerdo_alcanzado'
+
+                    col = (
+                        'cierre_confirmado_solicitante_en'
+                        if rol == 'solicitante'
+                        else 'cierre_confirmado_profesional_en'
+                    )
+                    ya = bool(contacto.get(col))
+                    if not ya:
+                        cursor.execute(f"""
+                            UPDATE contactos_ruana
+                            SET {col} = CURRENT_TIMESTAMP, actualizado_en = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                        """, (contacto_id,))
+                        quien = 'contratante' if rol == 'solicitante' else 'profesional'
+                        msg_evento = (
+                            f'El {quien} ha cerrado la negociación y confirma el acuerdo. '
+                            'Pendiente la confirmación de la otra parte.'
+                        )
+                        self._insertar_evento_negociacion(
+                            cursor, contacto_id, neg_mgr.TIPO_SISTEMA, None, None, codigo, msg_evento,
+                        )
+                        # Asegurar snapshot en Mis acuerdos
+                        if not contacto.get('acuerdo_resumen_json'):
+                            estado_neg = neg_mgr.parse_negociacion(contacto.get('negociacion_json'))
+                            resumen_json = self._construir_acuerdo_resumen_json(estado_neg, contacto)
+                            cursor.execute("""
+                                UPDATE contactos_ruana
+                                SET acuerdo_resumen_json = ?,
+                                    acuerdo_alcanzado_en = COALESCE(acuerdo_alcanzado_en, CURRENT_TIMESTAMP)
+                                WHERE id = ?
+                            """, (resumen_json, contacto_id))
+
+                    conn.commit()
+                    contacto = self._cargar_contacto_negociacion(cursor, contacto_id)
+                    eventos = self.listar_eventos_negociacion(contacto_id)
+                    payload_base = neg_mgr.construir_payload(contacto, eventos, rol)
+                    payload_base = {
+                        'status': 'success',
+                        'message': 'Has confirmado el acuerdo. Esperando a la otra parte.'
+                        if not (
+                            contacto.get('cierre_confirmado_solicitante_en')
+                            and contacto.get('cierre_confirmado_profesional_en')
+                        )
+                        else 'Ambas partes confirmaron el acuerdo.',
+                        'completo': True,
+                        **payload_base,
+                    }
+                    conf_sol = bool(contacto.get('cierre_confirmado_solicitante_en'))
+                    conf_pro = bool(contacto.get('cierre_confirmado_profesional_en'))
+                    if conf_sol and conf_pro:
+                        need_trabajo = True
+                        estado_neg = neg_mgr.parse_negociacion(contacto.get('negociacion_json'))
+                        try:
+                            precio_valor = estado_neg['campos']['precio']['valor']
+                        except Exception:
+                            precio_valor = None
+                        mensaje_cierre = 'Ambas partes confirmaron el acuerdo.'
+                    else:
+                        return payload_base
+
+                else:
+                    # --- Abandono sin acuerdo ---
+                    quien = 'contratante' if rol == 'solicitante' else 'profesional'
+                    msg_evento = (
+                        f'La negociación ha sido cerrada por el {quien}. '
+                        'El contacto queda finalizado sin acuerdo.'
+                    )
+                    self._insertar_evento_negociacion(
+                        cursor, contacto_id, neg_mgr.TIPO_SISTEMA, None, None, codigo, msg_evento,
+                    )
+                    cursor.execute("""
+                        UPDATE contactos_ruana
+                        SET estado = 'cerrado_no_concretado',
+                            pendiente_resolucion = 0,
+                            fecha_no_concretado = CURRENT_TIMESTAMP,
+                            actualizado_en = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    """, (contacto_id,))
+                    detalles = f'aliados={sol},{pro} motivo={motivo or "cerrar_negociacion"} actor={codigo}'
+                    self._audit_log(cursor, 'contacto', contacto_id, 'cerrar_negociacion',
+                                    'aliado', codigo, detalles)
+                    conn.commit()
             except Exception as e:
                 if conn:
                     conn.rollback()
@@ -7733,11 +7879,172 @@ class DBManager:
                 if conn:
                     conn.close()
 
+        if need_trabajo and payload_base is not None:
+            return self._cerrar_encargo_tras_acuerdo(
+                contacto_id,
+                sol or '',
+                precio_valor,
+                codigo,
+                mensaje_cierre,
+                payload_base,
+            )
+
         if sol:
             self.aplicar_cambio_score(sol, -1, 'contacto_cerrado_no_concretado')
-        if prof:
-            self.aplicar_cambio_score(prof, -1, 'contacto_cerrado_no_concretado')
+        if pro:
+            self.aplicar_cambio_score(pro, -1, 'contacto_cerrado_no_concretado')
         return {'status': 'success', 'id': contacto_id, 'estado': 'cerrado_no_concretado'}
+
+    def dismiss_resumen_acuerdo(self, contacto_id: int, actor_codigo: str) -> Dict[str, Any]:
+        """El aliado oculta el panel flotante del resumen hasta nueva acción."""
+        codigo = (actor_codigo or '').strip()
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                contacto = self._cargar_contacto_negociacion(cursor, contacto_id)
+                if not contacto:
+                    return {'status': 'error', 'message': 'Contacto no encontrado'}
+                sol = str(contacto.get('solicitante_codigo') or '').strip()
+                pro = str(contacto.get('profesional_codigo') or '').strip()
+                rol = neg_mgr._rol_en_contacto(codigo, sol, pro)
+                if not rol:
+                    return {'status': 'error', 'message': 'No autorizado'}
+                col = (
+                    'resumen_dismiss_solicitante_en'
+                    if rol == 'solicitante'
+                    else 'resumen_dismiss_profesional_en'
+                )
+                cursor.execute(f"""
+                    UPDATE contactos_ruana
+                    SET {col} = CURRENT_TIMESTAMP, actualizado_en = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                """, (contacto_id,))
+                conn.commit()
+                return {'status': 'success', 'id': contacto_id, 'dismissed': True}
+            except Exception as e:
+                if conn:
+                    conn.rollback()
+                return {'status': 'error', 'message': str(e)}
+            finally:
+                if conn:
+                    conn.close()
+
+    def listar_acuerdos_aliado(self, codigo_aliado: str, limite: int = 50) -> List[Dict[str, Any]]:
+        """Historial «Mis acuerdos»: donde contrató o fue contratado."""
+        codigo = (codigo_aliado or '').strip()
+        if not codigo:
+            return []
+        limite = max(1, min(int(limite or 50), 100))
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id, solicitante_codigo, profesional_codigo, servicio, estado,
+                           acuerdo_resumen_json, acuerdo_alcanzado_en, fecha_cierre,
+                           importe_final, apoyo_ruana, creado_en, actualizado_en,
+                           cierre_confirmado_solicitante_en, cierre_confirmado_profesional_en
+                    FROM contactos_ruana
+                    WHERE (TRIM(CAST(solicitante_codigo AS TEXT)) = ?
+                        OR TRIM(CAST(profesional_codigo AS TEXT)) = ?)
+                      AND acuerdo_resumen_json IS NOT NULL
+                      AND TRIM(CAST(acuerdo_resumen_json AS TEXT)) != ''
+                    ORDER BY COALESCE(acuerdo_alcanzado_en, actualizado_en, creado_en) DESC
+                    LIMIT ?
+                """, (codigo, codigo, limite))
+                out = []
+                for row in cursor.fetchall():
+                    d = dict(row)
+                    sol = str(d.get('solicitante_codigo') or '').strip()
+                    rol = 'contrate' if sol == codigo else 'contratado'
+                    resumen = self._parse_acuerdo_resumen_campo(d.get('acuerdo_resumen_json')) or {}
+                    out.append({
+                        'contacto_id': d.get('id'),
+                        'rol': rol,
+                        'rol_label': 'Contrataste' if rol == 'contrate' else 'Te contrataron',
+                        'estado': d.get('estado'),
+                        'servicio': (resumen.get('servicio_contacto') or d.get('servicio') or '').strip(),
+                        'contraparte_codigo': (
+                            str(d.get('profesional_codigo') or '').strip()
+                            if rol == 'contrate'
+                            else sol
+                        ),
+                        'campos': resumen.get('campos') or {},
+                        'resumen': resumen.get('resumen') or [],
+                        'acuerdo_alcanzado_en': d.get('acuerdo_alcanzado_en'),
+                        'fecha_cierre': d.get('fecha_cierre'),
+                        'importe_final': d.get('importe_final'),
+                        'ambos_confirmaron_cierre': bool(
+                            d.get('cierre_confirmado_solicitante_en')
+                            and d.get('cierre_confirmado_profesional_en')
+                        ),
+                    })
+                return out
+            except Exception as e:
+                print(f"Error listar_acuerdos_aliado: {e}")
+                return []
+            finally:
+                if conn:
+                    conn.close()
+
+    def listar_resumenes_acuerdo_visibles(self, codigo_aliado: str) -> List[Dict[str, Any]]:
+        """Acuerdos cuyo resumen flotante aún no ha descartado este aliado."""
+        codigo = (codigo_aliado or '').strip()
+        if not codigo:
+            return []
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id, solicitante_codigo, profesional_codigo, servicio, estado,
+                           acuerdo_resumen_json, acuerdo_alcanzado_en,
+                           cierre_confirmado_solicitante_en, cierre_confirmado_profesional_en,
+                           resumen_dismiss_solicitante_en, resumen_dismiss_profesional_en
+                    FROM contactos_ruana
+                    WHERE acuerdo_resumen_json IS NOT NULL
+                      AND TRIM(CAST(acuerdo_resumen_json AS TEXT)) != ''
+                      AND estado IN ('acuerdo_alcanzado', 'trabajo_cerrado')
+                      AND (
+                        (TRIM(CAST(solicitante_codigo AS TEXT)) = ? AND resumen_dismiss_solicitante_en IS NULL)
+                        OR (TRIM(CAST(profesional_codigo AS TEXT)) = ? AND resumen_dismiss_profesional_en IS NULL)
+                      )
+                    ORDER BY COALESCE(acuerdo_alcanzado_en, actualizado_en) DESC
+                    LIMIT 20
+                """, (codigo, codigo))
+                out = []
+                for row in cursor.fetchall():
+                    d = dict(row)
+                    sol = str(d.get('solicitante_codigo') or '').strip()
+                    pro = str(d.get('profesional_codigo') or '').strip()
+                    rol = 'solicitante' if sol == codigo else 'profesional'
+                    resumen = self._parse_acuerdo_resumen_campo(d.get('acuerdo_resumen_json')) or {}
+                    flags = self._flags_cierre_acuerdo(d, rol)
+                    out.append({
+                        'contacto_id': d.get('id'),
+                        'estado': d.get('estado'),
+                        'rol': rol,
+                        'servicio': (resumen.get('servicio_contacto') or d.get('servicio') or '').strip(),
+                        'resumen': resumen.get('resumen') or [],
+                        'campos': resumen.get('campos') or {},
+                        'acuerdo_alcanzado_en': d.get('acuerdo_alcanzado_en'),
+                        'contraparte_codigo': pro if rol == 'solicitante' else sol,
+                        **flags,
+                    })
+                return out
+            except Exception as e:
+                print(f"Error listar_resumenes_acuerdo_visibles: {e}")
+                return []
+            finally:
+                if conn:
+                    conn.close()
 
     def listar_negociaciones_admin(self, limite: int = 20, offset: int = 0) -> List[Dict[str, Any]]:
         with self._lock:

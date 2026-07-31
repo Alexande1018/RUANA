@@ -87,6 +87,8 @@
         }
 
         cerrar() {
+            const dataSnapshot = this.data;
+            const contactoId = this.contactoId;
             this.detenerPolling();
             const modal = document.getElementById('modal-negociacion-guiada');
             if (modal) modal.classList.remove('show');
@@ -95,6 +97,9 @@
             this._drafts = {};
             this._lastAccionKey = '';
             this._wizard = null;
+            if (dataSnapshot && contactoId && this.panel && typeof this.panel.mostrarAcuerdoFlotanteDesdeNegociacion === 'function') {
+                this.panel.mostrarAcuerdoFlotanteDesdeNegociacion(contactoId, dataSnapshot);
+            }
         }
 
         _miCodigo() {
@@ -244,10 +249,12 @@
                     this._clearWizard();
                 }
                 this.render();
-                const estadoCerrado = ['cerrado_no_concretado', 'no_concretado', 'trabajo_cerrado'].includes(data.estado_contacto || '')
-                    || (data.accion && data.accion.tipo === 'cerrado');
+                const estadoCerrado = ['cerrado_no_concretado', 'no_concretado'].includes(data.estado_contacto || '')
+                    || (data.accion && data.accion.tipo === 'cerrado' && data.estado_contacto !== 'trabajo_cerrado');
                 if (estadoCerrado && this.panel && typeof this.panel.finalizarContactoCerradoEnUI === 'function') {
                     await this.panel.finalizarContactoCerradoEnUI(this.contactoId, { cerrarModal: true });
+                } else if (this.panel && typeof this.panel.syncAcuerdoFlotante === 'function') {
+                    this.panel.syncAcuerdoFlotante(data);
                 }
             } catch (e) {
                 if (!silent) console.error(e);
@@ -307,9 +314,23 @@
             const btnCerrarNeg = document.getElementById('neg-btn-cerrar-negociacion');
             if (!btnCerrarNeg) return;
             const estado = this.data.estado_contacto || '';
-            const cerrado = ['cerrado_no_concretado', 'no_concretado', 'trabajo_cerrado', 'acuerdo_alcanzado'].includes(estado)
-                || this.data.acuerdo_alcanzado;
-            btnCerrarNeg.style.display = cerrado ? 'none' : '';
+            const abandonado = ['cerrado_no_concretado', 'no_concretado'].includes(estado);
+            const trabajoCerrado = estado === 'trabajo_cerrado';
+            const acuerdo = estado === 'acuerdo_alcanzado' || this.data.acuerdo_alcanzado;
+            if (abandonado || (trabajoCerrado && this.data.yo_confirme_cierre)) {
+                btnCerrarNeg.style.display = 'none';
+                return;
+            }
+            btnCerrarNeg.style.display = '';
+            if (acuerdo || trabajoCerrado) {
+                btnCerrarNeg.textContent = this.data.yo_confirme_cierre
+                    ? 'Ya confirmaste'
+                    : 'Confirmar acuerdo';
+                btnCerrarNeg.disabled = !!this.data.yo_confirme_cierre;
+            } else {
+                btnCerrarNeg.textContent = 'Cerrar';
+                btnCerrarNeg.disabled = false;
+            }
         }
 
         _bubbleHtml(tipo, texto, meta) {
@@ -413,9 +434,11 @@
             }
             wrap.style.display = 'block';
             const items = (this.data.resumen || []).filter(i => i.valor && i.campo !== 'observaciones_profesional');
-            let hint = 'Cuando se realice el servicio, usa el seguimiento del contacto en tu panel para cerrar el encargo.';
-            if (this.data.cierre_automatico || estado === 'trabajo_cerrado') {
-                hint = 'El encargo quedó registrado como trabajo realizado. Si eres el profesional, revisa el Apoyo RUANA pendiente.';
+            let hint = 'Revisa el resumen. Cuando ambas partes cierren la negociación, el encargo se registra como trabajo realizado.';
+            if (this.data.ambos_confirmaron_cierre || estado === 'trabajo_cerrado' || this.data.cierre_automatico) {
+                hint = 'Ambas partes confirmaron el acuerdo. El encargo quedó registrado como trabajo realizado.';
+            } else if (this.data.yo_confirme_cierre) {
+                hint = 'Ya confirmaste el acuerdo. Esperando a que la otra parte cierre la negociación.';
             } else if (this.data.cierre_aviso) {
                 hint = String(this.data.cierre_aviso);
             }
@@ -445,10 +468,12 @@
             if (this.data.acuerdo_alcanzado
                 || this.data.estado_contacto === 'acuerdo_alcanzado'
                 || this.data.estado_contacto === 'trabajo_cerrado') {
-                const cerrado = this.data.cierre_automatico || this.data.estado_contacto === 'trabajo_cerrado';
-                const msg = cerrado
-                    ? 'Negociación completada. Encargo registrado como trabajo realizado.'
-                    : 'Negociación completada.';
+                let msg = 'Negociación completada. Revisa el resumen y confirma cerrando la negociación.';
+                if (this.data.cierre_automatico || this.data.estado_contacto === 'trabajo_cerrado') {
+                    msg = 'Negociación completada. Encargo registrado como trabajo realizado.';
+                } else if (this.data.yo_confirme_cierre) {
+                    msg = 'Ya confirmaste el acuerdo. Esperando a la otra parte.';
+                }
                 el.innerHTML = `<p class="neg-esperar-msg">${this.escapeHtml(msg)}</p>`;
                 return;
             }
@@ -687,9 +712,15 @@
                 }
                 const cerradoAuto = !!(data.cierre_automatico
                     || data.estado_contacto === 'trabajo_cerrado'
-                    || (data.accion && data.accion.tipo === 'cerrado'));
+                    || data.ambos_confirmaron_cierre);
                 if (cerradoAuto && this.panel && typeof this.panel.cargarPagosApoyoPendientes === 'function') {
                     await this.panel.cargarPagosApoyoPendientes();
+                }
+                if (this.panel && typeof this.panel.syncAcuerdoFlotante === 'function') {
+                    this.panel.syncAcuerdoFlotante(data);
+                }
+                if (this.panel && typeof this.panel.cargarMisAcuerdos === 'function') {
+                    await this.panel.cargarMisAcuerdos();
                 }
                 setTimeout(() => this.refrescar(true), 400);
             } catch (e) {
@@ -744,10 +775,20 @@
 
         async confirmarCerrarNegociacion() {
             if (!this.contactoId) return;
-            const mensaje = '¿Cerrar esta negociación?\n\nSe finalizará la conversación para ambas partes y el contacto quedará registrado como no concretado.';
+            const estado = (this.data && this.data.estado_contacto) || '';
+            const esAcuerdo = estado === 'acuerdo_alcanzado' || (this.data && this.data.acuerdo_alcanzado);
+            if (esAcuerdo && this.data && this.data.yo_confirme_cierre) {
+                alert('Ya confirmaste este acuerdo. Esperando a la otra parte.');
+                return;
+            }
+            const mensaje = esAcuerdo
+                ? '¿Confirmas el acuerdo y cierras la negociación?\n\nCuando ambas partes confirmen, el encargo se registrará como trabajo realizado y quedará en Mis acuerdos.'
+                : '¿Cerrar esta negociación?\n\nSe finalizará la conversación para ambas partes y el contacto quedará registrado como no concretado.';
+            const titulo = esAcuerdo ? 'Confirmar acuerdo' : 'Cerrar negociación';
+            const confirmText = esAcuerdo ? 'Sí, confirmar' : 'Sí, cerrar';
             let ok = false;
             if (typeof global.RuanaUI !== 'undefined' && typeof global.RuanaUI.confirm === 'function') {
-                ok = await global.RuanaUI.confirm(mensaje, { title: 'Cerrar negociación', confirmText: 'Sí, cerrar', cancelText: 'Cancelar' });
+                ok = await global.RuanaUI.confirm(mensaje, { title: titulo, confirmText, cancelText: 'Cancelar' });
             } else {
                 ok = window.confirm(mensaje);
             }
@@ -760,15 +801,40 @@
                     body: JSON.stringify({}),
                 });
                 const data = await resp.json();
-                const yaCerrado = data.status !== 'success' && /ya está cerrado|estado final/i.test(data.message || '');
-                if (data.status === 'success' || yaCerrado) {
-                    if (this.panel && typeof this.panel.finalizarContactoCerradoEnUI === 'function') {
-                        await this.panel.finalizarContactoCerradoEnUI(this.contactoId);
-                    } else {
-                        this.cerrar();
+                if (data.status === 'success') {
+                    this.data = data;
+                    this._lastAccionKey = '';
+                    this.render();
+                    if (this.panel && typeof this.panel.syncAcuerdoFlotante === 'function') {
+                        this.panel.syncAcuerdoFlotante(data);
+                    }
+                    if (this.panel && typeof this.panel.cargarMisAcuerdos === 'function') {
+                        await this.panel.cargarMisAcuerdos();
+                    }
+                    if (this.panel && typeof this.panel.cargarContactosPendientes === 'function') {
+                        await this.panel.cargarContactosPendientes();
+                    }
+                    if (data.cierre_automatico || data.estado_contacto === 'trabajo_cerrado') {
+                        if (this.panel && typeof this.panel.cargarPagosApoyoPendientes === 'function') {
+                            await this.panel.cargarPagosApoyoPendientes();
+                        }
+                        if (this.panel && typeof this.panel.refreshAfterAction === 'function') {
+                            await this.panel.refreshAfterAction(['contactos', 'alertas', 'metricas']);
+                        }
+                    } else if (!esAcuerdo) {
+                        if (this.panel && typeof this.panel.finalizarContactoCerradoEnUI === 'function') {
+                            await this.panel.finalizarContactoCerradoEnUI(this.contactoId);
+                        } else {
+                            this.cerrar();
+                        }
                     }
                 } else {
-                    alert(data.message || 'No se pudo cerrar la negociación');
+                    const yaCerrado = /ya está cerrado|estado final/i.test(data.message || '');
+                    if (yaCerrado && this.panel && typeof this.panel.finalizarContactoCerradoEnUI === 'function') {
+                        await this.panel.finalizarContactoCerradoEnUI(this.contactoId);
+                    } else {
+                        alert(data.message || 'No se pudo cerrar la negociación');
+                    }
                 }
             } catch (e) {
                 alert('Error de conexión');
