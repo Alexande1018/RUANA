@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RUANA - Panel de Administrador</title>
     <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/ruana-feedback.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -2714,7 +2715,13 @@
 
             showToast(message, type = 'success') {
                 if (typeof RuanaUI !== 'undefined') {
-                    RuanaUI.toast(message, type === 'error' ? 'error' : 'success');
+                    if (type === 'error') {
+                        RuanaUI.error('', message);
+                    } else if (type === 'warning') {
+                        RuanaUI.warning('', message);
+                    } else {
+                        RuanaUI.success(message);
+                    }
                     return;
                 }
                 const container = document.getElementById('adminToastContainer');

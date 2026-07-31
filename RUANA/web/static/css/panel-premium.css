@@ -808,15 +808,11 @@ body:not(.panel-loading) {
     transform: translateY(0);
 }
 
-/* ——— Alertas y notificaciones ——— */
+/* ——— Alertas y notificaciones (estilos base en ruana-feedback.css) ——— */
 .contacto-aviso,
 #banner-mensaje-nuevo-ruana,
 #aviso-pagos-pendientes-banner {
-    border-radius: var(--ruana-radius-lg) !important;
-    border: 1px solid var(--ruana-border) !important;
-    background: linear-gradient(165deg, rgba(20, 24, 39, 0.92), rgba(14, 16, 32, 0.85)) !important;
-    backdrop-filter: var(--ruana-glass);
-    box-shadow: var(--ruana-shadow-card);
+    margin-bottom: 0;
 }
 
 .contacto-aviso-titulo {

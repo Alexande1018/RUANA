@@ -37,6 +37,26 @@
     --ruana-brand-lime: #a2ff00;
     --ruana-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.12);
     --ruana-font: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
+
+    /* Sistema de feedback unificado RUANA */
+    --ruana-feedback-radius: 22px;
+    --ruana-feedback-padding: 18px 22px;
+    --ruana-feedback-padding-lg: 28px 32px;
+    --ruana-feedback-shadow: 0 20px 56px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+    --ruana-feedback-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --ruana-feedback-duration: 240ms;
+    --ruana-success-soft: rgba(63, 159, 110, 0.13);
+    --ruana-success-border: rgba(94, 207, 154, 0.28);
+    --ruana-success-text: #8fd4b4;
+    --ruana-warning-soft: rgba(212, 146, 110, 0.13);
+    --ruana-warning-border: rgba(212, 146, 110, 0.3);
+    --ruana-warning-text: #e8c4a8;
+    --ruana-error-soft: rgba(184, 106, 138, 0.12);
+    --ruana-error-border: rgba(184, 106, 138, 0.3);
+    --ruana-error-text: #d4a8be;
+    --ruana-info-soft: rgba(86, 168, 212, 0.12);
+    --ruana-info-border: rgba(86, 168, 212, 0.28);
+    --ruana-info-text: #9ccde8;
 }
 
 /* ================================================
@@ -1292,151 +1312,8 @@ select optgroup {
 }
 
 /* ================================================
-   RUANA PREMIUM UI — Toast, Diálogos, Badges
+   RUANA PREMIUM UI — Toast, Diálogos (ver ruana-feedback.css)
    ================================================ */
-.ruana-toast-container {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 20000;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    pointer-events: none;
-    max-width: min(420px, calc(100vw - 32px));
-}
-
-.ruana-toast {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 14px 16px;
-    border-radius: 18px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: linear-gradient(160deg, rgba(255, 255, 255, 0.08) 0%, rgba(10, 12, 20, 0.82) 100%);
-    backdrop-filter: blur(28px) saturate(180%);
-    -webkit-backdrop-filter: blur(28px) saturate(180%);
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-    color: var(--ruana-text);
-    font-size: 0.9rem;
-    line-height: 1.45;
-    pointer-events: auto;
-    animation: ruana-toast-in 180ms ease forwards;
-}
-
-.ruana-toast.is-leaving {
-    animation: ruana-toast-out 180ms ease forwards;
-}
-
-.ruana-toast-icon {
-    flex-shrink: 0;
-    width: 20px;
-    height: 20px;
-    margin-top: 1px;
-}
-
-.ruana-toast-body {
-    flex: 1;
-    min-width: 0;
-}
-
-.ruana-toast-close {
-    flex-shrink: 0;
-    width: 28px;
-    height: 28px;
-    border: none;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--ruana-text-muted);
-    cursor: pointer;
-    display: grid;
-    place-items: center;
-    transition: background var(--ruana-transition), color var(--ruana-transition);
-}
-
-.ruana-toast-close:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--ruana-text);
-}
-
-.ruana-toast.success { border-color: rgba(34, 197, 94, 0.35); }
-.ruana-toast.success .ruana-toast-icon { color: var(--ruana-accent); }
-.ruana-toast.error { border-color: rgba(239, 68, 68, 0.35); }
-.ruana-toast.error .ruana-toast-icon { color: var(--ruana-danger); }
-.ruana-toast.warning { border-color: rgba(234, 179, 8, 0.35); }
-.ruana-toast.warning .ruana-toast-icon { color: var(--ruana-warning); }
-.ruana-toast.info { border-color: rgba(56, 189, 248, 0.35); }
-.ruana-toast.info .ruana-toast-icon { color: var(--ruana-info); }
-
-@keyframes ruana-toast-in {
-    from { opacity: 0; transform: translateX(16px) scale(0.96); }
-    to { opacity: 1; transform: translateX(0) scale(1); }
-}
-
-@keyframes ruana-toast-out {
-    from { opacity: 1; transform: translateX(0); }
-    to { opacity: 0; transform: translateX(12px); }
-}
-
-.ruana-dialog-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 19000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-    background: rgba(6, 8, 18, 0.72);
-    backdrop-filter: blur(8px);
-    animation: ruana-fade-in 200ms ease;
-}
-
-.ruana-dialog {
-    width: min(100%, 440px);
-    padding: 28px;
-    border-radius: 28px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: linear-gradient(160deg, rgba(255, 255, 255, 0.08) 0%, rgba(10, 12, 20, 0.9) 100%);
-    box-shadow: 0 40px 100px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-    backdrop-filter: blur(36px) saturate(180%);
-    -webkit-backdrop-filter: blur(36px) saturate(180%);
-    animation: ruana-dialog-in 200ms ease;
-}
-
-.ruana-dialog-title {
-    font-size: 1.15rem;
-    font-weight: 600;
-    color: var(--ruana-text);
-    margin-bottom: 10px;
-}
-
-.ruana-dialog-message {
-    font-size: 0.92rem;
-    color: var(--ruana-text-muted);
-    line-height: 1.55;
-    margin-bottom: 24px;
-}
-
-.ruana-dialog-actions {
-    display: flex;
-    gap: 10px;
-    justify-content: flex-end;
-    flex-wrap: wrap;
-}
-
-.ruana-dialog-actions .ruana-button.secondary {
-    min-height: 44px;
-}
-
-@keyframes ruana-fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-@keyframes ruana-dialog-in {
-    from { opacity: 0; transform: scale(0.96) translateY(8px); }
-    to { opacity: 1; transform: scale(1) translateY(0); }
-}
 
 .ruana-badge {
     display: inline-flex;
@@ -1547,11 +1424,3 @@ select optgroup {
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.28);
 }
 
-@media (max-width: 640px) {
-    .ruana-toast-container {
-        top: 12px;
-        right: 12px;
-        left: 12px;
-        max-width: none;
-    }
-}

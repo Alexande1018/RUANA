@@ -28,6 +28,24 @@
         observaciones: 'Observaciones',
     };
 
+    function notify(message, type) {
+        const msg = String(message || '');
+        if (typeof global.RuanaUI !== 'undefined') {
+            const inferred = type || global.RuanaUI.inferToastType(msg);
+            if (inferred === 'error') {
+                global.RuanaUI.error('', msg);
+            } else if (inferred === 'warning') {
+                global.RuanaUI.warning('', msg);
+            } else if (inferred === 'success') {
+                global.RuanaUI.success(msg);
+            } else {
+                global.RuanaUI.toast(msg, inferred);
+            }
+            return;
+        }
+        alert(msg);
+    }
+
     const PREGUNTAS_DEFAULT = {
         servicio: 'Hola, ¿qué servicio necesitas? Puedes elegir del catálogo o escribirlo tú.',
         fecha: '¿Qué fecha te vendría bien para el servicio?',
@@ -240,7 +258,7 @@
                 });
                 const data = await resp.json();
                 if (data.status !== 'success') {
-                    if (!silent) alert(data.message || 'No se pudo cargar la negociación');
+                    if (!silent) notify(data.message || 'No se pudo cargar la negociación', 'error');
                     return;
                 }
                 const prevTipo = this.data && this.data.accion && this.data.accion.tipo;
@@ -562,7 +580,7 @@
             const input = document.getElementById('neg-input-valor');
             const valor = input ? String(input.value || '').trim() : '';
             if (!valor) {
-                alert('Escribe una respuesta para continuar.');
+                notify('Escribe una respuesta para continuar.', 'warning');
                 return;
             }
             const w = this._loadWizard();
@@ -593,7 +611,7 @@
             }
             for (const campo of campos) {
                 if (!String(body[campo] || '').trim()) {
-                    alert('Completa todos los campos antes de enviar al profesional.');
+                    notify('Completa todos los campos antes de enviar al profesional.', 'warning');
                     return;
                 }
             }
@@ -659,7 +677,7 @@
         async proponer(campo) {
             const input = document.getElementById('neg-input-valor');
             const valor = input ? String(input.value || '').trim() : '';
-            if (!valor) { alert('Introduce un valor para continuar'); return; }
+            if (!valor) { notify('Introduce un valor para continuar', 'warning'); return; }
             await this._post(`/api/contactos/${this.contactoId}/negociacion/proponer`, { campo, valor });
         }
 
@@ -675,7 +693,7 @@
         async contraoferta(campo) {
             const input = document.getElementById('neg-input-contraoferta');
             const valor = input ? String(input.value || '').trim() : '';
-            if (!valor) { alert('Introduce tu alternativa'); return; }
+            if (!valor) { notify('Introduce tu alternativa', 'warning'); return; }
             await this._post(`/api/contactos/${this.contactoId}/negociacion/contraoferta`, { campo, valor });
         }
 
@@ -689,7 +707,7 @@
                 });
                 const data = await resp.json();
                 if (data.status !== 'success') {
-                    alert(data.message || 'Error en la operación');
+                    notify(data.message || 'Error en la operación', 'error');
                     return;
                 }
                 this.data = data;
@@ -724,7 +742,7 @@
                 }
                 setTimeout(() => this.refrescar(true), 400);
             } catch (e) {
-                alert('Error de conexión');
+                notify('No hemos podido conectar. Comprueba tu conexión e inténtalo de nuevo.', 'error');
             }
         }
 
@@ -778,7 +796,7 @@
             const estado = (this.data && this.data.estado_contacto) || '';
             const esAcuerdo = estado === 'acuerdo_alcanzado' || (this.data && this.data.acuerdo_alcanzado);
             if (esAcuerdo && this.data && this.data.yo_confirme_cierre) {
-                alert('Ya confirmaste este acuerdo. Esperando a la otra parte.');
+                notify('Ya confirmaste este acuerdo. Esperando a la otra parte.', 'info');
                 return;
             }
             const mensaje = esAcuerdo
@@ -835,11 +853,11 @@
                     if (yaCerrado && this.panel && typeof this.panel.finalizarContactoCerradoEnUI === 'function') {
                         await this.panel.finalizarContactoCerradoEnUI(this.contactoId);
                     } else {
-                        alert(data.message || 'No se pudo cerrar la negociación');
+                        notify(data.message || 'No se pudo cerrar la negociación', 'error');
                     }
                 }
             } catch (e) {
-                alert('Error de conexión');
+                notify('No hemos podido conectar. Comprueba tu conexión e inténtalo de nuevo.', 'error');
             }
         }
 
