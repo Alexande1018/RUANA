@@ -28,6 +28,7 @@ body.aliado-app .panel-divider {
 body.panel-loading .aliado-shell-nav,
 body.panel-loading .aliado-shell-bottom,
 body.panel-loading #btn-logout,
+body.panel-loading #btn-invitar-global,
 body.panel-loading .panel-container > :not(#error-bootstrap):not(#panel-loading) {
     display: none !important;
 }
@@ -159,13 +160,119 @@ body.panel-loading .panel-container > :not(#error-bootstrap):not(#panel-loading)
     padding-top: 12px;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
     margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.aliado-shell-invite-cta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px 12px;
+    border: 1px solid rgba(162, 255, 0, 0.45);
+    border-radius: 14px;
+    background: linear-gradient(160deg, rgba(162, 255, 0, 0.22) 0%, rgba(34, 197, 94, 0.12) 100%);
+    color: #e8ffb8;
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    line-height: 1.25;
+    text-align: left;
+    cursor: pointer;
+    transition: background 160ms ease, border-color 160ms ease, transform 140ms ease, box-shadow 160ms ease;
+    box-shadow: 0 0 0 1px rgba(162, 255, 0, 0.08), 0 8px 22px rgba(0, 0, 0, 0.25);
+}
+
+.aliado-shell-invite-cta svg,
+.aliado-shell-invite-cta i {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    color: #a2ff00;
+}
+
+.aliado-shell-invite-cta:hover {
+    background: linear-gradient(160deg, rgba(162, 255, 0, 0.3) 0%, rgba(34, 197, 94, 0.18) 100%);
+    border-color: rgba(162, 255, 0, 0.7);
+    transform: translateY(-1px);
+    box-shadow: 0 0 0 1px rgba(162, 255, 0, 0.16), 0 12px 28px rgba(0, 0, 0, 0.3);
+}
+
+.aliado-shell-invite-cta:disabled {
+    opacity: 0.55;
+    cursor: wait;
+    transform: none;
 }
 
 .aliado-shell-nav-hint {
     font-size: 0.7rem;
     color: rgba(255, 255, 255, 0.35);
-    padding: 0 10px;
+    padding: 0 4px;
     line-height: 1.4;
+    margin: 0;
+}
+
+/* Global invite action — always visible across modules */
+.btn-invitar-global {
+    position: fixed;
+    top: 16px;
+    right: 148px;
+    z-index: 130;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(162, 255, 0, 0.45);
+    background: rgba(10, 16, 12, 0.88);
+    color: #dff7cb;
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+    transition: background 160ms ease, border-color 160ms ease, transform 140ms ease;
+}
+
+.btn-invitar-global svg,
+.btn-invitar-global i {
+    width: 16px;
+    height: 16px;
+    color: #a2ff00;
+}
+
+.btn-invitar-global:hover {
+    background: rgba(162, 255, 0, 0.14);
+    border-color: rgba(162, 255, 0, 0.7);
+    transform: translateY(-1px);
+}
+
+.btn-invitar-global:disabled {
+    opacity: 0.55;
+    cursor: wait;
+    transform: none;
+}
+
+.inicio-quick-btn-invite {
+    border-color: rgba(162, 255, 0, 0.35) !important;
+    background: linear-gradient(160deg, rgba(162, 255, 0, 0.14) 0%, rgba(255, 255, 255, 0.03) 100%) !important;
+}
+
+.inicio-quick-btn-invite span {
+    color: #e8ffb8;
+}
+
+.inicio-quick-btn-invite svg,
+.inicio-quick-btn-invite i {
+    color: #a2ff00;
 }
 
 /* ——— Bottom nav (mobile) ——— */
@@ -246,6 +353,11 @@ body.aliado-app #btn-logout {
     left: auto;
     margin: 0;
     z-index: 130;
+}
+
+body.aliado-app .btn-invitar-global {
+    /* Desktop: also visible next to logout for one-click from any module */
+    right: 148px;
 }
 
 /* Hide duplicate watermark brand; shell has its own */
@@ -858,6 +970,19 @@ body.aliado-app > .ruana-brand-watermark {
         right: 12px;
         padding: 9px 12px;
         font-size: 0.8rem;
+    }
+
+    body.aliado-app .btn-invitar-global {
+        top: 10px;
+        right: auto;
+        left: 12px;
+        min-height: 38px;
+        padding: 8px 12px;
+        font-size: 0.78rem;
+    }
+
+    body.aliado-app .btn-invitar-global-label {
+        display: inline;
     }
 
     .inicio-identity {

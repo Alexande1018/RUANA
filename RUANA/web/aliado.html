@@ -36,6 +36,7 @@
         }
 
         body.panel-loading #btn-logout,
+        body.panel-loading #btn-invitar-global,
         body.panel-loading .aliado-shell-nav,
         body.panel-loading .aliado-shell-bottom,
         body.panel-loading .panel-container > :not(#error-bootstrap):not(#panel-loading) {
@@ -2234,6 +2235,15 @@
         <span class="ruana-brand-word">RUANA</span>
     </a>
     <button id="btn-logout" class="btn-back">Cerrar sesión</button>
+    <button type="button"
+        id="btn-invitar-global"
+        class="btn-invitar-global"
+        data-action="invitar-aliado"
+        title="Generar código de invitación"
+        aria-label="Generar código de invitación">
+        <i data-lucide="user-plus"></i>
+        <span class="btn-invitar-global-label">Invitar</span>
+    </button>
 
     <nav class="aliado-shell-nav" id="aliado-shell-nav" aria-label="Navegación del panel">
         <a href="/" class="aliado-shell-nav-brand ruana-brand" aria-label="RUANA inicio">
@@ -2262,7 +2272,15 @@
             </button>
         </div>
         <div class="aliado-shell-nav-footer">
-            <p class="aliado-shell-nav-hint">Operativa rápida · un clic por módulo</p>
+            <button type="button"
+                class="aliado-shell-invite-cta"
+                id="btn-invitar-nav"
+                data-action="invitar-aliado"
+                title="Generar código para que un nuevo aliado se registre">
+                <i data-lucide="user-plus"></i>
+                <span>Generar código de invitación</span>
+            </button>
+            <p class="aliado-shell-nav-hint">Crece la red · disponible en todo momento</p>
         </div>
     </nav>
 
@@ -2397,6 +2415,11 @@
                 </div>
 
                 <div class="inicio-quick-grid" aria-label="Accesos rápidos">
+                    <button type="button" class="inicio-quick-btn inicio-quick-btn-invite" data-action="invitar-aliado" id="btn-invitar-inicio">
+                        <i data-lucide="user-plus"></i>
+                        <span>Invitar aliado</span>
+                        <small>Generar código ahora</small>
+                    </button>
                     <button type="button" class="inicio-quick-btn" data-aliado-goto="directorio">
                         <i data-lucide="search"></i>
                         <span>Directorio</span>
@@ -2538,7 +2561,11 @@
             </div>
 
             <div class="perfil-acciones">
-                <button type="button" class="btn-invitar-aliado" id="btn-invitar-aliado" title="Generar código para que un nuevo aliado se registre">
+                <button type="button"
+                    class="btn-invitar-aliado"
+                    id="btn-invitar-aliado"
+                    data-action="invitar-aliado"
+                    title="Generar código para que un nuevo aliado se registre">
                     <i data-lucide="user-plus" style="width:16px;height:16px"></i>
                     Generar código de invitación
                 </button>
@@ -3116,10 +3143,10 @@
                         placement: 'top'
                     },
                     {
-                        selector: '#btn-invitar-aliado',
-                        module: 'perfil',
+                        selector: '#btn-invitar-nav, #btn-invitar-global, #btn-invitar-aliado',
+                        module: null,
                         title: 'Invita nuevos aliados',
-                        copy: 'Genera un código para sumar talento de confianza y fortalecer tu grupo.',
+                        copy: 'Genera un código en cualquier momento desde este acceso prioritario y fortalece tu grupo.',
                         placement: 'top'
                     },
                     {
@@ -4655,8 +4682,8 @@
                     alert('Sesión no válida');
                     return;
                 }
-                const btn = document.getElementById('btn-invitar-aliado');
-                if (btn) btn.disabled = true;
+                const inviteBtns = Array.from(document.querySelectorAll('[data-action="invitar-aliado"]'));
+                inviteBtns.forEach((btn) => { btn.disabled = true; });
                 const zona = (this.aliado && this.aliado.codigo_postal) || '';
                 const apiBase = getApiBase();
                 try {
@@ -4681,7 +4708,7 @@
                 } catch (e) {
                     alert('Error de conexión: ' + (e.message || e));
                 } finally {
-                    if (btn) btn.disabled = false;
+                    inviteBtns.forEach((btn) => { btn.disabled = false; });
                 }
             }
 
@@ -4862,10 +4889,9 @@
                     btnLogout.addEventListener('click', () => this.handleLogout());
                 }
 
-                const btnInvitarAliado = document.getElementById('btn-invitar-aliado');
-                if (btnInvitarAliado) {
-                    btnInvitarAliado.addEventListener('click', () => this.generarCodigoInvitacionPerfil());
-                }
+                document.querySelectorAll('[data-action="invitar-aliado"]').forEach((btn) => {
+                    btn.addEventListener('click', () => this.generarCodigoInvitacionPerfil());
+                });
                 const btnSoporteEnviar = document.getElementById('ruana-help-send-btn');
                 if (btnSoporteEnviar) btnSoporteEnviar.addEventListener('click', () => this.enviarNuevoMensajeSoporte());
                 const btnSoporteResponder = document.getElementById('ruana-help-reply-btn');
