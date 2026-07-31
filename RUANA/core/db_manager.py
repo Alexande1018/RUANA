@@ -121,6 +121,8 @@ class DBManager:
             """)
             self._migrar_aliados_foto_perfil(conn, cursor)
             self._migrar_aliados_invitado_por(conn, cursor)
+            self._migrar_invitaciones_solicitud_id(conn, cursor)
+            self._migrar_solicitudes_candidato(conn, cursor)
             self._migrar_contactos_es_urgente(conn, cursor)
             self._migrar_negociacion_guiada(conn, cursor)
             self._migrar_aliado_accesos_dia(conn, cursor)
@@ -513,6 +515,8 @@ class DBManager:
                 self._migrar_referidos_origen(conn, cursor)
                 self._migrar_invitaciones_oficio_codigo_referido(conn, cursor)
                 self._migrar_aliados_invitado_por(conn, cursor)
+                self._migrar_invitaciones_solicitud_id(conn, cursor)
+                self._migrar_solicitudes_candidato(conn, cursor)
                 self._migrar_aliado_accesos_dia(conn, cursor)
                 self._migrar_datos_plaza_oficio(conn, cursor)
                 self._migrar_drop_especializaciones(conn, cursor)
@@ -1195,6 +1199,58 @@ class DBManager:
             )
         except Exception:
             pass
+
+    def _migrar_invitaciones_solicitud_id(self, conn, cursor) -> None:
+        """Vincula invitaciones «Conozco a alguien» con la solicitud de origen."""
+        try:
+            if self.backend == "postgres":
+                cursor.execute(
+                    "ALTER TABLE invitaciones ADD COLUMN IF NOT EXISTS solicitud_id INTEGER"
+                )
+            else:
+                cursor.execute("PRAGMA table_info(invitaciones)")
+                columnas = [row[1] for row in cursor.fetchall()]
+                if 'solicitud_id' not in columnas:
+                    cursor.execute("ALTER TABLE invitaciones ADD COLUMN solicitud_id INTEGER")
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_invitaciones_solicitud_id ON invitaciones(solicitud_id)"
+            )
+        except Exception as ex:
+            print(f"[RUANA][DB] Aviso migrar invitaciones.solicitud_id: {ex}")
+
+    def _migrar_solicitudes_candidato(self, conn, cursor) -> None:
+        """Campos para candidato pendiente e incorporación del aliado invitado."""
+        try:
+            if self.backend == "postgres":
+                cursor.execute(
+                    "ALTER TABLE solicitudes ADD COLUMN IF NOT EXISTS candidato_por_codigo TEXT"
+                )
+                cursor.execute(
+                    "ALTER TABLE solicitudes ADD COLUMN IF NOT EXISTS candidato_por_nombre TEXT"
+                )
+                cursor.execute(
+                    "ALTER TABLE solicitudes ADD COLUMN IF NOT EXISTS candidato_at TIMESTAMP"
+                )
+                cursor.execute(
+                    "ALTER TABLE solicitudes ADD COLUMN IF NOT EXISTS asignada_a_codigo TEXT"
+                )
+                cursor.execute(
+                    "ALTER TABLE solicitudes ADD COLUMN IF NOT EXISTS asignada_a_nombre TEXT"
+                )
+            else:
+                cursor.execute("PRAGMA table_info(solicitudes)")
+                columnas = [row[1] for row in cursor.fetchall()]
+                for col, def_sql in [
+                    ('candidato_por_codigo', 'TEXT'),
+                    ('candidato_por_nombre', 'TEXT'),
+                    ('candidato_at', 'DATETIME'),
+                    ('asignada_a_codigo', 'TEXT'),
+                    ('asignada_a_nombre', 'TEXT'),
+                ]:
+                    if col not in columnas:
+                        cursor.execute(f"ALTER TABLE solicitudes ADD COLUMN {col} {def_sql}")
+        except Exception as ex:
+            print(f"[RUANA][DB] Aviso migrar solicitudes candidato: {ex}")
 
     ORIGEN_REFERIDO_LABELS: Dict[str, str] = {
         'aliado': 'Invitación de aliado',
@@ -5217,40 +5273,246 @@ class DBManager:
                 sincronizados += 1
         return sincronizados
 
-    def _registrar_invitacion(self, codigo_invitacion: str, invitador_aliado_id: int) -> None:
+    def _registrar_invitacion(
+        self,
+        codigo_invitacion: str,
+        invitador_aliado_id: int,
+        solicitud_id: Optional[int] = None,
+    ) -> None:
         """Registra que este código de invitación fue creado por el aliado invitador (para +3 al completar)."""
         codigo_invitacion = (codigo_invitacion or "").strip()
         if not codigo_invitacion or invitador_aliado_id is None:
             raise ValueError("codigo_invitacion e invitador_aliado_id son obligatorios")
+        sid = None
+        if solicitud_id is not None:
+            try:
+                sid = int(solicitud_id)
+            except (TypeError, ValueError):
+                sid = None
         with self._lock:
             conn = None
             try:
                 conn = self._connect()
                 cursor = conn.cursor()
+                # Asegurar columna solicitud_id en instalaciones antiguas
+                try:
+                    self._migrar_invitaciones_solicitud_id(conn, cursor)
+                except Exception:
+                    pass
                 if self.backend == "postgres":
                     cursor.execute(
                         """
-                        INSERT INTO invitaciones (codigo, invitador_aliado_id, usado)
-                        VALUES (?, ?, 0)
+                        INSERT INTO invitaciones (codigo, invitador_aliado_id, usado, solicitud_id)
+                        VALUES (?, ?, 0, ?)
                         ON CONFLICT (codigo) DO UPDATE SET
                             invitador_aliado_id = EXCLUDED.invitador_aliado_id,
-                            usado = 0
+                            usado = 0,
+                            solicitud_id = COALESCE(EXCLUDED.solicitud_id, invitaciones.solicitud_id)
                         """,
-                        (codigo_invitacion, int(invitador_aliado_id)),
+                        (codigo_invitacion, int(invitador_aliado_id), sid),
                     )
                 else:
                     cursor.execute(
                         """
-                        INSERT OR REPLACE INTO invitaciones (codigo, invitador_aliado_id, usado)
-                        VALUES (?, ?, 0)
+                        INSERT OR REPLACE INTO invitaciones (codigo, invitador_aliado_id, usado, solicitud_id)
+                        VALUES (?, ?, 0, ?)
                         """,
-                        (codigo_invitacion, int(invitador_aliado_id)),
+                        (codigo_invitacion, int(invitador_aliado_id), sid),
                     )
                 conn.commit()
             finally:
                 if conn:
                     conn.close()
 
+    def marcar_solicitud_candidato_pendiente(self, solicitud_id: int, codigo_proponente: str) -> Dict[str, Any]:
+        """
+        «Conozco a alguien»: la solicitud no se cierra; pasa a candidato_pendiente
+        mientras el invitado no se registre.
+        """
+        with self._lock:
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                try:
+                    self._migrar_solicitudes_candidato(conn, cursor)
+                except Exception:
+                    pass
+                cursor.execute(
+                    "SELECT grupo_id, estado FROM solicitudes WHERE id = ?",
+                    (int(solicitud_id),),
+                )
+                row = cursor.fetchone()
+                if not row:
+                    return {'status': 'error', 'message': 'Solicitud no encontrada'}
+                grupo_id, estado = row[0], (row[1] or '').strip().lower()
+                if estado != 'pendiente':
+                    return {
+                        'status': 'error',
+                        'message': 'La solicitud ya no está pendiente de candidato',
+                    }
+                cursor.execute(
+                    "SELECT grupo_id, nombre FROM aliados WHERE codigo = ?",
+                    (codigo_proponente.strip(),),
+                )
+                r2 = cursor.fetchone()
+                if not r2:
+                    return {'status': 'error', 'message': 'Aliado no encontrado'}
+                if r2[0] != grupo_id:
+                    return {
+                        'status': 'error',
+                        'message': 'Solo un aliado del mismo grupo puede proponer candidato',
+                    }
+                nombre = r2[1] or ''
+                cursor.execute(
+                    """
+                    UPDATE solicitudes
+                    SET estado = 'candidato_pendiente',
+                        candidato_por_codigo = ?,
+                        candidato_por_nombre = ?,
+                        candidato_at = CURRENT_TIMESTAMP
+                    WHERE id = ? AND estado = 'pendiente'
+                    """,
+                    (codigo_proponente.strip(), nombre, int(solicitud_id)),
+                )
+                conn.commit()
+                if cursor.rowcount == 0:
+                    return {
+                        'status': 'error',
+                        'message': 'La solicitud ya no está pendiente de candidato',
+                    }
+                return {'status': 'success', 'ok': True, 'estado': 'candidato_pendiente'}
+            except Exception as e:
+                return {'status': 'error', 'message': str(e)}
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+    def vincular_solicitud_a_aliado_incorporado(
+        self,
+        codigo_invitacion: str,
+        nuevo_aliado_codigo: str,
+    ) -> Dict[str, Any]:
+        """
+        Tras registrarse con el código de «Conozco a alguien», vincula la solicitud
+        al nuevo aliado, la deja disponible (pendiente) y le notifica.
+        """
+        codigo_invitacion = (codigo_invitacion or '').strip()
+        nuevo_aliado_codigo = (nuevo_aliado_codigo or '').strip()
+        if not codigo_invitacion or not nuevo_aliado_codigo:
+            return {'status': 'error', 'message': 'Código requerido'}
+
+        notif_payload = None
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                try:
+                    self._migrar_invitaciones_solicitud_id(conn, cursor)
+                    self._migrar_solicitudes_candidato(conn, cursor)
+                except Exception:
+                    pass
+                cursor.execute(
+                    """
+                    SELECT i.solicitud_id, i.codigo
+                    FROM invitaciones i
+                    WHERE i.codigo = ?
+                    """,
+                    (codigo_invitacion,),
+                )
+                inv = cursor.fetchone()
+                if not inv:
+                    return {'status': 'error', 'message': 'Invitación no encontrada'}
+                solicitud_id = inv['solicitud_id'] if hasattr(inv, 'keys') else inv[0]
+                if solicitud_id is None:
+                    return {'status': 'success', 'ok': True, 'vinculada': False}
+                cursor.execute(
+                    "SELECT codigo, nombre FROM aliados WHERE codigo = ?",
+                    (nuevo_aliado_codigo,),
+                )
+                aliado = cursor.fetchone()
+                if not aliado:
+                    return {'status': 'error', 'message': 'Aliado no encontrado'}
+                nombre_nuevo = aliado['nombre'] if hasattr(aliado, 'keys') else aliado[1]
+                cursor.execute(
+                    """
+                    SELECT id, oficio, descripcion, estado, solicitante_codigo
+                    FROM solicitudes WHERE id = ?
+                    """,
+                    (int(solicitud_id),),
+                )
+                sol = cursor.fetchone()
+                if not sol:
+                    return {'status': 'error', 'message': 'Solicitud no encontrada'}
+                estado = (sol['estado'] if hasattr(sol, 'keys') else sol[3] or '').strip().lower()
+                oficio = (sol['oficio'] if hasattr(sol, 'keys') else sol[1]) or ''
+                descripcion = (sol['descripcion'] if hasattr(sol, 'keys') else sol[2]) or ''
+                if estado in ('candidato_pendiente', 'pendiente'):
+                    cursor.execute(
+                        """
+                        UPDATE solicitudes
+                        SET estado = 'pendiente',
+                            asignada_a_codigo = ?,
+                            asignada_a_nombre = ?
+                        WHERE id = ?
+                        """,
+                        (nuevo_aliado_codigo, nombre_nuevo or '', int(solicitud_id)),
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        UPDATE solicitudes
+                        SET asignada_a_codigo = COALESCE(asignada_a_codigo, ?),
+                            asignada_a_nombre = COALESCE(asignada_a_nombre, ?)
+                        WHERE id = ?
+                        """,
+                        (nuevo_aliado_codigo, nombre_nuevo or '', int(solicitud_id)),
+                    )
+                conn.commit()
+                oficio_txt = oficio.strip() or 'una solicitud'
+                desc_corta = (descripcion or '').strip()
+                if len(desc_corta) > 120:
+                    desc_corta = desc_corta[:117] + '…'
+                mensaje = (
+                    f"Tienes una solicitud disponible para atender"
+                    f"{(' · ' + oficio_txt) if oficio_txt else ''}."
+                )
+                if desc_corta:
+                    mensaje += f" {desc_corta}"
+                notif_payload = {
+                    'codigo': nuevo_aliado_codigo,
+                    'mensaje': mensaje,
+                    'solicitud_id': int(solicitud_id),
+                    'oficio': oficio,
+                }
+            except Exception as e:
+                return {'status': 'error', 'message': str(e)}
+            finally:
+                if conn:
+                    conn.close()
+
+        if notif_payload:
+            self._crear_notificacion_aliado(
+                notif_payload['codigo'],
+                'solicitud_asignada',
+                'Solicitud disponible',
+                notif_payload['mensaje'],
+                metadata={
+                    'solicitud_id': notif_payload['solicitud_id'],
+                    'oficio': notif_payload['oficio'],
+                    'origen': 'conozco_alguien',
+                },
+            )
+            return {
+                'status': 'success',
+                'ok': True,
+                'vinculada': True,
+                'solicitud_id': notif_payload['solicitud_id'],
+            }
+        return {'status': 'success', 'ok': True, 'vinculada': False}
     def crear_campana_invitacion(self, codigo: str = "", nombre: str = "",
                                   codigo_postal: str = "", max_usos: int = 100,
                                   creado_por_admin_codigo: str = "") -> Dict[str, Any]:
@@ -6048,6 +6310,7 @@ class DBManager:
                 cursor.execute(
                     """
                     SELECT i.codigo, i.invitador_aliado_id, i.usado, i.creado_en,
+                           i.solicitud_id,
                            inv.codigo AS codigo_invitador,
                            inv.codigo_postal AS zona_invitador,
                            inv.id AS invitador_id
@@ -6761,27 +7024,52 @@ class DBManager:
                 conn.close()
 
     def listar_solicitudes_activas_por_codigo(self, codigo: str) -> List[Dict[str, Any]]:
-        """Solo mismo grupo, estado pendiente, excluye las propias. GET /api/solicitudes?codigo=."""
+        """Solo mismo grupo, estado pendiente, excluye las propias. GET /api/solicitudes?codigo=.
+        También incluye solicitudes pendientes asignadas a este aliado (p. ej. tras «Conozco a alguien»).
+        """
         with self._lock:
             try:
                 conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
-                cursor.execute("SELECT grupo_id FROM aliados WHERE codigo = ?", (codigo.strip(),))
+                codigo = codigo.strip()
+                cursor.execute("SELECT grupo_id FROM aliados WHERE codigo = ?", (codigo,))
                 row = cursor.fetchone()
-                if not row or row[0] is None:
+                if not row:
                     return []
                 grupo_id = row[0]
                 cursor.execute("PRAGMA table_info(solicitudes)")
                 cols = [r[1] for r in cursor.fetchall()]
                 if 'solicitante_codigo' not in cols:
                     return []
-                cursor.execute("""
-                    SELECT id, grupo_id, solicitante_codigo, solicitante_nombre, oficio, descripcion, estado, created_at
-                    FROM solicitudes
-                    WHERE grupo_id = ? AND estado = 'pendiente' AND solicitante_codigo != ?
-                    ORDER BY created_at DESC
-                """, (grupo_id, codigo.strip()))
+                has_asignada = 'asignada_a_codigo' in cols
+                if grupo_id is None and not has_asignada:
+                    return []
+                if grupo_id is not None and has_asignada:
+                    cursor.execute("""
+                        SELECT id, grupo_id, solicitante_codigo, solicitante_nombre, oficio, descripcion, estado, created_at,
+                               asignada_a_codigo, asignada_a_nombre
+                        FROM solicitudes
+                        WHERE estado = 'pendiente'
+                          AND solicitante_codigo != ?
+                          AND (grupo_id = ? OR asignada_a_codigo = ?)
+                        ORDER BY created_at DESC
+                    """, (codigo, grupo_id, codigo))
+                elif grupo_id is not None:
+                    cursor.execute("""
+                        SELECT id, grupo_id, solicitante_codigo, solicitante_nombre, oficio, descripcion, estado, created_at
+                        FROM solicitudes
+                        WHERE grupo_id = ? AND estado = 'pendiente' AND solicitante_codigo != ?
+                        ORDER BY created_at DESC
+                    """, (grupo_id, codigo))
+                else:
+                    cursor.execute("""
+                        SELECT id, grupo_id, solicitante_codigo, solicitante_nombre, oficio, descripcion, estado, created_at,
+                               asignada_a_codigo, asignada_a_nombre
+                        FROM solicitudes
+                        WHERE estado = 'pendiente' AND asignada_a_codigo = ?
+                        ORDER BY created_at DESC
+                    """, (codigo,))
                 return [dict(r) for r in cursor.fetchall()]
             except Exception as e:
                 return []
@@ -6804,9 +7092,14 @@ class DBManager:
                 cols = [r[1] for r in cursor.fetchall()]
                 if 'solicitante_codigo' not in cols:
                     return []
-                cursor.execute("""
+                extra = ''
+                if 'candidato_por_codigo' in cols:
+                    extra += ', candidato_por_codigo, candidato_por_nombre, candidato_at'
+                if 'asignada_a_codigo' in cols:
+                    extra += ', asignada_a_codigo, asignada_a_nombre'
+                cursor.execute(f"""
                     SELECT id, grupo_id, solicitante_codigo, solicitante_nombre, oficio, descripcion, estado, created_at,
-                           atendido_por_codigo, atendido_por_nombre, atendido_at
+                           atendido_por_codigo, atendido_por_nombre, atendido_at{extra}
                     FROM solicitudes
                     WHERE grupo_id = ? AND solicitante_codigo = ?
                     ORDER BY created_at DESC
@@ -6833,9 +7126,14 @@ class DBManager:
                 cols = [r[1] for r in cursor.fetchall()]
                 if 'solicitante_codigo' not in cols:
                     return []
-                cursor.execute("""
+                extra = ''
+                if 'candidato_por_codigo' in cols:
+                    extra += ', candidato_por_codigo, candidato_por_nombre, candidato_at'
+                if 'asignada_a_codigo' in cols:
+                    extra += ', asignada_a_codigo, asignada_a_nombre'
+                cursor.execute(f"""
                     SELECT id, grupo_id, solicitante_codigo, solicitante_nombre, oficio, descripcion, estado, created_at,
-                           atendido_por_codigo, atendido_por_nombre, atendido_at
+                           atendido_por_codigo, atendido_por_nombre, atendido_at{extra}
                     FROM solicitudes
                     WHERE grupo_id = ?
                     ORDER BY created_at DESC

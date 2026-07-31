@@ -42,8 +42,8 @@ class Hito2AFakeDB:
         self.calls.append(("crear_aliado", kwargs))
         return {"status": "success"}
 
-    def _registrar_invitacion(self, codigo, aliado_id):
-        self.calls.append(("_registrar_invitacion", codigo, aliado_id))
+    def _registrar_invitacion(self, codigo, aliado_id, solicitud_id=None):
+        self.calls.append(("_registrar_invitacion", codigo, aliado_id, solicitud_id))
 
     def validar_campana_invitacion(self, codigo):
         self.calls.append(("validar_campana_invitacion", codigo))
@@ -83,6 +83,14 @@ class Hito2AFakeDB:
     def atender_solicitud_por_id(self, solicitud_id, codigo):
         self.calls.append(("atender_solicitud_por_id", solicitud_id, codigo))
         return {"status": "success", "ok": True}
+
+    def marcar_solicitud_candidato_pendiente(self, solicitud_id, codigo):
+        self.calls.append(("marcar_solicitud_candidato_pendiente", solicitud_id, codigo))
+        return {"status": "success", "ok": True, "estado": "candidato_pendiente"}
+
+    def vincular_solicitud_a_aliado_incorporado(self, codigo_invitacion, nuevo_aliado_codigo):
+        self.calls.append(("vincular_solicitud_a_aliado_incorporado", codigo_invitacion, nuevo_aliado_codigo))
+        return {"status": "success", "ok": True, "vinculada": True}
 
     def finalizar_competencia_activas_vencidas(self):
         self.calls.append(("finalizar_competencia_activas_vencidas",))

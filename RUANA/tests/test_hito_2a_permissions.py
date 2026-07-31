@@ -100,8 +100,14 @@ def test_crear_invitacion_with_solicitud_uses_session_scoped_attendance(client, 
     )
 
     assert response.status_code == 201
-    assert ("atender_solicitud_por_id", 456, "A0001") in fake_db.calls
+    data = response.get_json()
+    assert data.get("estado_solicitud") == "candidato_pendiente"
+    assert ("marcar_solicitud_candidato_pendiente", 456, "A0001") in fake_db.calls
+    assert all(call[0] != "atender_solicitud_por_id" for call in fake_db.calls)
     assert all(call[0] != "marcar_solicitud_contestada" for call in fake_db.calls)
+    registrar_calls = [call for call in fake_db.calls if call[0] == "_registrar_invitacion"]
+    assert len(registrar_calls) == 1
+    assert registrar_calls[0][3] == 456
 
 
 def test_crear_invitacion_rejects_pending_aliado_without_writes(client, fake_db, session_headers):

@@ -4414,7 +4414,10 @@
                         entrantes.forEach(solicitud => this.appendSolicitudCard(this.solicitudesList, solicitud, true));
                     }
                     document.querySelectorAll('#solicitudes-list .btn-conocer').forEach(btn => {
-                        btn.addEventListener('click', (e) => { this.generateInviteCode(e.target.dataset.id); });
+                        btn.addEventListener('click', (e) => {
+                            const el = e.currentTarget || e.target.closest('.btn-conocer');
+                            this.generateInviteCode(el && el.dataset ? el.dataset.id : null);
+                        });
                     });
                 }
 
@@ -4448,15 +4451,33 @@
                 const zona = solicitud.oficio || solicitud.zona || '(sin oficio)';
                 const estado = (solicitud.estado || 'pendiente').toLowerCase();
                 card.className = 'solicitud-card estado-' + estado;
-                const estadoLabel = estado === 'atendida' ? 'Atendida' : 'Pendiente';
-                const badgeClass = estado === 'atendida' ? 'ruana-badge atendida' : 'ruana-badge pendiente';
+                let estadoLabel = 'Pendiente';
+                let badgeClass = 'ruana-badge pendiente';
+                if (estado === 'atendida') {
+                    estadoLabel = 'Atendida';
+                    badgeClass = 'ruana-badge atendida';
+                } else if (estado === 'candidato_pendiente') {
+                    estadoLabel = 'Candidato pendiente';
+                    badgeClass = 'ruana-badge warning';
+                }
                 const fechaRaw = solicitud.creado_en || solicitud.fecha || solicitud.created_at || '';
                 const fechaFmt = fechaRaw ? new Date(fechaRaw).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' }) : '';
                 const atendidoPor = solicitud.atendido_por_nombre || solicitud.atendido_por_codigo || '';
                 const atendidoAt = solicitud.atendido_at ? new Date(solicitud.atendido_at).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '';
-                const metaExtra = (estado === 'atendida' && (atendidoPor || atendidoAt))
-                    ? `<div class="meta-item"><span class="meta-label">Atendida por</span><span class="meta-value"><span class="solicitud-timeline-dot"></span>${this.escapeHtml(atendidoPor || '—')}${atendidoAt ? ' · ' + atendidoAt : ''}</span></div>`
-                    : '';
+                const candidatoPor = solicitud.candidato_por_nombre || solicitud.candidato_por_codigo || '';
+                const asignadaA = solicitud.asignada_a_nombre || solicitud.asignada_a_codigo || '';
+                const metaExtraParts = [];
+                if (estado === 'atendida' && (atendidoPor || atendidoAt)) {
+                    metaExtraParts.push(`<div class="meta-item"><span class="meta-label">Atendida por</span><span class="meta-value"><span class="solicitud-timeline-dot"></span>${this.escapeHtml(atendidoPor || '—')}${atendidoAt ? ' · ' + atendidoAt : ''}</span></div>`);
+                }
+                if (estado === 'candidato_pendiente' && candidatoPor) {
+                    metaExtraParts.push(`<div class="meta-item"><span class="meta-label">Candidato propuesto por</span><span class="meta-value">${this.escapeHtml(candidatoPor)}</span></div>`);
+                }
+                if (asignadaA) {
+                    metaExtraParts.push(`<div class="meta-item"><span class="meta-label">Asignada a</span><span class="meta-value">${this.escapeHtml(asignadaA)}</span></div>`);
+                }
+                const metaExtra = metaExtraParts.join('');
+                const mostrarConocer = conBotonConocer && estado === 'pendiente' && !asignadaA;
                 card.innerHTML = `
                     <div class="solicitud-card-header">
                         <div class="solicitud-texto">${this.escapeHtml(texto)}</div>
@@ -4474,7 +4495,7 @@
                         ${fechaFmt ? `<div class="meta-item"><span class="meta-label">Fecha</span><span class="meta-value">${fechaFmt}</span></div>` : ''}
                         ${metaExtra}
                     </div>
-                    ${conBotonConocer ? `<div class="solicitud-actions"><button class="btn-conocer" data-id="${solicitud.id || 0}"><i data-lucide="user-plus" style="width:16px;height:16px;vertical-align:-2px;margin-right:6px"></i>Conozco a alguien</button></div>` : ''}
+                    ${mostrarConocer ? `<div class="solicitud-actions"><button class="btn-conocer" data-id="${solicitud.id || 0}"><i data-lucide="user-plus" style="width:16px;height:16px;vertical-align:-2px;margin-right:6px"></i>Conozco a alguien</button></div>` : ''}
                 `;
                 container.appendChild(card);
             }
@@ -4520,15 +4541,11 @@
             }
 
             /**
-             * NUEVO FLUJO F03: Generar código de invitación para nuevo aliado
+             * Generar código de invitación para nuevo aliado.
              *
-             * Este código se crea desde:
-             * 1. Botón "Generar código de invitación" (perfil del aliado)
-             * 2. Botón "Yo conozco a alguien" (dentro de una solicitud)
-             *
-             * Flujo "Conozco a alguien": primero se genera el código en el backend (y queda
-             * registrado en invitaciones + panel admin), luego se muestra el modal con el código
-             * para que el usuario lo copie antes de cerrar. La solicitud se marca como contestada.
+             * Flujo "Conozco a alguien": se genera el código y la solicitud pasa a
+             * estado candidato_pendiente (no se cierra). Al registrarse el invitado,
+             * la solicitud se vincula automáticamente a ese aliado.
              */
             async generateInviteCode(solicitudId) {
                 const solicitud = (this.solicitudesEntrantes || []).find(s => s.id == solicitudId);
@@ -4568,11 +4585,17 @@
                             modalText.innerHTML = `
                                 <strong>Profesional que pidió:</strong> ${this.escapeHtml(this.currentSolicitud.por)}<br>
                                 <strong>Solicitud:</strong> ${this.escapeHtml(this.currentSolicitud.texto)}<br><br>
-                                Entrega este código a esa persona para que se registre. Una vez registrada, podrá aparecer en el grupo.
+                                Entrega este código a esa persona para que se registre. La solicitud quedará como <strong>candidato pendiente</strong> hasta que se incorpore; entonces se le asignará automáticamente.
                             `;
                         }
-                        this.solicitudesEntrantes = (this.solicitudesEntrantes || []).filter(s => s.id != solicitudId);
-                        this.renderSolicitudes();
+                        try {
+                            await this.fetchSolicitudesSnapshot();
+                            this.renderSolicitudes();
+                        } catch (_) {
+                            // Fallback local: quitar de entrantes (ya no está pendiente) sin borrar el hilo
+                            this.solicitudesEntrantes = (this.solicitudesEntrantes || []).filter(s => s.id != solicitudId);
+                            this.renderSolicitudes();
+                        }
                     } else {
                         alert(data.message || data.error || 'No se pudo generar el código. Intenta de nuevo.');
                     }

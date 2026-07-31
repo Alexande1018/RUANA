@@ -2176,6 +2176,15 @@ def registrar_aliado():
                 # Limpia placeholder legacy si existía con el mismo código de invitación
                 if hasattr(db, 'eliminar_aliado_placeholder'):
                     db.eliminar_aliado_placeholder(codigo_invitacion_simple or codigo_invitacion)
+                # Si el código venía de «Conozco a alguien», vincular la solicitud al nuevo aliado
+                if hasattr(db, 'vincular_solicitud_a_aliado_incorporado'):
+                    try:
+                        db.vincular_solicitud_a_aliado_incorporado(
+                            codigo_invitacion_simple or codigo_invitacion,
+                            result['codigo'],
+                        )
+                    except Exception as e:
+                        print(f"[RUANA] Aviso vinculando solicitud a aliado incorporado: {e}")
 
         # Asegurar red completa: invitaciones pendientes de sync y huérfanos bajo admin
         db.sincronizar_referidos_completo()
@@ -3033,8 +3042,14 @@ def crear_invitacion():
         # Registrar quién invitó (para recompensa +3 y métrica de referidos al completar)
         if aliado_invitador_id is None:
             return jsonify({'status': 'error', 'message': 'No se pudo identificar al invitador'}), 500
+        sid = None
+        if solicitud_id is not None:
+            try:
+                sid = int(solicitud_id)
+            except (TypeError, ValueError):
+                sid = None
         try:
-            db._registrar_invitacion(codigo, int(aliado_invitador_id))
+            db._registrar_invitacion(codigo, int(aliado_invitador_id), sid)
         except Exception as e:
             print(f"[RUANA] Error registrando invitacion {codigo}: {e}")
             return jsonify({
@@ -3042,18 +3057,22 @@ def crear_invitacion():
                 'message': 'No se pudo registrar la invitacion. Intenta de nuevo.',
             }), 500
 
-        # Si esta invitaci?n viene de "Conozco a alguien", marcar la solicitud como contestada
-        if solicitud_id is not None:
+        # «Conozco a alguien»: no cerrar la solicitud; marcar candidato pendiente
+        if sid is not None:
             try:
-                db.atender_solicitud_por_id(int(solicitud_id), codigo_sesion)
-            except (TypeError, ValueError):
-                pass
+                mark = db.marcar_solicitud_candidato_pendiente(sid, codigo_sesion)
+                if mark.get('status') != 'success':
+                    print(f"[RUANA] Aviso candidato pendiente solicitud {sid}: {mark.get('message')}")
+            except Exception as e:
+                print(f"[RUANA] Error marcando candidato pendiente {sid}: {e}")
         
         return jsonify({
             'status': 'success',
             'message': f'C?digo de invitaci?n creado',
             'codigo': codigo,
             'tipo': 'invitacion',
+            'solicitud_id': sid,
+            'estado_solicitud': 'candidato_pendiente' if sid is not None else None,
             'timestamp': datetime.now().isoformat()
         }), 201
         
