@@ -1,0 +1,511 @@
+/* ================================================
+   RUANA — Identidad Visual Exclusiva
+   Red de confianza · tejido · comunidad
+   Solo estética. No altera lógica ni layout.
+   ================================================ */
+
+:root {
+    /* ——— Paleta RUANA (verde natural, no neón SaaS) ——— */
+    --ruana-bg: #060a08;
+    --ruana-bg-soft: #0c1210;
+    --ruana-panel: #101816;
+    --ruana-surface: rgba(255, 248, 235, 0.038);
+    --ruana-surface-strong: rgba(12, 18, 14, 0.78);
+    --ruana-surface-hover: rgba(255, 248, 235, 0.07);
+    --ruana-border: rgba(200, 210, 195, 0.09);
+    --ruana-border-strong: rgba(200, 210, 195, 0.17);
+    --ruana-border-glass: rgba(200, 210, 195, 0.13);
+    --ruana-text: #f4f6f3;
+    --ruana-text-soft: #c8d0c8;
+    --ruana-text-muted: #9aa89e;
+    --ruana-text-subtle: #6d7a72;
+
+    /* Verde musgo — principal */
+    --ruana-accent: #4a9b72;
+    --ruana-accent-strong: #3a7d5c;
+    --ruana-accent-glow: rgba(74, 155, 114, 0.32);
+    --ruana-brand-lime: #9cc87a;
+    --ruana-brand-gold: #c4a574;
+
+    /* Acentos de red */
+    --ruana-thread: rgba(196, 165, 116, 0.35);
+    --ruana-trust: #6a9fad;
+    --ruana-info: #6a9fad;
+    --ruana-warning: #c9a04a;
+    --ruana-danger: #c46a5a;
+
+    /* Estados con personalidad propia */
+    --ruana-estado-prioritario: #d4a85a;
+    --ruana-estado-prioritario-glow: rgba(212, 168, 90, 0.28);
+    --ruana-estado-estable: #5cb88a;
+    --ruana-estado-estable-glow: rgba(92, 184, 138, 0.22);
+    --ruana-estado-riesgo: #c47a5a;
+    --ruana-estado-riesgo-glow: rgba(196, 122, 90, 0.24);
+    --ruana-estado-competencia: #9a5a7a;
+    --ruana-estado-competencia-glow: rgba(154, 90, 122, 0.26);
+
+  /* Tipografía */
+    --ruana-font-display: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
+    --ruana-font: var(--ruana-font-display);
+    --ruana-text-display: clamp(2rem, 4vw, 2.75rem);
+    --ruana-text-title: clamp(1.25rem, 2.5vw, 1.5rem);
+    --ruana-text-label: 0.72rem;
+    --ruana-text-body: 0.94rem;
+    --ruana-text-caption: 0.8rem;
+
+    /* Movimiento RUANA */
+    --ruana-transition: 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    --ruana-transition-slow: 480ms cubic-bezier(0.22, 1, 0.36, 1);
+    --ruana-ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+    /* Cristal y profundidad */
+    --ruana-glass: blur(28px) saturate(165%);
+    --ruana-glass-strong: blur(44px) saturate(175%);
+    --ruana-shadow-soft: 0 40px 80px rgba(0, 0, 0, 0.52), 0 0 0 1px rgba(200, 210, 195, 0.04);
+    --ruana-shadow-card:
+        0 16px 48px rgba(0, 0, 0, 0.38),
+        inset 0 1px 0 rgba(255, 248, 235, 0.11),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+    --ruana-highlight: inset 0 1px 0 rgba(255, 248, 235, 0.1);
+    --ruana-focus-ring: 0 0 0 4px rgba(74, 155, 114, 0.16);
+    --ruana-weave-opacity: 0.045;
+}
+
+/* ——— Fondo vivo: capas tejido + mesh ——— */
+body {
+    background: var(--ruana-bg);
+    background-image:
+        radial-gradient(ellipse 85% 65% at 8% -8%, rgba(74, 155, 114, 0.18) 0%, transparent 52%),
+        radial-gradient(ellipse 70% 55% at 96% 4%, rgba(106, 159, 173, 0.12) 0%, transparent 48%),
+        radial-gradient(ellipse 75% 50% at 88% 92%, rgba(156, 200, 122, 0.1) 0%, transparent 50%),
+        radial-gradient(ellipse 50% 40% at 4% 88%, rgba(196, 165, 116, 0.08) 0%, transparent 46%);
+}
+
+body::before {
+    background:
+        radial-gradient(circle at 16% 20%, rgba(74, 155, 114, 0.16) 0%, transparent 34%),
+        radial-gradient(circle at 84% 16%, rgba(106, 159, 173, 0.12) 0%, transparent 32%),
+        radial-gradient(circle at 70% 80%, rgba(156, 200, 122, 0.09) 0%, transparent 36%),
+        radial-gradient(circle at 20% 78%, rgba(196, 165, 116, 0.07) 0%, transparent 34%);
+    animation: ruana-ambient-drift 28s ease-in-out infinite alternate;
+}
+
+body::after {
+    background-image:
+        url("data:image/svg+xml,%3Csvg width='120' height='120' viewBox='0 0 120 120' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%23c4a574' stroke-width='0.4' opacity='0.35'%3E%3Cpath d='M0 30h120M0 60h120M0 90h120'/%3E%3Cpath d='M30 0v120M60 0v120M90 0v120'/%3E%3Cpath d='M0 0l120 120M120 0L0 120'/%3E%3C/g%3E%3C/svg%3E"),
+        url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    background-size: 120px 120px, 256px 256px;
+    opacity: 0.55;
+    mix-blend-mode: soft-light;
+}
+
+.ruana-living-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.55;
+}
+
+@keyframes ruana-ambient-drift {
+    0% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(1.5%, -1%) scale(1.02); }
+    100% { transform: translate(-1%, 1.5%) scale(1); }
+}
+
+/* ——— Jerarquía tipográfica RUANA ——— */
+.ruana-display,
+.metrica-numero,
+.perfil-nombre,
+.logo h1 {
+    font-family: var(--ruana-font-display);
+    font-size: var(--ruana-text-display);
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1.08;
+}
+
+.ruana-title,
+.panel-section-title,
+.directorio-titulo,
+.grupo-panel-title {
+    font-size: var(--ruana-text-label);
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ruana-text-muted);
+}
+
+.ruana-body {
+    font-size: var(--ruana-text-body);
+    line-height: 1.58;
+    color: var(--ruana-text-soft);
+}
+
+.ruana-caption {
+    font-size: var(--ruana-text-caption);
+    color: var(--ruana-text-subtle);
+    line-height: 1.45;
+}
+
+/* ——— Marca ——— */
+.ruana-brand-word {
+    color: #e4f0dc;
+    letter-spacing: 0.2em;
+}
+
+.ruana-brand-center .ruana-brand-word {
+    background: linear-gradient(135deg, #9cc87a 0%, #c8e8b0 45%, #f0f8ea 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+}
+
+.ruana-brand-mark {
+    filter: drop-shadow(0 0 12px rgba(156, 200, 122, 0.28));
+}
+
+.ruana-brand-watermark {
+    background: rgba(8, 12, 10, 0.58);
+    border-color: rgba(156, 200, 122, 0.14);
+}
+
+/* ——— Superficie tejido (tarjetas premium) ——— */
+.ruana-weave-surface,
+.metrica-card,
+.solicitud-card,
+.perfil-block,
+.ruana-auth-card,
+.ruana-card-premium,
+.aliado-card,
+.competencia-card,
+.contacto-aviso,
+.filters-section,
+.estado-global,
+.estado-sistema {
+    position: relative;
+    border-radius: var(--ruana-radius-lg, 22px);
+    transition:
+        transform var(--ruana-transition),
+        border-color var(--ruana-transition),
+        box-shadow var(--ruana-transition),
+        background var(--ruana-transition);
+}
+
+.ruana-weave-surface::after,
+.metrica-card::after,
+.solicitud-card::after,
+.perfil-block::after,
+.ruana-auth-card::after,
+.ruana-card-premium::after,
+.aliado-card::after,
+.competencia-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background:
+        repeating-linear-gradient(
+            125deg,
+            transparent,
+            transparent 11px,
+            rgba(196, 165, 116, var(--ruana-weave-opacity)) 11px,
+            rgba(196, 165, 116, var(--ruana-weave-opacity)) 12px
+        ),
+        repeating-linear-gradient(
+            -55deg,
+            transparent,
+            transparent 17px,
+            rgba(74, 155, 114, calc(var(--ruana-weave-opacity) * 0.6)) 17px,
+            rgba(74, 155, 114, calc(var(--ruana-weave-opacity) * 0.6)) 18px
+        );
+    opacity: 0.7;
+    mix-blend-mode: overlay;
+}
+
+/* Borde tejido: esquina iluminada + hilo */
+.metrica-card,
+.solicitud-card,
+.perfil-block,
+.ruana-auth-card,
+.ruana-card-premium,
+.aliado-card {
+    border: 1px solid rgba(200, 210, 195, 0.14);
+    box-shadow: var(--ruana-shadow-card);
+    backdrop-filter: var(--ruana-glass);
+    -webkit-backdrop-filter: var(--ruana-glass);
+}
+
+.metrica-card::before,
+.solicitud-card::before,
+.perfil-block::before,
+.ruana-auth-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background:
+        radial-gradient(ellipse 80% 45% at 12% -5%, rgba(156, 200, 122, 0.14), transparent 55%),
+        radial-gradient(ellipse 40% 30% at 95% 95%, rgba(196, 165, 116, 0.08), transparent 50%);
+}
+
+.metrica-card:hover,
+.solicitud-card:hover,
+.ruana-card-premium:hover,
+.aliado-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(156, 200, 122, 0.22);
+    box-shadow:
+        0 20px 56px rgba(0, 0, 0, 0.42),
+        0 0 0 1px rgba(156, 200, 122, 0.08),
+        inset 0 1px 0 rgba(255, 248, 235, 0.14);
+}
+
+/* ——— Botones con respuesta fluida ——— */
+.ruana-button,
+.invite-btn,
+.register-btn,
+.btn-contactar,
+.btn-conocer,
+.contacto-aviso-btn {
+    transition:
+        transform var(--ruana-transition),
+        box-shadow var(--ruana-transition),
+        filter var(--ruana-transition),
+        background var(--ruana-transition);
+}
+
+.ruana-button {
+    background: linear-gradient(145deg, #5cb88a 0%, var(--ruana-accent) 42%, var(--ruana-accent-strong) 100%);
+    color: #0a1812;
+    box-shadow:
+        0 8px 28px var(--ruana-accent-glow),
+        inset 0 1px 0 rgba(255, 248, 235, 0.28);
+}
+
+.ruana-button:hover {
+    transform: translateY(-2px) scale(1.012);
+    box-shadow:
+        0 14px 40px var(--ruana-accent-glow),
+        0 0 24px rgba(156, 200, 122, 0.12),
+        inset 0 1px 0 rgba(255, 248, 235, 0.32);
+}
+
+.ruana-button:active,
+.metrica-card:active,
+.solicitud-card:active {
+    transform: translateY(0) scale(0.985);
+    transition-duration: 120ms;
+}
+
+/* ——— Score con vida propia ——— */
+.metrica-numero,
+.score-value {
+    background: linear-gradient(168deg, #c8e8b0 0%, var(--ruana-accent) 55%, #3a7d5c 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    transition: filter var(--ruana-transition-slow);
+}
+
+.metrica-card.score-destacado .metrica-numero {
+    background: linear-gradient(168deg, #f0d89a 0%, var(--ruana-estado-prioritario) 50%, #a88040 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    filter: drop-shadow(0 0 12px var(--ruana-estado-prioritario-glow));
+}
+
+.metrica-card.score-estable .metrica-numero {
+    color: var(--ruana-estado-estable);
+    background: none;
+    -webkit-text-fill-color: var(--ruana-estado-estable);
+}
+
+.metrica-card.score-riesgo .metrica-numero {
+    color: var(--ruana-estado-riesgo);
+    background: none;
+    -webkit-text-fill-color: var(--ruana-estado-riesgo);
+}
+
+.metrica-card.score-competencia .metrica-numero {
+    color: var(--ruana-estado-competencia);
+    background: none;
+    -webkit-text-fill-color: var(--ruana-estado-competencia);
+}
+
+.score-fill,
+.score-bar .score-fill {
+    background: linear-gradient(90deg, var(--ruana-accent-strong), var(--ruana-accent), #9cc87a);
+    box-shadow: 0 0 12px var(--ruana-accent-glow);
+    transition: width var(--ruana-transition-slow);
+}
+
+/* ——— Estados con identidad visual ——— */
+.ruana-badge.destacado,
+.ruana-badge.prioritario,
+.perfil-status[data-status="destacado"] {
+    background: linear-gradient(135deg, rgba(212, 168, 90, 0.22) 0%, rgba(196, 165, 116, 0.32) 100%);
+    border-color: rgba(212, 168, 90, 0.45);
+    color: #f0d8a8;
+    box-shadow: 0 0 16px var(--ruana-estado-prioritario-glow), inset 0 1px 0 rgba(255, 248, 235, 0.2);
+}
+
+.perfil-status[data-status="estable"],
+.ruana-badge.estable,
+.profesional-etiqueta.estable {
+    background: rgba(92, 184, 138, 0.14);
+    border: 1px solid rgba(92, 184, 138, 0.32);
+    color: var(--ruana-estado-estable);
+    box-shadow: 0 0 10px var(--ruana-estado-estable-glow);
+}
+
+.perfil-status[data-status="en_riesgo"],
+.perfil-status[data-status="observacion"],
+.ruana-badge.riesgo,
+.ruana-badge.observacion {
+    background: rgba(196, 122, 90, 0.14);
+    border: 1px solid rgba(196, 122, 90, 0.32);
+    color: #e8b8a0;
+    box-shadow: 0 0 10px var(--ruana-estado-riesgo-glow);
+}
+
+.perfil-status[data-status="competencia"],
+.ruana-badge.competencia {
+    background: rgba(154, 90, 122, 0.16);
+    border: 1px solid rgba(154, 90, 122, 0.36);
+    color: #d8a8bc;
+    box-shadow: 0 0 12px var(--ruana-estado-competencia-glow);
+}
+
+.perfil-status[data-status="activo"] {
+    background: rgba(74, 155, 114, 0.14);
+    color: var(--ruana-accent);
+}
+
+/* ——— Iconografía RUANA ——— */
+.ruana-icon,
+.metrica-icon svg,
+.metrica-icon .ruana-icon-svg,
+[data-ruana-icon] svg,
+.ruana-toast-icon svg {
+    stroke-width: 1.65;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.metrica-icon {
+    background: rgba(74, 155, 114, 0.1);
+    border: 1px solid rgba(74, 155, 114, 0.22);
+    color: var(--ruana-accent);
+    transition: transform var(--ruana-transition), box-shadow var(--ruana-transition);
+}
+
+.metrica-card:hover .metrica-icon {
+    transform: scale(1.06);
+    box-shadow: 0 0 16px rgba(74, 155, 114, 0.18);
+}
+
+/* ——— Toasts y diálogos ——— */
+.ruana-toast {
+    border-radius: 18px;
+    backdrop-filter: var(--ruana-glass-strong);
+    animation: ruana-slide-in 320ms var(--ruana-ease-spring);
+}
+
+.ruana-dialog {
+    animation: ruana-dialog-in 280ms var(--ruana-ease-spring);
+}
+
+@keyframes ruana-slide-in {
+    from { opacity: 0; transform: translateX(16px) scale(0.96); }
+    to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes ruana-dialog-in {
+    from { opacity: 0; transform: scale(0.94) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ——— Loader red viva ——— */
+.ruana-loader-core {
+    background:
+        radial-gradient(circle at 34% 30%, rgba(255, 248, 235, 0.9), transparent 36%),
+        linear-gradient(135deg, var(--ruana-accent) 0%, #5a9fad 54%, var(--ruana-brand-gold) 100%);
+    box-shadow: 0 0 0 10px rgba(74, 155, 114, 0.08), 0 0 32px var(--ruana-accent-glow);
+}
+
+.ruana-loader-node {
+    background: var(--ruana-accent);
+    box-shadow: 0 0 18px var(--ruana-accent-glow);
+}
+
+/* ——— Auth premium coherente ——— */
+.invite-card h1,
+.register-card h1,
+.access-card h1 {
+    background: linear-gradient(135deg, #9cc87a 0%, #d4e8c4 55%, #f4faf0 100%) !important;
+}
+
+.invite-btn,
+.register-btn,
+.access-btn {
+    background: linear-gradient(145deg, #5cb88a 0%, var(--ruana-accent) 45%, var(--ruana-accent-strong) 100%) !important;
+    box-shadow: 0 10px 32px var(--ruana-accent-glow) !important;
+}
+
+/* ——— Admin shell coherente ——— */
+.admin-shell-nav-item.is-active,
+.aliado-shell-nav-item.is-active {
+    background: rgba(74, 155, 114, 0.12);
+    color: var(--ruana-brand-lime);
+    box-shadow: inset 0 0 0 1px rgba(156, 200, 122, 0.2);
+}
+
+.estado-sistema.estable { border-color: rgba(92, 184, 138, 0.35); }
+.estado-sistema.alerta { border-color: rgba(196, 122, 90, 0.35); }
+.estado-sistema.crítico { border-color: rgba(154, 90, 122, 0.38); }
+
+/* ——— Microanimaciones globales ——— */
+@media (prefers-reduced-motion: no-preference) {
+    .ruana-badge,
+    .perfil-status,
+    .profesional-etiqueta {
+        transition: box-shadow var(--ruana-transition), transform var(--ruana-transition);
+    }
+
+    .ruana-badge:hover,
+    .perfil-status:hover {
+        transform: translateY(-1px);
+    }
+
+    .metrica-sparkline span {
+        animation: ruana-spark-pulse 2.4s ease-in-out infinite;
+    }
+
+    .metrica-sparkline span:nth-child(2) { animation-delay: 0.2s; }
+    .metrica-sparkline span:nth-child(3) { animation-delay: 0.4s; }
+    .metrica-sparkline span:nth-child(4) { animation-delay: 0.6s; }
+    .metrica-sparkline span:nth-child(5) { animation-delay: 0.8s; }
+}
+
+@keyframes ruana-spark-pulse {
+    0%, 100% { opacity: 0.45; transform: scaleY(0.85); }
+    50% { opacity: 1; transform: scaleY(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body::before,
+    .metrica-sparkline span {
+        animation: none !important;
+    }
+
+    .ruana-living-bg {
+        display: none;
+    }
+
+    *,
+    *::before,
+    *::after {
+        transition-duration: 0.01ms !important;
+    }
+}
