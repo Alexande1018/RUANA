@@ -782,10 +782,12 @@
                 return;
             }
             const mensaje = esAcuerdo
-                ? '¿Confirmas el acuerdo y cierras la negociación?\n\nCuando ambas partes confirmen, el encargo se registrará como trabajo realizado y quedará en Mis acuerdos.'
+                ? (estado === 'trabajo_cerrado' || (this.data && this.data.cierre_automatico)
+                    ? '¿Confirmas que has revisado el resumen del acuerdo?\n\nEl precio aceptado ya es el importe oficial y el Apoyo RUANA ya se generó.'
+                    : '¿Confirmas que has revisado el resumen del acuerdo?\n\nEl precio aceptado es el importe oficial del encargo.')
                 : '¿Cerrar esta negociación?\n\nSe finalizará la conversación para ambas partes y el contacto quedará registrado como no concretado.';
-            const titulo = esAcuerdo ? 'Confirmar acuerdo' : 'Cerrar negociación';
-            const confirmText = esAcuerdo ? 'Sí, confirmar' : 'Sí, cerrar';
+            const titulo = esAcuerdo ? 'Confirmar revisión del acuerdo' : 'Cerrar negociación';
+            const confirmText = esAcuerdo ? 'Sí, confirmado' : 'Sí, cerrar';
             let ok = false;
             if (typeof global.RuanaUI !== 'undefined' && typeof global.RuanaUI.confirm === 'function') {
                 ok = await global.RuanaUI.confirm(mensaje, { title: titulo, confirmText, cancelText: 'Cancelar' });
