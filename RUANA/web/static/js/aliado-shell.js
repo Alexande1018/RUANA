@@ -203,6 +203,9 @@
 
         const tasks = [];
 
+        const pagosHub = document.getElementById('ruana-alert-hub');
+        const hayAlertasHub = pagosHub && !pagosHub.hidden;
+
         const contacto = document.getElementById('contacto-aviso-persistente');
         if (contacto && isVisible(contacto)) {
             tasks.push({
@@ -212,23 +215,11 @@
             });
         }
 
-        const pagosBanner = document.getElementById('aviso-pagos-pendientes-banner');
-        const pagosWrap = document.getElementById('pagos-apoyo-ruana-wrap');
-        if ((pagosBanner && isVisible(pagosBanner)) || (pagosWrap && isVisible(pagosWrap))) {
+        if (hayAlertasHub) {
             tasks.push({
-                text: 'Pagos o apoyos RUANA pendientes',
+                text: 'Pagos o avisos RUANA pendientes',
                 action: 'inicio',
                 label: 'Ver avisos',
-                scrollAlerts: true
-            });
-        }
-
-        const notif = document.getElementById('notificaciones-ruana-wrap');
-        if (notif && isVisible(notif)) {
-            tasks.push({
-                text: 'Mensajes nuevos de RUANA',
-                action: 'inicio',
-                label: 'Abrir',
                 scrollAlerts: true
             });
         }
@@ -328,8 +319,7 @@
             document.getElementById('perfil-avatar'),
             document.getElementById('solicitudes-list'),
             document.getElementById('contacto-aviso-persistente'),
-            document.getElementById('pagos-apoyo-ruana-wrap'),
-            document.getElementById('notificaciones-ruana-wrap'),
+            document.getElementById('ruana-alert-hub'),
             document.getElementById('score-alerta-panel')
         ].filter(Boolean);
 

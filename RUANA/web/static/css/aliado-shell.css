@@ -422,12 +422,12 @@ body.aliado-app > .ruana-brand-watermark {
     color: rgba(255, 255, 255, 0.55);
 }
 
-/* Global alerts strip */
+/* Global alerts strip — hub compacto */
 .aliado-shell-alerts {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    margin-bottom: 20px;
+    gap: 8px;
+    margin-bottom: 14px;
 }
 
 .aliado-shell-alerts:empty,
