@@ -3990,6 +3990,10 @@
                                 <span class="info-value">${this.escapeHtml(aliado.zona || '')}</span>
                             </div>
                             <div class="aliado-info">
+                                <span class="info-label">Grupo</span>
+                                <span class="info-value">${this.escapeHtml((aliado.grupo_nombre || '').trim() || (aliado.grupo_id ? ('#' + aliado.grupo_id) : '—'))}</span>
+                            </div>
+                            <div class="aliado-info">
                                 <span class="info-label">Marca</span>
                                 <span class="info-value">${this.escapeHtml(aliado.marca)}</span>
                             </div>

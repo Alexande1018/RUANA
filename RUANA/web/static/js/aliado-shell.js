@@ -130,10 +130,25 @@
         if (from && to) to.textContent = from.textContent || '—';
     }
 
+    function syncInicioGrupo() {
+        const src = document.getElementById('grupo-nombre');
+        const dst = document.getElementById('inicio-grupo');
+        if (!dst) return;
+        const nombre = (src && src.textContent ? src.textContent : '').trim();
+        if (nombre && nombre !== '---') {
+            dst.textContent = 'Grupo: ' + nombre;
+            dst.hidden = false;
+        } else {
+            dst.textContent = '';
+            dst.hidden = true;
+        }
+    }
+
     function syncInicioIdentity() {
         copyText('perfil-nombre', 'inicio-nombre');
         copyText('perfil-marca', 'inicio-marca');
         copyText('metric-score', 'inicio-score');
+        syncInicioGrupo();
 
         const statusSrc = document.getElementById('perfil-status');
         const statusDst = document.getElementById('inicio-status');

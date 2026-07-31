@@ -5751,6 +5751,7 @@ class DBManager:
                 base_query = """
                     SELECT
                         a.*,
+                        g.nombre AS grupo_nombre,
                         e.estado AS eval_estado,
                         e.score AS eval_score,
                         e.intencion AS eval_intencion,
@@ -5791,6 +5792,7 @@ class DBManager:
                             WHERE c.aliado_original_codigo = a.codigo AND c.estado = 'activa' LIMIT 1
                         ) AS es_titular_en_competencia
                     FROM aliados a
+                    LEFT JOIN grupos g ON g.id = a.grupo_id
                     LEFT JOIN evaluaciones e ON e.codigo_aliado = a.codigo
                     LEFT JOIN aliados inv ON inv.codigo = a.invitado_por_codigo
                     WHERE (a.estado IS NULL OR (
