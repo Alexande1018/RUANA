@@ -3360,7 +3360,7 @@
                             if (seg >= 60) tiempoResp = Math.floor(seg / 60) + ' min'; else tiempoResp = seg + ' s';
                         } catch (e) {}
                     }
-                    const puedeMarcarAtendida = (s.estado === 'pendiente') || (s.estado === 'atendida' && !(s.atendido_por_nombre || s.atendido_por_codigo) && !s.atendido_at);
+                    const puedeMarcarAtendida = (s.estado === 'pendiente' || s.estado === 'candidato_pendiente') || (s.estado === 'atendida' && !(s.atendido_por_nombre || s.atendido_por_codigo) && !s.atendido_at);
                     const btnAtender = puedeMarcarAtendida
                         ? `<button type="button" class="btn-accion btn-marcar-atendida" data-solicitud-id="${s.id}" title="Registrar como atendida (Atendido por / Atendido at)">Marcar atendida</button>`
                         : '';
