@@ -648,6 +648,22 @@ body.aliado-app > .ruana-brand-watermark {
     margin: 0;
 }
 
+#module-directorio .profesional-header {
+    row-gap: 10px;
+}
+
+#module-directorio .profesional-badge {
+    margin-left: auto;
+}
+
+@media (max-width: 520px) {
+    #module-directorio .profesional-badge {
+        flex: 1 1 100%;
+        margin-left: 0;
+        justify-content: center;
+    }
+}
+
 #module-conexiones .crear-solicitud-zone,
 #module-conexiones .crear-card {
     padding: 28px;
