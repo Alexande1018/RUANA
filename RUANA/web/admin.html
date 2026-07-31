@@ -544,6 +544,24 @@
             border-color: rgba(255, 255, 255, 0.15);
         }
 
+        .aliado-codigo-destacado {
+            margin: 12px 0 8px;
+            padding: 10px 14px;
+            background: rgba(255, 193, 7, 0.12);
+            border: 1px solid rgba(255, 193, 7, 0.35);
+            border-radius: 8px;
+            font-size: 0.95rem;
+            line-height: 1.4;
+        }
+
+        .aliado-codigo-destacado .codigo-valor {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 1.15rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            color: #ffc107;
+        }
+
         .aliado-header-admin {
             display: flex;
             justify-content: space-between;
@@ -4064,6 +4082,10 @@
                                 ${badgeRetador}
                                 ${badgeCompetencia}
                             </div>
+                        </div>
+                        <div class="aliado-codigo-destacado">
+                            <strong>Código de aliado:</strong>
+                            <span class="codigo-valor">${this.escapeHtml(aliado.codigo || '—')}</span>
                         </div>
                         <div class="aliado-info-grid">
                             <div class="aliado-info">
