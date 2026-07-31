@@ -232,6 +232,189 @@ def _todos_campos_pendientes(estado: Dict[str, Any]) -> bool:
     )
 
 
+def _paso_actual_data(estado: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+    paso = _siguiente_paso(estado) or estado.get('paso_actual') or 'servicio'
+    return paso, estado['campos'].get(paso, _campo_vacio())
+
+
+def _mensaje_responder(paso: str, propuesto_por: str, valor: str) -> str:
+    label = CAMPOS_LABELS.get(paso, paso).lower()
+    quien = _nombre_rol(propuesto_por) if propuesto_por else 'contratante'
+    return (
+        f'El {quien} propone {label}: «{valor}». '
+        f'¿Lo confirmas o quieres sugerir otro valor?'
+    )
+
+
+def _mensaje_espera_propia_propuesta(paso: str, rol: str, valor: str) -> str:
+    otro = _nombre_rol(_otro_rol(rol))
+    label = CAMPOS_LABELS.get(paso, paso).lower()
+    return (
+        f'Has propuesto {label}: «{valor}». '
+        f'Esperando la respuesta del {otro}. Puedes actualizar tu propuesta si lo necesitas.'
+    )
+
+
+def meta_negociacion(
+    estado: Dict[str, Any],
+    rol: str,
+    contacto_estado: str,
+) -> Dict[str, Any]:
+    """Metadatos de estado para UI: turno, progreso y siguiente acción."""
+    estado = normalizar_estado(estado)
+    total = len(CAMPOS_ORDEN)
+    confirmados = sum(
+        1 for c in CAMPOS_ORDEN if estado['campos'][c].get('estado') == ESTADO_CONFIRMADO
+    )
+
+    if contacto_estado == 'acuerdo_alcanzado' or estado.get('completo'):
+        return {
+            'fase': 'acuerdo',
+            'progreso_confirmados': total,
+            'progreso_total': total,
+            'turno': 'completado',
+            'requiere_mi_respuesta': False,
+            'paso': None,
+            'paso_label': 'Acuerdo alcanzado',
+            'contexto': 'Todos los puntos del encargo están confirmados.',
+            'siguiente_accion': 'Cuando se realice el servicio, indica el resultado desde tu panel.',
+        }
+
+    if _todos_campos_pendientes(estado):
+        if rol == 'solicitante':
+            return {
+                'fase': 'inicio',
+                'progreso_confirmados': 0,
+                'progreso_total': total,
+                'turno': 'contratante',
+                'requiere_mi_respuesta': True,
+                'paso': 'servicio',
+                'paso_label': 'Datos del encargo',
+                'contexto': 'Indica los detalles del servicio que necesitas.',
+                'siguiente_accion': 'Responde las preguntas para enviar la propuesta al profesional.',
+            }
+        return {
+            'fase': 'inicio',
+            'progreso_confirmados': 0,
+            'progreso_total': total,
+            'turno': 'contratante',
+            'requiere_mi_respuesta': False,
+            'paso': 'servicio',
+            'paso_label': 'Datos del encargo',
+            'contexto': 'El contratante está preparando los detalles del encargo.',
+            'siguiente_accion': 'Te avisaremos cuando haya una propuesta para revisar.',
+        }
+
+    paso, c = _paso_actual_data(estado)
+    paso_label = CAMPOS_LABELS.get(paso, paso)
+    campo_estado = c.get('estado', ESTADO_PENDIENTE)
+    propuesto_por = c.get('propuesto_por')
+    valor = c.get('valor') or ''
+
+    requiere_mi_respuesta = (
+        campo_estado == ESTADO_EN_NEGOCIACION
+        and propuesto_por
+        and propuesto_por != rol
+    )
+
+    if requiere_mi_respuesta:
+        quien = _nombre_rol(propuesto_por)
+        return {
+            'fase': 'negociacion',
+            'progreso_confirmados': confirmados,
+            'progreso_total': total,
+            'turno': rol,
+            'requiere_mi_respuesta': True,
+            'paso': paso,
+            'paso_label': paso_label,
+            'contexto': f'El {quien} ha propuesto un valor para {paso_label.lower()}.',
+            'siguiente_accion': f'Confirma o sugiere otro valor para {paso_label.lower()}.',
+            'valor_pendiente': valor,
+            'propuesto_por': propuesto_por,
+        }
+
+    if campo_estado == ESTADO_EN_NEGOCIACION and propuesto_por == rol:
+        otro = _nombre_rol(_otro_rol(rol))
+        return {
+            'fase': 'negociacion',
+            'progreso_confirmados': confirmados,
+            'progreso_total': total,
+            'turno': _otro_rol(rol),
+            'requiere_mi_respuesta': False,
+            'paso': paso,
+            'paso_label': paso_label,
+            'contexto': f'Has enviado tu propuesta de {paso_label.lower()}: «{valor}».',
+            'siguiente_accion': f'Esperando respuesta del {otro}.',
+            'valor_pendiente': valor,
+            'propuesto_por': propuesto_por,
+        }
+
+    if paso == 'precio' and campo_estado == ESTADO_PENDIENTE:
+        if rol == 'profesional':
+            return {
+                'fase': 'negociacion',
+                'progreso_confirmados': confirmados,
+                'progreso_total': total,
+                'turno': 'profesional',
+                'requiere_mi_respuesta': True,
+                'paso': paso,
+                'paso_label': paso_label,
+                'contexto': 'Los datos del encargo ya están confirmados.',
+                'siguiente_accion': 'Indica el precio que propones por este trabajo.',
+            }
+        return {
+            'fase': 'negociacion',
+            'progreso_confirmados': confirmados,
+            'progreso_total': total,
+            'turno': 'profesional',
+            'requiere_mi_respuesta': False,
+            'paso': paso,
+            'paso_label': paso_label,
+            'contexto': 'Los datos del encargo están confirmados.',
+            'siguiente_accion': 'El profesional indicará el precio en breve.',
+        }
+
+    if rol == 'profesional' and _propuesta_solicitante_enviada(estado) and confirmados < len(CAMPOS_SOLICITANTE):
+        return {
+            'fase': 'revision',
+            'progreso_confirmados': confirmados,
+            'progreso_total': total,
+            'turno': 'profesional',
+            'requiere_mi_respuesta': campo_estado == ESTADO_EN_NEGOCIACION and propuesto_por == 'solicitante',
+            'paso': paso,
+            'paso_label': paso_label,
+            'contexto': 'El contratante ha enviado todos los datos del encargo.',
+            'siguiente_accion': f'Revisa y confirma {paso_label.lower()} para continuar.',
+            'valor_pendiente': valor,
+            'propuesto_por': propuesto_por,
+        }
+
+    if rol == 'solicitante' and _propuesta_solicitante_enviada(estado):
+        return {
+            'fase': 'revision',
+            'progreso_confirmados': confirmados,
+            'progreso_total': total,
+            'turno': 'profesional',
+            'requiere_mi_respuesta': False,
+            'paso': paso,
+            'paso_label': paso_label,
+            'contexto': 'Has enviado todos los datos del encargo al profesional.',
+            'siguiente_accion': 'El profesional revisará y confirmará cada punto.',
+        }
+
+    return {
+        'fase': 'negociacion',
+        'progreso_confirmados': confirmados,
+        'progreso_total': total,
+        'turno': rol if rol == 'solicitante' else 'contratante',
+        'requiere_mi_respuesta': False,
+        'paso': paso,
+        'paso_label': paso_label,
+        'contexto': f'Negociación en curso — {paso_label}.',
+        'siguiente_accion': 'Abre la negociación para continuar.',
+    }
+
+
 def _revision_solicitante_pendiente(estado: Dict[str, Any]) -> bool:
     """El profesional aún no ha confirmado todos los datos del contratante."""
     return any(
@@ -286,20 +469,7 @@ def accion_disponible(estado: Dict[str, Any], rol: str, contacto_estado: str) ->
             'mensaje': 'El contratante está indicando los detalles del encargo.',
         }
 
-    if rol == 'solicitante' and _revision_solicitante_pendiente(estado):
-        paso = _siguiente_paso(estado) or 'servicio'
-        return {
-            'tipo': 'esperar',
-            'campo': paso,
-            'paso_actual': paso,
-            'mensaje': (
-                'Has enviado tus datos. '
-                'El profesional los revisará y confirmará cada punto, uno a uno.'
-            ),
-        }
-
-    paso = _siguiente_paso(estado) or estado.get('paso_actual') or 'servicio'
-    campo_data = estado['campos'].get(paso, _campo_vacio())
+    paso, campo_data = _paso_actual_data(estado)
     campo_estado = campo_data.get('estado', ESTADO_PENDIENTE)
     propuesto_por = campo_data.get('propuesto_por')
     valor = campo_data.get('valor') or ''
@@ -334,29 +504,17 @@ def accion_disponible(estado: Dict[str, Any], rol: str, contacto_estado: str) ->
 
     if campo_estado == ESTADO_EN_NEGOCIACION:
         if propuesto_por == rol:
-            if rol == 'solicitante' and _revision_solicitante_pendiente(estado):
-                return {
-                    **base,
-                    'tipo': 'esperar',
-                    'mensaje': (
-                        'Has enviado tus datos. '
-                        'El profesional los revisará y confirmará cada punto, uno a uno.'
-                    ),
-                }
             return {
                 **base,
                 'tipo': 'proponer',
-                'mensaje': _mensaje_esperar_turno(paso, rol, valor, propuesto_por),
+                'mensaje': _mensaje_espera_propia_propuesta(paso, rol, valor),
                 'valor_actual': valor,
                 'modificar_propia': True,
             }
         return {
             **base,
             'tipo': 'responder',
-            'mensaje': (
-                f'El contratante propone {CAMPOS_LABELS[paso].lower()}: '
-                f'«{valor}». ¿Lo confirmas o prefieres sugerir un cambio?'
-            ),
+            'mensaje': _mensaje_responder(paso, propuesto_por or 'solicitante', valor),
             'valor_actual': valor,
             'propuesto_por': propuesto_por,
             'chat_style': True,
@@ -477,6 +635,14 @@ def contraoferta_campo(
         raise ValueError('Campo no válido')
 
     estado = normalizar_estado(estado)
+    paso_permitido = _siguiente_paso(estado)
+    if not paso_permitido:
+        raise ValueError('La negociación ya está completa')
+    if campo != paso_permitido:
+        raise ValueError(
+            f'Solo puedes negociar el paso actual ({CAMPOS_LABELS.get(paso_permitido, paso_permitido)})'
+        )
+
     c = estado['campos'][campo]
     if c['estado'] != ESTADO_EN_NEGOCIACION:
         raise ValueError(f'{CAMPOS_LABELS[campo]} no está en negociación')
@@ -506,6 +672,14 @@ def aceptar_campo(
         raise ValueError('Campo no válido')
 
     estado = normalizar_estado(estado)
+    paso_permitido = _siguiente_paso(estado)
+    if not paso_permitido:
+        raise ValueError('La negociación ya está completa')
+    if campo != paso_permitido:
+        raise ValueError(
+            f'Solo puedes confirmar el paso actual ({CAMPOS_LABELS.get(paso_permitido, paso_permitido)})'
+        )
+
     c = estado['campos'][campo]
     if c['estado'] != ESTADO_EN_NEGOCIACION:
         raise ValueError(f'{CAMPOS_LABELS[campo]} no tiene una propuesta pendiente de confirmación')
@@ -621,4 +795,5 @@ def construir_payload(
         'campos_labels': CAMPOS_LABELS,
         'campos_orden': CAMPOS_ORDEN,
         'campos_solicitante': CAMPOS_SOLICITANTE,
+        'negociacion_meta': meta_negociacion(estado, rol, contacto_estado),
     }

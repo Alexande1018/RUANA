@@ -156,7 +156,9 @@
                 acc.tipo,
                 acc.campo || '',
                 acc.valor_actual || '',
+                acc.propuesto_por || '',
                 acc.modificar_propia ? '1' : '0',
+                (this.data && this.data.eventos ? this.data.eventos.length : 0),
             ].join('|');
         }
 
@@ -255,11 +257,41 @@
         render() {
             if (!this.data) return;
             this.renderPasoActual();
+            this.renderEstadoBar();
             this.renderTimeline();
             this.renderResumen();
             this.renderAcciones();
             this.renderAcuerdoFinal();
             this.renderBotonesHeader();
+        }
+
+        renderEstadoBar() {
+            const el = document.getElementById('neg-estado-bar');
+            if (!el) return;
+            const meta = this.data.negociacion_meta;
+            const acc = this.data.accion || {};
+            if (!meta && !acc.tipo) {
+                el.style.display = 'none';
+                return;
+            }
+            const confirmados = meta ? (meta.progreso_confirmados || 0) : 0;
+            const total = meta ? (meta.progreso_total || 6) : 6;
+            const pct = total > 0 ? Math.round((confirmados / total) * 100) : 0;
+            const requiere = meta && meta.requiere_mi_respuesta;
+            const espera = acc.tipo === 'esperar';
+            el.className = 'neg-estado-bar' + (requiere ? ' requiere-respuesta' : (espera ? ' espera' : ''));
+            el.style.display = 'block';
+            const titulo = requiere
+                ? 'Es tu turno'
+                : (meta && meta.fase === 'acuerdo' ? 'Acuerdo alcanzado' : (espera ? 'Esperando respuesta' : 'Negociación en curso'));
+            const contexto = (meta && meta.siguiente_accion) || acc.mensaje || '';
+            const pasoLabel = meta && meta.paso_label ? meta.paso_label : '';
+            el.innerHTML = `<p class="neg-estado-titulo">${this.escapeHtml(titulo)}${pasoLabel ? ' · ' + this.escapeHtml(pasoLabel) : ''}</p>
+                <p class="neg-estado-contexto">${this.escapeHtml(contexto)}</p>
+                <div class="neg-estado-progreso">
+                    <div class="neg-estado-progreso-bar"><div class="neg-estado-progreso-fill" style="width:${pct}%"></div></div>
+                    <span class="neg-estado-progreso-texto">${confirmados}/${total}</span>
+                </div>`;
         }
 
         renderPasoActual() {
@@ -416,7 +448,7 @@
             if (acc.tipo === 'esperar') {
                 el.innerHTML = `<div class="neg-compose-espera">
                     <p>${this.escapeHtml(acc.mensaje || 'Esperando a la otra parte.')}</p>
-                    <span class="neg-esperar-hint">Se actualizará automáticamente.</span>
+                    <span class="neg-esperar-hint">La pantalla se actualiza sola. Te avisaremos cuando sea tu turno.</span>
                 </div>`;
                 return;
             }
@@ -555,6 +587,11 @@
             const valorActual = acc.valor_actual || '';
             const valorContra = this._valorBorrador(`contra_${campo}`, '');
             const label = PASO_LABELS[campo] || campo;
+            const inputType = INPUT_TYPES[campo] || 'text';
+            const isTextarea = inputType === 'textarea';
+            const contraInput = isTextarea
+                ? `<textarea id="neg-input-contraoferta" class="neg-compose-input" placeholder="Tu alternativa" rows="2">${this.escapeHtml(valorContra)}</textarea>`
+                : `<input id="neg-input-contraoferta" class="neg-compose-input" type="${inputType}" ${campo === 'precio' ? 'step="0.01" min="0"' : ''} placeholder="Tu alternativa" value="${this.escapeHtml(valorContra)}" />`;
             el.innerHTML = `<div class="neg-compose-stack">
                 <div class="neg-respuesta-valor">
                     <span class="neg-respuesta-label">${this.escapeHtml(label)}:</span>
@@ -562,10 +599,10 @@
                 </div>
                 <div class="neg-compose-actions">
                     <button type="button" class="neg-btn neg-btn-primary neg-btn-block" id="neg-btn-aceptar">Confirmar</button>
-                    <button type="button" class="neg-btn neg-btn-secondary neg-btn-block" id="neg-btn-contraoferta-toggle">Sugerir cambio</button>
+                    <button type="button" class="neg-btn neg-btn-secondary neg-btn-block" id="neg-btn-contraoferta-toggle">Sugerir otro valor</button>
                 </div>
                 <div id="neg-contraoferta-form" class="neg-contraoferta-form" style="display:none;">
-                    <input id="neg-input-contraoferta" class="neg-compose-input" type="${INPUT_TYPES[campo] === 'textarea' ? 'text' : (INPUT_TYPES[campo] || 'text')}" placeholder="Tu alternativa" value="${this.escapeHtml(valorContra)}" />
+                    ${contraInput}
                     ${campo === 'observaciones' ? '<textarea id="neg-input-obs-prof" class="neg-compose-input" placeholder="Tus observaciones (opcional)" rows="2"></textarea>' : ''}
                     <button type="button" class="neg-btn neg-btn-warn neg-btn-block" id="neg-btn-contraoferta">Enviar alternativa</button>
                 </div>
@@ -626,6 +663,9 @@
                 this.render();
                 if (this.panel && typeof this.panel.cargarContactosPendientes === 'function') {
                     await this.panel.cargarContactosPendientes();
+                }
+                if (this.panel && typeof this.panel.renderProfesionales === 'function') {
+                    this.panel.renderProfesionales();
                 }
                 if (this.panel && typeof this.panel.refreshAfterAction === 'function') {
                     await this.panel.refreshAfterAction(['contactos', 'alertas', 'metricas']);

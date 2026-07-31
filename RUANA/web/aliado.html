@@ -1579,6 +1579,115 @@
             filter: brightness(1.05);
         }
 
+        /* Tarjeta de seguimiento del encargo */
+        .encargo-seguimiento-card {
+            margin-bottom: 24px;
+            padding: 18px 20px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: linear-gradient(160deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+        }
+        .encargo-seguimiento-card.encargo-requiere-respuesta {
+            border-color: rgba(34, 197, 94, 0.45);
+            box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.15), 0 12px 32px rgba(0, 0, 0, 0.25);
+        }
+        .encargo-seguimiento-card.contacto-aviso-urgente {
+            border-color: rgba(251, 191, 36, 0.55);
+        }
+        .encargo-seguimiento-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .encargo-seguimiento-estado {
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #94a3b8;
+        }
+        .encargo-requiere-respuesta .encargo-seguimiento-estado {
+            color: #4ade80;
+        }
+        .encargo-seguimiento-contexto {
+            margin: 0;
+            font-size: 0.95rem;
+            color: #cbd5e1;
+            line-height: 1.45;
+        }
+        .encargo-seguimiento-paso {
+            margin: 0;
+            font-size: 0.85rem;
+            color: #7dd3fc;
+            font-weight: 600;
+        }
+        .encargo-seguimiento-progreso {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .encargo-seguimiento-progreso-bar {
+            flex: 1;
+            height: 6px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            overflow: hidden;
+        }
+        .encargo-seguimiento-progreso-fill {
+            height: 100%;
+            width: 0;
+            background: linear-gradient(90deg, #22c55e, #4ade80);
+            border-radius: 999px;
+            transition: width 0.35s ease;
+        }
+        .encargo-seguimiento-progreso-texto {
+            font-size: 0.75rem;
+            color: #64748b;
+            flex-shrink: 0;
+        }
+        .encargo-seguimiento-accion {
+            margin: 0;
+            font-size: 0.88rem;
+            color: #94a3b8;
+            line-height: 1.4;
+        }
+        .encargo-seguimiento-principal {
+            margin-top: 4px;
+        }
+        .encargo-btn-principal {
+            width: 100%;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: #052e16;
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.15s ease, filter 0.15s ease;
+        }
+        .encargo-btn-principal:hover {
+            filter: brightness(1.06);
+            transform: translateY(-1px);
+        }
+        .encargo-seguimiento-secundarias {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 4px;
+        }
+        .encargo-seguimiento-secundarias .contacto-aviso-btn {
+            flex: 1 1 calc(50% - 4px);
+            min-width: 120px;
+        }
+
         /* Modal previo a contactar profesional */
         .modal-contacto-overlay {
             position: fixed;
@@ -2205,15 +2314,23 @@
             Tienes pagos pendientes con RUANA. No podrás aceptar nuevos trabajos hasta regularizar la situación.
         </div>
         
-        <!-- Seguimiento de contacto RUANA (tono profesional, no coercitivo) -->
-        <div id="contacto-aviso-persistente" class="contacto-aviso" style="display:none;">
-            <div class="contacto-aviso-header">
+        <!-- Seguimiento del encargo RUANA -->
+        <div id="contacto-aviso-persistente" class="encargo-seguimiento-card" style="display:none;">
+            <div class="encargo-seguimiento-top">
+                <span class="encargo-seguimiento-estado" id="contacto-aviso-estado">Encargo activo</span>
                 <span class="contacto-aviso-badge urgente" id="contacto-aviso-badge-urgente" style="display:none;">Urgente</span>
-                <span class="contacto-aviso-titulo">Seguimiento de contacto RUANA</span>
             </div>
-            <div id="contacto-aviso-texto" class="contacto-aviso-texto">
-                Tienes un contacto activo pendiente de cierre.
-                Usa <strong>Abrir chat</strong> para ver y responder los mensajes (se actualizan solos). Cuando lo consideres oportuno, indícanos el resultado.
+            <p class="encargo-seguimiento-contexto" id="contacto-aviso-contexto"></p>
+            <p class="encargo-seguimiento-paso" id="contacto-aviso-paso"></p>
+            <div class="encargo-seguimiento-progreso">
+                <div class="encargo-seguimiento-progreso-bar" aria-hidden="true">
+                    <div class="encargo-seguimiento-progreso-fill" id="contacto-aviso-progreso-fill"></div>
+                </div>
+                <span class="encargo-seguimiento-progreso-texto" id="contacto-aviso-progreso-texto">0/6</span>
+            </div>
+            <p class="encargo-seguimiento-accion" id="contacto-aviso-accion"></p>
+            <div class="encargo-seguimiento-principal">
+                <button id="btn-contacto-abrir-chat" class="encargo-btn-principal" type="button">Abrir negociación</button>
             </div>
             <div id="contacto-aviso-subir-prueba" class="contacto-aviso-texto" style="display:none; margin-top:12px; padding:12px; background: rgba(0,0,0,0.2); border-radius:8px;">
                 <strong>Subir comprobante de pago</strong> (solo contratante). Adjunta un documento que acredite el importe.
@@ -2221,11 +2338,10 @@
                 <button type="button" id="btn-subir-prueba-conflicto" class="contacto-aviso-btn" style="margin-top:8px; min-width:160px;">Enviar prueba</button>
                 <span id="subir-prueba-resultado" style="margin-left:8px; font-size:0.85rem;"></span>
             </div>
-            <div class="contacto-aviso-acciones">
-                <button id="btn-contacto-abrir-chat" class="contacto-aviso-btn" style="background: rgba(34, 197, 94, 0.25); color: #4ade80;">Abrir negociación</button>
-                <button id="btn-contacto-si-trabajo" class="contacto-aviso-btn si-trabajo">Sí, hubo trabajo</button>
-                <button id="btn-contacto-no-concreto" class="contacto-aviso-btn no-concreto">No se concretó</button>
-                <button id="btn-contacto-sigue" class="contacto-aviso-btn sigue">Sigue en conversación</button>
+            <div class="encargo-seguimiento-secundarias contacto-aviso-acciones">
+                <button id="btn-contacto-si-trabajo" class="contacto-aviso-btn si-trabajo" type="button">Sí, hubo trabajo</button>
+                <button id="btn-contacto-no-concreto" class="contacto-aviso-btn no-concreto" type="button">No se concretó</button>
+                <button id="btn-contacto-sigue" class="contacto-aviso-btn sigue" type="button">Posponer recordatorio</button>
             </div>
         </div>
 
@@ -2679,6 +2795,7 @@
                 </div>
             </div>
             <div id="neg-acuerdo-final" style="display:none;"></div>
+            <div id="neg-estado-bar" class="neg-estado-bar" style="display:none;" aria-live="polite"></div>
             <div class="neg-modal-body">
                 <div class="neg-chat-main">
                     <button type="button" class="neg-resumen-toggle" id="neg-resumen-toggle">Ver resumen</button>
@@ -5913,33 +6030,77 @@
                     const badgeUrgente = document.getElementById('contacto-aviso-badge-urgente');
                     if (badgeUrgente) badgeUrgente.style.display = this.contactoActual.es_urgente ? 'inline-block' : 'none';
 
-                    // Construir mensaje según estado (incluye chat_agotado: cierre obligatorio)
-                    const textoEl = document.getElementById('contacto-aviso-texto');
+                    // Construir tarjeta de seguimiento según estado real
+                    const estadoEl = document.getElementById('contacto-aviso-estado');
+                    const contextoEl = document.getElementById('contacto-aviso-contexto');
+                    const pasoEl = document.getElementById('contacto-aviso-paso');
+                    const accionEl = document.getElementById('contacto-aviso-accion');
+                    const progresoFill = document.getElementById('contacto-aviso-progreso-fill');
+                    const progresoTexto = document.getElementById('contacto-aviso-progreso-texto');
+                    const btnAbrir = document.getElementById('btn-contacto-abrir-chat');
                     const estado = this.contactoActual.estado;
-                    const numMensajes = parseInt(this.contactoActual.num_mensajes, 10) || 0;
+                    const meta = this.contactoActual.negociacion_meta || {};
                     const yaDeclaraste = this.contactoActual.ya_declaraste_importe === true;
-                    let mensaje = 'Tienes un contacto activo. Usa **Abrir negociación** para avanzar en el acuerdo guiado por RUANA. Cuando se realice el servicio, indícanos el resultado.';
+
+                    let estadoLabel = 'Encargo activo';
+                    let contexto = meta.contexto || 'Tienes un encargo activo con otro aliado RUANA.';
+                    let pasoTxt = meta.paso_label ? `Pendiente: ${meta.paso_label}` : '';
+                    let accionTxt = meta.siguiente_accion || 'Abre la negociación para continuar.';
+                    let progresoConf = meta.progreso_confirmados || 0;
+                    let progresoTotal = meta.progreso_total || 6;
+                    let btnPrincipal = 'Abrir negociación';
+                    let requiereRespuesta = !!this.contactoActual.negociacion_requiere_mi_respuesta;
+
                     if (this.contactoActual.es_urgente) {
-                        mensaje = '**URGENTE.** ' + mensaje;
+                        estadoLabel = 'Encargo urgente';
                     }
                     if (estado === 'acuerdo_alcanzado' || this.contactoActual.negociacion_completa) {
-                        mensaje = '**Acuerdo alcanzado.** Revisa el resumen en negociación. Cuando se realice el servicio, indica si hubo trabajo o no.';
-                    } else if (this.contactoActual.negociacion_paso_label) {
-                        const pasoEst = this.contactoActual.negociacion_paso_estado_label || '';
-                        mensaje = `**Negociación en curso** — paso: ${this.contactoActual.negociacion_paso_label}${pasoEst ? ' (' + pasoEst + ')' : ''}. Abre la negociación para continuar.`;
+                        estadoLabel = 'Acuerdo alcanzado';
+                        contexto = 'Todos los puntos del encargo están confirmados.';
+                        pasoTxt = '';
+                        accionTxt = 'Cuando se realice el servicio, indica si hubo trabajo.';
+                        btnPrincipal = 'Ver acuerdo';
+                        progresoConf = progresoTotal;
+                    } else if (requiereRespuesta) {
+                        estadoLabel = 'Tu turno';
+                        btnPrincipal = 'Responder ahora';
+                        accionTxt = meta.siguiente_accion || 'Confirma o sugiere un cambio para continuar.';
+                    } else if (meta.fase === 'revision' && !requiereRespuesta) {
+                        estadoLabel = 'Esperando al profesional';
+                        btnPrincipal = 'Ver negociación';
+                    } else if (meta.fase === 'inicio' && estado !== 'acuerdo_alcanzado') {
+                        estadoLabel = 'Preparar encargo';
+                        btnPrincipal = 'Continuar negociación';
                     } else if (estado === 'importe_en_disputa') {
-                        mensaje = 'Existe una declaración diferente por la otra parte. RUANA ha marcado este contacto como importe en disputa. Debes aclararlo para proteger tu reputación.';
-                    } else if (estado !== 'acuerdo_alcanzado') {
-                        mensaje += ' Te haré unas preguntas sobre el encargo y luego enviaré todo al profesional para que lo confirme. El precio lo propondrá el profesional.';
+                        estadoLabel = 'Importe en disputa';
+                        contexto = 'Hay una diferencia en el importe declarado. Debes aclararlo para proteger tu reputación.';
+                        pasoTxt = '';
+                        accionTxt = 'Revisa el contacto y aporta la información necesaria.';
+                        btnPrincipal = 'Revisar contacto';
+                    } else if (estado === 'trabajo_cerrado') {
+                        estadoLabel = 'Trabajo cerrado';
+                        contexto = 'El encargo quedó registrado como realizado.';
+                        pasoTxt = '';
+                        accionTxt = 'Revisa el Apoyo RUANA pendiente si corresponde.';
+                        btnPrincipal = 'Ver detalle';
                     }
-                    if (estado === 'trabajo_cerrado') {
-                        mensaje = '**Trabajo cerrado.** Importe acordado. Puedes ver el Apoyo RUANA pendiente en la sección correspondiente.';
-                    } else if (yaDeclaraste && estado !== 'importe_en_disputa') {
-                        mensaje += ' **Ya confirmaste el importe.**';
+                    if (yaDeclaraste && estado !== 'importe_en_disputa' && estado !== 'trabajo_cerrado') {
+                        accionTxt += ' Ya confirmaste el importe.';
                     }
-                    if (textoEl) {
-                        textoEl.innerHTML = mensaje.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+                    if (estadoEl) estadoEl.textContent = estadoLabel;
+                    if (contextoEl) contextoEl.textContent = contexto;
+                    if (pasoEl) {
+                        pasoEl.textContent = pasoTxt;
+                        pasoEl.style.display = pasoTxt ? 'block' : 'none';
                     }
+                    if (accionEl) accionEl.textContent = accionTxt;
+                    if (progresoTexto) progresoTexto.textContent = `${progresoConf}/${progresoTotal}`;
+                    if (progresoFill && progresoTotal > 0) {
+                        progresoFill.style.width = `${Math.round((progresoConf / progresoTotal) * 100)}%`;
+                    }
+                    if (btnAbrir) btnAbrir.textContent = btnPrincipal;
+                    avisoEl.classList.toggle('encargo-requiere-respuesta', requiereRespuesta);
                     // Ocultar "Sigue en conversación" tras acuerdo alcanzado
                     const btnSigue = document.getElementById('btn-contacto-sigue');
                     if (btnSigue) btnSigue.style.display = (estado === 'acuerdo_alcanzado') ? 'none' : '';

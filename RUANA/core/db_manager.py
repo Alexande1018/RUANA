@@ -9200,11 +9200,20 @@ class DBManager:
                     d['paso_negociacion'] = neg.get('paso_actual')
                     paso = neg.get('paso_actual') or 'servicio'
                     campo = (neg.get('campos') or {}).get(paso, {})
+                    rol_viewer = neg_mgr._rol_en_contacto(
+                        codigo_aliado,
+                        d.get('solicitante_codigo') or '',
+                        d.get('profesional_codigo') or '',
+                    ) or 'solicitante'
+                    meta = neg_mgr.meta_negociacion(neg, rol_viewer, d.get('estado') or '')
                     d['negociacion_paso_label'] = neg_mgr.CAMPOS_LABELS.get(paso, paso)
                     d['negociacion_paso_estado'] = campo.get('estado') or neg_mgr.ESTADO_PENDIENTE
                     d['negociacion_paso_estado_label'] = neg_mgr.ESTADO_LABELS.get(
                         d['negociacion_paso_estado'], d['negociacion_paso_estado']
                     )
+                    d['negociacion_propuesto_por'] = campo.get('propuesto_por')
+                    d['negociacion_requiere_mi_respuesta'] = meta.get('requiere_mi_respuesta', False)
+                    d['negociacion_meta'] = meta
                     result.append(d)
                 return result
             except Exception as e:
