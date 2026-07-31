@@ -399,6 +399,14 @@ body.aliado-app > .ruana-brand-watermark {
     font-size: 0.9rem;
 }
 
+.inicio-identity-grupo {
+    margin: 4px 0 0;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
 .inicio-status-chip {
     display: inline-flex;
     align-items: center;

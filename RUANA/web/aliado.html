@@ -2229,6 +2229,7 @@
                     <div class="inicio-identity-copy">
                         <h1 id="inicio-nombre">Cargando...</h1>
                         <p class="inicio-identity-marca" id="inicio-marca">---</p>
+                        <p class="inicio-identity-grupo" id="inicio-grupo" hidden></p>
                         <div class="inicio-identity-meta">
                             <span class="inicio-status-chip" id="inicio-status" data-status="activo">
                                 <span class="status-dot"></span>
@@ -4154,6 +4155,11 @@
                 const grupoInfo = (this.aliado && this.aliado.grupo_info) ? this.aliado.grupo_info : null;
                 if (!grupoInfo) {
                     block.style.display = 'none';
+                    const nombreEl = document.getElementById('grupo-nombre');
+                    if (nombreEl) nombreEl.textContent = '---';
+                    if (window.AliadoShell && typeof window.AliadoShell.refresh === 'function') {
+                        window.AliadoShell.refresh();
+                    }
                     return;
                 }
                 block.style.display = 'block';
@@ -4166,6 +4172,10 @@
                     estadoEl.textContent = estadoLabels[grupoInfo.estado] || grupoInfo.estado || '---';
                 }
                 if (numEl) numEl.textContent = String(grupoInfo.num_oficios != null ? grupoInfo.num_oficios : 0);
+
+                if (window.AliadoShell && typeof window.AliadoShell.refresh === 'function') {
+                    window.AliadoShell.refresh();
+                }
 
                 const faltantes = Array.isArray(grupoInfo.oficios_faltantes) ? [...grupoInfo.oficios_faltantes] : [];
                 const LIMIT_PREVIEW = 5;
