@@ -243,6 +243,26 @@ select:focus {
     transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease, border-color 180ms ease !important;
 }
 
+.aliado-admin-card .aliado-acciones {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+}
+
+.aliado-admin-card .btn-accion {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100%;
+    flex: initial !important;
+    white-space: normal !important;
+    line-height: 1.25;
+    text-align: center;
+    overflow-wrap: anywhere;
+    box-sizing: border-box;
+}
+
 .btn-accion:hover,
 .btn-admin-action:hover,
 .btn-volver-nivel:hover,

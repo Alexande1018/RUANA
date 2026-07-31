@@ -533,6 +533,10 @@
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 12px;
             transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            box-sizing: border-box;
         }
 
         .aliado-admin-card:hover {
@@ -545,12 +549,16 @@
             justify-content: space-between;
             align-items: flex-start;
             margin-bottom: 12px;
+            gap: 8px;
+            min-width: 0;
         }
 
         .aliado-nombre-admin {
             font-size: 1rem;
             font-weight: 600;
             color: #e0e0e0;
+            min-width: 0;
+            overflow-wrap: anywhere;
         }
 
         .aliado-estado-badge {
@@ -627,24 +635,35 @@
         }
 
         .aliado-acciones {
-            display: flex;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 8px;
             margin-top: 12px;
+            width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
         }
 
         .btn-accion {
-            flex: 1;
-            padding: 6px 10px;
+            width: 100%;
+            min-width: 0;
+            max-width: 100%;
+            box-sizing: border-box;
+            padding: 6px 8px;
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 4px;
             color: #bbb;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
             text-transform: uppercase;
-            letter-spacing: 0.3px;
+            letter-spacing: 0.2px;
+            white-space: normal;
+            line-height: 1.25;
+            text-align: center;
+            overflow-wrap: anywhere;
         }
 
         .btn-accion:hover {
