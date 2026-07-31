@@ -6549,42 +6549,156 @@ class DBManager:
                 if conn:
                     conn.close()
 
+    def _obtener_grupo_activacion_pendiente(self, cursor, aliado: Dict[str, Any]) -> Optional[int]:
+        """
+        Resuelve grupo al activar un aliado pendiente_validacion.
+        Prioridad: grupo del invitador (si hay plaza) → otro grupo del CP → nuevo grupo.
+        """
+        oficio = (aliado.get('oficio') or '').strip()
+        codigo_postal = (aliado.get('codigo_postal') or '').strip()
+        if not oficio or not codigo_postal:
+            return None
+
+        invitador_codigo = (aliado.get('invitado_por_codigo') or '').strip()
+        if invitador_codigo:
+            cursor.execute(
+                "SELECT grupo_id FROM aliados WHERE codigo = ?",
+                (invitador_codigo,),
+            )
+            inv_row = cursor.fetchone()
+            if inv_row and inv_row[0]:
+                grupo_id = int(inv_row[0])
+                cursor.execute("SELECT estado FROM grupos WHERE id = ?", (grupo_id,))
+                g_row = cursor.fetchone()
+                if g_row and (g_row[0] or '').strip().lower() == 'activo':
+                    if not self._grupo_tiene_oficio(cursor, grupo_id, oficio):
+                        return grupo_id
+
+        cursor.execute(
+            """SELECT id FROM grupos
+               WHERE codigo_postal = ? AND estado = 'activo'
+               ORDER BY id""",
+            (codigo_postal,),
+        )
+        for row in cursor.fetchall():
+            grupo_id = int(row[0])
+            if not self._grupo_tiene_oficio(cursor, grupo_id, oficio):
+                return grupo_id
+
+        cursor.execute(
+            "SELECT COUNT(*) FROM grupos WHERE codigo_postal = ? AND estado = 'activo'",
+            (codigo_postal,),
+        )
+        n_grupos = cursor.fetchone()[0] or 0
+        if n_grupos < MAX_GRUPOS_POR_CP:
+            nombre = self._generar_nombre_grupo(cursor)
+            cursor.execute(
+                """INSERT INTO grupos (nombre, codigo_postal, estado, fecha_creacion)
+                   VALUES (?, ?, 'activo', CURRENT_TIMESTAMP)""",
+                (nombre, codigo_postal),
+            )
+            return int(cursor.lastrowid)
+        return None
+
+    def _activar_aliado_pendiente_interno(self, cursor, aliado: Dict[str, Any]) -> Dict[str, Any]:
+        """Activa pendiente_validacion y asigna grupo (priorizando el del invitador)."""
+        codigo = (aliado.get('codigo') or '').strip()
+        aliado_id = aliado.get('id')
+        if not codigo or aliado_id is None:
+            return {'status': 'error', 'message': 'Aliado no válido'}
+
+        grupo_id = self._obtener_grupo_activacion_pendiente(cursor, aliado)
+        if grupo_id:
+            cursor.execute(
+                """UPDATE aliados
+                   SET estado = 'activo', grupo_id = ?, actualizado_en = CURRENT_TIMESTAMP
+                   WHERE id = ? AND LOWER(TRIM(COALESCE(estado, ''))) = 'pendiente_validacion'""",
+                (grupo_id, int(aliado_id)),
+            )
+        else:
+            cursor.execute(
+                """UPDATE aliados
+                   SET estado = 'activo', actualizado_en = CURRENT_TIMESTAMP
+                   WHERE id = ? AND LOWER(TRIM(COALESCE(estado, ''))) = 'pendiente_validacion'""",
+                (int(aliado_id),),
+            )
+
+        if cursor.rowcount == 0:
+            return {
+                'status': 'error',
+                'message': f'Aliado {codigo} no encontrado o no está pendiente de validación',
+            }
+
+        if grupo_id:
+            cursor.execute("SELECT nombre FROM grupos WHERE id = ?", (grupo_id,))
+            g_row = cursor.fetchone()
+            grupo_nombre = (g_row[0] if g_row else None) or f'#{grupo_id}'
+            return {
+                'status': 'success',
+                'message': f'Aliado {codigo} activado e incorporado al grupo {grupo_nombre}',
+                'grupo_id': grupo_id,
+            }
+
+        return {
+            'status': 'success',
+            'message': (
+                f'Aliado {codigo} activado correctamente. '
+                'No había plaza disponible en ningún grupo del CP.'
+            ),
+            'grupo_id': None,
+        }
+
     def activar_aliado_por_id(self, aliado_id: int) -> Dict[str, Any]:
-        """Activa aliado por ID numérico (pendiente_validacion → activo)."""
+        """Activa aliado por ID numérico (pendiente_validacion → activo) y asigna grupo."""
         with self._lock:
             try:
                 conn = self._connect()
+                conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute(
-                    "UPDATE aliados SET estado = 'activo', actualizado_en = CURRENT_TIMESTAMP WHERE id = ? AND LOWER(TRIM(COALESCE(estado, ''))) = 'pendiente_validacion'",
-                    (int(aliado_id),)
+                    """SELECT id, codigo, oficio, codigo_postal, invitado_por_codigo, estado
+                       FROM aliados WHERE id = ?""",
+                    (int(aliado_id),),
                 )
+                row = cursor.fetchone()
+                if not row:
+                    return {'status': 'error', 'message': f'Aliado con ID {aliado_id} no encontrado'}
+                if (row['estado'] or '').strip().lower() != 'pendiente_validacion':
+                    return {
+                        'status': 'error',
+                        'message': f'Aliado con ID {aliado_id} no está pendiente de validación',
+                    }
+                result = self._activar_aliado_pendiente_interno(cursor, dict(row))
                 conn.commit()
-                if cursor.rowcount > 0:
-                    cursor.execute("SELECT codigo FROM aliados WHERE id = ?", (int(aliado_id),))
-                    row = cursor.fetchone()
-                    codigo = row[0] if row else ''
-                    return {'status': 'success', 'message': f'Aliado {codigo} activado correctamente'}
-                return {'status': 'error', 'message': f'Aliado con ID {aliado_id} no encontrado o no está pendiente de validación'}
+                return result
             except Exception as e:
                 return {'status': 'error', 'message': str(e)}
             finally:
                 conn.close()
 
     def activar_aliado_pendiente(self, codigo: str) -> Dict[str, Any]:
-        """Cambia estado de pendiente_validacion a activo. Requiere que el aliado exista y esté pendiente."""
+        """Cambia pendiente_validacion → activo y asigna grupo del invitador si hay plaza."""
         with self._lock:
             try:
                 conn = self._connect()
+                conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute(
-                    "UPDATE aliados SET estado = 'activo', actualizado_en = CURRENT_TIMESTAMP WHERE codigo = ? AND estado = 'pendiente_validacion'",
-                    (codigo.strip(),)
+                    """SELECT id, codigo, oficio, codigo_postal, invitado_por_codigo, estado
+                       FROM aliados WHERE codigo = ?""",
+                    (codigo.strip(),),
                 )
+                row = cursor.fetchone()
+                if not row:
+                    return {'status': 'error', 'message': f'Aliado {codigo} no encontrado'}
+                if (row['estado'] or '').strip().lower() != 'pendiente_validacion':
+                    return {
+                        'status': 'error',
+                        'message': f'Aliado {codigo} no está pendiente de validación',
+                    }
+                result = self._activar_aliado_pendiente_interno(cursor, dict(row))
                 conn.commit()
-                if cursor.rowcount > 0:
-                    return {'status': 'success', 'message': f'Aliado {codigo} activado correctamente'}
-                return {'status': 'error', 'message': f'Aliado {codigo} no encontrado o no está pendiente de validación'}
+                return result
             except Exception as e:
                 return {'status': 'error', 'message': str(e)}
             finally:
