@@ -2890,14 +2890,19 @@
         <div class="modal-importe-content modal-importe-elegante">
             <div class="modal-contacto-title">Confirmación de trabajo realizado</div>
             <div class="modal-contacto-text" id="modal-contacto-importe-text">
-                Nos alegra saber que el trabajo se realizó.
-                Para cerrar el contacto correctamente, indícanos el importe acordado.
+                Confirma el valor acordado en la negociación. Ese importe es el oficial del encargo.
             </div>
-            <label class="modal-importe-label" for="contacto-importe-input">Importe del trabajo (€)</label>
-            <input id="contacto-importe-input" type="number" min="0" step="0.01" class="modal-importe-input" placeholder="Ej: 150.00" required>
+            <div id="modal-importe-acordado-wrap" class="modal-importe-summary" style="display:none;">
+                <p style="margin:0 0 6px; font-size:0.85rem; color:#94a3b8;">Importe acordado</p>
+                <p id="modal-importe-acordado-valor" style="margin:0; font-size:1.4rem; font-weight:700; color:#5eead4;">—</p>
+            </div>
+            <div id="modal-importe-input-wrap" style="display:none;">
+                <label class="modal-importe-label" for="contacto-importe-input">Importe del trabajo (€)</label>
+                <input id="contacto-importe-input" type="number" min="0" step="0.01" class="modal-importe-input" placeholder="Ej: 150.00">
+            </div>
             <div id="modal-importe-resumen" class="modal-importe-summary" style="display:none;"></div>
             <div class="modal-contacto-actions" style="margin-top: 12px;">
-                <button id="btn-contacto-importe-confirm" class="modal-contacto-btn confirm">Confirmar importe</button>
+                <button id="btn-contacto-importe-confirm" class="modal-contacto-btn confirm">Confirmar valor acordado</button>
                 <button id="btn-contacto-importe-cancel" class="modal-contacto-btn cancel">Volver</button>
             </div>
         </div>
@@ -6884,7 +6889,7 @@
             }
 
             /**
-             * Botón "Sí, hubo trabajo" → abre modal elegante (Confirmación de trabajo realizado)
+             * Botón "Sí, hubo trabajo" → confirma el importe ya acordado en la negociación.
              */
             handleAvisoSiHuboTrabajo() {
                 if (!this.contactoActual) return;
@@ -6904,46 +6909,77 @@
                 }
                 const modal = document.getElementById('modal-contacto-importe');
                 const resumenEl = document.getElementById('modal-importe-resumen');
+                const acordadoWrap = document.getElementById('modal-importe-acordado-wrap');
+                const acordadoValor = document.getElementById('modal-importe-acordado-valor');
+                const inputWrap = document.getElementById('modal-importe-input-wrap');
+                const input = document.getElementById('contacto-importe-input');
+                const texto = document.getElementById('modal-contacto-importe-text');
+                const btnConfirm = document.getElementById('btn-contacto-importe-confirm');
                 if (resumenEl) {
                     resumenEl.style.display = 'none';
                     resumenEl.textContent = '';
                 }
-                const input = document.getElementById('contacto-importe-input');
-                if (input) { input.value = ''; input.required = true; }
+                const oficial = this.contactoActual.importe_acordado != null
+                    ? Number(this.contactoActual.importe_acordado)
+                    : (this.contactoActual.precio_acordado != null ? Number(this.contactoActual.precio_acordado) : NaN);
+                const tieneOficial = !isNaN(oficial) && oficial > 0;
+                if (tieneOficial) {
+                    if (texto) {
+                        texto.textContent = 'El precio quedó fijado en la negociación. Confirma ese valor oficial del encargo.';
+                    }
+                    if (acordadoWrap) acordadoWrap.style.display = 'block';
+                    if (acordadoValor) acordadoValor.textContent = `${oficial.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} €`;
+                    if (inputWrap) inputWrap.style.display = 'none';
+                    if (input) { input.value = String(oficial); input.required = false; }
+                    if (btnConfirm) btnConfirm.textContent = 'Confirmar valor acordado';
+                } else {
+                    if (texto) {
+                        texto.textContent = 'No hay un precio numérico en el acuerdo. Introduce el importe para cerrar el encargo.';
+                    }
+                    if (acordadoWrap) acordadoWrap.style.display = 'none';
+                    if (inputWrap) inputWrap.style.display = 'block';
+                    if (input) { input.value = ''; input.required = true; }
+                    if (btnConfirm) btnConfirm.textContent = 'Confirmar importe';
+                }
                 if (modal) modal.classList.add('show');
             }
 
             /**
-             * Confirmar importe: determina parte (solicitante/profesional) según código del aliado actual
+             * Confirmar importe oficial (precio negociado). No reingresa un valor distinto.
              */
             async confirmarImporteContacto() {
                 if (!this.contactoActual) return;
                 const input = document.getElementById('contacto-importe-input');
                 const btnConfirm = document.getElementById('btn-contacto-importe-confirm');
-                if (!input) return;
-
-                const raw = String(input.value || '').trim().replace(',', '.');
-                const valor = parseFloat(raw);
-                if (raw === '' || isNaN(valor) || valor <= 0) {
-                    alert('Introduce un importe válido mayor que cero.');
-                    return;
-                }
-
                 const codigo = String(this.codigoAliado || (this.aliado && this.aliado.codigo) || '').trim();
                 const solCodigo = String(this.contactoActual.solicitante_codigo || '').trim();
                 const parte = (solCodigo === codigo) ? 'solicitante' : 'profesional';
 
+                const oficial = this.contactoActual.importe_acordado != null
+                    ? Number(this.contactoActual.importe_acordado)
+                    : (this.contactoActual.precio_acordado != null ? Number(this.contactoActual.precio_acordado) : NaN);
+                const tieneOficial = !isNaN(oficial) && oficial > 0;
+
+                if (!tieneOficial) {
+                    if (!input) return;
+                    const raw = String(input.value || '').trim().replace(',', '.');
+                    const valor = parseFloat(raw);
+                    if (raw === '' || isNaN(valor) || valor <= 0) {
+                        alert('Introduce un importe válido mayor que cero.');
+                        return;
+                    }
+                }
+
                 if (btnConfirm) { btnConfirm.disabled = true; }
                 try {
+                    const body = tieneOficial
+                        ? { parte, confirmar_acordado: true, usar_precio_acordado: true, moneda: 'EUR' }
+                        : { parte, importe: parseFloat(String(input.value || '').trim().replace(',', '.')), moneda: 'EUR' };
                     const resp = await fetch(`/api/contactos/${this.contactoActual.id}/declarar-importe`, {
                         method: 'POST',
                         headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
                         credentials: 'same-origin',
-                        body: JSON.stringify({
-                            parte: parte,
-                            importe: valor,
-                            moneda: 'EUR'
-                        })
+                        body: JSON.stringify(body)
                     });
                     const data = await resp.json();
                     if (data.status !== 'success') {
@@ -6960,7 +6996,7 @@
                             const modal = document.getElementById('modal-contacto-importe');
                             if (modal) modal.classList.remove('show');
                         } else if (msg.indexOf('Ya has declarado') !== -1) {
-                            alert('Solo puedes declarar el importe una vez por contacto. La otra parte debe entrar en su panel e indicar el importe con su cuenta. Si ya declaraste, espera a que la otra parte declare el suyo.');
+                            alert('Solo puedes confirmar el importe una vez por contacto.');
                         } else {
                             alert(msg);
                         }
@@ -6971,11 +7007,9 @@
                     const resumenEl = document.getElementById('modal-importe-resumen');
                     if (data.estado === 'trabajo_cerrado') {
                         await this.mostrarResumenCierre(this.contactoActual.id);
-                        // Ocultar la alerta de contacto de inmediato (contacto cerrado)
                         const avisoEl = document.getElementById('contacto-aviso-persistente');
                         if (avisoEl) avisoEl.style.display = 'none';
                         this.contactoActual = null;
-                        // Actualizar lista de Apoyo RUANA pendiente de pago (lógica de cobro: profesional ve el importe a abonar)
                         await this.cargarPagosApoyoPendientes();
                     } else if (data.estado === 'importe_en_disputa') {
                         const ctx = document.getElementById('contacto-aviso-contexto');
@@ -6983,7 +7017,6 @@
                         if (ctx) ctx.textContent = 'Los importes declarados no coinciden.';
                         if (acc) acc.textContent = 'Adjunta un comprobante de pago para continuar.';
                     }
-                    // Cerrar la ventana del modal
                     if (modal) modal.classList.remove('show');
                     if (input) input.value = '';
                     if (resumenEl) { resumenEl.style.display = 'none'; resumenEl.innerHTML = ''; }
@@ -6992,7 +7025,7 @@
                     await this.refreshAfterAction(['metricas', 'solicitudes', 'directorio', 'alertas', 'contactos']);
                 } catch (e) {
                     console.error('Error declarando importe:', e);
-                    alert('Error de conexión al declarar el importe.');
+                    alert('Error de conexión al confirmar el importe.');
                 } finally {
                     if (btnConfirm) btnConfirm.disabled = false;
                 }

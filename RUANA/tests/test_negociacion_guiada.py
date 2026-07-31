@@ -147,6 +147,7 @@ class TestNegociacionGuiada(unittest.TestCase):
         self.assertIsNotNone(contacto)
         self.assertEqual(contacto['estado'], 'acuerdo_alcanzado')
         self.assertTrue(contacto.get('acuerdo_resumen_json'))
+        self.assertEqual(float(contacto.get('importe_acordado')), 150.0)
 
     def _flujo_hasta_acuerdo(self, precio='150'):
         cid = self._crear_aliados_y_contacto()
@@ -197,6 +198,27 @@ class TestNegociacionGuiada(unittest.TestCase):
         acuerdos_pro = self.db.listar_acuerdos_aliado('90002')
         self.assertTrue(any(a['contacto_id'] == cid and a['rol'] == 'contrate' for a in acuerdos_sol))
         self.assertTrue(any(a['contacto_id'] == cid and a['rol'] == 'contratado' for a in acuerdos_pro))
+
+    def test_confirmar_importe_usa_precio_acordado_no_cliente(self):
+        cid = self._flujo_hasta_acuerdo('200')
+        r = self.db.registrar_importe_contacto(
+            cid, 'solicitante', 999.0, usuario='90001', usar_precio_acordado=False,
+        )
+        self.assertEqual(r['status'], 'success', r.get('message'))
+        self.assertEqual(float(r.get('importe_acordado')), 200.0)
+        contacto = self.db.obtener_contacto_por_id(cid)
+        self.assertEqual(contacto['estado'], 'trabajo_cerrado')
+        self.assertEqual(float(contacto['importe_final']), 200.0)
+
+    def test_confirmar_acordado_sin_reingreso(self):
+        cid = self._flujo_hasta_acuerdo('175')
+        r = self.db.registrar_importe_contacto(
+            cid, 'solicitante', None, usuario='90001', usar_precio_acordado=True,
+        )
+        self.assertEqual(r['status'], 'success', r.get('message'))
+        self.assertEqual(float(r.get('importe_acordado')), 175.0)
+        contacto = self.db.obtener_contacto_por_id(cid)
+        self.assertEqual(float(contacto['importe_final']), 175.0)
 
     def test_dismiss_resumen_oculta_flotante(self):
         cid = self._flujo_hasta_acuerdo('120')

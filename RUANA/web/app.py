@@ -1773,36 +1773,44 @@ def marcar_contacto_en_conversacion(contacto_id):
 def declarar_importe_contacto(contacto_id):
     """
     POST /api/contactos/<id>/declarar-importe
-    Declaraci?n de importe. usuario = aliado en sesi?n (no se conf?a en body).
-    Body: parte, importe, moneda (opcional).
+    Confirma el importe del encargo. Si hay precio negociado, ese es el valor oficial
+    (no se reingresa manualmente). Preferir body: confirmar_acordado=true.
     """
     try:
         usuario = _aliado_codigo()
         if not usuario:
-            return jsonify({'status': 'error', 'message': 'Sesi?n expirada'}), 401
+            return jsonify({'status': 'error', 'message': 'Sesión expirada'}), 401
         data = request.get_json() or {}
-        parte = data.get('parte')
-        importe = data.get('importe')
+        parte = data.get('parte') or 'solicitante'
         moneda = (data.get('moneda') or 'EUR').strip()
+        confirmar_acordado = bool(
+            data.get('confirmar_acordado')
+            or data.get('usar_precio_acordado')
+        )
+        importe_body = data.get('importe')
+        if confirmar_acordado or importe_body in (None, ''):
+            importe_body = None
+            confirmar_acordado = True
 
         db = get_db()
         result = db.registrar_importe_contacto(
             contacto_id=contacto_id,
             parte=parte,
-            importe=importe,
+            importe=importe_body,
             moneda=moneda,
-            usuario=usuario
+            usuario=usuario,
+            usar_precio_acordado=confirmar_acordado,
         )
         if result.get('status') != 'success':
             print(f"[RUANA] declarar-importe 400: contacto_id={contacto_id} message={result.get('message')}")
-        # Score por encargo (+2) al marcar Apoyo pagado (Regla 2). Sin penalización por disputa.
         status_code = 200 if result.get('status') == 'success' else 400
 
         safe_response = {
             'status': result.get('status'),
             'message': result.get('message'),
             'id': result.get('id'),
-            'estado': result.get('estado')
+            'estado': result.get('estado'),
+            'importe_acordado': result.get('importe_acordado'),
         }
 
         return jsonify(safe_response), status_code

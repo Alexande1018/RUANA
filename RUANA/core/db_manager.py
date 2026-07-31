@@ -127,6 +127,7 @@ class DBManager:
             self._migrar_contactos_es_urgente(conn, cursor)
             self._migrar_negociacion_guiada(conn, cursor)
             self._migrar_acuerdo_cierre_bilateral(conn, cursor)
+            self._migrar_importe_acordado(conn, cursor)
             self._migrar_aliado_accesos_dia(conn, cursor)
             self._migrar_centro_comunicacion_ruana(conn, cursor)
             conn.commit()
@@ -507,6 +508,7 @@ class DBManager:
                 self._migrar_chat_mensajes(conn, cursor)
                 self._migrar_negociacion_guiada(conn, cursor)
                 self._migrar_acuerdo_cierre_bilateral(conn, cursor)
+                self._migrar_importe_acordado(conn, cursor)
                 self._migrar_contactos_motivo_contacto(conn, cursor)
                 self._migrar_contactos_es_urgente(conn, cursor)
                 self._migrar_drop_chat_messages(conn, cursor)
@@ -854,6 +856,18 @@ class DBManager:
         for nombre, sqlite_t, _pg_t in columnas_nuevas:
             if nombre not in columnas:
                 cursor.execute(f"ALTER TABLE contactos_ruana ADD COLUMN {nombre} {sqlite_t}")
+
+    def _migrar_importe_acordado(self, conn, cursor) -> None:
+        """Importe oficial del encargo = precio confirmado en la negociación."""
+        if self.backend == "postgres":
+            cursor.execute(
+                "ALTER TABLE contactos_ruana ADD COLUMN IF NOT EXISTS importe_acordado REAL"
+            )
+            return
+        cursor.execute("PRAGMA table_info(contactos_ruana)")
+        columnas = [row[1] for row in cursor.fetchall()]
+        if 'importe_acordado' not in columnas:
+            cursor.execute("ALTER TABLE contactos_ruana ADD COLUMN importe_acordado REAL")
 
     def _migrar_contactos_motivo_contacto(self, conn, cursor) -> None:
         """Añade motivo_contacto al contacto (obligatorio antes de iniciar chat)."""
@@ -7549,6 +7563,8 @@ class DBManager:
         """Extrae un importe numérico > 0 del valor acordado en negociación (p. ej. «150», «150€»)."""
         if valor is None:
             return None
+        if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+            return float(valor) if float(valor) > 0 else None
         texto = str(valor).strip()
         if not texto:
             return None
@@ -7561,6 +7577,27 @@ class DBManager:
         except (TypeError, ValueError):
             return None
         return importe if importe > 0 else None
+
+    def _precio_valor_desde_contacto(self, contacto: Dict[str, Any]) -> Any:
+        """Obtiene el valor de precio desde columnas/snapshot/negociacion_json."""
+        if contacto.get('importe_acordado') is not None:
+            try:
+                return float(contacto.get('importe_acordado'))
+            except (TypeError, ValueError):
+                pass
+        resumen = self._parse_acuerdo_resumen_campo(contacto.get('acuerdo_resumen_json')) or {}
+        campos = resumen.get('campos') or {}
+        if campos.get('precio') is not None:
+            return campos.get('precio')
+        estado = neg_mgr.parse_negociacion(contacto.get('negociacion_json'))
+        try:
+            return estado['campos']['precio']['valor']
+        except Exception:
+            return None
+
+    def _importe_oficial_contacto(self, contacto: Dict[str, Any]) -> Optional[float]:
+        """Importe oficial del encargo (precio negociado)."""
+        return self._parse_importe_acuerdo(self._precio_valor_desde_contacto(contacto))
 
     def _construir_acuerdo_resumen_json(
         self,
@@ -7620,15 +7657,18 @@ class DBManager:
     ) -> Dict[str, Any]:
         """
         Tras confirmación bilateral del acuerdo, aplica la misma lógica que «Sí hubo trabajo»
-        (declarar importe del contratante → trabajo_cerrado + Apoyo RUANA).
+        usando el importe oficial negociado (sin reingreso manual).
         """
-        importe = self._parse_importe_acuerdo(precio_valor)
+        contacto = self.obtener_contacto_por_id(contacto_id) or {}
+        importe = self._importe_oficial_contacto(contacto)
+        if importe is None:
+            importe = self._parse_importe_acuerdo(precio_valor)
         if importe is None:
             out = dict(payload_base)
             out['cierre_automatico'] = False
             out['cierre_aviso'] = (
-                'Ambas partes confirmaron el acuerdo, pero no se pudo leer el precio. '
-                'Confirma el importe con «Sí, hubo trabajo».'
+                'Ambas partes confirmaron el acuerdo, pero no hay un precio numérico oficial. '
+                'Revisa el precio en la negociación.'
             )
             return out
 
@@ -7638,6 +7678,7 @@ class DBManager:
             importe,
             'EUR',
             usuario=(solicitante_codigo or '').strip(),
+            usar_precio_acordado=True,
         )
         if not cierre or cierre.get('status') != 'success':
             out = dict(payload_base)
@@ -7706,14 +7747,20 @@ class DBManager:
                         cursor, contacto_id, neg_mgr.TIPO_SISTEMA, None, '', None, msg_sistema
                     )
                 if completo and resumen_json is not None:
+                    try:
+                        precio_raw = estado['campos']['precio']['valor']
+                    except Exception:
+                        precio_raw = None
+                    importe_oficial = self._parse_importe_acuerdo(precio_raw)
                     cursor.execute("""
                         UPDATE contactos_ruana
                         SET negociacion_json = ?, estado = ?,
                             acuerdo_resumen_json = COALESCE(acuerdo_resumen_json, ?),
                             acuerdo_alcanzado_en = COALESCE(acuerdo_alcanzado_en, CURRENT_TIMESTAMP),
+                            importe_acordado = COALESCE(importe_acordado, ?),
                             actualizado_en = CURRENT_TIMESTAMP
                         WHERE id = ?
-                    """, (neg_json, nuevo_estado, resumen_json, contacto_id))
+                    """, (neg_json, nuevo_estado, resumen_json, importe_oficial, contacto_id))
                 else:
                     cursor.execute("""
                         UPDATE contactos_ruana
@@ -7727,6 +7774,11 @@ class DBManager:
                 contacto = self._cargar_contacto_negociacion(cursor, contacto_id)
                 payload = neg_mgr.construir_payload(contacto, eventos, rol)
                 payload = {'status': 'success', 'message': msg, 'completo': completo, **payload}
+                if contacto.get('importe_acordado') is not None:
+                    try:
+                        payload['importe_acordado'] = float(contacto['importe_acordado'])
+                    except (TypeError, ValueError):
+                        pass
                 return payload
             except ValueError as ve:
                 if conn:
@@ -9189,30 +9241,19 @@ class DBManager:
         """, (entidad, entidad_id, accion, actor_tipo or None, actor_codigo or None, detalles or None))
 
     def registrar_importe_contacto(self, contacto_id: int, parte: str,
-                                   importe: float, moneda: str = "EUR",
-                                   usuario: str = "") -> Dict[str, Any]:
+                                   importe: float = None, moneda: str = "EUR",
+                                   usuario: str = "",
+                                   usar_precio_acordado: bool = False) -> Dict[str, Any]:
         """
-        Registra la declaración de importe por parte de solicitante o profesional.
-        - Evita doble declaración (tabla confirmaciones_trabajo).
-        - Apoyo RUANA segun apoyo_pct configurado. Disputa → -1; cierre no da score.
-        - Coinciden → trabajo_cerrado, ingresos_ruana, audit_log (score al marcar Apoyo pagado).
-        - No coinciden → importe_en_disputa, audit_log.
-        - Regla 7: si el contratante declara en <24 h desde creado_en → +2 (una vez).
+        Registra la confirmación de importe por el contratante.
+        Si existe precio negociado (importe_acordado), ese es el valor oficial y se ignora
+        cualquier importe distinto enviado por el cliente.
         """
         resultado = None
         evaluar_regla7 = False
         with self._lock:
             conn = None
             try:
-                if importe is None:
-                    return {'status': 'error', 'message': 'Importe obligatorio'}
-                try:
-                    importe_val = float(importe)
-                except (TypeError, ValueError):
-                    return {'status': 'error', 'message': 'Importe debe ser numérico'}
-                if importe_val <= 0:
-                    return {'status': 'error', 'message': 'Importe debe ser mayor que cero'}
-
                 parte = (parte or "").strip().lower()
                 if parte not in ("solicitante", "profesional"):
                     return {'status': 'error', 'message': "Parte debe ser 'solicitante' o 'profesional'"}
@@ -9233,6 +9274,34 @@ class DBManager:
                     conn.close()
                     msg = 'Este contacto ya está cerrado. Ambas partes han confirmado el importe.' if estado_actual == 'trabajo_cerrado' else f'Contacto ya cerrado con estado {estado_actual}'
                     return {'status': 'error', 'message': msg, 'estado': estado_actual}
+
+                oficial = self._importe_oficial_contacto(contacto)
+                if oficial is not None:
+                    importe_val = float(oficial)
+                    # Persistir columna si aún no estaba
+                    if contacto.get('importe_acordado') is None:
+                        cursor.execute(
+                            "UPDATE contactos_ruana SET importe_acordado = ? WHERE id = ?",
+                            (importe_val, contacto_id),
+                        )
+                elif usar_precio_acordado:
+                    conn.close()
+                    return {
+                        'status': 'error',
+                        'message': 'No hay precio acordado numérico en la negociación. No se puede confirmar el importe.',
+                    }
+                else:
+                    if importe is None:
+                        conn.close()
+                        return {'status': 'error', 'message': 'Importe obligatorio'}
+                    try:
+                        importe_val = float(importe)
+                    except (TypeError, ValueError):
+                        conn.close()
+                        return {'status': 'error', 'message': 'Importe debe ser numérico'}
+                    if importe_val <= 0:
+                        conn.close()
+                        return {'status': 'error', 'message': 'Importe debe ser mayor que cero'}
 
                 # Resolver aliado_id desde usuario (código); normalizar a string para búsqueda
                 usuario_str = str(usuario or "").strip()
@@ -9384,7 +9453,12 @@ class DBManager:
                     resultado_estado = estado_actual
 
                 conn.commit()
-                resultado = {'status': 'success', 'id': contacto_id, 'estado': resultado_estado}
+                resultado = {
+                    'status': 'success',
+                    'id': contacto_id,
+                    'estado': resultado_estado,
+                    'importe_acordado': float(importe_val),
+                }
                 evaluar_regla7 = True
             except Exception as e:
                 return {'status': 'error', 'message': str(e)}
@@ -9580,6 +9654,8 @@ class DBManager:
                         c.urgente_marcado_en,
                         c.motivo_contacto,
                         c.negociacion_json,
+                        c.importe_acordado,
+                        c.acuerdo_resumen_json,
                         (SELECT 1 FROM confirmaciones_trabajo ct
                          INNER JOIN aliados a ON a.id = ct.aliado_id
                          WHERE ct.contacto_id = c.id AND TRIM(CAST(a.codigo AS TEXT)) = ?) AS ya_declaraste_importe
@@ -9603,6 +9679,16 @@ class DBManager:
                     neg = neg_mgr.parse_negociacion(d.get('negociacion_json'))
                     d['negociacion_completa'] = bool(neg.get('completo')) or d.get('estado') == 'acuerdo_alcanzado'
                     d['paso_negociacion'] = neg.get('paso_actual')
+                    oficial = self._importe_oficial_contacto(d)
+                    d['importe_acordado'] = oficial
+                    d['precio_acordado'] = oficial
+                    if oficial is None:
+                        try:
+                            d['precio_acordado_texto'] = (neg.get('campos') or {}).get('precio', {}).get('valor') or ''
+                        except Exception:
+                            d['precio_acordado_texto'] = ''
+                    else:
+                        d['precio_acordado_texto'] = f'{oficial:g}'
                     paso = neg.get('paso_actual') or 'servicio'
                     campo = (neg.get('campos') or {}).get(paso, {})
                     rol_viewer = neg_mgr._rol_en_contacto(
