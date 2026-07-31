@@ -2954,6 +2954,7 @@
         function getApiBase() {
             return window.RUANA_API_BASE || window.location.origin;
         }
+        window.getApiBase = getApiBase;
 
         /** Cabecera de sesión por pestaña (sessionStorage). Evita cruce de identidad entre pestañas. */
         function getRuanaAuthHeaders(extra) {

@@ -72,8 +72,11 @@
             overlay.setAttribute('aria-modal', 'true');
 
             const title = options.title || 'Confirmar';
-            const confirmLabel = options.confirmLabel || 'Confirmar';
-            const cancelLabel = options.cancelLabel || 'Cancelar';
+            const confirmLabel = options.confirmLabel || options.confirmText || 'Confirmar';
+            const cancelLabel = options.cancelLabel || options.cancelText || 'Cancelar';
+            const zIndex = options.zIndex || 19000;
+
+            overlay.style.zIndex = String(zIndex);
 
             overlay.innerHTML =
                 '<div class="ruana-dialog">' +

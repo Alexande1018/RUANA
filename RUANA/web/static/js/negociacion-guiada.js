@@ -44,6 +44,25 @@
         return extra || {};
     }
 
+    function getApiBase() {
+        if (typeof global.getApiBase === 'function') {
+            return String(global.getApiBase() || '').replace(/\/$/, '');
+        }
+        const base = global.RUANA_API_BASE
+            || (typeof global.location !== 'undefined' ? global.location.origin : '');
+        return String(base || '').replace(/\/$/, '');
+    }
+
+    function apiUrl(path) {
+        const normalized = path.startsWith('/') ? path : `/${path}`;
+        return `${getApiBase()}${normalized}`;
+    }
+
+    function contactoIdValido(id) {
+        const n = Number(id);
+        return Number.isFinite(n) && n > 0 ? n : null;
+    }
+
     class NegociacionGuiada {
         constructor(panel) {
             this.panel = panel;
@@ -77,7 +96,12 @@
         }
 
         async abrir(contactoId, tituloExtra) {
-            this.contactoId = contactoId;
+            const id = contactoIdValido(contactoId);
+            if (!id) {
+                alert('No se pudo abrir la negociación: contacto no válido.');
+                return;
+            }
+            this.contactoId = id;
             const modal = document.getElementById('modal-negociacion-guiada');
             const title = document.getElementById('neg-modal-title');
             if (title) title.textContent = tituloExtra || 'Negociación guiada RUANA';
@@ -227,9 +251,10 @@
         }
 
         async refrescar(silent) {
-            if (!this.contactoId) return;
+            const contactoId = contactoIdValido(this.contactoId);
+            if (!contactoId) return;
             try {
-                const resp = await fetch(`/api/contactos/${this.contactoId}/negociacion`, {
+                const resp = await fetch(apiUrl(`/api/contactos/${contactoId}/negociacion`), {
                     credentials: 'same-origin',
                     headers: getAuthHeaders(),
                 });
@@ -434,7 +459,12 @@
             this._lastAccionKey = accionKey;
 
             if (this.data.acuerdo_alcanzado || this.data.estado_contacto === 'acuerdo_alcanzado') {
-                el.innerHTML = '<p class="neg-esperar-msg">Negociación completada.</p>';
+                el.innerHTML = `<div class="neg-compose-stack">
+                    <p class="neg-esperar-msg">Acuerdo confirmado. Puedes cerrar esta ventana y seguir el encargo desde tu panel.</p>
+                    <button type="button" class="neg-btn neg-btn-primary neg-btn-block" id="neg-btn-acuerdo-listo">Entendido</button>
+                </div>`;
+                const btnListo = document.getElementById('neg-btn-acuerdo-listo');
+                if (btnListo) btnListo.addEventListener('click', () => this.cerrar());
                 return;
             }
             if (acc.tipo === 'cerrado') {
@@ -557,7 +587,7 @@
                     return;
                 }
             }
-            await this._post(`/api/contactos/${this.contactoId}/negociacion/proponer-completa`, body, true);
+            await this._post('proponer-completa', body, true);
             this._clearWizard();
         }
 
@@ -616,18 +646,24 @@
             document.getElementById('neg-btn-contraoferta').addEventListener('click', () => this.contraoferta(campo));
         }
 
+        _negociacionApiUrl(accion) {
+            const contactoId = contactoIdValido(this.contactoId);
+            if (!contactoId) return null;
+            return apiUrl(`/api/contactos/${contactoId}/negociacion/${accion}`);
+        }
+
         async proponer(campo) {
             const input = document.getElementById('neg-input-valor');
             const valor = input ? String(input.value || '').trim() : '';
             if (!valor) { alert('Introduce un valor para continuar'); return; }
-            await this._post(`/api/contactos/${this.contactoId}/negociacion/proponer`, { campo, valor });
+            await this._post('proponer', { campo, valor });
         }
 
         async aceptar(campo) {
             let obs = '';
             const obsEl = document.getElementById('neg-input-obs-prof');
             if (obsEl) obs = obsEl.value.trim();
-            await this._post(`/api/contactos/${this.contactoId}/negociacion/aceptar`, {
+            await this._post('aceptar', {
                 campo, observaciones_profesional: obs,
             });
         }
@@ -636,10 +672,15 @@
             const input = document.getElementById('neg-input-contraoferta');
             const valor = input ? String(input.value || '').trim() : '';
             if (!valor) { alert('Introduce tu alternativa'); return; }
-            await this._post(`/api/contactos/${this.contactoId}/negociacion/contraoferta`, { campo, valor });
+            await this._post('contraoferta', { campo, valor });
         }
 
-        async _post(url, body, limpiarTodosBorradores) {
+        async _post(accion, body, limpiarTodosBorradores) {
+            const url = this._negociacionApiUrl(accion);
+            if (!url) {
+                alert('No hay un contacto activo. Cierra y vuelve a abrir la negociación.');
+                return;
+            }
             try {
                 const resp = await fetch(url, {
                     method: 'POST',
@@ -647,9 +688,15 @@
                     headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
                     body: JSON.stringify(body),
                 });
-                const data = await resp.json();
+                let data = {};
+                try {
+                    data = await resp.json();
+                } catch (parseErr) {
+                    alert(resp.ok ? 'Respuesta inválida del servidor' : `Error del servidor (${resp.status})`);
+                    return;
+                }
                 if (data.status !== 'success') {
-                    alert(data.message || 'Error en la operación');
+                    alert(data.message || `Error en la operación (${resp.status})`);
                     return;
                 }
                 this.data = data;
@@ -681,7 +728,7 @@
             if (!container || !codigoProfesional) return;
             container.innerHTML = '<p class="neg-esperar-msg">Cargando catálogo…</p>';
             try {
-                const resp = await fetch(`/api/aliados/${encodeURIComponent(codigoProfesional)}/catalogo-servicios`, {
+                const resp = await fetch(apiUrl(`/api/aliados/${encodeURIComponent(codigoProfesional)}/catalogo-servicios`), {
                     credentials: 'same-origin',
                     headers: getAuthHeaders(),
                 });
@@ -722,27 +769,39 @@
         }
 
         async confirmarCerrarNegociacion() {
-            if (!this.contactoId) return;
+            const contactoId = contactoIdValido(this.contactoId);
+            if (!contactoId) return;
             const mensaje = '¿Cerrar esta negociación?\n\nSe finalizará la conversación para ambas partes y el contacto quedará registrado como no concretado.';
             let ok = false;
             if (typeof global.RuanaUI !== 'undefined' && typeof global.RuanaUI.confirm === 'function') {
-                ok = await global.RuanaUI.confirm(mensaje, { title: 'Cerrar negociación', confirmText: 'Sí, cerrar', cancelText: 'Cancelar' });
+                ok = await global.RuanaUI.confirm(mensaje, {
+                    title: 'Cerrar negociación',
+                    confirmLabel: 'Sí, cerrar',
+                    cancelLabel: 'Cancelar',
+                    zIndex: 20100,
+                });
             } else {
                 ok = window.confirm(mensaje);
             }
             if (!ok) return;
             try {
-                const resp = await fetch(`/api/contactos/${this.contactoId}/negociacion/cerrar`, {
+                const resp = await fetch(this._negociacionApiUrl('cerrar'), {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
                     body: JSON.stringify({}),
                 });
-                const data = await resp.json();
+                let data = {};
+                try {
+                    data = await resp.json();
+                } catch (parseErr) {
+                    alert(`Error del servidor (${resp.status})`);
+                    return;
+                }
                 const yaCerrado = data.status !== 'success' && /ya está cerrado|estado final/i.test(data.message || '');
                 if (data.status === 'success' || yaCerrado) {
                     if (this.panel && typeof this.panel.finalizarContactoCerradoEnUI === 'function') {
-                        await this.panel.finalizarContactoCerradoEnUI(this.contactoId);
+                        await this.panel.finalizarContactoCerradoEnUI(contactoId);
                     } else {
                         this.cerrar();
                     }
