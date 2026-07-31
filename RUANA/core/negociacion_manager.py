@@ -290,7 +290,7 @@ def meta_negociacion(
             'paso': None,
             'paso_label': 'Acuerdo alcanzado',
             'contexto': 'Todos los puntos del encargo están confirmados.',
-            'siguiente_accion': 'Revisa el resumen y cierra la negociación para confirmar el acuerdo.',
+            'siguiente_accion': 'El precio aceptado es el importe oficial; se genera el Apoyo RUANA.',
         }
 
     if _todos_campos_pendientes(estado):
@@ -460,8 +460,8 @@ def accion_disponible(estado: Dict[str, Any], rol: str, contacto_estado: str) ->
         return {
             'tipo': 'resumen',
             'mensaje': (
-                'Acuerdo alcanzado. Revisa el resumen y cierra la negociación '
-                'para confirmar. Cuando ambas partes cierren, el encargo se registra como trabajo realizado.'
+                'Acuerdo alcanzado. El precio aceptado es el importe oficial del encargo '
+                'y se genera el Apoyo RUANA al profesional.'
             ),
         }
 

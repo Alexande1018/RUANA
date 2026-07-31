@@ -7667,7 +7667,7 @@ class DBManager:
             out = dict(payload_base)
             out['cierre_automatico'] = False
             out['cierre_aviso'] = (
-                'Ambas partes confirmaron el acuerdo, pero no hay un precio numérico oficial. '
+                'Acuerdo alcanzado, pero no hay un precio numérico oficial. '
                 'Revisa el precio en la negociación.'
             )
             return out
@@ -7684,7 +7684,7 @@ class DBManager:
             out = dict(payload_base)
             out['cierre_automatico'] = False
             out['cierre_aviso'] = (cierre or {}).get('message') or (
-                'Ambas partes confirmaron el acuerdo. Confirma el importe con «Sí, hubo trabajo».'
+                'Acuerdo alcanzado. No se pudo registrar el cobro del Apoyo RUANA con el precio aceptado.'
             )
             return out
 
@@ -7693,10 +7693,12 @@ class DBManager:
             refreshed['completo'] = True
             refreshed['cierre_automatico'] = True
             refreshed['message'] = (
-                (mensaje_acuerdo or 'Acuerdo confirmado por ambas partes.')
-                + ' Encargo registrado como trabajo realizado.'
+                (mensaje_acuerdo or 'Acuerdo alcanzado.')
+                + ' Precio aceptado como importe oficial; se genera el Apoyo RUANA.'
             )
             refreshed['estado_cierre'] = cierre.get('estado')
+            if cierre.get('importe_acordado') is not None:
+                refreshed['importe_acordado'] = cierre.get('importe_acordado')
             return refreshed
 
         out = dict(payload_base)
@@ -7707,6 +7709,10 @@ class DBManager:
 
     def aceptar_negociacion(self, contacto_id: int, codigo_aliado: str, campo: str,
                             observaciones_profesional: str = '') -> Dict[str, Any]:
+        completo = False
+        payload = None
+        solicitante_codigo = ''
+        precio_para_cierre = None
         with self._lock:
             conn = None
             try:
@@ -7728,6 +7734,7 @@ class DBManager:
                 neg_json = neg_mgr.serializar_negociacion(estado)
                 nuevo_estado = contacto.get('estado') or 'iniciado'
                 resumen_json = None
+                solicitante_codigo = sol
                 if completo:
                     nuevo_estado = 'acuerdo_alcanzado'
                     resumen_json = self._construir_acuerdo_resumen_json(estado, contacto)
@@ -7736,8 +7743,8 @@ class DBManager:
                         (contacto_id,),
                     )
                     msg_sistema = (
-                        'Acuerdo alcanzado. Revisad el resumen y cerrad la negociación '
-                        'para confirmar. Resumen: '
+                        'Acuerdo alcanzado. El precio aceptado es el importe oficial del encargo '
+                        'y se genera el Apoyo RUANA. Resumen: '
                         + ', '.join(
                             f"{neg_mgr.CAMPOS_LABELS[c]}: {estado['campos'][c]['valor']}"
                             for c in neg_mgr.CAMPOS_ORDEN
@@ -7752,6 +7759,7 @@ class DBManager:
                     except Exception:
                         precio_raw = None
                     importe_oficial = self._parse_importe_acuerdo(precio_raw)
+                    precio_para_cierre = precio_raw if precio_raw is not None else importe_oficial
                     cursor.execute("""
                         UPDATE contactos_ruana
                         SET negociacion_json = ?, estado = ?,
@@ -7779,7 +7787,6 @@ class DBManager:
                         payload['importe_acordado'] = float(contacto['importe_acordado'])
                     except (TypeError, ValueError):
                         pass
-                return payload
             except ValueError as ve:
                 if conn:
                     conn.rollback()
@@ -7792,12 +7799,24 @@ class DBManager:
                 if conn:
                     conn.close()
 
+        # Fuera del lock: el precio aceptado cierra el encargo y genera Apoyo RUANA (sin confirmación extra).
+        if completo and payload and payload.get('status') == 'success':
+            return self._cerrar_encargo_tras_acuerdo(
+                contacto_id,
+                solicitante_codigo or '',
+                precio_para_cierre,
+                codigo_aliado,
+                'Acuerdo alcanzado. Precio aceptado como importe oficial.',
+                payload,
+            )
+        return payload if payload else {'status': 'error', 'message': 'No se pudo aceptar el punto'}
+
     def cerrar_negociacion(self, contacto_id: int, actor_codigo: str,
                            motivo: str = '') -> Dict[str, Any]:
         """
         Cierra la negociación:
-        - Si hay acuerdo alcanzado: confirma el cierre por esta parte (bilateral).
-          Cuando ambas confirman → registra trabajo realizado (Sí hubo trabajo).
+        - Si hay acuerdo / trabajo ya cerrado por precio aceptado: confirma el cierre por esta parte
+          (bilateral, solo acuse de recibo del resumen).
         - Si aún no hay acuerdo: finaliza como no concretado.
         """
         codigo = (actor_codigo or '').strip()
@@ -7821,13 +7840,41 @@ class DBManager:
                 if not rol:
                     return {'status': 'error', 'message': 'No autorizado'}
                 estado_actual = (contacto.get('estado') or '').strip()
+
+                # Ya cerrado por cobro automático tras aceptar precio: solo acuse bilateral del resumen
+                if estado_actual == 'trabajo_cerrado' and (
+                    contacto.get('acuerdo_resumen_json') or contacto.get('importe_acordado') is not None
+                ):
+                    col = (
+                        'cierre_confirmado_solicitante_en'
+                        if rol == 'solicitante'
+                        else 'cierre_confirmado_profesional_en'
+                    )
+                    if not contacto.get(col):
+                        cursor.execute(f"""
+                            UPDATE contactos_ruana
+                            SET {col} = CURRENT_TIMESTAMP, actualizado_en = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                        """, (contacto_id,))
+                        conn.commit()
+                    contacto = self._cargar_contacto_negociacion(cursor, contacto_id)
+                    eventos = self.listar_eventos_negociacion(contacto_id)
+                    payload = neg_mgr.construir_payload(contacto, eventos, rol)
+                    return {
+                        'status': 'success',
+                        'message': 'El encargo ya está cerrado con el precio acordado.',
+                        'completo': True,
+                        'cierre_automatico': True,
+                        **payload,
+                    }
+
                 if estado_actual in self._ESTADOS_FINALES_CONTACTO:
                     return {
                         'status': 'error',
                         'message': f'El contacto ya está cerrado ({estado_actual}).',
                     }
 
-                # --- Confirmación bilateral tras acuerdo ---
+                # --- Confirmación bilateral tras acuerdo (si aún no se aplicó cobro) ---
                 if estado_actual == 'acuerdo_alcanzado' or (
                     neg_mgr.parse_negociacion(contacto.get('negociacion_json')).get('completo')
                     and estado_actual not in ('cerrado_no_concretado', 'no_concretado')
@@ -7862,7 +7909,6 @@ class DBManager:
                         self._insertar_evento_negociacion(
                             cursor, contacto_id, neg_mgr.TIPO_SISTEMA, None, None, codigo, msg_evento,
                         )
-                        # Asegurar snapshot en Mis acuerdos
                         if not contacto.get('acuerdo_resumen_json'):
                             estado_neg = neg_mgr.parse_negociacion(contacto.get('negociacion_json'))
                             resumen_json = self._construir_acuerdo_resumen_json(estado_neg, contacto)

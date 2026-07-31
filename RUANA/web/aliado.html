@@ -4341,11 +4341,11 @@
                         ? items.map((r) => `<p><strong>${this.escapeHtml(r.label || r.campo)}:</strong> ${this.escapeHtml(String(r.valor))}</p>`).join('')
                         : '<p>Consulta el detalle en la negociación.</p>';
                 }
-                let estadoTxt = 'Revisa el resumen. Confirma cerrando la negociación.';
+                let estadoTxt = 'El precio aceptado es el importe oficial del encargo.';
                 if (item.estado === 'trabajo_cerrado' || item.ambos_confirmaron_cierre) {
-                    estadoTxt = 'Acuerdo confirmado por ambas partes. Encargo registrado.';
+                    estadoTxt = 'Precio aceptado. Encargo cerrado y Apoyo RUANA generado.';
                 } else if (item.yo_confirme_cierre) {
-                    estadoTxt = 'Ya confirmaste. Esperando a la otra parte.';
+                    estadoTxt = 'Ya revisaste el resumen.';
                 }
                 if (estadoEl) estadoEl.textContent = estadoTxt;
                 if (btnConfirmar) {
@@ -6340,7 +6340,7 @@
                         estadoLabel = 'Acuerdo alcanzado';
                         contexto = 'Todos los puntos del encargo están confirmados.';
                         pasoTxt = '';
-                        accionTxt = 'Revisa el resumen y cierra la negociación para confirmar. Cuando ambas partes confirmen, el encargo se registra como trabajo realizado.';
+                        accionTxt = 'El precio aceptado es el importe oficial del encargo. Se genera el Apoyo RUANA.';
                         btnPrincipal = 'Ver acuerdo';
                         progresoConf = progresoTotal;
                     } else if (requiereRespuesta) {

@@ -434,11 +434,11 @@
             }
             wrap.style.display = 'block';
             const items = (this.data.resumen || []).filter(i => i.valor && i.campo !== 'observaciones_profesional');
-            let hint = 'Revisa el resumen. Cuando ambas partes cierren la negociación, el encargo se registra como trabajo realizado.';
+            let hint = 'El precio aceptado es el importe oficial del encargo y se genera el Apoyo RUANA.';
             if (this.data.ambos_confirmaron_cierre || estado === 'trabajo_cerrado' || this.data.cierre_automatico) {
-                hint = 'Ambas partes confirmaron el acuerdo. El encargo quedó registrado como trabajo realizado.';
+                hint = 'Precio aceptado como importe oficial. Encargo cerrado y Apoyo RUANA generado.';
             } else if (this.data.yo_confirme_cierre) {
-                hint = 'Ya confirmaste el acuerdo. Esperando a que la otra parte cierre la negociación.';
+                hint = 'Ya confirmaste el resumen. El cobro se basa en el precio aceptado.';
             } else if (this.data.cierre_aviso) {
                 hint = String(this.data.cierre_aviso);
             }
@@ -468,11 +468,11 @@
             if (this.data.acuerdo_alcanzado
                 || this.data.estado_contacto === 'acuerdo_alcanzado'
                 || this.data.estado_contacto === 'trabajo_cerrado') {
-                let msg = 'Negociación completada. Revisa el resumen y confirma cerrando la negociación.';
+                let msg = 'Negociación completada. El precio aceptado es el importe oficial.';
                 if (this.data.cierre_automatico || this.data.estado_contacto === 'trabajo_cerrado') {
-                    msg = 'Negociación completada. Encargo registrado como trabajo realizado.';
+                    msg = 'Negociación completada. Precio aceptado; Apoyo RUANA generado.';
                 } else if (this.data.yo_confirme_cierre) {
-                    msg = 'Ya confirmaste el acuerdo. Esperando a la otra parte.';
+                    msg = 'Ya revisaste el resumen del acuerdo.';
                 }
                 el.innerHTML = `<p class="neg-esperar-msg">${this.escapeHtml(msg)}</p>`;
                 return;
