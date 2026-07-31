@@ -574,6 +574,20 @@ body.aliado-app > .ruana-brand-watermark {
     text-align: center;
     background: rgba(0, 0, 0, 0.28);
     border: 1px solid rgba(162, 255, 0, 0.22);
+    font-family: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.inicio-score-pill:hover {
+    border-color: rgba(162, 255, 0, 0.42);
+    box-shadow: 0 0 0 1px rgba(162, 255, 0, 0.12);
+}
+
+.inicio-score-pill:focus-visible {
+    outline: 2px solid rgba(162, 255, 0, 0.55);
+    outline-offset: 2px;
 }
 
 .inicio-score-pill-label {

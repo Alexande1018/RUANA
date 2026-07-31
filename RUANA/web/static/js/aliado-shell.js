@@ -12,6 +12,7 @@
         '#inicio-tasks': 'inicio',
         '.metricas-block': 'inicio',
         '#metrica-card-score': 'inicio',
+        '#inicio-score-pill': 'inicio',
         '#module-inicio': 'inicio',
         '.directorio-panel': 'directorio',
         '#directorio-panel': 'directorio',
@@ -289,6 +290,18 @@
         updateNavBadges();
     }
 
+    function bindScorePill() {
+        const pill = document.getElementById('inicio-score-pill');
+        const metricCard = document.getElementById('metrica-card-score');
+        if (!pill || !metricCard) return;
+        pill.addEventListener('click', () => {
+            showModule('inicio');
+            metricCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            metricCard.classList.add('is-highlighted');
+            setTimeout(() => metricCard.classList.remove('is-highlighted'), 1200);
+        });
+    }
+
     function bindNav() {
         qsa('[data-aliado-nav]').forEach((btn) => {
             btn.addEventListener('click', () => {
@@ -343,6 +356,7 @@
         document.documentElement.classList.add('aliado-shell-enabled');
         document.body.classList.add('aliado-app');
         bindNav();
+        bindScorePill();
         showModule(readHashModule(), { skipHash: false, instant: true });
         startMirrorObserver();
         refreshInicioSurface();

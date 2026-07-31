@@ -518,62 +518,6 @@
         .metrica-card.score-estable .metrica-numero { color: #22c55e; }
         .metrica-card.score-riesgo .metrica-numero { color: #eab308; }
         .metrica-card.score-competencia .metrica-numero { color: #ef4444; }
-        .score-change-toast {
-            position: absolute;
-            top: -12px;
-            right: 8px;
-            max-width: min(360px, calc(100vw - 40px));
-            padding: 12px 14px;
-            border-radius: 14px;
-            border: 1px solid rgba(255, 255, 255, 0.22);
-            background: linear-gradient(150deg, rgba(255, 255, 255, 0.2), rgba(14, 18, 34, 0.92));
-            backdrop-filter: blur(14px) saturate(140%);
-            -webkit-backdrop-filter: blur(14px) saturate(140%);
-            box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
-            z-index: 8;
-            opacity: 0;
-            transform: translateY(-8px) scale(0.98);
-            transition: opacity 220ms ease, transform 220ms ease;
-        }
-        .score-change-toast.show {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-        }
-        .score-change-toast.up { border-color: rgba(34, 197, 94, 0.45); }
-        .score-change-toast.down { border-color: rgba(245, 158, 11, 0.45); }
-        .score-change-title {
-            margin: 0 28px 4px 0;
-            font-size: 0.78rem;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            color: rgba(210, 235, 255, 0.85);
-            font-weight: 700;
-        }
-        .score-change-copy {
-            margin: 0;
-            font-size: 0.86rem;
-            color: #e7eefb;
-            line-height: 1.4;
-        }
-        .score-change-close {
-            position: absolute;
-            top: 7px;
-            right: 8px;
-            border: none;
-            background: transparent;
-            color: rgba(227, 236, 252, 0.8);
-            cursor: pointer;
-            font-size: 1rem;
-            line-height: 1;
-            padding: 2px 4px;
-        }
-        .score-change-delta {
-            font-weight: 800;
-            margin-right: 2px;
-        }
-        .score-change-toast.up .score-change-delta { color: #4ade80; }
-        .score-change-toast.down .score-change-delta { color: #fbbf24; }
-
         .score-alerta-panel {
             padding: 14px 20px;
             background: rgba(239, 68, 68, 0.15);
@@ -2225,6 +2169,7 @@
     <link rel="stylesheet" href="/static/css/panel-premium.css">
     <link rel="stylesheet" href="/static/css/auth-premium.css">
     <link rel="stylesheet" href="/static/css/aliado-shell.css">
+    <link rel="stylesheet" href="/static/css/ruana-score-callout.css">
     <link rel="stylesheet" href="/static/css/ruana-identity.css">
     <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
     <script src="/static/js/ruana-atmosphere.js" defer></script>
@@ -2397,10 +2342,10 @@
                             </span>
                         </div>
                     </div>
-                    <div class="inicio-score-pill" title="Score RUANA">
+                    <button type="button" class="inicio-score-pill" id="inicio-score-pill" title="Ver detalle del Score RUANA" aria-label="Score RUANA">
                         <span class="inicio-score-pill-label">Score RUANA</span>
                         <strong id="inicio-score">0</strong>
-                    </div>
+                    </button>
                 </div>
 
                 <div class="inicio-quick-grid" aria-label="Accesos rápidos">
@@ -4771,18 +4716,57 @@
             getScoreNotifVariants(isUp) {
                 if (isUp) {
                     return [
-                        '🎉 ¡Excelente! Tu Score RUANA aumentó {{delta}} por {{reason}}.',
-                        '🌟 ¡Buen trabajo! Has ganado {{delta}} gracias a {{reason}}.',
-                        '🚀 Vas subiendo: tu score mejoró {{delta}} por {{reason}}.',
-                        '👏 ¡Así se hace! Tu reputación creció {{delta}} por {{reason}}.'
+                        'Tu reputación creció gracias a {{reason}}.',
+                        'Buen trabajo: el cambio se debe a {{reason}}.',
+                        'Tu score mejoró por {{reason}}.',
+                        'Has ganado puntos por {{reason}}.'
                     ];
                 }
                 return [
-                    '😕 Tu Score RUANA disminuyó {{delta}} por {{reason}}.',
-                    '⚠️ Tu score bajó {{delta}} debido a {{reason}}.',
-                    '💡 Ajuste en tu reputación: {{delta}} por {{reason}}.',
-                    '🧭 Tu score cambió {{delta}} por {{reason}}. Puedes recuperarlo con próximos cierres.'
+                    'El ajuste se debe a {{reason}}.',
+                    'Tu score bajó por {{reason}}.',
+                    'Cambio registrado por {{reason}}.',
+                    'Puedes recuperarlo con próximos cierres: {{reason}}.'
                 ];
+            }
+
+            positionScoreCallout(callout) {
+                const anchor = document.getElementById('inicio-score-pill');
+                if (!callout || !anchor) return;
+                const rect = anchor.getBoundingClientRect();
+                const gap = 14;
+                const viewportPad = 12;
+                const prevVisibility = callout.style.visibility;
+                callout.style.visibility = 'hidden';
+                callout.classList.add('show');
+
+                const calloutW = callout.offsetWidth;
+                const calloutH = callout.offsetHeight;
+                let left = rect.left + (rect.width / 2) - (calloutW / 2);
+                left = Math.max(viewportPad, Math.min(left, window.innerWidth - calloutW - viewportPad));
+
+                let top = rect.top - calloutH - gap;
+                let isBelow = false;
+                if (top < viewportPad) {
+                    top = rect.bottom + gap;
+                    isBelow = true;
+                }
+                callout.classList.toggle('is-below', isBelow);
+                callout.style.top = `${Math.round(top)}px`;
+                callout.style.left = `${Math.round(left)}px`;
+                callout.style.setProperty('--score-callout-arrow-x', `${Math.round(rect.left + (rect.width / 2) - left)}px`);
+                callout.style.visibility = prevVisibility || '';
+            }
+
+            teardownScoreCallout(callout, anchor) {
+                if (this._scoreCalloutReposition) {
+                    window.removeEventListener('resize', this._scoreCalloutReposition);
+                    window.removeEventListener('scroll', this._scoreCalloutReposition, true);
+                    document.removeEventListener('aliado-module-change', this._scoreCalloutReposition);
+                    this._scoreCalloutReposition = null;
+                }
+                if (anchor) anchor.classList.remove('is-highlighted');
+                if (callout) callout.remove();
             }
 
             async markNotificationRead(notifId) {
@@ -4799,8 +4783,8 @@
 
             maybeShowScoreChangeNotification() {
                 if (this.scoreNotifActive) return;
-                const scoreCard = document.getElementById('metrica-card-score');
-                if (!scoreCard) return;
+                const scoreAnchor = document.getElementById('inicio-score-pill');
+                if (!scoreAnchor) return;
                 const notifs = Array.isArray(this.notificaciones) ? this.notificaciones : [];
                 const pendientes = notifs
                     .filter(n => n && n.tipo === 'score_change' && Number(n.leida) === 0)
@@ -4812,6 +4796,10 @@
                 });
                 if (!notif) return;
 
+                if (window.AliadoShell && typeof window.AliadoShell.show === 'function') {
+                    window.AliadoShell.show('inicio', { skipScroll: true, instant: true });
+                }
+
                 const deltaRaw = Number(notif.metadata && notif.metadata.delta);
                 const delta = Number.isFinite(deltaRaw) ? deltaRaw : 0;
                 if (!delta) return;
@@ -4820,19 +4808,41 @@
                 const reason = this.formatScoreMotivo(notif.metadata && notif.metadata.motivo);
                 const variants = this.getScoreNotifVariants(isUp);
                 const template = variants[Math.floor(Math.random() * variants.length)];
-                const message = template
-                    .replace('{{delta}}', `<span class="score-change-delta">${deltaText}</span>`)
-                    .replace('{{reason}}', reason);
+                const message = template.replace('{{reason}}', reason);
+                const iconSvg = isUp
+                    ? '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>'
+                    : '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>';
 
-                const toast = document.createElement('div');
-                toast.className = `score-change-toast ${isUp ? 'up' : 'down'}`;
-                toast.innerHTML = `
-                    <button type="button" class="score-change-close" aria-label="Cerrar notificación">×</button>
-                    <p class="score-change-title">Score RUANA actualizado</p>
-                    <p class="score-change-copy">${message}</p>
+                const callout = document.createElement('div');
+                callout.className = `ruana-score-callout ruana-score-callout--${isUp ? 'up' : 'down'}`;
+                callout.setAttribute('role', 'status');
+                callout.innerHTML = `
+                    <div class="ruana-score-callout__inner">
+                        <span class="ruana-score-callout__icon" aria-hidden="true">${iconSvg}</span>
+                        <div class="ruana-score-callout__body">
+                            <div class="ruana-score-callout__title">Score RUANA <span class="ruana-score-callout__delta">${deltaText}</span></div>
+                            <p class="ruana-score-callout__copy">${message}</p>
+                        </div>
+                        <button type="button" class="ruana-score-callout__close" aria-label="Cerrar notificación">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                    </div>
+                    <span class="ruana-score-callout__arrow" aria-hidden="true"></span>
                 `;
-                scoreCard.appendChild(toast);
-                requestAnimationFrame(() => toast.classList.add('show'));
+                document.body.appendChild(callout);
+                scoreAnchor.classList.add('is-highlighted');
+
+                const reposition = () => this.positionScoreCallout(callout);
+                this._scoreCalloutReposition = reposition;
+                window.addEventListener('resize', reposition);
+                window.addEventListener('scroll', reposition, true);
+                document.addEventListener('aliado-module-change', reposition);
+
+                this.positionScoreCallout(callout);
+                requestAnimationFrame(() => {
+                    this.positionScoreCallout(callout);
+                    callout.classList.add('show');
+                });
                 this.scoreNotifActive = true;
 
                 const moveId = notif.metadata && notif.metadata.movimiento_id ? String(notif.metadata.movimiento_id) : `notif-${notif.id}`;
@@ -4840,16 +4850,16 @@
                 notif.leida = 1;
                 this.markNotificationRead(notif.id);
 
-                const closeToast = () => {
-                    toast.classList.remove('show');
+                const closeCallout = () => {
+                    callout.classList.remove('show');
                     setTimeout(() => {
-                        toast.remove();
+                        this.teardownScoreCallout(callout, scoreAnchor);
                         this.scoreNotifActive = false;
                         this.maybeShowScoreChangeNotification();
-                    }, 220);
+                    }, 240);
                 };
-                toast.querySelector('.score-change-close').addEventListener('click', closeToast);
-                setTimeout(closeToast, 6200);
+                callout.querySelector('.ruana-score-callout__close').addEventListener('click', closeCallout);
+                setTimeout(closeCallout, 7000);
             }
 
             /**

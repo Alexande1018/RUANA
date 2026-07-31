@@ -1,0 +1,176 @@
+/* ================================================
+   RUANA — Callout de cambio de Score (tarjeta + flecha)
+   ================================================ */
+
+.ruana-score-callout {
+    position: fixed;
+    z-index: 9600;
+    width: min(340px, calc(100vw - 24px));
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+    transition: opacity 240ms cubic-bezier(0.22, 1, 0.36, 1),
+                transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+    pointer-events: none;
+}
+
+.ruana-score-callout.show {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+}
+
+.ruana-score-callout__inner {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px 14px 14px;
+    border-radius: 16px;
+    border: 1px solid var(--ruana-border-glass, rgba(255, 255, 255, 0.12));
+    background: linear-gradient(165deg, rgba(255, 255, 255, 0.08) 0%, rgba(10, 12, 20, 0.88) 100%);
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.ruana-score-callout--up .ruana-score-callout__inner {
+    border-left: 3px solid rgba(74, 222, 128, 0.65);
+}
+
+.ruana-score-callout--down .ruana-score-callout__inner {
+    border-left: 3px solid rgba(251, 191, 36, 0.65);
+}
+
+.ruana-score-callout__icon {
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+}
+
+.ruana-score-callout--up .ruana-score-callout__icon {
+    background: rgba(34, 197, 94, 0.14);
+    color: #6ee7a0;
+}
+
+.ruana-score-callout--down .ruana-score-callout__icon {
+    background: rgba(245, 158, 11, 0.14);
+    color: #fcd34d;
+}
+
+.ruana-score-callout__icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.ruana-score-callout__body {
+    flex: 1;
+    min-width: 0;
+    padding-right: 18px;
+}
+
+.ruana-score-callout__title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--ruana-text, #f4f6fb);
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+}
+
+.ruana-score-callout__delta {
+    font-variant-numeric: tabular-nums;
+}
+
+.ruana-score-callout--up .ruana-score-callout__delta {
+    color: #6ee7a0;
+}
+
+.ruana-score-callout--down .ruana-score-callout__delta {
+    color: #fcd34d;
+}
+
+.ruana-score-callout__copy {
+    margin: 4px 0 0;
+    font-size: 0.8rem;
+    color: var(--ruana-text-muted, rgba(227, 233, 245, 0.72));
+    line-height: 1.45;
+}
+
+.ruana-score-callout__close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(227, 236, 252, 0.75);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    transition: background 180ms ease, color 180ms ease;
+}
+
+.ruana-score-callout__close:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.ruana-score-callout__close svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Flecha hacia el pill de score */
+.ruana-score-callout__arrow {
+    position: absolute;
+    left: var(--score-callout-arrow-x, 50%);
+    width: 14px;
+    height: 14px;
+    transform: translateX(-50%) rotate(45deg);
+    background: rgba(12, 14, 24, 0.92);
+    border: 1px solid var(--ruana-border-glass, rgba(255, 255, 255, 0.12));
+    box-shadow: 4px 4px 12px rgba(0, 0, 0, 0.18);
+    pointer-events: none;
+}
+
+.ruana-score-callout:not(.is-below) .ruana-score-callout__arrow {
+    bottom: -7px;
+    border-top: none;
+    border-left: none;
+}
+
+.ruana-score-callout.is-below .ruana-score-callout__arrow {
+    top: -7px;
+    border-bottom: none;
+    border-right: none;
+}
+
+.inicio-score-pill.is-highlighted {
+    animation: ruana-score-pill-pulse 900ms ease-out 2;
+    box-shadow: 0 0 0 2px rgba(162, 255, 0, 0.35), 0 0 24px rgba(162, 255, 0, 0.18);
+}
+
+@keyframes ruana-score-pill-pulse {
+    0%, 100% { transform: scale(1); }
+    45% { transform: scale(1.03); }
+}
+
+#metrica-card-score.is-highlighted {
+    box-shadow: 0 0 0 2px rgba(162, 255, 0, 0.35), 0 0 28px rgba(162, 255, 0, 0.12);
+    transition: box-shadow 300ms ease;
+}
+
+@media (max-width: 640px) {
+    .ruana-score-callout {
+        width: min(320px, calc(100vw - 20px));
+    }
+
+    .ruana-score-callout__inner {
+        padding: 12px 14px 12px 12px;
+    }
+}
