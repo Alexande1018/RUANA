@@ -356,8 +356,15 @@ body.aliado-app #btn-logout {
 }
 
 body.aliado-app .btn-invitar-global {
-    /* Desktop: also visible next to logout for one-click from any module */
+    /* Desktop: sidebar CTA is primary; keep top chip as secondary shortcut */
     right: 148px;
+}
+
+@media (min-width: 901px) {
+    /* Prefer the persistent sidebar CTA on desktop to avoid duplicating chrome */
+    body.aliado-app .btn-invitar-global {
+        display: none;
+    }
 }
 
 /* Hide duplicate watermark brand; shell has its own */
