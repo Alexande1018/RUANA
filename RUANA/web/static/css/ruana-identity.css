@@ -47,32 +47,59 @@ body {
 }
 
 body::before {
+    z-index: 0;
     background:
         radial-gradient(circle at 20% 24%, rgba(63, 159, 110, 0.12) 0%, transparent 34%),
         radial-gradient(circle at 80% 18%, rgba(184, 232, 106, 0.07) 0%, transparent 32%),
         radial-gradient(circle at 70% 78%, rgba(201, 184, 150, 0.05) 0%, transparent 36%);
-    animation: ruana-mesh-breathe 32s ease-in-out infinite alternate;
+    animation: ruana-mesh-breathe 24s ease-in-out infinite alternate;
 }
 
 body::after {
-    opacity: 0.32;
+    z-index: 2;
+    opacity: 0.22;
     background-image:
         url("data:image/svg+xml,%3Csvg width='200' height='200' viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%23b8e86a' stroke-width='0.35' opacity='0.25'%3E%3Cpath d='M0 50h200M0 100h200M0 150h200'/%3E%3Cpath d='M50 0v200M100 0v200M150 0v200'/%3E%3C/g%3E%3C/svg%3E"),
         url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
     background-size: 200px 200px, 256px 256px;
+    mix-blend-mode: soft-light;
 }
 
+/* Red viva: entre mesh y textura, siempre visible */
 .ruana-atmosphere {
     position: fixed;
     inset: 0;
-    z-index: 0;
+    z-index: 1;
     pointer-events: none;
-    opacity: 0.42;
+    opacity: 1;
+}
+
+/* Contenido por encima de la atmósfera */
+.ruana-auth-container,
+.panel-container,
+.admin-container,
+.container,
+.invite-container,
+.admin-app,
+.admin-data-content {
+    position: relative;
+    z-index: 3;
+}
+
+.btn-back,
+.ruana-brand-watermark,
+#btn-logout,
+.ruana-help-fab,
+.ruana-toast-container,
+.ruana-dialog-overlay,
+.admin-topbar {
+    z-index: 90;
 }
 
 @keyframes ruana-mesh-breathe {
     0% { transform: translate(0, 0) scale(1); }
-    100% { transform: translate(-1%, 1%) scale(1.015); }
+    50% { transform: translate(1.2%, -0.8%) scale(1.02); }
+    100% { transform: translate(-0.8%, 1.2%) scale(1.01); }
 }
 
 /* ——— Tipografía: jerarquía sin ruido ——— */
