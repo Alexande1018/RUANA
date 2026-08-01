@@ -1586,14 +1586,39 @@ def negociacion_dismiss_resumen(contacto_id):
 @app.route('/api/aliado/acuerdos', methods=['GET'])
 @require_aliado
 def aliado_listar_acuerdos():
-    """GET — historial «Mis acuerdos» del aliado autenticado."""
+    """GET — historial «Mis acuerdos» del aliado autenticado.
+
+    Query params opcionales:
+      - estado: filtro por estado de contacto
+      - desde / hasta: rango de fechas (YYYY-MM-DD)
+      - rol: todos | contrate | contratado
+      - limite: máximo de resultados (por defecto 100)
+    """
     codigo = _aliado_codigo()
     if not codigo:
         return jsonify({'status': 'error', 'message': 'Sesión expirada'}), 401
-    limite = request.args.get('limite', 50, type=int)
+    limite = request.args.get('limite', 100, type=int)
+    estado = (request.args.get('estado') or '').strip() or None
+    desde = (request.args.get('desde') or '').strip() or None
+    hasta = (request.args.get('hasta') or '').strip() or None
+    rol = (request.args.get('rol') or '').strip() or None
     db = get_db()
-    acuerdos = db.listar_acuerdos_aliado(codigo, limite=limite)
-    return jsonify({'status': 'success', 'acuerdos': acuerdos})
+    acuerdos = db.listar_acuerdos_aliado(
+        codigo,
+        limite=limite,
+        estado=estado,
+        desde=desde,
+        hasta=hasta,
+        rol=rol,
+    )
+    return jsonify({
+        'status': 'success',
+        'acuerdos': acuerdos,
+        'estados_disponibles': [
+            {'valor': k, 'label': v}
+            for k, v in db.CONTACTO_ESTADO_LABELS.items()
+        ],
+    })
 
 
 @app.route('/api/aliado/resumenes-acuerdo', methods=['GET'])

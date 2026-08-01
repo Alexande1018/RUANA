@@ -628,7 +628,50 @@ body.neg-modal-abierto .acuerdo-flotante.show {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
+}
+.mis-acuerdos-filtros-extra {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+.mis-acuerdos-filtro-campo {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.72rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.mis-acuerdos-filtro-campo select,
+.mis-acuerdos-filtro-campo input[type="date"] {
+    min-width: 140px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    background: rgba(15, 23, 42, 0.55);
+    color: #e2e8f0;
+    font-size: 0.85rem;
+    text-transform: none;
+    letter-spacing: normal;
+}
+.mis-acuerdos-filtro-aplicar,
+.mis-acuerdos-filtro-limpiar {
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    background: transparent;
+    color: #cbd5e1;
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+.mis-acuerdos-filtro-aplicar {
+    background: rgba(15, 118, 110, 0.25);
+    border-color: #0f766e;
+    color: #99f6e4;
 }
 .mis-acuerdos-filtro {
     border: 1px solid rgba(148, 163, 184, 0.35);
@@ -683,6 +726,27 @@ body.neg-modal-abierto .acuerdo-flotante.show {
 .mis-acuerdos-estado {
     font-size: 0.72rem;
     color: #94a3b8;
+    font-weight: 600;
+}
+.mis-acuerdos-estado.estado-trabajo-cerrado,
+.mis-acuerdos-estado.estado-acuerdo-alcanzado {
+    color: #5eead4;
+}
+.mis-acuerdos-estado.estado-trabajo-en-progreso,
+.mis-acuerdos-estado.estado-en-conversacion,
+.mis-acuerdos-estado.estado-aceptado,
+.mis-acuerdos-estado.estado-iniciado {
+    color: #fbbf24;
+}
+.mis-acuerdos-estado.estado-cerrado-no-concretado,
+.mis-acuerdos-estado.estado-no-concretado {
+    color: #f87171;
+}
+.mis-acuerdos-estado.estado-importe-en-disputa {
+    color: #fb923c;
+}
+.mis-acuerdos-fecha {
+    font-variant-numeric: tabular-nums;
 }
 .mis-acuerdos-servicio {
     margin: 0 0 4px;
