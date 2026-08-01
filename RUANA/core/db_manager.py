@@ -8085,53 +8085,135 @@ class DBManager:
                 if conn:
                     conn.close()
 
-    def listar_acuerdos_aliado(self, codigo_aliado: str, limite: int = 50) -> List[Dict[str, Any]]:
-        """Historial «Mis acuerdos»: donde contrató o fue contratado."""
+    # Etiquetas legibles de estado de contacto para «Mis acuerdos»
+    CONTACTO_ESTADO_LABELS = {
+        'iniciado': 'Iniciado',
+        'aceptado': 'Aceptado',
+        'en_conversacion': 'En conversación',
+        'trabajo_en_progreso': 'En curso',
+        'acuerdo_alcanzado': 'Acuerdo confirmado',
+        'trabajo_cerrado': 'Finalizado',
+        'no_concretado': 'No concretado',
+        'cerrado_no_concretado': 'Cancelado',
+        'importe_en_disputa': 'Importe en disputa',
+    }
+
+    def listar_acuerdos_aliado(
+        self,
+        codigo_aliado: str,
+        limite: int = 100,
+        estado: Optional[str] = None,
+        desde: Optional[str] = None,
+        hasta: Optional[str] = None,
+        rol: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Historial «Mis acuerdos»: todos los contactos del aliado, cualquier estado.
+
+        Orden por defecto: más reciente → más antiguo (fecha de acuerdo, cierre,
+        actualización o creación). Filtros opcionales: estado, rango de fechas y rol.
+        """
         codigo = (codigo_aliado or '').strip()
         if not codigo:
             return []
-        limite = max(1, min(int(limite or 50), 100))
+        limite = max(1, min(int(limite or 100), 200))
+        estado_f = (estado or '').strip()
+        rol_f = (rol or '').strip().lower()
+        if rol_f not in ('', 'todos', 'contrate', 'contratado'):
+            rol_f = ''
+        desde_f = (desde or '').strip()[:10]
+        hasta_f = (hasta or '').strip()[:10]
+        # Validar formato YYYY-MM-DD de forma laxa
+        def _fecha_ok(v: str) -> bool:
+            if not v or len(v) < 10:
+                return False
+            try:
+                datetime.strptime(v[:10], '%Y-%m-%d')
+                return True
+            except ValueError:
+                return False
+
+        if not _fecha_ok(desde_f):
+            desde_f = ''
+        if not _fecha_ok(hasta_f):
+            hasta_f = ''
+
+        fecha_ref_sql = (
+            "COALESCE(acuerdo_alcanzado_en, fecha_cierre, actualizado_en, creado_en)"
+        )
         with self._lock:
             conn = None
             try:
                 conn = self._connect()
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
-                cursor.execute("""
+                where = [
+                    "(TRIM(CAST(solicitante_codigo AS TEXT)) = ?"
+                    " OR TRIM(CAST(profesional_codigo AS TEXT)) = ?)"
+                ]
+                params: List[Any] = [codigo, codigo]
+
+                if rol_f == 'contrate':
+                    where.append("TRIM(CAST(solicitante_codigo AS TEXT)) = ?")
+                    params.append(codigo)
+                elif rol_f == 'contratado':
+                    where.append("TRIM(CAST(profesional_codigo AS TEXT)) = ?")
+                    params.append(codigo)
+
+                if estado_f:
+                    where.append("estado = ?")
+                    params.append(estado_f)
+
+                if desde_f:
+                    where.append(f"date({fecha_ref_sql}) >= date(?)")
+                    params.append(desde_f)
+                if hasta_f:
+                    where.append(f"date({fecha_ref_sql}) <= date(?)")
+                    params.append(hasta_f)
+
+                params.append(limite)
+                cursor.execute(f"""
                     SELECT id, solicitante_codigo, profesional_codigo, servicio, estado,
                            acuerdo_resumen_json, acuerdo_alcanzado_en, fecha_cierre,
                            importe_final, apoyo_ruana, creado_en, actualizado_en,
-                           cierre_confirmado_solicitante_en, cierre_confirmado_profesional_en
+                           cierre_confirmado_solicitante_en, cierre_confirmado_profesional_en,
+                           {fecha_ref_sql} AS fecha_referencia
                     FROM contactos_ruana
-                    WHERE (TRIM(CAST(solicitante_codigo AS TEXT)) = ?
-                        OR TRIM(CAST(profesional_codigo AS TEXT)) = ?)
-                      AND acuerdo_resumen_json IS NOT NULL
-                      AND TRIM(CAST(acuerdo_resumen_json AS TEXT)) != ''
-                    ORDER BY COALESCE(acuerdo_alcanzado_en, actualizado_en, creado_en) DESC
+                    WHERE {' AND '.join(where)}
+                    ORDER BY {fecha_ref_sql} DESC, id DESC
                     LIMIT ?
-                """, (codigo, codigo, limite))
+                """, params)
                 out = []
                 for row in cursor.fetchall():
                     d = dict(row)
                     sol = str(d.get('solicitante_codigo') or '').strip()
-                    rol = 'contrate' if sol == codigo else 'contratado'
+                    est = (d.get('estado') or '').strip()
+                    rol_item = 'contrate' if sol == codigo else 'contratado'
                     resumen = self._parse_acuerdo_resumen_campo(d.get('acuerdo_resumen_json')) or {}
                     out.append({
                         'contacto_id': d.get('id'),
-                        'rol': rol,
-                        'rol_label': 'Contrataste' if rol == 'contrate' else 'Te contrataron',
-                        'estado': d.get('estado'),
-                        'servicio': (resumen.get('servicio_contacto') or d.get('servicio') or '').strip(),
+                        'rol': rol_item,
+                        'rol_label': 'Contrataste' if rol_item == 'contrate' else 'Te contrataron',
+                        'estado': est,
+                        'estado_label': self.CONTACTO_ESTADO_LABELS.get(est, est or 'Sin estado'),
+                        'servicio': (
+                            resumen.get('servicio_contacto')
+                            or d.get('servicio')
+                            or ''
+                        ).strip(),
                         'contraparte_codigo': (
                             str(d.get('profesional_codigo') or '').strip()
-                            if rol == 'contrate'
+                            if rol_item == 'contrate'
                             else sol
                         ),
                         'campos': resumen.get('campos') or {},
                         'resumen': resumen.get('resumen') or [],
                         'acuerdo_alcanzado_en': d.get('acuerdo_alcanzado_en'),
                         'fecha_cierre': d.get('fecha_cierre'),
+                        'fecha_referencia': d.get('fecha_referencia') or d.get('creado_en'),
+                        'creado_en': d.get('creado_en'),
+                        'actualizado_en': d.get('actualizado_en'),
                         'importe_final': d.get('importe_final'),
+                        'tiene_resumen_acuerdo': bool(resumen),
                         'ambos_confirmaron_cierre': bool(
                             d.get('cierre_confirmado_solicitante_en')
                             and d.get('cierre_confirmado_profesional_en')

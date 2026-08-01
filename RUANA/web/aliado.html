@@ -2523,11 +2523,38 @@
                     <i data-lucide="handshake"></i>
                     Mis acuerdos
                 </h3>
-                <p class="mis-acuerdos-subtitle">Historial de encargos acordados: los que contrataste y en los que te contrataron.</p>
+                <p class="mis-acuerdos-subtitle">Todos los encargos en los que has participado, ordenados del más reciente al más antiguo. Filtra por rol, estado o fechas.</p>
                 <div class="mis-acuerdos-filtros" id="mis-acuerdos-filtros">
                     <button type="button" class="mis-acuerdos-filtro active" data-filtro="todos">Todos</button>
                     <button type="button" class="mis-acuerdos-filtro" data-filtro="contrate">Contrataste</button>
                     <button type="button" class="mis-acuerdos-filtro" data-filtro="contratado">Te contrataron</button>
+                </div>
+                <div class="mis-acuerdos-filtros-extra" id="mis-acuerdos-filtros-extra">
+                    <label class="mis-acuerdos-filtro-campo">
+                        <span>Estado</span>
+                        <select id="mis-acuerdos-filtro-estado" aria-label="Filtrar por estado">
+                            <option value="">Todos los estados</option>
+                            <option value="iniciado">Iniciado</option>
+                            <option value="aceptado">Aceptado</option>
+                            <option value="en_conversacion">En conversación</option>
+                            <option value="trabajo_en_progreso">En curso</option>
+                            <option value="acuerdo_alcanzado">Acuerdo confirmado</option>
+                            <option value="trabajo_cerrado">Finalizado</option>
+                            <option value="cerrado_no_concretado">Cancelado</option>
+                            <option value="no_concretado">No concretado</option>
+                            <option value="importe_en_disputa">Importe en disputa</option>
+                        </select>
+                    </label>
+                    <label class="mis-acuerdos-filtro-campo">
+                        <span>Desde</span>
+                        <input type="date" id="mis-acuerdos-filtro-desde" aria-label="Fecha desde">
+                    </label>
+                    <label class="mis-acuerdos-filtro-campo">
+                        <span>Hasta</span>
+                        <input type="date" id="mis-acuerdos-filtro-hasta" aria-label="Fecha hasta">
+                    </label>
+                    <button type="button" class="mis-acuerdos-filtro-aplicar" id="mis-acuerdos-aplicar-filtros">Aplicar</button>
+                    <button type="button" class="mis-acuerdos-filtro-limpiar" id="mis-acuerdos-limpiar-filtros">Limpiar</button>
                 </div>
                 <div class="mis-acuerdos-lista" id="mis-acuerdos-lista">
                     <p class="mis-acuerdos-empty">Aún no tienes acuerdos registrados.</p>
@@ -3579,6 +3606,9 @@
                 this.tienePagosPendientes = false;
                 this.misAcuerdos = [];
                 this.misAcuerdosFiltro = 'todos';
+                this.misAcuerdosFiltroEstado = '';
+                this.misAcuerdosFiltroDesde = '';
+                this.misAcuerdosFiltroHasta = '';
                 this.catalogoEditandoPos = null;
                 this.acuerdoFlotanteActual = null;
                 this.scoreNotifActive = false;
@@ -4223,7 +4253,17 @@
                 const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
                 if (!codigo) return;
                 try {
-                    const resp = await fetch('/api/aliado/acuerdos', {
+                    const params = new URLSearchParams();
+                    params.set('limite', '100');
+                    const rol = this.misAcuerdosFiltro || 'todos';
+                    if (rol && rol !== 'todos') params.set('rol', rol);
+                    const estado = (this.misAcuerdosFiltroEstado || '').trim();
+                    if (estado) params.set('estado', estado);
+                    const desde = (this.misAcuerdosFiltroDesde || '').trim();
+                    if (desde) params.set('desde', desde);
+                    const hasta = (this.misAcuerdosFiltroHasta || '').trim();
+                    if (hasta) params.set('hasta', hasta);
+                    const resp = await fetch(`/api/aliado/acuerdos?${params.toString()}`, {
                         credentials: 'same-origin',
                         headers: getRuanaAuthHeaders(),
                     });
@@ -4238,6 +4278,31 @@
                 }
             }
 
+            etiquetaEstadoAcuerdo(a) {
+                if (a && a.estado_label) return a.estado_label;
+                const labels = {
+                    iniciado: 'Iniciado',
+                    aceptado: 'Aceptado',
+                    en_conversacion: 'En conversación',
+                    trabajo_en_progreso: 'En curso',
+                    acuerdo_alcanzado: 'Acuerdo confirmado',
+                    trabajo_cerrado: 'Finalizado',
+                    cerrado_no_concretado: 'Cancelado',
+                    no_concretado: 'No concretado',
+                    importe_en_disputa: 'Importe en disputa',
+                };
+                const est = (a && a.estado) || '';
+                return labels[est] || est || 'Sin estado';
+            }
+
+            formatearFechaAcuerdo(raw) {
+                if (!raw) return '';
+                const s = String(raw).trim();
+                const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+                return s.slice(0, 16);
+            }
+
             renderMisAcuerdos() {
                 const lista = document.getElementById('mis-acuerdos-lista');
                 if (!lista) return;
@@ -4245,12 +4310,18 @@
                 document.querySelectorAll('.mis-acuerdos-filtro').forEach((btn) => {
                     btn.classList.toggle('active', btn.getAttribute('data-filtro') === filtro);
                 });
-                const items = (this.misAcuerdos || []).filter((a) => {
-                    if (filtro === 'todos') return true;
-                    return a.rol === filtro;
-                });
+                const selEstado = document.getElementById('mis-acuerdos-filtro-estado');
+                if (selEstado && selEstado.value !== (this.misAcuerdosFiltroEstado || '')) {
+                    selEstado.value = this.misAcuerdosFiltroEstado || '';
+                }
+                const inpDesde = document.getElementById('mis-acuerdos-filtro-desde');
+                if (inpDesde) inpDesde.value = this.misAcuerdosFiltroDesde || '';
+                const inpHasta = document.getElementById('mis-acuerdos-filtro-hasta');
+                if (inpHasta) inpHasta.value = this.misAcuerdosFiltroHasta || '';
+
+                const items = this.misAcuerdos || [];
                 if (!items.length) {
-                    lista.innerHTML = '<p class="mis-acuerdos-empty">Aún no tienes acuerdos en esta vista.</p>';
+                    lista.innerHTML = '<p class="mis-acuerdos-empty">No hay acuerdos con estos filtros.</p>';
                     return;
                 }
                 lista.innerHTML = items.map((a) => {
@@ -4262,16 +4333,21 @@
                         .filter((k) => campos[k])
                         .map((k) => `<span>${this.escapeHtml(k)}: ${this.escapeHtml(String(campos[k]))}</span>`)
                         .join('');
-                    const estadoTxt = a.estado === 'trabajo_cerrado'
-                        ? 'Trabajo cerrado'
-                        : (a.ambos_confirmaron_cierre ? 'Confirmado' : 'Acuerdo pendiente de cierre');
-                    return `<article class="mis-acuerdos-card" data-contacto-id="${a.contacto_id}">
+                    const estadoTxt = this.etiquetaEstadoAcuerdo(a);
+                    const estadoCls = `estado-${this.escapeHtml((a.estado || 'otro').replace(/_/g, '-'))}`;
+                    const fechaTxt = this.formatearFechaAcuerdo(
+                        a.fecha_referencia || a.acuerdo_alcanzado_en || a.fecha_cierre || a.creado_en
+                    );
+                    const fechaHtml = fechaTxt
+                        ? `<time class="mis-acuerdos-fecha" datetime="${this.escapeHtml(String(a.fecha_referencia || a.creado_en || ''))}">${this.escapeHtml(fechaTxt)}</time>`
+                        : '';
+                    return `<article class="mis-acuerdos-card" data-contacto-id="${a.contacto_id}" data-estado="${this.escapeHtml(a.estado || '')}">
                         <div class="mis-acuerdos-card-head">
                             ${badge}
-                            <span class="mis-acuerdos-estado">${this.escapeHtml(estadoTxt)}</span>
+                            <span class="mis-acuerdos-estado ${estadoCls}">${this.escapeHtml(estadoTxt)}</span>
                         </div>
                         <h4 class="mis-acuerdos-servicio">${this.escapeHtml(a.servicio || 'Servicio')}</h4>
-                        <p class="mis-acuerdos-meta">Con aliado ${this.escapeHtml(a.contraparte_codigo || '—')}</p>
+                        <p class="mis-acuerdos-meta">Con aliado ${this.escapeHtml(a.contraparte_codigo || '—')}${fechaHtml ? ` · ${fechaHtml}` : ''}</p>
                         <div class="mis-acuerdos-detalles">${detalles}</div>
                     </article>`;
                 }).join('');
@@ -5337,9 +5413,44 @@
                         const btn = e.target.closest('.mis-acuerdos-filtro');
                         if (!btn) return;
                         this.misAcuerdosFiltro = btn.getAttribute('data-filtro') || 'todos';
-                        this.renderMisAcuerdos();
+                        this.cargarMisAcuerdos();
                     });
                 }
+                const btnAplicarAcuerdos = document.getElementById('mis-acuerdos-aplicar-filtros');
+                if (btnAplicarAcuerdos) {
+                    btnAplicarAcuerdos.addEventListener('click', () => {
+                        const sel = document.getElementById('mis-acuerdos-filtro-estado');
+                        const desde = document.getElementById('mis-acuerdos-filtro-desde');
+                        const hasta = document.getElementById('mis-acuerdos-filtro-hasta');
+                        this.misAcuerdosFiltroEstado = (sel && sel.value) || '';
+                        this.misAcuerdosFiltroDesde = (desde && desde.value) || '';
+                        this.misAcuerdosFiltroHasta = (hasta && hasta.value) || '';
+                        this.cargarMisAcuerdos();
+                    });
+                }
+                const btnLimpiarAcuerdos = document.getElementById('mis-acuerdos-limpiar-filtros');
+                if (btnLimpiarAcuerdos) {
+                    btnLimpiarAcuerdos.addEventListener('click', () => {
+                        this.misAcuerdosFiltroEstado = '';
+                        this.misAcuerdosFiltroDesde = '';
+                        this.misAcuerdosFiltroHasta = '';
+                        this.misAcuerdosFiltro = 'todos';
+                        this.cargarMisAcuerdos();
+                    });
+                }
+                ['mis-acuerdos-filtro-estado', 'mis-acuerdos-filtro-desde', 'mis-acuerdos-filtro-hasta'].forEach((id) => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    el.addEventListener('change', () => {
+                        const sel = document.getElementById('mis-acuerdos-filtro-estado');
+                        const desde = document.getElementById('mis-acuerdos-filtro-desde');
+                        const hasta = document.getElementById('mis-acuerdos-filtro-hasta');
+                        this.misAcuerdosFiltroEstado = (sel && sel.value) || '';
+                        this.misAcuerdosFiltroDesde = (desde && desde.value) || '';
+                        this.misAcuerdosFiltroHasta = (hasta && hasta.value) || '';
+                        this.cargarMisAcuerdos();
+                    });
+                });
                 const btnFlotanteDismiss = document.getElementById('acuerdo-flotante-dismiss');
                 if (btnFlotanteDismiss) {
                     btnFlotanteDismiss.addEventListener('click', () => this.dismissAcuerdoFlotante());

@@ -2,6 +2,7 @@
 import os
 import tempfile
 import unittest
+from datetime import datetime
 
 from core.db_manager import DBManager
 from core import negociacion_manager as neg_mgr
@@ -201,6 +202,85 @@ class TestNegociacionGuiada(unittest.TestCase):
         acuerdos_pro = self.db.listar_acuerdos_aliado('90002')
         self.assertTrue(any(a['contacto_id'] == cid and a['rol'] == 'contrate' for a in acuerdos_sol))
         self.assertTrue(any(a['contacto_id'] == cid and a['rol'] == 'contratado' for a in acuerdos_pro))
+
+    def test_mis_acuerdos_incluye_todos_estados_y_filtros(self):
+        """Mis acuerdos lista contactos del aliado en cualquier estado, con filtros."""
+        cid_ini = self._crear_aliados_y_contacto('Servicio iniciado')
+        contacto_ini = self.db.obtener_contacto_por_id(cid_ini)
+        self.assertEqual(contacto_ini['estado'], 'iniciado')
+        self.assertFalse(contacto_ini.get('acuerdo_resumen_json'))
+
+        r = self.db.crear_contacto_ruana(
+            '90001', '90002', servicio='Servicio cancelado', motivo_contacto='Presupuesto'
+        )
+        self.assertEqual(r['status'], 'success', r.get('message'))
+        cid_cancel = r['id']
+        cerr = self.db.marcar_cerrado_no_concretado(cid_cancel, motivo='test', actor_codigo='90001')
+        self.assertEqual(cerr['status'], 'success', cerr.get('message'))
+
+        r_fin = self.db.crear_contacto_ruana(
+            '90001', '90002', servicio='Reparación grifo', motivo_contacto='Presupuesto'
+        )
+        self.assertEqual(r_fin['status'], 'success', r_fin.get('message'))
+        cid_fin = r_fin['id']
+        pasos = [
+            ('90001', 'proponer', 'servicio', 'Reparación grifo'),
+            ('90002', 'aceptar', 'servicio', ''),
+            ('90001', 'proponer', 'fecha', '2026-08-15'),
+            ('90002', 'aceptar', 'fecha', ''),
+            ('90001', 'proponer', 'hora', '10:00'),
+            ('90002', 'aceptar', 'hora', ''),
+            ('90001', 'proponer', 'direccion', 'Calle Mayor 1'),
+            ('90002', 'aceptar', 'direccion', ''),
+            ('90001', 'proponer', 'observaciones', 'Llevar herramientas'),
+            ('90002', 'aceptar', 'observaciones', 'Acceso por portal B'),
+            ('90002', 'proponer', 'precio', '90'),
+            ('90001', 'aceptar', 'precio', ''),
+        ]
+        for codigo, accion, campo, valor in pasos:
+            if accion == 'aceptar':
+                ok = self.db.aceptar_negociacion(cid_fin, codigo, campo, valor)
+            else:
+                ok = self.db.proponer_negociacion(cid_fin, codigo, campo, valor)
+            self.assertEqual(ok['status'], 'success', ok.get('message'))
+        contacto_fin = self.db.obtener_contacto_por_id(cid_fin)
+        self.assertEqual(contacto_fin['estado'], 'trabajo_cerrado')
+
+        todos = self.db.listar_acuerdos_aliado('90001')
+        ids = {a['contacto_id'] for a in todos}
+        self.assertIn(cid_ini, ids)
+        self.assertIn(cid_fin, ids)
+        self.assertIn(cid_cancel, ids)
+
+        por_estado = {a['contacto_id']: a for a in todos}
+        self.assertEqual(por_estado[cid_ini]['estado'], 'iniciado')
+        self.assertEqual(por_estado[cid_ini]['estado_label'], 'Iniciado')
+        self.assertEqual(por_estado[cid_fin]['estado'], 'trabajo_cerrado')
+        self.assertEqual(por_estado[cid_fin]['estado_label'], 'Finalizado')
+        self.assertEqual(por_estado[cid_cancel]['estado'], 'cerrado_no_concretado')
+        self.assertEqual(por_estado[cid_cancel]['estado_label'], 'Cancelado')
+
+        # Orden: más reciente → más antiguo (fecha_referencia DESC)
+        fechas = [str(a.get('fecha_referencia') or '') for a in todos]
+        self.assertEqual(fechas, sorted(fechas, reverse=True))
+
+        solo_finalizados = self.db.listar_acuerdos_aliado('90001', estado='trabajo_cerrado')
+        self.assertTrue(all(a['estado'] == 'trabajo_cerrado' for a in solo_finalizados))
+        self.assertTrue(any(a['contacto_id'] == cid_fin for a in solo_finalizados))
+        self.assertFalse(any(a['contacto_id'] == cid_ini for a in solo_finalizados))
+
+        solo_cancelados = self.db.listar_acuerdos_aliado('90001', estado='cerrado_no_concretado')
+        self.assertTrue(any(a['contacto_id'] == cid_cancel for a in solo_cancelados))
+
+        solo_contrate = self.db.listar_acuerdos_aliado('90001', rol='contrate')
+        self.assertTrue(all(a['rol'] == 'contrate' for a in solo_contrate))
+        self.assertGreaterEqual(len(solo_contrate), 3)
+
+        hoy = datetime.now().strftime('%Y-%m-%d')
+        en_rango = self.db.listar_acuerdos_aliado('90001', desde=hoy, hasta=hoy)
+        self.assertGreaterEqual(len(en_rango), 3)
+        fuera = self.db.listar_acuerdos_aliado('90001', desde='2099-01-01', hasta='2099-12-31')
+        self.assertEqual(fuera, [])
 
     def test_confirmar_importe_usa_precio_acordado_no_cliente(self):
         # Crear acuerdo sin auto-cierre numérico no aplica; usamos precio y verificamos
