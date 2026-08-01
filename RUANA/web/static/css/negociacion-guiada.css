@@ -697,10 +697,27 @@ body.neg-modal-abierto .acuerdo-flotante.show {
     color: #94a3b8;
 }
 .mis-acuerdos-card {
-    padding: 12px 14px;
+    padding: 0;
     border-radius: 12px;
     border: 1px solid rgba(148, 163, 184, 0.25);
     background: rgba(15, 23, 42, 0.45);
+    overflow: hidden;
+}
+.mis-acuerdos-card-toggle {
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 12px 14px;
+    border: none;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.mis-acuerdos-card-toggle:hover,
+.mis-acuerdos-card-toggle:focus-visible {
+    background: rgba(148, 163, 184, 0.08);
+    outline: none;
 }
 .mis-acuerdos-card-head {
     display: flex;
@@ -708,6 +725,33 @@ body.neg-modal-abierto .acuerdo-flotante.show {
     gap: 8px;
     align-items: center;
     margin-bottom: 6px;
+}
+.mis-acuerdos-card-summary {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+}
+.mis-acuerdos-chevron {
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    margin-top: 6px;
+    border-right: 2px solid #94a3b8;
+    border-bottom: 2px solid #94a3b8;
+    transform: rotate(45deg);
+    transition: transform 0.18s ease;
+}
+.mis-acuerdos-card.is-open .mis-acuerdos-chevron {
+    margin-top: 10px;
+    transform: rotate(225deg);
+}
+.mis-acuerdos-card-body {
+    padding: 0 14px 12px;
+    border-top: 1px solid rgba(148, 163, 184, 0.15);
+}
+.mis-acuerdos-card-body[hidden] {
+    display: none;
 }
 .mis-acuerdos-badge {
     font-size: 0.72rem;
@@ -749,12 +793,13 @@ body.neg-modal-abierto .acuerdo-flotante.show {
     font-variant-numeric: tabular-nums;
 }
 .mis-acuerdos-servicio {
-    margin: 0 0 4px;
+    margin: 0;
     font-size: 0.95rem;
     color: #f1f5f9;
+    font-weight: 600;
 }
 .mis-acuerdos-meta {
-    margin: 0 0 8px;
+    margin: 10px 0 0;
     font-size: 0.8rem;
     color: #94a3b8;
 }
@@ -762,8 +807,37 @@ body.neg-modal-abierto .acuerdo-flotante.show {
     display: flex;
     flex-wrap: wrap;
     gap: 8px 12px;
+    margin-top: 8px;
     font-size: 0.78rem;
     color: #cbd5e1;
+}
+.mis-acuerdos-detalles-empty {
+    margin: 8px 0 0;
+    font-size: 0.78rem;
+    color: #94a3b8;
+}
+.mis-acuerdos-mas-wrap {
+    display: flex;
+    justify-content: center;
+    padding-top: 4px;
+}
+.mis-acuerdos-mostrar-mas {
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    background: rgba(15, 118, 110, 0.2);
+    color: #99f6e4;
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+.mis-acuerdos-mostrar-mas:hover,
+.mis-acuerdos-mostrar-mas:focus-visible {
+    border-color: #14b8a6;
+    outline: none;
+}
+.mis-acuerdos-mas-restantes {
+    opacity: 0.85;
+    font-weight: 500;
 }
 
 .neg-precio-catalogo-hint {
