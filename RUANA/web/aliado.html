@@ -2508,13 +2508,13 @@
             <section class="catalogo-servicios-wrap" id="catalogo-servicios-wrap">
                 <h3 class="catalogo-servicios-title">
                     <i data-lucide="briefcase-business"></i>
-                    Especializaciones
+                    Catálogo de servicios
                 </h3>
                 <p class="catalogo-servicios-subtitle">Define tus servicios con descripción y precio. Solo se muestra la tarjeta que estás editando.</p>
                 <div class="catalogo-servicios-lista" id="catalogo-servicios-grid"></div>
-                <button type="button" class="catalogo-add-btn" id="btn-catalogo-anadir" hidden>
+                <button type="button" class="catalogo-add-btn" id="btn-catalogo-anadir" hidden aria-label="Añadir servicios al catálogo">
                     <i data-lucide="plus"></i>
-                    Añadir especialización
+                    Añadir servicios al catálogo
                 </button>
             </section>
 
@@ -3194,8 +3194,8 @@
                     {
                         selector: '#catalogo-servicios-wrap',
                         module: 'perfil',
-                        title: 'Tus especializaciones',
-                        copy: 'Añade cada especialización en una tarjeta. Al guardar se cierra y muestra un resumen; pulsa Editar para modificarla. Así mantienes el perfil ordenado y profesional.',
+                        title: 'Tu catálogo de servicios',
+                        copy: 'Añade servicios al catálogo en tarjetas. Al guardar se cierra y muestra un resumen; pulsa Editar para modificarlo. Así mantienes el perfil ordenado y profesional.',
                         placement: 'top'
                     },
                     {
@@ -4592,7 +4592,7 @@
 
             _catalogoResumenTitulo(servicio) {
                 const desc = String(servicio.descripcion || '').trim();
-                if (!desc) return `Especialización ${servicio.posicion}`;
+                if (!desc) return `Servicio ${servicio.posicion}`;
                 const primera = desc.split(/\n/)[0].trim();
                 return primera.length > 72 ? `${primera.slice(0, 72)}…` : primera;
             }
@@ -4622,7 +4622,7 @@
                 const libre = this._primeraPosicionLibreCatalogo(catalogo);
                 if (libre == null) {
                     if (typeof RuanaUI !== 'undefined') {
-                        RuanaUI.toast('Has alcanzado el máximo de 10 especializaciones', 'info', 2200);
+                        RuanaUI.toast('Has alcanzado el máximo de 10 servicios en el catálogo', 'info', 2200);
                     }
                     return;
                 }
@@ -4668,8 +4668,8 @@
                 if (!visibles.length) {
                     grid.innerHTML = `
                         <div class="catalogo-empty">
-                            <p>Aún no has definido especializaciones.</p>
-                            <p class="catalogo-empty-hint">Añade la primera con descripción y precio.</p>
+                            <p>Aún no has añadido servicios al catálogo.</p>
+                            <p class="catalogo-empty-hint">Añade el primero con descripción y precio.</p>
                         </div>`;
                 } else {
                     grid.innerHTML = visibles.map((servicio) => {
@@ -4679,7 +4679,7 @@
                                 <article class="catalogo-servicio-card is-collapsed" data-servicio-pos="${servicio.posicion}" data-catalogo-toggle="${servicio.posicion}" role="button" tabindex="0" aria-expanded="false">
                                     <div class="catalogo-servicio-summary">
                                         <div class="catalogo-servicio-summary-main">
-                                            <span class="catalogo-servicio-num">Especialización ${servicio.posicion}</span>
+                                            <span class="catalogo-servicio-num">Servicio ${servicio.posicion}</span>
                                             <h4 class="catalogo-servicio-summary-title">${this.escapeHtml(this._catalogoResumenTitulo(servicio))}</h4>
                                             <p class="catalogo-servicio-summary-precio">${this.escapeHtml(servicio.precio || '—')}</p>
                                         </div>
@@ -4690,11 +4690,11 @@
                         return `
                             <article class="catalogo-servicio-card is-open" data-servicio-pos="${servicio.posicion}" aria-expanded="true">
                                 <div class="catalogo-servicio-head">
-                                    <span class="catalogo-servicio-num">${servicio.configurado ? `Especialización ${servicio.posicion}` : 'Nueva especialización'}</span>
+                                    <span class="catalogo-servicio-num">${servicio.configurado ? `Servicio ${servicio.posicion}` : 'Nuevo servicio'}</span>
                                     <span class="catalogo-servicio-state ${servicio.configurado ? 'ready' : 'pending'}">${servicio.configurado ? 'Editando' : 'En curso'}</span>
                                 </div>
                                 <label class="catalogo-servicio-label" for="catalogo-desc-${servicio.posicion}">Descripción</label>
-                                <textarea id="catalogo-desc-${servicio.posicion}" data-servicio-desc="${servicio.posicion}" maxlength="1000" placeholder="Qué ofreces en esta especialización" rows="3">${this.escapeHtml(servicio.descripcion || '')}</textarea>
+                                <textarea id="catalogo-desc-${servicio.posicion}" data-servicio-desc="${servicio.posicion}" maxlength="1000" placeholder="Qué ofreces en este servicio" rows="3">${this.escapeHtml(servicio.descripcion || '')}</textarea>
                                 <label class="catalogo-servicio-label" for="catalogo-precio-${servicio.posicion}">Precio</label>
                                 <input id="catalogo-precio-${servicio.posicion}" type="text" data-servicio-precio="${servicio.posicion}" maxlength="120" placeholder="Ej: 45 € / hora" value="${this.escapeHtml(servicio.precio || '')}" />
                                 <div class="catalogo-servicio-actions">
@@ -4769,7 +4769,7 @@
                     this.catalogoEditandoPos = null;
                     this.renderCatalogoServicios();
                     if (typeof RuanaUI !== 'undefined') {
-                        RuanaUI.toast('Especialización guardada', 'success', 1800);
+                        RuanaUI.toast('Servicio guardado en el catálogo', 'success', 1800);
                     }
                 } catch (e) {
                     if (feedback) feedback.textContent = 'Error de conexión';
