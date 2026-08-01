@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RUANA - Panel Privado del Aliado</title>
     <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/ruana-feedback.css">
+    <link rel="stylesheet" href="/static/css/ruana-alert-hub.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -36,6 +38,7 @@
         }
 
         body.panel-loading #btn-logout,
+        body.panel-loading #btn-invitar-global,
         body.panel-loading .aliado-shell-nav,
         body.panel-loading .aliado-shell-bottom,
         body.panel-loading .panel-container > :not(#error-bootstrap):not(#panel-loading) {
@@ -515,62 +518,6 @@
         .metrica-card.score-estable .metrica-numero { color: #22c55e; }
         .metrica-card.score-riesgo .metrica-numero { color: #eab308; }
         .metrica-card.score-competencia .metrica-numero { color: #ef4444; }
-        .score-change-toast {
-            position: absolute;
-            top: -12px;
-            right: 8px;
-            max-width: min(360px, calc(100vw - 40px));
-            padding: 12px 14px;
-            border-radius: 14px;
-            border: 1px solid rgba(255, 255, 255, 0.22);
-            background: linear-gradient(150deg, rgba(255, 255, 255, 0.2), rgba(14, 18, 34, 0.92));
-            backdrop-filter: blur(14px) saturate(140%);
-            -webkit-backdrop-filter: blur(14px) saturate(140%);
-            box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
-            z-index: 8;
-            opacity: 0;
-            transform: translateY(-8px) scale(0.98);
-            transition: opacity 220ms ease, transform 220ms ease;
-        }
-        .score-change-toast.show {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-        }
-        .score-change-toast.up { border-color: rgba(34, 197, 94, 0.45); }
-        .score-change-toast.down { border-color: rgba(245, 158, 11, 0.45); }
-        .score-change-title {
-            margin: 0 28px 4px 0;
-            font-size: 0.78rem;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            color: rgba(210, 235, 255, 0.85);
-            font-weight: 700;
-        }
-        .score-change-copy {
-            margin: 0;
-            font-size: 0.86rem;
-            color: #e7eefb;
-            line-height: 1.4;
-        }
-        .score-change-close {
-            position: absolute;
-            top: 7px;
-            right: 8px;
-            border: none;
-            background: transparent;
-            color: rgba(227, 236, 252, 0.8);
-            cursor: pointer;
-            font-size: 1rem;
-            line-height: 1;
-            padding: 2px 4px;
-        }
-        .score-change-delta {
-            font-weight: 800;
-            margin-right: 2px;
-        }
-        .score-change-toast.up .score-change-delta { color: #4ade80; }
-        .score-change-toast.down .score-change-delta { color: #fbbf24; }
-
         .score-alerta-panel {
             padding: 14px 20px;
             background: rgba(239, 68, 68, 0.15);
@@ -2222,8 +2169,12 @@
     <link rel="stylesheet" href="/static/css/panel-premium.css">
     <link rel="stylesheet" href="/static/css/auth-premium.css">
     <link rel="stylesheet" href="/static/css/aliado-shell.css">
+    <link rel="stylesheet" href="/static/css/ruana-score-callout.css">
+    <link rel="stylesheet" href="/static/css/ruana-identity.css">
     <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
+    <script src="/static/js/ruana-atmosphere.js" defer></script>
     <script src="/static/js/ruana-ui.js" defer></script>
+    <script src="/static/js/ruana-alert-hub.js" defer></script>
     <script src="/static/js/aliado-shell.js" defer></script>
     <link rel="stylesheet" href="/static/css/negociacion-guiada.css">
     <script src="/static/js/negociacion-guiada.js" defer></script>
@@ -2234,6 +2185,15 @@
         <span class="ruana-brand-word">RUANA</span>
     </a>
     <button id="btn-logout" class="btn-back">Cerrar sesión</button>
+    <button type="button"
+        id="btn-invitar-global"
+        class="btn-invitar-global"
+        data-action="invitar-aliado"
+        title="Ampliar mi red"
+        aria-label="Ampliar mi red">
+        <i data-lucide="user-plus"></i>
+        <span class="btn-invitar-global-label">Ampliar mi red</span>
+    </button>
 
     <nav class="aliado-shell-nav" id="aliado-shell-nav" aria-label="Navegación del panel">
         <a href="/" class="aliado-shell-nav-brand ruana-brand" aria-label="RUANA inicio">
@@ -2262,7 +2222,15 @@
             </button>
         </div>
         <div class="aliado-shell-nav-footer">
-            <p class="aliado-shell-nav-hint">Operativa rápida · un clic por módulo</p>
+            <button type="button"
+                class="aliado-shell-invite-cta"
+                id="btn-invitar-nav"
+                data-action="invitar-aliado"
+                title="Ampliar mi red">
+                <i data-lucide="user-plus"></i>
+                <span>Ampliar mi red</span>
+            </button>
+            <p class="aliado-shell-nav-hint">Crece la red · disponible en todo momento</p>
         </div>
     </nav>
 
@@ -2287,7 +2255,13 @@
 
     <div class="panel-container">
         <!-- CONTENEDOR DE ERROR F06 -->
-        <div id="error-bootstrap" style="display:none; margin-bottom:24px; padding:16px; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); border-radius:8px; color:#ef4444; font-weight:500; text-align:center;"></div>
+        <div id="error-bootstrap" class="ruana-feedback ruana-feedback--banner ruana-feedback--error" style="display:none;" role="alert">
+            <span class="ruana-feedback__icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
+            <div class="ruana-feedback__content">
+                <div class="ruana-feedback__title">No pudimos cargar tu panel</div>
+                <div class="ruana-feedback__message" id="error-bootstrap-text"></div>
+            </div>
+        </div>
         <div id="panel-loading" class="panel-loading-state ruana-page-loader" role="status" aria-live="polite">
             <div class="ruana-loader-orbit" aria-hidden="true">
                 <div class="ruana-loader-ring"></div>
@@ -2304,17 +2278,14 @@
         </div>
 
         <div class="aliado-shell-alerts" id="aliado-shell-alerts">
-        <!-- Banner: Tienes un mensaje nuevo de RUANA -->
-        <div id="banner-mensaje-nuevo-ruana" style="display:none; margin-bottom:0; padding:16px 20px; background:rgba(234,179,8,0.2); border:1px solid rgba(234,179,8,0.5); border-radius:8px; color:#eab308; font-weight:600; text-align:center;">
-            ⚠️ Tienes un mensaje nuevo de RUANA
+        <!-- Hub compacto: Apoyo RUANA, pagos pendientes, mensajes RUANA -->
+        <div id="ruana-alert-hub" class="ruana-alert-hub" hidden>
+            <div class="ruana-alert-hub__cards"></div>
+            <button type="button" class="ruana-alert-hub__more" hidden>Ver más avisos</button>
+            <div class="ruana-alert-hub__detail" hidden></div>
         </div>
 
-        <!-- Aviso pagos RUANA pendientes (no bloquea acceso; no puede aceptar nuevos trabajos) -->
-        <div id="aviso-pagos-pendientes-banner" style="display:none; margin-bottom:0; padding:16px 20px; background:rgba(234,179,8,0.15); border:1px solid rgba(234,179,8,0.4); border-radius:8px; color:#eab308; font-weight:500; text-align:center;">
-            Tienes pagos pendientes con RUANA. No podrás aceptar nuevos trabajos hasta regularizar la situación.
-        </div>
-        
-        <!-- Seguimiento del encargo RUANA -->
+        <!-- Seguimiento del encargo RUANA (acción pendiente — workflow activo) -->
         <div id="contacto-aviso-persistente" class="encargo-seguimiento-card" style="display:none;">
             <div class="encargo-seguimiento-top">
                 <span class="encargo-seguimiento-estado" id="contacto-aviso-estado">Encargo activo</span>
@@ -2345,25 +2316,6 @@
             </div>
         </div>
 
-        <!-- Apoyo RUANA pendiente de pago (solo profesional, estado_pago = pendiente_pago) -->
-        <div id="pagos-apoyo-ruana-wrap" class="contacto-aviso" style="display:none; margin-bottom: 0;">
-            <div class="contacto-aviso-header">
-                <span class="contacto-aviso-titulo">Apoyo RUANA pendiente de pago</span>
-            </div>
-            <div class="contacto-aviso-texto">
-                Tienes uno o más contactos cerrados con Apoyo RUANA por abonar. Sube el comprobante de pago para que RUANA lo revise.
-            </div>
-            <div id="pagos-apoyo-ruana-lista" style="margin-top: 12px;"></div>
-        </div>
-
-        <!-- Mensajes de RUANA (notificaciones: comprobante rechazado, etc.) -->
-        <div id="notificaciones-ruana-wrap" class="contacto-aviso" style="display:none; margin-bottom: 0;">
-            <div class="contacto-aviso-header" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
-                <span class="contacto-aviso-titulo">Mensajes de RUANA</span>
-                <button type="button" id="btn-marcar-notificaciones-leidas" class="contacto-aviso-btn" style="display:none;">Marcar mensajes como leídos</button>
-            </div>
-            <div id="notificaciones-ruana-lista" style="margin-top: 12px;"></div>
-        </div>
         </div><!-- /.aliado-shell-alerts -->
 
         <!-- MÓDULO: Inicio (centro operativo) -->
@@ -2390,13 +2342,18 @@
                             </span>
                         </div>
                     </div>
-                    <div class="inicio-score-pill" title="Score RUANA">
+                    <button type="button" class="inicio-score-pill" id="inicio-score-pill" title="Ver detalle del Score RUANA" aria-label="Score RUANA">
                         <span class="inicio-score-pill-label">Score RUANA</span>
                         <strong id="inicio-score">0</strong>
-                    </div>
+                    </button>
                 </div>
 
                 <div class="inicio-quick-grid" aria-label="Accesos rápidos">
+                    <button type="button" class="inicio-quick-btn inicio-quick-btn-invite" data-action="invitar-aliado" id="btn-invitar-inicio">
+                        <i data-lucide="user-plus"></i>
+                        <span>Ampliar mi red</span>
+                        <small>Generar código ahora</small>
+                    </button>
                     <button type="button" class="inicio-quick-btn" data-aliado-goto="directorio">
                         <i data-lucide="search"></i>
                         <span>Directorio</span>
@@ -2538,9 +2495,13 @@
             </div>
 
             <div class="perfil-acciones">
-                <button type="button" class="btn-invitar-aliado" id="btn-invitar-aliado" title="Generar código para que un nuevo aliado se registre">
+                <button type="button"
+                    class="btn-invitar-aliado"
+                    id="btn-invitar-aliado"
+                    data-action="invitar-aliado"
+                    title="Ampliar mi red">
                     <i data-lucide="user-plus" style="width:16px;height:16px"></i>
-                    Generar código de invitación
+                    Ampliar mi red
                 </button>
             </div>
 
@@ -2551,6 +2512,22 @@
                 </h3>
                 <p class="catalogo-servicios-subtitle">Configuración privada: hasta 10 servicios con descripción y precio.</p>
                 <div class="catalogo-servicios-grid" id="catalogo-servicios-grid"></div>
+            </section>
+
+            <section class="mis-acuerdos-wrap" id="mis-acuerdos-wrap">
+                <h3 class="mis-acuerdos-title">
+                    <i data-lucide="handshake"></i>
+                    Mis acuerdos
+                </h3>
+                <p class="mis-acuerdos-subtitle">Historial de encargos acordados: los que contrataste y en los que te contrataron.</p>
+                <div class="mis-acuerdos-filtros" id="mis-acuerdos-filtros">
+                    <button type="button" class="mis-acuerdos-filtro active" data-filtro="todos">Todos</button>
+                    <button type="button" class="mis-acuerdos-filtro" data-filtro="contrate">Contrataste</button>
+                    <button type="button" class="mis-acuerdos-filtro" data-filtro="contratado">Te contrataron</button>
+                </div>
+                <div class="mis-acuerdos-lista" id="mis-acuerdos-lista">
+                    <p class="mis-acuerdos-empty">Aún no tienes acuerdos registrados.</p>
+                </div>
             </section>
 
             <!-- Mi grupo: nombre, estado, oficios representados, oficios faltantes (sin scores ni métricas de otros) -->
@@ -2771,7 +2748,7 @@
             <div id="contacto-previo-catalogo-wrap" class="neg-catalogo-wrap" style="display:none;">
                 <p class="neg-catalogo-titulo">Elige el servicio que necesitas:</p>
                 <div id="contacto-previo-catalogo-list" class="neg-catalogo-list"></div>
-                <input type="text" id="contacto-previo-servicio-otro" class="neg-catalogo-otro" placeholder="O escribe otro servicio…" autocomplete="off">
+                <input type="text" id="contacto-previo-servicio-otro" class="neg-catalogo-otro" placeholder="Otros — describe el servicio que necesitas…" autocomplete="off">
             </div>
             <div class="modal-contacto-actions">
                 <button id="btn-contacto-previo-confirm" class="modal-contacto-btn confirm">Iniciar negociación</button>
@@ -2806,9 +2783,26 @@
                     <div id="neg-resumen-lista"></div>
                 </aside>
             </div>
-            <div class="neg-acciones" id="neg-acciones-wrap"></div>
+            <div id="neg-acciones-wrap" class="neg-acciones"></div>
         </div>
     </div>
+
+    <!-- Panel flotante persistente del resumen de acuerdo -->
+    <aside id="acuerdo-flotante" class="acuerdo-flotante" hidden aria-live="polite">
+        <div class="acuerdo-flotante-header">
+            <div>
+                <p class="acuerdo-flotante-kicker">Acuerdo alcanzado</p>
+                <h3 class="acuerdo-flotante-title" id="acuerdo-flotante-title">Resumen</h3>
+            </div>
+            <button type="button" class="acuerdo-flotante-x" id="acuerdo-flotante-dismiss" aria-label="Ocultar resumen">×</button>
+        </div>
+        <div class="acuerdo-flotante-body" id="acuerdo-flotante-body"></div>
+        <p class="acuerdo-flotante-estado" id="acuerdo-flotante-estado"></p>
+        <div class="acuerdo-flotante-actions">
+            <button type="button" class="acuerdo-flotante-btn primary" id="acuerdo-flotante-abrir">Ver negociación</button>
+            <button type="button" class="acuerdo-flotante-btn" id="acuerdo-flotante-confirmar">Confirmar acuerdo</button>
+        </div>
+    </aside>
 
     <!-- Modal confirmar cierre sin trabajo (No se concretó) -->
     <div class="modal-contacto-overlay modal-importe-overlay" id="modal-no-concretado">
@@ -2830,14 +2824,19 @@
         <div class="modal-importe-content modal-importe-elegante">
             <div class="modal-contacto-title">Confirmación de trabajo realizado</div>
             <div class="modal-contacto-text" id="modal-contacto-importe-text">
-                Nos alegra saber que el trabajo se realizó.
-                Para cerrar el contacto correctamente, indícanos el importe acordado.
+                Confirma el valor acordado en la negociación. Ese importe es el oficial del encargo.
             </div>
-            <label class="modal-importe-label" for="contacto-importe-input">Importe del trabajo (€)</label>
-            <input id="contacto-importe-input" type="number" min="0" step="0.01" class="modal-importe-input" placeholder="Ej: 150.00" required>
+            <div id="modal-importe-acordado-wrap" class="modal-importe-summary" style="display:none;">
+                <p style="margin:0 0 6px; font-size:0.85rem; color:#94a3b8;">Importe acordado</p>
+                <p id="modal-importe-acordado-valor" style="margin:0; font-size:1.4rem; font-weight:700; color:#5eead4;">—</p>
+            </div>
+            <div id="modal-importe-input-wrap" style="display:none;">
+                <label class="modal-importe-label" for="contacto-importe-input">Importe del trabajo (€)</label>
+                <input id="contacto-importe-input" type="number" min="0" step="0.01" class="modal-importe-input" placeholder="Ej: 150.00">
+            </div>
             <div id="modal-importe-resumen" class="modal-importe-summary" style="display:none;"></div>
             <div class="modal-contacto-actions" style="margin-top: 12px;">
-                <button id="btn-contacto-importe-confirm" class="modal-contacto-btn confirm">Confirmar importe</button>
+                <button id="btn-contacto-importe-confirm" class="modal-contacto-btn confirm">Confirmar valor acordado</button>
                 <button id="btn-contacto-importe-cancel" class="modal-contacto-btn cancel">Volver</button>
             </div>
         </div>
@@ -2969,7 +2968,13 @@
         class RuanaOnboardingTour {
             constructor(panel) {
                 this.panel = panel;
-                this.storageKeyBase = 'ruana_onboarding_completed_v4';
+                // Clave estable (sin versionar): el autoarranque no debe reaparecer al cambiar el tour.
+                this.seenKeyBase = 'ruana_onboarding_seen';
+                this.pendingKeyBase = 'ruana_pending_onboarding';
+                this.legacyCompletedBases = [
+                    'ruana_onboarding_completed_v4',
+                    'ruana_onboarding_completed_v3'
+                ];
                 this.stepIndex = 0;
                 this.steps = [];
                 this.activeTarget = null;
@@ -2990,13 +2995,54 @@
                 };
             }
 
-            getStorageKey() {
+            getAliadoCodigo() {
                 const codigo = (
                     (this.panel && (this.panel.codigoAliado || (this.panel.aliado && this.panel.aliado.codigo))) ||
                     sessionStorage.getItem('ruana_codigo_aliado') ||
-                    'anon'
-                ).toString().trim() || 'anon';
-                return `${this.storageKeyBase}_${codigo}`;
+                    ''
+                ).toString().trim();
+                return codigo || '';
+            }
+
+            getSeenKey(codigo) {
+                const code = codigo || this.getAliadoCodigo();
+                return code ? `${this.seenKeyBase}_${code}` : null;
+            }
+
+            getPendingKey(codigo) {
+                const code = codigo || this.getAliadoCodigo();
+                return code ? `${this.pendingKeyBase}_${code}` : null;
+            }
+
+            /** Compat: claves antiguas por versión del tour. */
+            hasLegacyCompleted(codigo) {
+                const code = codigo || this.getAliadoCodigo();
+                if (!code) return false;
+                try {
+                    for (let i = 0; i < this.legacyCompletedBases.length; i += 1) {
+                        if (localStorage.getItem(`${this.legacyCompletedBases[i]}_${code}`) === 'true') {
+                            return true;
+                        }
+                    }
+                    if (localStorage.getItem('ruana_onboarding_completed_v2') === 'true') return true;
+                } catch (_) {}
+                return false;
+            }
+
+            hasSeen() {
+                const codigo = this.getAliadoCodigo();
+                if (!codigo) return true;
+                try {
+                    const seenKey = this.getSeenKey(codigo);
+                    if (seenKey && localStorage.getItem(seenKey) === 'true') return true;
+                    if (this.hasLegacyCompleted(codigo)) {
+                        this.markSeen();
+                        return true;
+                    }
+                } catch (_) {
+                    return true;
+                }
+                return false;
             }
 
             isElementUsable(el) {
@@ -3117,10 +3163,10 @@
                         placement: 'top'
                     },
                     {
-                        selector: '#btn-invitar-aliado',
-                        module: 'perfil',
+                        selector: '#btn-invitar-nav, #btn-invitar-global, #btn-invitar-aliado',
+                        module: null,
                         title: 'Invita nuevos aliados',
-                        copy: 'Genera un código para sumar talento de confianza y fortalecer tu grupo.',
+                        copy: 'Genera un código en cualquier momento desde este acceso prioritario y fortalece tu grupo.',
                         placement: 'top'
                     },
                     {
@@ -3152,16 +3198,30 @@
 
             shouldAutoStart() {
                 try {
-                    const key = this.getStorageKey();
-                    if (localStorage.getItem(key) === 'true') return false;
-                    return true;
+                    const codigo = this.getAliadoCodigo();
+                    // Sin código de aliado no autoarrancamos (evita claves anon y repeticiones).
+                    if (!codigo) return false;
+                    if (this.hasSeen()) return false;
+                    const pendingKey = this.getPendingKey(codigo);
+                    return !!(pendingKey && localStorage.getItem(pendingKey) === '1');
                 } catch (_) {
-                    return true;
+                    return false;
                 }
             }
 
             markSeen() {
-                try { localStorage.setItem(this.getStorageKey(), 'true'); } catch (_) {}
+                try {
+                    const codigo = this.getAliadoCodigo();
+                    if (!codigo) return;
+                    const seenKey = this.getSeenKey(codigo);
+                    const pendingKey = this.getPendingKey(codigo);
+                    if (seenKey) localStorage.setItem(seenKey, 'true');
+                    if (pendingKey) localStorage.removeItem(pendingKey);
+                    // Limpia claves legacy para no reactivar el autoarranque.
+                    this.legacyCompletedBases.forEach((base) => {
+                        try { localStorage.removeItem(`${base}_${codigo}`); } catch (_) {}
+                    });
+                } catch (_) {}
             }
 
             start(force = false) {
@@ -3170,7 +3230,8 @@
                 this.steps = this.buildSteps();
                 if (!this.steps.length) return;
                 // Autoarranque solo una vez: se marca al abrirse, aunque el usuario lo cierre a mitad.
-                if (!force) this.markSeen();
+                // El replay manual (force) también marca visto para no dejar pendiente activo.
+                this.markSeen();
                 document.body.classList.add('ruana-tour-active');
                 this.stepIndex = 0;
                 this.createLayer();
@@ -3507,11 +3568,15 @@
                 this.soporteSelectedId = null;
                 this.contactosPagoPendiente = [];
                 this.tienePagosPendientes = false;
+                this.misAcuerdos = [];
+                this.misAcuerdosFiltro = 'todos';
+                this.acuerdoFlotanteActual = null;
                 this.scoreNotifActive = false;
                 this.scoreNotifShownIds = new Set();
                 this._syncInProgress = false;
                 this._autoSyncIntervalId = null;
                 this._contactoIdImpugnarApoyo = null;
+                this._alertHubState = { showAll: false, expandedDetailId: null };
                 this.metodosPagoRuana = {
                     bizum_num: window.RUANA_BIZUM_NUM || '642868261',
                     iban: window.RUANA_IBAN || 'ES8915830001119028625152',
@@ -3554,11 +3619,13 @@
                 const bootstrapTasks = await Promise.allSettled([
                     this.fetchCentroComunicacionSnapshot(),
                     this.cargarMetodosPagoRuana(),
-                    this.cargarContactosPendientes()
+                    this.cargarContactosPendientes(),
+                    this.cargarMisAcuerdos(),
+                    this.cargarResumenesAcuerdoFlotantes(),
                 ]);
                 bootstrapTasks.forEach((task, idx) => {
                     if (task.status === 'rejected') {
-                        const labels = ['centro-comunicacion', 'metodos-pago', 'contactos-pendientes'];
+                        const labels = ['centro-comunicacion', 'metodos-pago', 'contactos-pendientes', 'mis-acuerdos', 'resumenes-acuerdo'];
                         console.error(`Error en carga de fondo (${labels[idx]}):`, task.reason);
                     }
                 });
@@ -3566,6 +3633,7 @@
                 this.renderAlertas();
                 this.renderNotificaciones();
                 this.renderListaPagosPendientes();
+                this.renderMisAcuerdos();
             }
 
             initOnboarding() {
@@ -3590,7 +3658,7 @@
                     metricas: '.metricas-block',
                     directorio: '.directorio-panel',
                     solicitudes: '.solicitudes-zone',
-                    alertas: '#notificaciones-ruana-wrap',
+                    alertas: '#ruana-alert-hub',
                     centro: '#ruana-help-center'
                 };
                 return (sections || [])
@@ -4137,7 +4205,194 @@
                     this._syncPerfilAvatarEtiqueta(estadoNormalizado);
                 }
                 this.renderCatalogoServicios();
+                this.renderMisAcuerdos();
                 this.renderCompetencia();
+            }
+
+            async cargarMisAcuerdos() {
+                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
+                if (!codigo) return;
+                try {
+                    const resp = await fetch('/api/aliado/acuerdos', {
+                        credentials: 'same-origin',
+                        headers: getRuanaAuthHeaders(),
+                    });
+                    if (!resp.ok) return;
+                    const data = await resp.json();
+                    this.misAcuerdos = (data.status === 'success' && Array.isArray(data.acuerdos))
+                        ? data.acuerdos
+                        : [];
+                    this.renderMisAcuerdos();
+                } catch (e) {
+                    console.error('Error cargando Mis acuerdos:', e);
+                }
+            }
+
+            renderMisAcuerdos() {
+                const lista = document.getElementById('mis-acuerdos-lista');
+                if (!lista) return;
+                const filtro = this.misAcuerdosFiltro || 'todos';
+                document.querySelectorAll('.mis-acuerdos-filtro').forEach((btn) => {
+                    btn.classList.toggle('active', btn.getAttribute('data-filtro') === filtro);
+                });
+                const items = (this.misAcuerdos || []).filter((a) => {
+                    if (filtro === 'todos') return true;
+                    return a.rol === filtro;
+                });
+                if (!items.length) {
+                    lista.innerHTML = '<p class="mis-acuerdos-empty">Aún no tienes acuerdos en esta vista.</p>';
+                    return;
+                }
+                lista.innerHTML = items.map((a) => {
+                    const badge = a.rol === 'contrate'
+                        ? '<span class="mis-acuerdos-badge contrate">Contrataste</span>'
+                        : '<span class="mis-acuerdos-badge contratado">Te contrataron</span>';
+                    const campos = a.campos || {};
+                    const detalles = ['fecha', 'hora', 'precio', 'direccion']
+                        .filter((k) => campos[k])
+                        .map((k) => `<span>${this.escapeHtml(k)}: ${this.escapeHtml(String(campos[k]))}</span>`)
+                        .join('');
+                    const estadoTxt = a.estado === 'trabajo_cerrado'
+                        ? 'Trabajo cerrado'
+                        : (a.ambos_confirmaron_cierre ? 'Confirmado' : 'Acuerdo pendiente de cierre');
+                    return `<article class="mis-acuerdos-card" data-contacto-id="${a.contacto_id}">
+                        <div class="mis-acuerdos-card-head">
+                            ${badge}
+                            <span class="mis-acuerdos-estado">${this.escapeHtml(estadoTxt)}</span>
+                        </div>
+                        <h4 class="mis-acuerdos-servicio">${this.escapeHtml(a.servicio || 'Servicio')}</h4>
+                        <p class="mis-acuerdos-meta">Con aliado ${this.escapeHtml(a.contraparte_codigo || '—')}</p>
+                        <div class="mis-acuerdos-detalles">${detalles}</div>
+                    </article>`;
+                }).join('');
+            }
+
+            async cargarResumenesAcuerdoFlotantes() {
+                try {
+                    const resp = await fetch('/api/aliado/resumenes-acuerdo', {
+                        credentials: 'same-origin',
+                        headers: getRuanaAuthHeaders(),
+                    });
+                    if (!resp.ok) return;
+                    const data = await resp.json();
+                    const resumenes = (data.status === 'success' && Array.isArray(data.resumenes))
+                        ? data.resumenes
+                        : [];
+                    if (!resumenes.length) {
+                        this.ocultarAcuerdoFlotante();
+                        return;
+                    }
+                    this.mostrarAcuerdoFlotante(resumenes[0]);
+                } catch (e) {
+                    console.error('Error cargando resúmenes de acuerdo:', e);
+                }
+            }
+
+            syncAcuerdoFlotante(data) {
+                if (!data || data.resumen_dismissed) return;
+                const estado = data.estado_contacto || '';
+                if (!(['acuerdo_alcanzado', 'trabajo_cerrado'].includes(estado) || data.acuerdo_alcanzado)) {
+                    return;
+                }
+                this.mostrarAcuerdoFlotante({
+                    contacto_id: data.contacto_id || this.negociacionGuiada && this.negociacionGuiada.contactoId,
+                    estado,
+                    servicio: data.servicio_contacto || '',
+                    resumen: data.resumen || [],
+                    yo_confirme_cierre: !!data.yo_confirme_cierre,
+                    ambos_confirmaron_cierre: !!data.ambos_confirmaron_cierre,
+                    cierre_confirmado_solicitante: !!data.cierre_confirmado_solicitante,
+                    cierre_confirmado_profesional: !!data.cierre_confirmado_profesional,
+                });
+            }
+
+            mostrarAcuerdoFlotanteDesdeNegociacion(contactoId, data) {
+                if (!data || data.resumen_dismissed) return;
+                const estado = data.estado_contacto || '';
+                if (!(data.acuerdo_alcanzado || ['acuerdo_alcanzado', 'trabajo_cerrado'].includes(estado))) {
+                    return;
+                }
+                this.mostrarAcuerdoFlotante({
+                    contacto_id: contactoId,
+                    estado,
+                    servicio: data.servicio_contacto || '',
+                    resumen: data.resumen || [],
+                    yo_confirme_cierre: !!data.yo_confirme_cierre,
+                    ambos_confirmaron_cierre: !!data.ambos_confirmaron_cierre,
+                });
+            }
+
+            mostrarAcuerdoFlotante(item) {
+                const panel = document.getElementById('acuerdo-flotante');
+                if (!panel || !item) return;
+                this.acuerdoFlotanteActual = item;
+                const title = document.getElementById('acuerdo-flotante-title');
+                const body = document.getElementById('acuerdo-flotante-body');
+                const estadoEl = document.getElementById('acuerdo-flotante-estado');
+                const btnConfirmar = document.getElementById('acuerdo-flotante-confirmar');
+                if (title) title.textContent = item.servicio || 'Resumen del acuerdo';
+                const items = Array.isArray(item.resumen)
+                    ? item.resumen.filter((r) => r && r.valor && r.campo !== 'observaciones_profesional')
+                    : [];
+                if (body) {
+                    body.innerHTML = items.length
+                        ? items.map((r) => `<p><strong>${this.escapeHtml(r.label || r.campo)}:</strong> ${this.escapeHtml(String(r.valor))}</p>`).join('')
+                        : '<p>Consulta el detalle en la negociación.</p>';
+                }
+                let estadoTxt = 'El precio aceptado es el importe oficial del encargo.';
+                if (item.estado === 'trabajo_cerrado' || item.ambos_confirmaron_cierre) {
+                    estadoTxt = 'Precio aceptado. Encargo cerrado y Apoyo RUANA generado.';
+                } else if (item.yo_confirme_cierre) {
+                    estadoTxt = 'Ya revisaste el resumen.';
+                }
+                if (estadoEl) estadoEl.textContent = estadoTxt;
+                if (btnConfirmar) {
+                    const hide = !!(item.yo_confirme_cierre || item.estado === 'trabajo_cerrado' || item.ambos_confirmaron_cierre);
+                    btnConfirmar.style.display = hide ? 'none' : '';
+                    btnConfirmar.disabled = hide;
+                }
+                panel.hidden = false;
+                panel.classList.add('show');
+            }
+
+            ocultarAcuerdoFlotante() {
+                const panel = document.getElementById('acuerdo-flotante');
+                if (panel) {
+                    panel.hidden = true;
+                    panel.classList.remove('show');
+                }
+                this.acuerdoFlotanteActual = null;
+            }
+
+            async dismissAcuerdoFlotante() {
+                const item = this.acuerdoFlotanteActual;
+                if (!item || !item.contacto_id) {
+                    this.ocultarAcuerdoFlotante();
+                    return;
+                }
+                try {
+                    await fetch(`/api/contactos/${item.contacto_id}/negociacion/dismiss-resumen`, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
+                        body: '{}',
+                    });
+                } catch (e) { /* ignore */ }
+                this.ocultarAcuerdoFlotante();
+            }
+
+            async confirmarAcuerdoDesdeFlotante() {
+                const item = this.acuerdoFlotanteActual;
+                if (!item || !item.contacto_id) return;
+                if (this.negociacionGuiada) {
+                    this.negociacionGuiada.contactoId = item.contacto_id;
+                    this.negociacionGuiada.data = Object.assign({}, this.negociacionGuiada.data || {}, {
+                        estado_contacto: item.estado || 'acuerdo_alcanzado',
+                        acuerdo_alcanzado: true,
+                        yo_confirme_cierre: !!item.yo_confirme_cierre,
+                    });
+                    await this.negociacionGuiada.confirmarCerrarNegociacion();
+                }
             }
 
             normalizarCatalogoServicios(catalogoRaw) {
@@ -4462,18 +4717,57 @@
             getScoreNotifVariants(isUp) {
                 if (isUp) {
                     return [
-                        '🎉 ¡Excelente! Tu Score RUANA aumentó {{delta}} por {{reason}}.',
-                        '🌟 ¡Buen trabajo! Has ganado {{delta}} gracias a {{reason}}.',
-                        '🚀 Vas subiendo: tu score mejoró {{delta}} por {{reason}}.',
-                        '👏 ¡Así se hace! Tu reputación creció {{delta}} por {{reason}}.'
+                        'Tu reputación creció gracias a {{reason}}.',
+                        'Buen trabajo: el cambio se debe a {{reason}}.',
+                        'Tu score mejoró por {{reason}}.',
+                        'Has ganado puntos por {{reason}}.'
                     ];
                 }
                 return [
-                    '😕 Tu Score RUANA disminuyó {{delta}} por {{reason}}.',
-                    '⚠️ Tu score bajó {{delta}} debido a {{reason}}.',
-                    '💡 Ajuste en tu reputación: {{delta}} por {{reason}}.',
-                    '🧭 Tu score cambió {{delta}} por {{reason}}. Puedes recuperarlo con próximos cierres.'
+                    'El ajuste se debe a {{reason}}.',
+                    'Tu score bajó por {{reason}}.',
+                    'Cambio registrado por {{reason}}.',
+                    'Puedes recuperarlo con próximos cierres: {{reason}}.'
                 ];
+            }
+
+            positionScoreCallout(callout) {
+                const anchor = document.getElementById('inicio-score-pill');
+                if (!callout || !anchor) return;
+                const rect = anchor.getBoundingClientRect();
+                const gap = 14;
+                const viewportPad = 12;
+                const prevVisibility = callout.style.visibility;
+                callout.style.visibility = 'hidden';
+                callout.classList.add('show');
+
+                const calloutW = callout.offsetWidth;
+                const calloutH = callout.offsetHeight;
+                let left = rect.left + (rect.width / 2) - (calloutW / 2);
+                left = Math.max(viewportPad, Math.min(left, window.innerWidth - calloutW - viewportPad));
+
+                let top = rect.top - calloutH - gap;
+                let isBelow = false;
+                if (top < viewportPad) {
+                    top = rect.bottom + gap;
+                    isBelow = true;
+                }
+                callout.classList.toggle('is-below', isBelow);
+                callout.style.top = `${Math.round(top)}px`;
+                callout.style.left = `${Math.round(left)}px`;
+                callout.style.setProperty('--score-callout-arrow-x', `${Math.round(rect.left + (rect.width / 2) - left)}px`);
+                callout.style.visibility = prevVisibility || '';
+            }
+
+            teardownScoreCallout(callout, anchor) {
+                if (this._scoreCalloutReposition) {
+                    window.removeEventListener('resize', this._scoreCalloutReposition);
+                    window.removeEventListener('scroll', this._scoreCalloutReposition, true);
+                    document.removeEventListener('aliado-module-change', this._scoreCalloutReposition);
+                    this._scoreCalloutReposition = null;
+                }
+                if (anchor) anchor.classList.remove('is-highlighted');
+                if (callout) callout.remove();
             }
 
             async markNotificationRead(notifId) {
@@ -4490,8 +4784,8 @@
 
             maybeShowScoreChangeNotification() {
                 if (this.scoreNotifActive) return;
-                const scoreCard = document.getElementById('metrica-card-score');
-                if (!scoreCard) return;
+                const scoreAnchor = document.getElementById('inicio-score-pill');
+                if (!scoreAnchor) return;
                 const notifs = Array.isArray(this.notificaciones) ? this.notificaciones : [];
                 const pendientes = notifs
                     .filter(n => n && n.tipo === 'score_change' && Number(n.leida) === 0)
@@ -4503,6 +4797,10 @@
                 });
                 if (!notif) return;
 
+                if (window.AliadoShell && typeof window.AliadoShell.show === 'function') {
+                    window.AliadoShell.show('inicio', { skipScroll: true, instant: true });
+                }
+
                 const deltaRaw = Number(notif.metadata && notif.metadata.delta);
                 const delta = Number.isFinite(deltaRaw) ? deltaRaw : 0;
                 if (!delta) return;
@@ -4511,19 +4809,41 @@
                 const reason = this.formatScoreMotivo(notif.metadata && notif.metadata.motivo);
                 const variants = this.getScoreNotifVariants(isUp);
                 const template = variants[Math.floor(Math.random() * variants.length)];
-                const message = template
-                    .replace('{{delta}}', `<span class="score-change-delta">${deltaText}</span>`)
-                    .replace('{{reason}}', reason);
+                const message = template.replace('{{reason}}', reason);
+                const iconSvg = isUp
+                    ? '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>'
+                    : '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>';
 
-                const toast = document.createElement('div');
-                toast.className = `score-change-toast ${isUp ? 'up' : 'down'}`;
-                toast.innerHTML = `
-                    <button type="button" class="score-change-close" aria-label="Cerrar notificación">×</button>
-                    <p class="score-change-title">Score RUANA actualizado</p>
-                    <p class="score-change-copy">${message}</p>
+                const callout = document.createElement('div');
+                callout.className = `ruana-score-callout ruana-score-callout--${isUp ? 'up' : 'down'}`;
+                callout.setAttribute('role', 'status');
+                callout.innerHTML = `
+                    <div class="ruana-score-callout__inner">
+                        <span class="ruana-score-callout__icon" aria-hidden="true">${iconSvg}</span>
+                        <div class="ruana-score-callout__body">
+                            <div class="ruana-score-callout__title">Score RUANA <span class="ruana-score-callout__delta">${deltaText}</span></div>
+                            <p class="ruana-score-callout__copy">${message}</p>
+                        </div>
+                        <button type="button" class="ruana-score-callout__close" aria-label="Cerrar notificación">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                    </div>
+                    <span class="ruana-score-callout__arrow" aria-hidden="true"></span>
                 `;
-                scoreCard.appendChild(toast);
-                requestAnimationFrame(() => toast.classList.add('show'));
+                document.body.appendChild(callout);
+                scoreAnchor.classList.add('is-highlighted');
+
+                const reposition = () => this.positionScoreCallout(callout);
+                this._scoreCalloutReposition = reposition;
+                window.addEventListener('resize', reposition);
+                window.addEventListener('scroll', reposition, true);
+                document.addEventListener('aliado-module-change', reposition);
+
+                this.positionScoreCallout(callout);
+                requestAnimationFrame(() => {
+                    this.positionScoreCallout(callout);
+                    callout.classList.add('show');
+                });
                 this.scoreNotifActive = true;
 
                 const moveId = notif.metadata && notif.metadata.movimiento_id ? String(notif.metadata.movimiento_id) : `notif-${notif.id}`;
@@ -4531,16 +4851,16 @@
                 notif.leida = 1;
                 this.markNotificationRead(notif.id);
 
-                const closeToast = () => {
-                    toast.classList.remove('show');
+                const closeCallout = () => {
+                    callout.classList.remove('show');
                     setTimeout(() => {
-                        toast.remove();
+                        this.teardownScoreCallout(callout, scoreAnchor);
                         this.scoreNotifActive = false;
                         this.maybeShowScoreChangeNotification();
-                    }, 220);
+                    }, 240);
                 };
-                toast.querySelector('.score-change-close').addEventListener('click', closeToast);
-                setTimeout(closeToast, 6200);
+                callout.querySelector('.ruana-score-callout__close').addEventListener('click', closeCallout);
+                setTimeout(closeCallout, 7000);
             }
 
             /**
@@ -4656,8 +4976,8 @@
                     alert('Sesión no válida');
                     return;
                 }
-                const btn = document.getElementById('btn-invitar-aliado');
-                if (btn) btn.disabled = true;
+                const inviteBtns = Array.from(document.querySelectorAll('[data-action="invitar-aliado"]'));
+                inviteBtns.forEach((btn) => { btn.disabled = true; });
                 const zona = (this.aliado && this.aliado.codigo_postal) || '';
                 const apiBase = getApiBase();
                 try {
@@ -4682,7 +5002,7 @@
                 } catch (e) {
                     alert('Error de conexión: ' + (e.message || e));
                 } finally {
-                    if (btn) btn.disabled = false;
+                    inviteBtns.forEach((btn) => { btn.disabled = false; });
                 }
             }
 
@@ -4863,9 +5183,33 @@
                     btnLogout.addEventListener('click', () => this.handleLogout());
                 }
 
-                const btnInvitarAliado = document.getElementById('btn-invitar-aliado');
-                if (btnInvitarAliado) {
-                    btnInvitarAliado.addEventListener('click', () => this.generarCodigoInvitacionPerfil());
+                document.querySelectorAll('[data-action="invitar-aliado"]').forEach((btn) => {
+                    btn.addEventListener('click', () => this.generarCodigoInvitacionPerfil());
+                });
+                const filtrosAcuerdos = document.getElementById('mis-acuerdos-filtros');
+                if (filtrosAcuerdos) {
+                    filtrosAcuerdos.addEventListener('click', (e) => {
+                        const btn = e.target.closest('.mis-acuerdos-filtro');
+                        if (!btn) return;
+                        this.misAcuerdosFiltro = btn.getAttribute('data-filtro') || 'todos';
+                        this.renderMisAcuerdos();
+                    });
+                }
+                const btnFlotanteDismiss = document.getElementById('acuerdo-flotante-dismiss');
+                if (btnFlotanteDismiss) {
+                    btnFlotanteDismiss.addEventListener('click', () => this.dismissAcuerdoFlotante());
+                }
+                const btnFlotanteAbrir = document.getElementById('acuerdo-flotante-abrir');
+                if (btnFlotanteAbrir) {
+                    btnFlotanteAbrir.addEventListener('click', () => {
+                        const item = this.acuerdoFlotanteActual;
+                        if (!item || !item.contacto_id || !this.negociacionGuiada) return;
+                        this.negociacionGuiada.abrir(item.contacto_id, item.servicio || 'Acuerdo alcanzado');
+                    });
+                }
+                const btnFlotanteConfirmar = document.getElementById('acuerdo-flotante-confirmar');
+                if (btnFlotanteConfirmar) {
+                    btnFlotanteConfirmar.addEventListener('click', () => this.confirmarAcuerdoDesdeFlotante());
                 }
                 const btnSoporteEnviar = document.getElementById('ruana-help-send-btn');
                 if (btnSoporteEnviar) btnSoporteEnviar.addEventListener('click', () => this.enviarNuevoMensajeSoporte());
@@ -5150,9 +5494,6 @@
                 if (btnCopiarInv) btnCopiarInv.addEventListener('click', () => this.copiarCodigoInvitacionOficio());
                 if (btnCerrarInv) btnCerrarInv.addEventListener('click', () => this.cerrarModalInvitacionOficio());
                 if (modalInv) modalInv.addEventListener('click', (e) => { if (e.target === modalInv) this.cerrarModalInvitacionOficio(); });
-
-                const btnMarcarNotifLeidas = document.getElementById('btn-marcar-notificaciones-leidas');
-                if (btnMarcarNotifLeidas) btnMarcarNotifLeidas.addEventListener('click', () => this.marcarTodasNotificacionesLeidas());
 
                 // Al volver a la pestaña: recargar datos de alertas y re-evaluar banners
                 document.addEventListener('visibilitychange', () => {
@@ -5446,20 +5787,156 @@
                 if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons(document.getElementById('profesionales-list'));
             }
 
-            /**
-             * Muestra u oculta los banners de alerta según el estado actual (solo datos en memoria).
-             * No hace fetch; se basa en this.notificaciones y this.contactosPagoPendiente.
-             */
-            renderAlertas() {
-                const notifs = Array.isArray(this.notificaciones) ? this.notificaciones : [];
-                const contactosPago = Array.isArray(this.contactosPagoPendiente) ? this.contactosPagoPendiente : [];
-                const hayNotifNoLeidas = notifs.some(n => n.leida === 0);
-                const hayPagosPendientes = contactosPago.length > 0;
+            formatApoyoRuana(raw) {
+                const apoyoNum = (raw != null && raw !== '' && !Number.isNaN(Number(raw))) ? Number(raw) : null;
+                if (apoyoNum != null && Number.isFinite(apoyoNum) && apoyoNum > 0) {
+                    return apoyoNum.toFixed(2) + ' €';
+                }
+                return 'Pendiente de cálculo';
+            }
 
-                const bannerMensaje = document.getElementById('banner-mensaje-nuevo-ruana');
-                const bannerPagos = document.getElementById('aviso-pagos-pendientes-banner');
-                if (bannerMensaje) bannerMensaje.style.display = hayNotifNoLeidas ? 'block' : 'none';
-                if (bannerPagos) bannerPagos.style.display = hayPagosPendientes ? 'block' : 'none';
+            buildAlertItems() {
+                const items = [];
+                const contactos = Array.isArray(this.contactosPagoPendiente) ? this.contactosPagoPendiente : [];
+                const notifs = (Array.isArray(this.notificaciones) ? this.notificaciones : []).filter(n => n && n.leida === 0);
+                const hub = typeof RuanaAlertHub !== 'undefined' ? RuanaAlertHub : null;
+                const trunc = hub ? hub.truncate.bind(hub) : (s, n) => String(s || '').slice(0, n);
+
+                if (contactos.length > 0) {
+                    const first = contactos[0];
+                    const apoyo = this.formatApoyoRuana(first.apoyo_ruana);
+                    items.push({
+                        id: 'apoyo-pago',
+                        type: 'payment',
+                        priority: 100,
+                        title: contactos.length === 1 ? 'Apoyo RUANA (12%) pendiente' : contactos.length + ' apoyos RUANA pendientes',
+                        description: contactos.length === 1
+                            ? trunc((first.servicio || 'Contacto') + ' · ' + apoyo, 52)
+                            : 'Regulariza el 12% de ' + contactos.length + ' encargos cerrados',
+                        actionLabel: 'Gestionar',
+                        hasDetail: true
+                    });
+                    items.push({
+                        id: 'pagos-restriccion',
+                        type: 'info',
+                        priority: 70,
+                        title: 'Nuevos trabajos limitados',
+                        description: 'Regulariza tus pagos para aceptar encargos',
+                        actionLabel: null,
+                        hasDetail: false
+                    });
+                }
+
+                if (notifs.length > 0) {
+                    const firstN = notifs[0];
+                    items.push({
+                        id: 'mensajes-ruana',
+                        type: 'message',
+                        priority: 90,
+                        title: notifs.length === 1 ? (firstN.titulo || 'Mensaje de RUANA') : notifs.length + ' mensajes de RUANA',
+                        description: notifs.length === 1
+                            ? trunc(firstN.mensaje || '', 56)
+                            : 'Comunicaciones sin leer del equipo RUANA',
+                        actionLabel: 'Ver',
+                        hasDetail: true
+                    });
+                }
+
+                return items.sort((a, b) => b.priority - a.priority);
+            }
+
+            renderAlertDetailPanel(detailEl, detailId) {
+                const hub = typeof RuanaAlertHub !== 'undefined' ? RuanaAlertHub : null;
+                if (!hub) return;
+                const self = this;
+                const titles = {
+                    'apoyo-pago': 'Apoyo RUANA pendiente',
+                    'mensajes-ruana': 'Mensajes de RUANA'
+                };
+                const body = hub.renderDetailHeader(detailEl, titles[detailId] || 'Detalle', function () {
+                    self._alertHubState.expandedDetailId = null;
+                    self.renderAlertHub();
+                });
+
+                if (detailId === 'apoyo-pago') {
+                    const contactos = Array.isArray(this.contactosPagoPendiente) ? this.contactosPagoPendiente : [];
+                    contactos.forEach(c => {
+                        const apoyo = this.formatApoyoRuana(c.apoyo_ruana);
+                        const servicio = this.escapeHtml(c.servicio || 'Contacto');
+                        const apoyoNum = (c.apoyo_ruana != null && c.apoyo_ruana !== '' && !Number.isNaN(Number(c.apoyo_ruana))) ? Number(c.apoyo_ruana) : 0;
+                        const div = document.createElement('div');
+                        div.className = 'ruana-alert-detail-item';
+                        div.innerHTML =
+                            '<div class="ruana-alert-detail-item__text">' +
+                                'Contacto <strong>#' + c.id + '</strong> · ' + servicio +
+                                ' · Apoyo: <strong>' + apoyo + '</strong>' +
+                            '</div>' +
+                            '<div class="ruana-alert-detail-item__actions">' +
+                                '<button type="button" class="ruana-alert-detail-btn ruana-alert-detail-btn--primary btn-aceptar-pagar">Aceptar y pagar</button>' +
+                                '<button type="button" class="ruana-alert-detail-btn btn-impugnar-apoyo">Reclamar</button>' +
+                                '<button type="button" class="ruana-alert-detail-btn btn-enviar-comprobante">Comprobante</button>' +
+                            '</div>';
+                        div.querySelector('.btn-enviar-comprobante')?.addEventListener('click', () => this.abrirModalComprobanteApoyo(c.id));
+                        div.querySelector('.btn-aceptar-pagar')?.addEventListener('click', () => this.abrirModalPagoApoyo(c.id, apoyoNum, c.servicio || 'Contacto'));
+                        div.querySelector('.btn-impugnar-apoyo')?.addEventListener('click', () => this.abrirModalImpugnarApoyo(c.id));
+                        body.appendChild(div);
+                    });
+                } else if (detailId === 'mensajes-ruana') {
+                    const notifs = (Array.isArray(this.notificaciones) ? this.notificaciones : []).filter(n => n && n.leida === 0);
+                    notifs.forEach(n => {
+                        const fecha = (n.creado_en ? new Date(n.creado_en).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '');
+                        const div = document.createElement('div');
+                        div.className = 'ruana-alert-notif is-unread';
+                        div.innerHTML =
+                            '<div class="ruana-alert-notif__head">' +
+                                '<span class="ruana-alert-notif__title">' + this.escapeHtml(n.titulo || 'Mensaje de RUANA') + '</span>' +
+                                (fecha ? '<span class="ruana-alert-notif__date">' + fecha + '</span>' : '') +
+                            '</div>' +
+                            '<div class="ruana-alert-notif__body">' + this.escapeHtml(n.mensaje || '') + '</div>';
+                        body.appendChild(div);
+                    });
+                    const footer = document.createElement('div');
+                    footer.className = 'ruana-alert-hub__detail-footer';
+                    footer.innerHTML = '<button type="button" class="ruana-alert-detail-btn" id="btn-marcar-notificaciones-leidas">Marcar como leídos</button>';
+                    body.appendChild(footer);
+                    footer.querySelector('#btn-marcar-notificaciones-leidas')?.addEventListener('click', () => this.marcarTodasNotificacionesLeidas());
+                }
+            }
+
+            renderAlertHub() {
+                const hubEl = document.getElementById('ruana-alert-hub');
+                if (!hubEl || typeof RuanaAlertHub === 'undefined') return;
+                const items = this.buildAlertItems();
+                const self = this;
+
+                if (items.length === 0) {
+                    this._alertHubState = { showAll: false, expandedDetailId: null };
+                } else if (this._alertHubState.expandedDetailId &&
+                    !items.some(i => i.id === this._alertHubState.expandedDetailId)) {
+                    this._alertHubState.expandedDetailId = null;
+                }
+
+                RuanaAlertHub.render(hubEl, items, this._alertHubState, {
+                    onAction: function (item) {
+                        if (item.hasDetail) {
+                            self._alertHubState.expandedDetailId =
+                                self._alertHubState.expandedDetailId === item.id ? null : item.id;
+                            self._alertHubState.showAll = true;
+                        }
+                        self.renderAlertHub();
+                    },
+                    onShowAll: function () {
+                        self._alertHubState.showAll = true;
+                        self.renderAlertHub();
+                    },
+                    renderDetail: function (detailEl, detailId) {
+                        self.renderAlertDetailPanel(detailEl, detailId);
+                    }
+                });
+            }
+
+            renderAlertas() {
+                this.renderAlertHub();
             }
 
             async cargarMetodosPagoRuana() {
@@ -5513,87 +5990,16 @@
                 }
             }
 
-            /**
-             * Rellena el bloque de "Apoyo RUANA pendiente de pago" desde this.contactosPagoPendiente.
-             * No hace fetch; solo actualiza el DOM. Llamar después de actualizar this.contactosPagoPendiente.
-             */
             renderListaPagosPendientes() {
-                const wrap = document.getElementById('pagos-apoyo-ruana-wrap');
-                const listaEl = document.getElementById('pagos-apoyo-ruana-lista');
-                if (!wrap || !listaEl) return;
-                const contactos = Array.isArray(this.contactosPagoPendiente) ? this.contactosPagoPendiente : [];
-                if (contactos.length === 0) {
-                    wrap.style.display = 'none';
-                    return;
-                }
-                wrap.style.display = 'block';
-                listaEl.innerHTML = '';
-                contactos.forEach(c => {
-                    const raw = c.apoyo_ruana;
-                    const apoyoNum = (raw != null && raw !== '' && !Number.isNaN(Number(raw))) ? Number(raw) : null;
-                    const apoyo = (apoyoNum != null && Number.isFinite(apoyoNum) && apoyoNum > 0)
-                        ? apoyoNum.toFixed(2) + ' €'
-                        : 'Pendiente de cálculo';
-                    const servicio = this.escapeHtml(c.servicio || 'Contacto');
-                    const div = document.createElement('div');
-                    div.className = 'pago-apoyo-item';
-                    div.style.cssText = 'margin-bottom:12px; padding:12px; background: rgba(0,0,0,0.2); border-radius:8px; display:flex; flex-wrap:wrap; align-items:center; gap:12px;';
-                    div.innerHTML = `
-                        <span style="flex:1; min-width:200px;">Contacto #${c.id} · ${servicio} · Apoyo RUANA: <strong>${apoyo}</strong></span>
-                        <div class="pago-apoyo-botones" style="display:flex; flex-wrap:wrap; gap:8px;">
-                            <button type="button" class="contacto-aviso-btn btn-aceptar-pagar">Aceptar y pagar</button>
-                            <button type="button" class="contacto-aviso-btn btn-impugnar-apoyo">Impugnar o reclamar</button>
-                            <button type="button" class="contacto-aviso-btn btn-enviar-comprobante" data-contacto-id="${c.id}">Enviar comprobante de pago a RUANA</button>
-                        </div>
-                    `;
-                    const btnComprobante = div.querySelector('.btn-enviar-comprobante');
-                    const btnAceptarPagar = div.querySelector('.btn-aceptar-pagar');
-                    const btnImpugnar = div.querySelector('.btn-impugnar-apoyo');
-                    if (btnComprobante) btnComprobante.addEventListener('click', () => this.abrirModalComprobanteApoyo(c.id));
-                    const importeParaModal = (apoyoNum != null && Number.isFinite(apoyoNum)) ? apoyoNum : 0;
-                    if (btnAceptarPagar) btnAceptarPagar.addEventListener('click', () => this.abrirModalPagoApoyo(c.id, importeParaModal, c.servicio || 'Contacto'));
-                    if (btnImpugnar) btnImpugnar.addEventListener('click', () => this.abrirModalImpugnarApoyo(c.id));
-                    listaEl.appendChild(div);
-                });
+                this.renderAlertHub();
             }
 
-            /**
-             * Renderizar mensajes de RUANA (notificaciones: comprobante rechazado, pago aceptado, etc.)
-             * No modifica banners; usar renderAlertas() para eso.
-             */
             renderNotificaciones() {
-                const wrap = document.getElementById('notificaciones-ruana-wrap');
-                const list = document.getElementById('notificaciones-ruana-lista');
-                if (!wrap || !list) return;
-                const notifs = Array.isArray(this.notificaciones) ? this.notificaciones : [];
-                // Mostrar solo no leídas (si no hay no leídas, se considera "cerrado")
-                const visibles = notifs.filter(n => n && n.leida === 0);
-                if (visibles.length === 0) {
-                    wrap.style.display = 'none';
-                    return;
-                }
-                wrap.style.display = 'flex';
-                const hayNoLeidas = true;
-                const btnMarcarLeidas = document.getElementById('btn-marcar-notificaciones-leidas');
-                if (btnMarcarLeidas) btnMarcarLeidas.style.display = hayNoLeidas ? 'inline-block' : 'none';
-                list.innerHTML = visibles.map(n => {
-                    const fecha = (n.creado_en ? new Date(n.creado_en).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '');
-                    const titulo = this.escapeHtml(n.titulo || 'Mensaje de RUANA');
-                    const mensaje = this.escapeHtml(n.mensaje || '');
-                    const noLeida = n.leida === 0 ? ' notif-no-leida' : '';
-                    return `<div class="contacto-aviso-texto notificacion-item${noLeida}" data-notif-id="${n.id || ''}">
-                        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:6px;">
-                            <strong style="font-size:0.95rem;">${titulo}</strong>
-                            ${fecha ? `<span class="notif-fecha" style="color:var(--ruana-text-subtle); font-size:0.78rem; white-space:nowrap;">${fecha}</span>` : ''}
-                        </div>
-                        <span style="white-space:pre-wrap; color:var(--ruana-text-muted); font-size:0.88rem; line-height:1.5;">${mensaje}</span>
-                    </div>`;
-                }).join('');
-                if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons(document.getElementById('notificaciones-ruana-lista'));
+                this.renderAlertHub();
             }
 
             /**
-             * Marcar todas las notificaciones del aliado como leídas (cierra alerta "Tienes un mensaje nuevo").
+             * Marcar todas las notificaciones del aliado como leídas.
              */
             async marcarTodasNotificacionesLeidas() {
                 const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
@@ -6059,7 +6465,7 @@
                         estadoLabel = 'Acuerdo alcanzado';
                         contexto = 'Todos los puntos del encargo están confirmados.';
                         pasoTxt = '';
-                        accionTxt = 'Cuando se realice el servicio, indica si hubo trabajo.';
+                        accionTxt = 'El precio aceptado es el importe oficial del encargo. Se genera el Apoyo RUANA.';
                         btnPrincipal = 'Ver acuerdo';
                         progresoConf = progresoTotal;
                     } else if (requiereRespuesta) {
@@ -6104,7 +6510,12 @@
                     avisoEl.classList.toggle('encargo-requiere-respuesta', requiereRespuesta);
                     // Ocultar "Sigue en conversación" tras acuerdo alcanzado
                     const btnSigue = document.getElementById('btn-contacto-sigue');
-                    if (btnSigue) btnSigue.style.display = (estado === 'acuerdo_alcanzado') ? 'none' : '';
+                    if (btnSigue) btnSigue.style.display = (estado === 'acuerdo_alcanzado' || estado === 'trabajo_cerrado') ? 'none' : '';
+                    const btnSiTrabajo = document.getElementById('btn-contacto-si-trabajo');
+                    const btnNoConcreto = document.getElementById('btn-contacto-no-concreto');
+                    const ocultarCierreManual = estado === 'trabajo_cerrado';
+                    if (btnSiTrabajo) btnSiTrabajo.style.display = ocultarCierreManual ? 'none' : '';
+                    if (btnNoConcreto) btnNoConcreto.style.display = ocultarCierreManual ? 'none' : '';
 
                     const subirPruebaEl = document.getElementById('contacto-aviso-subir-prueba');
                     const codigoAliado = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
@@ -6603,7 +7014,7 @@
             }
 
             /**
-             * Botón "Sí, hubo trabajo" → abre modal elegante (Confirmación de trabajo realizado)
+             * Botón "Sí, hubo trabajo" → confirma el importe ya acordado en la negociación.
              */
             handleAvisoSiHuboTrabajo() {
                 if (!this.contactoActual) return;
@@ -6623,46 +7034,77 @@
                 }
                 const modal = document.getElementById('modal-contacto-importe');
                 const resumenEl = document.getElementById('modal-importe-resumen');
+                const acordadoWrap = document.getElementById('modal-importe-acordado-wrap');
+                const acordadoValor = document.getElementById('modal-importe-acordado-valor');
+                const inputWrap = document.getElementById('modal-importe-input-wrap');
+                const input = document.getElementById('contacto-importe-input');
+                const texto = document.getElementById('modal-contacto-importe-text');
+                const btnConfirm = document.getElementById('btn-contacto-importe-confirm');
                 if (resumenEl) {
                     resumenEl.style.display = 'none';
                     resumenEl.textContent = '';
                 }
-                const input = document.getElementById('contacto-importe-input');
-                if (input) { input.value = ''; input.required = true; }
+                const oficial = this.contactoActual.importe_acordado != null
+                    ? Number(this.contactoActual.importe_acordado)
+                    : (this.contactoActual.precio_acordado != null ? Number(this.contactoActual.precio_acordado) : NaN);
+                const tieneOficial = !isNaN(oficial) && oficial > 0;
+                if (tieneOficial) {
+                    if (texto) {
+                        texto.textContent = 'El precio quedó fijado en la negociación. Confirma ese valor oficial del encargo.';
+                    }
+                    if (acordadoWrap) acordadoWrap.style.display = 'block';
+                    if (acordadoValor) acordadoValor.textContent = `${oficial.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} €`;
+                    if (inputWrap) inputWrap.style.display = 'none';
+                    if (input) { input.value = String(oficial); input.required = false; }
+                    if (btnConfirm) btnConfirm.textContent = 'Confirmar valor acordado';
+                } else {
+                    if (texto) {
+                        texto.textContent = 'No hay un precio numérico en el acuerdo. Introduce el importe para cerrar el encargo.';
+                    }
+                    if (acordadoWrap) acordadoWrap.style.display = 'none';
+                    if (inputWrap) inputWrap.style.display = 'block';
+                    if (input) { input.value = ''; input.required = true; }
+                    if (btnConfirm) btnConfirm.textContent = 'Confirmar importe';
+                }
                 if (modal) modal.classList.add('show');
             }
 
             /**
-             * Confirmar importe: determina parte (solicitante/profesional) según código del aliado actual
+             * Confirmar importe oficial (precio negociado). No reingresa un valor distinto.
              */
             async confirmarImporteContacto() {
                 if (!this.contactoActual) return;
                 const input = document.getElementById('contacto-importe-input');
                 const btnConfirm = document.getElementById('btn-contacto-importe-confirm');
-                if (!input) return;
-
-                const raw = String(input.value || '').trim().replace(',', '.');
-                const valor = parseFloat(raw);
-                if (raw === '' || isNaN(valor) || valor <= 0) {
-                    alert('Introduce un importe válido mayor que cero.');
-                    return;
-                }
-
                 const codigo = String(this.codigoAliado || (this.aliado && this.aliado.codigo) || '').trim();
                 const solCodigo = String(this.contactoActual.solicitante_codigo || '').trim();
                 const parte = (solCodigo === codigo) ? 'solicitante' : 'profesional';
 
+                const oficial = this.contactoActual.importe_acordado != null
+                    ? Number(this.contactoActual.importe_acordado)
+                    : (this.contactoActual.precio_acordado != null ? Number(this.contactoActual.precio_acordado) : NaN);
+                const tieneOficial = !isNaN(oficial) && oficial > 0;
+
+                if (!tieneOficial) {
+                    if (!input) return;
+                    const raw = String(input.value || '').trim().replace(',', '.');
+                    const valor = parseFloat(raw);
+                    if (raw === '' || isNaN(valor) || valor <= 0) {
+                        alert('Introduce un importe válido mayor que cero.');
+                        return;
+                    }
+                }
+
                 if (btnConfirm) { btnConfirm.disabled = true; }
                 try {
+                    const body = tieneOficial
+                        ? { parte, confirmar_acordado: true, usar_precio_acordado: true, moneda: 'EUR' }
+                        : { parte, importe: parseFloat(String(input.value || '').trim().replace(',', '.')), moneda: 'EUR' };
                     const resp = await fetch(`/api/contactos/${this.contactoActual.id}/declarar-importe`, {
                         method: 'POST',
                         headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
                         credentials: 'same-origin',
-                        body: JSON.stringify({
-                            parte: parte,
-                            importe: valor,
-                            moneda: 'EUR'
-                        })
+                        body: JSON.stringify(body)
                     });
                     const data = await resp.json();
                     if (data.status !== 'success') {
@@ -6679,7 +7121,7 @@
                             const modal = document.getElementById('modal-contacto-importe');
                             if (modal) modal.classList.remove('show');
                         } else if (msg.indexOf('Ya has declarado') !== -1) {
-                            alert('Solo puedes declarar el importe una vez por contacto. La otra parte debe entrar en su panel e indicar el importe con su cuenta. Si ya declaraste, espera a que la otra parte declare el suyo.');
+                            alert('Solo puedes confirmar el importe una vez por contacto.');
                         } else {
                             alert(msg);
                         }
@@ -6690,11 +7132,9 @@
                     const resumenEl = document.getElementById('modal-importe-resumen');
                     if (data.estado === 'trabajo_cerrado') {
                         await this.mostrarResumenCierre(this.contactoActual.id);
-                        // Ocultar la alerta de contacto de inmediato (contacto cerrado)
                         const avisoEl = document.getElementById('contacto-aviso-persistente');
                         if (avisoEl) avisoEl.style.display = 'none';
                         this.contactoActual = null;
-                        // Actualizar lista de Apoyo RUANA pendiente de pago (lógica de cobro: profesional ve el importe a abonar)
                         await this.cargarPagosApoyoPendientes();
                     } else if (data.estado === 'importe_en_disputa') {
                         const ctx = document.getElementById('contacto-aviso-contexto');
@@ -6702,7 +7142,6 @@
                         if (ctx) ctx.textContent = 'Los importes declarados no coinciden.';
                         if (acc) acc.textContent = 'Adjunta un comprobante de pago para continuar.';
                     }
-                    // Cerrar la ventana del modal
                     if (modal) modal.classList.remove('show');
                     if (input) input.value = '';
                     if (resumenEl) { resumenEl.style.display = 'none'; resumenEl.innerHTML = ''; }
@@ -6711,7 +7150,7 @@
                     await this.refreshAfterAction(['metricas', 'solicitudes', 'directorio', 'alertas', 'contactos']);
                 } catch (e) {
                     console.error('Error declarando importe:', e);
-                    alert('Error de conexión al declarar el importe.');
+                    alert('Error de conexión al confirmar el importe.');
                 } finally {
                     if (btnConfirm) btnConfirm.disabled = false;
                 }
@@ -6895,8 +7334,10 @@
                 const loadingEl = document.getElementById('panel-loading');
                 if (loadingEl) loadingEl.style.display = 'none';
                 if (errorContainer) {
-                    errorContainer.textContent = 'No se pudieron cargar tus datos. Intenta de nuevo desde el inicio.';
-                    errorContainer.style.display = 'block';
+                    const textEl = document.getElementById('error-bootstrap-text');
+                    const msg = 'No se pudieron cargar tus datos. Intenta de nuevo desde el inicio.';
+                    if (textEl) textEl.textContent = msg;
+                    errorContainer.style.display = 'flex';
                 }
                 return;
             }

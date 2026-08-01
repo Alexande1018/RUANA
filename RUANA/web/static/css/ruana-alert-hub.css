@@ -1,0 +1,405 @@
+/* ================================================
+   RUANA — Hub de alertas compactas (Apoyo, pagos, mensajes)
+   ================================================ */
+
+.ruana-alert-hub {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.ruana-alert-hub[hidden] {
+    display: none !important;
+}
+
+.ruana-alert-hub__cards {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* ——— Tarjeta compacta ——— */
+.ruana-alert-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    border: 1px solid var(--ruana-border-glass);
+    background: linear-gradient(165deg, rgba(255, 255, 255, 0.06) 0%, rgba(10, 12, 20, 0.78) 100%);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    transition: border-color 200ms ease, transform 200ms ease, box-shadow 200ms ease;
+    animation: ruana-alert-enter 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ruana-alert-card:hover {
+    border-color: rgba(255, 255, 255, 0.14);
+}
+
+.ruana-alert-card.is-expanded {
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+
+@keyframes ruana-alert-enter {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Icono tipo */
+.ruana-alert-card__icon {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+    display: grid;
+    place-items: center;
+}
+
+.ruana-alert-card__icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.ruana-alert-card__body {
+    flex: 1;
+    min-width: 0;
+}
+
+.ruana-alert-card__title {
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--ruana-text);
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ruana-alert-card__desc {
+    font-size: 0.78rem;
+    color: var(--ruana-text-muted);
+    line-height: 1.35;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ruana-alert-card__action {
+    flex-shrink: 0;
+    min-height: 36px;
+    padding: 7px 14px;
+    border-radius: 11px;
+    border: 1px solid transparent;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 180ms ease, border-color 180ms ease;
+    white-space: nowrap;
+}
+
+/* Variantes por tipo */
+.ruana-alert-card--payment {
+    border-left: 3px solid rgba(212, 168, 106, 0.65);
+}
+
+.ruana-alert-card--payment .ruana-alert-card__icon {
+    background: rgba(212, 168, 106, 0.14);
+    color: #e8c89a;
+}
+
+.ruana-alert-card--payment .ruana-alert-card__action {
+    background: rgba(212, 168, 106, 0.16);
+    border-color: rgba(212, 168, 106, 0.28);
+    color: #e8c89a;
+}
+
+.ruana-alert-card--payment .ruana-alert-card__action:hover {
+    background: rgba(212, 168, 106, 0.26);
+}
+
+.ruana-alert-card--message {
+    border-left: 3px solid rgba(86, 168, 212, 0.6);
+}
+
+.ruana-alert-card--message .ruana-alert-card__icon {
+    background: rgba(86, 168, 212, 0.14);
+    color: #9ccde8;
+}
+
+.ruana-alert-card--message .ruana-alert-card__action {
+    background: rgba(86, 168, 212, 0.14);
+    border-color: rgba(86, 168, 212, 0.28);
+    color: #9ccde8;
+}
+
+.ruana-alert-card--message .ruana-alert-card__action:hover {
+    background: rgba(86, 168, 212, 0.24);
+}
+
+.ruana-alert-card--action {
+    border-left: 3px solid rgba(184, 146, 212, 0.55);
+}
+
+.ruana-alert-card--action .ruana-alert-card__icon {
+    background: rgba(184, 146, 212, 0.14);
+    color: #d4b8e8;
+}
+
+.ruana-alert-card--action .ruana-alert-card__action {
+    background: rgba(184, 146, 212, 0.14);
+    border-color: rgba(184, 146, 212, 0.28);
+    color: #d4b8e8;
+}
+
+.ruana-alert-card--action .ruana-alert-card__action:hover {
+    background: rgba(184, 146, 212, 0.24);
+}
+
+.ruana-alert-card--info {
+    border-left: 3px solid rgba(148, 163, 184, 0.45);
+}
+
+.ruana-alert-card--info .ruana-alert-card__icon {
+    background: rgba(148, 163, 184, 0.12);
+    color: #b0bcc8;
+}
+
+.ruana-alert-card--info .ruana-alert-card__action {
+    background: rgba(148, 163, 184, 0.1);
+    border-color: rgba(148, 163, 184, 0.22);
+    color: #b0bcc8;
+}
+
+/* Botón agrupar / ver más */
+.ruana-alert-hub__more {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    min-height: 36px;
+    padding: 8px 14px;
+    border-radius: 12px;
+    border: 1px dashed rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--ruana-text-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+
+.ruana-alert-hub__more:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: var(--ruana-text-soft);
+}
+
+.ruana-alert-hub__more-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+/* Panel de detalle expandible */
+.ruana-alert-hub__detail {
+    padding: 12px 14px 14px;
+    border-radius: 0 0 16px 16px;
+    border: 1px solid var(--ruana-border-glass);
+    border-top: none;
+    background: rgba(8, 10, 18, 0.72);
+    backdrop-filter: blur(16px);
+    animation: ruana-alert-enter 200ms ease;
+}
+
+.ruana-alert-hub__detail[hidden] {
+    display: none !important;
+}
+
+.ruana-alert-hub__detail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.ruana-alert-hub__detail-title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--ruana-text-soft);
+}
+
+.ruana-alert-hub__detail-close {
+    min-height: 32px;
+    padding: 4px 10px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--ruana-text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.ruana-alert-hub__detail-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--ruana-text);
+}
+
+/* Items dentro del detalle */
+.ruana-alert-detail-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    border-radius: 12px;
+    border: 1px solid var(--ruana-border);
+    background: rgba(14, 16, 32, 0.5);
+}
+
+.ruana-alert-detail-item:last-child {
+    margin-bottom: 0;
+}
+
+.ruana-alert-detail-item__text {
+    flex: 1;
+    min-width: 160px;
+    font-size: 0.8rem;
+    color: var(--ruana-text-soft);
+    line-height: 1.4;
+}
+
+.ruana-alert-detail-item__text strong {
+    color: var(--ruana-text);
+    font-weight: 600;
+}
+
+.ruana-alert-detail-item__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ruana-alert-detail-btn {
+    min-height: 34px;
+    padding: 6px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--ruana-border-strong);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--ruana-text-soft);
+    font-size: 0.76rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 180ms ease;
+}
+
+.ruana-alert-detail-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.ruana-alert-detail-btn--primary {
+    background: rgba(63, 159, 110, 0.16);
+    border-color: rgba(94, 207, 154, 0.3);
+    color: #8fd4b4;
+}
+
+.ruana-alert-detail-btn--primary:hover {
+    background: rgba(63, 159, 110, 0.26);
+}
+
+/* Notificación en detalle */
+.ruana-alert-notif {
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    border-radius: 12px;
+    border: 1px solid var(--ruana-border);
+    background: rgba(14, 16, 32, 0.45);
+}
+
+.ruana-alert-notif:last-child {
+    margin-bottom: 0;
+}
+
+.ruana-alert-notif.is-unread {
+    border-left: 3px solid rgba(86, 168, 212, 0.55);
+    background: rgba(86, 168, 212, 0.06);
+}
+
+.ruana-alert-notif__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 4px;
+}
+
+.ruana-alert-notif__title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--ruana-text);
+}
+
+.ruana-alert-notif__date {
+    font-size: 0.72rem;
+    color: var(--ruana-text-subtle);
+    white-space: nowrap;
+}
+
+.ruana-alert-notif__body {
+    font-size: 0.78rem;
+    color: var(--ruana-text-muted);
+    line-height: 1.45;
+    white-space: pre-wrap;
+}
+
+.ruana-alert-hub__detail-footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--ruana-border);
+}
+
+@media (max-width: 640px) {
+    .ruana-alert-card {
+        flex-wrap: wrap;
+        padding: 11px 12px;
+    }
+
+    .ruana-alert-card__action {
+        width: 100%;
+        margin-left: 48px;
+    }
+
+    .ruana-alert-detail-item__actions {
+        width: 100%;
+    }
+
+    .ruana-alert-detail-btn {
+        flex: 1;
+        text-align: center;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ruana-alert-card,
+    .ruana-alert-hub__detail {
+        animation: none;
+    }
+}

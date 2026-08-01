@@ -5,9 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RUANA - Registro de Aliado</title>
     <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/ruana-feedback.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/auth-premium.css">
+    <link rel="stylesheet" href="/static/css/ruana-identity.css">
+    <script src="/static/js/ruana-atmosphere.js" defer></script>
     <script src="/static/js/ruana-ui.js" defer></script>
     <style>
         /* Botón de volver atrás */
@@ -487,7 +491,6 @@
             }
         }
     </style>
-    <link rel="stylesheet" href="/static/css/auth-premium.css">
 </head>
 <body>
     <a href="/" class="btn-back">← Atrás</a>
@@ -879,6 +882,11 @@
                         const aliadosRegistrados = JSON.parse(localStorage.getItem('ruana_aliados') || '{}');
                         aliadosRegistrados[codigoAliado] = aliadoPayload;
                         localStorage.setItem('ruana_aliados', JSON.stringify(aliadosRegistrados));
+
+                        // Tour: solo la primera entrada al panel tras registrarse
+                        try {
+                            localStorage.setItem('ruana_pending_onboarding_' + codigoAliado, '1');
+                        } catch (_) {}
                         
                         // Guardar en sessionStorage solo si está activo (no pendiente, no en_espera)
                         if (estadoBackend !== 'pendiente_validacion' && estadoBackend !== 'en_espera') {

@@ -1,14 +1,27 @@
-# Informes descargables — Auditoría forense RUANA
+# Informes descargables RUANA
 
-Documentos generados a partir de `docs/AUDITORIA_FORENSE_RUANA.md`.
+## Manual Maestro (fuente de verdad)
 
 | Archivo | Formato | Descripción |
 |---|---|---|
-| [AUDITORIA_FORENSE_RUANA.pdf](./AUDITORIA_FORENSE_RUANA.pdf) | PDF | Informe completo para lectura e impresión |
-| [AUDITORIA_FORENSE_RUANA.docx](./AUDITORIA_FORENSE_RUANA.docx) | Microsoft Word | Editable en Word, LibreOffice o Google Docs |
+| [README_RUANA_COMPLETO.docx](./README_RUANA_COMPLETO.docx) | Microsoft Word | Manual Maestro editable |
+| [README_RUANA_COMPLETO.pdf](./README_RUANA_COMPLETO.pdf) | PDF | Manual Maestro para lectura/impresión |
+| [`../../README_RUANA_COMPLETO.md`](../../README_RUANA_COMPLETO.md) | Markdown | Misma fuente (idéntica a `README.md`) |
 
-## Regenerar documentos
+Regenerar:
 
 ```bash
-python3 scripts/generate_auditoria_documents.py
+pip install python-docx fpdf2
+python scripts/generate_manual_maestro_documents.py
 ```
+
+## Auditoría forense (foto congelada — 26 jul 2026)
+
+| Archivo | Formato | Descripción |
+|---|---|---|
+| [AUDITORIA_FORENSE_RUANA.pdf](./AUDITORIA_FORENSE_RUANA.pdf) | PDF | Informe completo |
+| [AUDITORIA_FORENSE_RUANA.docx](./AUDITORIA_FORENSE_RUANA.docx) | Microsoft Word | Editable |
+
+Fuente Markdown archivada: [`docs/archive/AUDITORIA_FORENSE_RUANA.md`](../archive/AUDITORIA_FORENSE_RUANA.md).
+
+> La verdad actual del producto está en el [Manual Maestro](../../README.md).

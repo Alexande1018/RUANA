@@ -66,6 +66,7 @@
         { id: 'chats', label: 'Negociaciones guiadas', group: 'Operaciones', module: 'operaciones', target: '#conversaciones-ruana-wrap', icon: 'message' },
         { id: 'centro-comunicacion', label: 'Centro de comunicación', group: 'Operaciones', module: 'operaciones', target: '#centro-comunicacion-admin-wrap', icon: 'message' },
         { id: 'aliados', label: 'Control de aliados', group: 'Red', module: 'red', target: '#control-aliados-wrap', icon: 'network' },
+        { id: 'aliados-eliminados', label: 'Aliados eliminados', group: 'Red', module: 'red', target: '#aliados-eliminados-wrap', icon: 'trash' },
         { id: 'trazabilidad', label: 'Trazabilidad', group: 'Sistema', module: 'sistema', target: '.eventos-trazabilidad', icon: 'list' },
         { id: 'metodos-pago', label: 'Métodos de pago', group: 'Sistema', module: 'sistema', target: '#metodos-pago-admin-wrap', icon: 'wallet' },
         { id: 'acciones', label: 'Acciones admin', group: 'Sistema', module: 'sistema', target: '#acciones-admin-wrap', icon: 'settings' }

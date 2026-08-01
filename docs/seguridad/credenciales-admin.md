@@ -1,7 +1,8 @@
 # Credenciales admin en producción (puente temporal)
 
+> **Autoridad:** [Manual Maestro §11–12](../../README.md#11-seguridad).  
 > **Estado:** solución puente hasta migrar el panel admin a Firebase Authentication.  
-> **Plan destino:** [Migración admin → Firebase Auth](./superpowers/plans/2026-07-27-admin-firebase-auth-migration.md)
+> **Plan destino:** [Migración admin → Firebase Auth](../archive/superpowers/plans/2026-07-27-admin-firebase-auth-migration.md)
 
 ## Cómo funciona (sin gcloud manual)
 

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RUANA - Panel de Administrador</title>
     <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/ruana-feedback.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -533,6 +534,7 @@
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 12px;
             transition: all 0.3s ease;
+            overflow: hidden;
             display: flex;
             flex-direction: column;
             min-width: 0;
@@ -542,6 +544,24 @@
         .aliado-admin-card:hover {
             background: rgba(255, 255, 255, 0.08);
             border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .aliado-codigo-destacado {
+            margin: 12px 0 8px;
+            padding: 10px 14px;
+            background: rgba(255, 193, 7, 0.12);
+            border: 1px solid rgba(255, 193, 7, 0.35);
+            border-radius: 8px;
+            font-size: 0.95rem;
+            line-height: 1.4;
+        }
+
+        .aliado-codigo-destacado .codigo-valor {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 1.15rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            color: #ffc107;
         }
 
         .aliado-header-admin {
@@ -1078,6 +1098,8 @@
     </style>
     <link rel="stylesheet" href="/static/css/admin-premium.css">
     <link rel="stylesheet" href="/static/css/admin-shell.css">
+    <link rel="stylesheet" href="/static/css/ruana-identity.css">
+    <script src="/static/js/ruana-atmosphere.js" defer></script>
     <script src="/static/js/ruana-ui.js" defer></script>
     <script src="/static/js/admin-shell.js" defer></script>
 </head>
@@ -1417,6 +1439,32 @@
                 </div>
             </div>
             <p class="admin-subtitle" style="margin-top: 8px; color: #666;" id="pendientes-empty">No hay aliados pendientes de validación.</p>
+        </div>
+
+        <!-- CAPA 3.55: Aliados eliminados (archivo de auditoría) -->
+        <div class="control-aliados" id="aliados-eliminados-wrap" style="display: block;">
+            <h2 class="seccion-titulo" id="seccion-aliados-eliminados">Aliados eliminados</h2>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Registro de auditoría de perfiles eliminados definitivamente. El correo, teléfono y código quedan liberados para un nuevo registro.</p>
+            <div class="movimiento-24h-tabla-wrap">
+                <div class="movimiento-24h-tabla-scroll">
+                    <table class="movimiento-24h-tabla" id="tabla-aliados-eliminados">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Nombre</th>
+                                <th>Oficio</th>
+                                <th>Zona</th>
+                                <th>Estado anterior</th>
+                                <th>Motivo</th>
+                                <th>Admin</th>
+                                <th>Eliminado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-aliados-eliminados"></tbody>
+                    </table>
+                </div>
+            </div>
+            <p class="admin-subtitle" style="margin-top: 8px; color: #666;" id="eliminados-empty">No hay aliados eliminados registrados.</p>
         </div>
 
         <!-- CAPA 3.6: Conflicto de pagos (payment_conflicts) -->
@@ -2061,7 +2109,8 @@
                         fetch('/api/admin/invitacion-campanas?limite=30', fetchOpts),
                         fetch('/api/admin/metodos-pago', fetchOpts),
                         fetch('/api/admin/suplentes-espera', fetchOpts),
-                        fetch('/api/admin/centro-comunicacion?limite=120', fetchOpts)
+                        fetch('/api/admin/centro-comunicacion?limite=120', fetchOpts),
+                        fetch('/api/admin/aliados-eliminados', fetchOpts)
                     ];
                     const settled = await Promise.allSettled(fetchPromises);
                     const responses = settled.map((r, i) => (r.status === 'fulfilled' ? r.value : null));
@@ -2079,7 +2128,7 @@
                         return r.json().catch(() => null);
                     }
                     const idx14 = responses[14];
-                    const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, solicitudesData, chatsData, competenciasData, competenciasPendientesData, competenciasHistorialData, stats24hData, invitacionesRecData, campanasData, metodosPagoData, suplentesEsperaData, centroComData] = await Promise.all([
+                    const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, solicitudesData, chatsData, competenciasData, competenciasPendientesData, competenciasHistorialData, stats24hData, invitacionesRecData, campanasData, metodosPagoData, suplentesEsperaData, centroComData, eliminadosData] = await Promise.all([
                         parseResponse(responses[0], false),
                         parseResponse(responses[1], false),
                         parseResponse(responses[2], false),
@@ -2099,7 +2148,8 @@
                         parseResponse(responses[16], false),
                         parseResponse(responses[17], false),
                         parseResponse(responses[18], false),
-                        parseResponse(responses[19], false)
+                        parseResponse(responses[19], false),
+                        parseResponse(responses[20], false)
                     ]);
 
                     // Pendientes de validación (unir API + lista por código)
@@ -2163,6 +2213,7 @@
                         : { ratio_solicitud_invitacion: 0, ratio_invitacion_registro: 0, oficios_saturados: 0, oficios_disponibles: 0, zona_mayor_demanda: '—', tasa_retencion: 0 };
                     this.renderMetricas({ metricas: metricasPayload });
                     this.renderPendientesValidacion(pendientes);
+                    this.renderAliadosEliminados((eliminadosData && eliminadosData.status === 'success' && Array.isArray(eliminadosData.aliados)) ? eliminadosData.aliados : []);
                     this._aliadosData = ((aliadosData && aliadosData.aliados) || []).filter(a => !this.esAliadoPlaceholder(a));
                     this.renderAliadosJerarquia();
                     this.renderEventos((eventosData && eventosData.status === 'success' && Array.isArray(eventosData.eventos)) ? eventosData.eventos : []);
@@ -2664,7 +2715,13 @@
 
             showToast(message, type = 'success') {
                 if (typeof RuanaUI !== 'undefined') {
-                    RuanaUI.toast(message, type === 'error' ? 'error' : 'success');
+                    if (type === 'error') {
+                        RuanaUI.error('', message);
+                    } else if (type === 'warning') {
+                        RuanaUI.warning('', message);
+                    } else {
+                        RuanaUI.success(message);
+                    }
                     return;
                 }
                 const container = document.getElementById('adminToastContainer');
@@ -3784,6 +3841,38 @@
                 });
             }
 
+            renderAliadosEliminados(aliados) {
+                const tbody = document.getElementById('tbody-aliados-eliminados');
+                const emptyEl = document.getElementById('eliminados-empty');
+                const wrap = document.getElementById('aliados-eliminados-wrap');
+                if (!tbody || !wrap) return;
+
+                wrap.style.display = 'block';
+                tbody.innerHTML = '';
+                if (emptyEl) emptyEl.style.display = 'none';
+
+                if (!aliados || !aliados.length) {
+                    if (emptyEl) emptyEl.style.display = 'block';
+                    return;
+                }
+
+                aliados.forEach(a => {
+                    const fechaElim = a.eliminado_en ? this.formatearHora(a.eliminado_en) : '—';
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${this.escapeHtml(a.codigo || '')}</td>
+                        <td>${this.escapeHtml(a.nombre || '')}</td>
+                        <td>${this.escapeHtml(a.oficio || '')}</td>
+                        <td>${this.escapeHtml(a.codigo_postal || '')}</td>
+                        <td>${this.escapeHtml(a.estado_anterior || '')}</td>
+                        <td>${this.escapeHtml(a.motivo || '')}</td>
+                        <td>${this.escapeHtml(a.admin_codigo || '—')}</td>
+                        <td>${fechaElim}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
             async activarAliadoPendiente(id, rowEl) {
                 const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
                 try {
@@ -3864,6 +3953,17 @@
                     return 'Grupo #' + a.grupo_id;
                 }
                 return 'Sin grupo';
+            }
+
+            getGrupoTerritorialLabel(aliado) {
+                const nombre = ((aliado && aliado.grupo_nombre) || '').trim();
+                if (nombre) return nombre;
+                if (aliado && aliado.grupo_id) return '#' + aliado.grupo_id;
+                const estado = ((aliado && aliado.estado) || '').toLowerCase();
+                if (estado === 'en_espera') return 'Suplente en espera (sin plaza)';
+                if (estado === 'pendiente_validacion') return 'Pendiente de validación';
+                if (estado === 'pendiente_completar') return 'Registro incompleto';
+                return 'Sin grupo asignado';
             }
 
             normalizarCpAliado(a) {
@@ -4063,6 +4163,10 @@
                                 ${badgeCompetencia}
                             </div>
                         </div>
+                        <div class="aliado-codigo-destacado">
+                            <strong>Código de aliado:</strong>
+                            <span class="codigo-valor">${this.escapeHtml(aliado.codigo || '—')}</span>
+                        </div>
                         <div class="aliado-info-grid">
                             <div class="aliado-info">
                                 <span class="info-label">Oficio</span>
@@ -4074,7 +4178,7 @@
                             </div>
                             <div class="aliado-info">
                                 <span class="info-label">Grupo</span>
-                                <span class="info-value">${this.escapeHtml((aliado.grupo_nombre || '').trim() || (aliado.grupo_id ? ('#' + aliado.grupo_id) : '—'))}</span>
+                                <span class="info-value">${this.escapeHtml(this.getGrupoTerritorialLabel(aliado))}</span>
                             </div>
                             <div class="aliado-info">
                                 <span class="info-label">Marca</span>
@@ -4385,9 +4489,10 @@
                         title: 'Eliminar perfil',
                         description: `Vas a eliminar el perfil de ${nombre} (${aliado.codigo}).`,
                         consequences: [
-                            'El aliado perderá el acceso al panel.',
-                            'Su código quedará desactivado o rechazado según su estado actual.',
-                            'Esta acción no se puede deshacer desde el panel.'
+                            'Se eliminarán todos los datos del aliado (perfil, contactos, notificaciones, etc.).',
+                            'El correo, teléfono y código quedarán liberados para un nuevo registro.',
+                            'Solo quedará un registro de auditoría en «Aliados eliminados».',
+                            'Esta acción no se puede deshacer.'
                         ],
                         confirmPhrase: 'ELIMINAR'
                     });

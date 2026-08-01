@@ -259,6 +259,7 @@ def meta_negociacion(
     estado: Dict[str, Any],
     rol: str,
     contacto_estado: str,
+    servicio_contacto: str = '',
 ) -> Dict[str, Any]:
     """Metadatos de estado para UI: turno, progreso y siguiente acción."""
     estado = normalizar_estado(estado)
@@ -266,6 +267,19 @@ def meta_negociacion(
     confirmados = sum(
         1 for c in CAMPOS_ORDEN if estado['campos'][c].get('estado') == ESTADO_CONFIRMADO
     )
+
+    if contacto_estado == 'trabajo_cerrado':
+        return {
+            'fase': 'cerrado',
+            'progreso_confirmados': total,
+            'progreso_total': total,
+            'turno': 'completado',
+            'requiere_mi_respuesta': False,
+            'paso': None,
+            'paso_label': 'Trabajo cerrado',
+            'contexto': 'El encargo quedó registrado como realizado.',
+            'siguiente_accion': 'Revisa el Apoyo RUANA pendiente si corresponde.',
+        }
 
     if contacto_estado == 'acuerdo_alcanzado' or estado.get('completo'):
         return {
@@ -277,21 +291,26 @@ def meta_negociacion(
             'paso': None,
             'paso_label': 'Acuerdo alcanzado',
             'contexto': 'Todos los puntos del encargo están confirmados.',
-            'siguiente_accion': 'Cuando se realice el servicio, indica el resultado desde tu panel.',
+            'siguiente_accion': 'El precio aceptado es el importe oficial; se genera el Apoyo RUANA.',
         }
 
     if _todos_campos_pendientes(estado):
         if rol == 'solicitante':
+            contexto = 'Indica los detalles del servicio que necesitas.'
+            siguiente = 'Responde las preguntas para enviar la propuesta al profesional.'
+            if servicio_contacto:
+                contexto = f'Servicio acordado al contactar: «{servicio_contacto}». Completa el resto del encargo.'
+                siguiente = 'Indica fecha, hora y lugar; luego envía la propuesta al profesional.'
             return {
                 'fase': 'inicio',
                 'progreso_confirmados': 0,
                 'progreso_total': total,
                 'turno': 'contratante',
                 'requiere_mi_respuesta': True,
-                'paso': 'servicio',
+                'paso': 'fecha' if servicio_contacto else 'servicio',
                 'paso_label': 'Datos del encargo',
-                'contexto': 'Indica los detalles del servicio que necesitas.',
-                'siguiente_accion': 'Responde las preguntas para enviar la propuesta al profesional.',
+                'contexto': contexto,
+                'siguiente_accion': siguiente,
             }
         return {
             'fase': 'inicio',
@@ -446,7 +465,10 @@ def accion_disponible(estado: Dict[str, Any], rol: str, contacto_estado: str) ->
     if contacto_estado == 'acuerdo_alcanzado':
         return {
             'tipo': 'resumen',
-            'mensaje': 'Acuerdo alcanzado. Cuando se realice el servicio, usa el seguimiento del contacto en tu panel.',
+            'mensaje': (
+                'Acuerdo alcanzado. El precio aceptado es el importe oficial del encargo '
+                'y se genera el Apoyo RUANA al profesional.'
+            ),
         }
 
     estado = normalizar_estado(estado)
@@ -768,11 +790,14 @@ def construir_payload(
     accion = accion_disponible(estado, rol, contacto_estado)
     if accion.get('tipo') in ('wizard_contratante', 'proponer_completo'):
         sugeridos: Dict[str, str] = {}
+        campos_wizard = list(CAMPOS_SOLICITANTE)
         if servicio_contacto:
             sugeridos['servicio'] = servicio_contacto
+            accion['servicio_precargado'] = servicio_contacto
+            campos_wizard = [c for c in CAMPOS_SOLICITANTE if c != 'servicio']
         accion['valores_sugeridos'] = sugeridos
-        accion['campos'] = list(CAMPOS_SOLICITANTE)
-        accion['preguntas'] = {c: _pregunta_profesional(c) for c in CAMPOS_SOLICITANTE}
+        accion['campos'] = campos_wizard
+        accion['preguntas'] = {c: _pregunta_profesional(c) for c in campos_wizard}
         if accion.get('tipo') == 'proponer_completo':
             accion['tipo'] = 'wizard_contratante'
     elif accion.get('tipo') == 'proponer' and accion.get('campo') == 'servicio' and servicio_contacto:
@@ -795,5 +820,27 @@ def construir_payload(
         'campos_labels': CAMPOS_LABELS,
         'campos_orden': CAMPOS_ORDEN,
         'campos_solicitante': CAMPOS_SOLICITANTE,
-        'negociacion_meta': meta_negociacion(estado, rol, contacto_estado),
+        'negociacion_meta': meta_negociacion(estado, rol, contacto_estado, servicio_contacto),
+        'cierre_confirmado_solicitante': bool(contacto.get('cierre_confirmado_solicitante_en')),
+        'cierre_confirmado_profesional': bool(contacto.get('cierre_confirmado_profesional_en')),
+        'yo_confirme_cierre': bool(
+            contacto.get('cierre_confirmado_solicitante_en')
+            if rol == 'solicitante'
+            else contacto.get('cierre_confirmado_profesional_en')
+        ),
+        'ambos_confirmaron_cierre': bool(
+            contacto.get('cierre_confirmado_solicitante_en')
+            and contacto.get('cierre_confirmado_profesional_en')
+        ),
+        'resumen_dismissed': bool(
+            contacto.get('resumen_dismiss_solicitante_en')
+            if rol == 'solicitante'
+            else contacto.get('resumen_dismiss_profesional_en')
+        ),
+        'acuerdo_alcanzado_en': contacto.get('acuerdo_alcanzado_en'),
+        'importe_acordado': (
+            float(contacto['importe_acordado'])
+            if contacto.get('importe_acordado') is not None
+            else None
+        ),
     }

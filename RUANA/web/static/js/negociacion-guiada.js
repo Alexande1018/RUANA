@@ -28,6 +28,24 @@
         observaciones: 'Observaciones',
     };
 
+    function notify(message, type) {
+        const msg = String(message || '');
+        if (typeof global.RuanaUI !== 'undefined') {
+            const inferred = type || global.RuanaUI.inferToastType(msg);
+            if (inferred === 'error') {
+                global.RuanaUI.error('', msg);
+            } else if (inferred === 'warning') {
+                global.RuanaUI.warning('', msg);
+            } else if (inferred === 'success') {
+                global.RuanaUI.success(msg);
+            } else {
+                global.RuanaUI.toast(msg, inferred);
+            }
+            return;
+        }
+        alert(msg);
+    }
+
     const PREGUNTAS_DEFAULT = {
         servicio: 'Hola, ¿qué servicio necesitas? Puedes elegir del catálogo o escribirlo tú.',
         fecha: '¿Qué fecha te vendría bien para el servicio?',
@@ -72,6 +90,9 @@
             this._drafts = {};
             this._lastAccionKey = '';
             this._wizard = null;
+            this._catalogoCache = {};
+            this._catalogoAbierto = false;
+            this._cambiarServicio = false;
             this._bindModal();
         }
 
@@ -98,7 +119,7 @@
         async abrir(contactoId, tituloExtra) {
             const id = contactoIdValido(contactoId);
             if (!id) {
-                alert('No se pudo abrir la negociación: contacto no válido.');
+                notify('No se pudo abrir la negociación: contacto no válido.', 'error');
                 return;
             }
             this.contactoId = id;
@@ -111,6 +132,8 @@
         }
 
         cerrar() {
+            const dataSnapshot = this.data;
+            const contactoId = this.contactoId;
             this.detenerPolling();
             const modal = document.getElementById('modal-negociacion-guiada');
             if (modal) modal.classList.remove('show');
@@ -119,6 +142,11 @@
             this._drafts = {};
             this._lastAccionKey = '';
             this._wizard = null;
+            this._catalogoAbierto = false;
+            this._cambiarServicio = false;
+            if (dataSnapshot && contactoId && this.panel && typeof this.panel.mostrarAcuerdoFlotanteDesdeNegociacion === 'function') {
+                this.panel.mostrarAcuerdoFlotanteDesdeNegociacion(contactoId, dataSnapshot);
+            }
         }
 
         _miCodigo() {
@@ -133,6 +161,96 @@
                 return this.data.campos_solicitante;
             }
             return ['servicio', 'fecha', 'hora', 'direccion', 'observaciones'];
+        }
+
+        _camposWizard(acc) {
+            if (acc && Array.isArray(acc.campos) && acc.campos.length) {
+                return acc.campos;
+            }
+            return this._camposSolicitante();
+        }
+
+        _camposWizardActivos(acc) {
+            const base = this._camposWizard(acc);
+            if (this._cambiarServicio && !base.includes('servicio')) {
+                return ['servicio'].concat(base);
+            }
+            return base;
+        }
+
+        _servicioPrecargado() {
+            if (!this.data) return '';
+            const acc = this.data.accion || {};
+            if (acc.servicio_precargado) return String(acc.servicio_precargado).trim();
+            if (this.data.servicio_contacto) return String(this.data.servicio_contacto).trim();
+            const sug = (acc.valores_sugeridos || {}).servicio;
+            return sug ? String(sug).trim() : '';
+        }
+
+        _ensureWizardServicioPrecargado(acc) {
+            const servicio = this._servicioPrecargado();
+            if (!servicio || this._cambiarServicio) return;
+            const w = this._loadWizard();
+            if (!w.respuestas.servicio) {
+                w.respuestas.servicio = servicio;
+            }
+            const yaHistorial = w.historial.some(h =>
+                h.tipo === 'sistema' && h.campo === 'servicio'
+            );
+            if (!yaHistorial) {
+                w.historial.push({
+                    tipo: 'sistema',
+                    campo: 'servicio',
+                    texto: 'Servicio seleccionado al contactar: «' + servicio + '»',
+                });
+            }
+            this._saveWizard();
+        }
+
+        _htmlSelectorServicio(campo) {
+            if (campo !== 'servicio') return '';
+            return '<div class="neg-servicio-compose">' +
+                '<button type="button" class="neg-btn neg-btn-catalogo-toggle" id="neg-btn-mostrar-catalogo">' +
+                    'Mostrar catálogo de servicios' +
+                '</button>' +
+                '<div id="neg-catalogo-panel" class="neg-catalogo-panel" hidden>' +
+                    '<div id="neg-catalogo-servicios" class="neg-catalogo-list"></div>' +
+                    '<label class="neg-catalogo-otro-label" for="neg-input-valor">Otros</label>' +
+                '</div>' +
+            '</div>';
+        }
+
+        _enlazarCatalogoServicio(campo, profCodigo) {
+            if (campo !== 'servicio' || !profCodigo) return;
+            const btnToggle = document.getElementById('neg-btn-mostrar-catalogo');
+            const panel = document.getElementById('neg-catalogo-panel');
+            if (!btnToggle || !panel) return;
+
+            const abrir = () => {
+                panel.hidden = false;
+                this._catalogoAbierto = true;
+                btnToggle.textContent = 'Ocultar catálogo';
+                btnToggle.setAttribute('aria-expanded', 'true');
+                this._cargarCatalogoServicios(profCodigo, 'neg-catalogo-servicios', 'neg-input-valor');
+            };
+
+            const cerrar = () => {
+                panel.hidden = true;
+                this._catalogoAbierto = false;
+                btnToggle.textContent = 'Mostrar catálogo de servicios';
+                btnToggle.setAttribute('aria-expanded', 'false');
+            };
+
+            if (this._catalogoAbierto) {
+                abrir();
+            } else {
+                cerrar();
+            }
+
+            btnToggle.onclick = () => {
+                if (panel.hidden) abrir();
+                else cerrar();
+            };
         }
 
         _preguntasWizard(acc) {
@@ -187,6 +305,7 @@
         }
 
         _formularioEnUso() {
+            if (this._catalogoAbierto) return true;
             const wrap = document.getElementById('neg-acciones-wrap');
             return !!(wrap && document.activeElement && wrap.contains(document.activeElement));
         }
@@ -260,7 +379,7 @@
                 });
                 const data = await resp.json();
                 if (data.status !== 'success') {
-                    if (!silent) alert(data.message || 'No se pudo cargar la negociación');
+                    if (!silent) notify(data.message || 'No se pudo cargar la negociación', 'error');
                     return;
                 }
                 const prevTipo = this.data && this.data.accion && this.data.accion.tipo;
@@ -269,10 +388,12 @@
                     this._clearWizard();
                 }
                 this.render();
-                const estadoCerrado = ['cerrado_no_concretado', 'no_concretado', 'trabajo_cerrado'].includes(data.estado_contacto || '')
-                    || (data.accion && data.accion.tipo === 'cerrado');
+                const estadoCerrado = ['cerrado_no_concretado', 'no_concretado'].includes(data.estado_contacto || '')
+                    || (data.accion && data.accion.tipo === 'cerrado' && data.estado_contacto !== 'trabajo_cerrado');
                 if (estadoCerrado && this.panel && typeof this.panel.finalizarContactoCerradoEnUI === 'function') {
                     await this.panel.finalizarContactoCerradoEnUI(this.contactoId, { cerrarModal: true });
+                } else if (this.panel && typeof this.panel.syncAcuerdoFlotante === 'function') {
+                    this.panel.syncAcuerdoFlotante(data);
                 }
             } catch (e) {
                 if (!silent) console.error(e);
@@ -332,9 +453,23 @@
             const btnCerrarNeg = document.getElementById('neg-btn-cerrar-negociacion');
             if (!btnCerrarNeg) return;
             const estado = this.data.estado_contacto || '';
-            const cerrado = ['cerrado_no_concretado', 'no_concretado', 'trabajo_cerrado', 'acuerdo_alcanzado'].includes(estado)
-                || this.data.acuerdo_alcanzado;
-            btnCerrarNeg.style.display = cerrado ? 'none' : '';
+            const abandonado = ['cerrado_no_concretado', 'no_concretado'].includes(estado);
+            const trabajoCerrado = estado === 'trabajo_cerrado';
+            const acuerdo = estado === 'acuerdo_alcanzado' || this.data.acuerdo_alcanzado;
+            if (abandonado || (trabajoCerrado && this.data.yo_confirme_cierre)) {
+                btnCerrarNeg.style.display = 'none';
+                return;
+            }
+            btnCerrarNeg.style.display = '';
+            if (acuerdo || trabajoCerrado) {
+                btnCerrarNeg.textContent = this.data.yo_confirme_cierre
+                    ? 'Ya confirmaste'
+                    : 'Confirmar acuerdo';
+                btnCerrarNeg.disabled = !!this.data.yo_confirme_cierre;
+            } else {
+                btnCerrarNeg.textContent = 'Cerrar';
+                btnCerrarNeg.disabled = false;
+            }
         }
 
         _bubbleHtml(tipo, texto, meta) {
@@ -368,10 +503,12 @@
             if (acc.tipo === 'wizard_contratante') {
                 const w = this._loadWizard();
                 const preguntas = this._preguntasWizard(acc);
-                const campos = this._camposSolicitante();
+                const campos = this._camposWizardActivos(acc);
                 w.historial.forEach(item => {
                     if (item.tipo === 'pregunta') {
                         parts.push(this._bubbleHtml('theirs', item.texto, profNombre));
+                    } else if (item.tipo === 'sistema') {
+                        parts.push(this._bubbleHtml('system', item.texto, ''));
                     } else {
                         parts.push(this._bubbleHtml('mine', this._formatValor(item.campo, item.texto), 'Tú'));
                     }
@@ -428,17 +565,28 @@
         renderAcuerdoFinal() {
             const wrap = document.getElementById('neg-acuerdo-final');
             if (!wrap) return;
-            const completo = this.data.acuerdo_alcanzado || this.data.estado_contacto === 'acuerdo_alcanzado';
+            const estado = this.data.estado_contacto || '';
+            const completo = this.data.acuerdo_alcanzado
+                || estado === 'acuerdo_alcanzado'
+                || estado === 'trabajo_cerrado';
             if (!completo) {
                 wrap.style.display = 'none';
                 return;
             }
             wrap.style.display = 'block';
             const items = (this.data.resumen || []).filter(i => i.valor && i.campo !== 'observaciones_profesional');
+            let hint = 'El precio aceptado es el importe oficial del encargo y se genera el Apoyo RUANA.';
+            if (this.data.ambos_confirmaron_cierre || estado === 'trabajo_cerrado' || this.data.cierre_automatico) {
+                hint = 'Precio aceptado como importe oficial. Encargo cerrado y Apoyo RUANA generado.';
+            } else if (this.data.yo_confirme_cierre) {
+                hint = 'Ya confirmaste el resumen. El cobro se basa en el precio aceptado.';
+            } else if (this.data.cierre_aviso) {
+                hint = String(this.data.cierre_aviso);
+            }
             wrap.innerHTML = `<div class="neg-acuerdo-resumen">
                 <h3>Acuerdo alcanzado</h3>
                 ${items.map(i => `<p><strong>${this.escapeHtml(i.label)}:</strong> ${this.escapeHtml(String(i.valor))}</p>`).join('')}
-                <p class="neg-acuerdo-hint">Cuando se realice el servicio, usa el seguimiento del contacto en tu panel para cerrar el encargo.</p>
+                <p class="neg-acuerdo-hint">${this.escapeHtml(hint)}</p>
             </div>`;
         }
 
@@ -447,6 +595,13 @@
             if (!el || !this.data.accion) return;
             const acc = this.data.accion;
             const accionKey = this._accionKey(acc);
+
+            if (this._catalogoAbierto && (
+                acc.tipo === 'wizard_contratante'
+                || (acc.tipo === 'proponer' && acc.campo === 'servicio')
+            )) {
+                return;
+            }
 
             if (acc.tipo === 'wizard_contratante') {
                 this._guardarBorradoresFormulario(null);
@@ -458,9 +613,17 @@
             }
             this._lastAccionKey = accionKey;
 
-            if (this.data.acuerdo_alcanzado || this.data.estado_contacto === 'acuerdo_alcanzado') {
+            if (this.data.acuerdo_alcanzado
+                || this.data.estado_contacto === 'acuerdo_alcanzado'
+                || this.data.estado_contacto === 'trabajo_cerrado') {
+                let msg = 'Negociación completada. El precio aceptado es el importe oficial.';
+                if (this.data.cierre_automatico || this.data.estado_contacto === 'trabajo_cerrado') {
+                    msg = 'Negociación completada. Precio aceptado; Apoyo RUANA generado.';
+                } else if (this.data.yo_confirme_cierre) {
+                    msg = 'Ya revisaste el resumen del acuerdo.';
+                }
                 el.innerHTML = `<div class="neg-compose-stack">
-                    <p class="neg-esperar-msg">Acuerdo confirmado. Puedes cerrar esta ventana y seguir el encargo desde tu panel.</p>
+                    <p class="neg-esperar-msg">${this.escapeHtml(msg)}</p>
                     <button type="button" class="neg-btn neg-btn-primary neg-btn-block" id="neg-btn-acuerdo-listo">Entendido</button>
                 </div>`;
                 const btnListo = document.getElementById('neg-btn-acuerdo-listo');
@@ -497,16 +660,23 @@
 
         _renderWizardCompose(acc) {
             const el = document.getElementById('neg-acciones-wrap');
+            this._ensureWizardServicioPrecargado(acc);
             const w = this._loadWizard();
-            const campos = this._camposSolicitante();
+            const campos = this._camposWizardActivos(acc);
             const preguntas = this._preguntasWizard(acc);
             const sugeridos = acc.valores_sugeridos || {};
+            const servicioPre = this._servicioPrecargado();
 
             if (w.pasoIdx >= campos.length) {
+                const respuestasFinales = Object.assign({}, w.respuestas);
+                if (servicioPre && !respuestasFinales.servicio) {
+                    respuestasFinales.servicio = servicioPre;
+                }
                 el.innerHTML = `<div class="neg-compose-stack">
+                    ${servicioPre ? `<div class="neg-servicio-precargado"><span class="neg-servicio-precargado-label">Servicio</span><span class="neg-servicio-precargado-valor">${this.escapeHtml(servicioPre)}</span></div>` : ''}
                     <button type="button" class="neg-btn neg-btn-primary neg-btn-block" id="neg-btn-proponer-completa">Enviar todo al profesional</button>
                 </div>`;
-                document.getElementById('neg-btn-proponer-completa').addEventListener('click', () => this.proponerCompleta(w.respuestas));
+                document.getElementById('neg-btn-proponer-completa').addEventListener('click', () => this.proponerCompleta(respuestasFinales));
                 return;
             }
 
@@ -514,14 +684,23 @@
             const inputType = INPUT_TYPES[campo] || 'text';
             const isTextarea = inputType === 'textarea';
             const valorInicial = this._valorBorrador(campo, w.respuestas[campo] || sugeridos[campo] || '');
-            const catalogoHtml = campo === 'servicio'
-                ? '<div id="neg-catalogo-servicios" class="neg-catalogo-list"></div>'
+            const servicioBanner = (servicioPre && !this._cambiarServicio && campo !== 'servicio')
+                ? `<div class="neg-servicio-precargado">
+                    <span class="neg-servicio-precargado-label">Servicio</span>
+                    <span class="neg-servicio-precargado-valor">${this.escapeHtml(servicioPre)}</span>
+                    <button type="button" class="neg-btn-link" id="neg-btn-cambiar-servicio">Modificar</button>
+                   </div>`
                 : '';
+            const catalogoHtml = (campo === 'servicio') ? this._htmlSelectorServicio(campo) : '';
+            const otroPlaceholder = campo === 'servicio'
+                ? 'Describe el servicio que necesitas…'
+                : 'Escribe tu respuesta…';
             const inputHtml = isTextarea
-                ? `<textarea id="neg-input-valor" class="neg-compose-input" placeholder="Escribe tu respuesta…" rows="2">${this.escapeHtml(valorInicial)}</textarea>`
-                : `<input id="neg-input-valor" class="neg-compose-input" type="${inputType}" ${campo === 'precio' ? 'step="0.01" min="0"' : ''} placeholder="Escribe tu respuesta…" value="${this.escapeHtml(valorInicial)}" />`;
+                ? `<textarea id="neg-input-valor" class="neg-compose-input" placeholder="${otroPlaceholder}" rows="2">${this.escapeHtml(valorInicial)}</textarea>`
+                : `<input id="neg-input-valor" class="neg-compose-input" type="${inputType}" ${campo === 'precio' ? 'step="0.01" min="0"' : ''} placeholder="${otroPlaceholder}" value="${this.escapeHtml(valorInicial)}" />`;
 
             el.innerHTML = `<div class="neg-compose-stack">
+                ${servicioBanner}
                 ${catalogoHtml}
                 <div class="neg-compose-row">
                     ${inputHtml}
@@ -531,8 +710,19 @@
 
             if (campo === 'servicio') {
                 const profCodigo = (this.data.profesional_codigo || '').trim();
-                if (profCodigo) this._cargarCatalogoServicios(profCodigo, 'neg-catalogo-servicios', 'neg-input-valor');
+                this._enlazarCatalogoServicio(campo, profCodigo);
             }
+
+            const btnCambiar = document.getElementById('neg-btn-cambiar-servicio');
+            if (btnCambiar) {
+                btnCambiar.addEventListener('click', () => {
+                    this._cambiarServicio = true;
+                    this._catalogoAbierto = false;
+                    this._lastAccionKey = '';
+                    this.renderAcciones();
+                });
+            }
+
             this._enlazarGuardadoBorrador(campo);
 
             const enviar = () => this._wizardEnviarRespuesta(acc, campo, preguntas);
@@ -552,11 +742,11 @@
             const input = document.getElementById('neg-input-valor');
             const valor = input ? String(input.value || '').trim() : '';
             if (!valor) {
-                alert('Escribe una respuesta para continuar.');
+                notify('Escribe una respuesta para continuar.', 'warning');
                 return;
             }
             const w = this._loadWizard();
-            const campos = this._camposSolicitante();
+            const campos = this._camposWizardActivos(acc);
             const pregunta = (preguntas || this._preguntasWizard(acc))[campo] || PREGUNTAS_DEFAULT[campo] || '';
             if (!w.historial.some(h => h.tipo === 'pregunta' && h.campo === campo)) {
                 w.historial.push({ tipo: 'pregunta', campo, texto: pregunta });
@@ -564,6 +754,10 @@
             w.historial.push({ tipo: 'respuesta', campo, texto: valor });
             w.respuestas[campo] = valor;
             w.pasoIdx = campos.indexOf(campo) + 1;
+            if (campo === 'servicio') {
+                this._cambiarServicio = false;
+                this._catalogoAbierto = false;
+            }
             delete this._drafts[campo];
             this._saveWizard();
             this._lastAccionKey = '';
@@ -573,7 +767,15 @@
         }
 
         async proponerCompleta(respuestasPrecargadas) {
-            const body = respuestasPrecargadas || {};
+            const body = Object.assign({}, respuestasPrecargadas || {});
+            const servicioPre = this._servicioPrecargado();
+            if (servicioPre && !body.servicio) {
+                body.servicio = servicioPre;
+            }
+            const w = this._loadWizard();
+            if (w && w.respuestas) {
+                Object.assign(body, w.respuestas);
+            }
             const campos = this._camposSolicitante();
             if (!Object.keys(body).length) {
                 campos.forEach(campo => {
@@ -583,12 +785,14 @@
             }
             for (const campo of campos) {
                 if (!String(body[campo] || '').trim()) {
-                    alert('Completa todos los campos antes de enviar al profesional.');
+                    notify('Completa todos los campos antes de enviar al profesional.', 'warning');
                     return;
                 }
             }
             await this._post('proponer-completa', body, true);
             this._clearWizard();
+            this._cambiarServicio = false;
+            this._catalogoAbierto = false;
         }
 
         _renderFormProponer(acc) {
@@ -597,16 +801,23 @@
             const inputType = INPUT_TYPES[campo] || 'text';
             const isTextarea = inputType === 'textarea';
             const valorInicial = this._valorBorrador(campo, acc.valor_actual || acc.valor_sugerido || '');
+            const catalogoHtml = campo === 'servicio' ? this._htmlSelectorServicio(campo) : '';
+            const placeholder = campo === 'servicio' ? 'Describe el servicio…' : (campo === 'precio' ? 'Precio en €' : 'Escribe…');
             const inputHtml = isTextarea
-                ? `<textarea id="neg-input-valor" class="neg-compose-input" placeholder="Escribe…" rows="2">${this.escapeHtml(valorInicial)}</textarea>`
-                : `<input id="neg-input-valor" class="neg-compose-input" type="${inputType}" ${campo === 'precio' ? 'step="0.01" min="0"' : ''} placeholder="${campo === 'precio' ? 'Precio en €' : 'Escribe…'}" value="${this.escapeHtml(valorInicial)}" />`;
+                ? `<textarea id="neg-input-valor" class="neg-compose-input" placeholder="${placeholder}" rows="2">${this.escapeHtml(valorInicial)}</textarea>`
+                : `<input id="neg-input-valor" class="neg-compose-input" type="${inputType}" ${campo === 'precio' ? 'step="0.01" min="0"' : ''} placeholder="${placeholder}" value="${this.escapeHtml(valorInicial)}" />`;
             const btnLabel = acc.modificar_propia ? 'Actualizar' : (campo === 'precio' ? 'Proponer precio' : 'Enviar');
             el.innerHTML = `<div class="neg-compose-stack">
+                ${catalogoHtml}
                 <div class="neg-compose-row">
                     ${inputHtml}
                     <button type="button" class="neg-btn neg-btn-primary neg-btn-send" id="neg-btn-proponer">${btnLabel}</button>
                 </div>
             </div>`;
+            if (campo === 'servicio') {
+                const profCodigo = (this.data.profesional_codigo || '').trim();
+                this._enlazarCatalogoServicio(campo, profCodigo);
+            }
             this._enlazarGuardadoBorrador(campo);
             document.getElementById('neg-btn-proponer').addEventListener('click', () => this.proponer(campo));
         }
@@ -655,7 +866,7 @@
         async proponer(campo) {
             const input = document.getElementById('neg-input-valor');
             const valor = input ? String(input.value || '').trim() : '';
-            if (!valor) { alert('Introduce un valor para continuar'); return; }
+            if (!valor) { notify('Introduce un valor para continuar', 'warning'); return; }
             await this._post('proponer', { campo, valor });
         }
 
@@ -671,14 +882,14 @@
         async contraoferta(campo) {
             const input = document.getElementById('neg-input-contraoferta');
             const valor = input ? String(input.value || '').trim() : '';
-            if (!valor) { alert('Introduce tu alternativa'); return; }
+            if (!valor) { notify('Introduce tu alternativa', 'warning'); return; }
             await this._post('contraoferta', { campo, valor });
         }
 
         async _post(accion, body, limpiarTodosBorradores) {
             const url = this._negociacionApiUrl(accion);
             if (!url) {
-                alert('No hay un contacto activo. Cierra y vuelve a abrir la negociación.');
+                notify('No hay un contacto activo. Cierra y vuelve a abrir la negociación.', 'warning');
                 return;
             }
             try {
@@ -692,11 +903,11 @@
                 try {
                     data = await resp.json();
                 } catch (parseErr) {
-                    alert(resp.ok ? 'Respuesta inválida del servidor' : `Error del servidor (${resp.status})`);
+                    notify(resp.ok ? 'Respuesta inválida del servidor' : `Error del servidor (${resp.status})`, 'error');
                     return;
                 }
                 if (data.status !== 'success') {
-                    alert(data.message || `Error en la operación (${resp.status})`);
+                    notify(data.message || `Error en la operación (${resp.status})`, 'error');
                     return;
                 }
                 this.data = data;
@@ -717,27 +928,31 @@
                 if (this.panel && typeof this.panel.refreshAfterAction === 'function') {
                     await this.panel.refreshAfterAction(['contactos', 'alertas', 'metricas']);
                 }
+                const cerradoAuto = !!(data.cierre_automatico
+                    || data.estado_contacto === 'trabajo_cerrado'
+                    || data.ambos_confirmaron_cierre);
+                if (cerradoAuto && this.panel && typeof this.panel.cargarPagosApoyoPendientes === 'function') {
+                    await this.panel.cargarPagosApoyoPendientes();
+                }
+                if (this.panel && typeof this.panel.syncAcuerdoFlotante === 'function') {
+                    this.panel.syncAcuerdoFlotante(data);
+                }
+                if (this.panel && typeof this.panel.cargarMisAcuerdos === 'function') {
+                    await this.panel.cargarMisAcuerdos();
+                }
                 setTimeout(() => this.refrescar(true), 400);
             } catch (e) {
-                alert('Error de conexión');
+                notify('No hemos podido conectar. Comprueba tu conexión e inténtalo de nuevo.', 'error');
             }
         }
 
         async _cargarCatalogoServicios(codigoProfesional, containerId, inputId, onSelect) {
             const container = document.getElementById(containerId);
             if (!container || !codigoProfesional) return;
-            container.innerHTML = '<p class="neg-esperar-msg">Cargando catálogo…</p>';
-            try {
-                const resp = await fetch(apiUrl(`/api/aliados/${encodeURIComponent(codigoProfesional)}/catalogo-servicios`), {
-                    credentials: 'same-origin',
-                    headers: getAuthHeaders(),
-                });
-                const data = await resp.json();
-                const servicios = (data.status === 'success' && Array.isArray(data.servicios))
-                    ? data.servicios.filter(s => s.configurado && s.descripcion)
-                    : [];
+
+            const renderItems = (servicios) => {
                 if (!servicios.length) {
-                    container.innerHTML = '';
+                    container.innerHTML = '<p class="neg-catalogo-empty">Este profesional aún no tiene servicios en su catálogo. Usa el campo «Otros».</p>';
                     return;
                 }
                 container.innerHTML = servicios.map((s, idx) => {
@@ -763,20 +978,54 @@
                         }
                     });
                 });
+            };
+
+            if (this._catalogoCache[codigoProfesional]) {
+                renderItems(this._catalogoCache[codigoProfesional]);
+                return;
+            }
+
+            container.innerHTML = '<p class="neg-catalogo-loading">Cargando catálogo…</p>';
+            try {
+                const resp = await fetch(apiUrl(`/api/aliados/${encodeURIComponent(codigoProfesional)}/catalogo-servicios`), {
+                    credentials: 'same-origin',
+                    headers: getAuthHeaders(),
+                });
+                const data = await resp.json();
+                const servicios = (data.status === 'success' && Array.isArray(data.servicios))
+                    ? data.servicios.filter(s => s.configurado && s.descripcion)
+                    : [];
+                this._catalogoCache[codigoProfesional] = servicios;
+                if (!document.getElementById(containerId)) return;
+                renderItems(servicios);
             } catch (e) {
-                container.innerHTML = '';
+                if (container) {
+                    container.innerHTML = '<p class="neg-catalogo-empty">No se pudo cargar el catálogo. Escribe el servicio manualmente.</p>';
+                }
             }
         }
 
         async confirmarCerrarNegociacion() {
             const contactoId = contactoIdValido(this.contactoId);
             if (!contactoId) return;
-            const mensaje = '¿Cerrar esta negociación?\n\nSe finalizará la conversación para ambas partes y el contacto quedará registrado como no concretado.';
+            const estado = (this.data && this.data.estado_contacto) || '';
+            const esAcuerdo = estado === 'acuerdo_alcanzado' || (this.data && this.data.acuerdo_alcanzado);
+            if (esAcuerdo && this.data && this.data.yo_confirme_cierre) {
+                notify('Ya confirmaste este acuerdo. Esperando a la otra parte.', 'info');
+                return;
+            }
+            const mensaje = esAcuerdo
+                ? (estado === 'trabajo_cerrado' || (this.data && this.data.cierre_automatico)
+                    ? '¿Confirmas que has revisado el resumen del acuerdo?\n\nEl precio aceptado ya es el importe oficial y el Apoyo RUANA ya se generó.'
+                    : '¿Confirmas que has revisado el resumen del acuerdo?\n\nEl precio aceptado es el importe oficial del encargo.')
+                : '¿Cerrar esta negociación?\n\nSe finalizará la conversación para ambas partes y el contacto quedará registrado como no concretado.';
+            const titulo = esAcuerdo ? 'Confirmar revisión del acuerdo' : 'Cerrar negociación';
+            const confirmLabel = esAcuerdo ? 'Sí, confirmado' : 'Sí, cerrar';
             let ok = false;
             if (typeof global.RuanaUI !== 'undefined' && typeof global.RuanaUI.confirm === 'function') {
                 ok = await global.RuanaUI.confirm(mensaje, {
-                    title: 'Cerrar negociación',
-                    confirmLabel: 'Sí, cerrar',
+                    title: titulo,
+                    confirmLabel,
                     cancelLabel: 'Cancelar',
                     zIndex: 20100,
                 });
@@ -784,8 +1033,13 @@
                 ok = window.confirm(mensaje);
             }
             if (!ok) return;
+            const url = this._negociacionApiUrl('cerrar');
+            if (!url) {
+                notify('No hay un contacto activo. Cierra y vuelve a abrir la negociación.', 'warning');
+                return;
+            }
             try {
-                const resp = await fetch(this._negociacionApiUrl('cerrar'), {
+                const resp = await fetch(url, {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
@@ -795,21 +1049,46 @@
                 try {
                     data = await resp.json();
                 } catch (parseErr) {
-                    alert(`Error del servidor (${resp.status})`);
+                    notify(`Error del servidor (${resp.status})`, 'error');
                     return;
                 }
-                const yaCerrado = data.status !== 'success' && /ya está cerrado|estado final/i.test(data.message || '');
-                if (data.status === 'success' || yaCerrado) {
-                    if (this.panel && typeof this.panel.finalizarContactoCerradoEnUI === 'function') {
-                        await this.panel.finalizarContactoCerradoEnUI(contactoId);
-                    } else {
-                        this.cerrar();
+                if (data.status === 'success') {
+                    this.data = data;
+                    this._lastAccionKey = '';
+                    this.render();
+                    if (this.panel && typeof this.panel.syncAcuerdoFlotante === 'function') {
+                        this.panel.syncAcuerdoFlotante(data);
+                    }
+                    if (this.panel && typeof this.panel.cargarMisAcuerdos === 'function') {
+                        await this.panel.cargarMisAcuerdos();
+                    }
+                    if (this.panel && typeof this.panel.cargarContactosPendientes === 'function') {
+                        await this.panel.cargarContactosPendientes();
+                    }
+                    if (data.cierre_automatico || data.estado_contacto === 'trabajo_cerrado') {
+                        if (this.panel && typeof this.panel.cargarPagosApoyoPendientes === 'function') {
+                            await this.panel.cargarPagosApoyoPendientes();
+                        }
+                        if (this.panel && typeof this.panel.refreshAfterAction === 'function') {
+                            await this.panel.refreshAfterAction(['contactos', 'alertas', 'metricas']);
+                        }
+                    } else if (!esAcuerdo) {
+                        if (this.panel && typeof this.panel.finalizarContactoCerradoEnUI === 'function') {
+                            await this.panel.finalizarContactoCerradoEnUI(contactoId);
+                        } else {
+                            this.cerrar();
+                        }
                     }
                 } else {
-                    alert(data.message || 'No se pudo cerrar la negociación');
+                    const yaCerrado = /ya está cerrado|estado final/i.test(data.message || '');
+                    if (yaCerrado && this.panel && typeof this.panel.finalizarContactoCerradoEnUI === 'function') {
+                        await this.panel.finalizarContactoCerradoEnUI(contactoId);
+                    } else {
+                        notify(data.message || 'No se pudo cerrar la negociación', 'error');
+                    }
                 }
             } catch (e) {
-                alert('Error de conexión');
+                notify('No hemos podido conectar. Comprueba tu conexión e inténtalo de nuevo.', 'error');
             }
         }
 

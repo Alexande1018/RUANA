@@ -1,0 +1,573 @@
+/* ================================================
+   RUANA — Sistema unificado de comunicación visual
+   Toasts, confirmaciones, banners, alertas, carga
+   ================================================ */
+
+/* ——— Base compartida ——— */
+.ruana-feedback {
+    font-family: var(--ruana-font);
+    border-radius: var(--ruana-feedback-radius);
+    border: 1px solid var(--ruana-border-glass);
+    background: linear-gradient(165deg, rgba(255, 255, 255, 0.07) 0%, rgba(10, 12, 20, 0.82) 100%);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    box-shadow: var(--ruana-feedback-shadow);
+    color: var(--ruana-text);
+    line-height: 1.5;
+}
+
+.ruana-feedback__icon {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+}
+
+.ruana-feedback__icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.ruana-feedback__title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--ruana-text);
+    letter-spacing: -0.01em;
+}
+
+.ruana-feedback__message {
+    font-size: 0.88rem;
+    color: var(--ruana-text-muted);
+    line-height: 1.55;
+}
+
+.ruana-feedback__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.ruana-feedback__action {
+    min-height: 44px;
+    padding: 10px 18px;
+    border-radius: 14px;
+    border: 1px solid var(--ruana-border-strong);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--ruana-text-soft);
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--ruana-feedback-duration) var(--ruana-feedback-ease),
+        border-color var(--ruana-feedback-duration) var(--ruana-feedback-ease),
+        transform var(--ruana-feedback-duration) var(--ruana-feedback-ease);
+}
+
+.ruana-feedback__action:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.ruana-feedback__action--primary {
+    background: rgba(63, 159, 110, 0.18);
+    border-color: rgba(94, 207, 154, 0.35);
+    color: var(--ruana-success-text);
+}
+
+.ruana-feedback__action--primary:hover {
+    background: rgba(63, 159, 110, 0.28);
+}
+
+/* Variantes de color */
+.ruana-feedback--success {
+    border-color: var(--ruana-success-border);
+    background: linear-gradient(165deg, var(--ruana-success-soft) 0%, rgba(10, 12, 20, 0.88) 100%);
+}
+
+.ruana-feedback--success .ruana-feedback__icon { color: var(--ruana-success-text); }
+
+.ruana-feedback--warning {
+    border-color: var(--ruana-warning-border);
+    background: linear-gradient(165deg, var(--ruana-warning-soft) 0%, rgba(10, 12, 20, 0.88) 100%);
+}
+
+.ruana-feedback--warning .ruana-feedback__icon { color: var(--ruana-warning-text); }
+
+.ruana-feedback--error {
+    border-color: var(--ruana-error-border);
+    background: linear-gradient(165deg, var(--ruana-error-soft) 0%, rgba(10, 12, 20, 0.88) 100%);
+}
+
+.ruana-feedback--error .ruana-feedback__icon { color: var(--ruana-error-text); }
+
+.ruana-feedback--info {
+    border-color: var(--ruana-info-border);
+    background: linear-gradient(165deg, var(--ruana-info-soft) 0%, rgba(10, 12, 20, 0.88) 100%);
+}
+
+.ruana-feedback--info .ruana-feedback__icon { color: var(--ruana-info-text); }
+
+/* ——— Animaciones compartidas ——— */
+@keyframes ruana-feedback-enter {
+    from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes ruana-feedback-leave {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+}
+
+@keyframes ruana-feedback-slide-in {
+    from {
+        opacity: 0;
+        transform: translateX(14px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+@keyframes ruana-feedback-slide-out {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(10px);
+    }
+}
+
+@keyframes ruana-feedback-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes ruana-feedback-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ——— Toasts ——— */
+.ruana-toast-container {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 20000;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    pointer-events: none;
+    max-width: min(440px, calc(100vw - 40px));
+}
+
+.ruana-toast {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: var(--ruana-feedback-padding);
+    border-radius: var(--ruana-feedback-radius);
+    pointer-events: auto;
+    animation: ruana-feedback-slide-in var(--ruana-feedback-duration) var(--ruana-feedback-ease) forwards;
+}
+
+.ruana-toast.is-leaving {
+    animation: ruana-feedback-slide-out 200ms var(--ruana-feedback-ease) forwards;
+}
+
+.ruana-toast-icon {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    margin-top: 2px;
+    display: grid;
+    place-items: center;
+}
+
+.ruana-toast-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.ruana-toast-title {
+    font-size: 0.94rem;
+    font-weight: 600;
+    color: var(--ruana-text);
+    margin-bottom: 2px;
+    letter-spacing: -0.01em;
+}
+
+.ruana-toast-message {
+    font-size: 0.86rem;
+    color: var(--ruana-text-muted);
+    line-height: 1.5;
+}
+
+.ruana-toast-body:not(:has(.ruana-toast-title)) .ruana-toast-message {
+    color: var(--ruana-text-soft);
+    font-size: 0.9rem;
+}
+
+.ruana-toast-close {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--ruana-text-muted);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: background var(--ruana-feedback-duration) var(--ruana-feedback-ease),
+        color var(--ruana-feedback-duration) var(--ruana-feedback-ease);
+}
+
+.ruana-toast-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--ruana-text);
+}
+
+.ruana-toast.success { border-color: var(--ruana-success-border); }
+.ruana-toast.success .ruana-toast-icon { color: var(--ruana-success-text); }
+.ruana-toast.error { border-color: var(--ruana-error-border); }
+.ruana-toast.error .ruana-toast-icon { color: var(--ruana-error-text); }
+.ruana-toast.warning { border-color: var(--ruana-warning-border); }
+.ruana-toast.warning .ruana-toast-icon { color: var(--ruana-warning-text); }
+.ruana-toast.info { border-color: var(--ruana-info-border); }
+.ruana-toast.info .ruana-toast-icon { color: var(--ruana-info-text); }
+
+.ruana-toast.loading .ruana-toast-icon svg {
+    animation: ruana-feedback-spin 0.9s linear infinite;
+}
+
+.ruana-toast .ruana-feedback__actions {
+    margin-top: 12px;
+}
+
+/* ——— Diálogos de confirmación ——— */
+.ruana-dialog-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 19000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(6, 8, 18, 0.68);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    animation: ruana-feedback-fade-in 280ms var(--ruana-feedback-ease);
+}
+
+.ruana-dialog-overlay.is-leaving {
+    animation: ruana-feedback-fade-in 200ms var(--ruana-feedback-ease) reverse forwards;
+}
+
+.ruana-dialog {
+    width: min(100%, 460px);
+    padding: var(--ruana-feedback-padding-lg);
+    border-radius: 24px;
+    animation: ruana-feedback-enter 280ms var(--ruana-feedback-ease);
+}
+
+.ruana-dialog-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    display: grid;
+    place-items: center;
+    margin-bottom: 20px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--ruana-info-text);
+}
+
+.ruana-dialog-overlay--danger .ruana-dialog-icon {
+    background: var(--ruana-error-soft);
+    color: var(--ruana-error-text);
+}
+
+.ruana-dialog-overlay--warning .ruana-dialog-icon {
+    background: var(--ruana-warning-soft);
+    color: var(--ruana-warning-text);
+}
+
+.ruana-dialog-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--ruana-text);
+    margin-bottom: 10px;
+    letter-spacing: -0.02em;
+    line-height: 1.35;
+}
+
+.ruana-dialog-message {
+    font-size: 0.92rem;
+    color: var(--ruana-text-muted);
+    line-height: 1.6;
+    margin-bottom: 28px;
+}
+
+.ruana-dialog-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+}
+
+.ruana-dialog-actions .ruana-button {
+    min-height: 48px;
+    padding: 12px 22px;
+    border-radius: 14px;
+    font-size: 0.92rem;
+    font-weight: 600;
+}
+
+.ruana-dialog-actions .ruana-button.secondary {
+    min-height: 48px;
+}
+
+.ruana-dialog-overlay--danger .ruana-dialog-confirm {
+    background: rgba(184, 106, 138, 0.22);
+    border-color: rgba(184, 106, 138, 0.4);
+    color: #e8c0d0;
+}
+
+.ruana-dialog-overlay--danger .ruana-dialog-confirm:hover {
+    background: rgba(184, 106, 138, 0.32);
+}
+
+/* ——— Banners informativos (inline) ——— */
+.ruana-feedback--banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: var(--ruana-feedback-padding);
+    margin-bottom: 16px;
+    animation: ruana-feedback-enter var(--ruana-feedback-duration) var(--ruana-feedback-ease);
+}
+
+.ruana-feedback--banner .ruana-feedback__content {
+    flex: 1;
+    min-width: 0;
+}
+
+.ruana-feedback--banner.is-leaving {
+    animation: ruana-feedback-leave 200ms var(--ruana-feedback-ease) forwards;
+}
+
+/* Aliado shell banners */
+#error-bootstrap.ruana-feedback--error {
+    text-align: left;
+}
+
+#banner-mensaje-nuevo-ruana,
+#aviso-pagos-pendientes-banner {
+    margin-bottom: 0;
+}
+
+/* ——— Inline success (solicitud, formularios) ——— */
+.solicitud-success,
+.ruana-feedback--inline-success {
+    margin-top: 16px;
+    padding: var(--ruana-feedback-padding);
+    border-radius: var(--ruana-feedback-radius);
+    border: 1px solid var(--ruana-success-border);
+    background: linear-gradient(165deg, var(--ruana-success-soft) 0%, rgba(10, 12, 20, 0.75) 100%);
+    color: var(--ruana-success-text);
+    font-size: 0.88rem;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity var(--ruana-feedback-duration) var(--ruana-feedback-ease),
+        transform var(--ruana-feedback-duration) var(--ruana-feedback-ease);
+}
+
+.solicitud-success.show,
+.ruana-feedback--inline-success.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Auth inline messages */
+.invite-error,
+.register-error,
+.access-error,
+.error-message,
+.form-error {
+    border-radius: var(--ruana-feedback-radius) !important;
+    padding: 14px 18px !important;
+    border: 1px solid var(--ruana-error-border) !important;
+    background: linear-gradient(165deg, var(--ruana-error-soft) 0%, rgba(10, 12, 20, 0.8) 100%) !important;
+    color: var(--ruana-error-text) !important;
+    backdrop-filter: blur(20px);
+    font-size: 0.88rem !important;
+    line-height: 1.5;
+    animation: ruana-feedback-enter var(--ruana-feedback-duration) var(--ruana-feedback-ease);
+}
+
+.success-message,
+.form-success {
+    border-radius: var(--ruana-feedback-radius) !important;
+    padding: 14px 18px !important;
+    border: 1px solid var(--ruana-success-border) !important;
+    background: linear-gradient(165deg, var(--ruana-success-soft) 0%, rgba(10, 12, 20, 0.8) 100%) !important;
+    color: var(--ruana-success-text) !important;
+    backdrop-filter: blur(20px);
+    font-size: 0.88rem !important;
+    animation: ruana-feedback-enter var(--ruana-feedback-duration) var(--ruana-feedback-ease);
+}
+
+/* ——— Overlay de carga contextual ——— */
+.ruana-loading-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 18500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(6, 8, 18, 0.55);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    animation: ruana-feedback-fade-in 220ms var(--ruana-feedback-ease);
+}
+
+.ruana-loading-overlay.is-leaving {
+    animation: ruana-feedback-fade-in 200ms var(--ruana-feedback-ease) reverse forwards;
+}
+
+.ruana-loading-card {
+    width: min(100%, 360px);
+    padding: 32px 28px;
+    text-align: center;
+    animation: ruana-feedback-enter 280ms var(--ruana-feedback-ease);
+}
+
+.ruana-loading-spinner {
+    width: 40px;
+    height: 40px;
+    margin: 0 auto 20px;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-top-color: var(--ruana-success-text);
+    border-radius: 50%;
+    animation: ruana-feedback-spin 0.85s linear infinite;
+}
+
+.ruana-loading-message {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--ruana-text);
+    margin-bottom: 6px;
+}
+
+.ruana-loading-subtext {
+    font-size: 0.84rem;
+    color: var(--ruana-text-muted);
+    line-height: 1.5;
+}
+
+/* Panel loading contextual text */
+.panel-loading-state .ruana-loader-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--ruana-text);
+}
+
+.panel-loading-state .ruana-loader-copy,
+.panel-loading-subtext {
+    font-size: 0.88rem;
+    color: var(--ruana-text-muted);
+    max-width: 320px;
+    line-height: 1.55;
+}
+
+/* ——— Modo claro (adaptación) ——— */
+@media (prefers-color-scheme: light) {
+    .ruana-feedback,
+    .ruana-toast,
+    .ruana-dialog {
+        background: linear-gradient(165deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 250, 252, 0.96) 100%);
+        border-color: rgba(15, 23, 42, 0.08);
+        box-shadow: 0 20px 48px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    }
+
+    .ruana-feedback__title,
+    .ruana-toast-title,
+    .ruana-dialog-title,
+    .ruana-loading-message {
+        color: #0f172a;
+    }
+
+    .ruana-feedback__message,
+    .ruana-toast-message,
+    .ruana-dialog-message,
+    .ruana-loading-subtext {
+        color: #64748b;
+    }
+
+    .ruana-dialog-overlay,
+    .ruana-loading-overlay {
+        background: rgba(248, 250, 252, 0.72);
+    }
+}
+
+/* ——— Responsive ——— */
+@media (max-width: 640px) {
+    .ruana-toast-container {
+        top: 16px;
+        right: 16px;
+        left: 16px;
+        max-width: none;
+    }
+
+    .ruana-dialog {
+        padding: 24px 20px;
+        border-radius: 22px;
+    }
+
+    .ruana-dialog-actions {
+        flex-direction: column-reverse;
+    }
+
+    .ruana-dialog-actions .ruana-button {
+        width: 100%;
+    }
+
+    .ruana-feedback--banner {
+        padding: 16px 18px;
+    }
+}
+
+/* Reducir movimiento */
+@media (prefers-reduced-motion: reduce) {
+    .ruana-toast,
+    .ruana-dialog,
+    .ruana-feedback--banner,
+    .ruana-loading-overlay,
+    .ruana-loading-card,
+    .solicitud-success,
+    .form-error,
+    .form-success {
+        animation: none;
+        transition: none;
+    }
+
+    .ruana-loading-spinner,
+    .ruana-toast.loading .ruana-toast-icon svg {
+        animation: none;
+    }
+}

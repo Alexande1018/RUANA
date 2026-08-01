@@ -36,6 +36,11 @@ class Settings:
     supabase_service_role_key: str = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
     database_url: str = os.environ.get("DATABASE_URL", "")
     flask_secret_key: str = os.environ.get("FLASK_SECRET_KEY", "ruana_secret_key_dev")
+    smtp_host: str = os.environ.get("RUANA_SMTP_HOST", "smtp.gmail.com")
+    smtp_port: int = int(os.environ.get("RUANA_SMTP_PORT", "587"))
+    smtp_user: str = os.environ.get("RUANA_SMTP_USER", "team.ruana@gmail.com")
+    smtp_password: str = os.environ.get("RUANA_SMTP_PASSWORD", "")
+    smtp_from_email: str = os.environ.get("RUANA_SMTP_FROM_EMAIL", "")
 
     @property
     def supabase_configured(self) -> bool:
@@ -44,6 +49,10 @@ class Settings:
     @property
     def postgres_configured(self) -> bool:
         return bool(self.database_url)
+
+    @property
+    def smtp_configured(self) -> bool:
+        return bool(self.smtp_host and self.smtp_user and self.smtp_password)
 
 
 @lru_cache(maxsize=1)
@@ -55,6 +64,10 @@ def get_settings() -> Settings:
         or os.environ.get("PUBLIC_APP_URL", "")
         or f"https://{firebase_project_id}.web.app"
     )
+    smtp_from = (
+        os.environ.get("RUANA_SMTP_FROM_EMAIL", "")
+        or os.environ.get("RUANA_SMTP_USER", "team.ruana@gmail.com")
+    )
     return Settings(
         firebase_project_id=firebase_project_id,
         public_app_url=public_app_url.rstrip("/"),
@@ -64,4 +77,9 @@ def get_settings() -> Settings:
         supabase_service_role_key=os.environ.get("SUPABASE_SERVICE_ROLE_KEY", ""),
         database_url=os.environ.get("DATABASE_URL", ""),
         flask_secret_key=os.environ.get("FLASK_SECRET_KEY", "ruana_secret_key_dev"),
+        smtp_host=os.environ.get("RUANA_SMTP_HOST", "smtp.gmail.com"),
+        smtp_port=int(os.environ.get("RUANA_SMTP_PORT", "587")),
+        smtp_user=os.environ.get("RUANA_SMTP_USER", "team.ruana@gmail.com"),
+        smtp_password=os.environ.get("RUANA_SMTP_PASSWORD", ""),
+        smtp_from_email=smtp_from,
     )

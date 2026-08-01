@@ -7,6 +7,7 @@ import sqlite3
 import json
 import os
 import random
+import re
 import string
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
@@ -30,6 +31,11 @@ SUFIJOS_GRUPO = (
 MAX_GRUPOS_POR_CP = 5
 # Columna de foto pública de perfil en aliados (SQLite y Postgres deben mantenerla sincronizada).
 ALIADO_FOTO_PERFIL_COLUMN = "foto_perfil_url"
+# Estados en los que email/teléfono quedan liberados para nuevo registro.
+ESTADOS_ALIADO_CONTACTO_LIBERADO = ('expulsado', 'rechazado')
+SQL_ESTADO_CONTACTO_OCUPADO = (
+    "LOWER(TRIM(COALESCE(estado, ''))) NOT IN ('expulsado', 'rechazado')"
+)
 # IMPORTANTE: Todos los componentes (Flask, scripts, motores) deben usar
 # EXCLUSIVAMENTE este valor como fuente de verdad para `ruana.db`.
 DB_PATH = str(
@@ -44,6 +50,14 @@ DB_PATH = str(
 # Formato de código RUANA invitación oficio: RUANA-{grupo_id}-{OFICIO_NORM}-{4chars}
 # Usado por generar_invitacion_oficio y validar_invitacion_oficio para consistencia.
 RUANA_CODIGO_INVITACION_REGEX = r'^RUANA-\d+-[A-Z0-9]+-[A-Z0-9]{4}$'
+
+
+def _email_liberado_aliado(codigo: str) -> str:
+    return f'liberado+{codigo}@ruana.invalid'
+
+
+def _telefono_liberado_aliado(codigo: str) -> str:
+    return f'LIBERADO-{codigo}'
 
 
 class DBManager:
@@ -125,10 +139,13 @@ class DBManager:
             self._migrar_solicitudes_candidato(conn, cursor)
             self._migrar_contactos_es_urgente(conn, cursor)
             self._migrar_negociacion_guiada(conn, cursor)
+            self._migrar_acuerdo_cierre_bilateral(conn, cursor)
+            self._migrar_importe_acordado(conn, cursor)
             self._migrar_aliado_accesos_dia(conn, cursor)
             self._migrar_centro_comunicacion_ruana(conn, cursor)
+            self._migrar_aliados_eliminados(conn, cursor)
             conn.commit()
-            print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil + linaje + urgente + negociación guiada + accesos día + retador)")
+            print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil + linaje + urgente + negociación guiada + accesos día + retador + aliados eliminados)")
         except Exception as e:
             print(f"[RUANA][DB] Error inicializando esquema Postgres: {e}")
         finally:
@@ -504,6 +521,8 @@ class DBManager:
                 self._migrar_contactos_fecha_pospuesto_hasta(conn, cursor)
                 self._migrar_chat_mensajes(conn, cursor)
                 self._migrar_negociacion_guiada(conn, cursor)
+                self._migrar_acuerdo_cierre_bilateral(conn, cursor)
+                self._migrar_importe_acordado(conn, cursor)
                 self._migrar_contactos_motivo_contacto(conn, cursor)
                 self._migrar_contactos_es_urgente(conn, cursor)
                 self._migrar_drop_chat_messages(conn, cursor)
@@ -522,6 +541,7 @@ class DBManager:
                 self._migrar_drop_especializaciones(conn, cursor)
                 self._migrar_retador_rename(conn, cursor)
                 self._migrar_competencia_permanencia(conn, cursor)
+                self._migrar_aliados_eliminados(conn, cursor)
 
                 conn.commit()
                 print(f"[RUANA][DB] Base de datos inicializada en: {self.db_path}")
@@ -826,6 +846,43 @@ class DBManager:
         cursor.execute(
             "CREATE INDEX IF NOT EXISTS idx_negociacion_eventos_contacto ON negociacion_eventos(contacto_id)"
         )
+
+    def _migrar_acuerdo_cierre_bilateral(self, conn, cursor) -> None:
+        """
+        Columnas para snapshot del acuerdo, confirmación bilateral de cierre
+        y dismiss del resumen flotante por cada parte.
+        """
+        columnas_nuevas = [
+            ('acuerdo_resumen_json', 'TEXT', 'JSONB'),
+            ('acuerdo_alcanzado_en', 'TIMESTAMP', 'TIMESTAMP'),
+            ('cierre_confirmado_solicitante_en', 'TIMESTAMP', 'TIMESTAMP'),
+            ('cierre_confirmado_profesional_en', 'TIMESTAMP', 'TIMESTAMP'),
+            ('resumen_dismiss_solicitante_en', 'TIMESTAMP', 'TIMESTAMP'),
+            ('resumen_dismiss_profesional_en', 'TIMESTAMP', 'TIMESTAMP'),
+        ]
+        if self.backend == "postgres":
+            for nombre, _sqlite_t, pg_t in columnas_nuevas:
+                cursor.execute(
+                    f"ALTER TABLE contactos_ruana ADD COLUMN IF NOT EXISTS {nombre} {pg_t}"
+                )
+            return
+        cursor.execute("PRAGMA table_info(contactos_ruana)")
+        columnas = [row[1] for row in cursor.fetchall()]
+        for nombre, sqlite_t, _pg_t in columnas_nuevas:
+            if nombre not in columnas:
+                cursor.execute(f"ALTER TABLE contactos_ruana ADD COLUMN {nombre} {sqlite_t}")
+
+    def _migrar_importe_acordado(self, conn, cursor) -> None:
+        """Importe oficial del encargo = precio confirmado en la negociación."""
+        if self.backend == "postgres":
+            cursor.execute(
+                "ALTER TABLE contactos_ruana ADD COLUMN IF NOT EXISTS importe_acordado REAL"
+            )
+            return
+        cursor.execute("PRAGMA table_info(contactos_ruana)")
+        columnas = [row[1] for row in cursor.fetchall()]
+        if 'importe_acordado' not in columnas:
+            cursor.execute("ALTER TABLE contactos_ruana ADD COLUMN importe_acordado REAL")
 
     def _migrar_contactos_motivo_contacto(self, conn, cursor) -> None:
         """Añade motivo_contacto al contacto (obligatorio antes de iniciar chat)."""
@@ -2231,11 +2288,17 @@ class DBManager:
                 if cursor.fetchone():
                     return {'status': 'error', 'message': f'Código {codigo} ya existe'}
 
-                cursor.execute("SELECT id FROM aliados WHERE email = ?", (email,))
+                cursor.execute(
+                    f"SELECT id FROM aliados WHERE email = ? AND {SQL_ESTADO_CONTACTO_OCUPADO}",
+                    (email,),
+                )
                 if cursor.fetchone():
                     return {'status': 'error', 'message': f'El email {email} ya está registrado'}
 
-                cursor.execute("SELECT id FROM aliados WHERE telefono = ?", (telefono,))
+                cursor.execute(
+                    f"SELECT id FROM aliados WHERE telefono = ? AND {SQL_ESTADO_CONTACTO_OCUPADO}",
+                    (telefono,),
+                )
                 if cursor.fetchone():
                     return {'status': 'error', 'message': f'El teléfono {telefono} ya está registrado'}
 
@@ -2374,11 +2437,17 @@ class DBManager:
                 if estado_actual != 'pendiente_completar':
                     return {'status': 'error', 'message': 'Codigo de invitacion ya usado'}
 
-                cursor.execute("SELECT id FROM aliados WHERE email = ? AND codigo != ?", (email, codigo))
+                cursor.execute(
+                    f"SELECT id FROM aliados WHERE email = ? AND codigo != ? AND {SQL_ESTADO_CONTACTO_OCUPADO}",
+                    (email, codigo),
+                )
                 if cursor.fetchone():
                     return {'status': 'error', 'message': f'El email {email} ya esta registrado'}
 
-                cursor.execute("SELECT id FROM aliados WHERE telefono = ? AND codigo != ?", (telefono, codigo))
+                cursor.execute(
+                    f"SELECT id FROM aliados WHERE telefono = ? AND codigo != ? AND {SQL_ESTADO_CONTACTO_OCUPADO}",
+                    (telefono, codigo),
+                )
                 if cursor.fetchone():
                     return {'status': 'error', 'message': f'El telefono {telefono} ya esta registrado'}
 
@@ -2539,14 +2608,20 @@ class DBManager:
                     }
 
                 # Reutilizar las mismas validaciones de email/teléfono que crear_aliado
-                cursor.execute("SELECT id FROM aliados WHERE email = ?", (email,))
+                cursor.execute(
+                    f"SELECT id FROM aliados WHERE email = ? AND {SQL_ESTADO_CONTACTO_OCUPADO}",
+                    (email,),
+                )
                 if cursor.fetchone():
                     return {
                         'status': 'error',
                         'message': f'El email {email} ya está registrado'
                     }
 
-                cursor.execute("SELECT id FROM aliados WHERE telefono = ?", (telefono,))
+                cursor.execute(
+                    f"SELECT id FROM aliados WHERE telefono = ? AND {SQL_ESTADO_CONTACTO_OCUPADO}",
+                    (telefono,),
+                )
                 if cursor.fetchone():
                     return {
                         'status': 'error',
@@ -6969,13 +7044,28 @@ class DBManager:
 
     def rechazar_aliado_pendiente(self, codigo: str) -> Dict[str, Any]:
         """Rechaza un aliado en pendiente_validacion: estado pasa a rechazado. No podrá entrar al panel."""
+        codigo = (codigo or '').strip()
         with self._lock:
             try:
                 conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
-                    "UPDATE aliados SET estado = 'rechazado', actualizado_en = CURRENT_TIMESTAMP WHERE codigo = ? AND estado = 'pendiente_validacion'",
-                    (codigo.strip(),)
+                    f"""
+                    UPDATE aliados
+                    SET estado = 'rechazado',
+                        email = ?,
+                        telefono = ?,
+                        qr_paypal_path = NULL,
+                        bizum_num = NULL,
+                        {ALIADO_FOTO_PERFIL_COLUMN} = NULL,
+                        actualizado_en = CURRENT_TIMESTAMP
+                    WHERE codigo = ? AND estado = 'pendiente_validacion'
+                    """,
+                    (
+                        _email_liberado_aliado(codigo),
+                        _telefono_liberado_aliado(codigo),
+                        codigo,
+                    ),
                 )
                 conn.commit()
                 if cursor.rowcount > 0:
@@ -7517,8 +7607,160 @@ class DBManager:
                 if conn:
                     conn.close()
 
+    def _parse_importe_acuerdo(self, valor: Any) -> Optional[float]:
+        """Extrae un importe numérico > 0 del valor acordado en negociación (p. ej. «150», «150€»)."""
+        if valor is None:
+            return None
+        if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+            return float(valor) if float(valor) > 0 else None
+        texto = str(valor).strip()
+        if not texto:
+            return None
+        texto = texto.replace(',', '.').replace('€', ' ').replace('EUR', ' ').replace('eur', ' ')
+        match = re.search(r'(\d+(?:\.\d+)?)', texto)
+        if not match:
+            return None
+        try:
+            importe = float(match.group(1))
+        except (TypeError, ValueError):
+            return None
+        return importe if importe > 0 else None
+
+    def _precio_valor_desde_contacto(self, contacto: Dict[str, Any]) -> Any:
+        """Obtiene el valor de precio desde columnas/snapshot/negociacion_json."""
+        if contacto.get('importe_acordado') is not None:
+            try:
+                return float(contacto.get('importe_acordado'))
+            except (TypeError, ValueError):
+                pass
+        resumen = self._parse_acuerdo_resumen_campo(contacto.get('acuerdo_resumen_json')) or {}
+        campos = resumen.get('campos') or {}
+        if campos.get('precio') is not None:
+            return campos.get('precio')
+        estado = neg_mgr.parse_negociacion(contacto.get('negociacion_json'))
+        try:
+            return estado['campos']['precio']['valor']
+        except Exception:
+            return None
+
+    def _importe_oficial_contacto(self, contacto: Dict[str, Any]) -> Optional[float]:
+        """Importe oficial del encargo (precio negociado)."""
+        return self._parse_importe_acuerdo(self._precio_valor_desde_contacto(contacto))
+
+    def _construir_acuerdo_resumen_json(
+        self,
+        estado: Dict[str, Any],
+        contacto: Dict[str, Any],
+    ) -> str:
+        """Snapshot inmutable del acuerdo para historial «Mis acuerdos»."""
+        campos_valores = {}
+        for c in neg_mgr.CAMPOS_ORDEN:
+            campos_valores[c] = (estado.get('campos') or {}).get(c, {}).get('valor')
+        payload = {
+            'contacto_id': contacto.get('id'),
+            'solicitante_codigo': str(contacto.get('solicitante_codigo') or '').strip(),
+            'profesional_codigo': str(contacto.get('profesional_codigo') or '').strip(),
+            'servicio_contacto': (contacto.get('servicio') or '').strip(),
+            'campos': campos_valores,
+            'resumen': neg_mgr.resumen_acuerdo(estado),
+        }
+        return json.dumps(payload, ensure_ascii=False)
+
+    def _flags_cierre_acuerdo(self, contacto: Dict[str, Any], rol: str) -> Dict[str, Any]:
+        conf_sol = bool(contacto.get('cierre_confirmado_solicitante_en'))
+        conf_pro = bool(contacto.get('cierre_confirmado_profesional_en'))
+        yo = conf_sol if rol == 'solicitante' else conf_pro
+        dismiss = bool(
+            contacto.get('resumen_dismiss_solicitante_en')
+            if rol == 'solicitante'
+            else contacto.get('resumen_dismiss_profesional_en')
+        )
+        return {
+            'cierre_confirmado_solicitante': conf_sol,
+            'cierre_confirmado_profesional': conf_pro,
+            'yo_confirme_cierre': yo,
+            'ambos_confirmaron_cierre': conf_sol and conf_pro,
+            'resumen_dismissed': dismiss,
+        }
+
+    def _parse_acuerdo_resumen_campo(self, raw: Any) -> Optional[Dict[str, Any]]:
+        if raw is None or raw == '':
+            return None
+        if isinstance(raw, dict):
+            return raw
+        try:
+            data = json.loads(raw) if isinstance(raw, str) else None
+            return data if isinstance(data, dict) else None
+        except Exception:
+            return None
+
+    def _cerrar_encargo_tras_acuerdo(
+        self,
+        contacto_id: int,
+        solicitante_codigo: str,
+        precio_valor: Any,
+        codigo_viewer: str,
+        mensaje_acuerdo: str,
+        payload_base: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Tras confirmación bilateral del acuerdo, aplica la misma lógica que «Sí hubo trabajo»
+        usando el importe oficial negociado (sin reingreso manual).
+        """
+        contacto = self.obtener_contacto_por_id(contacto_id) or {}
+        importe = self._importe_oficial_contacto(contacto)
+        if importe is None:
+            importe = self._parse_importe_acuerdo(precio_valor)
+        if importe is None:
+            out = dict(payload_base)
+            out['cierre_automatico'] = False
+            out['cierre_aviso'] = (
+                'Acuerdo alcanzado, pero no hay un precio numérico oficial. '
+                'Revisa el precio en la negociación.'
+            )
+            return out
+
+        cierre = self.registrar_importe_contacto(
+            contacto_id,
+            'solicitante',
+            importe,
+            'EUR',
+            usuario=(solicitante_codigo or '').strip(),
+            usar_precio_acordado=True,
+        )
+        if not cierre or cierre.get('status') != 'success':
+            out = dict(payload_base)
+            out['cierre_automatico'] = False
+            out['cierre_aviso'] = (cierre or {}).get('message') or (
+                'Acuerdo alcanzado. No se pudo registrar el cobro del Apoyo RUANA con el precio aceptado.'
+            )
+            return out
+
+        refreshed = self.obtener_negociacion_contacto(contacto_id, codigo_viewer)
+        if refreshed.get('status') == 'success':
+            refreshed['completo'] = True
+            refreshed['cierre_automatico'] = True
+            refreshed['message'] = (
+                (mensaje_acuerdo or 'Acuerdo alcanzado.')
+                + ' Precio aceptado como importe oficial; se genera el Apoyo RUANA.'
+            )
+            refreshed['estado_cierre'] = cierre.get('estado')
+            if cierre.get('importe_acordado') is not None:
+                refreshed['importe_acordado'] = cierre.get('importe_acordado')
+            return refreshed
+
+        out = dict(payload_base)
+        out['cierre_automatico'] = True
+        out['estado_contacto'] = cierre.get('estado') or 'trabajo_cerrado'
+        out['estado_cierre'] = cierre.get('estado')
+        return out
+
     def aceptar_negociacion(self, contacto_id: int, codigo_aliado: str, campo: str,
                             observaciones_profesional: str = '') -> Dict[str, Any]:
+        completo = False
+        payload = None
+        solicitante_codigo = ''
+        precio_para_cierre = None
         with self._lock:
             conn = None
             try:
@@ -7539,14 +7781,18 @@ class DBManager:
                 )
                 neg_json = neg_mgr.serializar_negociacion(estado)
                 nuevo_estado = contacto.get('estado') or 'iniciado'
+                resumen_json = None
+                solicitante_codigo = sol
                 if completo:
                     nuevo_estado = 'acuerdo_alcanzado'
+                    resumen_json = self._construir_acuerdo_resumen_json(estado, contacto)
                     cursor.execute(
                         "UPDATE contactos_ruana SET fecha_trabajo_en_progreso = COALESCE(fecha_trabajo_en_progreso, CURRENT_TIMESTAMP) WHERE id = ?",
                         (contacto_id,),
                     )
                     msg_sistema = (
-                        'Acuerdo alcanzado. Resumen: '
+                        'Acuerdo alcanzado. El precio aceptado es el importe oficial del encargo '
+                        'y se genera el Apoyo RUANA. Resumen: '
                         + ', '.join(
                             f"{neg_mgr.CAMPOS_LABELS[c]}: {estado['campos'][c]['valor']}"
                             for c in neg_mgr.CAMPOS_ORDEN
@@ -7555,18 +7801,40 @@ class DBManager:
                     self._insertar_evento_negociacion(
                         cursor, contacto_id, neg_mgr.TIPO_SISTEMA, None, '', None, msg_sistema
                     )
-                cursor.execute("""
-                    UPDATE contactos_ruana
-                    SET negociacion_json = ?, estado = ?, actualizado_en = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                """, (neg_json, nuevo_estado, contacto_id))
+                if completo and resumen_json is not None:
+                    try:
+                        precio_raw = estado['campos']['precio']['valor']
+                    except Exception:
+                        precio_raw = None
+                    importe_oficial = self._parse_importe_acuerdo(precio_raw)
+                    precio_para_cierre = precio_raw if precio_raw is not None else importe_oficial
+                    cursor.execute("""
+                        UPDATE contactos_ruana
+                        SET negociacion_json = ?, estado = ?,
+                            acuerdo_resumen_json = COALESCE(acuerdo_resumen_json, ?),
+                            acuerdo_alcanzado_en = COALESCE(acuerdo_alcanzado_en, CURRENT_TIMESTAMP),
+                            importe_acordado = COALESCE(importe_acordado, ?),
+                            actualizado_en = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    """, (neg_json, nuevo_estado, resumen_json, importe_oficial, contacto_id))
+                else:
+                    cursor.execute("""
+                        UPDATE contactos_ruana
+                        SET negociacion_json = ?, estado = ?, actualizado_en = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    """, (neg_json, nuevo_estado, contacto_id))
                 self._insertar_evento_negociacion(cursor, contacto_id, tipo, campo,
                     estado['campos'][campo]['valor'], codigo_aliado, msg)
                 conn.commit()
                 eventos = self.listar_eventos_negociacion(contacto_id)
                 contacto = self._cargar_contacto_negociacion(cursor, contacto_id)
                 payload = neg_mgr.construir_payload(contacto, eventos, rol)
-                return {'status': 'success', 'message': msg, 'completo': completo, **payload}
+                payload = {'status': 'success', 'message': msg, 'completo': completo, **payload}
+                if contacto.get('importe_acordado') is not None:
+                    try:
+                        payload['importe_acordado'] = float(contacto['importe_acordado'])
+                    except (TypeError, ValueError):
+                        pass
             except ValueError as ve:
                 if conn:
                     conn.rollback()
@@ -7579,14 +7847,32 @@ class DBManager:
                 if conn:
                     conn.close()
 
+        # Fuera del lock: el precio aceptado cierra el encargo y genera Apoyo RUANA (sin confirmación extra).
+        if completo and payload and payload.get('status') == 'success':
+            return self._cerrar_encargo_tras_acuerdo(
+                contacto_id,
+                solicitante_codigo or '',
+                precio_para_cierre,
+                codigo_aliado,
+                'Acuerdo alcanzado. Precio aceptado como importe oficial.',
+                payload,
+            )
+        return payload if payload else {'status': 'error', 'message': 'No se pudo aceptar el punto'}
+
     def cerrar_negociacion(self, contacto_id: int, actor_codigo: str,
                            motivo: str = '') -> Dict[str, Any]:
         """
-        Cierra la negociación para ambas partes (no concretado).
-        Solo solicitante o profesional del contacto. Registra evento en timeline.
+        Cierra la negociación:
+        - Si hay acuerdo / trabajo ya cerrado por precio aceptado: confirma el cierre por esta parte
+          (bilateral, solo acuse de recibo del resumen).
+        - Si aún no hay acuerdo: finaliza como no concretado.
         """
         codigo = (actor_codigo or '').strip()
-        sol = prof = None
+        sol = pro = None
+        need_trabajo = False
+        precio_valor = None
+        mensaje_cierre = ''
+        payload_base = None
         with self._lock:
             conn = None
             try:
@@ -7602,31 +7888,135 @@ class DBManager:
                 if not rol:
                     return {'status': 'error', 'message': 'No autorizado'}
                 estado_actual = (contacto.get('estado') or '').strip()
+
+                # Ya cerrado por cobro automático tras aceptar precio: solo acuse bilateral del resumen
+                if estado_actual == 'trabajo_cerrado' and (
+                    contacto.get('acuerdo_resumen_json') or contacto.get('importe_acordado') is not None
+                ):
+                    col = (
+                        'cierre_confirmado_solicitante_en'
+                        if rol == 'solicitante'
+                        else 'cierre_confirmado_profesional_en'
+                    )
+                    if not contacto.get(col):
+                        cursor.execute(f"""
+                            UPDATE contactos_ruana
+                            SET {col} = CURRENT_TIMESTAMP, actualizado_en = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                        """, (contacto_id,))
+                        conn.commit()
+                    contacto = self._cargar_contacto_negociacion(cursor, contacto_id)
+                    eventos = self.listar_eventos_negociacion(contacto_id)
+                    payload = neg_mgr.construir_payload(contacto, eventos, rol)
+                    return {
+                        'status': 'success',
+                        'message': 'El encargo ya está cerrado con el precio acordado.',
+                        'completo': True,
+                        'cierre_automatico': True,
+                        **payload,
+                    }
+
                 if estado_actual in self._ESTADOS_FINALES_CONTACTO:
                     return {
                         'status': 'error',
                         'message': f'El contacto ya está cerrado ({estado_actual}).',
                     }
-                quien = 'contratante' if rol == 'solicitante' else 'profesional'
-                msg_evento = (
-                    f'La negociación ha sido cerrada por el {quien}. '
-                    'El contacto queda finalizado sin acuerdo.'
-                )
-                self._insertar_evento_negociacion(
-                    cursor, contacto_id, neg_mgr.TIPO_SISTEMA, None, None, codigo, msg_evento,
-                )
-                cursor.execute("""
-                    UPDATE contactos_ruana
-                    SET estado = 'cerrado_no_concretado',
-                        pendiente_resolucion = 0,
-                        fecha_no_concretado = CURRENT_TIMESTAMP,
-                        actualizado_en = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                """, (contacto_id,))
-                detalles = f'aliados={sol},{pro} motivo={motivo or "cerrar_negociacion"} actor={codigo}'
-                self._audit_log(cursor, 'contacto', contacto_id, 'cerrar_negociacion',
-                                'aliado', codigo, detalles)
-                conn.commit()
+
+                # --- Confirmación bilateral tras acuerdo (si aún no se aplicó cobro) ---
+                if estado_actual == 'acuerdo_alcanzado' or (
+                    neg_mgr.parse_negociacion(contacto.get('negociacion_json')).get('completo')
+                    and estado_actual not in ('cerrado_no_concretado', 'no_concretado')
+                ):
+                    if estado_actual != 'acuerdo_alcanzado':
+                        cursor.execute("""
+                            UPDATE contactos_ruana
+                            SET estado = 'acuerdo_alcanzado',
+                                acuerdo_alcanzado_en = COALESCE(acuerdo_alcanzado_en, CURRENT_TIMESTAMP),
+                                actualizado_en = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                        """, (contacto_id,))
+                        estado_actual = 'acuerdo_alcanzado'
+
+                    col = (
+                        'cierre_confirmado_solicitante_en'
+                        if rol == 'solicitante'
+                        else 'cierre_confirmado_profesional_en'
+                    )
+                    ya = bool(contacto.get(col))
+                    if not ya:
+                        cursor.execute(f"""
+                            UPDATE contactos_ruana
+                            SET {col} = CURRENT_TIMESTAMP, actualizado_en = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                        """, (contacto_id,))
+                        quien = 'contratante' if rol == 'solicitante' else 'profesional'
+                        msg_evento = (
+                            f'El {quien} ha cerrado la negociación y confirma el acuerdo. '
+                            'Pendiente la confirmación de la otra parte.'
+                        )
+                        self._insertar_evento_negociacion(
+                            cursor, contacto_id, neg_mgr.TIPO_SISTEMA, None, None, codigo, msg_evento,
+                        )
+                        if not contacto.get('acuerdo_resumen_json'):
+                            estado_neg = neg_mgr.parse_negociacion(contacto.get('negociacion_json'))
+                            resumen_json = self._construir_acuerdo_resumen_json(estado_neg, contacto)
+                            cursor.execute("""
+                                UPDATE contactos_ruana
+                                SET acuerdo_resumen_json = ?,
+                                    acuerdo_alcanzado_en = COALESCE(acuerdo_alcanzado_en, CURRENT_TIMESTAMP)
+                                WHERE id = ?
+                            """, (resumen_json, contacto_id))
+
+                    conn.commit()
+                    contacto = self._cargar_contacto_negociacion(cursor, contacto_id)
+                    eventos = self.listar_eventos_negociacion(contacto_id)
+                    payload_base = neg_mgr.construir_payload(contacto, eventos, rol)
+                    payload_base = {
+                        'status': 'success',
+                        'message': 'Has confirmado el acuerdo. Esperando a la otra parte.'
+                        if not (
+                            contacto.get('cierre_confirmado_solicitante_en')
+                            and contacto.get('cierre_confirmado_profesional_en')
+                        )
+                        else 'Ambas partes confirmaron el acuerdo.',
+                        'completo': True,
+                        **payload_base,
+                    }
+                    conf_sol = bool(contacto.get('cierre_confirmado_solicitante_en'))
+                    conf_pro = bool(contacto.get('cierre_confirmado_profesional_en'))
+                    if conf_sol and conf_pro:
+                        need_trabajo = True
+                        estado_neg = neg_mgr.parse_negociacion(contacto.get('negociacion_json'))
+                        try:
+                            precio_valor = estado_neg['campos']['precio']['valor']
+                        except Exception:
+                            precio_valor = None
+                        mensaje_cierre = 'Ambas partes confirmaron el acuerdo.'
+                    else:
+                        return payload_base
+
+                else:
+                    # --- Abandono sin acuerdo ---
+                    quien = 'contratante' if rol == 'solicitante' else 'profesional'
+                    msg_evento = (
+                        f'La negociación ha sido cerrada por el {quien}. '
+                        'El contacto queda finalizado sin acuerdo.'
+                    )
+                    self._insertar_evento_negociacion(
+                        cursor, contacto_id, neg_mgr.TIPO_SISTEMA, None, None, codigo, msg_evento,
+                    )
+                    cursor.execute("""
+                        UPDATE contactos_ruana
+                        SET estado = 'cerrado_no_concretado',
+                            pendiente_resolucion = 0,
+                            fecha_no_concretado = CURRENT_TIMESTAMP,
+                            actualizado_en = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    """, (contacto_id,))
+                    detalles = f'aliados={sol},{pro} motivo={motivo or "cerrar_negociacion"} actor={codigo}'
+                    self._audit_log(cursor, 'contacto', contacto_id, 'cerrar_negociacion',
+                                    'aliado', codigo, detalles)
+                    conn.commit()
             except Exception as e:
                 if conn:
                     conn.rollback()
@@ -7635,11 +8025,172 @@ class DBManager:
                 if conn:
                     conn.close()
 
+        if need_trabajo and payload_base is not None:
+            return self._cerrar_encargo_tras_acuerdo(
+                contacto_id,
+                sol or '',
+                precio_valor,
+                codigo,
+                mensaje_cierre,
+                payload_base,
+            )
+
         if sol:
             self.aplicar_cambio_score(sol, -1, 'contacto_cerrado_no_concretado')
-        if prof:
-            self.aplicar_cambio_score(prof, -1, 'contacto_cerrado_no_concretado')
+        if pro:
+            self.aplicar_cambio_score(pro, -1, 'contacto_cerrado_no_concretado')
         return {'status': 'success', 'id': contacto_id, 'estado': 'cerrado_no_concretado'}
+
+    def dismiss_resumen_acuerdo(self, contacto_id: int, actor_codigo: str) -> Dict[str, Any]:
+        """El aliado oculta el panel flotante del resumen hasta nueva acción."""
+        codigo = (actor_codigo or '').strip()
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                contacto = self._cargar_contacto_negociacion(cursor, contacto_id)
+                if not contacto:
+                    return {'status': 'error', 'message': 'Contacto no encontrado'}
+                sol = str(contacto.get('solicitante_codigo') or '').strip()
+                pro = str(contacto.get('profesional_codigo') or '').strip()
+                rol = neg_mgr._rol_en_contacto(codigo, sol, pro)
+                if not rol:
+                    return {'status': 'error', 'message': 'No autorizado'}
+                col = (
+                    'resumen_dismiss_solicitante_en'
+                    if rol == 'solicitante'
+                    else 'resumen_dismiss_profesional_en'
+                )
+                cursor.execute(f"""
+                    UPDATE contactos_ruana
+                    SET {col} = CURRENT_TIMESTAMP, actualizado_en = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                """, (contacto_id,))
+                conn.commit()
+                return {'status': 'success', 'id': contacto_id, 'dismissed': True}
+            except Exception as e:
+                if conn:
+                    conn.rollback()
+                return {'status': 'error', 'message': str(e)}
+            finally:
+                if conn:
+                    conn.close()
+
+    def listar_acuerdos_aliado(self, codigo_aliado: str, limite: int = 50) -> List[Dict[str, Any]]:
+        """Historial «Mis acuerdos»: donde contrató o fue contratado."""
+        codigo = (codigo_aliado or '').strip()
+        if not codigo:
+            return []
+        limite = max(1, min(int(limite or 50), 100))
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id, solicitante_codigo, profesional_codigo, servicio, estado,
+                           acuerdo_resumen_json, acuerdo_alcanzado_en, fecha_cierre,
+                           importe_final, apoyo_ruana, creado_en, actualizado_en,
+                           cierre_confirmado_solicitante_en, cierre_confirmado_profesional_en
+                    FROM contactos_ruana
+                    WHERE (TRIM(CAST(solicitante_codigo AS TEXT)) = ?
+                        OR TRIM(CAST(profesional_codigo AS TEXT)) = ?)
+                      AND acuerdo_resumen_json IS NOT NULL
+                      AND TRIM(CAST(acuerdo_resumen_json AS TEXT)) != ''
+                    ORDER BY COALESCE(acuerdo_alcanzado_en, actualizado_en, creado_en) DESC
+                    LIMIT ?
+                """, (codigo, codigo, limite))
+                out = []
+                for row in cursor.fetchall():
+                    d = dict(row)
+                    sol = str(d.get('solicitante_codigo') or '').strip()
+                    rol = 'contrate' if sol == codigo else 'contratado'
+                    resumen = self._parse_acuerdo_resumen_campo(d.get('acuerdo_resumen_json')) or {}
+                    out.append({
+                        'contacto_id': d.get('id'),
+                        'rol': rol,
+                        'rol_label': 'Contrataste' if rol == 'contrate' else 'Te contrataron',
+                        'estado': d.get('estado'),
+                        'servicio': (resumen.get('servicio_contacto') or d.get('servicio') or '').strip(),
+                        'contraparte_codigo': (
+                            str(d.get('profesional_codigo') or '').strip()
+                            if rol == 'contrate'
+                            else sol
+                        ),
+                        'campos': resumen.get('campos') or {},
+                        'resumen': resumen.get('resumen') or [],
+                        'acuerdo_alcanzado_en': d.get('acuerdo_alcanzado_en'),
+                        'fecha_cierre': d.get('fecha_cierre'),
+                        'importe_final': d.get('importe_final'),
+                        'ambos_confirmaron_cierre': bool(
+                            d.get('cierre_confirmado_solicitante_en')
+                            and d.get('cierre_confirmado_profesional_en')
+                        ),
+                    })
+                return out
+            except Exception as e:
+                print(f"Error listar_acuerdos_aliado: {e}")
+                return []
+            finally:
+                if conn:
+                    conn.close()
+
+    def listar_resumenes_acuerdo_visibles(self, codigo_aliado: str) -> List[Dict[str, Any]]:
+        """Acuerdos cuyo resumen flotante aún no ha descartado este aliado."""
+        codigo = (codigo_aliado or '').strip()
+        if not codigo:
+            return []
+        with self._lock:
+            conn = None
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id, solicitante_codigo, profesional_codigo, servicio, estado,
+                           acuerdo_resumen_json, acuerdo_alcanzado_en,
+                           cierre_confirmado_solicitante_en, cierre_confirmado_profesional_en,
+                           resumen_dismiss_solicitante_en, resumen_dismiss_profesional_en
+                    FROM contactos_ruana
+                    WHERE acuerdo_resumen_json IS NOT NULL
+                      AND TRIM(CAST(acuerdo_resumen_json AS TEXT)) != ''
+                      AND estado IN ('acuerdo_alcanzado', 'trabajo_cerrado')
+                      AND (
+                        (TRIM(CAST(solicitante_codigo AS TEXT)) = ? AND resumen_dismiss_solicitante_en IS NULL)
+                        OR (TRIM(CAST(profesional_codigo AS TEXT)) = ? AND resumen_dismiss_profesional_en IS NULL)
+                      )
+                    ORDER BY COALESCE(acuerdo_alcanzado_en, actualizado_en) DESC
+                    LIMIT 20
+                """, (codigo, codigo))
+                out = []
+                for row in cursor.fetchall():
+                    d = dict(row)
+                    sol = str(d.get('solicitante_codigo') or '').strip()
+                    pro = str(d.get('profesional_codigo') or '').strip()
+                    rol = 'solicitante' if sol == codigo else 'profesional'
+                    resumen = self._parse_acuerdo_resumen_campo(d.get('acuerdo_resumen_json')) or {}
+                    flags = self._flags_cierre_acuerdo(d, rol)
+                    out.append({
+                        'contacto_id': d.get('id'),
+                        'estado': d.get('estado'),
+                        'rol': rol,
+                        'servicio': (resumen.get('servicio_contacto') or d.get('servicio') or '').strip(),
+                        'resumen': resumen.get('resumen') or [],
+                        'campos': resumen.get('campos') or {},
+                        'acuerdo_alcanzado_en': d.get('acuerdo_alcanzado_en'),
+                        'contraparte_codigo': pro if rol == 'solicitante' else sol,
+                        **flags,
+                    })
+                return out
+            except Exception as e:
+                print(f"Error listar_resumenes_acuerdo_visibles: {e}")
+                return []
+            finally:
+                if conn:
+                    conn.close()
 
     def listar_negociaciones_admin(self, limite: int = 20, offset: int = 0) -> List[Dict[str, Any]]:
         with self._lock:
@@ -8784,30 +9335,19 @@ class DBManager:
         """, (entidad, entidad_id, accion, actor_tipo or None, actor_codigo or None, detalles or None))
 
     def registrar_importe_contacto(self, contacto_id: int, parte: str,
-                                   importe: float, moneda: str = "EUR",
-                                   usuario: str = "") -> Dict[str, Any]:
+                                   importe: float = None, moneda: str = "EUR",
+                                   usuario: str = "",
+                                   usar_precio_acordado: bool = False) -> Dict[str, Any]:
         """
-        Registra la declaración de importe por parte de solicitante o profesional.
-        - Evita doble declaración (tabla confirmaciones_trabajo).
-        - Apoyo RUANA segun apoyo_pct configurado. Disputa → -1; cierre no da score.
-        - Coinciden → trabajo_cerrado, ingresos_ruana, audit_log (score al marcar Apoyo pagado).
-        - No coinciden → importe_en_disputa, audit_log.
-        - Regla 7: si el contratante declara en <24 h desde creado_en → +2 (una vez).
+        Registra la confirmación de importe por el contratante.
+        Si existe precio negociado (importe_acordado), ese es el valor oficial y se ignora
+        cualquier importe distinto enviado por el cliente.
         """
         resultado = None
         evaluar_regla7 = False
         with self._lock:
             conn = None
             try:
-                if importe is None:
-                    return {'status': 'error', 'message': 'Importe obligatorio'}
-                try:
-                    importe_val = float(importe)
-                except (TypeError, ValueError):
-                    return {'status': 'error', 'message': 'Importe debe ser numérico'}
-                if importe_val <= 0:
-                    return {'status': 'error', 'message': 'Importe debe ser mayor que cero'}
-
                 parte = (parte or "").strip().lower()
                 if parte not in ("solicitante", "profesional"):
                     return {'status': 'error', 'message': "Parte debe ser 'solicitante' o 'profesional'"}
@@ -8828,6 +9368,34 @@ class DBManager:
                     conn.close()
                     msg = 'Este contacto ya está cerrado. Ambas partes han confirmado el importe.' if estado_actual == 'trabajo_cerrado' else f'Contacto ya cerrado con estado {estado_actual}'
                     return {'status': 'error', 'message': msg, 'estado': estado_actual}
+
+                oficial = self._importe_oficial_contacto(contacto)
+                if oficial is not None:
+                    importe_val = float(oficial)
+                    # Persistir columna si aún no estaba
+                    if contacto.get('importe_acordado') is None:
+                        cursor.execute(
+                            "UPDATE contactos_ruana SET importe_acordado = ? WHERE id = ?",
+                            (importe_val, contacto_id),
+                        )
+                elif usar_precio_acordado:
+                    conn.close()
+                    return {
+                        'status': 'error',
+                        'message': 'No hay precio acordado numérico en la negociación. No se puede confirmar el importe.',
+                    }
+                else:
+                    if importe is None:
+                        conn.close()
+                        return {'status': 'error', 'message': 'Importe obligatorio'}
+                    try:
+                        importe_val = float(importe)
+                    except (TypeError, ValueError):
+                        conn.close()
+                        return {'status': 'error', 'message': 'Importe debe ser numérico'}
+                    if importe_val <= 0:
+                        conn.close()
+                        return {'status': 'error', 'message': 'Importe debe ser mayor que cero'}
 
                 # Resolver aliado_id desde usuario (código); normalizar a string para búsqueda
                 usuario_str = str(usuario or "").strip()
@@ -8979,7 +9547,12 @@ class DBManager:
                     resultado_estado = estado_actual
 
                 conn.commit()
-                resultado = {'status': 'success', 'id': contacto_id, 'estado': resultado_estado}
+                resultado = {
+                    'status': 'success',
+                    'id': contacto_id,
+                    'estado': resultado_estado,
+                    'importe_acordado': float(importe_val),
+                }
                 evaluar_regla7 = True
             except Exception as e:
                 return {'status': 'error', 'message': str(e)}
@@ -9175,6 +9748,8 @@ class DBManager:
                         c.urgente_marcado_en,
                         c.motivo_contacto,
                         c.negociacion_json,
+                        c.importe_acordado,
+                        c.acuerdo_resumen_json,
                         (SELECT 1 FROM confirmaciones_trabajo ct
                          INNER JOIN aliados a ON a.id = ct.aliado_id
                          WHERE ct.contacto_id = c.id AND TRIM(CAST(a.codigo AS TEXT)) = ?) AS ya_declaraste_importe
@@ -9198,6 +9773,16 @@ class DBManager:
                     neg = neg_mgr.parse_negociacion(d.get('negociacion_json'))
                     d['negociacion_completa'] = bool(neg.get('completo')) or d.get('estado') == 'acuerdo_alcanzado'
                     d['paso_negociacion'] = neg.get('paso_actual')
+                    oficial = self._importe_oficial_contacto(d)
+                    d['importe_acordado'] = oficial
+                    d['precio_acordado'] = oficial
+                    if oficial is None:
+                        try:
+                            d['precio_acordado_texto'] = (neg.get('campos') or {}).get('precio', {}).get('valor') or ''
+                        except Exception:
+                            d['precio_acordado_texto'] = ''
+                    else:
+                        d['precio_acordado_texto'] = f'{oficial:g}'
                     paso = neg.get('paso_actual') or 'servicio'
                     campo = (neg.get('campos') or {}).get(paso, {})
                     rol_viewer = neg_mgr._rol_en_contacto(
@@ -11386,6 +11971,183 @@ class DBManager:
                 except Exception:
                     pass
 
+    def _migrar_aliados_eliminados(self, conn, cursor) -> None:
+        """Tabla de archivo: un único registro por aliado eliminado definitivamente."""
+        id_col = "SERIAL PRIMARY KEY" if self.backend == "postgres" else "INTEGER PRIMARY KEY AUTOINCREMENT"
+        cursor.execute(f"""
+            CREATE TABLE IF NOT EXISTS aliados_eliminados (
+                id {id_col},
+                codigo TEXT NOT NULL,
+                nombre TEXT,
+                marca TEXT,
+                oficio TEXT,
+                codigo_postal TEXT,
+                email TEXT,
+                telefono TEXT,
+                estado_anterior TEXT,
+                motivo TEXT,
+                admin_codigo TEXT,
+                eliminado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_aliados_eliminados_codigo ON aliados_eliminados(codigo)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_aliados_eliminados_fecha ON aliados_eliminados(eliminado_en DESC)"
+        )
+
+    def _purga_datos_aliado_completa(self, cursor, codigo: str, aliado_id: int) -> None:
+        """
+        Elimina todos los registros relacionados con un aliado antes del borrado físico.
+        Libera restricciones UNIQUE y referencias en tablas hijas.
+        """
+        codigo = (codigo or '').strip()
+        if not codigo:
+            return
+
+        col_retador = self._columna_retador_competencia(cursor)
+        contacto_filter = (
+            "SELECT id FROM contactos_ruana "
+            "WHERE solicitante_codigo = ? OR profesional_codigo = ?"
+        )
+
+        cursor.execute(
+            f"DELETE FROM negociacion_eventos WHERE contacto_id IN ({contacto_filter})",
+            (codigo, codigo),
+        )
+        cursor.execute(
+            f"DELETE FROM chat_mensajes WHERE contacto_id IN ({contacto_filter}) OR emisor_codigo = ?",
+            (codigo, codigo, codigo),
+        )
+        cursor.execute(
+            f"DELETE FROM contacto_panel_oculto WHERE codigo_aliado = ? "
+            f"OR contacto_id IN ({contacto_filter})",
+            (codigo, codigo, codigo),
+        )
+        cursor.execute(
+            f"DELETE FROM contacto_penalizaciones_aplicadas WHERE contacto_id IN ({contacto_filter})",
+            (codigo, codigo),
+        )
+        cursor.execute(
+            f"DELETE FROM confirmaciones_trabajo WHERE aliado_id = ? "
+            f"OR contacto_id IN ({contacto_filter})",
+            (aliado_id, codigo, codigo),
+        )
+        cursor.execute(
+            "DELETE FROM payment_conflicts WHERE contratante_id = ? OR profesional_id = ?",
+            (aliado_id, aliado_id),
+        )
+        cursor.execute(
+            f"DELETE FROM ingresos_ruana WHERE contacto_id IN ({contacto_filter})",
+            (codigo, codigo),
+        )
+        cursor.execute(
+            "DELETE FROM contactos_ruana WHERE solicitante_codigo = ? OR profesional_codigo = ?",
+            (codigo, codigo),
+        )
+
+        cursor.execute(
+            "DELETE FROM solicitudes WHERE solicitante_codigo = ? OR atendido_por_codigo = ?",
+            (codigo, codigo),
+        )
+        try:
+            cursor.execute("DELETE FROM solicitudes WHERE creado_por_codigo = ?", (codigo,))
+        except Exception:
+            pass
+
+        cursor.execute(
+            f"""
+            DELETE FROM competencia
+            WHERE aliado_original_codigo = ?
+               OR {col_retador} = ?
+               OR ganador_codigo = ?
+            """,
+            (codigo, codigo, codigo),
+        )
+        cursor.execute("DELETE FROM competencia_pendiente WHERE aliado_codigo = ?", (codigo,))
+        cursor.execute("DELETE FROM score_movimientos WHERE codigo_aliado = ?", (codigo,))
+        cursor.execute("DELETE FROM evaluaciones WHERE codigo_aliado = ?", (codigo,))
+        cursor.execute("DELETE FROM evaluaciones_historico WHERE codigo_aliado = ?", (codigo,))
+        cursor.execute("DELETE FROM catalogo_servicios_aliado WHERE aliado_codigo = ?", (codigo,))
+        cursor.execute("DELETE FROM notificaciones_aliado WHERE aliado_codigo = ?", (codigo,))
+
+        cursor.execute(
+            """
+            DELETE FROM ruana_soporte_mensajes
+            WHERE conversacion_id IN (
+                SELECT id FROM ruana_soporte_conversaciones WHERE aliado_codigo = ?
+            )
+            """,
+            (codigo,),
+        )
+        cursor.execute("DELETE FROM ruana_soporte_conversaciones WHERE aliado_codigo = ?", (codigo,))
+        cursor.execute("DELETE FROM aliado_accesos_dia WHERE codigo_aliado = ?", (codigo,))
+        cursor.execute("DELETE FROM invitacion_campana_usos WHERE codigo_aliado = ?", (codigo,))
+        cursor.execute(
+            "DELETE FROM referidos WHERE codigo_referido = ? OR codigo_invitador = ?",
+            (codigo, codigo),
+        )
+        cursor.execute(
+            "DELETE FROM invitaciones WHERE codigo = ? OR invitador_aliado_id = ?",
+            (codigo, aliado_id),
+        )
+        cursor.execute("DELETE FROM invitaciones_oficio WHERE aliado_id = ?", (aliado_id,))
+
+        cursor.execute(
+            """
+            UPDATE aliados
+            SET invitado_por_codigo = NULL, invitado_origen = NULL
+            WHERE invitado_por_codigo = ?
+            """,
+            (codigo,),
+        )
+
+        if self.backend == "postgres":
+            try:
+                cursor.execute("DELETE FROM profiles WHERE aliado_codigo = ?", (codigo,))
+            except Exception:
+                pass
+            try:
+                cursor.execute(
+                    "SELECT auth_user_id FROM aliados WHERE id = ?",
+                    (aliado_id,),
+                )
+                auth_row = cursor.fetchone()
+                auth_user_id = auth_row[0] if auth_row else None
+                if auth_user_id:
+                    cursor.execute("DELETE FROM auth.users WHERE id = ?", (auth_user_id,))
+            except Exception:
+                pass
+
+    def listar_aliados_eliminados(self, limite: int = 200) -> List[Dict[str, Any]]:
+        """Lista el archivo de aliados eliminados definitivamente (solo registro de auditoría)."""
+        with self._lock:
+            try:
+                conn = self._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT id, codigo, nombre, marca, oficio, codigo_postal,
+                           email, telefono, estado_anterior, motivo, admin_codigo, eliminado_en
+                    FROM aliados_eliminados
+                    ORDER BY eliminado_en DESC
+                    LIMIT ?
+                    """,
+                    (max(1, min(limite, 500)),),
+                )
+                rows = cursor.fetchall()
+                return [dict(r) for r in rows] if rows else []
+            except Exception as e:
+                print(f"Error listando aliados eliminados: {e}")
+                return []
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
     def eliminar_perfil_aliado_admin(
         self,
         codigo_aliado: str,
@@ -11393,10 +12155,9 @@ class DBManager:
         admin_codigo: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Elimina el perfil de un aliado desde el panel admin.
-        - pendiente_completar: borrado físico (placeholder).
-        - pendiente_validacion: pasa a rechazado.
-        - resto de estados operativos: pasa a expulsado (código desactivado).
+        Elimina el perfil de un aliado de forma definitiva desde el panel admin.
+        Purga todos los datos relacionados, libera email/teléfono/código y archiva
+        un único registro en aliados_eliminados para auditoría.
         """
         codigo = (codigo_aliado or '').strip()
         if not codigo:
@@ -11407,59 +12168,46 @@ class DBManager:
                 conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
-                    "SELECT id, estado, nombre FROM aliados WHERE codigo = ?",
+                    """
+                    SELECT id, estado, nombre, marca, oficio, codigo_postal, email, telefono
+                    FROM aliados WHERE codigo = ?
+                    """,
                     (codigo,),
                 )
                 row = cursor.fetchone()
                 if not row:
                     return {'status': 'error', 'message': f'Aliado {codigo} no encontrado'}
 
+                aliado_id = row[0]
                 estado_actual = (row[1] or '').strip().lower()
                 nombre = row[2] or ''
+                marca = row[3] or ''
+                oficio = row[4] or ''
+                codigo_postal = row[5] or ''
+                email = row[6] or ''
+                telefono = row[7] or ''
 
                 if estado_actual == 'sistema':
                     return {'status': 'error', 'message': 'No se puede eliminar un aliado del sistema'}
-                if estado_actual == 'expulsado':
-                    return {'status': 'error', 'message': f'El aliado {codigo} ya está expulsado'}
-                if estado_actual == 'rechazado':
-                    return {'status': 'error', 'message': f'El aliado {codigo} ya está rechazado'}
 
                 motivo_txt = (motivo or '').strip() or 'Eliminado desde panel de administración'
 
-                if estado_actual == 'pendiente_completar':
-                    cursor.execute(
-                        """
-                        DELETE FROM aliados
-                        WHERE codigo = ?
-                          AND LOWER(TRIM(COALESCE(estado, ''))) = 'pendiente_completar'
-                        """,
-                        (codigo,),
-                    )
-                    accion = 'eliminado'
-                    nuevo_estado = None
-                elif estado_actual == 'pendiente_validacion':
-                    cursor.execute(
-                        """
-                        UPDATE aliados
-                        SET estado = 'rechazado', actualizado_en = CURRENT_TIMESTAMP
-                        WHERE codigo = ?
-                        """,
-                        (codigo,),
-                    )
-                    accion = 'rechazado'
-                    nuevo_estado = 'rechazado'
-                else:
-                    cursor.execute(
-                        """
-                        UPDATE aliados
-                        SET estado = 'expulsado', actualizado_en = CURRENT_TIMESTAMP
-                        WHERE codigo = ?
-                        """,
-                        (codigo,),
-                    )
-                    accion = 'expulsado'
-                    nuevo_estado = 'expulsado'
+                self._purga_datos_aliado_completa(cursor, codigo, aliado_id)
 
+                cursor.execute(
+                    """
+                    INSERT INTO aliados_eliminados
+                    (codigo, nombre, marca, oficio, codigo_postal, email, telefono,
+                     estado_anterior, motivo, admin_codigo)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        codigo, nombre, marca, oficio, codigo_postal, email, telefono,
+                        estado_actual, motivo_txt, admin_codigo,
+                    ),
+                )
+
+                cursor.execute("DELETE FROM aliados WHERE codigo = ?", (codigo,))
                 if cursor.rowcount <= 0:
                     return {'status': 'error', 'message': f'No se pudo eliminar el perfil de {codigo}'}
 
@@ -11467,13 +12215,13 @@ class DBManager:
                     self._insert_evento_sistema(
                         cursor,
                         tipo="aliado_perfil_eliminado",
-                        descripcion=f"Perfil de aliado {codigo} ({nombre}) eliminado por admin",
+                        descripcion=f"Perfil de aliado {codigo} ({nombre}) eliminado definitivamente por admin",
                         actor_tipo="admin",
                         actor_codigo=admin_codigo,
                         metadata={
                             "codigo_aliado": codigo,
                             "estado_anterior": estado_actual,
-                            "accion": accion,
+                            "accion": "eliminado",
                             "motivo": motivo_txt,
                         },
                     )
@@ -11483,12 +12231,16 @@ class DBManager:
                 conn.commit()
                 return {
                     'status': 'success',
-                    'message': f'Perfil de {codigo} eliminado correctamente',
+                    'message': f'Perfil de {codigo} eliminado definitivamente',
                     'codigo_aliado': codigo,
-                    'accion': accion,
-                    'nuevo_estado': nuevo_estado,
+                    'accion': 'eliminado',
+                    'nuevo_estado': None,
                 }
             except Exception as e:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
                 return {'status': 'error', 'message': str(e)}
             finally:
                 try:

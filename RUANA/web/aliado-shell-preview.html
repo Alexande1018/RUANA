@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RUANA — Preview Panel Aliado</title>
   <link rel="stylesheet" href="/static/css/styles.css">
+  <link rel="stylesheet" href="/static/css/ruana-feedback.css">
   <link rel="stylesheet" href="/static/css/panel-premium.css">
   <link rel="stylesheet" href="/static/css/auth-premium.css">
   <link rel="stylesheet" href="/static/css/aliado-shell.css">
@@ -31,6 +32,9 @@
 </head>
 <body class="aliado-app">
   <button id="btn-logout" class="btn-back">Cerrar sesión</button>
+  <button type="button" id="btn-invitar-global" class="btn-invitar-global" data-action="invitar-aliado" aria-label="Ampliar mi red" title="Ampliar mi red">
+    <i data-lucide="user-plus"></i><span class="btn-invitar-global-label">Ampliar mi red</span>
+  </button>
 
   <nav class="aliado-shell-nav" id="aliado-shell-nav" aria-label="Navegación del panel">
     <a href="#" class="aliado-shell-nav-brand ruana-brand">
@@ -47,7 +51,13 @@
       <button type="button" class="aliado-shell-nav-item" data-aliado-nav="conexiones"><i data-lucide="plus-circle"></i><span>Conexiones</span></button>
       <button type="button" class="aliado-shell-nav-item" data-aliado-nav="perfil"><i data-lucide="user-round"></i><span>Perfil</span></button>
     </div>
-    <div class="aliado-shell-nav-footer"><p class="aliado-shell-nav-hint">Operativa rápida · un clic por módulo</p></div>
+    <div class="aliado-shell-nav-footer">
+      <button type="button" class="aliado-shell-invite-cta" id="btn-invitar-nav" data-action="invitar-aliado">
+        <i data-lucide="user-plus"></i>
+        <span>Ampliar mi red</span>
+      </button>
+      <p class="aliado-shell-nav-hint">Crece la red · disponible en todo momento</p>
+    </div>
   </nav>
 
   <nav class="aliado-shell-bottom" id="aliado-shell-bottom">
@@ -82,7 +92,7 @@
               <span class="inicio-status-chip" id="inicio-status" data-status="destacado"><span class="inicio-status-label">Destacado</span></span>
             </div>
           </div>
-          <div class="inicio-score-pill"><span class="inicio-score-pill-label">Score RUANA</span><strong id="inicio-score">92</strong></div>
+          <button type="button" class="inicio-score-pill" id="inicio-score-pill"><span class="inicio-score-pill-label">Score RUANA</span><strong id="inicio-score">92</strong></button>
         </div>
         <div class="inicio-quick-grid">
           <button type="button" class="inicio-quick-btn" data-aliado-goto="directorio"><i data-lucide="search"></i><span>Directorio</span><small>Encontrar profesionales</small></button>
@@ -202,7 +212,7 @@
           <div class="detail-item" id="detail-descripcion-wrap"><span class="detail-label">Descripción del servicio</span><span class="detail-value" id="detail-descripcion">Muebles a medida y restauración.</span></div>
         </div>
         <div class="perfil-acciones">
-          <button type="button" class="btn-invitar-aliado" id="btn-invitar-aliado"><i data-lucide="user-plus"></i> Generar código de invitación</button>
+          <button type="button" class="btn-invitar-aliado" id="btn-invitar-aliado"><i data-lucide="user-plus"></i> Ampliar mi red</button>
         </div>
       </div>
     </section>

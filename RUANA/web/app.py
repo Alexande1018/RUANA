@@ -30,6 +30,7 @@ from core.db_manager import get_db, DB_PATH, RUANA_CODIGO_INVITACION_REGEX
 from core.settings import get_settings
 from core.storage_manager import upload_ruana_file, upload_foto_perfil_file
 from core.admin_auth import verify_admin_login, change_admin_password
+from core.email_service import enviar_correo_bienvenida_aliado
 
 # Obtener ruta absoluta de la carpeta web
 web_dir = Path(__file__).parent.absolute()
@@ -130,6 +131,21 @@ def _ruana_session_invalidate(session_id):
     with _RUANA_SESSION_LOCK:
         _RUANA_SESSION_STORE.pop(sid, None)
         _RUANA_SESSION_REVOKED.add(sid)
+
+
+def _ruana_session_invalidate_for_codigo(codigo):
+    """Invalida todas las sesiones activas de un aliado (login, caché en memoria)."""
+    codigo_norm = (codigo or '').strip()
+    if not codigo_norm:
+        return
+    with _RUANA_SESSION_LOCK:
+        to_remove = [
+            sid for sid, data in _RUANA_SESSION_STORE.items()
+            if data.get('tipo') == 'aliado' and (data.get('codigo') or '').strip() == codigo_norm
+        ]
+        for sid in to_remove:
+            _RUANA_SESSION_STORE.pop(sid, None)
+            _RUANA_SESSION_REVOKED.add(sid)
 
 
 def _admin_session_valid():
@@ -1021,6 +1037,27 @@ def dashboard_alt():
     return send_from_directory(str(web_dir), 'dashboard.html')
 
 
+@app.route('/feedback-preview')
+@app.route('/feedback-preview.html')
+def feedback_preview():
+    """Preview del sistema unificado de comunicación visual"""
+    return send_from_directory(str(web_dir), 'feedback-preview.html')
+
+
+@app.route('/aliado-shell-preview')
+@app.route('/aliado-shell-preview.html')
+def aliado_shell_preview():
+    """Preview estático del shell de aliado"""
+    return send_from_directory(str(web_dir), 'aliado-shell-preview.html')
+
+
+@app.route('/alert-hub-preview')
+@app.route('/alert-hub-preview.html')
+def alert_hub_preview():
+    """Preview del hub de alertas compactas"""
+    return send_from_directory(str(web_dir), 'alert-hub-preview.html')
+
+
 @app.route('/static/<path:path>')
 def static_files(path):
     """Sirve archivos est?ticos (CSS, JS, etc)"""
@@ -1517,7 +1554,10 @@ def negociacion_contraoferta(contacto_id):
 @app.route('/api/contactos/<int:contacto_id>/negociacion/cerrar', methods=['POST'])
 @require_aliado
 def negociacion_cerrar(contacto_id):
-    """POST — cierra la negociación para ambas partes (no concretado)."""
+    """
+    POST — cierra la negociación.
+    Sin acuerdo: no concretado. Con acuerdo: confirmación bilateral → trabajo realizado.
+    """
     codigo = _aliado_codigo()
     if not codigo:
         return jsonify({'status': 'error', 'message': 'Sesión expirada'}), 401
@@ -1526,6 +1566,43 @@ def negociacion_cerrar(contacto_id):
     db = get_db()
     result = db.cerrar_negociacion(contacto_id, codigo, motivo=motivo)
     return jsonify(result), 200 if result.get('status') == 'success' else 400
+
+
+@app.route('/api/contactos/<int:contacto_id>/negociacion/dismiss-resumen', methods=['POST'])
+@require_aliado
+def negociacion_dismiss_resumen(contacto_id):
+    """POST — oculta el panel flotante del resumen del acuerdo para este aliado."""
+    codigo = _aliado_codigo()
+    if not codigo:
+        return jsonify({'status': 'error', 'message': 'Sesión expirada'}), 401
+    db = get_db()
+    result = db.dismiss_resumen_acuerdo(contacto_id, codigo)
+    return jsonify(result), 200 if result.get('status') == 'success' else 400
+
+
+@app.route('/api/aliado/acuerdos', methods=['GET'])
+@require_aliado
+def aliado_listar_acuerdos():
+    """GET — historial «Mis acuerdos» del aliado autenticado."""
+    codigo = _aliado_codigo()
+    if not codigo:
+        return jsonify({'status': 'error', 'message': 'Sesión expirada'}), 401
+    limite = request.args.get('limite', 50, type=int)
+    db = get_db()
+    acuerdos = db.listar_acuerdos_aliado(codigo, limite=limite)
+    return jsonify({'status': 'success', 'acuerdos': acuerdos})
+
+
+@app.route('/api/aliado/resumenes-acuerdo', methods=['GET'])
+@require_aliado
+def aliado_resumenes_acuerdo():
+    """GET — acuerdos con resumen flotante aún visible para el aliado."""
+    codigo = _aliado_codigo()
+    if not codigo:
+        return jsonify({'status': 'error', 'message': 'Sesión expirada'}), 401
+    db = get_db()
+    resumenes = db.listar_resumenes_acuerdo_visibles(codigo)
+    return jsonify({'status': 'success', 'resumenes': resumenes})
 
 
 # Rutas legacy de chat libre — redirigen a negociación guiada
@@ -1733,36 +1810,44 @@ def marcar_contacto_en_conversacion(contacto_id):
 def declarar_importe_contacto(contacto_id):
     """
     POST /api/contactos/<id>/declarar-importe
-    Declaraci?n de importe. usuario = aliado en sesi?n (no se conf?a en body).
-    Body: parte, importe, moneda (opcional).
+    Confirma el importe del encargo. Si hay precio negociado, ese es el valor oficial
+    (no se reingresa manualmente). Preferir body: confirmar_acordado=true.
     """
     try:
         usuario = _aliado_codigo()
         if not usuario:
-            return jsonify({'status': 'error', 'message': 'Sesi?n expirada'}), 401
+            return jsonify({'status': 'error', 'message': 'Sesión expirada'}), 401
         data = request.get_json() or {}
-        parte = data.get('parte')
-        importe = data.get('importe')
+        parte = data.get('parte') or 'solicitante'
         moneda = (data.get('moneda') or 'EUR').strip()
+        confirmar_acordado = bool(
+            data.get('confirmar_acordado')
+            or data.get('usar_precio_acordado')
+        )
+        importe_body = data.get('importe')
+        if confirmar_acordado or importe_body in (None, ''):
+            importe_body = None
+            confirmar_acordado = True
 
         db = get_db()
         result = db.registrar_importe_contacto(
             contacto_id=contacto_id,
             parte=parte,
-            importe=importe,
+            importe=importe_body,
             moneda=moneda,
-            usuario=usuario
+            usuario=usuario,
+            usar_precio_acordado=confirmar_acordado,
         )
         if result.get('status') != 'success':
             print(f"[RUANA] declarar-importe 400: contacto_id={contacto_id} message={result.get('message')}")
-        # Score por encargo (+2) al marcar Apoyo pagado (Regla 2). Sin penalización por disputa.
         status_code = 200 if result.get('status') == 'success' else 400
 
         safe_response = {
             'status': result.get('status'),
             'message': result.get('message'),
             'id': result.get('id'),
-            'estado': result.get('estado')
+            'estado': result.get('estado'),
+            'importe_acordado': result.get('importe_acordado'),
         }
 
         return jsonify(safe_response), status_code
@@ -2188,6 +2273,18 @@ def registrar_aliado():
 
         # Asegurar red completa: invitaciones pendientes de sync y huérfanos bajo admin
         db.sincronizar_referidos_completo()
+
+        # Envío de correo de bienvenida (no bloquea el registro si falla)
+        codigo_aliado = (result.get('codigo') or '').strip()
+        if codigo_aliado:
+            try:
+                enviar_correo_bienvenida_aliado(
+                    nombre=nombre,
+                    email=email,
+                    codigo=codigo_aliado,
+                )
+            except Exception as email_err:
+                print(f"[RUANA][EMAIL] Error inesperado al enviar correo de bienvenida: {email_err}")
 
         return jsonify(result), 201
         
@@ -3601,8 +3698,25 @@ def admin_eliminar_aliado():
             motivo=motivo,
             admin_codigo=_admin_codigo() or None,
         )
+        if result.get('status') == 'success':
+            _ruana_session_invalidate_for_codigo(codigo)
         status_code = 200 if result.get('status') == 'success' else 400
         return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/aliados-eliminados', methods=['GET'])
+@require_admin
+def admin_listar_aliados_eliminados():
+    """
+    GET /api/admin/aliados-eliminados
+    Lista el archivo de aliados eliminados definitivamente (solo registro de auditoría).
+    """
+    try:
+        db = get_db()
+        aliados = db.listar_aliados_eliminados()
+        return jsonify({'status': 'success', 'aliados': aliados}), 200
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
