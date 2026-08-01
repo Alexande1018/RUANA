@@ -3609,6 +3609,9 @@
                 this.misAcuerdosFiltroEstado = '';
                 this.misAcuerdosFiltroDesde = '';
                 this.misAcuerdosFiltroHasta = '';
+                this.misAcuerdosPageSize = 5;
+                this.misAcuerdosVisibles = 5;
+                this.misAcuerdosExpandidos = new Set();
                 this.catalogoEditandoPos = null;
                 this.acuerdoFlotanteActual = null;
                 this.scoreNotifActive = false;
@@ -4272,6 +4275,8 @@
                     this.misAcuerdos = (data.status === 'success' && Array.isArray(data.acuerdos))
                         ? data.acuerdos
                         : [];
+                    this.misAcuerdosVisibles = this.misAcuerdosPageSize || 5;
+                    this.misAcuerdosExpandidos = new Set();
                     this.renderMisAcuerdos();
                 } catch (e) {
                     console.error('Error cargando Mis acuerdos:', e);
@@ -4303,6 +4308,28 @@
                 return s.slice(0, 16);
             }
 
+            toggleMisAcuerdoExpandido(contactoId) {
+                const id = String(contactoId || '');
+                if (!id) return;
+                if (!this.misAcuerdosExpandidos) this.misAcuerdosExpandidos = new Set();
+                if (this.misAcuerdosExpandidos.has(id)) {
+                    this.misAcuerdosExpandidos.delete(id);
+                } else {
+                    this.misAcuerdosExpandidos.add(id);
+                }
+                this.renderMisAcuerdos();
+            }
+
+            mostrarMasMisAcuerdos() {
+                const page = this.misAcuerdosPageSize || 5;
+                const total = (this.misAcuerdos || []).length;
+                this.misAcuerdosVisibles = Math.min(
+                    total,
+                    (this.misAcuerdosVisibles || page) + page
+                );
+                this.renderMisAcuerdos();
+            }
+
             renderMisAcuerdos() {
                 const lista = document.getElementById('mis-acuerdos-lista');
                 if (!lista) return;
@@ -4324,7 +4351,18 @@
                     lista.innerHTML = '<p class="mis-acuerdos-empty">No hay acuerdos con estos filtros.</p>';
                     return;
                 }
-                lista.innerHTML = items.map((a) => {
+
+                const page = this.misAcuerdosPageSize || 5;
+                if (!this.misAcuerdosVisibles || this.misAcuerdosVisibles < page) {
+                    this.misAcuerdosVisibles = page;
+                }
+                const visibles = items.slice(0, this.misAcuerdosVisibles);
+                const quedan = items.length - visibles.length;
+                const expandidos = this.misAcuerdosExpandidos || new Set();
+
+                const cardsHtml = visibles.map((a) => {
+                    const cid = String(a.contacto_id);
+                    const abierto = expandidos.has(cid);
                     const badge = a.rol === 'contrate'
                         ? '<span class="mis-acuerdos-badge contrate">Contrataste</span>'
                         : '<span class="mis-acuerdos-badge contratado">Te contrataron</span>';
@@ -4341,16 +4379,36 @@
                     const fechaHtml = fechaTxt
                         ? `<time class="mis-acuerdos-fecha" datetime="${this.escapeHtml(String(a.fecha_referencia || a.creado_en || ''))}">${this.escapeHtml(fechaTxt)}</time>`
                         : '';
-                    return `<article class="mis-acuerdos-card" data-contacto-id="${a.contacto_id}" data-estado="${this.escapeHtml(a.estado || '')}">
-                        <div class="mis-acuerdos-card-head">
-                            ${badge}
-                            <span class="mis-acuerdos-estado ${estadoCls}">${this.escapeHtml(estadoTxt)}</span>
+                    const detallesBlock = detalles
+                        ? `<div class="mis-acuerdos-detalles">${detalles}</div>`
+                        : '<p class="mis-acuerdos-detalles-empty">Sin detalles adicionales del acuerdo.</p>';
+                    return `<article class="mis-acuerdos-card ${abierto ? 'is-open' : 'is-collapsed'}" data-contacto-id="${this.escapeHtml(cid)}" data-estado="${this.escapeHtml(a.estado || '')}" aria-expanded="${abierto ? 'true' : 'false'}">
+                        <button type="button" class="mis-acuerdos-card-toggle" data-acuerdo-toggle="${this.escapeHtml(cid)}" aria-expanded="${abierto ? 'true' : 'false'}">
+                            <div class="mis-acuerdos-card-head">
+                                ${badge}
+                                <span class="mis-acuerdos-estado ${estadoCls}">${this.escapeHtml(estadoTxt)}</span>
+                            </div>
+                            <div class="mis-acuerdos-card-summary">
+                                <h4 class="mis-acuerdos-servicio">${this.escapeHtml(a.servicio || 'Servicio')}</h4>
+                                <span class="mis-acuerdos-chevron" aria-hidden="true"></span>
+                            </div>
+                        </button>
+                        <div class="mis-acuerdos-card-body" ${abierto ? '' : 'hidden'}>
+                            <p class="mis-acuerdos-meta">Con aliado ${this.escapeHtml(a.contraparte_codigo || '—')}${fechaHtml ? ` · ${fechaHtml}` : ''}</p>
+                            ${detallesBlock}
                         </div>
-                        <h4 class="mis-acuerdos-servicio">${this.escapeHtml(a.servicio || 'Servicio')}</h4>
-                        <p class="mis-acuerdos-meta">Con aliado ${this.escapeHtml(a.contraparte_codigo || '—')}${fechaHtml ? ` · ${fechaHtml}` : ''}</p>
-                        <div class="mis-acuerdos-detalles">${detalles}</div>
                     </article>`;
                 }).join('');
+
+                const masHtml = quedan > 0
+                    ? `<div class="mis-acuerdos-mas-wrap">
+                        <button type="button" class="mis-acuerdos-mostrar-mas" id="mis-acuerdos-mostrar-mas" data-acuerdo-mas="1">
+                            Mostrar más <span class="mis-acuerdos-mas-restantes">(+${quedan})</span>
+                        </button>
+                       </div>`
+                    : '';
+
+                lista.innerHTML = cardsHtml + masHtml;
             }
 
             async cargarResumenesAcuerdoFlotantes() {
@@ -5414,6 +5472,21 @@
                         if (!btn) return;
                         this.misAcuerdosFiltro = btn.getAttribute('data-filtro') || 'todos';
                         this.cargarMisAcuerdos();
+                    });
+                }
+                const listaAcuerdos = document.getElementById('mis-acuerdos-lista');
+                if (listaAcuerdos) {
+                    listaAcuerdos.addEventListener('click', (e) => {
+                        const mas = e.target.closest('[data-acuerdo-mas]');
+                        if (mas) {
+                            e.preventDefault();
+                            this.mostrarMasMisAcuerdos();
+                            return;
+                        }
+                        const toggle = e.target.closest('[data-acuerdo-toggle]');
+                        if (!toggle) return;
+                        e.preventDefault();
+                        this.toggleMisAcuerdoExpandido(toggle.getAttribute('data-acuerdo-toggle'));
                     });
                 }
                 const btnAplicarAcuerdos = document.getElementById('mis-acuerdos-aplicar-filtros');
