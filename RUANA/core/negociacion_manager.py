@@ -5,6 +5,7 @@ Cada contacto avanza por pasos: servicio, fecha, hora, dirección, observaciones
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -45,12 +46,37 @@ def _campo_vacio() -> Dict[str, Any]:
     }
 
 
-def estado_inicial(_servicio_inicial: str = '') -> Dict[str, Any]:
+def parse_precio_catalogo(raw: Any) -> Optional[str]:
+    """Normaliza un precio de catálogo (p. ej. «150 €», «120,50») a texto numérico."""
+    if raw is None:
+        return None
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        val = float(raw)
+        return None if val <= 0 else (str(int(val)) if val == int(val) else f'{val:.2f}'.rstrip('0').rstrip('.'))
+    texto = str(raw).strip()
+    if not texto:
+        return None
+    texto = texto.replace(',', '.').replace('€', ' ').replace('EUR', ' ').replace('eur', ' ')
+    match = re.search(r'(\d+(?:\.\d{1,2})?)', texto)
+    if not match:
+        return None
+    try:
+        val = float(match.group(1))
+    except (TypeError, ValueError):
+        return None
+    if val <= 0:
+        return None
+    return str(int(val)) if val == int(val) else f'{val:.2f}'.rstrip('0').rstrip('.')
+
+
+def estado_inicial(_servicio_inicial: str = '', precio_referencia: str = '') -> Dict[str, Any]:
     """Estado vacío: el contratante envía la primera propuesta desde el modal."""
+    ref = parse_precio_catalogo(precio_referencia) or ''
     return {
         'paso_actual': 'servicio',
         'campos': {c: _campo_vacio() for c in CAMPOS_ORDEN},
         'observaciones_profesional': {'valor': '', 'estado': ESTADO_PENDIENTE, 'confirmado_en': None},
+        'precio_referencia': ref,
         'completo': False,
     }
 
@@ -92,6 +118,8 @@ def normalizar_estado(estado: Dict[str, Any]) -> Dict[str, Any]:
         estado['completo'] = False
     if 'observaciones_profesional' not in estado or not isinstance(estado['observaciones_profesional'], dict):
         estado['observaciones_profesional'] = {'valor': '', 'estado': ESTADO_PENDIENTE, 'confirmado_en': None}
+    ref = parse_precio_catalogo(estado.get('precio_referencia'))
+    estado['precio_referencia'] = ref or ''
     return estado
 
 
@@ -605,10 +633,38 @@ def proponer_campo(
     raise ValueError('Usa contraoferta si necesitas responder a una propuesta de la otra parte')
 
 
+def _intentar_auto_proponer_precio_catalogo(
+    estado: Dict[str, Any],
+) -> Tuple[Dict[str, Any], Optional[Tuple[str, str, str]]]:
+    """Si hay precio de catálogo y toca precio, lo propone el profesional automáticamente."""
+    estado = normalizar_estado(estado)
+    precio_ref = (estado.get('precio_referencia') or '').strip()
+    if not precio_ref:
+        return estado, None
+    paso = _siguiente_paso(estado)
+    if paso != 'precio':
+        return estado, None
+    c = estado['campos'].get('precio') or _campo_vacio()
+    if c.get('estado') != ESTADO_PENDIENTE:
+        return estado, None
+    if not _todos_solicitante_confirmados(estado):
+        return estado, None
+    estado['campos']['precio'] = {
+        'valor': precio_ref,
+        'estado': ESTADO_EN_NEGOCIACION,
+        'propuesto_por': 'profesional',
+        'confirmado_en': None,
+    }
+    estado['paso_actual'] = 'precio'
+    msg = _mensaje_evento(TIPO_PROPUESTA, 'precio', 'profesional', precio_ref)
+    return normalizar_estado(estado), ('precio', precio_ref, msg)
+
+
 def proponer_propuesta_completa(
     estado: Dict[str, Any],
     rol: str,
     valores: Dict[str, str],
+    precio_referencia: str = '',
 ) -> Tuple[Dict[str, Any], str, List[Tuple[str, str, str]]]:
     """
     El contratante envía todos los campos a la vez.
@@ -620,6 +676,10 @@ def proponer_propuesta_completa(
     estado = normalizar_estado(estado)
     if not _todos_campos_pendientes(estado):
         raise ValueError('La propuesta completa solo puede enviarse al inicio, antes de cualquier confirmación')
+
+    precio_ref = parse_precio_catalogo(precio_referencia)
+    if precio_ref:
+        estado['precio_referencia'] = precio_ref
 
     eventos: List[Tuple[str, str, str]] = []
     for campo in CAMPOS_SOLICITANTE:
@@ -689,7 +749,7 @@ def aceptar_campo(
     rol: str,
     campo: str,
     observaciones_profesional: str = '',
-) -> Tuple[Dict[str, Any], str, str, bool]:
+) -> Tuple[Dict[str, Any], str, str, bool, List[Tuple[str, str, str, str]]]:
     if campo not in CAMPOS_ORDEN:
         raise ValueError('Campo no válido')
 
@@ -746,7 +806,13 @@ def aceptar_campo(
 
     estado = normalizar_estado(estado)
     msg = _mensaje_evento(TIPO_ACEPTACION, campo, rol, valor)
-    return estado, msg, TIPO_ACEPTACION, completo
+    eventos_extra: List[Tuple[str, str, str, str]] = []
+    if campo == 'observaciones' and rol == 'profesional' and not completo:
+        estado, auto = _intentar_auto_proponer_precio_catalogo(estado)
+        if auto:
+            auto_campo, auto_valor, auto_msg = auto
+            eventos_extra.append((auto_campo, auto_valor, auto_msg, TIPO_PROPUESTA))
+    return estado, msg, TIPO_ACEPTACION, completo, eventos_extra
 
 
 def reabrir_campo_negociacion(estado: Dict[str, Any], rol: str, campo: str, valor: str) -> Tuple[Dict[str, Any], str]:
@@ -804,6 +870,12 @@ def construir_payload(
         paso_servicio = estado['campos'].get('servicio', _campo_vacio())
         if paso_servicio.get('estado') == ESTADO_PENDIENTE:
             accion['valor_sugerido'] = servicio_contacto
+    precio_ref = (estado.get('precio_referencia') or '').strip()
+    if precio_ref and accion.get('tipo') == 'proponer' and accion.get('campo') == 'precio':
+        paso_precio = estado['campos'].get('precio', _campo_vacio())
+        if paso_precio.get('estado') == ESTADO_PENDIENTE:
+            accion['valor_sugerido'] = precio_ref
+            accion['precio_desde_catalogo'] = True
     return {
         'contacto_id': contacto.get('id'),
         'estado_contacto': contacto_estado,

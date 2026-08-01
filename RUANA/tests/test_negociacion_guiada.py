@@ -406,6 +406,81 @@ class TestNegociacionGuiada(unittest.TestCase):
         pro = self.db.obtener_negociacion_contacto(cid, '90002')
         self.assertEqual(pro['accion']['tipo'], 'responder')
 
+    def test_parse_precio_catalogo(self):
+        self.assertEqual(neg_mgr.parse_precio_catalogo('150 €'), '150')
+        self.assertEqual(neg_mgr.parse_precio_catalogo('120,50 EUR'), '120.5')
+        self.assertEqual(neg_mgr.parse_precio_catalogo(99), '99')
+        self.assertIsNone(neg_mgr.parse_precio_catalogo(''))
+        self.assertIsNone(neg_mgr.parse_precio_catalogo('sin precio'))
+
+    def test_precio_catalogo_sugerido_al_proponer(self):
+        cid = self._crear_aliados_y_contacto()
+        valores = {
+            'servicio': 'Reparación grifo',
+            'fecha': '2026-08-15',
+            'hora': '10:00',
+            'direccion': 'Calle Mayor 1',
+            'observaciones': 'Llevar herramientas',
+        }
+        self.db.proponer_propuesta_completa_negociacion(cid, '90001', valores, precio_catalogo='150 €')
+        for campo in ('servicio', 'fecha', 'hora', 'direccion', 'observaciones'):
+            ok = self.db.aceptar_negociacion(cid, '90002', campo)
+            self.assertEqual(ok['status'], 'success', ok.get('message'))
+
+        pro = self.db.obtener_negociacion_contacto(cid, '90002')
+        self.assertEqual(pro['accion']['tipo'], 'proponer')
+        self.assertEqual(pro['accion']['campo'], 'precio')
+        self.assertEqual(pro['accion'].get('valor_actual'), '150')
+        self.assertTrue(pro['accion'].get('modificar_propia'))
+
+        sol = self.db.obtener_negociacion_contacto(cid, '90001')
+        self.assertEqual(sol['accion']['tipo'], 'responder')
+        self.assertEqual(sol['accion']['campo'], 'precio')
+        self.assertEqual(sol['accion'].get('valor_actual'), '150')
+
+    def test_precio_catalogo_valor_sugerido_antes_de_auto(self):
+        cid = self._crear_aliados_y_contacto()
+        valores = {
+            'servicio': 'Reparación grifo',
+            'fecha': '2026-08-15',
+            'hora': '10:00',
+            'direccion': 'Calle Mayor 1',
+            'observaciones': 'Llevar herramientas',
+        }
+        self.db.proponer_propuesta_completa_negociacion(cid, '90001', valores, precio_catalogo='99 €')
+        for campo in ('servicio', 'fecha', 'hora', 'direccion'):
+            ok = self.db.aceptar_negociacion(cid, '90002', campo)
+            self.assertEqual(ok['status'], 'success', ok.get('message'))
+
+        pro = self.db.obtener_negociacion_contacto(cid, '90002')
+        self.assertEqual(pro['accion']['tipo'], 'responder')
+        self.assertEqual(pro['accion']['campo'], 'observaciones')
+
+        ok = self.db.aceptar_negociacion(cid, '90002', 'observaciones')
+        self.assertEqual(ok['status'], 'success')
+        pro_despues = self.db.obtener_negociacion_contacto(cid, '90002')
+        self.assertEqual(pro_despues['accion']['campo'], 'precio')
+        self.assertEqual(pro_despues['accion'].get('valor_actual'), '99')
+
+    def test_precio_catalogo_en_crear_contacto(self):
+        for i, (codigo, nombre) in enumerate((('91001', 'Sol'), ('91002', 'Pro'))):
+            r = self.db.crear_aliado(
+                codigo=codigo, nombre=nombre, marca='M', oficio='Fontanería',
+                codigo_postal='28001', email=f'{codigo}@test.com',
+                telefono=f'+3460000001{i}', estado='activo', score=50,
+            )
+            self.assertEqual(r['status'], 'success', r.get('message'))
+        r = self.db.crear_contacto_ruana(
+            '91001', '91002', servicio='Instalación', motivo_contacto='Catálogo',
+            precio_catalogo='200 €',
+        )
+        self.assertEqual(r['status'], 'success', r.get('message'))
+        cid = r['id']
+        neg = neg_mgr.parse_negociacion(
+            self.db.obtener_contacto_resumen(cid).get('negociacion_json')
+        )
+        self.assertEqual(neg.get('precio_referencia'), '200')
+
 
 if __name__ == '__main__':
     unittest.main()

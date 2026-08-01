@@ -19,6 +19,8 @@
         '#directorio-search': 'directorio',
         '#module-directorio': 'directorio',
         '#solicitudes-entrantes-wrap': 'solicitudes',
+        '#solicitudes-encargos-wrap': 'solicitudes',
+        '#encargos-activos-list': 'solicitudes',
         '#solicitudes-list': 'solicitudes',
         '.solicitudes-zone': 'solicitudes',
         '#module-solicitudes': 'solicitudes',
@@ -197,6 +199,20 @@
         return list.querySelectorAll('.solicitud-card, .profesional-card').length;
     }
 
+    function countEncargosRequierenRespuesta() {
+        const list = document.getElementById('encargos-activos-list');
+        if (!list) return 0;
+        return list.querySelectorAll('[data-requiere-respuesta="1"]').length;
+    }
+
+    function abrirNegociacionDesdeShell(contactoId) {
+        if (!contactoId) return;
+        showModule('solicitudes', { skipScroll: false });
+        document.dispatchEvent(new CustomEvent('ruana:abrir-negociacion', {
+            detail: { contactoId: String(contactoId) },
+        }));
+    }
+
     function refreshInicioTasks() {
         const list = document.getElementById('inicio-tasks-list');
         const empty = document.getElementById('inicio-tasks-empty');
@@ -209,11 +225,23 @@
 
         const contacto = document.getElementById('contacto-aviso-persistente');
         if (contacto && isVisible(contacto)) {
-            tasks.push({
-                text: 'Tienes un contacto activo pendiente de cierre',
-                action: 'conexiones',
-                label: 'Revisar'
-            });
+            const requiere = contacto.dataset.requiereRespuesta === '1';
+            const contactoId = contacto.dataset.contactoId;
+            if (requiere && contactoId) {
+                tasks.push({
+                    text: 'Negociación pendiente de tu respuesta',
+                    action: 'solicitudes',
+                    label: 'Responder ahora',
+                    openNegociacion: contactoId,
+                });
+            } else {
+                tasks.push({
+                    text: 'Tienes un contacto activo pendiente de cierre',
+                    action: 'solicitudes',
+                    label: contactoId ? 'Ver encargo' : 'Revisar',
+                    openNegociacion: contactoId || null,
+                });
+            }
         }
 
         if (hayAlertasHub) {
@@ -259,6 +287,10 @@
             btn.type = 'button';
             btn.textContent = task.label;
             btn.addEventListener('click', () => {
+                if (task.openNegociacion) {
+                    abrirNegociacionDesdeShell(task.openNegociacion);
+                    return;
+                }
                 showModule(task.action);
                 if (task.scrollAlerts) {
                     const alerts = qs('.aliado-shell-alerts');
@@ -273,9 +305,11 @@
 
     function updateNavBadges() {
         const entrantes = countListItems('solicitudes-list');
+        const encargosTurno = countEncargosRequierenRespuesta();
+        const total = entrantes + encargosTurno;
         qsa('[data-aliado-badge="solicitudes"]').forEach((badge) => {
-            if (entrantes > 0) {
-                badge.textContent = String(entrantes > 99 ? '99+' : entrantes);
+            if (total > 0) {
+                badge.textContent = String(total > 99 ? '99+' : total);
                 badge.classList.add('is-visible');
             } else {
                 badge.classList.remove('is-visible');
@@ -332,6 +366,7 @@
             document.getElementById('perfil-avatar'),
             document.getElementById('solicitudes-list'),
             document.getElementById('contacto-aviso-persistente'),
+            document.getElementById('encargos-activos-list'),
             document.getElementById('ruana-alert-hub'),
             document.getElementById('score-alerta-panel')
         ].filter(Boolean);

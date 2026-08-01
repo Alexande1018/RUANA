@@ -93,6 +93,7 @@
             this._catalogoCache = {};
             this._catalogoAbierto = false;
             this._cambiarServicio = false;
+            this._precioReferencia = '';
             this._bindModal();
         }
 
@@ -127,6 +128,10 @@
             const title = document.getElementById('neg-modal-title');
             if (title) title.textContent = tituloExtra || 'Negociación guiada RUANA';
             if (modal) modal.classList.add('show');
+            document.body.classList.add('neg-modal-abierto');
+            if (this.panel && typeof this.panel.ocultarAcuerdoFlotantePorModal === 'function') {
+                this.panel.ocultarAcuerdoFlotantePorModal();
+            }
             await this.refrescar();
             this.iniciarPolling();
         }
@@ -144,7 +149,11 @@
             this._wizard = null;
             this._catalogoAbierto = false;
             this._cambiarServicio = false;
-            if (dataSnapshot && contactoId && this.panel && typeof this.panel.mostrarAcuerdoFlotanteDesdeNegociacion === 'function') {
+            this._precioReferencia = '';
+            document.body.classList.remove('neg-modal-abierto');
+            if (this.panel && typeof this.panel.restaurarAcuerdoFlotanteTrasNegociacion === 'function') {
+                this.panel.restaurarAcuerdoFlotanteTrasNegociacion(contactoId, dataSnapshot);
+            } else if (dataSnapshot && contactoId && this.panel && typeof this.panel.mostrarAcuerdoFlotanteDesdeNegociacion === 'function') {
                 this.panel.mostrarAcuerdoFlotanteDesdeNegociacion(contactoId, dataSnapshot);
             }
         }
@@ -789,7 +798,10 @@
                     return;
                 }
             }
-            await this._post('proponer-completa', body, true);
+            await this._post('proponer-completa', {
+                ...body,
+                precio_catalogo: this._precioReferencia || '',
+            }, true);
             this._clearWizard();
             this._cambiarServicio = false;
             this._catalogoAbierto = false;
@@ -803,12 +815,19 @@
             const valorInicial = this._valorBorrador(campo, acc.valor_actual || acc.valor_sugerido || '');
             const catalogoHtml = campo === 'servicio' ? this._htmlSelectorServicio(campo) : '';
             const placeholder = campo === 'servicio' ? 'Describe el servicio…' : (campo === 'precio' ? 'Precio en €' : 'Escribe…');
+            const hintCatalogo = (campo === 'precio' && acc.precio_desde_catalogo && valorInicial)
+                ? `<p class="neg-precio-catalogo-hint">Precio del catálogo: ${this.escapeHtml(String(valorInicial))} €. Confirma o edítalo.</p>`
+                : '';
             const inputHtml = isTextarea
                 ? `<textarea id="neg-input-valor" class="neg-compose-input" placeholder="${placeholder}" rows="2">${this.escapeHtml(valorInicial)}</textarea>`
                 : `<input id="neg-input-valor" class="neg-compose-input" type="${inputType}" ${campo === 'precio' ? 'step="0.01" min="0"' : ''} placeholder="${placeholder}" value="${this.escapeHtml(valorInicial)}" />`;
-            const btnLabel = acc.modificar_propia ? 'Actualizar' : (campo === 'precio' ? 'Proponer precio' : 'Enviar');
+            let btnLabel = acc.modificar_propia ? 'Actualizar' : (campo === 'precio' ? 'Proponer precio' : 'Enviar');
+            if (campo === 'precio' && acc.precio_desde_catalogo && valorInicial) {
+                btnLabel = 'Confirmar precio';
+            }
             el.innerHTML = `<div class="neg-compose-stack">
                 ${catalogoHtml}
+                ${hintCatalogo}
                 <div class="neg-compose-row">
                     ${inputHtml}
                     <button type="button" class="neg-btn neg-btn-primary neg-btn-send" id="neg-btn-proponer">${btnLabel}</button>
@@ -975,6 +994,9 @@
                         } else {
                             const input = document.getElementById(inputId);
                             if (input && item) input.value = item.descripcion || '';
+                            if (item && item.precio) {
+                                this._precioReferencia = String(item.precio).trim();
+                            }
                         }
                     });
                 });

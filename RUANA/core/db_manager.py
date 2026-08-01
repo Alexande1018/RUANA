@@ -7401,8 +7401,8 @@ class DBManager:
     # ===============================================
 
     def _iniciar_negociacion_en_cursor(self, cursor, contacto_id: int, servicio: str,
-                                        solicitante_codigo: str) -> None:
-        estado = neg_mgr.estado_inicial()
+                                        solicitante_codigo: str, precio_referencia: str = '') -> None:
+        estado = neg_mgr.estado_inicial(precio_referencia=precio_referencia)
         neg_json = neg_mgr.serializar_negociacion(estado)
         cursor.execute(
             "UPDATE contactos_ruana SET negociacion_json = ?, actualizado_en = CURRENT_TIMESTAMP WHERE id = ?",
@@ -7508,6 +7508,7 @@ class DBManager:
 
     def proponer_propuesta_completa_negociacion(
         self, contacto_id: int, codigo_aliado: str, valores: Dict[str, str],
+        precio_catalogo: str = '',
     ) -> Dict[str, Any]:
         with self._lock:
             conn = None
@@ -7526,7 +7527,9 @@ class DBManager:
                 if not rol:
                     return {'status': 'error', 'message': 'No autorizado'}
                 estado = neg_mgr.parse_negociacion(contacto.get('negociacion_json'))
-                estado, msg_resumen, eventos = neg_mgr.proponer_propuesta_completa(estado, rol, valores)
+                estado, msg_resumen, eventos = neg_mgr.proponer_propuesta_completa(
+                    estado, rol, valores, precio_referencia=precio_catalogo or '',
+                )
                 neg_json = neg_mgr.serializar_negociacion(estado)
                 cursor.execute(
                     "UPDATE contactos_ruana SET negociacion_json = ?, actualizado_en = CURRENT_TIMESTAMP WHERE id = ?",
@@ -7776,7 +7779,7 @@ class DBManager:
                 if not rol:
                     return {'status': 'error', 'message': 'No autorizado'}
                 estado = neg_mgr.parse_negociacion(contacto.get('negociacion_json'))
-                estado, msg, tipo, completo = neg_mgr.aceptar_campo(
+                estado, msg, tipo, completo, eventos_extra = neg_mgr.aceptar_campo(
                     estado, rol, campo, observaciones_profesional
                 )
                 neg_json = neg_mgr.serializar_negociacion(estado)
@@ -7825,6 +7828,10 @@ class DBManager:
                     """, (neg_json, nuevo_estado, contacto_id))
                 self._insertar_evento_negociacion(cursor, contacto_id, tipo, campo,
                     estado['campos'][campo]['valor'], codigo_aliado, msg)
+                for ev_campo, ev_valor, ev_msg, ev_tipo in eventos_extra:
+                    self._insertar_evento_negociacion(
+                        cursor, contacto_id, ev_tipo, ev_campo, ev_valor, pro if ev_campo == 'precio' else codigo_aliado, ev_msg,
+                    )
                 conn.commit()
                 eventos = self.listar_eventos_negociacion(contacto_id)
                 contacto = self._cargar_contacto_negociacion(cursor, contacto_id)
@@ -8278,7 +8285,7 @@ class DBManager:
 
     def crear_contacto_ruana(self, solicitante_codigo: str, profesional_codigo: str,
                              servicio: str = "", motivo_contacto: str = "",
-                             es_urgente: bool = False) -> Dict[str, Any]:
+                             es_urgente: bool = False, precio_catalogo: str = "") -> Dict[str, Any]:
         """
         Crea un nuevo contacto RUANA en estado 'iniciado'.
         motivo_contacto: obligatorio para el flujo de chat (quién contactó a quién y por qué).
@@ -8349,7 +8356,8 @@ class DBManager:
 
                 # Iniciar negociación guiada con servicio propuesto por el contratante
                 self._iniciar_negociacion_en_cursor(
-                    cursor, contacto_id, servicio or '', solicitante_codigo
+                    cursor, contacto_id, servicio or '', solicitante_codigo,
+                    precio_referencia=precio_catalogo or '',
                 )
 
                 conn.commit()

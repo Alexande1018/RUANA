@@ -1511,8 +1511,11 @@ def negociacion_proponer_completa(contacto_id):
         'direccion': (data.get('direccion') or '').strip(),
         'observaciones': (data.get('observaciones') or '').strip(),
     }
+    precio_catalogo = (data.get('precio_catalogo') or '').strip()
     db = get_db()
-    result = db.proponer_propuesta_completa_negociacion(contacto_id, codigo, campos)
+    result = db.proponer_propuesta_completa_negociacion(
+        contacto_id, codigo, campos, precio_catalogo=precio_catalogo,
+    )
     return jsonify(result), 200 if result.get('status') == 'success' else 400
 
 
@@ -1651,6 +1654,7 @@ def crear_contacto():
         motivo_contacto = (data.get('motivo_contacto') or '').strip() or 'Negociación guiada'
         es_urgente_raw = data.get('es_urgente', False)
         es_urgente = es_urgente_raw in (True, 1, '1', 'true', 'True', 'yes', 'on')
+        precio_catalogo = (data.get('precio_catalogo') or '').strip()
 
         if not profesional_codigo:
             return jsonify({
@@ -1665,6 +1669,7 @@ def crear_contacto():
             servicio=servicio,
             motivo_contacto=motivo_contacto,
             es_urgente=es_urgente,
+            precio_catalogo=precio_catalogo,
         )
 
         status_code = 201 if result.get('status') == 'success' else 400

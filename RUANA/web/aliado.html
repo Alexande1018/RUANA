@@ -2603,6 +2603,11 @@
                 <p class="aliado-module-subtitle">Recibidas, enviadas e historial — cada una como unidad de trabajo.</p>
             </header>
             <div class="solicitudes-zone">
+                <div class="solicitudes-subsection" id="solicitudes-encargos-wrap">
+                    <h3 class="solicitudes-subtitle">Encargos activos</h3>
+                    <p class="solicitudes-desc">Negociaciones en curso con otros aliados. Responde directamente sin pasar por Inicio.</p>
+                    <div class="encargos-activos-list" id="encargos-activos-list"></div>
+                </div>
                 <div class="solicitudes-subsection" id="solicitudes-entrantes-wrap">
                     <h3 class="solicitudes-subtitle">Solicitudes recibidas</h3>
                     <p class="solicitudes-desc">Peticiones de otros aliados del grupo que puedes atender (Conozco a alguien).</p>
@@ -4362,6 +4367,29 @@
                     panel.classList.remove('show');
                 }
                 this.acuerdoFlotanteActual = null;
+                this._acuerdoFlotanteOcultoPorModal = false;
+                this._acuerdoFlotanteSnapshot = null;
+            }
+
+            ocultarAcuerdoFlotantePorModal() {
+                const panel = document.getElementById('acuerdo-flotante');
+                if (panel && panel.classList.contains('show')) {
+                    this._acuerdoFlotanteOcultoPorModal = true;
+                    this._acuerdoFlotanteSnapshot = this.acuerdoFlotanteActual;
+                    panel.classList.remove('show');
+                    panel.hidden = true;
+                }
+            }
+
+            restaurarAcuerdoFlotanteTrasNegociacion(contactoId, dataSnapshot) {
+                this._acuerdoFlotanteOcultoPorModal = false;
+                const snap = this._acuerdoFlotanteSnapshot;
+                this._acuerdoFlotanteSnapshot = null;
+                if (dataSnapshot && contactoId) {
+                    this.mostrarAcuerdoFlotanteDesdeNegociacion(contactoId, dataSnapshot);
+                } else if (snap) {
+                    this.mostrarAcuerdoFlotante(snap);
+                }
             }
 
             async dismissAcuerdoFlotante() {
@@ -5177,6 +5205,10 @@
              * - Permite interacción aunque los datos no hayan cargado
              */
             setupEventListeners() {
+                document.addEventListener('ruana:abrir-negociacion', (e) => {
+                    const id = e.detail && e.detail.contactoId;
+                    if (id) this.abrirNegociacionContacto(id, null);
+                });
                 // Botón de logout (F04)
                 const btnLogout = document.getElementById('btn-logout');
                 if (btnLogout) {
@@ -6428,8 +6460,11 @@
                         await this.cargarPagosApoyoPendientes();
                         avisoEl.style.display = 'none';
                         avisoEl.classList.remove('contacto-aviso-urgente');
+                        avisoEl.removeAttribute('data-contacto-id');
+                        avisoEl.removeAttribute('data-requiere-respuesta');
                         const badgeUrgenteOff = document.getElementById('contacto-aviso-badge-urgente');
                         if (badgeUrgenteOff) badgeUrgenteOff.style.display = 'none';
+                        this.renderEncargosActivos();
                         return;
                     }
 
@@ -6437,7 +6472,8 @@
                     const badgeUrgente = document.getElementById('contacto-aviso-badge-urgente');
                     if (badgeUrgente) badgeUrgente.style.display = this.contactoActual.es_urgente ? 'inline-block' : 'none';
 
-                    // Construir tarjeta de seguimiento según estado real
+                    const ui = this._encargoUiLabels(this.contactoActual);
+                    const estado = this.contactoActual.estado;
                     const estadoEl = document.getElementById('contacto-aviso-estado');
                     const contextoEl = document.getElementById('contacto-aviso-contexto');
                     const pasoEl = document.getElementById('contacto-aviso-paso');
@@ -6445,69 +6481,27 @@
                     const progresoFill = document.getElementById('contacto-aviso-progreso-fill');
                     const progresoTexto = document.getElementById('contacto-aviso-progreso-texto');
                     const btnAbrir = document.getElementById('btn-contacto-abrir-chat');
-                    const estado = this.contactoActual.estado;
-                    const meta = this.contactoActual.negociacion_meta || {};
-                    const yaDeclaraste = this.contactoActual.ya_declaraste_importe === true;
-
-                    let estadoLabel = 'Encargo activo';
-                    let contexto = meta.contexto || 'Tienes un encargo activo con otro aliado RUANA.';
-                    let pasoTxt = meta.paso_label ? `Pendiente: ${meta.paso_label}` : '';
-                    let accionTxt = meta.siguiente_accion || 'Abre la negociación para continuar.';
-                    let progresoConf = meta.progreso_confirmados || 0;
-                    let progresoTotal = meta.progreso_total || 6;
-                    let btnPrincipal = 'Abrir negociación';
-                    let requiereRespuesta = !!this.contactoActual.negociacion_requiere_mi_respuesta;
-
-                    if (this.contactoActual.es_urgente) {
-                        estadoLabel = 'Encargo urgente';
-                    }
+                    let progresoConf = ui.progresoConf;
+                    let progresoTotal = ui.progresoTotal;
                     if (estado === 'acuerdo_alcanzado' || this.contactoActual.negociacion_completa) {
-                        estadoLabel = 'Acuerdo alcanzado';
-                        contexto = 'Todos los puntos del encargo están confirmados.';
-                        pasoTxt = '';
-                        accionTxt = 'El precio aceptado es el importe oficial del encargo. Se genera el Apoyo RUANA.';
-                        btnPrincipal = 'Ver acuerdo';
                         progresoConf = progresoTotal;
-                    } else if (requiereRespuesta) {
-                        estadoLabel = 'Tu turno';
-                        btnPrincipal = 'Responder ahora';
-                        accionTxt = meta.siguiente_accion || 'Confirma o sugiere un cambio para continuar.';
-                    } else if (meta.fase === 'revision' && !requiereRespuesta) {
-                        estadoLabel = 'Esperando al profesional';
-                        btnPrincipal = 'Ver negociación';
-                    } else if (meta.fase === 'inicio' && estado !== 'acuerdo_alcanzado') {
-                        estadoLabel = 'Preparar encargo';
-                        btnPrincipal = 'Continuar negociación';
-                    } else if (estado === 'importe_en_disputa') {
-                        estadoLabel = 'Importe en disputa';
-                        contexto = 'Hay una diferencia en el importe declarado. Debes aclararlo para proteger tu reputación.';
-                        pasoTxt = '';
-                        accionTxt = 'Revisa el contacto y aporta la información necesaria.';
-                        btnPrincipal = 'Revisar contacto';
-                    } else if (estado === 'trabajo_cerrado') {
-                        estadoLabel = 'Trabajo cerrado';
-                        contexto = 'El encargo quedó registrado como realizado.';
-                        pasoTxt = '';
-                        accionTxt = 'Revisa el Apoyo RUANA pendiente si corresponde.';
-                        btnPrincipal = 'Ver detalle';
-                    }
-                    if (yaDeclaraste && estado !== 'importe_en_disputa' && estado !== 'trabajo_cerrado') {
-                        accionTxt += ' Ya confirmaste el importe.';
                     }
 
-                    if (estadoEl) estadoEl.textContent = estadoLabel;
-                    if (contextoEl) contextoEl.textContent = contexto;
+                    if (estadoEl) estadoEl.textContent = ui.estadoLabel;
+                    if (contextoEl) contextoEl.textContent = ui.contexto;
                     if (pasoEl) {
-                        pasoEl.textContent = pasoTxt;
-                        pasoEl.style.display = pasoTxt ? 'block' : 'none';
+                        pasoEl.textContent = ui.pasoTxt;
+                        pasoEl.style.display = ui.pasoTxt ? 'block' : 'none';
                     }
-                    if (accionEl) accionEl.textContent = accionTxt;
+                    if (accionEl) accionEl.textContent = ui.accionTxt;
                     if (progresoTexto) progresoTexto.textContent = `${progresoConf}/${progresoTotal}`;
                     if (progresoFill && progresoTotal > 0) {
                         progresoFill.style.width = `${Math.round((progresoConf / progresoTotal) * 100)}%`;
                     }
-                    if (btnAbrir) btnAbrir.textContent = btnPrincipal;
-                    avisoEl.classList.toggle('encargo-requiere-respuesta', requiereRespuesta);
+                    if (btnAbrir) btnAbrir.textContent = ui.btnPrincipal;
+                    avisoEl.classList.toggle('encargo-requiere-respuesta', ui.requiereRespuesta);
+                    avisoEl.dataset.contactoId = String(this.contactoActual.id);
+                    avisoEl.dataset.requiereRespuesta = ui.requiereRespuesta ? '1' : '0';
                     // Ocultar "Sigue en conversación" tras acuerdo alcanzado
                     const btnSigue = document.getElementById('btn-contacto-sigue');
                     if (btnSigue) btnSigue.style.display = (estado === 'acuerdo_alcanzado' || estado === 'trabajo_cerrado') ? 'none' : '';
@@ -6545,6 +6539,7 @@
 
                     avisoEl.style.display = 'flex';
                     await this.cargarPagosApoyoPendientes();
+                    this.renderEncargosActivos();
                 } catch (e) {
                     console.error('Error cargando contactos pendientes:', e);
                 }
@@ -6918,6 +6913,115 @@
                 return (profesional && profesional.oficio) || 'Servicio RUANA';
             }
 
+            _obtenerPrecioCatalogoPrevio() {
+                const catalogoList = document.getElementById('contacto-previo-catalogo-list');
+                const selected = catalogoList ? catalogoList.querySelector('.neg-catalogo-item.selected') : null;
+                if (selected) {
+                    const idx = parseInt(selected.getAttribute('data-idx') || '-1', 10);
+                    const item = (this._catalogoPrevioItems || [])[idx];
+                    if (item && item.precio) return String(item.precio).trim();
+                }
+                return '';
+            }
+
+            _encargoUiLabels(contacto) {
+                const estado = contacto.estado;
+                const meta = contacto.negociacion_meta || {};
+                const yaDeclaraste = contacto.ya_declaraste_importe === true;
+                let estadoLabel = 'Encargo activo';
+                let contexto = meta.contexto || 'Tienes un encargo activo con otro aliado RUANA.';
+                let pasoTxt = meta.paso_label ? `Pendiente: ${meta.paso_label}` : '';
+                let accionTxt = meta.siguiente_accion || 'Abre la negociación para continuar.';
+                let btnPrincipal = 'Abrir negociación';
+                let requiereRespuesta = !!contacto.negociacion_requiere_mi_respuesta;
+                if (contacto.es_urgente) estadoLabel = 'Encargo urgente';
+                if (estado === 'acuerdo_alcanzado' || contacto.negociacion_completa) {
+                    estadoLabel = 'Acuerdo alcanzado';
+                    contexto = 'Todos los puntos del encargo están confirmados.';
+                    pasoTxt = '';
+                    accionTxt = 'El precio aceptado es el importe oficial del encargo. Se genera el Apoyo RUANA.';
+                    btnPrincipal = 'Ver acuerdo';
+                } else if (requiereRespuesta) {
+                    estadoLabel = 'Tu turno';
+                    btnPrincipal = 'Responder ahora';
+                    accionTxt = meta.siguiente_accion || 'Confirma o sugiere un cambio para continuar.';
+                } else if (meta.fase === 'revision' && !requiereRespuesta) {
+                    estadoLabel = 'Esperando al profesional';
+                    btnPrincipal = 'Ver negociación';
+                } else if (meta.fase === 'inicio' && estado !== 'acuerdo_alcanzado') {
+                    estadoLabel = 'Preparar encargo';
+                    btnPrincipal = 'Continuar negociación';
+                } else if (estado === 'importe_en_disputa') {
+                    estadoLabel = 'Importe en disputa';
+                    contexto = 'Hay una diferencia en el importe declarado.';
+                    pasoTxt = '';
+                    accionTxt = 'Revisa el contacto y aporta la información necesaria.';
+                    btnPrincipal = 'Revisar contacto';
+                } else if (estado === 'trabajo_cerrado') {
+                    estadoLabel = 'Trabajo cerrado';
+                    contexto = 'El encargo quedó registrado como realizado.';
+                    pasoTxt = '';
+                    accionTxt = 'Revisa el Apoyo RUANA pendiente si corresponde.';
+                    btnPrincipal = 'Ver detalle';
+                }
+                if (yaDeclaraste && estado !== 'importe_en_disputa' && estado !== 'trabajo_cerrado') {
+                    accionTxt += ' Ya confirmaste el importe.';
+                }
+                const codigo = (this.codigoAliado || (this.aliado && this.aliado.codigo) || '').toString().trim();
+                const contraparte = codigo === String(contacto.solicitante_codigo || '').trim()
+                    ? contacto.profesional_codigo
+                    : contacto.solicitante_codigo;
+                return {
+                    estadoLabel, contexto, pasoTxt, accionTxt, btnPrincipal, requiereRespuesta, contraparte,
+                    progresoConf: meta.progreso_confirmados || 0,
+                    progresoTotal: meta.progreso_total || 6,
+                };
+            }
+
+            renderEncargosActivos() {
+                const list = document.getElementById('encargos-activos-list');
+                const wrap = document.getElementById('solicitudes-encargos-wrap');
+                if (!list || !wrap) return;
+                const encargos = Array.isArray(this.contactosAbiertos) ? this.contactosAbiertos : [];
+                if (!encargos.length) {
+                    list.innerHTML = '<p class="encargos-activos-empty">No tienes encargos activos en este momento.</p>';
+                    wrap.style.display = '';
+                    return;
+                }
+                list.innerHTML = encargos.map((c) => {
+                    const ui = this._encargoUiLabels(c);
+                    const servicio = this.escapeHtml(c.servicio || 'Encargo RUANA');
+                    const contraparte = this.escapeHtml(String(ui.contraparte || ''));
+                    const pasoHtml = ui.pasoTxt
+                        ? `<p class="encargo-card-paso">${this.escapeHtml(ui.pasoTxt)}</p>`
+                        : '';
+                    const urgente = c.es_urgente ? '<span class="encargo-card-badge urgente">Urgente</span>' : '';
+                    const turno = ui.requiereRespuesta ? '<span class="encargo-card-badge turno">Tu turno</span>' : '';
+                    return `<article class="encargo-card${ui.requiereRespuesta ? ' encargo-requiere-respuesta' : ''}" data-contacto-id="${c.id}" data-requiere-respuesta="${ui.requiereRespuesta ? '1' : '0'}">
+                        <div class="encargo-card-header">
+                            <span class="encargo-card-estado">${this.escapeHtml(ui.estadoLabel)}</span>
+                            ${urgente}${turno}
+                        </div>
+                        <h4 class="encargo-card-servicio">${servicio}</h4>
+                        <p class="encargo-card-meta">Con aliado ${contraparte}</p>
+                        <p class="encargo-card-contexto">${this.escapeHtml(ui.contexto)}</p>
+                        ${pasoHtml}
+                        <p class="encargo-card-accion">${this.escapeHtml(ui.accionTxt)}</p>
+                        <button type="button" class="encargo-card-btn" data-abrir-negociacion="${c.id}">${this.escapeHtml(ui.btnPrincipal)}</button>
+                    </article>`;
+                }).join('');
+                list.querySelectorAll('[data-abrir-negociacion]').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        const id = parseInt(btn.getAttribute('data-abrir-negociacion') || '0', 10);
+                        if (id) this.abrirNegociacionContacto(id, null);
+                    });
+                });
+                wrap.style.display = '';
+                if (window.AliadoShell && typeof window.AliadoShell.refresh === 'function') {
+                    window.AliadoShell.refresh();
+                }
+            }
+
             /**
              * Crear contacto e iniciar negociación guiada (sin modal de motivo).
              */
@@ -6947,6 +7051,7 @@
                     alert('Elige un servicio del catálogo o escribe cuál necesitas.');
                     return;
                 }
+                const precioCatalogo = this._obtenerPrecioCatalogoPrevio();
                 const btnConfirm = document.getElementById('btn-contacto-previo-confirm');
                 if (btnConfirm) btnConfirm.disabled = true;
 
@@ -6958,7 +7063,8 @@
                         body: JSON.stringify({
                             profesional_codigo: profesionalCodigo,
                             servicio,
-                            es_urgente: !!(document.getElementById('check-contacto-urgente') || {}).checked
+                            es_urgente: !!(document.getElementById('check-contacto-urgente') || {}).checked,
+                            precio_catalogo: precioCatalogo,
                         })
                     });
                     const data = await resp.json();

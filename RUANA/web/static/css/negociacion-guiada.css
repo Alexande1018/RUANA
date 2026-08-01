@@ -46,6 +46,8 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     flex-shrink: 0;
     flex-wrap: wrap;
+    position: relative;
+    z-index: 3;
 }
 .neg-modal-title {
     margin: 0;
@@ -57,6 +59,8 @@
     gap: 6px;
     align-items: center;
     flex-shrink: 0;
+    position: relative;
+    z-index: 4;
 }
 .neg-modal-header-actions .chat-btn-finalizar,
 .neg-modal-header-actions .chat-btn-volver-panel {
@@ -520,6 +524,11 @@ textarea.neg-compose-input {
 }
 
 /* Panel flotante de acuerdo */
+body.neg-modal-abierto .acuerdo-flotante.show {
+    visibility: hidden !important;
+    pointer-events: none !important;
+    opacity: 0 !important;
+}
 .acuerdo-flotante {
     position: fixed;
     right: 16px;
@@ -691,4 +700,15 @@ textarea.neg-compose-input {
     gap: 8px 12px;
     font-size: 0.78rem;
     color: #cbd5e1;
+}
+
+.neg-precio-catalogo-hint {
+    margin: 0 0 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(34, 197, 94, 0.12);
+    border: 1px solid rgba(34, 197, 94, 0.25);
+    color: #86efac;
+    font-size: 0.82rem;
+    line-height: 1.35;
 }
