@@ -850,17 +850,99 @@ body.aliado-app > .ruana-brand-watermark {
     color: rgba(255, 255, 255, 0.55);
 }
 
+.catalogo-servicios-lista,
 .catalogo-servicios-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.catalogo-empty {
+    padding: 18px 16px;
+    border-radius: 14px;
+    border: 1px dashed rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.02);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.9rem;
+}
+
+.catalogo-empty p { margin: 0; }
+
+.catalogo-empty-hint {
+    margin-top: 6px !important;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.45);
 }
 
 .catalogo-servicio-card {
-    border-radius: 16px;
+    border-radius: 14px;
     border: 1px solid rgba(255, 255, 255, 0.1);
     background: rgba(255, 255, 255, 0.03);
-    padding: 14px;
+    padding: 14px 16px;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.catalogo-servicio-card.is-collapsed {
+    cursor: pointer;
+    padding: 12px 14px;
+}
+
+.catalogo-servicio-card.is-collapsed:hover,
+.catalogo-servicio-card.is-collapsed:focus-visible {
+    border-color: rgba(162, 255, 0, 0.35);
+    background: rgba(162, 255, 0, 0.04);
+    outline: none;
+}
+
+.catalogo-servicio-card.is-open {
+    border-color: rgba(162, 255, 0, 0.28);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.catalogo-servicio-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.catalogo-servicio-summary-main {
+    min-width: 0;
+    flex: 1;
+}
+
+.catalogo-servicio-summary-title {
+    margin: 4px 0 2px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.92);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.catalogo-servicio-summary-precio {
+    margin: 0;
+    font-size: 0.82rem;
+    color: rgba(162, 255, 0, 0.85);
+    font-weight: 600;
+}
+
+.catalogo-servicio-edit {
+    flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: transparent;
+    color: rgba(255, 255, 255, 0.8);
+    border-radius: 10px;
+    padding: 7px 12px;
+    font-size: 0.76rem;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.catalogo-servicio-edit:hover {
+    border-color: rgba(162, 255, 0, 0.4);
+    color: var(--ruana-brand-lime, #a2ff00);
 }
 
 .catalogo-servicio-head {
@@ -868,19 +950,19 @@ body.aliado-app > .ruana-brand-watermark {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
 }
 
 .catalogo-servicio-num {
-    font-size: 0.8rem;
+    font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: rgba(162, 255, 0, 0.8);
+    color: rgba(162, 255, 0, 0.75);
 }
 
 .catalogo-servicio-state {
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     font-weight: 700;
     border-radius: 999px;
     padding: 3px 8px;
@@ -896,12 +978,20 @@ body.aliado-app > .ruana-brand-watermark {
 
 .catalogo-servicio-state.ready {
     color: #4ade80;
-    border-color: rgba(74, 222, 128, 0.4);
-    background: rgba(34, 197, 94, 0.12);
+    border-color: rgba(74, 222, 128, 0.35);
+    background: rgba(34, 197, 94, 0.1);
+}
+
+.catalogo-servicio-label {
+    display: block;
+    margin: 0 0 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.55);
 }
 
 .catalogo-servicio-card textarea,
-.catalogo-servicio-card input {
+.catalogo-servicio-card input[type="text"] {
     width: 100%;
     box-sizing: border-box;
     border-radius: 12px;
@@ -914,17 +1004,21 @@ body.aliado-app > .ruana-brand-watermark {
 }
 
 .catalogo-servicio-card textarea {
-    min-height: 92px;
+    min-height: 88px;
     resize: vertical;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
+}
+
+.catalogo-servicio-card input[type="text"] {
+    margin-bottom: 4px;
 }
 
 .catalogo-servicio-actions {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    flex-wrap: wrap;
     gap: 8px;
-    margin-top: 8px;
+    margin-top: 12px;
 }
 
 .catalogo-servicio-save {
@@ -932,8 +1026,8 @@ body.aliado-app > .ruana-brand-watermark {
     border-radius: 10px;
     background: rgba(162, 255, 0, 0.16);
     color: var(--ruana-brand-lime, #a2ff00);
-    padding: 8px 12px;
-    font-size: 0.76rem;
+    padding: 8px 14px;
+    font-size: 0.78rem;
     font-weight: 700;
     cursor: pointer;
 }
@@ -943,9 +1037,61 @@ body.aliado-app > .ruana-brand-watermark {
     cursor: not-allowed;
 }
 
+.catalogo-servicio-cancel {
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 10px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.7);
+    padding: 8px 12px;
+    font-size: 0.76rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
 .catalogo-servicio-feedback {
     font-size: 0.72rem;
     color: rgba(255, 255, 255, 0.55);
+    margin-left: auto;
+}
+
+.catalogo-add-btn {
+    margin-top: 12px;
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 12px;
+    border: 1px dashed rgba(162, 255, 0, 0.35);
+    background: rgba(162, 255, 0, 0.06);
+    color: rgba(255, 255, 255, 0.9);
+    padding: 12px 14px;
+    font-size: 0.86rem;
+    font-weight: 650;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.catalogo-add-btn i {
+    width: 16px;
+    height: 16px;
+    color: var(--ruana-brand-lime, #a2ff00);
+}
+
+.catalogo-add-btn:hover:not(:disabled) {
+    background: rgba(162, 255, 0, 0.1);
+    border-color: rgba(162, 255, 0, 0.5);
+}
+
+.catalogo-add-btn:disabled,
+.catalogo-add-btn[hidden] {
+    display: none;
+}
+
+@media (max-width: 720px) {
+    .catalogo-servicio-summary {
+        align-items: flex-start;
+    }
 }
 
 /* Solicitudes as work inbox */
@@ -1055,10 +1201,6 @@ body.aliado-app > .ruana-brand-watermark {
 @media (max-width: 1024px) {
     .inicio-quick-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .catalogo-servicios-grid {
-        grid-template-columns: 1fr;
     }
 }
 

@@ -2508,10 +2508,14 @@
             <section class="catalogo-servicios-wrap" id="catalogo-servicios-wrap">
                 <h3 class="catalogo-servicios-title">
                     <i data-lucide="briefcase-business"></i>
-                    Catálogo de servicios
+                    Especializaciones
                 </h3>
-                <p class="catalogo-servicios-subtitle">Configuración privada: hasta 10 servicios con descripción y precio.</p>
-                <div class="catalogo-servicios-grid" id="catalogo-servicios-grid"></div>
+                <p class="catalogo-servicios-subtitle">Define tus servicios con descripción y precio. Solo se muestra la tarjeta que estás editando.</p>
+                <div class="catalogo-servicios-lista" id="catalogo-servicios-grid"></div>
+                <button type="button" class="catalogo-add-btn" id="btn-catalogo-anadir" hidden>
+                    <i data-lucide="plus"></i>
+                    Añadir especialización
+                </button>
             </section>
 
             <section class="mis-acuerdos-wrap" id="mis-acuerdos-wrap">
@@ -3163,8 +3167,8 @@
                     {
                         selector: '#catalogo-servicios-wrap',
                         module: 'perfil',
-                        title: 'Catálogo de oficios',
-                        copy: 'Los oficios y servicios que publiques aquí serán visibles para los aliados que buscan un profesional. Mantén esta información actualizada para aumentar tus oportunidades de recibir encargos.<br><br>Al seleccionar <strong>Contactar</strong> desde el catálogo se abre un chat privado entre ambos aliados para iniciar la conversación y gestionar la posible contratación del servicio.',
+                        title: 'Tus especializaciones',
+                        copy: 'Añade cada especialización en una tarjeta. Al guardar se cierra y muestra un resumen; pulsa Editar para modificarla. Así mantienes el perfil ordenado y profesional.',
                         placement: 'top'
                     },
                     {
@@ -3575,6 +3579,7 @@
                 this.tienePagosPendientes = false;
                 this.misAcuerdos = [];
                 this.misAcuerdosFiltro = 'todos';
+                this.catalogoEditandoPos = null;
                 this.acuerdoFlotanteActual = null;
                 this.scoreNotifActive = false;
                 this.scoreNotifShownIds = new Set();
@@ -4451,31 +4456,132 @@
                 return out;
             }
 
+            _catalogoResumenTitulo(servicio) {
+                const desc = String(servicio.descripcion || '').trim();
+                if (!desc) return `Especialización ${servicio.posicion}`;
+                const primera = desc.split(/\n/)[0].trim();
+                return primera.length > 72 ? `${primera.slice(0, 72)}…` : primera;
+            }
+
+            _primeraPosicionLibreCatalogo(catalogo) {
+                const item = (catalogo || []).find((s) => !s.configurado);
+                return item ? item.posicion : null;
+            }
+
+            abrirCatalogoEdicion(posicion) {
+                const pos = Number(posicion);
+                if (!Number.isInteger(pos) || pos < 1 || pos > 10) return;
+                this.catalogoEditandoPos = pos;
+                this.renderCatalogoServicios();
+                const card = document.querySelector(`.catalogo-servicio-card[data-servicio-pos="${pos}"]`);
+                if (card && typeof card.scrollIntoView === 'function') {
+                    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+                const inputDesc = document.querySelector(`[data-servicio-desc="${pos}"]`);
+                if (inputDesc) {
+                    try { inputDesc.focus(); } catch (e) { /* ignore */ }
+                }
+            }
+
+            anadirEspecializacionCatalogo() {
+                const catalogo = this.normalizarCatalogoServicios((this.aliado || {}).catalogo_servicios);
+                const libre = this._primeraPosicionLibreCatalogo(catalogo);
+                if (libre == null) {
+                    if (typeof RuanaUI !== 'undefined') {
+                        RuanaUI.toast('Has alcanzado el máximo de 10 especializaciones', 'info', 2200);
+                    }
+                    return;
+                }
+                this.abrirCatalogoEdicion(libre);
+            }
+
+            cancelarEdicionCatalogo(posicion) {
+                const pos = Number(posicion);
+                const catalogo = this.normalizarCatalogoServicios((this.aliado || {}).catalogo_servicios);
+                const item = catalogo.find((s) => s.posicion === pos);
+                // Si era un hueco vacío sin guardar, solo cerramos; si tenía datos, restauramos vista resumen
+                this.catalogoEditandoPos = null;
+                this.renderCatalogoServicios();
+                if (item && !item.configurado && typeof RuanaUI !== 'undefined') {
+                    RuanaUI.toast('Edición cancelada', 'info', 1400);
+                }
+            }
+
             renderCatalogoServicios() {
                 const grid = document.getElementById('catalogo-servicios-grid');
+                const btnAdd = document.getElementById('btn-catalogo-anadir');
                 if (!grid) return;
                 const aliadoData = this.aliado || {};
                 const catalogo = this.normalizarCatalogoServicios(aliadoData.catalogo_servicios);
-                grid.innerHTML = catalogo.map((servicio) => {
-                    const estado = servicio.configurado
-                        ? '<span class="catalogo-servicio-state ready">Configurado</span>'
-                        : '<span class="catalogo-servicio-state pending">Servicio no configurado</span>';
-                    return `
-                        <article class="catalogo-servicio-card" data-servicio-pos="${servicio.posicion}">
-                            <div class="catalogo-servicio-head">
-                                <span class="catalogo-servicio-num">Servicio ${servicio.posicion}</span>
-                                ${estado}
-                            </div>
-                            <textarea data-servicio-desc="${servicio.posicion}" maxlength="1000" placeholder="Descripción del servicio">${this.escapeHtml(servicio.descripcion || '')}</textarea>
-                            <input type="text" data-servicio-precio="${servicio.posicion}" maxlength="120" placeholder="Precio" value="${this.escapeHtml(servicio.precio || '')}" />
-                            <div class="catalogo-servicio-actions">
-                                <button type="button" class="catalogo-servicio-save" data-servicio-save="${servicio.posicion}">Guardar</button>
-                                <span class="catalogo-servicio-feedback" id="catalogo-servicio-feedback-${servicio.posicion}"></span>
-                            </div>
-                        </article>
-                    `;
-                }).join('');
-                if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons(grid);
+                const editando = this.catalogoEditandoPos;
+                const configurados = catalogo.filter((s) => s.configurado);
+                const editItem = editando
+                    ? catalogo.find((s) => s.posicion === editando)
+                    : null;
+
+                // Mostrar configurados + la tarjeta en edición (aunque aún no esté configurada)
+                const visibles = [];
+                const seen = new Set();
+                configurados.forEach((s) => {
+                    visibles.push(s);
+                    seen.add(s.posicion);
+                });
+                if (editItem && !seen.has(editItem.posicion)) {
+                    visibles.push(editItem);
+                }
+                visibles.sort((a, b) => a.posicion - b.posicion);
+
+                if (!visibles.length) {
+                    grid.innerHTML = `
+                        <div class="catalogo-empty">
+                            <p>Aún no has definido especializaciones.</p>
+                            <p class="catalogo-empty-hint">Añade la primera con descripción y precio.</p>
+                        </div>`;
+                } else {
+                    grid.innerHTML = visibles.map((servicio) => {
+                        const abierta = editando === servicio.posicion;
+                        if (!abierta && servicio.configurado) {
+                            return `
+                                <article class="catalogo-servicio-card is-collapsed" data-servicio-pos="${servicio.posicion}" data-catalogo-toggle="${servicio.posicion}" role="button" tabindex="0" aria-expanded="false">
+                                    <div class="catalogo-servicio-summary">
+                                        <div class="catalogo-servicio-summary-main">
+                                            <span class="catalogo-servicio-num">Especialización ${servicio.posicion}</span>
+                                            <h4 class="catalogo-servicio-summary-title">${this.escapeHtml(this._catalogoResumenTitulo(servicio))}</h4>
+                                            <p class="catalogo-servicio-summary-precio">${this.escapeHtml(servicio.precio || '—')}</p>
+                                        </div>
+                                        <button type="button" class="catalogo-servicio-edit" data-servicio-edit="${servicio.posicion}">Editar</button>
+                                    </div>
+                                </article>`;
+                        }
+                        return `
+                            <article class="catalogo-servicio-card is-open" data-servicio-pos="${servicio.posicion}" aria-expanded="true">
+                                <div class="catalogo-servicio-head">
+                                    <span class="catalogo-servicio-num">${servicio.configurado ? `Especialización ${servicio.posicion}` : 'Nueva especialización'}</span>
+                                    <span class="catalogo-servicio-state ${servicio.configurado ? 'ready' : 'pending'}">${servicio.configurado ? 'Editando' : 'En curso'}</span>
+                                </div>
+                                <label class="catalogo-servicio-label" for="catalogo-desc-${servicio.posicion}">Descripción</label>
+                                <textarea id="catalogo-desc-${servicio.posicion}" data-servicio-desc="${servicio.posicion}" maxlength="1000" placeholder="Qué ofreces en esta especialización" rows="3">${this.escapeHtml(servicio.descripcion || '')}</textarea>
+                                <label class="catalogo-servicio-label" for="catalogo-precio-${servicio.posicion}">Precio</label>
+                                <input id="catalogo-precio-${servicio.posicion}" type="text" data-servicio-precio="${servicio.posicion}" maxlength="120" placeholder="Ej: 45 € / hora" value="${this.escapeHtml(servicio.precio || '')}" />
+                                <div class="catalogo-servicio-actions">
+                                    <button type="button" class="catalogo-servicio-save" data-servicio-save="${servicio.posicion}">Guardar</button>
+                                    <button type="button" class="catalogo-servicio-cancel" data-servicio-cancel="${servicio.posicion}">Cancelar</button>
+                                    <span class="catalogo-servicio-feedback" id="catalogo-servicio-feedback-${servicio.posicion}"></span>
+                                </div>
+                            </article>`;
+                    }).join('');
+                }
+
+                const libres = catalogo.filter((s) => !s.configurado).length;
+                const puedeAnadir = libres > 0 && editando == null;
+                if (btnAdd) {
+                    btnAdd.hidden = !puedeAnadir;
+                    btnAdd.disabled = !puedeAnadir;
+                }
+                if (typeof RuanaUI !== 'undefined') {
+                    RuanaUI.initIcons(grid);
+                    if (btnAdd) RuanaUI.initIcons(btnAdd);
+                }
             }
 
             async guardarCatalogoServicio(posicion) {
@@ -4490,6 +4596,13 @@
                 if (!inputDesc || !inputPrecio || !btnSave) return;
                 const descripcion = (inputDesc.value || '').trim();
                 const precio = (inputPrecio.value || '').trim();
+                if (!descripcion || !precio) {
+                    if (feedback) feedback.textContent = 'Completa descripción y precio';
+                    if (typeof RuanaUI !== 'undefined') {
+                        RuanaUI.toast('Completa descripción y precio para guardar', 'warning', 2200);
+                    }
+                    return;
+                }
                 btnSave.disabled = true;
                 if (feedback) feedback.textContent = 'Guardando...';
                 try {
@@ -4498,8 +4611,8 @@
                         headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
                         credentials: 'same-origin',
                         body: JSON.stringify({
-                            descripcion: descripcion || null,
-                            precio: precio || null,
+                            descripcion: descripcion,
+                            precio: precio,
                         })
                     });
                     const data = await resp.json();
@@ -4515,14 +4628,14 @@
                             posicion: pos,
                             descripcion: descripcion,
                             precio: precio,
-                            configurado: Boolean(descripcion && precio),
+                            configurado: true,
                         };
                     }
                     this.aliado.catalogo_servicios = current;
+                    this.catalogoEditandoPos = null;
                     this.renderCatalogoServicios();
-                    if (feedback) feedback.textContent = 'Guardado';
                     if (typeof RuanaUI !== 'undefined') {
-                        RuanaUI.toast(`Servicio ${pos} guardado`, 'success', 1800);
+                        RuanaUI.toast('Especialización guardada', 'success', 1800);
                     }
                 } catch (e) {
                     if (feedback) feedback.textContent = 'Error de conexión';
@@ -5482,11 +5595,44 @@
                 const catalogoGrid = document.getElementById('catalogo-servicios-grid');
                 if (catalogoGrid) {
                     catalogoGrid.addEventListener('click', (e) => {
-                        const btn = e.target.closest('[data-servicio-save]');
-                        if (!btn) return;
-                        const pos = Number(btn.getAttribute('data-servicio-save'));
-                        if (Number.isInteger(pos)) this.guardarCatalogoServicio(pos);
+                        const btnSave = e.target.closest('[data-servicio-save]');
+                        if (btnSave) {
+                            const pos = Number(btnSave.getAttribute('data-servicio-save'));
+                            if (Number.isInteger(pos)) this.guardarCatalogoServicio(pos);
+                            return;
+                        }
+                        const btnCancel = e.target.closest('[data-servicio-cancel]');
+                        if (btnCancel) {
+                            const pos = Number(btnCancel.getAttribute('data-servicio-cancel'));
+                            if (Number.isInteger(pos)) this.cancelarEdicionCatalogo(pos);
+                            return;
+                        }
+                        const btnEdit = e.target.closest('[data-servicio-edit]');
+                        if (btnEdit) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const pos = Number(btnEdit.getAttribute('data-servicio-edit'));
+                            if (Number.isInteger(pos)) this.abrirCatalogoEdicion(pos);
+                            return;
+                        }
+                        const card = e.target.closest('[data-catalogo-toggle]');
+                        if (card) {
+                            const pos = Number(card.getAttribute('data-catalogo-toggle'));
+                            if (Number.isInteger(pos)) this.abrirCatalogoEdicion(pos);
+                        }
                     });
+                    catalogoGrid.addEventListener('keydown', (e) => {
+                        if (e.key !== 'Enter' && e.key !== ' ') return;
+                        const card = e.target.closest('[data-catalogo-toggle]');
+                        if (!card) return;
+                        e.preventDefault();
+                        const pos = Number(card.getAttribute('data-catalogo-toggle'));
+                        if (Number.isInteger(pos)) this.abrirCatalogoEdicion(pos);
+                    });
+                }
+                const btnCatalogoAnadir = document.getElementById('btn-catalogo-anadir');
+                if (btnCatalogoAnadir) {
+                    btnCatalogoAnadir.addEventListener('click', () => this.anadirEspecializacionCatalogo());
                 }
 
                 const inputFotoPerfil = document.getElementById('input-foto-perfil');
