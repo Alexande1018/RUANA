@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Importar gestor de base de datos (y ruta ?nica de SQLite)
 from core.db_manager import get_db, DB_PATH, RUANA_CODIGO_INVITACION_REGEX
 from core.settings import get_settings
+from core.phone_utils import normalize_phone
 from core.storage_manager import upload_ruana_file, upload_foto_perfil_file, resolve_admin_document_access_url
 from core.admin_auth import verify_admin_login, change_admin_password
 from core.email_service import enviar_correo_bienvenida_aliado
@@ -2169,7 +2170,7 @@ def registrar_aliado():
         # F07: Validaci?n de formato ANTES de DB (una ?nica fuente de verdad en app.py)
         nombre = data.get('nombre', '').strip()
         email = data.get('email', '').strip()
-        telefono = data.get('telefono', '').strip()
+        telefono = normalize_phone(data.get('telefono', '').strip())
         
         # Validar nombre
         if len(nombre) < 3:

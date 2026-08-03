@@ -11,6 +11,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/auth-premium.css">
     <link rel="stylesheet" href="/static/css/ruana-identity.css">
+    <script src="/static/js/phone-countries.js" defer></script>
+    <script src="/static/js/phone-input.js" defer></script>
     <script src="/static/js/ruana-atmosphere.js" defer></script>
     <script src="/static/js/ruana-ui.js" defer></script>
     <style>
@@ -477,6 +479,103 @@
             display: block;
         }
 
+        .phone-input-group {
+            position: relative;
+        }
+
+        .phone-input-row {
+            display: grid;
+            grid-template-columns: minmax(118px, auto) 1fr;
+            gap: 10px;
+            align-items: stretch;
+        }
+
+        .phone-country-trigger {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 14px;
+            min-height: 52px;
+            cursor: pointer;
+            white-space: nowrap;
+            text-align: left;
+        }
+
+        .phone-country-flag {
+            font-size: 1.15rem;
+            line-height: 1;
+        }
+
+        .phone-country-dial {
+            font-weight: 600;
+            color: #f8fafc;
+        }
+
+        .phone-country-chevron {
+            margin-left: auto;
+            color: #94a3b8;
+            font-size: 0.8rem;
+        }
+
+        .phone-national-input {
+            width: 100%;
+        }
+
+        .phone-country-dropdown {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            right: 0;
+            z-index: 30;
+            padding: 10px;
+            border-radius: 16px;
+            background: rgba(15, 23, 42, 0.98);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+        }
+
+        .phone-country-search {
+            margin-bottom: 10px;
+        }
+
+        .phone-country-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            max-height: 240px;
+            overflow-y: auto;
+        }
+
+        .phone-country-item {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 10px;
+            align-items: center;
+            padding: 10px 12px;
+            border-radius: 12px;
+            cursor: pointer;
+            color: #e5e7eb;
+        }
+
+        .phone-country-item:hover,
+        .phone-country-item:focus {
+            background: rgba(34, 197, 94, 0.12);
+        }
+
+        .phone-country-item-flag {
+            font-size: 1.1rem;
+        }
+
+        .phone-country-item-name {
+            font-size: 0.92rem;
+        }
+
+        .phone-country-item-dial {
+            font-size: 0.85rem;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+
         @media (max-width: 600px) {
             .form-row {
                 grid-template-columns: 1fr;
@@ -577,15 +676,42 @@
                 </div>
 
                 <!-- Teléfono -->
-                <div class="form-group">
-                    <label for="telefono">Teléfono *</label>
-                    <input 
-                        type="tel" 
-                        class="register-input" 
-                        id="telefono" 
-                        placeholder="+57 300 000 0000"
-                        required
-                    >
+                <div class="form-group phone-input-group" id="telefono-group">
+                    <label for="telefono-nacional">Teléfono *</label>
+                    <div class="phone-input-row">
+                        <button
+                            type="button"
+                            class="register-input phone-country-trigger"
+                            id="phone-country-trigger"
+                            aria-haspopup="listbox"
+                            aria-expanded="false"
+                            aria-label="Seleccionar país"
+                        >
+                            <span class="phone-country-flag" id="phone-country-flag">🇪🇸</span>
+                            <span class="phone-country-dial" id="phone-country-dial">+34</span>
+                            <span class="phone-country-chevron" aria-hidden="true">▾</span>
+                        </button>
+                        <input
+                            type="tel"
+                            class="register-input phone-national-input"
+                            id="telefono-nacional"
+                            inputmode="tel"
+                            autocomplete="tel-national"
+                            placeholder="600 123 456"
+                            required
+                        >
+                    </div>
+                    <div class="phone-country-dropdown" id="phone-country-dropdown" hidden>
+                        <input
+                            type="search"
+                            class="register-input phone-country-search"
+                            id="phone-country-search"
+                            placeholder="Buscar país o indicativo"
+                            aria-label="Buscar país"
+                        >
+                        <ul class="phone-country-list" id="phone-country-list" role="listbox"></ul>
+                    </div>
+                    <input type="hidden" id="telefono" name="telefono">
                 </div>
 
                 <!-- Checkbox de condiciones -->
@@ -626,6 +752,7 @@
                 this.oficioPrincipalSelect = document.getElementById('oficio-principal');
                 this.oficioOtroWrap = document.getElementById('oficio-otro-wrap');
                 this.oficioOtroTexto = document.getElementById('oficio-otro-texto');
+                this.phoneInput = null;
                 this.catalogoJerarquico = [];
                 this.checkAccess();
                 this.init();
@@ -651,9 +778,26 @@
             }
 
             init() {
+                this.initPhoneInput();
                 this.loadCatalogo();
                 this.form.addEventListener('submit', (e) => this.handleSubmit(e));
                 if (this.oficioPrincipalSelect) this.oficioPrincipalSelect.addEventListener('change', () => this.handleOtroOficio());
+            }
+
+            initPhoneInput() {
+                if (typeof RuanaPhoneInput === 'undefined') return;
+                this.phoneInput = new RuanaPhoneInput({
+                    root: document.getElementById('telefono-group'),
+                    hiddenInput: document.getElementById('telefono'),
+                    nationalInput: document.getElementById('telefono-nacional'),
+                    trigger: document.getElementById('phone-country-trigger'),
+                    dropdown: document.getElementById('phone-country-dropdown'),
+                    searchInput: document.getElementById('phone-country-search'),
+                    listEl: document.getElementById('phone-country-list'),
+                    flagEl: document.getElementById('phone-country-flag'),
+                    dialEl: document.getElementById('phone-country-dial'),
+                    defaultIso: 'ES'
+                });
             }
 
             async loadCatalogo() {
@@ -763,6 +907,7 @@
                 const descripcion = document.getElementById('descripcion').value.trim();
                 const codigoPostal = document.getElementById('codigo-postal').value.trim();
                 const email = document.getElementById('email').value.trim();
+                if (this.phoneInput) this.phoneInput.syncHiddenInput();
                 const telefono = document.getElementById('telefono').value.trim();
                 const condiciones = document.getElementById('condiciones').checked;
 
@@ -812,8 +957,8 @@
                     return;
                 }
 
-                if (!telefono || telefono.length < 7) {
-                    this.showError('Por favor ingresa un teléfono válido');
+                if (!this.phoneInput || !this.phoneInput.isValid()) {
+                    this.showError('Por favor ingresa un teléfono válido (al menos 7 dígitos)');
                     return;
                 }
 
