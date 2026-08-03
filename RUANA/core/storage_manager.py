@@ -7,9 +7,11 @@ files in Supabase Storage and returns stable URLs for existing DB fields.
 from __future__ import annotations
 
 import mimetypes
+import re
 import uuid
 from pathlib import Path
-from typing import BinaryIO, Dict, Optional
+from typing import BinaryIO, Dict, Optional, TypedDict
+from urllib.parse import unquote, urlparse
 
 from werkzeug.utils import secure_filename
 
@@ -21,6 +23,18 @@ except Exception:  # pragma: no cover - app.py also imports core as top-level
 
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024
 MAX_FOTO_PERFIL_BYTES = 15 * 1024 * 1024
+SIGNED_URL_EXPIRES_SECONDS = 3600
+
+ALLOWED_PRIVATE_BUCKETS = frozenset({"ruana-comprobantes", "ruana-conflictos", "ruana-public"})
+_STORAGE_OBJECT_RE = re.compile(
+    r"/storage/v1/object/(?:public|sign|authenticated)/([^/]+)/(.+?)(?:\?.*)?$"
+)
+
+
+class StorageLocation(TypedDict):
+    kind: str
+    bucket: str
+    path: str
 
 
 def _format_max_mb(max_bytes: int) -> str:
@@ -33,6 +47,70 @@ def _read_limited(file_obj: BinaryIO, max_bytes: int = MAX_UPLOAD_BYTES) -> byte
     if len(data) > max_bytes:
         raise ValueError(f"El archivo supera el limite de {_format_max_mb(max_bytes)} MB.")
     return data
+
+
+def _extract_signed_url(response: object) -> str:
+    if isinstance(response, dict):
+        return str(response.get("signedURL") or response.get("signedUrl") or "")
+    signed = getattr(response, "signedURL", None) or getattr(response, "signedUrl", None)
+    return str(signed or "")
+
+
+def parse_storage_location(stored_url: str) -> Optional[StorageLocation]:
+    """Resolve a stored RUANA file reference to a local path or Supabase object."""
+    url = (stored_url or "").strip()
+    if not url:
+        return None
+
+    if url.startswith("/static/uploads/"):
+        return {"kind": "local", "bucket": "", "path": url.lstrip("/")}
+    if url.startswith("static/uploads/"):
+        return {"kind": "local", "bucket": "", "path": url}
+
+    parsed = urlparse(url)
+    match = _STORAGE_OBJECT_RE.search(parsed.path)
+    if not match:
+        return None
+
+    bucket = match.group(1)
+    object_path = unquote(match.group(2))
+    if bucket not in ALLOWED_PRIVATE_BUCKETS:
+        return None
+    return {"kind": "supabase", "bucket": bucket, "path": object_path}
+
+
+def create_ruana_signed_url(
+    *,
+    bucket: str,
+    object_path: str,
+    expires_in: int = SIGNED_URL_EXPIRES_SECONDS,
+) -> str:
+    """Create a short-lived signed URL for a private Supabase Storage object."""
+    client = get_supabase_admin_client()
+    storage_bucket = client.storage.from_(bucket)
+    response = storage_bucket.create_signed_url(object_path, expires_in)
+    signed_url = _extract_signed_url(response)
+    if not signed_url:
+        raise RuntimeError("No se pudo generar la URL firmada del documento.")
+    return signed_url
+
+
+def resolve_admin_document_access_url(stored_url: str) -> str:
+    """Return a browser-openable URL for an admin reviewing ally-uploaded files."""
+    location = parse_storage_location(stored_url)
+    if not location:
+        raise ValueError("La referencia del documento no es válida.")
+
+    if location["kind"] == "local":
+        local_path = location["path"]
+        if not local_path.startswith("static/uploads/"):
+            raise ValueError("La ruta local del documento no es válida.")
+        return f"/{local_path.lstrip('/')}"
+
+    return create_ruana_signed_url(
+        bucket=location["bucket"],
+        object_path=location["path"],
+    )
 
 
 def upload_ruana_bytes(
