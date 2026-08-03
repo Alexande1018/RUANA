@@ -58,3 +58,13 @@ def test_admin_aliado_detalle_has_delete_profile_button():
     assert 'id="aliadoDetalleEliminar"' in text
     assert "confirmarEliminarPerfil" in text
     assert "/api/admin/eliminar-aliado" in text
+
+
+def test_admin_document_view_uses_authenticated_access_endpoint():
+    admin_html = Path(__file__).resolve().parents[1] / "web" / "admin.html"
+    text = admin_html.read_text(encoding="utf-8")
+
+    assert "buildAdminDocumentLink" in text
+    assert "abrirDocumentoAdmin" in text
+    assert "/api/admin/documentos/acceso" in text
+    assert 'class="btn-link btn-ver-documento-admin"' in text

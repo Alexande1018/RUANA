@@ -151,3 +151,34 @@ def test_upload_ruana_file_uses_supabase_storage(monkeypatch):
     assert calls[1][0] == "upload"
     assert calls[1][2] == b"hola"
     assert calls[1][3]["content-type"] == "image/png"
+
+
+def test_create_ruana_signed_url_uses_supabase_storage(monkeypatch):
+    from RUANA.core import storage_manager
+
+    calls = []
+
+    class FakeBucket:
+        def create_signed_url(self, path, expires_in):
+            calls.append(("create_signed_url", path, expires_in))
+            return {"signedURL": f"https://signed.example/{path}?token=abc"}
+
+    class FakeStorage:
+        def from_(self, bucket):
+            calls.append(("from", bucket))
+            return FakeBucket()
+
+    class FakeClient:
+        storage = FakeStorage()
+
+    monkeypatch.setattr(storage_manager, "get_supabase_admin_client", lambda: FakeClient())
+
+    signed = storage_manager.create_ruana_signed_url(
+        bucket="ruana-comprobantes",
+        object_path="pagos_ruana/7_file.png",
+        expires_in=120,
+    )
+
+    assert signed == "https://signed.example/pagos_ruana/7_file.png?token=abc"
+    assert calls[0] == ("from", "ruana-comprobantes")
+    assert calls[1] == ("create_signed_url", "pagos_ruana/7_file.png", 120)

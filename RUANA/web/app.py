@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Importar gestor de base de datos (y ruta ?nica de SQLite)
 from core.db_manager import get_db, DB_PATH, RUANA_CODIGO_INVITACION_REGEX
 from core.settings import get_settings
-from core.storage_manager import upload_ruana_file, upload_foto_perfil_file
+from core.storage_manager import upload_ruana_file, upload_foto_perfil_file, resolve_admin_document_access_url
 from core.admin_auth import verify_admin_login, change_admin_password
 from core.email_service import enviar_correo_bienvenida_aliado
 
@@ -4304,6 +4304,25 @@ def admin_eliminar_conversacion_centro(conversacion_id):
         result = db.eliminar_conversacion_soporte_admin(conversacion_id, _admin_codigo())
         status_code = 200 if result.get('status') == 'success' else 400
         return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/documentos/acceso', methods=['GET'])
+@require_admin
+def admin_documento_acceso():
+    """
+    GET /api/admin/documentos/acceso?url=<referencia>
+    Devuelve una URL temporal para que el admin pueda abrir comprobantes en bucket privado.
+    """
+    stored_url = (request.args.get('url') or '').strip()
+    if not stored_url:
+        return jsonify({'status': 'error', 'message': 'Falta la referencia del documento.'}), 400
+    try:
+        access_url = resolve_admin_document_access_url(stored_url)
+        return jsonify({'status': 'success', 'url': access_url})
+    except ValueError as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 

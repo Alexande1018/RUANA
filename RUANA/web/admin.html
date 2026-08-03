@@ -2476,6 +2476,14 @@
 
                 this.setupAdminActionButtons();
 
+                document.addEventListener('click', (e) => {
+                    const btn = e.target && e.target.closest ? e.target.closest('.btn-ver-documento-admin') : null;
+                    if (!btn) return;
+                    e.preventDefault();
+                    const storedUrl = btn.getAttribute('data-documento-url');
+                    if (storedUrl) this.abrirDocumentoAdmin(storedUrl);
+                });
+
                 const logoutBtn = document.getElementById('admin-logout-btn');
                 if (logoutBtn) {
                     logoutBtn.addEventListener('click', () => this.logout());
@@ -3497,7 +3505,7 @@
                     const impCont = c.importe_contratante != null ? Number(c.importe_contratante).toFixed(2) : '—';
                     const impProf = c.importe_profesional != null ? Number(c.importe_profesional).toFixed(2) : '—';
                     const fecha = c.created_at ? this.formatearHora(c.created_at) : '—';
-                    const pruebaLink = c.prueba_url ? `<a href="${this.escapeHtml(c.prueba_url)}" target="_blank" rel="noopener">Ver</a>` : '—';
+                    const pruebaLink = c.prueba_url ? this.buildAdminDocumentLink(c.prueba_url, 'Ver') : '—';
                     const tr = document.createElement('tr');
                     tr.setAttribute('data-conflict-id', String(c.id || ''));
                     tr.innerHTML = `
@@ -3537,7 +3545,7 @@
                     const apoyo = (apoyoVal != null && apoyoVal !== '' && !Number.isNaN(Number(apoyoVal)) && Number(apoyoVal) >= 0)
                         ? Number(apoyoVal).toFixed(2) + ' €' : 'Pendiente de cálculo';
                     const estadoPago = (p.estado_pago || 'pendiente_pago').replace(/_/g, ' ');
-                    const comprobanteLink = p.comprobante_ruta ? `<a href="${this.escapeHtml(p.comprobante_ruta)}" target="_blank" rel="noopener">Ver</a>` : '—';
+                    const comprobanteLink = p.comprobante_ruta ? this.buildAdminDocumentLink(p.comprobante_ruta, 'Ver') : '—';
                     const fechaCierre = p.fecha_cierre ? this.formatearHora(p.fecha_cierre) : '—';
                     const urgenteHtml = p.es_urgente
                         ? '<span class="estado-pago-badge" style="background:rgba(180,83,9,0.35);color:#fde68a;border:1px solid rgba(251,191,36,0.5);">URGENTE</span>'
@@ -3591,7 +3599,7 @@
                     const apoyoValRev = p.apoyo_ruana;
                     const apoyo = (apoyoValRev != null && apoyoValRev !== '' && !Number.isNaN(Number(apoyoValRev)) && Number(apoyoValRev) >= 0)
                         ? Number(apoyoValRev).toFixed(2) + ' €' : 'Pendiente de cálculo';
-                    const comprobanteLink = p.comprobante_ruta ? `<a href="${this.escapeHtml(p.comprobante_ruta)}" target="_blank" rel="noopener">Ver comprobante</a>` : '—';
+                    const comprobanteLink = p.comprobante_ruta ? this.buildAdminDocumentLink(p.comprobante_ruta, 'Ver comprobante') : '—';
                     const fecha = p.fecha_cierre ? this.formatearHora(p.fecha_cierre) : '—';
                     const tr = document.createElement('tr');
                     tr.setAttribute('data-contacto-id', String(p.id || ''));
@@ -3611,6 +3619,34 @@
                     tr.querySelector('.btn-rechazar-pago')?.addEventListener('click', () => this.abrirModalRechazarPago(Number(p.id)));
                     tbody.appendChild(tr);
                 });
+            }
+
+            buildAdminDocumentLink(storedUrl, label) {
+                if (!storedUrl) return '—';
+                const safeLabel = this.escapeHtml(label || 'Ver');
+                const safeUrl = this.escapeHtml(storedUrl);
+                return `<button type="button" class="btn-link btn-ver-documento-admin" data-documento-url="${safeUrl}">${safeLabel}</button>`;
+            }
+
+            async abrirDocumentoAdmin(storedUrl) {
+                if (!storedUrl) return;
+                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+                try {
+                    const r = await fetch(`/api/admin/documentos/acceso?url=${encodeURIComponent(storedUrl)}`, {
+                        method: 'GET',
+                        credentials: 'same-origin',
+                        headers: authHeaders
+                    });
+                    if (r.status === 401) { this._adminSessionExpired(); return; }
+                    const data = await r.json();
+                    if (data.status === 'success' && data.url) {
+                        window.open(data.url, '_blank', 'noopener');
+                        return;
+                    }
+                    this.showToast(data.message || 'No se pudo abrir el documento.', 'error');
+                } catch (e) {
+                    this.showToast('Error de conexión al abrir el documento.', 'error');
+                }
             }
 
             abrirModalRechazarPago(contactoId) {
@@ -3712,7 +3748,7 @@
                             `Importe contratante: ${c.importe_contratante != null ? Number(c.importe_contratante).toFixed(2) : '—'} € · Importe profesional: ${c.importe_profesional != null ? Number(c.importe_profesional).toFixed(2) : '—'} € · Estado: ${this.escapeHtml(c.estado || '')}`;
                     }
                     if (pruebaEl) {
-                        if (c.prueba_url) pruebaEl.innerHTML = `Documento: <a href="${this.escapeHtml(c.prueba_url)}" target="_blank" rel="noopener">Abrir prueba</a>`;
+                        if (c.prueba_url) pruebaEl.innerHTML = `Documento: ${this.buildAdminDocumentLink(c.prueba_url, 'Abrir prueba')}`;
                         else pruebaEl.textContent = 'Sin prueba subida.';
                     }
                     if (comentarioEl && (c.estado === 'RESUELTO' || c.estado === 'RECHAZADO') && c.comentario_admin) {
