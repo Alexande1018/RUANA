@@ -117,6 +117,11 @@ def test_subir_foto_perfil_optimiza_antes_de_subir(client, fake_db, monkeypatch)
     class FakeClient:
         storage = FakeStorage()
 
+    monkeypatch.setattr(
+        storage_manager,
+        "get_settings",
+        lambda: type("S", (), {"supabase_configured": True})(),
+    )
     monkeypatch.setattr(storage_manager, "get_supabase_admin_client", lambda: FakeClient())
 
     img = Image.new("RGB", (3200, 2400), color=(90, 140, 210))
