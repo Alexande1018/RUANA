@@ -327,7 +327,9 @@ async function adminApprovePaymentViaUi(page, scenario, contactoId) {
     const row = page.locator(`#tbody-pagos-en-revision tr[data-contacto-id="${contactoId}"]`);
     await expect(row).toBeVisible();
     await clickVisible(page, row.locator('.btn-aprobar-pago'));
-    await expect(page.locator('.admin-toast.success')).toContainText('Estado de pago actualizado');
+    await expect(page.locator('.ruana-toast.success, .admin-toast.success')).toContainText(
+      'Estado de pago actualizado'
+    );
     await pass(page, scenario, {
       step: 'Pago aprobado',
       action: 'El administrador pulsa Aprobar pago.',
@@ -351,7 +353,9 @@ async function adminRejectPaymentViaUi(page, scenario, contactoId) {
     await expect(page.locator('#modal-rechazar-pago')).toBeVisible();
     await fillVisible(page, '#input-motivo-rechazo-pago', 'Comprobante ilegible en prueba QA');
     await clickVisible(page, '#btn-confirmar-rechazar-pago');
-    await expect(page.locator('.admin-toast.success')).toContainText('pago rechazado');
+    await expect(page.locator('.ruana-toast.success, .admin-toast.success')).toContainText(
+      /pago rechazado/i
+    );
     await pass(page, scenario, {
       step: 'Pago rechazado',
       action: 'El administrador escribe motivo y rechaza.',
