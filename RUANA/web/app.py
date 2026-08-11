@@ -12,7 +12,6 @@ import sys
 import os
 import time
 import secrets
-import threading
 import jwt
 from functools import wraps
 from urllib.parse import quote
@@ -45,6 +44,7 @@ from core.auth_session import (
     _ruana_session_invalidate_for_codigo,
 )
 from web.blueprints.catalogo_bp import catalogo_bp
+from web.blueprints.negociacion_bp import negociacion_bp, priorizar_contactos_negociacion
 
 # Obtener ruta absoluta de la carpeta web
 web_dir = Path(__file__).parent.absolute()
@@ -58,6 +58,7 @@ app = Flask(__name__,
 app.secret_key = settings.flask_secret_key
 configure_session_secret(app.secret_key)
 app.register_blueprint(catalogo_bp)
+app.register_blueprint(negociacion_bp)
 
 # Cookie de sesi?n segura (aliado y admin): httpOnly evita acceso desde JS (XSS), SameSite limita CSRF
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -1278,14 +1279,8 @@ def get_eventos_recientes():
 # ========== Negociación guiada RUANA (sustituye chat libre) ==========
 
 def _priorizar_contactos_negociacion(contactos):
-    """Prioriza contactos con negociación en curso sobre los recién creados."""
-    def en_curso(c):
-        if c.get('estado') == 'acuerdo_alcanzado':
-            return 1
-        if c.get('negociacion_completa'):
-            return 1
-        return 0
-    return sorted(contactos or [], key=en_curso)
+    """Fachada → blueprints.negociacion_bp."""
+    return priorizar_contactos_negociacion(contactos)
 
 
 @app.route('/api/contactos/<int:contacto_id>/negociacion', methods=['GET'])
