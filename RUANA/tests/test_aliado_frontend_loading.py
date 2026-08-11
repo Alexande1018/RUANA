@@ -7,7 +7,9 @@ def test_aliado_panel_starts_with_loading_state():
     text = aliado_html.read_text(encoding="utf-8")
     css = styles.read_text(encoding="utf-8")
 
-    assert '<body class="panel-loading">' in text
+    # El body arranca en loading (puede combinar otras clases, p.ej. aliado-app).
+    assert 'class="panel-loading' in text or ' panel-loading' in text
+    assert "<body" in text and "panel-loading" in text.split("<body", 1)[1].split(">", 1)[0]
     assert 'id="panel-loading"' in text
     assert "Preparando tu panel..." in text
     assert 'class="ruana-loader-orbit"' in text

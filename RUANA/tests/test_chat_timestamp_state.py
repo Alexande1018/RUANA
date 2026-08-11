@@ -89,22 +89,14 @@ def test_chat_limit_is_30_total_messages_per_contact(sqlite_db):
     assert "30 mensajes" in blocked["message"]
 
 
-def test_chat_messages_endpoint_uses_returned_messages_for_remaining_counter(
+def test_legacy_chat_mensajes_endpoint_redirects_to_negociacion(
     client, sqlite_db, monkeypatch, session_headers
 ):
+    """GET /api/chat_mensajes redirige a negociación guiada (ya no expone clave mensajes)."""
     from RUANA.web import app as app_module
 
     contacto_id = _crear_contacto_basico(sqlite_db)
-    sqlite_db._chat_referencia_ts = (
-        lambda cursor, contacto_id: datetime.now(timezone.utc) - timedelta(minutes=5)
-    )
-    for i in range(4):
-        emisor = "SOL" if i % 2 == 0 else "PRO"
-        result = sqlite_db.enviar_mensaje_chat(contacto_id, emisor, f"Mensaje {i + 1}")
-        assert result["status"] == "success"
-
     monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
-    monkeypatch.setattr(sqlite_db, "listar_mensajes_contacto", lambda _contacto_id: [])
 
     resp = client.get(
         f"/api/chat_mensajes?contacto_id={contacto_id}",
@@ -113,11 +105,13 @@ def test_chat_messages_endpoint_uses_returned_messages_for_remaining_counter(
     data = resp.get_json()
 
     assert resp.status_code == 200
-    assert data["mensajes"] == []
-    assert data["mensajes_restantes"] == 30
+    assert data["status"] == "success"
+    assert "mensajes" not in data
+    assert "eventos" in data
 
 
-def test_open_contacts_prioritize_conversations_with_messages(sqlite_db):
+def test_open_contacts_expose_negociacion_metadata(sqlite_db):
+    """Contactos abiertos incluyen metadatos de negociación (sustituye prioridad por mensajes)."""
     conn = sqlite_db._connect()
     cursor = conn.cursor()
     cursor.execute("INSERT INTO aliados (codigo, nombre) VALUES (?, ?)", ("SOL", "Solicitante"))
@@ -128,41 +122,36 @@ def test_open_contacts_prioritize_conversations_with_messages(sqlite_db):
             solicitante_codigo, profesional_codigo, servicio, estado, pendiente_resolucion, creado_en
         ) VALUES (?, ?, ?, 'iniciado', 1, datetime('now', '-1 hour'))
         """,
-        ("SOL", "PRO", "Con mensajes"),
+        ("SOL", "PRO", "En negociacion"),
     )
-    contacto_con_mensajes = cursor.lastrowid
-    cursor.execute(
-        "INSERT INTO chat_mensajes (contacto_id, emisor_codigo, texto) VALUES (?, ?, ?)",
-        (contacto_con_mensajes, "SOL", "Hola"),
-    )
-    cursor.execute(
-        """
-        INSERT INTO contactos_ruana (
-            solicitante_codigo, profesional_codigo, servicio, estado, pendiente_resolucion, creado_en
-        ) VALUES (?, ?, ?, 'iniciado', 1, datetime('now'))
-        """,
-        ("SOL", "PRO", "Sin mensajes mas nuevo"),
-    )
-    contacto_sin_mensajes = cursor.lastrowid
+    contacto_id = cursor.lastrowid
     conn.commit()
     conn.close()
 
     abiertos = sqlite_db.obtener_contactos_abiertos_por_codigo("SOL")
+    assert any(c["id"] == contacto_id for c in abiertos)
+    target = next(c for c in abiertos if c["id"] == contacto_id)
+    assert "negociacion_completa" in target
 
-    assert [c["id"] for c in abiertos[:2]] == [contacto_con_mensajes, contacto_sin_mensajes]
 
-
-def test_api_contact_priority_keeps_message_threads_first():
+def test_api_contact_priority_keeps_negociacion_in_progress_first():
     from RUANA.web import app as app_module
 
     contactos = [
-        {"id": 9, "num_mensajes": 0},
-        {"id": 8, "num_mensajes": 2},
+        {"id": 9, "estado": "iniciado", "negociacion_completa": False},
+        {"id": 8, "estado": "acuerdo_alcanzado", "negociacion_completa": True},
+        {"id": 7, "estado": "en_conversacion", "negociacion_completa": True},
     ]
 
-    ordenados = app_module._priorizar_contactos_con_mensajes(contactos)
+    ordenados = app_module._priorizar_contactos_negociacion(contactos)
 
-    assert [c["id"] for c in ordenados] == [8, 9]
+    # Comportamiento actual: sorted ascending por flag en_curso (0 → 1).
+    assert [c["id"] for c in ordenados] == [9, 8, 7]
+    assert all(
+        c["id"] in (8, 7)
+        for c in ordenados
+        if c.get("negociacion_completa") or c.get("estado") == "acuerdo_alcanzado"
+    )
 
 
 def test_contratante_amount_closes_contact_and_generates_pending_support(sqlite_db):

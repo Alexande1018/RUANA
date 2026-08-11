@@ -14,11 +14,16 @@ def test_aceptar_y_pagar_opens_manual_payment_modal_with_bizum_first():
     aliado_html = Path(__file__).resolve().parents[1] / "web" / "aliado.html"
     text = aliado_html.read_text(encoding="utf-8")
 
-    render_start = text.index('class="contacto-aviso-btn btn-aceptar-pagar"')
-    render_snippet = text[render_start : render_start + 1200]
+    # El CTA vive en el hub de alertas (markup dinámico), no en una clase legacy fija.
+    assert "btn-aceptar-pagar" in text
+    assert "abrirModalPagoApoyo(" in text
+    assert "Aceptar y pagar" in text
 
-    assert "this.abrirModalPagoApoyo(c.id, importeParaModal, c.servicio || 'Contacto')" in render_snippet
-    assert "this.abrirModalPayPalApoyo(c.id, importeParaModal, c.servicio || 'Contacto')" not in render_snippet
+    bind_start = text.index("btn-aceptar-pagar")
+    bind_snippet = text[bind_start : bind_start + 900]
+    assert "abrirModalPagoApoyo(" in bind_snippet
+    assert "abrirModalPayPalApoyo(" not in bind_snippet
+
     assert 'id="modal-pago-apoyo"' in text
     assert 'id="pago-apoyo-bizum-panel"' in text
     assert 'id="pago-apoyo-revolut-panel"' in text

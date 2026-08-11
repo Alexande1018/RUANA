@@ -8,7 +8,8 @@ def test_global_selects_use_dark_color_scheme():
     assert "select," in text
     assert "select option" in text
     assert "color-scheme: dark" in text
-    assert "background-color: #111827" in text
+    # Token actual del tema (antes #111827).
+    assert "background-color: #141827" in text
     assert "color: #e5e7eb" in text
 
 

@@ -60,6 +60,22 @@ class Hito2BFakeDB:
         self.calls.append(("listar_mensajes_contacto", contacto_id))
         return []
 
+    def obtener_negociacion_contacto(self, contacto_id, codigo_aliado):
+        self.calls.append(("obtener_negociacion_contacto", contacto_id, codigo_aliado))
+        resumen = self.obtener_contacto_resumen(contacto_id)
+        if not resumen:
+            return {"status": "error", "message": "Contacto no encontrado"}
+        sol = resumen.get("solicitante_codigo")
+        pro = resumen.get("profesional_codigo")
+        if codigo_aliado not in (sol, pro):
+            return {"status": "error", "message": "No autorizado"}
+        return {
+            "status": "success",
+            "eventos": [],
+            "paso_actual": "servicio",
+            "rol": "contratante" if codigo_aliado == sol else "profesional",
+        }
+
     def estado_chat_contacto(self, contacto_id, codigo):
         self.calls.append(("estado_chat_contacto", contacto_id, codigo))
         return {"puede_enviar": True, "mensajes_restantes": 5}
@@ -213,13 +229,16 @@ def test_chat_mensajes_legacy_rejects_anonymous_without_touching_db(client, fake
 
 
 def test_chat_mensajes_legacy_uses_session_codigo(client, fake_db, session_headers):
+    """GET legacy redirige a negociación guiada usando el código de sesión."""
     headers = session_headers("aliado", "A0001")
 
     response = client.get("/api/chat/mensajes?contacto_id=10", headers=headers)
 
     assert response.status_code == 200
-    assert ("obtener_contacto_resumen", 10) in fake_db.calls
-    assert ("listar_mensajes_contacto", 10) in fake_db.calls
+    assert ("obtener_negociacion_contacto", 10, "A0001") in fake_db.calls
+    data = response.get_json()
+    assert data["status"] == "success"
+    assert "eventos" in data
 
 
 def test_chat_mensajes_legacy_rejects_non_participant(client, fake_db, session_headers):
@@ -228,20 +247,25 @@ def test_chat_mensajes_legacy_rejects_non_participant(client, fake_db, session_h
     response = client.get("/api/chat/mensajes?contacto_id=10", headers=headers)
 
     assert response.status_code == 403
-    assert ("obtener_contacto_resumen", 10) in fake_db.calls
+    assert ("obtener_negociacion_contacto", 10, "C0003") in fake_db.calls
 
 
 def test_chat_enviar_legacy_rejects_anonymous_without_touching_db(client, fake_db):
+    """POST de chat libre está deshabilitado (410), incluso sin sesión."""
     response = client.post(
         "/api/chat/enviar",
         json={"contacto_id": 10, "emisor_codigo": "A0001", "texto": "hola"},
     )
 
-    assert response.status_code == 401
+    assert response.status_code == 410
     assert fake_db.calls == []
+    body = response.get_json()
+    assert body["status"] == "error"
+    assert "negociacion" in body["message"].lower()
 
 
 def test_chat_enviar_legacy_uses_session_codigo(client, fake_db, session_headers):
+    """POST legacy permanece deshabilitado: el envío libre no se restaura con sesión."""
     headers = session_headers("aliado", "A0001")
 
     response = client.post(
@@ -250,8 +274,9 @@ def test_chat_enviar_legacy_uses_session_codigo(client, fake_db, session_headers
         headers=headers,
     )
 
-    assert response.status_code == 201
-    assert ("enviar_mensaje_chat", 10, "A0001", "hola") in fake_db.calls
+    assert response.status_code == 410
+    assert ("enviar_mensaje_chat", 10, "A0001", "hola") not in fake_db.calls
+    assert "negociacion" in response.get_json()["message"].lower()
 
 
 # ---------- Campos editables por aliado ----------

@@ -33,7 +33,11 @@ def test_global_design_tokens_and_responsive_helpers_exist():
         assert class_name in text
 
     assert "@media (max-width: 640px)" in text
-    assert "min-height: 44px" in text
+    # Touch targets viven repartidos: styles (46px) + paneles/feedback (44px).
+    assert "min-height: 46px" in text
+    panel_premium = _read(WEB / "static" / "css" / "panel-premium.css")
+    feedback = _read(WEB / "static" / "css" / "ruana-feedback.css")
+    assert "min-height: 44px" in panel_premium or "min-height: 44px" in feedback
 
 
 def test_auth_pages_use_shared_responsive_access_controls():
