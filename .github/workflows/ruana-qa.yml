@@ -1,6 +1,14 @@
-name: RUANA QA manual
+name: RUANA QA
 
 on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    branches:
+      - main
+      - dev
   workflow_dispatch:
 
 permissions:
@@ -10,12 +18,46 @@ permissions:
   id-token: write
 
 concurrency:
-  group: ruana-qa-latest
+  group: ruana-qa-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  qa:
-    name: Ejecutar pruebas RUANA
+  pytest:
+    name: Contratos y tests backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      CI: "true"
+      FLASK_SECRET_KEY: ruana_qa_secret_key
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      DATABASE_URL: ""
+      SUPABASE_URL: ""
+      SUPABASE_SERVICE_ROLE_KEY: ""
+
+    steps:
+      - name: Descargar rama seleccionada
+        uses: actions/checkout@v4
+
+      - name: Preparar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: RUANA/web/requirements-dev.txt
+
+      - name: Instalar dependencias Python
+        run: python -m pip install -r RUANA/web/requirements-dev.txt
+
+      - name: Ejecutar contratos y tests backend
+        run: python -m pytest RUANA/tests -q
+
+  e2e:
+    name: E2E Playwright + reporte
+    # E2E completo en push/manual; en PR basta el job pytest como gate Campamento Base.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: pytest
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment:
@@ -95,7 +137,7 @@ jobs:
           HTML
           fi
           {
-            echo "# RUANA QA manual"
+            echo "# RUANA QA"
             echo
             echo "- Rama/commit: $GITHUB_REF_NAME / $GITHUB_SHA"
             echo "- Ejecucion: $GITHUB_RUN_NUMBER"

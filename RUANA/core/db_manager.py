@@ -17,6 +17,8 @@ import threading
 from core.postgres_compat import connect as pg_compat_connect
 from core.settings import get_settings
 from core import negociacion_manager as neg_mgr
+from core.services import score_service
+from core.repositories.score_repo import ScoreRepo
 
 
 # Ruta ABSOLUTA única a la base de datos de RUANA.
@@ -2989,75 +2991,60 @@ class DBManager:
     
     def _delta_score_hoy(self, cursor, codigo_aliado: str) -> int:
         """Suma de deltas aplicados hoy al aliado (para límite ±10/día)."""
-        cursor.execute("""
-            SELECT COALESCE(SUM(delta), 0) FROM score_movimientos
-            WHERE codigo_aliado = ? AND date(creado_en) = date('now', 'localtime')
-        """, (codigo_aliado,))
-        row = cursor.fetchone()
-        return int(row[0]) if row else 0
-    
+        return ScoreRepo().delta_score_hoy(cursor, codigo_aliado)
+
     def aplicar_cambio_score(self, codigo_aliado: str, delta: int, motivo: str = "") -> Dict[str, Any]:
         """
         Aplica un cambio de score respetando: score en [0, 500], máximo ±10 por día.
         Inserta en score_movimientos y actualiza aliados.score.
+
+        Fachada Campamento Base: la mutación vive en score_service + score_repo.
+        Los side-effects de competencia por umbral permanecen aquí.
         """
         if not codigo_aliado or delta == 0:
             return {'status': 'success', 'aplicado': 0, 'score_final': None}
         with self._lock:
+            conn = None
             try:
                 conn = self._connect()
                 cursor = conn.cursor()
-                cursor.execute("SELECT score FROM aliados WHERE codigo = ?", (codigo_aliado,))
-                row = cursor.fetchone()
-                if not row:
-                    return {'status': 'error', 'message': f'Aliado {codigo_aliado} no encontrado'}
-                score_actual = int(row[0]) if row[0] is not None else 0
-                delta_hoy = self._delta_score_hoy(cursor, codigo_aliado)
-                # Limitar delta del día a ±10
-                delta_aplicar = delta
-                if delta > 0:
-                    techo_dia = 10 - delta_hoy
-                    delta_aplicar = min(delta, max(0, techo_dia))
-                else:
-                    piso_dia = -10 - delta_hoy
-                    delta_aplicar = max(delta, min(0, piso_dia))
-                # Limitar score final a [0, 500]
-                score_nuevo = max(0, min(500, score_actual + delta_aplicar))
-                delta_real = score_nuevo - score_actual
-                if delta_real == 0:
-                    conn.close()
-                    return {'status': 'success', 'aplicado': 0, 'score_final': score_actual}
-                cursor.execute("""
-                    INSERT INTO score_movimientos (codigo_aliado, delta, motivo)
-                    VALUES (?, ?, ?)
-                """, (codigo_aliado, delta_real, motivo))
-                movimiento_id = cursor.lastrowid
-                cursor.execute("""
-                    UPDATE aliados SET score = ?, actualizado_en = CURRENT_TIMESTAMP
-                    WHERE codigo = ?
-                """, (score_nuevo, codigo_aliado))
-                self._registrar_notificacion_cambio_score(
-                    cursor=cursor,
+                result = score_service.aplicar_cambio_score(
+                    cursor,
                     codigo_aliado=codigo_aliado,
-                    delta_real=delta_real,
-                    score_nuevo=score_nuevo,
+                    delta=delta,
                     motivo=motivo,
-                    movimiento_id=movimiento_id
                 )
+                if result.get('status') == 'error':
+                    return {'status': 'error', 'message': result.get('message', 'error')}
+                delta_real = int(result.get('aplicado') or 0)
+                score_nuevo = result.get('score_final')
+                score_actual = result.get('score_anterior')
+                if delta_real == 0:
+                    return {
+                        'status': 'success',
+                        'aplicado': 0,
+                        'score_final': score_nuevo,
+                    }
                 conn.commit()
                 umbral = self._get_umbral_competencia()
-                if umbral is not None and score_nuevo < umbral:
-                    if score_actual >= umbral:
-                        self._solicitar_competencia_por_score(codigo_aliado)
-                    elif not self.aliado_en_competencia_activa(codigo_aliado) and not self.tiene_competencia_pendiente(codigo_aliado):
-                        self._solicitar_competencia_por_score(codigo_aliado)
-                elif umbral is not None and score_nuevo >= umbral:
-                    self._cancelar_competencia_pendiente(codigo_aliado, 'score_recuperado')
-                return {'status': 'success', 'aplicado': delta_real, 'score_final': score_nuevo}
+                if umbral is not None and score_nuevo is not None and score_actual is not None:
+                    if score_nuevo < umbral:
+                        if score_actual >= umbral:
+                            self._solicitar_competencia_por_score(codigo_aliado)
+                        elif not self.aliado_en_competencia_activa(codigo_aliado) and not self.tiene_competencia_pendiente(codigo_aliado):
+                            self._solicitar_competencia_por_score(codigo_aliado)
+                    elif score_nuevo >= umbral:
+                        self._cancelar_competencia_pendiente(codigo_aliado, 'score_recuperado')
+                return {
+                    'status': 'success',
+                    'aplicado': delta_real,
+                    'score_final': score_nuevo,
+                }
             except Exception as e:
                 return {'status': 'error', 'message': str(e)}
             finally:
-                conn.close()
+                if conn is not None:
+                    conn.close()
 
     def _registrar_notificacion_cambio_score(
         self,
@@ -3068,28 +3055,15 @@ class DBManager:
         motivo: str,
         movimiento_id: Optional[int] = None
     ) -> None:
-        """Crea una notificación persistente por cada cambio real de score."""
-        if not codigo_aliado or not delta_real:
-            return
-        try:
-            direccion = 'subió' if delta_real > 0 else 'bajó'
-            puntos = f"{delta_real:+d}"
-            motivo_txt = (motivo or 'actualización de reglas RUANA').strip()
-            titulo = "Cambio en tu Score RUANA"
-            mensaje = f"Tu score {direccion} {puntos} puntos. Motivo: {motivo_txt}."
-            metadata = json.dumps({
-                'delta': delta_real,
-                'score_final': int(score_nuevo),
-                'motivo': motivo_txt,
-                'movimiento_id': movimiento_id
-            }, ensure_ascii=False)
-            cursor.execute("""
-                INSERT INTO notificaciones_aliado (aliado_codigo, tipo, titulo, mensaje, metadata, leida)
-                VALUES (?, 'score_change', ?, ?, ?, 0)
-            """, (codigo_aliado, titulo, mensaje, metadata))
-        except Exception:
-            # No romper el flujo principal de score si falla la notificación
-            return
+        """Fachada: delega en ScoreRepo."""
+        ScoreRepo().registrar_notificacion_cambio_score(
+            cursor=cursor,
+            codigo_aliado=codigo_aliado,
+            delta_real=delta_real,
+            score_nuevo=score_nuevo,
+            motivo=motivo,
+            movimiento_id=movimiento_id,
+        )
 
     def _crear_notificacion_aliado(
         self,
