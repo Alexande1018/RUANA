@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const {
   ADMIN_CODE,
+  ADMIN_PASSWORD,
   adminLogin,
   aliadoLogin,
   buildAliadoData,
@@ -8,6 +9,8 @@ const {
   createCampaign,
   declareImporte,
   expectOk,
+  nationalPhoneFromE164,
+  proponerNegociacionCompleta,
   registerAliado,
   uniqueId,
 } = require('./utils/ruana-fixtures');
@@ -50,6 +53,7 @@ async function goAliadoModule(page, moduleName) {
 }
 
 async function loginAdminAsUser(page, scenario, code = ADMIN_CODE, label = 'admin') {
+  const password = code === ADMIN_CODE ? ADMIN_PASSWORD : code;
   await test.step(`Usuario ${label} abre el panel e introduce su codigo`, async () => {
     await page.goto('/');
     await page.evaluate(() => sessionStorage.removeItem('admin_session_id'));
@@ -57,65 +61,64 @@ async function loginAdminAsUser(page, scenario, code = ADMIN_CODE, label = 'admi
     await narrate(page, scenario, {
       step: 'Abrir panel de administracion',
       action: 'El usuario navega a /admin y ve el formulario de acceso.',
-      expected: 'Debe aparecer el campo Codigo admin.',
+      expected: 'Debe aparecer identificador y contraseña admin.',
     });
     await fillVisible(page, '#adminLoginCodigo', code);
+    await fillVisible(page, '#adminLoginPassword', password);
     await narrate(page, scenario, {
-      step: 'Introducir codigo admin',
-      action: `Se escribe el codigo ${code} y se pulsa Entrar.`,
+      step: 'Introducir credenciales admin',
+      action: `Se escribe el codigo ${code}, la contraseña y se pulsa Entrar.`,
       expected: 'RUANA debe conceder acceso al panel segun permisos.',
     });
     await clickVisible(page, '#adminLoginBtn');
-    await expect(page.locator('#admin-main-content')).toBeVisible();
-    await expect(page.locator('body')).not.toHaveClass(/admin-is-loading/, { timeout: 15000 });
+    await expect(page.locator('#adminLoginModal')).toHaveClass(/hidden/, { timeout: 15000 });
+    await expect(page.locator('body')).not.toHaveClass(/admin-is-loading/, { timeout: 30000 });
+    await expect(page.locator('.estado-global')).toBeVisible({ timeout: 15000 });
     await pass(page, scenario, {
       step: 'Acceso admin concedido',
-      action: 'El panel principal queda visible.',
+      action: 'El panel principal queda visible y termina de cargar.',
       result: 'Login admin correcto; se ven KPIs, registros y secciones de gestion.',
     });
   });
 }
 
-async function sendChatMessageViaUi(page, scenario, message, roleLabel = 'Usuario') {
-  await test.step(`${roleLabel} abre chat y envia un mensaje visible`, async () => {
+async function openNegociacionViaUi(page, scenario, roleLabel = 'Usuario') {
+  await test.step(`${roleLabel} abre la negociacion guiada`, async () => {
     await reviewSection(page, scenario, '#contacto-aviso-persistente', {
       step: 'Ver aviso de contacto activo',
       action: `${roleLabel} localiza el seguimiento del encargo en su panel.`,
-      expected: 'Debe aparecer la accion Abrir chat.',
+      expected: 'Debe aparecer la accion Abrir negociacion.',
       result: 'El aviso de contacto queda visible.',
     });
     await clickVisible(page, '#btn-contacto-abrir-chat');
-    await expect(page.locator('#modal-chat-ruana')).toHaveClass(/show/);
-    await fillVisible(page, '#chat-input-texto', message);
-    await clickVisible(page, '#chat-btn-enviar');
-    await expect(page.locator('#chat-mensajes-list')).toContainText(message);
+    await expect(page.locator('#modal-negociacion-guiada')).toHaveClass(/show/);
     await pass(page, scenario, {
-      step: `${roleLabel} envia mensaje por chat`,
-      action: `${roleLabel} escribe y envia un mensaje desde el modal.`,
-      result: `El chat muestra el mensaje: "${message}".`,
+      step: `${roleLabel} abre negociacion`,
+      action: `${roleLabel} pulsa Abrir negociacion.`,
+      result: 'El modal de negociacion guiada queda visible.',
     });
-    await clickVisible(page, '#ruana-chat-cerrar');
   });
 }
 
-async function verifyChatContainsViaUi(page, scenario, expectedText, roleLabel) {
-  await test.step(`${roleLabel} abre chat y ve el mensaje`, async () => {
-    await reviewSection(page, scenario, '#contacto-aviso-persistente', {
-      step: `${roleLabel} localiza chat`,
-      action: `${roleLabel} abre el seguimiento para comprobar mensajes.`,
-      expected: 'El historial debe incluir mensajes del otro participante.',
-      result: 'El aviso de contacto queda visible.',
-    });
-    await clickVisible(page, '#btn-contacto-abrir-chat');
-    await expect(page.locator('#modal-chat-ruana')).toHaveClass(/show/);
-    await expect(page.locator('#chat-mensajes-list')).toContainText(expectedText);
+async function closeNegociacionViaUi(page) {
+  const panelBtn = page.locator('#neg-btn-cerrar');
+  if (await panelBtn.isVisible().catch(() => false)) {
+    await panelBtn.click();
+  }
+  await expect(page.locator('#modal-negociacion-guiada')).not.toHaveClass(/show/);
+}
+
+async function verifyNegociacionVisibleViaUi(page, scenario, expectedSnippet, roleLabel) {
+  await openNegociacionViaUi(page, scenario, roleLabel);
+  await test.step(`${roleLabel} ve la negociacion`, async () => {
+    await expect(page.locator('#neg-timeline')).toContainText(expectedSnippet, { timeout: 15000 });
     await pass(page, scenario, {
-      step: `${roleLabel} ve mensaje`,
-      action: `${roleLabel} revisa el historial del chat.`,
-      result: `El mensaje "${expectedText}" aparece en pantalla.`,
+      step: `${roleLabel} ve propuesta`,
+      action: `${roleLabel} revisa el historial de la negociacion.`,
+      result: `La negociacion muestra: "${expectedSnippet}".`,
     });
-    await clickVisible(page, '#ruana-chat-cerrar');
   });
+  await closeNegociacionViaUi(page);
 }
 
 async function confirmImporteViaUi(page, scenario, importe, roleLabel = 'Solicitante') {
@@ -195,16 +198,15 @@ async function uploadComprobanteViaUi(page, scenario) {
     });
     await clickVisible(page, '[data-alert-action="apoyo-pago"]');
     await clickVisible(page, '.btn-aceptar-pagar');
-    await expect(page.locator('#modal-paypal-apoyo')).toHaveClass(/show/);
-    await expect(page.locator('#modal-paypal-apoyo')).toContainText('Se te va a redirigir a PayPal');
-    await expect(page.locator('#modal-paypal-apoyo')).toContainText('Guarda el comprobante de pago');
+    await expect(page.locator('#modal-pago-apoyo')).toHaveClass(/show/);
+    await expect(page.locator('#modal-pago-apoyo')).toContainText('Bizum');
+    await expect(page.locator('#btn-pago-apoyo-comprobante')).toBeVisible();
     await pass(page, scenario, {
-      step: 'Aviso previo a PayPal visible',
-      action: 'El profesional pulsa Aceptar y pagar antes de enviar el comprobante.',
-      result: 'RUANA avisa que se redirige a PayPal y que debe guardar el comprobante.',
+      step: 'Modal de pago Apoyo visible',
+      action: 'El profesional pulsa Aceptar y pagar y ve metodos de cobro.',
+      result: 'RUANA muestra Bizum/Revolut/Transferencia y la accion de comprobante.',
     });
-    await clickVisible(page, '#btn-paypal-apoyo-cerrar');
-    await clickVisible(page, '.btn-enviar-comprobante');
+    await clickVisible(page, '#btn-pago-apoyo-comprobante');
     await expect(page.locator('#modal-comprobante-apoyo')).toHaveClass(/show/);
     await setInputFilesVisible(page, '#input-comprobante-apoyo', {
       name: 'comprobante-qa.png',
@@ -233,14 +235,9 @@ async function registerAliadoViaUi(page, scenario, data) {
     await fillVisible(page, '#marca', data.marca);
     await fillVisible(page, '#codigo-postal', data.codigo_postal);
     await selectVisible(page, '#oficio-principal', { label: data.oficio });
-    await expect(page.locator('#suboficios-section')).toBeVisible();
-    await checkVisible(page, `input[name="suboficio"][value="${data.especializacion}"]`, {
-      checkOptions: { force: true },
-      state: 'attached',
-    });
     await fillVisible(page, '#descripcion', data.descripcion);
     await fillVisible(page, '#email', data.email);
-    await fillVisible(page, '#telefono', data.telefono);
+    await fillVisible(page, '#telefono-nacional', nationalPhoneFromE164(data.telefono));
     await checkVisible(page, '#condiciones');
 
     await narrate(page, scenario, {
@@ -555,24 +552,25 @@ test.describe('RUANA QA critica con video human-readable', () => {
     });
   });
 
-  test('QA-12 QA-13 QA-14 chat bidireccional visible para ambos usuarios y admin', async ({
+  test('QA-12 QA-13 QA-14 negociacion guiada visible para ambos usuarios y admin', async ({
     page,
     request,
   }) => {
-    const scenario = 'Chat bidireccional entre solicitante y profesional';
+    const scenario = 'Negociacion guiada entre solicitante y profesional';
+    const obsQa = 'Observaciones QA negociacion visible';
     const { solicitanteSession, profesionalSession, contactoId } = await createContactPrecondition(
       page,
       request,
       scenario,
       {
-        nombre: 'Solicitante QA Chat',
+        nombre: 'Solicitante QA Negociacion',
         oficio: 'Fontaner\u00eda y fontaner\u00eda-gas',
         oficio_principal: 'Fontaner\u00eda y fontaner\u00eda-gas',
         especializacion: 'Reparaci\u00f3n de fugas y grifos',
         codigo_postal: '28050',
       },
       {
-        nombre: 'Profesional QA Chat',
+        nombre: 'Profesional QA Negociacion',
         oficio: 'Electricidad',
         oficio_principal: 'Electricidad',
         especializacion: 'Aver\u00edas y reparaciones el\u00e9ctricas',
@@ -580,33 +578,59 @@ test.describe('RUANA QA critica con video human-readable', () => {
       }
     );
 
-    const msgSolicitante = 'Mensaje QA del solicitante para coordinar visita.';
-    const msgProfesional = 'Respuesta QA del profesional confirmando disponibilidad.';
+    await test.step('Solicitante envia propuesta completa de negociacion', async () => {
+      await proponerNegociacionCompleta(request, solicitanteSession, contactoId, {
+        servicio: 'Servicio QA integral',
+        fecha: '2026-12-15',
+        hora: '10:00',
+        direccion: 'Calle QA Negociacion 1',
+        observaciones: obsQa,
+      });
+      await pass(page, scenario, {
+        step: 'Propuesta enviada',
+        action: 'El solicitante envia la propuesta completa de negociacion.',
+        result: 'Quedan eventos de negociacion listos para ver en UI.',
+      });
+    });
 
     await openAliadoPanel(page, solicitanteSession, scenario, 'Solicitante');
-    await sendChatMessageViaUi(page, scenario, msgSolicitante, 'Solicitante');
+    await verifyNegociacionVisibleViaUi(page, scenario, obsQa, 'Solicitante');
+
     await openAliadoPanel(page, profesionalSession, scenario, 'Profesional');
-    await verifyChatContainsViaUi(page, scenario, msgSolicitante, 'Profesional');
-    await sendChatMessageViaUi(page, scenario, msgProfesional, 'Profesional');
-    await openAliadoPanel(page, solicitanteSession, scenario, 'Solicitante');
-    await verifyChatContainsViaUi(page, scenario, msgProfesional, 'Solicitante');
+    await verifyNegociacionVisibleViaUi(page, scenario, obsQa, 'Profesional');
+    await openNegociacionViaUi(page, scenario, 'Profesional');
+    await test.step('Profesional confirma el primer punto de la negociacion', async () => {
+      await expect(page.locator('#neg-btn-aceptar')).toBeVisible({ timeout: 15000 });
+      await clickVisible(page, '#neg-btn-aceptar');
+      await expect(page.locator('#neg-timeline')).toContainText(/confirm|acept|servicio/i, {
+        timeout: 15000,
+      });
+      await pass(page, scenario, {
+        step: 'Profesional confirma servicio',
+        action: 'El profesional pulsa Confirmar en el primer punto pendiente.',
+        result: 'La negociacion avanza y el historial se actualiza.',
+      });
+    });
+    await closeNegociacionViaUi(page);
 
     await loginAdminAsUser(page, scenario);
     await reviewSection(page, scenario, '#conversaciones-ruana-wrap', {
-      step: 'Admin revisa registro de chats',
+      step: 'Admin revisa registro de negociaciones',
       action: 'El admin baja a conversaciones y localiza el contacto.',
-      expected: 'Debe poder abrir el historial completo.',
+      expected: 'Debe poder abrir el historial de negociacion.',
       result: 'La tabla de conversaciones queda visible.',
     });
     const row = page.locator(`#tbody-conversaciones tr:has-text("${contactoId}")`);
     await expect(row).toBeVisible();
     await clickVisible(page, row.locator('.btn-ver-chat'));
-    await expect(page.locator('#admin-chat-mensajes')).toContainText(msgSolicitante);
-    await expect(page.locator('#admin-chat-mensajes')).toContainText(msgProfesional);
+    await expect(page.locator('#admin-chat-mensajes')).not.toContainText('Sin eventos aún', {
+      timeout: 15000,
+    });
+    await expect(page.locator('#admin-chat-mensajes')).toContainText(obsQa);
     await pass(page, scenario, {
-      step: 'Admin ve chat completo',
-      action: 'El admin abre Ver chat desde el registro.',
-      result: 'El historial muestra mensajes de solicitante y profesional.',
+      step: 'Admin ve negociacion completa',
+      action: 'El admin abre Ver desde el registro.',
+      result: 'El historial muestra eventos de la negociacion guiada.',
     });
   });
 
@@ -738,7 +762,8 @@ test.describe('RUANA QA critica con video human-readable', () => {
       });
 
       await openAliadoPanel(page, solicitanteSession, scenario, 'Solicitante');
-      await sendChatMessageViaUi(page, scenario, 'Hola, confirmo disponibilidad para coordinar el trabajo QA.');
+      await openNegociacionViaUi(page, scenario, 'Solicitante');
+      await closeNegociacionViaUi(page);
       await confirmImporteViaUi(page, scenario, 250);
 
       await openAliadoPanel(page, profesionalSession, scenario, 'Profesional');
