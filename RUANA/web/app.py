@@ -32,6 +32,19 @@ from core.phone_utils import normalize_phone
 from core.storage_manager import upload_ruana_file, upload_foto_perfil_file, resolve_admin_document_access_url
 from core.admin_auth import verify_admin_login, change_admin_password
 from core.email_service import enviar_correo_bienvenida_aliado
+from core.auth_session import (
+    configure_session_secret,
+    _RUANA_SESSION_STORE,
+    _RUANA_SESSION_REVOKED,
+    _RUANA_SESSION_LOCK,
+    RUANA_SESSION_HEADER,
+    _ruana_session_from_jwt,
+    _get_ruana_session,
+    _ruana_session_create,
+    _ruana_session_invalidate,
+    _ruana_session_invalidate_for_codigo,
+)
+from web.blueprints.catalogo_bp import catalogo_bp
 
 # Obtener ruta absoluta de la carpeta web
 web_dir = Path(__file__).parent.absolute()
@@ -43,6 +56,8 @@ app = Flask(__name__,
             template_folder=str(web_dir))
 
 app.secret_key = settings.flask_secret_key
+configure_session_secret(app.secret_key)
+app.register_blueprint(catalogo_bp)
 
 # Cookie de sesi?n segura (aliado y admin): httpOnly evita acceso desde JS (XSS), SameSite limita CSRF
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -57,96 +72,6 @@ ADMIN_SESSION_EXPIRES_SECONDS = int(os.environ.get('RUANA_ADMIN_SESSION_EXPIRES'
 
 # Sesi?n aliado: expiraci?n (misma duraci?n que admin por defecto)
 ALIADO_SESSION_EXPIRES_SECONDS = int(os.environ.get('RUANA_ALIADO_SESSION_EXPIRES', 3600))
-
-# ---------- Store de sesiones server-side (evita sesiones cruzadas entre pestañas) ----------
-# Cada login genera un session_id (JWT firmado) que el frontend envía en X-Ruana-Session-Id.
-# El JWT permite validar sesión en cualquier instancia de Cloud Run sin memoria compartida.
-_RUANA_SESSION_STORE = {}
-_RUANA_SESSION_REVOKED = set()
-_RUANA_SESSION_LOCK = threading.Lock()
-RUANA_SESSION_HEADER = 'X-Ruana-Session-Id'
-
-
-def _ruana_session_from_jwt(token):
-    """Decodifica un JWT de sesión RUANA. None si es inválido o expiró."""
-    if not token:
-        return None
-    try:
-        payload = jwt.decode(token, app.secret_key, algorithms=['HS256'])
-        if float(payload.get('exp', 0)) <= time.time():
-            return None
-        return {
-            'tipo': payload.get('tipo'),
-            'codigo': (payload.get('codigo') or '').strip(),
-            'expires_at': float(payload.get('exp', 0)),
-            'permisos': list(payload.get('permisos') or []),
-        }
-    except Exception:
-        return None
-
-
-def _get_ruana_session():
-    """
-    Lee X-Ruana-Session-Id del request y devuelve la sesión si existe y no expiró.
-    Acepta JWT firmado (multi-instancia) o entradas legacy en memoria (tests).
-    """
-    sid = (request.headers.get(RUANA_SESSION_HEADER) or '').strip()
-    if not sid:
-        return None
-    with _RUANA_SESSION_LOCK:
-        if sid in _RUANA_SESSION_REVOKED:
-            return None
-        data = _RUANA_SESSION_STORE.get(sid)
-    if data and float(data.get('expires_at', 0)) > time.time():
-        return data
-    return _ruana_session_from_jwt(sid)
-
-
-def _ruana_session_create(tipo, codigo, expires_at, permisos=None):
-    """Crea una sesión y devuelve un JWT como session_id (nuevo id por login)."""
-    payload = {
-        'tipo': tipo,
-        'codigo': (codigo or '').strip(),
-        'exp': int(expires_at),
-    }
-    if permisos is not None:
-        payload['permisos'] = list(permisos)
-    token = jwt.encode(payload, app.secret_key, algorithm='HS256')
-    if isinstance(token, bytes):
-        token = token.decode('utf-8')
-    with _RUANA_SESSION_LOCK:
-        _RUANA_SESSION_STORE[token] = {
-            'tipo': tipo,
-            'codigo': (codigo or '').strip(),
-            'expires_at': float(expires_at),
-            'permisos': list(permisos) if permisos is not None else [],
-        }
-    return token
-
-
-def _ruana_session_invalidate(session_id):
-    """Invalida una sesión por su id."""
-    sid = (session_id or '').strip()
-    if not sid:
-        return
-    with _RUANA_SESSION_LOCK:
-        _RUANA_SESSION_STORE.pop(sid, None)
-        _RUANA_SESSION_REVOKED.add(sid)
-
-
-def _ruana_session_invalidate_for_codigo(codigo):
-    """Invalida todas las sesiones activas de un aliado (login, caché en memoria)."""
-    codigo_norm = (codigo or '').strip()
-    if not codigo_norm:
-        return
-    with _RUANA_SESSION_LOCK:
-        to_remove = [
-            sid for sid, data in _RUANA_SESSION_STORE.items()
-            if data.get('tipo') == 'aliado' and (data.get('codigo') or '').strip() == codigo_norm
-        ]
-        for sid in to_remove:
-            _RUANA_SESSION_STORE.pop(sid, None)
-            _RUANA_SESSION_REVOKED.add(sid)
 
 
 def _admin_session_valid():
@@ -1147,68 +1072,8 @@ def get_aliado(aliado_id):
         }), 500
 
 
-def _catalogo_oficios_desde_archivo():
-    """Lee el catálogo desde config/oficios_ruana.json. Devuelve lista de {nombre, especializaciones} o [].
-    Especializaciones se incluyen por compatibilidad pero no se usan en la lógica de plaza.
-    """
-    try:
-        config_path = Path(__file__).resolve().parent.parent / 'config' / 'oficios_ruana.json'
-        if config_path.exists():
-            with open(config_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            oficios = data.get('oficios', [])
-            if isinstance(oficios, list) and oficios:
-                out = []
-                for o in oficios:
-                    if isinstance(o, dict) and o.get('nombre'):
-                        nombre = str(o['nombre']).strip()
-                        esp = o.get('especializaciones') or []
-                        if isinstance(esp, list):
-                            esp = [str(e).strip() for e in esp if str(e).strip()]
-                        else:
-                            esp = []
-                        out.append({'nombre': nombre, 'especializaciones': esp})
-                    elif isinstance(o, str) and o.strip():
-                        n = str(o).strip()
-                        out.append({'nombre': n, 'especializaciones': []})
-                return out if out else []
-    except Exception:
-        pass
-    return []
-
-
-@app.route('/api/catalogo/oficios', methods=['GET'])
-def get_catalogo_oficios():
-    """
-    GET /api/catalogo/oficios
-    Retorna el catálogo oficial de oficios RUANA en formato jerárquico.
-    Cada oficio tiene nombre y lista de especializaciones (una plaza por especialización por grupo).
-    """
-    try:
-        oficios = _catalogo_oficios_desde_archivo()
-        if oficios:
-            return jsonify({
-                'status': 'success',
-                'oficios': oficios,
-                'timestamp': datetime.now().isoformat()
-            })
-        db = get_db()
-        oficios = db.get_catalogo_oficios_jerarquico()
-        return jsonify({
-            'status': 'success',
-            'oficios': oficios,
-            'timestamp': datetime.now().isoformat()
-        })
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-
-@app.route('/api/catalogo/oficios-raw', methods=['GET'])
-def get_catalogo_oficios_raw():
-    """Devuelve el catálogo leyendo solo el archivo config (sin BD). Fallback para el frontend."""
-    oficios = _catalogo_oficios_desde_archivo()
-    return jsonify({'status': 'success', 'oficios': oficios})
-
+# Catálogo / filtros / health → web.blueprints.catalogo_bp
+from web.catalogo_utils import _catalogo_oficios_desde_archivo  # noqa: F401  (reexport)
 
 @app.route('/api/grupos/especializaciones-disponibles', methods=['GET'])
 def get_especializaciones_disponibles():
@@ -1241,34 +1106,6 @@ def get_especializaciones_disponibles():
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
-
-
-@app.route('/api/filtros', methods=['GET'])
-def get_filtros():
-    """
-    GET /api/filtros
-    Retorna opciones disponibles para filtros (extra?das de SQLite)
-    """
-    try:
-        db = get_db()
-        aliados = db.listar_aliados()
-        
-        zonas = sorted(list(set(a.get('codigo_postal', '') for a in aliados if a.get('codigo_postal'))))
-        oficios = sorted(list(set(a.get('oficio', '') for a in aliados if a.get('oficio'))))
-        
-        return jsonify({
-            'status': 'success',
-            'zonas': zonas,
-            'oficios': oficios,
-            'estados': ['activo', 'inactivo'],
-            'timestamp': datetime.now().isoformat()
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500
 
 
 @app.route('/api/stats', methods=['GET'])
@@ -1436,18 +1273,6 @@ def get_eventos_recientes():
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
-
-
-@app.route('/api/health', methods=['GET'])
-def health():
-    """
-    GET /api/health
-    Verifica estado del servidor
-    """
-    return jsonify({
-        'status': 'healthy',
-        'timestamp': datetime.now().isoformat()
-    })
 
 
 # ========== Negociación guiada RUANA (sustituye chat libre) ==========
