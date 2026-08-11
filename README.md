@@ -2,11 +2,12 @@
 
 **RUANA** (*Red Unida de Apoyo entre Negocios Aliados*) es un sistema de control, coordinación y reputación profesional para redes locales de profesionales y pequeños negocios. Organiza a los profesionales por territorio (código postal), limita la competencia dentro de cada zona mediante plazas de oficio, y registra el comportamiento (score, encargos, Apoyo económico a la red) con consecuencias reales.
 
-> **Principio de autoridad de este documento:** describe únicamente lo verificado en el código y la documentación del repositorio en la fecha de auditoría. Si hay conflicto entre este README y el código, prevalece el **código**. Lo no confirmado se marca como `NO VERIFICADO`, `PENDIENTE` o `PLANIFICADO`.
+> **Principio de autoridad:** este documento describe únicamente lo verificado en el código y la documentación del repositorio. Si hay conflicto entre este README y el código, prevalece el **código**. Lo no confirmado se marca como `NO VERIFICADO`, `PENDIENTE` o `PLANIFICADO`.
 
 | Campo | Valor |
 |-------|-------|
-| Fecha de auditoría | 2026-08-11 |
+| Fecha de auditoría | 2026-08-11 (reescriura contra código post Campamento Base) |
+| Commit de referencia al auditar | `main` (incluye extracción a `services/` + fachadas `DBManager`) |
 | Fase declarada en roadmap | pre-MVP avanzada (v0.9) |
 | Código fuente principal | `RUANA/` |
 | Hosting público verificado | Firebase Hosting → Cloud Run (`https://ruana-4293f.web.app`) |
@@ -45,57 +46,59 @@ Orden profesional territorial: un oficio principal por plaza en cada grupo, repu
 - Territorio por **código postal** con tope de grupos.
 - **Exclusividad de plaza** por oficio principal (las especializaciones no ocupan plaza).
 - Score como fuente del estado del aliado (“el panel no piensa”).
-- Apoyo económico a la red calculado sobre el importe cerrado (configurables).
+- Apoyo económico a la red calculado sobre el importe cerrado (configurable).
 
 ---
 
 ## 2. Principios y reglas fundamentales
 
-Reglas estructurales verificadas en código/config:
-
 | Principio | Evidencia | Notas |
 |-----------|-----------|-------|
-| Score define el estado | `DBManager.score_a_estado` | Bandas en código: ÉLITE / DESTACADO / ESTABLE / EN RIESGO / COMPETENCIA |
+| Score define el estado | `score_service.score_a_estado` (fachada en `DBManager`) | Bandas ÉLITE / DESTACADO / ESTABLE / EN RIESGO / COMPETENCIA |
 | Login aliado por código | `POST /api/aliado/login` | Sin contraseña de aliado |
-| Sesión por pestaña | JWT + `sessionStorage` + header `X-Ruana-Session-Id` | Evita cruce de sesiones entre pestañas |
-| Territorio = código postal | Campo `codigo_postal` en grupos/aliados | |
-| Máx. 5 grupos activos por CP | `MAX_GRUPOS_POR_CP = 5` | |
-| Una plaza = un oficio principal por grupo | Docs de flujo + lógica de registro | Especializaciones no ocupan plaza |
-| Score inicial al registrarse = 50 | Flujo registro documentado y código | |
+| Sesión por pestaña | JWT + `sessionStorage` + `X-Ruana-Session-Id` | Lógica en `core/auth_session.py` |
+| Territorio = código postal | Campo `codigo_postal` | |
+| Máx. 5 grupos activos por CP | `MAX_GRUPOS_POR_CP` en `core/db_constants.py` | |
+| Una plaza = un oficio principal por grupo | `grupo_service` + docs de flujo | Especializaciones no ocupan plaza |
+| Score inicial al registrarse = 50 | `aliado_service` / flujo registro | |
 | Umbral de competencia = 15 | `ruana_reglas_v1.json` | Reinicio tras derrota: 50 |
-| Apoyo RUANA = % sobre importe | `apoyo_pct` (12.0 en config) | |
-| Backend-first | Flask sirve UI y API | Firebase Hosting solo reescribe a Cloud Run |
+| Apoyo RUANA = % sobre importe | `apoyo_pct` (12.0 en config) | `pago_service` |
+| Backend-first | Flask sirve UI y API | Firebase Hosting reescribe a Cloud Run |
+| Campamento Base | Dominios en `services/` + fachadas `DBManager` | Repos reales aún parciales |
 
 ### ⚠️ INCONSISTENCIAS DETECTADAS
 
-1. **Rango de score:** documentación antigua / Manual previo hablaba de score 0–100; el código y la migración `20260729000100_score_max_500.sql` usan **0–500** con banda ÉLITE (≥350). **Prevalece el código (0–500).**
-2. **Chat libre vs negociación:** docs (`docs/flujos/chat-y-alerta.md`) y partes del Manual previo describen chat libre (p. ej. límite 30 mensajes). En `app.py`, los POST de chat libre responden **410**; el flujo vigente es **negociación guiada** (`negociacion_manager.py`, UI en `aliado.html`). Tests E2E aún buscan selectores de chat antiguo (`#modal-chat-ruana`).
-3. **Esquema competencia `suplente_*` vs `retador_*`:** hay lógica de compatibilidad/migración entre nombres legacy y nuevos en `db_manager.py`.
-4. **`README_RUANA_COMPLETO.md`:** el índice de docs lo presenta como copia idéntica del Manual; tras esta reconstrucción puede quedar desfasado respecto a `README.md`.
-5. **RLS en Supabase vs backend:** las migraciones definen RLS, pero el backend usa **service role**, que bypasea RLS. La app Flask no depende de RLS para autorización.
+1. **Documentación de chat:** `docs/flujos/chat-y-alerta.md` describe APIs de chat libre; en `app.py` los POST de chat libre responden **410**. El flujo vigente es **negociación guiada**.
+2. **E2E desfasado:** `e2e/ruana-critical-flows.spec.js` aún busca selectores de chat (`#modal-chat-ruana`); la UI usa «Abrir negociación».
+3. **Repositorios incompletos:** existen stubs en `core/repositories/` para casi todos los dominios; **solo `score_repo.py` tiene SQL real**. El resto del SQL sigue en services / fachada.
+4. **Blueprints parciales:** `catalogo_bp` y `negociacion_bp` existen; la mayoría de rutas mutables siguen en `app.py`.
+5. **Esquema competencia `suplente_*` vs `retador_*`:** hay compatibilidad/migración entre nombres legacy y nuevos.
+6. **`README_RUANA_COMPLETO.md`:** puede divergir de este README.
+7. **RLS vs service role:** migraciones definen RLS; el backend usa **service role** y bypasea RLS. La autorización efectiva es la de la API Flask.
 
 ---
 
 ## 3. Funcionalidades actuales
 
-Leyenda: 🟢 operativo · 🟡 parcial / requiere revisión · 🔴 no implementado · ⚠️ existe pero requiere atención técnica
+Leyenda: 🟢 operativo · 🟡 parcial / requiere revisión · 🔴 no implementado · ⚠️ requiere atención técnica
 
 | Funcionalidad | Estado | Descripción |
 | ------------- | ------ | ----------- |
-| Registro | 🟢 | `register.html` + `POST /api/aliados/registrar`; validaciones, código 5 dígitos, asignación a grupo/plaza o espera |
-| Perfil | 🟢 | Datos, foto, catálogo de servicios; APIs aliado/admin |
-| Grupos / territorio | 🟢 | Grupos por CP, plazas por oficio, suplentes `en_espera`, fusión/viabilidad en backend |
+| Registro | 🟢 | `register.html` + `POST /api/aliados/registrar` → `aliado_service` |
+| Perfil | 🟢 | Datos, foto, catálogo de servicios |
+| Grupos / territorio | 🟢 | Grupos por CP, plazas, suplentes `en_espera` (`grupo_service` / `aliado_service`) |
 | Chat libre | 🔴 | Endpoints legacy → 410; sustituido por negociación |
-| Negociación / acuerdos | 🟢 | APIs `negociacion/*`, `acuerdos`, UI modal; E2E desfasado |
-| Captación (invitaciones / referidos / campañas) | 🟢 | No hay módulo llamado “captación”; sí hay invitaciones, linaje/referidos y campañas admin |
-| Aliados | 🟢 | CRUD operativo, estados, directorio, pausa, foto |
-| Pagos / Apoyo RUANA | 🟡 | Comprobantes, métodos de pago (Bizum/IBAN/QR), impugnación y revisión admin; **sin pasarela automática** (PayPal/Stripe API no integradas) |
+| Negociación / acuerdos | 🟢 | `negociacion_service` + APIs en `app.py` + UI; E2E desfasado |
+| Captación (invitaciones / referidos / campañas) | 🟢 | `invitacion_service`, `referido_service`; no hay módulo llamado “captación” |
+| Aliados | 🟢 | CRUD, estados, directorio, pausa, foto |
+| Pagos / Apoyo RUANA | 🟡 | Comprobantes, métodos de pago, impugnación; **sin pasarela API** |
 | Notificaciones | 🟢 | Inbox aliado + centro de comunicación / soporte |
-| Administración | 🟢 | Panel amplio: aliados, pagos, competencia, reglas, métricas, campañas |
-| Competencia por score | 🟢 | Automática por umbral; forzar desde admin; UI/E2E parcial |
-| Purga mensual | 🟡 | Endpoint/lógica en backend; operación/UI completa `NO VERIFICADO` en E2E |
-| Auth admin Firebase | 🔴 | `PLANIFICADO` (plan en archive); vigente: credenciales hasheadas (“puente temporal”) |
-| Supabase Auth / `profiles` | 🟡 | Tabla y roles en migración; login Flask actual **no** usa `auth.users` |
+| Administración | 🟢 | Panel amplio vía `admin_service` + rutas admin |
+| Competencia por score | 🟢 | `competencia_service`; umbral config; UI/E2E parcial |
+| Purga mensual | 🟡 | Lógica/endpoint existen; operación en producción `NO VERIFICADO` |
+| Auth admin Firebase | 🔴 | `PLANIFICADO` (plan en archive); vigente: credenciales hasheadas |
+| Supabase Auth / `profiles` | 🟡 | Tabla en migración; login Flask **no** usa `auth.users` |
+| Modularización Campamento Base | 🟡 | Services extraídos; repos casi todos stub; `DBManager` sigue como fachada |
 
 ---
 
@@ -112,31 +115,41 @@ Firebase Hosting (proyecto ruana-4293f)
 Cloud Run service "ruana" (europe-west1)
   Docker: python:3.13-slim + gunicorn → web.app:app
         │
+        ├── web/app.py (+ blueprints parciales)
+        │     └── core/services/<dominio>_service.py
+        │           └── (score) core/repositories/score_repo.py
+        │           └── resto: SQL aún en service / fachada DBManager
         ├── Postgres (Supabase) vía DATABASE_URL
-        ├── Supabase Storage (fotos, comprobantes, QR)
+        ├── Supabase Storage
         ├── SMTP (correo de bienvenida)
-        └── Fallback local: SQLite (RUANA_DB_PATH / ruana.db)
+        └── Fallback local: SQLite (RUANA_DB_PATH)
 ```
 
-| Capa | Tecnología verificada |
-|------|----------------------|
-| Frontend | HTML, CSS, JS vanilla en `RUANA/web/` (sin React/Vue) |
-| Backend | Flask 2.3.3, Flask-Cors, PyJWT, Werkzeug |
-| Servidor WSGI | gunicorn |
-| Base de datos | Postgres (psycopg) o SQLite fallback |
-| Storage | Supabase Storage (`storage_manager.py`) |
-| Auth app | JWT propio (aliado por código; admin por credenciales hasheadas) |
+| Capa | Tecnología / pieza verificada |
+|------|-------------------------------|
+| Frontend | HTML, CSS, JS vanilla en `RUANA/web/` |
+| Backend | Flask 2.3.3, Flask-Cors, PyJWT, Werkzeug, gunicorn |
+| Dominio | `RUANA/core/services/` (13 services de dominio) |
+| Persistencia | `DBManager` fachada (~4331 líneas) + `ScoreRepo`; stubs de otros repos |
+| Constantes BD | `RUANA/core/db_constants.py` |
+| Sesiones | `RUANA/core/auth_session.py` |
+| Blueprints | `catalogo_bp`, `negociacion_bp` (cobertura mínima) |
+| BD | Postgres (psycopg) o SQLite |
+| Storage | Supabase Storage |
 | Hosting | Firebase Hosting → Cloud Run |
-| Secretos prod | Google Secret Manager (scripts/workflows) |
-| QA | pytest + Playwright |
+| QA | pytest (push/PR) + Playwright E2E (push / manual) |
 
-Piezas internas relevantes:
+### Patrón Campamento Base (verificado)
 
-- `RUANA/core/db_manager.py` — persistencia y reglas (~13 223 líneas, monolito).
-- `RUANA/core/negociacion_manager.py` — negociación guiada.
-- `RUANA/core/admin_auth.py` — autenticación admin (puente temporal).
-- `RUANA/engines/motor_evaluacion.py` + `orquestador.py` — motor de evaluación/métricas (el semáforo de panel sale del score en `aliados`, no del motor como fuente UI).
-- No existen carpetas `services/` ni `repositories/` en el código actual.
+```text
+Consumidor (app.py / tests)
+    → DBManager.método()          # fachada / wrapper
+        → <dominio>_service.*     # lógica de negocio
+            → ScoreRepo (solo score) / SQL en service (resto)
+                → SQLite o Postgres
+```
+
+No hay herencia de services desde `DBManager`: es **delegación** pasando `self` (o cursor) al service.
 
 ---
 
@@ -144,33 +157,41 @@ Piezas internas relevantes:
 
 ```text
 /
-├── README.md                 # Este documento (Manual Maestro)
-├── README_RUANA_COMPLETO.md  # Copia histórica del manual (puede divergir)
-├── ROADMAP.md                # Puntero al roadmap operativo
-├── Dockerfile                # Imagen Cloud Run
-├── firebase.json             # Hosting + rewrite a Cloud Run
-├── firebase-public/          # Público Firebase (vacío salvo .gitkeep)
-├── package.json              # Scripts deploy/QA (Firebase, Supabase, Playwright)
+├── README.md
+├── README_RUANA_COMPLETO.md      # Copia histórica (puede divergir)
+├── ROADMAP.md                    # Puntero a docs/operaciones/roadmap.md
+├── Dockerfile
+├── firebase.json
+├── firebase-public/              # Vacío salvo .gitkeep
+├── package.json                  # Scripts deploy / QA
 ├── playwright.config.js
-├── .env.example              # Variables de entorno (sin secretos reales)
-├── .github/workflows/        # Deploy Firebase, preview, QA manual
-├── docs/                     # Documentación secundaria + archive
-├── e2e/                      # Tests Playwright
-├── scripts/                  # Deploy, secretos GCP, verificaciones
-├── supabase/migrations/      # DDL Postgres + RLS (init) + migraciones
-└── RUANA/                    # Aplicación
-    ├── config/               # Reglas, oficios, ejemplos admin
-    ├── core/                 # DBManager, auth, storage, email, negociación
-    ├── engines/              # Motor de evaluación
-    ├── events/               # Event bus (JSONL)
-    ├── metrics/              # Colector
-    ├── web/                  # Flask app + HTML/JS/CSS
-    ├── tests/                # Tests pytest
-    ├── scripts/              # Utilidades (credenciales, verify_supabase, …)
-    └── docs/                 # Punteros a docs del monorepo
+├── .env.example
+├── .github/workflows/            # Deploy + ruana-qa (push/PR)
+├── docs/                         # Docs secundarias + archive
+├── e2e/                          # Playwright
+├── scripts/                      # Deploy, secretos GCP
+├── supabase/migrations/          # DDL Postgres + RLS init
+├── dev-tools/code-map/           # Mapa interactivo del código (herramienta local)
+└── RUANA/
+    ├── config/                   # Reglas, oficios, ejemplos admin
+    ├── core/
+    │   ├── db_manager.py         # Fachada Campamento Base
+    │   ├── db_constants.py
+    │   ├── auth_session.py
+    │   ├── admin_auth.py
+    │   ├── negociacion_manager.py
+    │   ├── services/             # Lógica de dominio
+    │   └── repositories/         # ScoreRepo real + stubs
+    ├── engines/                  # Motor de evaluación
+    ├── events/ / metrics/
+    ├── web/
+    │   ├── app.py                # Rutas principales (~170)
+    │   ├── blueprints/           # catalogo + negociacion (parcial)
+    │   ├── *.html
+    │   └── static/
+    ├── tests/
+    └── scripts/
 ```
-
-Carpetas generadas / menos relevantes para el mapa: `RUANA/logs/`, `__pycache__/`, artefactos QA.
 
 ---
 
@@ -178,98 +199,91 @@ Carpetas generadas / menos relevantes para el mapa: `RUANA/logs/`, `__pycache__/
 
 ### Dualidad SQLite / Postgres
 
-- **Producción prevista:** Postgres en Supabase (`DATABASE_URL`).
-- **Local / QA CI:** SQLite (`RUANA_DB_PATH`).
-- Compatibilidad de nombres/tipos vía `postgres_compat.py` y migraciones `sqlite_compat_*`.
+- **Producción prevista:** Postgres Supabase (`DATABASE_URL`).
+- **Local / CI pytest:** SQLite (`RUANA_DB_PATH`).
+- Compatibilidad vía `postgres_compat.py` y migraciones `sqlite_compat_*`.
+- Schema runtime adicional vía `schema_service` / `_init_db`.
 
-### Tablas principales (verificadas en migraciones y/o `ruana.db`)
+### Tablas principales
 
 | Tabla | Propósito |
 |-------|-----------|
 | `aliados` | Profesionales: código, datos, oficio, score, estado, grupo, foto, linaje |
 | `grupos` | Grupos territoriales por `codigo_postal` |
-| `solicitudes` | Solicitudes de oficio/atención en grupo |
-| `contactos_ruana` | Encargos entre aliados (trabajo, importes, Apoyo, urgencia) |
-| `chat_mensajes` | Mensajes asociados a contacto (legado / canal; UI principal = negociación) |
+| `solicitudes` | Solicitudes en grupo |
+| `contactos_ruana` | Encargos (trabajo, importes, Apoyo) |
+| `chat_mensajes` | Mensajes de contacto (legado; UI principal = negociación) |
 | `confirmaciones_trabajo` | Declaraciones de importe |
-| `ingresos_ruana` | Registro de Apoyo cobrado |
-| `payment_conflicts` | Disputas / impugnaciones de importe |
+| `ingresos_ruana` | Apoyo cobrado |
+| `payment_conflicts` | Impugnaciones |
 | `invitaciones` / `invitaciones_oficio` | Códigos de invitación |
-| `referidos` | Relación invitador → referido |
+| `referidos` | Linaje invitador → referido |
 | `competencia` / `competencia_pendiente` | Retos titular/retador |
 | `notificaciones_aliado` | Inbox |
-| `score_movimientos` | Ledger de cambios de score |
-| `evaluaciones` / `evaluaciones_historico` | Persistencia del motor |
-| `grupo_oficio_cerrado` | Oficios cerrados en grupo |
+| `score_movimientos` | Ledger de score |
+| `evaluaciones` / `evaluaciones_historico` | Motor de evaluación |
+| `grupo_oficio_cerrado` | Oficios cerrados |
 | `avisos_grupo` | Avisos |
 | `eventos_sistema` / `audit_log` | Trazabilidad |
-| `aliados_eliminados` | Histórico de bajas (migración Postgres) |
-| `aliado_accesos_dia` | Control de accesos diarios |
-| `profiles` | Liga a `auth.users` (migración init); **uso runtime Flask: NO VERIFICADO / no usado en login actual** |
+| `aliados_eliminados` | Histórico de bajas |
+| `aliado_accesos_dia` | Accesos diarios |
+| `profiles` | Liga a `auth.users` (migración); **uso en login Flask: no verificado / no usado** |
 
-Tablas adicionales creadas en runtime por `DBManager` (pueden no estar en el `.db` commitado): p. ej. `invitacion_campanas`, `catalogo_servicios_aliado`, `ruana_soporte_conversaciones`, `ruana_soporte_mensajes`, `negociacion_eventos`.
+Tablas adicionales en runtime (p. ej.): `invitacion_campanas`, `catalogo_servicios_aliado`, tablas de soporte, `negociacion_eventos`.
 
-### Storage (Supabase)
+### Storage
 
-Buckets en migración: `ruana-public`, `ruana-comprobantes`, `ruana-conflictos`.
+Buckets (migración): `ruana-public`, `ruana-comprobantes`, `ruana-conflictos`.
 
-### Relaciones relevantes (verificadas)
+### Relaciones relevantes
 
 ```text
-Usuario/Aliado
-  → pertenece a Grupo (codigo_postal + oficio/plaza)
-  → genera/recibe Invitaciones y Referidos (linaje)
-  → participa en Contactos (encargos)
-       → Negociación / mensajes
-       → Confirmación de importe → Apoyo RUANA → (opcional) Conflicto
-  → Score / score_movimientos → estado operativo
-  → puede entrar en Competencia (titular vs retador)
+Aliado
+  → Grupo (codigo_postal + plaza de oficio)
+  → Invitaciones / Referidos
+  → Contactos
+       → Negociación / (mensajes legado)
+       → Importe → Apoyo → (opcional) Conflicto
+  → Score / score_movimientos → estado
+  → Competencia (titular vs retador)
 ```
 
 ### Datos sensibles
 
-- Email, teléfono, nombre de aliados.
-- Códigos de aliado (sirven como secreto de acceso).
-- Comprobantes de pago e imágenes de conflicto.
-- Credenciales admin (hashes; fuera del repo en producción).
-- Datos de cobro de la red (Bizum/IBAN/QR) en config — **no reproducir valores aquí**.
+Email, teléfono, nombre, **código de aliado** (secreto de acceso), comprobantes, credenciales admin (hashes), datos de cobro de la red en config (**no reproducir valores**).
 
 ### Permisos BD
 
-- RLS definido en migración init para muchas tablas públicas.
-- Backend Flask usa **service role** → RLS no es la barrera efectiva de la API.
-- Autorización real de la app: decoradores `@require_aliado` / `@require_admin` (+ comprobaciones internas).
+RLS en migración init; backend con **service role** → RLS no es la barrera de la API. Autorización real: `@require_aliado` / `@require_admin` / `@require_admin_escritura`.
 
 ---
 
 ## 7. Reglas de negocio
 
-Formato: `CONDICIÓN → ACCIÓN → RESULTADO`. Solo reglas verificables.
+Formato: `CONDICIÓN → ACCIÓN → RESULTADO`.
 
 ### Registro
 
-- Datos válidos (nombre ≥3, email con `@` y dominio, teléfono ≥7 dígitos) y únicos → crear aliado con código numérico de 5 dígitos y score **50**.
-- Oficio fuera de catálogo → estado `pendiente_validacion` (sin grupo).
-- Oficio en catálogo + plaza libre en grupo del CP → asignar grupo, estado `activo`.
-- Sin plaza y &lt; 5 grupos en el CP → crear grupo nuevo y asignar.
-- 5 grupos y oficio ocupado en todos → estado `en_espera` (suplente; login panel 403 hasta incorporar).
-- Invitación aplicable → consumir invitación y aplicar linaje/score según tipo (simple / oficio / campaña).
+- Datos F07 válidos y únicos → aliado con código de 5 dígitos y score **50**.
+- Oficio fuera de catálogo → `pendiente_validacion` (sin grupo).
+- Oficio en catálogo + plaza libre en CP → grupo + `activo`.
+- Sin plaza y &lt; 5 grupos en CP → crear grupo + `activo`.
+- 5 grupos y oficio ocupado en todos → `en_espera` (login panel 403 hasta incorporar).
+- Invitación aplicable → consumir + linaje/score según tipo.
 
-### Perfil y profesiones
+### Profesiones / catálogo
 
-- Catálogo: `RUANA/config/oficios_ruana.json` (**39** oficios).
-- Oficio principal obligatorio en registro; especializaciones **no** ocupan plaza.
-- Endpoint de especializaciones disponibles marcado como deprecado respecto a la lógica de plaza.
+- `RUANA/config/oficios_ruana.json` — **39** oficios.
+- Plaza = **oficio principal**; especializaciones no ocupan plaza.
 
-### Territorio y grupos
+### Territorio
 
-- `codigo_postal` define el territorio.
-- Máximo **5** grupos activos por CP.
-- Estados de grupo incluyen `activo`, `en_competencia`, `disuelto` (CHECK en esquema).
+- `MAX_GRUPOS_POR_CP = 5`.
+- Estados de grupo: `activo`, `en_competencia`, `disuelto`.
 
-### Score y estados del aliado
+### Score y estados
 
-Según `score_a_estado` en código (rango efectivo 0–500):
+Fuente: `score_service` (rango **0–500**, tope diario **±10**):
 
 | Score | Estado |
 |------:|--------|
@@ -281,37 +295,35 @@ Según `score_a_estado` en código (rango efectivo 0–500):
 
 ### Competencia
 
-- Score &lt; `umbral_competencia` (15) → entra lógica de competencia.
-- Duración configurable (`duracion_competencia_dias`, default 30).
-- Tras derrota, reinicio de score configurable (`score_reinicio_competencia`, default 50).
+- Score &lt; 15 → lógica de competencia (`competencia_service`).
+- Duración 30 días (config); reinicio tras derrota 50.
 - Admin puede forzar competencia/suplencia.
 
 ### Purga
 
-- Config: meses sin ganar + umbral de score bajo (`purga_mensual_meses_sin_ganar`, `purga_score_bajo_umbral`).
-- Endpoint `POST /api/purga/mensual` existe; operación completa en producción `NO VERIFICADO`.
+- Config: meses sin ganar + umbral score (`purga_*` en JSON).
+- Endpoint/lógica existen; operación productiva `NO VERIFICADO`.
 
-### Invitaciones y captación
+### Invitaciones / captación
 
-- Invitaciones de un uso; invitaciones de oficio; campañas admin con usos.
-- Referidos / linaje (`referidos`, campos `invitado_por*`).
+- Invitación simple, de oficio (`RUANA-{grupo}-{OFICIO}-…`) y campañas admin.
+- Referidos / linaje en `referido_service`.
 
-### Encargos (contactos) y Apoyo
+### Encargos y Apoyo
 
-- Ciclo de contacto: crear → aceptar / estados de trabajo → declarar importe → comprobante Apoyo → posible impugnación.
-- Apoyo = `importe × apoyo_pct / 100` (`apoyo_pct` default 12.0).
-- Cobro: métodos configurados (Bizum, IBAN, QR PayPal/Revolut) — **manual**, no pasarela API.
+- Contacto → trabajo → declarar importe → Apoyo = `importe × apoyo_pct/100` (default 12%).
+- Comprobante → revisión admin → posible impugnación.
+- Cobro: Bizum / IBAN / QR (manual, sin pasarela).
 
 ### Negociación
 
-- Sustituye al chat libre para el flujo de encargo.
-- Eventos de negociación persistidos; UI en panel aliado.
+- Sustituye chat libre para encargos (`negociacion_service` + UI).
 
 ### Administración
 
-- Activar / rechazar / eliminar aliados; suplentes; cerrar oficio / abrir plaza.
-- Revisar pagos e impugnaciones; cambiar reglas permitidas del JSON de config.
-- Permisos admin en JSON: `leer`, `escribir`, `eliminar`, `configurar` (con fallback amplio si permisos vacíos — ⚠️ atención).
+- Activar/rechazar/eliminar; suplentes; cerrar/abrir plazas; pagos; reglas; métricas.
+- Permisos: `leer`, `escribir`, `eliminar`, `configurar`.
+- ⚠️ Si un admin autenticado tiene lista de permisos vacía, el código puede otorgar el conjunto completo (fallback) — atención en seguridad.
 
 ---
 
@@ -319,58 +331,43 @@ Según `score_a_estado` en código (rango efectivo 0–500):
 
 ### Registro
 
-1. Acceso desde `index` / `invite` / `register`.
-2. Validación de invitación (si aplica).
-3. `POST /api/aliados/registrar` → código + estado según plaza/CP.
-4. Correo SMTP de bienvenida con código (si SMTP configurado).
+Acceso `index` / `invite` / `register` → validar invitación → `POST /api/aliados/registrar` → código + estado por plaza/CP → email SMTP opcional.
 
-### Creación / completado del perfil
+### Perfil
 
-1. Login con código.
-2. Panel aliado: datos, foto Storage, catálogo de servicios.
+Login por código → panel aliado → datos / foto Storage / catálogo servicios.
 
-### Incorporación a grupos / sistema territorial
+### Grupos / sistema territorial
 
-1. Al registrar: búsqueda de plaza en grupos del CP.
-2. Crear grupo si cabe bajo el tope de 5.
-3. Si no hay plaza: `en_espera`; admin puede incorporar suplente.
+Al registrar: buscar plaza → crear grupo si cabe → o `en_espera` → admin incorpora suplente.
 
 ### Captación / invitaciones
 
-1. Aliado o admin genera invitación / campaña.
-2. Candidato registra con código.
-3. Se registra referido/linaje y se consume la invitación.
+Generar invitación o campaña → registro con código → referido/linaje + consumo.
 
 ### Aliados
 
-1. Login → sesión JWT por pestaña.
-2. Operación diaria: directorio, solicitudes, conexiones, perfil, notificaciones.
+Sesión JWT por pestaña → directorio, solicitudes, conexiones, perfil, notificaciones.
 
 ### Acuerdos / negociación
 
-1. Contacto entre aliados.
-2. Negociación guiada (propuestas / contraofertas / cierre).
-3. Declaración de importe y Apoyo.
+Contacto → negociación guiada → importe → Apoyo.
 
 ### Chat
 
-- Flujo de chat libre: **no operativo** (410). Usar negociación.
+Chat libre de encargo: **no operativo** (410). Vigente: negociación. Canal de **soporte** aliado–admin: activo (distinto del chat de encargo).
 
 ### Pagos
 
-1. Cierre de importe → cálculo Apoyo.
-2. Subida de comprobante.
-3. Admin aprueba / rechaza; aliado puede impugnar; admin resuelve conflictos.
+Importe → Apoyo → comprobante → admin aprueba/rechaza → impugnación opcional.
 
 ### Notificaciones
 
-1. Eventos generan `notificaciones_aliado`.
-2. Lectura/marcado desde panel; centro de comunicación para soporte.
+Eventos → `notificaciones_aliado` + centro de comunicación.
 
 ### Administración
 
-1. Login admin (credenciales hasheadas).
-2. Dashboard, pendientes, pagos, campañas, competencia, reglas, métricas.
+Login admin → dashboard, pendientes, pagos, campañas, competencia, reglas, métricas.
 
 ---
 
@@ -380,51 +377,36 @@ Según `score_a_estado` en código (rango efectivo 0–500):
 
 | Actor | Mecanismo |
 |-------|-----------|
-| Aliado | Código de aliado → JWT HS256 (`FLASK_SECRET_KEY`), header `X-Ruana-Session-Id` |
-| Admin | ID + contraseña hasheada (pbkdf2 Werkzeug) desde JSON/env; sesión JWT análoga |
+| Aliado | Código → JWT HS256 (`FLASK_SECRET_KEY`), header `X-Ruana-Session-Id` (`auth_session.py`) |
+| Admin | ID + contraseña hasheada (`admin_auth.py`) → sesión JWT análoga |
 
 ### Autorización
 
-- Decoradores `@require_aliado`, `@require_admin`, `@require_admin_escritura`.
-- Middleware `before_request` en rutas `/api/admin/*` (salvo login/logout).
-- Algunas rutas API públicas (health, catálogo, registro, validar invitación, login). Lista completa: revisar `app.py`.
+- `@require_aliado`, `@require_admin`, `@require_admin_escritura`.
+- Middleware en `/api/admin/*` (salvo login/logout).
+- Hito 2A/2B: tests de permisos; PII de listados admin-only; PUT aliado filtra campos (`score`/`estado`/`grupo_id` no editables por self).
+- Roadmap: Hito 2 **activo / parcial** (aún hay endurecimientos pendientes).
 
 ### RLS
 
-- Definido en `supabase/migrations/20260519000100_init_ruana_clean.sql`.
-- Helpers `current_aliado_codigo()`, `is_ruana_admin()`.
-- **Efecto real sobre la API Flask:** limitado, porque el backend usa service role.
-- SQLite: sin RLS.
+Definido en migración init; **eludido por service role** en el camino Flask. SQLite sin RLS.
 
 ### Roles
 
-- App: aliado / admin.
-- Tabla `profiles.role` ∈ (`aliado`, `admin`) pensada para Supabase Auth — no cableada al login Flask actual.
+App: aliado / admin. `profiles.role` preparado para Supabase Auth — no cableado al login actual.
 
-### Datos sensibles y secretos (solo nombres)
+### Secretos (solo nombres)
 
-| Variable / artefacto | Finalidad |
-|----------------------|-----------|
-| `FLASK_SECRET_KEY` | Firma de JWT / sesiones |
-| `RUANA_ADMIN_CREDENTIALS_JSON` / `_PATH` | Credenciales admin |
-| `SUPABASE_SERVICE_ROLE_KEY` | Cliente admin Supabase (bypassa RLS) |
-| `SUPABASE_ANON_KEY` | Clave pública anon |
-| `DATABASE_URL` | Conexión Postgres |
-| `RUANA_SMTP_PASSWORD` | SMTP |
-| Secretos GCP / GitHub Actions | Deploy y credenciales prod |
+`FLASK_SECRET_KEY`, `RUANA_ADMIN_CREDENTIALS_JSON` / `_PATH`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`, `DATABASE_URL`, `RUANA_SMTP_*`, secretos GCP/GitHub Actions.
 
-**Nunca** versionar valores reales de contraseñas, keys, tokens o IBAN/Bizum en documentación.
-
-### Protección detectada
+### Protección y riesgos
 
 - Sesión por pestaña (mitiga cookie compartida).
-- Hashes de admin (no plaintext en el flujo recomendado).
-- Cloud Run con secrets inyectados en deploy.
-- ⚠️ Login aliado = posesión del código (factor único débil).
-- ⚠️ Store de sesiones en memoria (mitigado en parte con `workers 1` en Docker).
+- JWT validable entre instancias Cloud Run; revoke store en memoria (limitación).
+- ⚠️ Código de aliado = factor único de acceso.
 - ⚠️ Datos de cobro en `ruana_reglas_v1.json` versionado.
-- ⚠️ Rutas de preview/test en la misma app.
-- ⚠️ Cloud Run configurado con acceso no autenticado a nivel de red (`--allow-unauthenticated` en scripts de deploy); la auth es de aplicación.
+- ⚠️ Previews/rutas de prueba en la misma app.
+- ⚠️ Cloud Run con acceso de red no autenticado; auth es de aplicación.
 
 ---
 
@@ -432,17 +414,17 @@ Según `score_a_estado` en código (rango efectivo 0–500):
 
 | Servicio | Función | Estado |
 | -------- | ------- | ------ |
-| Supabase Postgres | Base de datos principal | 🟢 Usado (vía `DATABASE_URL`) |
-| Supabase Storage | Fotos, comprobantes, QR | 🟢 Usado |
-| Supabase Realtime | Publication de tablas en migración | 🟡 DDL existe; uso cliente `NO VERIFICADO` |
-| Firebase Hosting | Front door + rewrite a Cloud Run | 🟢 Usado |
-| Google Cloud Run | Ejecución Flask | 🟢 Usado |
-| Artifact Registry | Imágenes Docker | 🟢 Usado |
-| Google Secret Manager | Secretos de runtime | 🟢 Usado en workflows/scripts |
-| SMTP (Gmail u otro) | Email de bienvenida | 🟡 Implementado; depende de vars |
-| PayPal / Revolut / Bizum | Cobro Apoyo vía QR/datos | 🟡 Manual (sin API de pasarela) |
+| Supabase Postgres | BD principal | 🟢 |
+| Supabase Storage | Fotos, comprobantes, QR | 🟢 |
+| Supabase Realtime | Publication en migración | 🟡 DDL; uso cliente `NO VERIFICADO` |
+| Firebase Hosting | Rewrite a Cloud Run | 🟢 |
+| Google Cloud Run | Runtime Flask | 🟢 |
+| Artifact Registry | Imágenes Docker | 🟢 |
+| Google Secret Manager | Secretos runtime | 🟢 |
+| SMTP | Email bienvenida | 🟡 Depende de vars |
+| PayPal / Revolut / Bizum | Cobro Apoyo (QR/datos) | 🟡 Manual |
 | Stripe / PayPal REST | Pagos automáticos | 🔴 No integrado |
-| Firebase Authentication | Auth admin/usuarios | 🔴 Planificado, no implementado |
+| Firebase Authentication | Auth admin/usuarios | 🔴 Planificado |
 
 ---
 
@@ -452,138 +434,98 @@ Según `score_a_estado` en código (rango efectivo 0–500):
 
 | Variable | Uso |
 |----------|-----|
-| `FLASK_SECRET_KEY` | Secret de sesión/JWT |
-| `RUANA_ADMIN_SESSION_EXPIRES` | TTL sesión admin (s) |
-| `RUANA_ALIADO_SESSION_EXPIRES` | TTL sesión aliado (s) |
-| `RUANA_ADMIN_CREDENTIALS_PATH` | Ruta JSON admin |
-| `RUANA_ADMIN_CREDENTIALS_JSON` | JSON inline admin |
+| `FLASK_SECRET_KEY` | Firma JWT / sesiones |
+| `RUANA_ADMIN_SESSION_EXPIRES` / `RUANA_ALIADO_SESSION_EXPIRES` | TTL sesiones |
+| `RUANA_ADMIN_CREDENTIALS_PATH` / `_JSON` | Credenciales admin |
 | `FIREBASE_PROJECT_ID` | Proyecto Firebase/GCP |
-| `GOOGLE_CLOUD_REGION` | Región (p. ej. `europe-west1`) |
-| `ARTIFACT_REGISTRY_REPOSITORY` | Repo de imágenes |
-| `SUPABASE_URL` | URL proyecto Supabase |
-| `SUPABASE_ANON_KEY` | Anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role |
-| `DATABASE_URL` | Postgres (pooler recomendado en Cloud Run) |
-| `RUANA_DB_PATH` | Ruta SQLite fallback |
-| `RUANA_SMTP_HOST` / `_PORT` / `_USER` / `_PASSWORD` / `_FROM_EMAIL` | Correo |
-| `RUANA_PUBLIC_APP_URL` / `PUBLIC_APP_URL` | URL pública (emails/enlaces) |
-| `PORT` | Puerto gunicorn (Cloud Run) |
+| `GOOGLE_CLOUD_REGION` | Región |
+| `ARTIFACT_REGISTRY_REPOSITORY` | Repo imágenes |
+| `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` | Supabase |
+| `DATABASE_URL` | Postgres |
+| `RUANA_DB_PATH` | SQLite fallback |
+| `RUANA_SMTP_*` | Correo |
+| `RUANA_PUBLIC_APP_URL` / `PUBLIC_APP_URL` | URL pública |
+| `PORT` | Puerto gunicorn |
 
 ### Config de negocio
 
 - `RUANA/config/ruana_reglas_v1.json` — umbrales, Apoyo %, métodos de pago.
-- `RUANA/config/oficios_ruana.json` — catálogo de oficios.
-- `RUANA/config/admin_codes.example.json` — ejemplo.
-- `RUANA/config/admin_credentials.qa.json` — credenciales QA (hashes).
+- `RUANA/config/oficios_ruana.json` — catálogo.
+- Ejemplos / QA admin en `RUANA/config/`.
 
 ### Dependencias
 
 - Python: `RUANA/web/requirements.txt` (+ `requirements-dev.txt` para QA).
-- Node: `package.json` (Firebase CLI, Supabase CLI, Playwright) — no es el runtime de la app.
+- Node: solo para Firebase CLI / Playwright / scripts.
 
 ---
 
 ## 12. Desarrollo local
 
-Esta sección explica cómo levantar RUANA en tu máquina. Los términos técnicos se aclaran la primera vez.
-
 ### Requisitos
 
-1. **Python** (lenguaje del backend) — el `Dockerfile` usa 3.13; CI QA usa 3.11. Conviene 3.11+.
-2. **pip** (instala librerías Python).
-3. Opcional: **Node.js** + **npm** (herramienta que instala dependencias JS) solo para E2E/deploy.
-4. Opcional: cuenta Supabase/Postgres; si no, se usa **SQLite** (base de datos en un archivo local).
+1. **Python** 3.11+ (Dockerfile usa 3.13; CI pytest usa 3.11).
+2. **pip**.
+3. Opcional: **Node.js** + **npm** para E2E/deploy.
+4. Opcional: Postgres/Supabase; si no, **SQLite**.
 
 ### Pasos
 
-1. Clonar el repositorio y entrar en la carpeta del proyecto.
-2. Copiar variables de entorno:
-   ```bash
-   cp .env.example .env
-   ```
-   Editar `.env`: como mínimo `FLASK_SECRET_KEY` y, si usas Postgres, `DATABASE_URL` + claves Supabase. Para local puro, deja vacío `DATABASE_URL` y usa `RUANA_DB_PATH`.
-3. Crear entorno virtual (carpeta aislada de dependencias Python):
+1. Clonar el repo.
+2. `cp .env.example .env` y editar al menos `FLASK_SECRET_KEY` (y Postgres si aplica).
+3. Entorno virtual e instalación:
    ```bash
    cd RUANA/web
    python -m venv .venv
-   source .venv/bin/activate   # Windows: .venv\Scripts\activate
+   source .venv/bin/activate
    pip install -r requirements.txt
    ```
-4. Credenciales admin locales: seguir `docs/seguridad/credenciales-admin.md` (generar JSON hasheado; no subir secretos).
-5. Arrancar la app Flask:
+4. Credenciales admin: `docs/seguridad/credenciales-admin.md`.
+5. Arrancar:
    ```bash
-   # Desde el layout del proyecto; el módulo es web.app
-   # Ajusta PYTHONPATH para importar RUANA/core
    cd /ruta/al/repo/RUANA
    export PYTHONPATH=.
    python -m flask --app web.app run --host 0.0.0.0 --port 8080
    ```
-   Alternativa de producción local: gunicorn como en el `Dockerfile`.
-6. Abrir el navegador en `http://localhost:8080/`.
+6. Abrir `http://localhost:8080/`.
 
 ### Tests
 
 ```bash
-# Backend
 pip install -r RUANA/web/requirements-dev.txt
 python -m pytest RUANA/tests -q
 
-# E2E (npm = gestor de paquetes JS)
 npm ci
 npx playwright install chromium
 npm run qa:e2e
 ```
 
-### Nota
-
-Si algo falla por falta de secretos SMTP/Supabase, la app puede seguir en modo SQLite; el correo y el storage remoto quedarán limitados.
-
 ---
 
 ## 13. Deploy
 
-`Deploy` significa publicar una versión de la aplicación.
+`Deploy` = publicar una versión.
 
-### Dónde se despliega (verificado)
+### Dónde
 
 | Pieza | Destino |
 |-------|---------|
-| App | Cloud Run service `ruana`, región `europe-west1`, proyecto `ruana-4293f` |
-| Entrada web | Firebase Hosting `https://ruana-4293f.web.app` → rewrite a Cloud Run |
-| Imagen | Artifact Registry `europe-west1-docker.pkg.dev/ruana-4293f/ruana/ruana` |
-| BD / Storage | Supabase proyecto referenciado en config (`qqlxgwbmtzcfrrobrfzy`) |
+| App | Cloud Run `ruana`, `europe-west1`, proyecto `ruana-4293f` |
+| Entrada | `https://ruana-4293f.web.app` → rewrite Cloud Run |
+| Imagen | Artifact Registry `…/ruana/ruana` |
+| BD/Storage | Supabase |
 
-### Cómo se realiza
+### Cómo
 
-**Producción (automático):** push a `main` dispara `.github/workflows/deploy-firebase.yml` (build imagen, Cloud Run, sync secrets, Firebase Hosting).
+- **Producción:** push a `main` → `.github/workflows/deploy-firebase.yml`.
+- **Preview:** workflows de preview / rama `dev`.
+- **Manual:** scripts `npm run cloudrun:*`, `deploy:hosting`, `supabase:push`.
 
-**Preview:** workflows `deploy-firebase-preview.yml` / `trigger-preview-deploy.yml` (canales de Hosting; rama `dev`).
+### Comprobar / fallos / rollback
 
-**Manual (scripts en `package.json` / `scripts/`):**
-
-- `npm run cloudrun:build` / `cloudrun:deploy`
-- `npm run deploy:hosting` / `deploy:preview`
-- `npm run supabase:push` (aplicar migraciones; requiere login/link)
-
-### Variables / secretos de deploy
-
-Inyectados vía GitHub Actions + Secret Manager (nombres, no valores): credenciales admin, Supabase keys, `DATABASE_URL`, `FLASK_SECRET_KEY`, SMTP, etc. Ver workflow y `.env.example`.
-
-### Comprobar que funciona
-
-- Abrir `https://ruana-4293f.web.app`.
-- `GET /api/health` (sin auth).
-- Login aliado/admin de prueba en entorno controlado.
-
-### Detectar un fallo
-
-- Revisar logs del workflow de GitHub Actions.
-- Logs de Cloud Run (`gcloud` / consola GCP).
-- Respuestas 5xx / health fallido.
-
-### Volver a una versión anterior
-
-- Cloud Run permite traficar a una revisión anterior desde la consola GCP / `gcloud run services update-traffic` — procedimiento exacto operativo **parcialmente documentado en scripts**; detalle UI de rollback en consola: `NO VERIFICADO` en docs del repo más allá de redeploy.
+- Health: `GET /api/health`.
+- Fallos: logs GitHub Actions + Cloud Run.
+- Rollback: revisar tráfico a revisión anterior en Cloud Run (`NO VERIFICADO` el procedimiento día a día del equipo más allá de redeploy).
 
 ---
 
@@ -591,51 +533,35 @@ Inyectados vía GitHub Actions + Secret Manager (nombres, no valores): credencia
 
 ### Funcionando
 
-- Registro, login aliado/admin, panel aliado y admin.
-- Grupos/plazas por CP, invitaciones, referidos, campañas.
-- Contactos, negociación guiada, Apoyo con comprobantes e impugnación.
-- Notificaciones / centro comunicación.
-- Deploy Firebase → Cloud Run.
-- Tests pytest + Playwright (ejecución CI **manual**).
+Registro, login, paneles, grupos/plazas, invitaciones/referidos/campañas, contactos, negociación, Apoyo con revisión, notificaciones, competencia por score, deploy cloud, **CI pytest en push/PR**, services de dominio con fachadas.
 
 ### Parcial
 
-- Seguridad Hito 2 (endpoints públicos residuales).
-- Purga/competencia (backend sí; cobertura E2E/ops variable).
-- SMTP / Storage dependen de secretos.
-- RLS definido pero no es la barrera de la API.
-- Documentación secundaria desfasada (chat, score 0–100).
+Hito 2 seguridad; purga; SMTP/Storage según secretos; RLS no efectivo en API; blueprints; **repositorios** (solo score real); docs/E2E de chat; `DBManager` aún grande como fachada.
 
 ### Pendiente
 
-- Firebase Authentication para admin.
-- Integración de pasarela de pago automática.
-- Uso real de Supabase Auth / `profiles` en el login Flask.
-- Alineación E2E con negociación (selectores chat legacy).
+Firebase Auth admin; pasarela de pago; cablear `profiles`/Supabase Auth al login; terminar extracción SQL a repos; alinear E2E con negociación.
 
-### Riesgos técnicos detectados
+### Riesgos técnicos
 
-1. Monolitos `db_manager.py` + `app.py` + HTML enormes.
-2. Drift SQLite vs Postgres / columnas legacy.
-3. `ruana.db` presente en el árbol de trabajo (datos de prueba).
-4. Service role bypassea RLS.
-5. Código de aliado = único secreto de acceso.
-6. Sesiones en memoria.
-7. Datos de cobro en repositorio.
-8. QA CI solo con `workflow_dispatch` (no en cada push/PR).
-9. Rutas preview/test expuestas.
-10. Docs/E2E contradicen el flujo de negociación y el score 0–500.
+1. Transición a medias (services con SQL; repos stub).
+2. `app.py` sigue monolítico (~4.3k LOC, ~170 rutas).
+3. Chat legacy en `chat_service` vs API 410.
+4. Auth por código de aliado; admin puente JSON.
+5. Service role bypasea RLS.
+6. Drift SQLite/Postgres.
+7. Datos de cobro en repo.
+8. E2E/selectores desfasados.
 
 ### Deuda técnica
 
-`Deuda técnica` = decisiones o restos que generan más trabajo o riesgo después.
-
-- Ausencia de capa `services/` / `repositories/` pese al tamaño de `DBManager`.
-- Chat legacy + tests/contratos rotos respecto a negociación.
-- Manual duplicado (`README_RUANA_COMPLETO.md`).
-- Stubs/legado en `orquestador.py` (menciones a capital/trading).
+- Completar repos reales por dominio.
+- Mover rutas mutables a blueprints.
+- Eliminar o aislar chat libre y actualizar docs/E2E.
+- Duplicado documental `README_RUANA_COMPLETO.md`.
 - Plan Firebase Auth sin implementar.
-- Referencias rotas a paths de docs antiguos (`ADMIN_CREDENTIALS_SETUP.md` citado en UI/issue; vigente: `docs/seguridad/credenciales-admin.md`).
+- Stubs/legado residuales en orquestador/métricas.
 
 ---
 
@@ -643,42 +569,37 @@ Inyectados vía GitHub Actions + Secret Manager (nombres, no valores): credencia
 
 ### Implementado
 
-Registro, perfil, grupos territoriales, plazas/suplentes, aliados, invitaciones/referidos/campañas, solicitudes, contactos, negociación/acuerdos, Apoyo con revisión admin, notificaciones, panel admin, competencia por score, deploy cloud.
+Registro, perfil, grupos territoriales, plazas/suplentes, aliados, invitaciones/referidos/campañas, solicitudes, contactos, negociación/acuerdos, Apoyo con admin, notificaciones, competencia por score, panel admin, deploy, extracción a **services** con fachadas, CI automático pytest.
 
 ### En desarrollo
 
-Endurecimiento de seguridad/permisos (Hito 2); consolidación docs/ops (según roadmap 2026-07-28).
+Hito 2 seguridad (parcial); completar Campamento Base (repos + blueprints); consolidación docs/ops.
 
 ### Planificado
 
-Admin → Firebase Authentication (plan en `docs/archive/superpowers/plans/2026-07-27-admin-firebase-auth-migration.md`).
+Admin → Firebase Authentication (plan en archive).
 
 ### No verificado
 
-- Estado exacto del schema/RLS remoto en Supabase en este momento.
-- Uso de Realtime en el cliente.
-- Cobertura completa de purga en operación real.
-- Rollback operativo día a día del equipo.
-- Que todos los flujos E2E pasen tras el cambio chat→negociación.
+Estado exacto schema/RLS remoto en vivo; Realtime en cliente; purga en operación real; E2E verde tras chat→negociación; rollback operativo cotidiano.
 
 ---
 
 ## 16. Puntos críticos de RUANA
 
-Tratar con especial cuidado antes de cambiar:
-
 | Área | Por qué |
 |------|---------|
-| Autenticación / sesiones | JWT, store en memoria, login por código |
-| Autorización admin | Permisos y fallback amplio |
-| `aliados` / score / estados | Fuente del semáforo y competencia |
-| Grupos, CP, plazas | Exclusividad territorial |
+| Auth / sesiones (`auth_session.py`) | JWT, revoke en memoria, login por código |
+| Permisos admin / Hito 2 | Fallback de permisos; PII |
+| Score (`score_service` + `ScoreRepo`) | Semáforo, competencia, tope diario |
+| Grupos / CP / plazas | Exclusividad territorial |
 | Contactos + Apoyo + conflictos | Dinero y reputación |
-| Negociación | Sustituye chat; contratos/tests frágiles |
+| Negociación | Contrato vigente de encargo |
 | Storage comprobantes | Datos sensibles |
-| `DATABASE_URL` / dual SQLite-Postgres | Drift de esquema |
-| Config `ruana_reglas_v1.json` | Umbrales globales + datos de cobro |
+| Dual SQLite/Postgres | Drift |
+| `ruana_reglas_v1.json` | Umbrales globales + cobro |
 | Deploy secrets | Compromiso = acceso total |
+| Fachadas `DBManager` | Compatibilidad durante extracción |
 
 ---
 
@@ -686,41 +607,37 @@ Tratar con especial cuidado antes de cambiar:
 
 > Antes de modificar una funcionalidad crítica, comprobar sus dependencias, reglas de negocio, seguridad y efectos sobre otras funcionalidades.
 
-Reglas detectadas que un desarrollador debe respetar:
-
-1. **Código > documentación.** Si actualizas comportamiento, actualiza este README y los deep-dives en `docs/`.
-2. **No asumir score 0–100;** el código usa 0–500 y bandas ÉLITE/DESTACADO.
-3. **No reintroducir chat libre** sin migrar UI, APIs y tests; el contrato vigente es negociación guiada.
-4. **Plaza = oficio principal;** no volver a cobrar plaza por especialización sin decisión explícita de producto.
-5. **Máximo 5 grupos por CP** (`MAX_GRUPOS_POR_CP`).
-6. **Apoyo** se calcula con `apoyo_pct`; cambios afectan importes y admin de pagos.
-7. **No subir secretos** ni valores reales de cobro/credenciales a git.
-8. **Auth aliado/admin** son puentes propios; cualquier cambio debe preservar el header `X-Ruana-Session-Id` o migrar cliente y servidor juntos.
-9. **Service role** implica que la seguridad de datos sensibles debe vivir en la API Flask, no solo en RLS.
-10. **Tests:** el workflow `ruana-qa.yml` es manual (`workflow_dispatch`); un “verde local” no equivale a CI automático en cada PR.
-11. Si se toca `DBManager`, aplicar la política de modularización del proyecto (**Campamento Base**) solo con tests CI adecuados — hoy la extracción a `services/`/`repositories/` **aún no está hecha** en el árbol.
+1. **Código > documentación.** Actualizar este README al cambiar comportamiento.
+2. Score es **0–500** con tope ±10/día; no asumir 0–100.
+3. Contrato de encargo = **negociación guiada**, no chat libre.
+4. Plaza = oficio principal; máx. **5** grupos por CP.
+5. Apoyo usa `apoyo_pct`; impacta pagos y admin.
+6. No subir secretos ni datos reales de cobro/credenciales.
+7. Cambios de sesión deben respetar `X-Ruana-Session-Id` o migrar cliente y servidor juntos.
+8. Seguridad de datos en la **API Flask**, no solo en RLS.
+9. **Campamento Base:** al tocar un dominio mapeado (`aliado`, `grupo`, `score`, `pago`, `competencia`, `invitacion`, `solicitud`, `negociacion`, `chat`, `referido`, `catalogo`, `admin`), la lógica nueva va a `services/` (+ `repositories/` para SQL) y `DBManager` conserva la fachada. Extraer solo con **test CI** que proteja el comportamiento.
+10. CI: `ruana-qa.yml` corre pytest en **push/PR** a `main`/`dev`; E2E en push o `workflow_dispatch`.
 
 ---
 
 ## 18. Roadmap
 
-Fuente verificable: [`docs/operaciones/roadmap.md`](docs/operaciones/roadmap.md) (actualización 2026-07-28). `ROADMAP.md` en la raíz solo apunta ahí.
-
-Resumen factual:
+Fuente: [`docs/operaciones/roadmap.md`](docs/operaciones/roadmap.md) (2026-07-28). `ROADMAP.md` solo apunta ahí.
 
 | Hito | Estado documentado |
 |------|--------------------|
-| 1 — Infra (Docker, Cloud Run, Firebase, Supabase) | Cerrado documentalmente |
+| 1 — Infra | Cerrado documentalmente |
 | 2 — Seguridad y permisos | Activo / parcial |
 | Invitaciones admin + campañas | Hecho en código |
 | Métodos de pago + Storage | Hecho en código |
-| Impugnación cobros / alertas | Hecho en código |
-| Competencia automática por score | Hecho en main |
+| Impugnación cobros | Hecho en código |
+| Competencia automática | Hecho en main |
 | Admin → Firebase Auth | Preparado, **no implementado** |
+| Campamento Base (modularización) | **En curso en código** (services + fachadas; repos parciales) — no listado como hito formal en el roadmap de julio; ver commits recientes en `main` |
 
-Histórico adicional: `docs/archive/ROADMAP_2026-05.md` (puede citar archivos ausentes).
+Histórico: `docs/archive/ROADMAP_2026-05.md`.
 
-No se inventan hitos nuevos fuera de esas fuentes.
+No se inventan hitos fuera de fuentes del repo + estado verificable del código.
 
 ---
 
@@ -728,15 +645,14 @@ No se inventan hitos nuevos fuera de esas fuentes.
 
 Índice: [`docs/README.md`](docs/README.md).
 
-Deep-dives útiles:
-
 - [`docs/flujos/registro-aliados.md`](docs/flujos/registro-aliados.md)
 - [`docs/seguridad/autenticacion-sesiones.md`](docs/seguridad/autenticacion-sesiones.md)
 - [`docs/seguridad/credenciales-admin.md`](docs/seguridad/credenciales-admin.md)
 - [`docs/operaciones/roadmap.md`](docs/operaciones/roadmap.md)
+- Herramienta local: [`dev-tools/code-map/`](dev-tools/code-map/)
 
-`docs/flujos/chat-y-alerta.md` describe el modelo de chat histórico; contrastar con negociación en código.
+`docs/flujos/chat-y-alerta.md` describe el modelo histórico de chat; contrastar con negociación en código.
 
 ---
 
-*Auditoría basada en inspección del repositorio. El README describe únicamente funcionalidades y arquitectura verificadas en el proyecto; lo demás está etiquetado explícitamente.*
+*Auditoría basada en inspección del repositorio actual. El README describe únicamente funcionalidades y arquitectura verificadas; lo demás está etiquetado explícitamente.*
