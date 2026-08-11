@@ -728,6 +728,11 @@ test.describe('RUANA QA critica con video human-readable', () => {
       expected: 'Debe ver una notificacion con el motivo del rechazo.',
       result: 'La tarjeta de mensajes de RUANA queda visible.',
     });
+    // El hub colapsa a 1 aviso (pago pendiente); hay que expandir para ver mensajes.
+    const moreAlerts = page.locator('.ruana-alert-hub__more');
+    if (await moreAlerts.isVisible().catch(() => false)) {
+      await clickVisible(page, '.ruana-alert-hub__more');
+    }
     await clickVisible(page, '[data-alert-action="mensajes-ruana"]');
     await expect(page.locator('#ruana-alert-hub')).toContainText('Comprobante ilegible');
     await pass(page, scenario, {
