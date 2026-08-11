@@ -73,8 +73,7 @@ Orden profesional territorial: un oficio principal por plaza en cada grupo, repu
 3. **Repositorios incompletos:** existen stubs en `core/repositories/` para casi todos los dominios; **solo `score_repo.py` tiene SQL real**. El resto del SQL sigue en services / fachada.
 4. **Blueprints parciales:** `catalogo_bp` y `negociacion_bp` existen; la mayoría de rutas mutables siguen en `app.py`.
 5. **Esquema competencia `suplente_*` vs `retador_*`:** hay compatibilidad/migración entre nombres legacy y nuevos.
-6. **`README_RUANA_COMPLETO.md`:** puede divergir de este README.
-7. **RLS vs service role:** migraciones definen RLS; el backend usa **service role** y bypasea RLS. La autorización efectiva es la de la API Flask.
+6. **RLS vs service role:** migraciones definen RLS; el backend usa **service role** y bypasea RLS. La autorización efectiva es la de la API Flask.
 
 ---
 
@@ -157,8 +156,7 @@ No hay herencia de services desde `DBManager`: es **delegación** pasando `self`
 
 ```text
 /
-├── README.md
-├── README_RUANA_COMPLETO.md      # Copia histórica (puede divergir)
+├── README.md                     # Manual Maestro (única fuente en la raíz)
 ├── ROADMAP.md                    # Puntero a docs/operaciones/roadmap.md
 ├── Dockerfile
 ├── firebase.json
@@ -559,7 +557,6 @@ Firebase Auth admin; pasarela de pago; cablear `profiles`/Supabase Auth al login
 - Completar repos reales por dominio.
 - Mover rutas mutables a blueprints.
 - Eliminar o aislar chat libre y actualizar docs/E2E.
-- Duplicado documental `README_RUANA_COMPLETO.md`.
 - Plan Firebase Auth sin implementar.
 - Stubs/legado residuales en orquestador/métricas.
 

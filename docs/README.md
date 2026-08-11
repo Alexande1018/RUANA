@@ -5,9 +5,10 @@
 El **Manual Maestro** es la única fuente de verdad del proyecto:
 
 - [`/README.md`](../README.md)
-- Copia idéntica: [`/README_RUANA_COMPLETO.md`](../README_RUANA_COMPLETO.md)
 
 Todo documento secundario debe ser coherente con ese manual. Si hay conflicto, prevalece el Manual Maestro; si el Manual diverge del código, prevalece el **código**.
+
+Copia histórica retirada de la raíz: [`docs/archive/README_RUANA_COMPLETO.md`](archive/README_RUANA_COMPLETO.md).
 
 ## Árbol vigente
 

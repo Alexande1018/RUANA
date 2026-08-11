@@ -4,9 +4,9 @@
 
 | Archivo | Formato | Descripción |
 |---|---|---|
-| [README_RUANA_COMPLETO.docx](./README_RUANA_COMPLETO.docx) | Microsoft Word | Manual Maestro editable |
-| [README_RUANA_COMPLETO.pdf](./README_RUANA_COMPLETO.pdf) | PDF | Manual Maestro para lectura/impresión |
-| [`../../README_RUANA_COMPLETO.md`](../../README_RUANA_COMPLETO.md) | Markdown | Misma fuente (idéntica a `README.md`) |
+| [README_RUANA_COMPLETO.docx](./README_RUANA_COMPLETO.docx) | Microsoft Word | Export del Manual Maestro (generado desde `/README.md`) |
+| [README_RUANA_COMPLETO.pdf](./README_RUANA_COMPLETO.pdf) | PDF | Export del Manual Maestro (generado desde `/README.md`) |
+| [`../../README.md`](../../README.md) | Markdown | Fuente única del Manual Maestro |
 
 Regenerar:
 
