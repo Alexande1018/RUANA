@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RUANA Code Map</title>
+<script src="https://cdn.jsdelivr.net/npm/graphology@0.25.4/dist/graphology.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/graphology-layout@0.6.1/dist/graphology-layout.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/graphology-layout-forceatlas2@0.10.1/dist/graphology-layout-forceatlas2.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sigma@2.4.0/dist/sigma.min.js"></script>
+<style>
+  :root{
+    --bg:#0b0d11; --bg-panel:#12151b; --bg-panel-2:#171b22; --border:#242a34;
+    --text:#e7ebf1; --text-dim:#8993a4; --text-faint:#5b6472; --accent:#3ea6ff;
+    --mono:'SF Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+    --core:#3ea6ff; --engines:#c792ea; --backend:#f78c6c; --frontend:#82e0aa;
+    --utils:#7a8699; --metrics:#f5d76e; --events:#e06c75; --tests:#5b6472;
+    --devops:#56b6c2; --database:#ffab70; --api:#ff6ba8; --other:#8993a4;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);
+    font-family:var(--sans);overflow:hidden;}
+  #app{display:grid;grid-template-rows:auto auto 1fr auto;height:100vh;}
+
+  /* ---------- top bar ---------- */
+  #topbar{display:flex;align-items:center;gap:16px;padding:10px 16px;
+    background:var(--bg-panel);border-bottom:1px solid var(--border);flex-wrap:wrap;}
+  #topbar h1{font-size:14px;font-weight:600;margin:0;letter-spacing:.02em;white-space:nowrap;}
+  #topbar h1 span{color:var(--text-faint);font-weight:400;margin-left:6px;font-family:var(--mono);font-size:11px;}
+  #search{flex:1;min-width:180px;max-width:340px;background:var(--bg-panel-2);border:1px solid var(--border);
+    color:var(--text);padding:7px 10px;border-radius:6px;font-size:13px;outline:none;}
+  #search:focus{border-color:var(--accent);}
+  #searchResults{position:absolute;top:44px;background:var(--bg-panel-2);border:1px solid var(--border);
+    border-radius:6px;max-height:280px;overflow-y:auto;width:340px;z-index:50;display:none;}
+  #searchResults div{padding:7px 10px;font-size:12.5px;cursor:pointer;border-bottom:1px solid var(--border);}
+  #searchResults div:hover{background:var(--bg-panel);}
+  #searchResults .r-path{color:var(--text-faint);font-family:var(--mono);font-size:10.5px;}
+  .stat{font-size:11px;color:var(--text-faint);font-family:var(--mono);white-space:nowrap;}
+  #topbar .spacer{flex:1;}
+
+  /* ---------- views tab bar ---------- */
+  #tabs{display:flex;gap:2px;padding:0 16px;background:var(--bg-panel);border-bottom:1px solid var(--border);}
+  .tab{padding:9px 14px;font-size:12.5px;color:var(--text-dim);cursor:pointer;border-bottom:2px solid transparent;
+    user-select:none;}
+  .tab:hover{color:var(--text);}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+
+  /* ---------- main layout ---------- */
+  #main{display:grid;grid-template-columns:1fr 320px;overflow:hidden;position:relative;}
+  #graph-container{position:relative;overflow:hidden;background:var(--bg);}
+  #sigma-canvas{width:100%;height:100%;}
+  #healthView{position:absolute;inset:0;background:var(--bg);overflow-y:auto;display:none;padding:20px 28px;}
+
+  /* legend / filters (floating, over graph) */
+  #legend{position:absolute;left:12px;bottom:12px;background:rgba(18,21,27,.92);border:1px solid var(--border);
+    border-radius:8px;padding:10px 12px;font-size:11.5px;z-index:10;max-width:190px;backdrop-filter:blur(4px);}
+  #legend .lg-title{color:var(--text-faint);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
+  .lg-item{display:flex;align-items:center;gap:7px;padding:2px 0;cursor:pointer;opacity:1;}
+  .lg-item.off{opacity:.3;}
+  .lg-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+  .lg-item span{color:var(--text-dim);}
+
+  #edgeLegend{position:absolute;left:12px;top:12px;background:rgba(18,21,27,.92);border:1px solid var(--border);
+    border-radius:8px;padding:10px 12px;font-size:11px;z-index:10;backdrop-filter:blur(4px);}
+  #edgeLegend .lg-title{color:var(--text-faint);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
+  .el-item{display:flex;align-items:center;gap:7px;padding:2px 0;cursor:pointer;}
+  .el-item.off{opacity:.3;}
+  .el-line{width:16px;height:2px;flex-shrink:0;}
+
+  #zoomCtrl{position:absolute;right:336px;bottom:12px;display:flex;flex-direction:column;gap:4px;z-index:10;}
+  #zoomCtrl button{width:30px;height:30px;background:rgba(18,21,27,.92);border:1px solid var(--border);
+    color:var(--text);border-radius:6px;cursor:pointer;font-size:15px;line-height:1;}
+  #zoomCtrl button:hover{background:var(--bg-panel-2);}
+
+  #emptyHint{position:absolute;right:340px;top:12px;font-size:11px;color:var(--text-faint);z-index:10;
+    background:rgba(18,21,27,.85);padding:6px 10px;border-radius:6px;border:1px solid var(--border);}
+
+  /* ---------- side panel ---------- */
+  #panel{background:var(--bg-panel);border-left:1px solid var(--border);overflow-y:auto;padding:16px;font-size:12.5px;}
+  #panel h2{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);margin:0 0 10px;}
+  #panel .empty{color:var(--text-faint);font-size:12px;line-height:1.6;margin-top:8px;}
+  .node-title{font-family:var(--mono);font-size:14px;color:var(--text);word-break:break-all;margin-bottom:2px;}
+  .node-path{font-family:var(--mono);font-size:10.5px;color:var(--text-faint);word-break:break-all;margin-bottom:14px;}
+  .kv{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:11.5px;}
+  .kv span:first-child{color:var(--text-dim);}
+  .kv span:last-child{font-family:var(--mono);color:var(--text);}
+  .section{margin-top:16px;}
+  .section h3{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);margin:0 0 6px;}
+  .chip-list{display:flex;flex-wrap:wrap;gap:5px;}
+  .chip{background:var(--bg-panel-2);border:1px solid var(--border);border-radius:4px;padding:2px 7px;
+    font-family:var(--mono);font-size:11px;color:var(--text-dim);}
+  .flat-list{max-height:160px;overflow-y:auto;}
+  .flat-list div{padding:4px 6px;font-family:var(--mono);font-size:11px;color:var(--text-dim);cursor:pointer;
+    border-radius:4px;}
+  .flat-list div:hover{background:var(--bg-panel-2);color:var(--text);}
+  .route-row{padding:4px 0;border-bottom:1px solid var(--border);font-size:11px;font-family:var(--mono);}
+  .route-row .method{color:var(--accent);margin-right:6px;}
+  #impactBtns{display:flex;gap:6px;margin-top:10px;}
+  #impactBtns button{flex:1;background:var(--bg-panel-2);border:1px solid var(--border);color:var(--text);
+    padding:6px 4px;border-radius:6px;font-size:11px;cursor:pointer;}
+  #impactBtns button:hover{border-color:var(--accent);color:var(--accent);}
+  #impactBtns button.active{border-color:var(--accent);color:var(--accent);background:rgba(62,166,255,.1);}
+  #clearSel{width:100%;margin-top:10px;background:transparent;border:1px solid var(--border);color:var(--text-dim);
+    padding:6px;border-radius:6px;font-size:11px;cursor:pointer;}
+  #clearSel:hover{color:var(--text);}
+
+  /* ---------- health view ---------- */
+  .h-section{margin-bottom:26px;max-width:820px;}
+  .h-section h2{font-size:13px;color:var(--text);margin:0 0 4px;display:flex;align-items:center;gap:8px;}
+  .h-section .h-count{font-family:var(--mono);font-size:11px;background:var(--bg-panel-2);border:1px solid var(--border);
+    padding:1px 8px;border-radius:10px;color:var(--text-dim);}
+  .h-section p.h-desc{color:var(--text-faint);font-size:11.5px;margin:0 0 10px;}
+  .h-row{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:var(--bg-panel);
+    border:1px solid var(--border);border-radius:6px;margin-bottom:5px;cursor:pointer;font-size:12px;}
+  .h-row:hover{border-color:var(--accent);}
+  .h-row .h-label{font-family:var(--mono);color:var(--text);}
+  .h-row .h-meta{color:var(--text-faint);font-size:11px;}
+  .h-bar{height:5px;background:var(--bg-panel-2);border-radius:3px;overflow:hidden;width:80px;margin-left:10px;flex-shrink:0;}
+  .h-bar-fill{height:100%;background:var(--accent);}
+  .h-cycle{font-family:var(--mono);font-size:11px;color:var(--text-dim);padding:8px 10px;background:var(--bg-panel);
+    border:1px solid #e06c75;border-radius:6px;margin-bottom:6px;}
+  .h-empty{color:var(--text-faint);font-size:12px;padding:10px;background:var(--bg-panel);border-radius:6px;border:1px solid var(--border);}
+
+  /* ---------- bottom status ---------- */
+  #statusbar{display:flex;align-items:center;gap:18px;padding:6px 16px;background:var(--bg-panel);
+    border-top:1px solid var(--border);font-size:10.5px;color:var(--text-faint);font-family:var(--mono);}
+  #loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:10px;z-index:100;font-size:13px;color:var(--text-dim);}
+  #loading .spin{width:22px;height:22px;border:2px solid var(--border);border-top-color:var(--accent);
+    border-radius:50%;animation:sp .7s linear infinite;}
+  @keyframes sp{to{transform:rotate(360deg);}}
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="spin"></div><div id="loadingMsg">Cargando graph.json…</div></div>
+
+<div id="app" style="display:none;">
+  <div id="topbar">
+    <h1>RUANA Code Map <span id="commitTag"></span></h1>
+    <div style="position:relative;">
+      <input id="search" placeholder="Buscar archivo, clase, función, ruta…" autocomplete="off">
+      <div id="searchResults"></div>
+    </div>
+    <div class="spacer"></div>
+    <div class="stat" id="statNodes">–</div>
+    <div class="stat" id="statEdges">–</div>
+    <div class="stat" id="statLoc">–</div>
+  </div>
+
+  <div id="tabs">
+    <div class="tab active" data-view="architecture">ARCHITECTURE</div>
+    <div class="tab" data-view="files">FILES</div>
+    <div class="tab" data-view="modules">MODULES</div>
+    <div class="tab" data-view="impact">IMPACT</div>
+    <div class="tab" data-view="health">HEALTH</div>
+  </div>
+
+  <div id="main">
+    <div id="graph-container">
+      <div id="sigma-canvas"></div>
+      <div id="edgeLegend">
+        <div class="lg-title">Conexiones</div>
+        <div class="el-item" data-etype="import"><div class="el-line" style="background:#3ea6ff"></div><span>import</span></div>
+        <div class="el-item" data-etype="defines"><div class="el-line" style="background:#ff6ba8"></div><span>define ruta</span></div>
+        <div class="el-item" data-etype="fetch"><div class="el-line" style="background:#82e0aa"></div><span>fetch()</span></div>
+        <div class="el-item" data-etype="script"><div class="el-line" style="background:#f5d76e"></div><span>&lt;script src&gt;</span></div>
+        <div class="el-item" data-etype="db"><div class="el-line" style="background:#ffab70"></div><span>tabla SQL</span></div>
+      </div>
+      <div id="legend">
+        <div class="lg-title">Áreas</div>
+        <div id="legendItems"></div>
+      </div>
+      <div id="emptyHint">Selecciona un nodo para ver detalles →</div>
+      <div id="zoomCtrl">
+        <button id="zIn">+</button>
+        <button id="zOut">–</button>
+        <button id="zReset">⤢</button>
+      </div>
+    </div>
+    <div id="healthView"></div>
+    <div id="panel">
+      <h2>Nodo seleccionado</h2>
+      <div id="panelBody"><div class="empty">Haz clic en cualquier nodo del grafo, o búscalo arriba, para ver sus imports, funciones, clases y rutas reales extraídas del código.</div></div>
+    </div>
+  </div>
+
+  <div id="statusbar">
+    <span id="genAt"></span>
+    <span id="viewHint">Vista: grafo completo de archivos</span>
+    <span style="flex:1"></span>
+    <span>Rueda = zoom · arrastrar = mover · clic en nodo = detalle</span>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var GROUP_COLORS = {
+    core:'#3ea6ff', engines:'#c792ea', backend:'#f78c6c', frontend:'#82e0aa',
+    utils:'#7a8699', metrics:'#f5d76e', events:'#e06c75', tests:'#5b6472',
+    devops:'#56b6c2', database:'#ffab70', api:'#ff6ba8', other:'#8993a4'
+  };
+  var EDGE_COLORS = {
+    import:'#3ea6ff', defines:'#ff6ba8', fetch:'#82e0aa', script:'#f5d76e', db:'#ffab70'
+  };
+  var GROUP_LABELS = {
+    core:'core', engines:'engines', backend:'backend (web/app)', frontend:'frontend (JS/HTML)',
+    utils:'utils', metrics:'metrics', events:'events', tests:'tests',
+    devops:'devops/scripts', database:'database', api:'API routes', other:'otros'
+  };
+
+  var raw = null;            // graph.json
+  var nodeById = {};
+  var edgesOut = {};         // id -> [{target,type}]
+  var edgesIn = {};          // id -> [{source,type}]
+  var sigmaInstance = null;
+  var graph = null;
+  var currentView = 'architecture';
+  var activeGroups = new Set(Object.keys(GROUP_COLORS));
+  var activeEdgeTypes = new Set(Object.keys(EDGE_COLORS));
+  var selectedNode = null;
+  var impactMode = null; // 'up' | 'down' | null
+
+  function byId(id){ return document.getElementById(id); }
+
+  function loadGraph(){
+    fetch('graph.json').then(function(r){
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      return r.json();
+    }).then(function(data){
+      raw = data;
+      init();
+    }).catch(function(err){
+      byId('loadingMsg').innerHTML =
+        'No se pudo cargar <code>graph.json</code> (' + err.message + ').<br><br>' +
+        'Este visor usa <code>fetch()</code>, que los navegadores bloquean sobre archivos abiertos con doble clic (file://).<br>' +
+        'Sirve la carpeta con un servidor local, por ejemplo:<br><br>' +
+        '<code style="background:#171b22;padding:4px 8px;border-radius:4px;">cd dev-tools/code-map &amp;&amp; python3 -m http.server 8842</code><br><br>' +
+        'y abre <code>http://localhost:8842</code>.';
+    });
+  }
+
+  function init(){
+    raw.nodes.forEach(function(n){ nodeById[n.id]=n; edgesOut[n.id]=[]; edgesIn[n.id]=[]; });
+    raw.edges.forEach(function(e){
+      edgesOut[e.source] = edgesOut[e.source]||[]; edgesOut[e.source].push(e);
+      edgesIn[e.target] = edgesIn[e.target]||[]; edgesIn[e.target].push(e);
+    });
+
+    byId('commitTag').textContent = '@' + (raw.repo_commit||'?');
+    byId('statNodes').textContent = raw.stats.total_nodes + ' nodos';
+    byId('statEdges').textContent = raw.stats.total_edges + ' conexiones';
+    byId('statLoc').textContent = raw.stats.total_loc.toLocaleString('es') + ' LOC';
+    byId('genAt').textContent = 'generado ' + (raw.generated_at||'').replace('T',' ').slice(0,16) + ' UTC';
+
+    buildLegend();
+    bindTabs();
+    bindLegendToggles();
+    bindZoom();
+    bindSearch();
+    renderView('architecture');
+
+    byId('loading').style.display='none';
+    byId('app').style.display='grid';
+  }
+
+  function buildLegend(){
+    var box = byId('legendItems');
+    box.innerHTML='';
+    Object.keys(GROUP_COLORS).forEach(function(g){
+      var count = raw.nodes.filter(function(n){return n.group===g;}).length;
+      if(count===0) return;
+      var div=document.createElement('div');
+      div.className='lg-item'; div.dataset.group=g;
+      div.innerHTML='<div class="lg-dot" style="background:'+GROUP_COLORS[g]+'"></div><span>'+GROUP_LABELS[g]+' ('+count+')</span>';
+      div.onclick=function(){
+        if(activeGroups.has(g)){ activeGroups.delete(g); div.classList.add('off'); }
+        else { activeGroups.add(g); div.classList.remove('off'); }
+        renderView(currentView);
+      };
+      box.appendChild(div);
+    });
+  }
+
+  function bindLegendToggles(){
+    document.querySelectorAll('.el-item').forEach(function(el){
+      el.onclick=function(){
+        var t=el.dataset.etype;
+        if(activeEdgeTypes.has(t)){ activeEdgeTypes.delete(t); el.classList.add('off'); }
+        else { activeEdgeTypes.add(t); el.classList.remove('off'); }
+        renderView(currentView);
+      };
+    });
+  }
+
+  function bindTabs(){
+    document.querySelectorAll('.tab').forEach(function(t){
+      t.onclick=function(){
+        document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active');});
+        t.classList.add('active');
+        currentView = t.dataset.view;
+        impactMode = null; selectedNode=null;
+        if(currentView==='health'){
+          byId('healthView').style.display='block';
+          byId('sigma-canvas').style.display='none';
+          byId('legend').style.display='none';
+          byId('edgeLegend').style.display='none';
+          byId('zoomCtrl').style.display='none';
+          renderHealth();
+        } else {
+          byId('healthView').style.display='none';
+          byId('sigma-canvas').style.display='block';
+          byId('legend').style.display='block';
+          byId('edgeLegend').style.display='block';
+          byId('zoomCtrl').style.display='flex';
+          renderView(currentView);
+        }
+        var hints={architecture:'Vista: áreas del proyecto agregadas',
+          files:'Vista: grafo de archivos reales (imports, scripts, fetch, tablas)',
+          modules:'Vista: archivos agrupados por carpeta real',
+          impact:'Vista: selecciona un nodo para ver su radio de impacto'};
+        byId('viewHint').textContent = hints[currentView]||'';
+      };
+    });
+  }
+
+  function bindZoom(){
+    byId('zIn').onclick=function(){ if(sigmaInstance) sigmaInstance.getCamera().animatedZoom({duration:200}); };
+    byId('zOut').onclick=function(){ if(sigmaInstance) sigmaInstance.getCamera().animatedUnzoom({duration:200}); };
+    byId('zReset').onclick=function(){ if(sigmaInstance) sigmaInstance.getCamera().animatedReset({duration:250}); };
+  }
+
+  function bindSearch(){
+    var input = byId('search'), box = byId('searchResults');
+    input.addEventListener('input', function(){
+      var q = input.value.trim().toLowerCase();
+      if(q.length<2){ box.style.display='none'; return; }
+      var results = [];
+      raw.nodes.forEach(function(n){
+        var hay = [n.label, n.path||'', (n.classes||[]).map(function(c){return c.name;}).join(' '),
+          (n.functions||[]).join(' '), (n.routes||[]).map(function(r){return r.path;}).join(' ')].join(' ').toLowerCase();
+        if(hay.indexOf(q)!==-1) results.push(n);
+      });
+      results = results.slice(0,25);
+      box.innerHTML = results.length ? '' : '<div style="color:var(--text-faint);cursor:default;">Sin resultados</div>';
+      results.forEach(function(n){
+        var d=document.createElement('div');
+        d.innerHTML = n.label + (n.path?'<div class="r-path">'+n.path+'</div>':'');
+        d.onclick=function(){
+          box.style.display='none'; input.value='';
+          goToNodeAcrossViews(n.id);
+        };
+        box.appendChild(d);
+      });
+      box.style.display='block';
+    });
+    document.addEventListener('click', function(e){
+      if(e.target!==input) box.style.display='none';
+    });
+  }
+
+  function goToNodeAcrossViews(id){
+    var n = nodeById[id];
+    if(!n) return;
+    if(currentView==='architecture' || currentView==='modules'){
+      document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active');});
+      document.querySelector('.tab[data-view="files"]').classList.add('active');
+      currentView='files';
+      renderView('files');
+    }
+    setTimeout(function(){
+      selectNode(id);
+      if(sigmaInstance && graph.hasNode(id)){
+        var pos = sigmaInstance.getNodeDisplayData(id);
+        if(pos) sigmaInstance.getCamera().animate({x:pos.x,y:pos.y,ratio:0.15},{duration:400});
+      }
+    }, 60);
+  }
+
+  /* ---------------- Graph construction per view ---------------- */
+
+  function visibleFileNodes(){
+    return raw.nodes.filter(function(n){ return activeGroups.has(n.group); });
+  }
+  function visibleEdges(){
+    var idset = {};
+    visibleFileNodes().forEach(function(n){ idset[n.id]=true; });
+    return raw.edges.filter(function(e){
+      return activeEdgeTypes.has(e.type) && idset[e.source] && idset[e.target];
+    });
+  }
+
+  function renderView(view){
+    if(view==='health') return;
+    if(view==='architecture') return renderAggregate('group');
+    if(view==='modules') return renderAggregate('folder');
+    return renderFilesGraph();
+  }
+
+  function renderFilesGraph(){
+    graph = new graphology.Graph();
+    var vn = visibleFileNodes();
+    var ve = visibleEdges();
+    var deg = {};
+    ve.forEach(function(e){ deg[e.source]=(deg[e.source]||0)+1; deg[e.target]=(deg[e.target]||0)+1; });
+
+    vn.forEach(function(n){
+      var d = deg[n.id]||0;
+      var size = n.type==='route' ? 3 : n.type==='table' ? 4 + Math.min(d,10)*0.6 : 4 + Math.min(d,25)*0.5;
+      graph.addNode(n.id, {
+        label: n.label, size: size, color: GROUP_COLORS[n.group]||GROUP_COLORS.other,
+        x: Math.random()*10, y: Math.random()*10, nodeType:n.type
+      });
+    });
+    ve.forEach(function(e,i){
+      if(!graph.hasNode(e.source)||!graph.hasNode(e.target)) return;
+      var key = 'e'+i+'_'+e.source+'_'+e.target;
+      if(graph.hasEdge(e.source,e.target)) return;
+      graph.addEdge(e.source, e.target, {size:0.6, color:hexAlpha(EDGE_COLORS[e.type]||'#555', .35), edgeType:e.type});
+    });
+
+    runLayout(graph, vn.length > 260 ? 60 : 120);
+    mountSigma();
+  }
+
+  function renderAggregate(mode){
+    graph = new graphology.Graph();
+    var vn = visibleFileNodes();
+    var groups = {};
+    vn.forEach(function(n){
+      var key = mode==='group' ? n.group : folderOf(n);
+      groups[key] = groups[key] || {count:0, loc:0, color: mode==='group' ? GROUP_COLORS[n.group] : GROUP_COLORS[n.group]};
+      groups[key].count++;
+      groups[key].loc += n.loc||0;
+    });
+    var idset = {};
+    vn.forEach(function(n){ idset[n.id]=true; });
+    var pairCounts = {};
+    visibleEdges().forEach(function(e){
+      var sn = nodeById[e.source], tn = nodeById[e.target];
+      if(!sn||!tn) return;
+      var a = mode==='group' ? sn.group : folderOf(sn);
+      var b = mode==='group' ? tn.group : folderOf(tn);
+      if(a===b) return;
+      var key = a+'→'+b;
+      pairCounts[key] = (pairCounts[key]||0)+1;
+    });
+
+    Object.keys(groups).forEach(function(g){
+      var info = groups[g];
+      graph.addNode(g, {
+        label: (mode==='group' ? (GROUP_LABELS[g]||g) : g) + '  ('+info.count+')',
+        size: 10 + Math.min(info.count,60)*1.1,
+        color: info.color || '#8993a4',
+        x: Math.random()*10, y: Math.random()*10
+      });
+    });
+    Object.keys(pairCounts).forEach(function(key){
+      var parts = key.split('→');
+      if(!graph.hasNode(parts[0])||!graph.hasNode(parts[1])) return;
+      graph.addEdge(parts[0], parts[1], {
+        size: Math.min(1+pairCounts[key]*0.18, 8),
+        color: 'rgba(150,160,180,.28)',
+        edgeType:'agg'
+      });
+    });
+
+    runLayout(graph, 90);
+    mountSigma();
+  }
+
+  function folderOf(n){
+    if(!n.path) return n.group;
+    var parts = n.path.split('/');
+    parts.pop();
+    return parts.join('/') || n.group;
+  }
+
+  function runLayout(g, iterations){
+    if(g.order===0) return;
+    graphologyLayout.circular.assign(g);
+    var settings = graphologyLayoutForceAtlas2.inferSettings(g);
+    settings.gravity = 1.2;
+    settings.scalingRatio = 12;
+    graphologyLayoutForceAtlas2.assign(g, {iterations: iterations, settings: settings});
+  }
+
+  function hexAlpha(hex, a){
+    var r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+    return 'rgba('+r+','+g+','+b+','+a+')';
+  }
+
+  function mountSigma(){
+    if(sigmaInstance){ sigmaInstance.kill(); sigmaInstance=null; }
+    var el = byId('sigma-canvas');
+    sigmaInstance = new Sigma(graph, el, {
+      renderLabels: true, labelRenderedSizeThreshold: currentView==='files' ? 7 : 0,
+      labelSize: 11, labelColor:{color:'#c7ccd6'}, defaultEdgeType:'line',
+      allowInvalidContainer:true
+    });
+    sigmaInstance.on('clickNode', function(ev){
+      if(currentView==='architecture'||currentView==='modules'){
+        highlightAggregateNode(ev.node);
+        return;
+      }
+      selectNode(ev.node);
+    });
+    sigmaInstance.on('clickStage', function(){
+      if(currentView==='files'||currentView==='impact') clearSelection();
+    });
+    if(selectedNode && currentView!=='architecture' && currentView!=='modules' && graph.hasNode(selectedNode)){
+      applySelectionStyles();
+    }
+  }
+
+  function highlightAggregateNode(id){
+    byId('panelBody').innerHTML =
+      '<div class="node-title">'+id+'</div>' +
+      '<div class="node-path">grupo agregado — cambia a la vista FILES y busca para inspeccionar archivos individuales</div>';
+  }
+
+  /* ---------------- Node selection / side panel ---------------- */
+
+  function clearSelection(){
+    selectedNode=null; impactMode=null;
+    byId('panelBody').innerHTML = '<div class="empty">Haz clic en cualquier nodo del grafo, o búscalo arriba, para ver sus imports, funciones, clases y rutas reales extraídas del código.</div>';
+    byId('emptyHint').style.display='block';
+    if(graph) resetGraphStyles();
+  }
+
+  function resetGraphStyles(){
+    graph.forEachNode(function(id, attrs){
+      graph.setNodeAttribute(id,'color', attrs.origColor || attrs.color);
+      graph.setNodeAttribute(id,'highlighted', false);
+    });
+    graph.forEachEdge(function(edgeId, attrs, s, t){
+      graph.setEdgeAttribute(edgeId,'hidden', false);
+      graph.setEdgeAttribute(edgeId,'color', attrs.origColor || attrs.color);
+    });
+  }
+
+  function selectNode(id){
+    var n = nodeById[id];
+    if(!n) return;
+    selectedNode = id;
+    byId('emptyHint').style.display='none';
+    renderPanel(n);
+    if(graph && graph.hasNode(id)) applySelectionStyles();
+  }
+
+  function applySelectionStyles(){
+    var id = selectedNode;
+    var neighbors = new Set([id]);
+    (edgesOut[id]||[]).forEach(function(e){ if(activeEdgeTypes.has(e.type)) neighbors.add(e.target); });
+    (edgesIn[id]||[]).forEach(function(e){ if(activeEdgeTypes.has(e.type)) neighbors.add(e.source); });
+
+    if(impactMode){
+      neighbors = new Set([id]);
+      var frontier=[id], depth=0;
+      var map = impactMode==='down' ? edgesOut : edgesIn;
+      var seen = new Set([id]);
+      while(frontier.length && depth<12){
+        var next=[];
+        frontier.forEach(function(nid){
+          (map[nid]||[]).forEach(function(e){
+            var other = impactMode==='down' ? e.target : e.source;
+            if(!seen.has(other)){ seen.add(other); next.push(other); neighbors.add(other); }
+          });
+        });
+        frontier=next; depth++;
+      }
+    }
+
+    graph.forEachNode(function(nid, attrs){
+      if(!attrs.origColor) graph.setNodeAttribute(nid,'origColor', attrs.color);
+      if(neighbors.has(nid)){
+        graph.setNodeAttribute(nid,'color', attrs.origColor);
+        graph.setNodeAttribute(nid,'highlighted', nid===id);
+      } else {
+        graph.setNodeAttribute(nid,'color', 'rgba(90,96,110,.25)');
+        graph.setNodeAttribute(nid,'highlighted', false);
+      }
+    });
+    graph.forEachEdge(function(edgeId, attrs, s, t){
+      if(!attrs.origColor) graph.setEdgeAttribute(edgeId,'origColor', attrs.color);
+      var show = neighbors.has(s) && neighbors.has(t);
+      graph.setEdgeAttribute(edgeId,'hidden', !show);
+    });
+  }
+
+  function renderPanel(n){
+    var html = '';
+    html += '<div class="node-title">'+escapeHtml(n.label)+'</div>';
+    if(n.path) html += '<div class="node-path">'+escapeHtml(n.path)+'</div>';
+
+    html += '<div class="kv"><span>Tipo</span><span>'+n.type+'</span></div>';
+    html += '<div class="kv"><span>Área</span><span>'+(GROUP_LABELS[n.group]||n.group)+'</span></div>';
+    if(n.type==='file'){
+      html += '<div class="kv"><span>Líneas</span><span>'+n.loc+'</span></div>';
+    }
+    html += '<div class="kv"><span>Conexiones</span><span>'+(n.degree!=null?n.degree:'–')+'</span></div>';
+    if(n.meta && n.meta.defined_in){
+      html += '<div class="kv"><span>Definida en</span><span>'+n.meta.defined_in+'</span></div>';
+    }
+    if(n.meta && n.meta.handler){
+      html += '<div class="kv"><span>Handler</span><span>'+n.meta.handler+'()</span></div>';
+    }
+    if(n.meta && n.meta.parse_error){
+      html += '<div class="kv" style="border-color:#e06c75"><span style="color:#e06c75">Error de parseo</span><span></span></div>';
+    }
+
+    if(n.classes && n.classes.length){
+      html += '<div class="section"><h3>Clases ('+n.classes.length+')</h3><div class="chip-list">';
+      n.classes.forEach(function(c){ html += '<span class="chip" title="'+c.methods.length+' métodos">'+escapeHtml(c.name)+'</span>'; });
+      html += '</div></div>';
+    }
+    if(n.functions && n.functions.length){
+      html += '<div class="section"><h3>Funciones ('+n.functions.length+')</h3><div class="chip-list">';
+      n.functions.slice(0,40).forEach(function(f){ html += '<span class="chip">'+escapeHtml(f)+'()</span>'; });
+      html += '</div></div>';
+    }
+    if(n.routes && n.routes.length){
+      html += '<div class="section"><h3>Rutas Flask ('+n.routes.length+')</h3><div>';
+      n.routes.forEach(function(r){
+        html += '<div class="route-row"><span class="method">'+r.methods.join('/')+'</span>'+escapeHtml(r.path)+'</div>';
+      });
+      html += '</div></div>';
+    }
+    if(n.meta && n.meta.creates_tables && n.meta.creates_tables.length){
+      html += '<div class="section"><h3>Tablas creadas</h3><div class="chip-list">';
+      n.meta.creates_tables.forEach(function(t){ html += '<span class="chip">'+t+'</span>'; });
+      html += '</div></div>';
+    }
+    if(n.meta && n.meta.fetch_paths && n.meta.fetch_paths.length){
+      html += '<div class="section"><h3>Llamadas fetch()</h3><div class="chip-list">';
+      n.meta.fetch_paths.forEach(function(p){ html += '<span class="chip">'+escapeHtml(p)+'</span>'; });
+      html += '</div></div>';
+    }
+
+    var outs = (edgesOut[n.id]||[]);
+    var ins = (edgesIn[n.id]||[]);
+    if(outs.length){
+      html += '<div class="section"><h3>Depende de ('+outs.length+')</h3><div class="flat-list">';
+      outs.forEach(function(e){
+        var t = nodeById[e.target];
+        html += '<div data-goto="'+e.target+'">→ '+(t?t.label:e.target)+' <span style="color:var(--text-faint)">['+e.type+']</span></div>';
+      });
+      html += '</div></div>';
+    }
+    if(ins.length){
+      html += '<div class="section"><h3>Usado por ('+ins.length+')</h3><div class="flat-list">';
+      ins.forEach(function(e){
+        var s = nodeById[e.source];
+        html += '<div data-goto="'+e.source+'">← '+(s?s.label:e.source)+' <span style="color:var(--text-faint)">['+e.type+']</span></div>';
+      });
+      html += '</div></div>';
+    }
+
+    html += '<div id="impactBtns">' +
+      '<button data-mode="down">▼ depende de</button>' +
+      '<button data-mode="up">▲ le afecta</button>' +
+      '</div>';
+    html += '<button id="clearSel">Limpiar selección</button>';
+
+    byId('panelBody').innerHTML = html;
+
+    document.querySelectorAll('#panelBody [data-goto]').forEach(function(el){
+      el.onclick=function(){ goToNodeAcrossViews(el.dataset.goto); };
+    });
+    document.querySelectorAll('#impactBtns button').forEach(function(btn){
+      btn.onclick=function(){
+        impactMode = impactMode===btn.dataset.mode ? null : btn.dataset.mode;
+        document.querySelectorAll('#impactBtns button').forEach(function(b){b.classList.remove('active');});
+        if(impactMode) btn.classList.add('active');
+        applySelectionStyles();
+      };
+    });
+    byId('clearSel').onclick = clearSelection;
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  /* ---------------- HEALTH view ---------------- */
+
+  function renderHealth(){
+    var h = raw.health;
+    var html = '';
+
+    html += '<div class="h-section"><h2>Dependencias circulares <span class="h-count">'+h.cycles.length+'</span></h2>';
+    html += '<p class="h-desc">Ciclos en la cadena de imports de Python (A importa B, B importa A, directa o transitivamente).</p>';
+    if(h.cycles.length===0){
+      html += '<div class="h-empty">No se detectaron ciclos de imports en el código real analizado.</div>';
+    } else {
+      h.cycles.forEach(function(c){ html += '<div class="h-cycle">'+c.join('  →  ')+'</div>'; });
+    }
+    html += '</div>';
+
+    html += '<div class="h-section"><h2>Módulos más conectados <span class="h-count">top '+h.hot_modules.length+'</span></h2>';
+    html += '<p class="h-desc">Archivos con más conexiones entrantes/salientes — cambiarlos tiene el radio de impacto más amplio.</p>';
+    var maxDeg = Math.max.apply(null, h.hot_modules.map(function(m){return m.degree;})||[1]);
+    h.hot_modules.forEach(function(m){
+      html += '<div class="h-row" data-goto="'+m.id+'"><span class="h-label">'+m.id+'</span>' +
+        '<div style="display:flex;align-items:center;"><span class="h-meta">'+m.degree+' conexiones</span>' +
+        '<div class="h-bar"><div class="h-bar-fill" style="width:'+Math.round(m.degree/maxDeg*100)+'%"></div></div></div></div>';
+    });
+    html += '</div>';
+
+    html += '<div class="h-section"><h2>Archivos aislados <span class="h-count">'+h.isolated_files.length+'</span></h2>';
+    html += '<p class="h-desc">Sin ninguna conexión detectada (ni imports, ni rutas, ni referencias) — revisar si son entry points legítimos o código muerto.</p>';
+    if(h.isolated_files.length===0){ html += '<div class="h-empty">Ninguno.</div>'; }
+    else h.isolated_files.forEach(function(id){ html += '<div class="h-row" data-goto="'+id+'"><span class="h-label">'+id+'</span></div>'; });
+    html += '</div>';
+
+    html += '<div class="h-section"><h2>Candidatos a código sin uso <span class="h-count">'+h.unused_candidates.length+'</span></h2>';
+    html += '<p class="h-desc">Archivos .py que ningún otro módulo importa y que no definen rutas Flask. Es una señal heurística basada en el grafo de imports estático, no una confirmación — revisa manualmente antes de borrar (puede haber uso dinámico, scripts standalone o entry points).</p>';
+    if(h.unused_candidates.length===0){ html += '<div class="h-empty">Ninguno.</div>'; }
+    else h.unused_candidates.forEach(function(id){ html += '<div class="h-row" data-goto="'+id+'"><span class="h-label">'+id+'</span></div>'; });
+    html += '</div>';
+
+    if(h.unresolved_internal_imports){
+      html += '<div class="h-section"><h2>Imports internos no resueltos <span class="h-count">'+h.unresolved_internal_imports+'</span></h2>';
+      html += '<p class="h-desc">Referencias a core.*/web.*/engines.* etc. que el escáner no pudo mapear a un archivo — normalmente imports dinámicos o de símbolos, no rutas de módulo.</p></div>';
+    }
+
+    byId('healthView').innerHTML = html;
+    document.querySelectorAll('#healthView [data-goto]').forEach(function(el){
+      el.onclick=function(){
+        var id = el.dataset.goto;
+        document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active');});
+        document.querySelector('.tab[data-view="files"]').classList.add('active');
+        currentView='files';
+        byId('healthView').style.display='none';
+        byId('sigma-canvas').style.display='block';
+        byId('legend').style.display='block';
+        byId('edgeLegend').style.display='block';
+        byId('zoomCtrl').style.display='flex';
+        renderView('files');
+        setTimeout(function(){ goToNodeAcrossViews(id); }, 80);
+      };
+    });
+  }
+
+  loadGraph();
+})();
+</script>
+</body>
+</html>
