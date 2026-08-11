@@ -1,6 +1,19 @@
 from io import BytesIO
+from pathlib import Path
 
 import pytest
+
+
+class _SettingsConfigured:
+    supabase_configured = True
+
+
+class _SettingsUnconfigured:
+    supabase_configured = False
+
+
+def _force_supabase(monkeypatch, storage_manager):
+    monkeypatch.setattr(storage_manager, "get_settings", lambda: _SettingsConfigured())
 
 
 def test_upload_ruana_file_rejects_files_over_2mb():
@@ -37,6 +50,7 @@ def test_upload_ruana_file_allows_larger_foto_perfil_limit(monkeypatch):
     class FakeClient:
         storage = FakeStorage()
 
+    _force_supabase(monkeypatch, storage_manager)
     monkeypatch.setattr(storage_manager, "get_supabase_admin_client", lambda: FakeClient())
 
     payload = b"x" * (MAX_UPLOAD_BYTES + 1)
@@ -51,6 +65,7 @@ def test_upload_ruana_file_allows_larger_foto_perfil_limit(monkeypatch):
     )
 
     assert result["size"] == str(len(payload))
+    assert result["bucket"] == "ruana-public"
 
 
 def test_upload_ruana_file_rejects_foto_perfil_over_15mb():
@@ -94,6 +109,7 @@ def test_upload_foto_perfil_file_optimizes_before_storage(monkeypatch):
     class FakeClient:
         storage = FakeStorage()
 
+    _force_supabase(monkeypatch, storage_manager)
     monkeypatch.setattr(storage_manager, "get_supabase_admin_client", lambda: FakeClient())
 
     img = Image.new("RGB", (4000, 3000), color=(200, 100, 50))
@@ -134,6 +150,7 @@ def test_upload_ruana_file_uses_supabase_storage(monkeypatch):
     class FakeClient:
         storage = FakeStorage()
 
+    _force_supabase(monkeypatch, storage_manager)
     monkeypatch.setattr(storage_manager, "get_supabase_admin_client", lambda: FakeClient())
 
     result = storage_manager.upload_ruana_file(
@@ -151,6 +168,48 @@ def test_upload_ruana_file_uses_supabase_storage(monkeypatch):
     assert calls[1][0] == "upload"
     assert calls[1][2] == b"hola"
     assert calls[1][3]["content-type"] == "image/png"
+
+
+def test_upload_ruana_file_falls_back_to_local_when_supabase_missing(monkeypatch, tmp_path):
+    from RUANA.core import storage_manager
+
+    monkeypatch.setattr(storage_manager, "get_settings", lambda: _SettingsUnconfigured())
+    monkeypatch.setenv("RUANA_ALLOW_LOCAL_UPLOADS", "1")
+    monkeypatch.setattr(storage_manager, "_web_static_root", lambda: tmp_path)
+
+    result = storage_manager.upload_ruana_file(
+        file_obj=BytesIO(b"comprobante-qa"),
+        original_filename="comprobante.png",
+        bucket="ruana-comprobantes",
+        folder="pagos_ruana",
+        prefix="9",
+        content_type="image/png",
+    )
+
+    assert result["bucket"] == "local"
+    assert result["url"].startswith("/static/uploads/pagos_ruana/")
+    # Disco: web/static/uploads/... → aquí _web_static_root es tmp_path
+    stored = tmp_path / "uploads" / "pagos_ruana" / Path(result["url"]).name
+    assert stored.is_file()
+    assert stored.read_bytes() == b"comprobante-qa"
+    assert storage_manager.resolve_admin_document_access_url(result["url"]) == result["url"]
+
+
+def test_upload_ruana_file_rejects_local_when_flag_disabled(monkeypatch):
+    from RUANA.core import storage_manager
+
+    monkeypatch.setattr(storage_manager, "get_settings", lambda: _SettingsUnconfigured())
+    monkeypatch.setenv("RUANA_ALLOW_LOCAL_UPLOADS", "0")
+
+    with pytest.raises(RuntimeError, match="Supabase is not configured"):
+        storage_manager.upload_ruana_file(
+            file_obj=BytesIO(b"x"),
+            original_filename="comprobante.png",
+            bucket="ruana-comprobantes",
+            folder="pagos_ruana",
+            prefix="1",
+            content_type="image/png",
+        )
 
 
 def test_create_ruana_signed_url_uses_supabase_storage(monkeypatch):

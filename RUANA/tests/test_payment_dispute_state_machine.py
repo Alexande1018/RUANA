@@ -63,6 +63,23 @@ def test_impugnar_apoyo_limpia_alerta_de_pago_y_desbloquea_profesional(sqlite_db
     assert _por_tipo(despues_prof, "apoyo_ruana")[0]["leida"] == 1
 
 
+def test_subir_comprobante_apoyo_ruana_pasa_a_en_revision(sqlite_db):
+    """Regresión: dict(row) sin row_factory rompía la subida con TypeError."""
+    contacto_id = _crear_contacto_cerrado_con_apoyo(sqlite_db)
+
+    result = sqlite_db.subir_comprobante_apoyo_ruana(
+        contacto_id,
+        "PRO",
+        "/static/uploads/pagos_ruana/qa-comprobante.png",
+        "Comprobante QA",
+    )
+
+    assert result["status"] == "success", result
+    assert result["estado_pago"] == "en_revision"
+    en_revision = sqlite_db.listar_contactos_pagos_en_revision()
+    assert any(int(c["id"]) == int(contacto_id) for c in en_revision)
+
+
 def test_zero_amount_support_is_not_listed_as_pending_payment(sqlite_db):
     conn = sqlite_db._connect()
     cursor = conn.cursor()

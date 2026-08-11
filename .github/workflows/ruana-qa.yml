@@ -72,6 +72,7 @@ jobs:
       DATABASE_URL: ""
       SUPABASE_URL: ""
       SUPABASE_SERVICE_ROLE_KEY: ""
+      RUANA_ALLOW_LOCAL_UPLOADS: "1"
       RUANA_DB_PATH: ${{ github.workspace }}/qa-artifacts/ruana-e2e-github.db
       RUANA_QA_VIDEO_PAUSE_MS: "1500"
       RUANA_QA_ACTION_PAUSE_MS: "800"

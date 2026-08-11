@@ -780,6 +780,7 @@ def subir_comprobante_apoyo_ruana(db, contacto_id: int, profesional_codigo: str,
     with db._lock:
         try:
             conn = db._connect()
+            conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT id, profesional_codigo, estado_pago, apoyo_ruana

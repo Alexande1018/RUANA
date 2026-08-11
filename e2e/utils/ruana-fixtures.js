@@ -1,6 +1,7 @@
 const { expect } = require('@playwright/test');
 
 const ADMIN_CODE = process.env.RUANA_QA_ADMIN_CODE || 'ADMIN001';
+const ADMIN_PASSWORD = process.env.RUANA_QA_ADMIN_PASSWORD || ADMIN_CODE;
 
 function uniqueId(prefix) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
@@ -10,6 +11,15 @@ function uniquePhone() {
   const tail = String(Date.now()).slice(-7);
   const random = String(Math.floor(Math.random() * 90) + 10);
   return `+346${random}${tail}`;
+}
+
+/** Extrae la parte nacional para el input visible del registro (+34…). */
+function nationalPhoneFromE164(phone) {
+  const raw = String(phone || '').trim();
+  if (raw.startsWith('+34')) return raw.slice(3);
+  const m = raw.match(/^\+(\d{1,3})(\d+)$/);
+  if (m) return m[2];
+  return raw.replace(/\D/g, '');
 }
 
 function buildAliadoData(overrides = {}) {
@@ -38,14 +48,16 @@ async function expectOk(response, label) {
   return body;
 }
 
-async function adminLogin(request) {
+async function adminLogin(request, overrides = {}) {
+  const codigo = overrides.codigo || ADMIN_CODE;
+  const password = overrides.password || (codigo === ADMIN_CODE ? ADMIN_PASSWORD : codigo);
   const response = await request.post('/api/admin/validar', {
-    data: { codigo: ADMIN_CODE },
+    data: { codigo, password },
   });
   const body = await expectOk(response, 'admin login');
   expect(body.session_id).toBeTruthy();
   return {
-    code: ADMIN_CODE,
+    code: codigo,
     sessionId: body.session_id,
     headers: { 'X-Ruana-Session-Id': body.session_id },
   };
@@ -124,8 +136,35 @@ async function declareImporte(request, session, contactoId, parte, importe) {
   return expectOk(response, `declare importe ${parte}`);
 }
 
+async function proponerNegociacionCompleta(request, session, contactoId, overrides = {}) {
+  const response = await request.post(
+    `/api/contactos/${contactoId}/negociacion/proponer-completa`,
+    {
+      headers: session.headers,
+      data: {
+        servicio: overrides.servicio || 'Servicio QA integral',
+        fecha: overrides.fecha || '2026-12-15',
+        hora: overrides.hora || '10:00',
+        direccion: overrides.direccion || 'Calle QA 1',
+        observaciones: overrides.observaciones || 'Observaciones QA negociacion',
+        precio_catalogo: overrides.precio_catalogo || '',
+      },
+    }
+  );
+  return expectOk(response, 'proponer negociacion completa');
+}
+
+async function aceptarNegociacionCampo(request, session, contactoId, campo) {
+  const response = await request.post(`/api/contactos/${contactoId}/negociacion/aceptar`, {
+    headers: session.headers,
+    data: { campo },
+  });
+  return expectOk(response, `aceptar negociacion ${campo}`);
+}
+
 module.exports = {
   ADMIN_CODE,
+  ADMIN_PASSWORD,
   adminLogin,
   aliadoLogin,
   buildAliadoData,
@@ -133,6 +172,9 @@ module.exports = {
   createCampaign,
   declareImporte,
   expectOk,
+  nationalPhoneFromE164,
+  proponerNegociacionCompleta,
+  aceptarNegociacionCampo,
   registerAliado,
   uniqueId,
   uniquePhone,
