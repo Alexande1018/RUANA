@@ -163,16 +163,17 @@ async function expectProfessionalCannotConfirmImporteViaUi(page, scenario) {
       expected: 'Si el producto reserva el cierre al solicitante, debe mostrar un mensaje claro.',
       result: 'El aviso de cierre queda visible para el ofertador.',
     });
-    const dialogPromise = page.waitForEvent('dialog', { timeout: 10000 });
     await clickVisible(page, '#btn-contacto-si-trabajo');
-    const dialog = await dialogPromise;
-    const message = dialog.message();
-    await dialog.accept();
-    expect(message).toContain('contrato el encargo');
+    // alert() esta parcheado por RuanaUI → toast/feedback (no dialog nativo)
+    const feedback = page.locator('#ruana-toast-container, .ruana-toast, .ruana-feedback').filter({
+      hasText: /contrato el encargo/i,
+    });
+    await expect(feedback.first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#modal-contacto-importe')).not.toHaveClass(/show/);
     await pass(page, scenario, {
       step: 'Cierre por ofertador bloqueado',
       action: 'El profesional no puede declarar importe en el flujo actual.',
-      result: `Mensaje mostrado: ${message}`,
+      result: 'RUANA muestra feedback claro y no abre el modal de importe.',
     });
   });
 }
@@ -849,14 +850,6 @@ test.describe('RUANA QA critica con video human-readable', () => {
         action: 'El profesional baja a Apoyo RUANA y reclama el importe declarado.',
         expected: 'RUANA debe abrir un conflicto pendiente de prueba.',
       });
-      const dialogHandler = async (dialog) => {
-        if (dialog.type() === 'prompt') {
-          await dialog.accept('Importe declarado no coincide con presupuesto aceptado');
-          return;
-        }
-        await dialog.accept();
-      };
-      page.on('dialog', dialogHandler);
       await reviewSection(page, scenario, '#ruana-alert-hub', {
         step: 'Ver pago reclamable',
         action: 'El profesional abre el detalle del Apoyo RUANA pendiente.',
@@ -865,10 +858,17 @@ test.describe('RUANA QA critica con video human-readable', () => {
       });
       await clickVisible(page, '[data-alert-action="apoyo-pago"]');
       await clickVisible(page, '.btn-impugnar-apoyo');
-      page.off('dialog', dialogHandler);
+      await expect(page.locator('#modal-impugnar-apoyo')).toHaveClass(/show/);
+      await fillVisible(
+        page,
+        '#input-motivo-impugnar-apoyo',
+        'Importe declarado no coincide con presupuesto aceptado'
+      );
+      await clickVisible(page, '#btn-impugnar-apoyo-confirmar');
+      await expect(page.locator('#modal-impugnar-apoyo')).not.toHaveClass(/show/, { timeout: 15000 });
       await pass(page, scenario, {
         step: 'Reclamacion creada',
-        action: 'El profesional acepta los dialogos de reclamacion desde UI.',
+        action: 'El profesional escribe el motivo y confirma en el modal de reclamacion.',
         result: 'RUANA registra el conflicto para revision admin.',
       });
     });
