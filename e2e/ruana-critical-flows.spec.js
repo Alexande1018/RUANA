@@ -52,6 +52,19 @@ async function goAliadoModule(page, moduleName) {
   await expect(page.locator(`.aliado-module[data-aliado-module="${moduleName}"]`)).toBeVisible();
 }
 
+/** Activa el módulo del admin shell que contiene el selector (los demás están display:none). */
+async function goAdminSection(page, selector) {
+  await page.waitForFunction(
+    () => window.AdminShell && typeof window.AdminShell.navigateTo === 'function',
+    null,
+    { timeout: 15000 }
+  );
+  await page.evaluate((sel) => {
+    window.AdminShell.navigateTo(sel);
+  }, selector);
+  await expect(page.locator(selector).first()).toBeVisible({ timeout: 15000 });
+}
+
 async function loginAdminAsUser(page, scenario, code = ADMIN_CODE, label = 'admin') {
   const password = code === ADMIN_CODE ? ADMIN_PASSWORD : code;
   await test.step(`Usuario ${label} abre el panel e introduce su codigo`, async () => {
@@ -144,21 +157,17 @@ async function confirmImporteViaUi(page, scenario, importe, roleLabel = 'Solicit
 
 async function expectProfessionalCannotConfirmImporteViaUi(page, scenario) {
   await test.step('Ofertador intenta cerrar trabajo y ve bloqueo claro', async () => {
-    const dialogPromise = new Promise((resolve) => {
-      page.once('dialog', async (dialog) => {
-        const message = dialog.message();
-        await dialog.accept();
-        resolve(message);
-      });
-    });
     await reviewSection(page, scenario, '#contacto-aviso-persistente', {
       step: 'Ofertador intenta confirmar trabajo',
       action: 'El profesional pulsa Si, hubo trabajo desde su panel.',
       expected: 'Si el producto reserva el cierre al solicitante, debe mostrar un mensaje claro.',
       result: 'El aviso de cierre queda visible para el ofertador.',
     });
+    const dialogPromise = page.waitForEvent('dialog', { timeout: 10000 });
     await clickVisible(page, '#btn-contacto-si-trabajo');
-    const message = await dialogPromise;
+    const dialog = await dialogPromise;
+    const message = dialog.message();
+    await dialog.accept();
     expect(message).toContain('contrato el encargo');
     await pass(page, scenario, {
       step: 'Cierre por ofertador bloqueado',
@@ -307,6 +316,7 @@ async function createPaymentInReviewViaUi(page, request, scenario, suffix) {
 
 async function adminApprovePaymentViaUi(page, scenario, contactoId) {
   await test.step('Admin aprueba pago desde la tabla', async () => {
+    await goAdminSection(page, '#pagos-en-revision-wrap');
     await reviewSection(page, scenario, '#pagos-en-revision-wrap', {
       step: 'Pago pendiente de aprobacion',
       action: 'El admin localiza el comprobante en pagos en revision.',
@@ -327,6 +337,7 @@ async function adminApprovePaymentViaUi(page, scenario, contactoId) {
 
 async function adminRejectPaymentViaUi(page, scenario, contactoId) {
   await test.step('Admin rechaza pago con motivo', async () => {
+    await goAdminSection(page, '#pagos-en-revision-wrap');
     await reviewSection(page, scenario, '#pagos-en-revision-wrap', {
       step: 'Pago pendiente de rechazo',
       action: 'El admin localiza el comprobante que quiere rechazar.',
@@ -369,6 +380,7 @@ test.describe('RUANA QA critica con video human-readable', () => {
 
     for (const [selector, label, action] of sections) {
       await test.step(`Admin recorre ${label}`, async () => {
+        await goAdminSection(page, selector);
         await reviewSection(page, scenario, selector, {
           step: label,
           action,
@@ -378,6 +390,7 @@ test.describe('RUANA QA critica con video human-readable', () => {
       });
     }
 
+    await goAdminSection(page, '#movimiento-grid');
     await clickVisible(page, '#btn-toggle-desglose-hora');
     await expect(page.locator('#desglose-por-hora-container')).toBeVisible();
     await pass(page, scenario, {
@@ -449,6 +462,7 @@ test.describe('RUANA QA critica con video human-readable', () => {
     const code = uniqueId('UI-QA').toUpperCase();
 
     await loginAdminAsUser(page, scenario);
+    await goAdminSection(page, '#admin-campanas-invitacion-panel');
     await reviewSection(page, scenario, '#admin-campanas-invitacion-panel', {
       step: 'Panel de campanas de invitacion',
       action: 'El admin baja hasta la gestion de invitaciones multiuso.',
@@ -472,6 +486,7 @@ test.describe('RUANA QA critica con video human-readable', () => {
     });
 
     await loginAdminAsUser(page, scenario, '0000', 'admin solo lectura');
+    await goAdminSection(page, '#admin-campanas-invitacion-panel');
     await reviewSection(page, scenario, '#admin-campanas-invitacion-panel', {
       step: 'Admin solo lectura revisa invitaciones',
       action: 'El usuario de solo lectura entra en la misma seccion.',
@@ -479,13 +494,14 @@ test.describe('RUANA QA critica con video human-readable', () => {
       result: 'El panel es visible, pero las acciones no son ejecutables.',
     });
     await expect(page.locator('button[data-action="crear-campana-invitacion"]')).toBeDisabled();
-    await reviewSection(page, scenario, '.acciones-admin', {
+    await goAdminSection(page, '#acciones-admin-wrap');
+    await reviewSection(page, scenario, '#acciones-admin-wrap', {
       step: 'Acciones admin bloqueadas',
       action: 'El usuario de solo lectura baja a acciones de administrador.',
       expected: 'Los botones de escritura deben aparecer deshabilitados.',
       result: 'Las acciones administrativas quedan bloqueadas para solo lectura.',
     });
-    await expect(page.locator('.acciones-admin button[data-action="cambiar-reglas"]')).toBeDisabled();
+    await expect(page.locator('#acciones-admin-wrap button[data-action="cambiar-reglas"]')).toBeDisabled();
     await pass(page, scenario, {
       step: 'Permisos solo lectura validados',
       action: 'Se comprueba visualmente que no puede crear ni cambiar reglas.',
@@ -614,6 +630,7 @@ test.describe('RUANA QA critica con video human-readable', () => {
     await closeNegociacionViaUi(page);
 
     await loginAdminAsUser(page, scenario);
+    await goAdminSection(page, '#conversaciones-ruana-wrap');
     await reviewSection(page, scenario, '#conversaciones-ruana-wrap', {
       step: 'Admin revisa registro de negociaciones',
       action: 'El admin baja a conversaciones y localiza el contacto.',
@@ -773,6 +790,7 @@ test.describe('RUANA QA critica con video human-readable', () => {
     await test.step('Admin revisa la cola de pagos', async () => {
       await loginAdminAsUser(page, scenario);
       const admin = await adminLogin(request);
+      await goAdminSection(page, '#pagos-en-revision-wrap');
       await reviewSection(page, scenario, '#pagos-en-revision-wrap', {
         step: 'Consultar pagos Apoyo RUANA',
         action: 'El administrador baja a la tabla de pagos en revision.',
@@ -858,6 +876,7 @@ test.describe('RUANA QA critica con video human-readable', () => {
     await test.step('Admin consulta la cola de conflictos', async () => {
       await loginAdminAsUser(page, scenario);
       const admin = await adminLogin(request);
+      await goAdminSection(page, '#conflictos-pago-wrap');
       await reviewSection(page, scenario, '#conflictos-pago-wrap', {
         step: 'Revisar conflictos de pago',
         action: 'El administrador baja a la cola de reclamaciones.',

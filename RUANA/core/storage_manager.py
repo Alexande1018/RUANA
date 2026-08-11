@@ -1,12 +1,13 @@
 """Centralized RUANA file storage.
 
-Runtime uploads must not be written to the local filesystem. This module stores
-files in Supabase Storage and returns stable URLs for existing DB fields.
+Prefer Supabase Storage in production. When Supabase is not configured
+(local/CI QA), files can be stored under web/static/uploads/ if allowed.
 """
 
 from __future__ import annotations
 
 import mimetypes
+import os
 import re
 import uuid
 from pathlib import Path
@@ -19,6 +20,11 @@ try:
     from .supabase_client import get_supabase_admin_client
 except Exception:  # pragma: no cover - app.py also imports core as top-level
     from core.supabase_client import get_supabase_admin_client
+
+try:
+    from .settings import get_settings
+except Exception:  # pragma: no cover
+    from core.settings import get_settings
 
 
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024
@@ -47,6 +53,52 @@ def _read_limited(file_obj: BinaryIO, max_bytes: int = MAX_UPLOAD_BYTES) -> byte
     if len(data) > max_bytes:
         raise ValueError(f"El archivo supera el limite de {_format_max_mb(max_bytes)} MB.")
     return data
+
+
+def _local_uploads_allowed() -> bool:
+    """Permitir disco local solo en QA/local sin Supabase (o flag explícito)."""
+    flag = (os.environ.get("RUANA_ALLOW_LOCAL_UPLOADS") or "").strip().lower()
+    if flag in {"1", "true", "yes", "on"}:
+        return True
+    if flag in {"0", "false", "no", "off"}:
+        return False
+    try:
+        return not get_settings().supabase_configured
+    except Exception:
+        return True
+
+
+def _web_static_root() -> Path:
+    return Path(__file__).resolve().parent.parent / "web" / "static"
+
+
+def _upload_ruana_bytes_local(
+    *,
+    data: bytes,
+    original_filename: str,
+    folder: str,
+    prefix: str,
+    content_type: Optional[str] = None,
+) -> Dict[str, str]:
+    safe_name = secure_filename(original_filename or "archivo") or "archivo"
+    ext = (Path(safe_name).suffix or "").lower()
+    generated = f"{prefix}_{uuid.uuid4().hex[:12]}_{safe_name}"[:120]
+    rel_dir = Path("uploads") / folder.strip("/")
+    abs_dir = _web_static_root() / rel_dir
+    abs_dir.mkdir(parents=True, exist_ok=True)
+    abs_path = abs_dir / generated
+    abs_path.write_bytes(data)
+    public_path = f"/static/{rel_dir.as_posix()}/{generated}"
+    guessed_type = content_type or mimetypes.guess_type(safe_name)[0] or "application/octet-stream"
+    return {
+        "bucket": "local",
+        "path": public_path.lstrip("/"),
+        "url": public_path,
+        "filename": safe_name,
+        "content_type": guessed_type,
+        "size": str(len(data)),
+        "extension": ext,
+    }
 
 
 def _extract_signed_url(response: object) -> str:
@@ -122,12 +174,32 @@ def upload_ruana_bytes(
     prefix: str,
     content_type: Optional[str] = None,
 ) -> Dict[str, str]:
-    """Upload pre-read bytes to Supabase Storage."""
+    """Upload pre-read bytes to Supabase Storage (or local QA fallback)."""
     safe_name = secure_filename(original_filename or "archivo") or "archivo"
+    guessed_type = content_type or mimetypes.guess_type(safe_name)[0] or "application/octet-stream"
+
+    try:
+        settings = get_settings()
+        supabase_ok = bool(settings.supabase_configured)
+    except Exception:
+        supabase_ok = False
+
+    if not supabase_ok:
+        if not _local_uploads_allowed():
+            raise RuntimeError(
+                "Supabase is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY."
+            )
+        return _upload_ruana_bytes_local(
+            data=data,
+            original_filename=safe_name,
+            folder=folder,
+            prefix=prefix,
+            content_type=guessed_type,
+        )
+
     ext = (Path(safe_name).suffix or "").lower()
     generated = f"{prefix}_{uuid.uuid4().hex[:12]}_{safe_name}"[:120]
     object_path = f"{folder.strip('/')}/{generated}"
-    guessed_type = content_type or mimetypes.guess_type(safe_name)[0] or "application/octet-stream"
 
     client = get_supabase_admin_client()
     storage_bucket = client.storage.from_(bucket)
