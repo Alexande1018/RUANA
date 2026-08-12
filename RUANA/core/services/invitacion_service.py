@@ -1,6 +1,7 @@
 """Servicio de dominio invitacion (Campamento Base).
 
 Extracción progresiva desde DBManager. Las fachadas permanecen en DBManager.
+SQL de invitaciones vía InvitacionRepo.
 """
 from __future__ import annotations
 
@@ -10,6 +11,11 @@ from core.db_constants import RUANA_CODIGO_INVITACION_REGEX
 
 import sqlite3
 from typing import Any, Dict, List, Optional
+
+from core.repositories.invitacion_repo import InvitacionRepo
+
+_repo = InvitacionRepo()
+
 # --- Extraído de DBManager (invitacion) ---
 
 def _registrar_invitacion(db,
@@ -38,25 +44,9 @@ def _registrar_invitacion(db,
             except Exception:
                 pass
             if db.backend == "postgres":
-                cursor.execute(
-                    """
-                    INSERT INTO invitaciones (codigo, invitador_aliado_id, usado, solicitud_id)
-                    VALUES (?, ?, 0, ?)
-                    ON CONFLICT (codigo) DO UPDATE SET
-                        invitador_aliado_id = EXCLUDED.invitador_aliado_id,
-                        usado = 0,
-                        solicitud_id = COALESCE(EXCLUDED.solicitud_id, invitaciones.solicitud_id)
-                    """,
-                    (codigo_invitacion, int(invitador_aliado_id), sid),
-                )
+                _repo.upsert_invitacion_postgres(cursor, codigo_invitacion, invitador_aliado_id, sid)
             else:
-                cursor.execute(
-                    """
-                    INSERT OR REPLACE INTO invitaciones (codigo, invitador_aliado_id, usado, solicitud_id)
-                    VALUES (?, ?, 0, ?)
-                    """,
-                    (codigo_invitacion, int(invitador_aliado_id), sid),
-                )
+                _repo.upsert_invitacion_sqlite(cursor, codigo_invitacion, invitador_aliado_id, sid)
             conn.commit()
         finally:
             if conn:
@@ -87,8 +77,7 @@ def crear_campana_invitacion(db, codigo: str = "", nombre: str = "",
             if not codigo:
                 for _ in range(100):
                     codigo = "RUANA-" + "".join(random.choice("ABCDEFGHJKLMNPQRSTUVWXYZ23456789") for _ in range(6))
-                    cursor.execute("SELECT codigo FROM invitacion_campanas WHERE codigo = ?", (codigo,))
-                    if not cursor.fetchone():
+                    if not _repo.existe_campana(cursor, codigo):
                         break
                 else:
                     return {'status': 'error', 'message': 'No se pudo generar codigo de campana unico'}
@@ -96,19 +85,16 @@ def crear_campana_invitacion(db, codigo: str = "", nombre: str = "",
             if not re.match(r'^[A-Z0-9][A-Z0-9_-]{3,39}$', codigo):
                 return {'status': 'error', 'message': 'El codigo debe tener 4-40 caracteres alfanumericos, guion o guion bajo'}
 
-            cursor.execute("SELECT codigo FROM invitacion_campanas WHERE codigo = ?", (codigo,))
-            if cursor.fetchone():
+            if _repo.existe_campana(cursor, codigo):
                 return {'status': 'error', 'message': f'El codigo {codigo} ya existe'}
 
-            cursor.execute("""
-                INSERT INTO invitacion_campanas
-                (codigo, nombre, codigo_postal, max_usos, usos_actuales, activo, creado_por_admin_codigo)
-                VALUES (?, ?, ?, ?, 0, 1, ?)
-            """, (codigo, nombre, codigo_postal, max_usos_int, (creado_por_admin_codigo or "").strip()))
+            _repo.insertar_campana(
+                cursor, codigo, nombre, codigo_postal, max_usos_int,
+                (creado_por_admin_codigo or "").strip(),
+            )
             conn.commit()
 
-            cursor.execute("SELECT * FROM invitacion_campanas WHERE codigo = ?", (codigo,))
-            row = cursor.fetchone()
+            row = _repo.select_campana(cursor, codigo)
             return {'status': 'success', 'campana': dict(row)}
         except Exception as e:
             return {'status': 'error', 'message': str(e)}
@@ -125,14 +111,7 @@ def listar_campanas_invitacion(db, limite: int = 50) -> List[Dict[str, Any]]:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             limite = max(1, min(int(limite or 50), 200))
-            cursor.execute("""
-                SELECT codigo, nombre, codigo_postal, max_usos, usos_actuales, activo,
-                       creado_por_admin_codigo, creado_en, desactivado_en
-                FROM invitacion_campanas
-                ORDER BY creado_en DESC
-                LIMIT ?
-            """, (limite,))
-            return [dict(r) for r in cursor.fetchall()]
+            return [dict(r) for r in _repo.listar_campanas(cursor, limite)]
         except Exception:
             return []
         finally:
@@ -150,8 +129,7 @@ def validar_campana_invitacion(db, codigo: str) -> Optional[Dict[str, Any]]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM invitacion_campanas WHERE codigo = ?", (codigo,))
-            row = cursor.fetchone()
+            row = _repo.select_campana(cursor, codigo)
             if not row:
                 return None
             campana = dict(row)
@@ -180,8 +158,7 @@ def obtener_campana_invitacion(db, codigo: str) -> Optional[Dict[str, Any]]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM invitacion_campanas WHERE codigo = ?", (codigo,))
-            row = cursor.fetchone()
+            row = _repo.select_campana(cursor, codigo)
             return dict(row) if row else None
         except Exception:
             return None
@@ -200,20 +177,10 @@ def consumir_campana_invitacion(db, codigo: str, nuevo_aliado_codigo: str) -> bo
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE invitacion_campanas
-                SET usos_actuales = usos_actuales + 1
-                WHERE codigo = ?
-                  AND activo = 1
-                  AND usos_actuales < max_usos
-            """, (codigo,))
-            if cursor.rowcount != 1:
+            if _repo.incrementar_uso_campana(cursor, codigo) != 1:
                 conn.rollback()
                 return False
-            cursor.execute("""
-                INSERT OR IGNORE INTO invitacion_campana_usos (codigo_campana, codigo_aliado)
-                VALUES (?, ?)
-            """, (codigo, nuevo_aliado_codigo))
+            _repo.insertar_uso_campana(cursor, codigo, nuevo_aliado_codigo)
             conn.commit()
             db._registrar_referido_campana_admin(codigo, nuevo_aliado_codigo)
             return True
@@ -231,13 +198,9 @@ def desactivar_campana_invitacion(db, codigo: str) -> Dict[str, Any]:
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE invitacion_campanas
-                SET activo = 0, desactivado_en = CURRENT_TIMESTAMP
-                WHERE codigo = ?
-            """, (codigo,))
+            rowcount = _repo.desactivar_campana(cursor, codigo)
             conn.commit()
-            if cursor.rowcount != 1:
+            if rowcount != 1:
                 return {'status': 'error', 'message': 'Campana no encontrada'}
             return {'status': 'success', 'codigo': codigo}
         except Exception as e:
@@ -253,19 +216,10 @@ def listar_invitaciones_recientes(db, limite: int = 20) -> List[Dict[str, Any]]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("PRAGMA table_info(invitaciones)")
-            cols = [r[1] for r in cursor.fetchall()]
+            cols = _repo.columnas_invitaciones(cursor)
             if 'creado_en' not in cols:
                 return []
-            cursor.execute("""
-                SELECT i.codigo, i.invitador_aliado_id, i.creado_en, i.usado,
-                       a.codigo AS invitador_codigo, a.nombre AS invitador_nombre
-                FROM invitaciones i
-                LEFT JOIN aliados a ON a.id = i.invitador_aliado_id
-                ORDER BY i.creado_en DESC
-                LIMIT ?
-            """, (limite,))
-            return [dict(r) for r in cursor.fetchall()]
+            return [dict(r) for r in _repo.listar_invitaciones_recientes(cursor, limite)]
         except Exception:
             return []
         finally:
@@ -288,40 +242,22 @@ def consumir_invitacion_y_recompensar(db, codigo_invitacion: str, nuevo_aliado_c
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT i.usado, i.invitador_aliado_id, inv.codigo AS codigo_invitador,
-                       inv.estado AS invitador_estado
-                FROM invitaciones i
-                JOIN aliados inv ON inv.id = i.invitador_aliado_id
-                WHERE i.codigo = ?
-            """, (codigo_invitacion,))
-            row = cursor.fetchone()
+            row = _repo.select_invitacion_con_invitador(cursor, codigo_invitacion)
             if not row:
                 return False
             usado = int(row['usado'] or 0)
             codigo_invitador = row['codigo_invitador']
             origen = 'admin_invitacion' if (row['invitador_estado'] or '').strip() == 'sistema' else 'aliado'
             ya_registrado = False
-            cursor.execute(
-                "SELECT invitado_por_codigo FROM aliados WHERE codigo = ?",
-                (nuevo_aliado_codigo,),
-            )
-            row_aliado = cursor.fetchone()
+            row_aliado = _repo.select_invitado_por_codigo(cursor, nuevo_aliado_codigo)
             if row_aliado and (row_aliado[0] or '').strip():
                 ya_registrado = True
             if not ya_registrado:
-                cursor.execute(
-                    "SELECT 1 FROM referidos WHERE codigo_referido = ?",
-                    (nuevo_aliado_codigo,),
-                )
-                ya_registrado = cursor.fetchone() is not None
+                ya_registrado = _repo.existe_referido(cursor, nuevo_aliado_codigo)
             if not ya_registrado and usado == 0:
                 db.aplicar_cambio_score(codigo_invitador, 3, 'aliado_referido_registro_valido')
             if usado == 0:
-                cursor.execute(
-                    "UPDATE invitaciones SET usado = 1 WHERE codigo = ?",
-                    (codigo_invitacion,),
-                )
+                _repo.marcar_invitacion_usada(cursor, codigo_invitacion)
             conn.commit()
         except Exception:
             return False
@@ -361,11 +297,7 @@ def generar_invitacion_oficio(db, codigo_aliado: str, oficio: str) -> Dict[str, 
             if not oficios_faltantes or oficio not in (oficios_faltantes.get('oficios_faltantes') or []):
                 return {'status': 'error', 'message': 'El oficio no está en la lista de oficios faltantes'}
 
-            cursor.execute(
-                "SELECT codigo FROM invitaciones_oficio WHERE grupo_id = ? AND oficio = ? AND estado = 'pendiente' LIMIT 1",
-                (grupo_id, oficio)
-            )
-            row = cursor.fetchone()
+            row = _repo.select_invitacion_oficio_pendiente(cursor, grupo_id, oficio)
             if row:
                 return {'status': 'success', 'codigo': row[0]}
 
@@ -380,10 +312,7 @@ def generar_invitacion_oficio(db, codigo_aliado: str, oficio: str) -> Dict[str, 
                 # Fallback si hay inconsistencia
                 codigo = f"RUANA-{grupo_id}-OFICIO-{suffix}"
 
-            cursor.execute(
-                "INSERT INTO invitaciones_oficio (codigo, grupo_id, oficio, aliado_id, estado) VALUES (?, ?, ?, ?, 'pendiente')",
-                (codigo, grupo_id, oficio, aliado_id)
-            )
+            _repo.insertar_invitacion_oficio(cursor, codigo, grupo_id, oficio, aliado_id)
             conn.commit()
             return {'status': 'success', 'codigo': codigo}
         except Exception as e:
@@ -406,11 +335,7 @@ def validar_invitacion_oficio(db, codigo: str) -> Optional[Dict[str, Any]]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT id, codigo, grupo_id, oficio, aliado_id, estado FROM invitaciones_oficio WHERE codigo = ?",
-                (codigo,)
-            )
-            row = cursor.fetchone()
+            row = _repo.select_invitacion_oficio(cursor, codigo)
             conn.close()
             if not row or (row[5] or '').lower() != 'pendiente':
                 return None
@@ -446,48 +371,31 @@ def consumir_invitacion_oficio(db, codigo: str, nuevo_aliado_codigo: str) -> boo
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT id, aliado_id, estado FROM invitaciones_oficio WHERE codigo = ?",
-                (codigo,),
-            )
-            row = cursor.fetchone()
+            row = _repo.select_invitacion_oficio_consumo(cursor, codigo)
             if not row:
                 return False
             invitacion_id = row['id']
             aliado_id = row['aliado_id']
             estado = (row['estado'] or '').strip()
-            cursor.execute("SELECT codigo FROM aliados WHERE id = ?", (aliado_id,))
-            r2 = cursor.fetchone()
+            r2 = _repo.select_codigo_aliado_por_id(cursor, aliado_id)
             if not r2:
                 return False
             codigo_invitador = r2[0]
             ya_registrado = False
-            cursor.execute(
-                "SELECT invitado_por_codigo FROM aliados WHERE codigo = ?",
-                (nuevo_aliado_codigo,),
-            )
-            row_aliado = cursor.fetchone()
+            row_aliado = _repo.select_invitado_por_codigo(cursor, nuevo_aliado_codigo)
             if row_aliado and (row_aliado[0] or '').strip():
                 ya_registrado = True
             if not ya_registrado:
-                cursor.execute(
-                    "SELECT 1 FROM referidos WHERE codigo_referido = ?",
-                    (nuevo_aliado_codigo,),
-                )
-                ya_registrado = cursor.fetchone() is not None
+                ya_registrado = _repo.existe_referido(cursor, nuevo_aliado_codigo)
             if estado == 'pendiente':
-                cursor.execute(
-                    "UPDATE invitaciones_oficio SET estado = 'usado', codigo_referido = ? WHERE id = ?",
-                    (nuevo_aliado_codigo, invitacion_id),
-                )
+                _repo.marcar_invitacion_oficio_usada(cursor, nuevo_aliado_codigo, invitacion_id)
                 if not ya_registrado:
                     db.aplicar_cambio_score(
                         codigo_invitador, db.REGLA9_DELTA, 'invitacion_oficio_usada'
                     )
             elif estado == 'usado' and not ya_registrado:
-                cursor.execute(
-                    "UPDATE invitaciones_oficio SET codigo_referido = ? WHERE id = ? AND COALESCE(codigo_referido, '') = ''",
-                    (nuevo_aliado_codigo, invitacion_id),
+                _repo.update_codigo_referido_oficio_si_vacio(
+                    cursor, nuevo_aliado_codigo, invitacion_id
                 )
             conn.commit()
         except Exception:
@@ -509,8 +417,7 @@ def invitacion_codigo_existe(db, codigo: str) -> bool:
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute("SELECT 1 FROM invitaciones WHERE codigo = ?", (codigo,))
-            return cursor.fetchone() is not None
+            return _repo.existe_codigo_invitacion(cursor, codigo)
         except Exception as e:
             print(f"Error verificando codigo invitacion: {e}")
             return False
@@ -532,20 +439,7 @@ def obtener_invitacion_pendiente(db, codigo: str) -> Optional[Dict[str, Any]]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT i.codigo, i.invitador_aliado_id, i.usado, i.creado_en,
-                       i.solicitud_id,
-                       inv.codigo AS codigo_invitador,
-                       inv.codigo_postal AS zona_invitador,
-                       inv.id AS invitador_id
-                FROM invitaciones i
-                JOIN aliados inv ON inv.id = i.invitador_aliado_id
-                WHERE i.codigo = ? AND COALESCE(i.usado, 0) = 0
-                """,
-                (codigo,),
-            )
-            row = cursor.fetchone()
+            row = _repo.select_invitacion_pendiente(cursor, codigo)
             if not row:
                 return None
             return dict(row)
@@ -569,15 +463,7 @@ def eliminar_aliado_placeholder(db, codigo: str) -> bool:
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute(
-                """
-                DELETE FROM aliados
-                WHERE codigo = ?
-                  AND LOWER(TRIM(COALESCE(estado, ''))) = 'pendiente_completar'
-                """,
-                (codigo,),
-            )
-            deleted = cursor.rowcount > 0
+            deleted = _repo.eliminar_aliado_placeholder(cursor, codigo) > 0
             conn.commit()
             return deleted
         except Exception as e:
