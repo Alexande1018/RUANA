@@ -826,7 +826,7 @@ def _columnas_compat_competencia(db, cursor) -> Dict[str, str]:
 
 
 def _notificar_retador_competencia_iniciada(
-    self,
+    db,
     retador_codigo: str,
     titular_codigo: str,
     oficio: str,
@@ -861,7 +861,7 @@ def _notificar_retador_competencia_iniciada(
 
 
 def _avisar_grupos_cp_competencia(
-    self,
+    db,
     codigo_postal: str,
     oficio: str,
     cursor,
@@ -888,7 +888,7 @@ def _avisar_grupos_cp_competencia(
 
 
 def _notificar_derrota_competencia(
-    self,
+    db,
     aliado_codigo: str,
     oficio: str,
     competencia_id: int,
@@ -929,7 +929,7 @@ def _notificar_derrota_competencia(
 
 
 def _notificar_titular_competencia_iniciada(
-    self,
+    db,
     titular_codigo: str,
     retador_codigo: str,
     oficio: str,
@@ -962,7 +962,7 @@ def _notificar_titular_competencia_iniciada(
 
 
 def _notificar_ganador_competencia(
-    self,
+    db,
     ganador_codigo: str,
     oficio: str,
     competencia_id: int,

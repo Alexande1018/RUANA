@@ -1260,7 +1260,7 @@ def listar_codigos_aliados_activos(db) -> List[str]:
 
 
 def forzar_suplencia(
-    self,
+    db,
     grupo_id: int,
     oficio: str,
     aliado_original_codigo: str,
