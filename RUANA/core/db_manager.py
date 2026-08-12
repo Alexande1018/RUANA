@@ -539,12 +539,9 @@ class DBManager:
 
 
     def obtener_especializaciones_ocupadas(self, grupo_id: int, oficio_principal: str) -> set:
-        """Devuelve los oficios ya ocupados en el grupo (deprecado: solo devuelve el oficio si está ocupado)."""
-        if not grupo_id or not oficio_principal:
-            return set()
-        if self.plaza_ocupada_en_grupo(grupo_id, oficio_principal):
-            return {oficio_principal.strip()}
-        return set()
+        """Fachada Campamento Base → grupo_service.obtener_especializaciones_ocupadas."""
+        return grupo_service.obtener_especializaciones_ocupadas(self, grupo_id, oficio_principal)
+
 
     def buscar_grupo_sin_oficio(self, codigo_postal: str, oficio: str, especializacion: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Fachada Campamento Base → grupo_service.buscar_grupo_sin_oficio."""
@@ -567,83 +564,24 @@ class DBManager:
 
 
     def sugerir_cp_adyacente(self, codigo_postal: str) -> Optional[str]:
-        """Sugiere un CP alternativo desde la BD (misma zona: dos primeros dígitos). No usa listas abstractas."""
-        if not codigo_postal or len(codigo_postal) < 2:
-            return None
-        prefijo = codigo_postal[:2]
-        with self._lock:
-            try:
-                conn = self._connect()
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT codigo_postal FROM grupos
-                    WHERE codigo_postal != ? AND codigo_postal LIKE ?
-                    GROUP BY codigo_postal
-                    ORDER BY codigo_postal LIMIT 1
-                """, (codigo_postal, prefijo + '%'))
-                row = cursor.fetchone()
-                return row[0] if row else None
-            except Exception:
-                return None
-            finally:
-                conn.close()
+        """Fachada Campamento Base → grupo_service.sugerir_cp_adyacente."""
+        return grupo_service.sugerir_cp_adyacente(self, codigo_postal)
+
 
     def obtener_o_crear_grupo(self, codigo_postal: str, ciudad: str = "", provincia: str = "") -> Dict[str, Any]:
-        """
-        Obtiene el primer grupo activo del CP o crea uno si no hay ninguno.
-        Nombre generado: RUANA-<ID_UNICO>-<SUFIJO>. Estado por defecto: activo.
-        """
-        with self._lock:
-            try:
-                conn = self._connect()
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT id, nombre, codigo_postal, ciudad, provincia, estado, fecha_creacion FROM grupos WHERE codigo_postal = ? AND estado = 'activo' ORDER BY id LIMIT 1",
-                    (codigo_postal,),
-                )
-                row = cursor.fetchone()
-                if row:
-                    return dict(row)
-                nombre = self._generar_nombre_grupo(cursor)
-                cursor.execute("""
-                    INSERT INTO grupos (nombre, codigo_postal, ciudad, provincia, estado, fecha_creacion)
-                    VALUES (?, ?, ?, ?, 'activo', CURRENT_TIMESTAMP)
-                """, (nombre, codigo_postal, ciudad or None, provincia or None))
-                gid = cursor.lastrowid
-                conn.commit()
-                cursor.execute(
-                    "SELECT id, nombre, codigo_postal, ciudad, provincia, estado, fecha_creacion FROM grupos WHERE id = ?",
-                    (gid,),
-                )
-                return dict(cursor.fetchone())
-            except Exception as e:
-                return {'status': 'error', 'message': str(e)}
-            finally:
-                conn.close()
+        """Fachada Campamento Base → grupo_service.obtener_o_crear_grupo."""
+        return grupo_service.obtener_o_crear_grupo(self, codigo_postal, ciudad, provincia)
+
 
     def obtener_grupo_por_codigo_postal(self, codigo_postal: str) -> Optional[Dict[str, Any]]:
-        """Obtiene el primer grupo activo por código postal."""
-        grupos = self.obtener_grupos_activos_por_cp(codigo_postal)
-        return grupos[0] if grupos else None
+        """Fachada Campamento Base → grupo_service.obtener_grupo_por_codigo_postal."""
+        return grupo_service.obtener_grupo_por_codigo_postal(self, codigo_postal)
+
 
     def obtener_grupo_por_id(self, grupo_id: int) -> Optional[Dict[str, Any]]:
-        """Obtiene un grupo por su id."""
-        with self._lock:
-            try:
-                conn = self._connect()
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT id, nombre, codigo_postal, ciudad, provincia, estado, fecha_creacion FROM grupos WHERE id = ?",
-                    (grupo_id,),
-                )
-                row = cursor.fetchone()
-                return dict(row) if row else None
-            except Exception:
-                return None
-            finally:
-                conn.close()
+        """Fachada Campamento Base → grupo_service.obtener_grupo_por_id."""
+        return grupo_service.obtener_grupo_por_id(self, grupo_id)
+
 
     def contar_aliados_activos_grupo(self, grupo_id: int) -> int:
         """Fachada Campamento Base → grupo_service.contar_aliados_activos_grupo."""
@@ -671,48 +609,19 @@ class DBManager:
 
 
     def _buscar_candidato_fusion(self, cursor, grupo_id: int, codigo_postal: str, oficio_aliado_solo: str) -> Optional[Dict[str, Any]]:
-        """
-        Busca otro grupo activo en el mismo CP con <3 aliados activos y sin ese oficio.
-        Solo fusionar si no hay oficios repetidos. Devuelve el grupo candidato (el que podría absorber o ser absorbido).
-        """
-        cursor.execute(
-            """SELECT id, nombre, codigo_postal, ciudad, provincia, estado, fecha_creacion
-               FROM grupos WHERE codigo_postal = ? AND estado = 'activo' AND id != ? ORDER BY fecha_creacion, id""",
-            (codigo_postal, grupo_id),
-        )
-        for row in cursor.fetchall():
-            g = dict(row)
-            if self._grupo_tiene_oficio(cursor, g['id'], oficio_aliado_solo):
-                continue
-            cursor.execute(
-                "SELECT COUNT(*) FROM aliados WHERE grupo_id = ? AND estado = 'activo'",
-                (g['id'],),
-            )
-            n = cursor.fetchone()[0] or 0
-            if n < 3:
-                return g
-        return None
+        """Fachada Campamento Base → grupo_service._buscar_candidato_fusion."""
+        return grupo_service._buscar_candidato_fusion(self, cursor, grupo_id, codigo_postal, oficio_aliado_solo)
+
 
     def _fusionar_grupos_mas_antiguo_absorbe(self, conn, cursor, grupo_absorbedor_id: int, grupo_a_disolver_id: int) -> None:
-        """Mueve todos los aliados activos del grupo a disolver al absorbedor y marca el grupo como disuelto. No reutiliza nombres."""
-        cursor.execute(
-            "UPDATE aliados SET grupo_id = ? WHERE grupo_id = ? AND estado = 'activo'",
-            (grupo_absorbedor_id, grupo_a_disolver_id),
-        )
-        cursor.execute("UPDATE grupos SET estado = 'disuelto' WHERE id = ?", (grupo_a_disolver_id,))
+        """Fachada Campamento Base → grupo_service._fusionar_grupos_mas_antiguo_absorbe."""
+        return grupo_service._fusionar_grupos_mas_antiguo_absorbe(self, conn, cursor, grupo_absorbedor_id, grupo_a_disolver_id)
+
 
     def _buscar_grupo_compatible_mismo_cp(self, cursor, codigo_postal: str, oficio: str, excluir_grupo_id: int) -> Optional[Dict[str, Any]]:
-        """Grupo activo en el mismo CP que no tiene ese oficio y no es el excluido."""
-        cursor.execute(
-            """SELECT id, nombre, codigo_postal, ciudad, provincia, estado, fecha_creacion
-               FROM grupos WHERE codigo_postal = ? AND estado = 'activo' AND id != ? ORDER BY id""",
-            (codigo_postal, excluir_grupo_id),
-        )
-        for row in cursor.fetchall():
-            g = dict(row)
-            if not self._grupo_tiene_oficio(cursor, g['id'], oficio):
-                return g
-        return None
+        """Fachada Campamento Base → grupo_service._buscar_grupo_compatible_mismo_cp."""
+        return grupo_service._buscar_grupo_compatible_mismo_cp(self, cursor, codigo_postal, oficio, excluir_grupo_id)
+
 
     def procesar_viabilidad_grupo(self, grupo_id: int) -> Dict[str, Any]:
         """Fachada Campamento Base → grupo_service.procesar_viabilidad_grupo."""
@@ -720,25 +629,9 @@ class DBManager:
 
 
     def procesar_grupos_no_viables(self) -> List[Dict[str, Any]]:
-        """Ejecuta procesar_viabilidad_grupo para todos los grupos activos con exactamente 1 aliado activo."""
-        with self._lock:
-            try:
-                conn = self._connect()
-                cursor = conn.cursor()
-                cursor.execute(
-                    """SELECT g.id FROM grupos g
-                       WHERE g.estado = 'activo'
-                       AND (SELECT COUNT(*) FROM aliados a WHERE a.grupo_id = g.id AND a.estado = 'activo') = 1"""
-                )
-                ids = [row[0] for row in cursor.fetchall()]
-                conn.close()
-            except Exception:
-                return []
-        resultados = []
-        for gid in ids:
-            r = self.procesar_viabilidad_grupo(gid)
-            resultados.append({'grupo_id': gid, **r})
-        return resultados
+        """Fachada Campamento Base → grupo_service.procesar_grupos_no_viables."""
+        return grupo_service.procesar_grupos_no_viables(self)
+
 
     # ===============================================
     # OPERACIONES ALIADOS
@@ -1630,43 +1523,9 @@ class DBManager:
 
 
     def obtener_grupo_invitador_por_codigo_invitacion(self, codigo_invitacion: str) -> Optional[Dict[str, Any]]:
-        """
-        Devuelve el grupo del invitador para un código de invitación (tabla invitaciones).
-        Usado al registrarse con código "Conozco a alguien" para asignar al nuevo aliado al mismo grupo si cumple reglas.
-        """
-        codigo = (codigo_invitacion or '').strip()
-        if not codigo:
-            return None
-        with self._lock:
-            try:
-                conn = self._connect()
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT invitador_aliado_id FROM invitaciones WHERE codigo = ?",
-                    (codigo,)
-                )
-                row = cursor.fetchone()
-                if not row:
-                    return None
-                invitador_id = row[0] if hasattr(row, '__getitem__') else row['invitador_aliado_id']
-                cursor.execute(
-                    "SELECT grupo_id, codigo_postal FROM aliados WHERE id = ?",
-                    (invitador_id,)
-                )
-                r2 = cursor.fetchone()
-                if not r2 or not r2[0]:
-                    return None
-                grupo_id = r2[0] if hasattr(r2, '__getitem__') else r2['grupo_id']
-                codigo_postal = r2[1] if hasattr(r2, '__getitem__') else r2['codigo_postal']
-                return {'grupo_id': grupo_id, 'codigo_postal': codigo_postal or ''}
-            except Exception:
-                return None
-            finally:
-                try:
-                    conn.close()
-                except Exception:
-                    pass
+        """Fachada Campamento Base → grupo_service.obtener_grupo_invitador_por_codigo_invitacion."""
+        return grupo_service.obtener_grupo_invitador_por_codigo_invitacion(self, codigo_invitacion)
+
 
     def consumir_invitacion_y_recompensar(self, codigo_invitacion: str, nuevo_aliado_codigo: str) -> bool:
         """Fachada Campamento Base → invitacion_service.consumir_invitacion_y_recompensar."""
@@ -1807,55 +1666,9 @@ class DBManager:
 
 
     def _obtener_grupo_activacion_pendiente(self, cursor, aliado: Dict[str, Any]) -> Optional[int]:
-        """
-        Resuelve grupo al activar un aliado pendiente_validacion.
-        Prioridad: grupo del invitador (si hay plaza) → otro grupo del CP → nuevo grupo.
-        """
-        oficio = (aliado.get('oficio') or '').strip()
-        codigo_postal = (aliado.get('codigo_postal') or '').strip()
-        if not oficio or not codigo_postal:
-            return None
+        """Fachada Campamento Base → grupo_service._obtener_grupo_activacion_pendiente."""
+        return grupo_service._obtener_grupo_activacion_pendiente(self, cursor, aliado)
 
-        invitador_codigo = (aliado.get('invitado_por_codigo') or '').strip()
-        if invitador_codigo:
-            cursor.execute(
-                "SELECT grupo_id FROM aliados WHERE codigo = ?",
-                (invitador_codigo,),
-            )
-            inv_row = cursor.fetchone()
-            if inv_row and inv_row[0]:
-                grupo_id = int(inv_row[0])
-                cursor.execute("SELECT estado FROM grupos WHERE id = ?", (grupo_id,))
-                g_row = cursor.fetchone()
-                if g_row and (g_row[0] or '').strip().lower() == 'activo':
-                    if not self._grupo_tiene_oficio(cursor, grupo_id, oficio):
-                        return grupo_id
-
-        cursor.execute(
-            """SELECT id FROM grupos
-               WHERE codigo_postal = ? AND estado = 'activo'
-               ORDER BY id""",
-            (codigo_postal,),
-        )
-        for row in cursor.fetchall():
-            grupo_id = int(row[0])
-            if not self._grupo_tiene_oficio(cursor, grupo_id, oficio):
-                return grupo_id
-
-        cursor.execute(
-            "SELECT COUNT(*) FROM grupos WHERE codigo_postal = ? AND estado = 'activo'",
-            (codigo_postal,),
-        )
-        n_grupos = cursor.fetchone()[0] or 0
-        if n_grupos < MAX_GRUPOS_POR_CP:
-            nombre = self._generar_nombre_grupo(cursor)
-            cursor.execute(
-                """INSERT INTO grupos (nombre, codigo_postal, estado, fecha_creacion)
-                   VALUES (?, ?, 'activo', CURRENT_TIMESTAMP)""",
-                (nombre, codigo_postal),
-            )
-            return int(cursor.lastrowid)
-        return None
 
     def _activar_aliado_pendiente_interno(self, cursor, aliado: Dict[str, Any]) -> Dict[str, Any]:
         """Fachada Campamento Base → aliado_service._activar_aliado_pendiente_interno."""
