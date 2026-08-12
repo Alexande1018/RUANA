@@ -15,9 +15,15 @@ def test_global_selects_use_dark_color_scheme():
 
 def test_pages_with_selects_include_dark_select_fallback_for_file_preview():
     web_dir = Path(__file__).resolve().parents[1] / "web"
+    css_dir = web_dir / "static" / "css"
 
-    for filename in ("admin.html", "aliado.html", "register.html"):
-        text = (web_dir / filename).read_text(encoding="utf-8")
+    sources = (
+        css_dir / "admin-panel.css",
+        css_dir / "aliado-panel.css",
+        web_dir / "register.html",
+    )
+    for path in sources:
+        text = path.read_text(encoding="utf-8")
         assert "color-scheme: dark" in text
         assert "select option" in text
         assert "background-color: #111827" in text

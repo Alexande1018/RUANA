@@ -111,7 +111,7 @@ def test_admin_can_render_and_deactivate_invitation_campaigns():
 
 
 def test_aliado_logout_button_does_not_use_fixed_overlay_position():
-    text = _read(WEB / "aliado.html")
+    text = _read(WEB / "static" / "css" / "aliado-panel.css")
 
     assert "#btn-logout" in text
     assert "position: sticky" in text
