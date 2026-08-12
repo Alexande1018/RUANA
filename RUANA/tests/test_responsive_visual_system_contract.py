@@ -79,31 +79,34 @@ def test_admin_uses_shared_loader_and_filter_classes():
 
 def test_admin_has_sticky_topbar_and_hides_content_while_loading():
     text = _read(WEB / "admin.html")
+    resumen = _read(WEB / "static" / "js" / "admin-resumen-module.js")
 
     assert '<body class="admin-is-loading">' in text
     assert 'class="admin-topbar"' in text
     assert 'class="admin-topbar-link"' in text
     assert 'class="admin-data-content"' in text
-    assert "document.body.classList.add('admin-is-loading')" in text
-    assert "document.body.classList.remove('admin-is-loading')" in text
+    assert "document.body.classList.add('admin-is-loading')" in resumen
+    assert "document.body.classList.remove('admin-is-loading')" in resumen
     assert '<a href="/" class="btn-back">' not in text
 
 
 def test_admin_can_render_and_deactivate_invitation_campaigns():
     text = _read(WEB / "admin.html")
+    sistema = _read(WEB / "static" / "js" / "admin-sistema-module.js")
+    resumen = _read(WEB / "static" / "js" / "admin-resumen-module.js")
 
     assert "admin-campanas-invitacion-panel" in text
     assert "admin-campanas-invitacion-tbody" in text
     assert "admin-campana-invitacion-result" in text
     assert "renderCampanasInvitacion" in text
     assert "cargarCampanasInvitacion" in text
-    assert "btn-ver-campana" in text
+    assert "btn-ver-campana" in sistema or "btn-ver-campana" in text
     assert "verDetalleCampanaInvitacion" in text
     assert "buildCampanaRegistroUrl" in text
     assert "buildCampanaQrUrl" in text
     assert "desactivarCampanaInvitacion" in text
-    assert "fetch('/api/admin/invitacion-campanas?limite=30'" in text
-    assert "/api/admin/invitacion-campanas/' + encodeURIComponent(codigo) + '/desactivar" in text
+    assert "fetch('/api/admin/invitacion-campanas?limite=30'" in resumen or "fetch('/api/admin/invitacion-campanas?limite=30'" in sistema
+    assert "/api/admin/invitacion-campanas/' + encodeURIComponent(codigo) + '/desactivar" in sistema
     assert '<button type="button" class="btn-admin-action" data-action="crear-campana-invitacion">Crear Invitacion Multiuso</button>\n                <button type="button" class="btn-admin-action" data-action="crear-codigo-aliado">' not in text
 
 
@@ -117,6 +120,7 @@ def test_aliado_logout_button_does_not_use_fixed_overlay_position():
 
 def test_aliado_perfil_tiene_boton_generar_codigo_invitacion():
     text = _read(WEB / "aliado.html")
+    invitaciones = _read(WEB / "static" / "js" / "aliado-invitaciones-module.js")
 
     assert 'id="btn-invitar-aliado"' in text
     assert "btn-invitar-aliado" in text
@@ -125,4 +129,4 @@ def test_aliado_perfil_tiene_boton_generar_codigo_invitacion():
     assert 'data-action="invitar-aliado"' in text
     assert "Ampliar mi red" in text
     assert "generarCodigoInvitacionPerfil" in text
-    assert "/api/invitaciones/crear" in text
+    assert "/api/invitaciones/crear" in invitaciones
