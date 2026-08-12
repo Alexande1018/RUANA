@@ -29,13 +29,14 @@ def test_aliado_panel_does_not_ship_demo_profile_values():
 
 
 def test_aliado_solicitudes_initial_load_sends_auth_headers():
-    aliado_html = Path(__file__).resolve().parents[1] / "web" / "aliado.html"
-    text = aliado_html.read_text(encoding="utf-8")
-    start = text.index("fetch(apiBase + '/api/solicitudes?codigo='")
-    snippet = text[start : start + 260]
+    """Carga de solicitudes (loadData/sync) envía credenciales + auth headers."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    sync_js = (root / "static" / "js" / "aliado-sync-module.js").read_text(encoding="utf-8")
+    start = sync_js.index("fetch(apiBase + '/api/solicitudes?codigo='")
+    snippet = sync_js[start : start + 320]
 
     assert "credentials: 'same-origin'" in snippet
-    assert "headers: getRuanaAuthHeaders()" in snippet
+    assert "getAuthHeadersSafe()" in snippet or "getRuanaAuthHeaders()" in snippet
 
 
 def test_aceptar_y_pagar_offers_manual_methods_and_receipt_upload():
@@ -267,3 +268,80 @@ def test_aliado_conexiones_module_is_wired():
     assert 'id="module-conexiones"' in aliado
     assert 'id="nueva-solicitud-oficio"' in aliado
     assert 'id="btn-enviar"' in aliado
+
+
+def test_aliado_invitaciones_module_is_wired():
+    """Módulo PrivatePanel `invitaciones`; PrivatePanel solo fachada."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    inv_js = (root / "static" / "js" / "aliado-invitaciones-module.js").read_text(encoding="utf-8")
+    modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
+
+    assert 'src="/static/js/aliado-invitaciones-module.js"' in aliado
+    assert "invitaciones: null" in modules_js
+    assert "modules.invitaciones" in inv_js or "RuanaAliadoModules.invitaciones" in inv_js
+    assert "generarCodigoInvitacionPerfil" in inv_js
+    assert "generateInviteCode" in inv_js
+    assert "/api/invitaciones/crear" in inv_js
+    assert "generarInvitacionOficio" in inv_js
+    assert "_invitacionesModule" in aliado
+    assert "mod.generateInviteCode(this, solicitudId)" in aliado
+    assert 'id="modal-code"' in aliado
+    assert 'id="modal-invitacion-oficio"' in aliado
+
+
+def test_aliado_alertas_module_is_wired():
+    """Módulo PrivatePanel `alertas` (hub + apoyo + impugnación); solo fachada."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    alertas_js = (root / "static" / "js" / "aliado-alertas-module.js").read_text(encoding="utf-8")
+    modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
+
+    assert 'src="/static/js/aliado-alertas-module.js"' in aliado
+    assert "alertas: null" in modules_js
+    assert "modules.alertas" in alertas_js or "RuanaAliadoModules.alertas" in alertas_js
+    assert "renderAlertHub" in alertas_js
+    assert "abrirModalPagoApoyo" in alertas_js
+    assert "impugnarApoyoRuana" in alertas_js
+    assert "enviarComprobanteApoyo" in alertas_js
+    assert "_alertasModule" in aliado
+    assert "mod.renderAlertHub(this)" in aliado
+    assert "mod.abrirModalPagoApoyo(this, contactoId, apoyoRuana, servicio)" in aliado
+    assert 'id="ruana-alert-hub"' in aliado
+    assert 'id="modal-pago-apoyo"' in aliado
+    assert 'id="modal-impugnar-apoyo"' in aliado
+
+
+def test_aliado_catalogo_contactos_grupo_sync_modules_are_wired():
+    """Módulos catalogo / contactos / grupo / sync cableados con fachadas."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
+    catalogo = (root / "static" / "js" / "aliado-catalogo-module.js").read_text(encoding="utf-8")
+    contactos = (root / "static" / "js" / "aliado-contactos-module.js").read_text(encoding="utf-8")
+    grupo = (root / "static" / "js" / "aliado-grupo-module.js").read_text(encoding="utf-8")
+    sync = (root / "static" / "js" / "aliado-sync-module.js").read_text(encoding="utf-8")
+
+    for src in (
+        "aliado-catalogo-module.js",
+        "aliado-contactos-module.js",
+        "aliado-grupo-module.js",
+        "aliado-sync-module.js",
+    ):
+        assert f'src="/static/js/{src}"' in aliado
+
+    assert "catalogo: null" in modules_js
+    assert "contactos: null" in modules_js
+    assert "grupo: null" in modules_js
+    assert "sync: null" in modules_js
+    assert "renderCatalogoServicios" in catalogo
+    assert "cargarContactosPendientes" in contactos
+    assert "renderGrupo" in grupo
+    assert "runWarmupSync" in sync
+    assert "loadData" in sync
+    assert "_catalogoModule" in aliado
+    assert "_contactosModule" in aliado
+    assert "_grupoModule" in aliado
+    assert "_syncModule" in aliado
+    assert "mod.loadData(this)" in aliado
+    assert "mod.renderGrupo(this)" in aliado

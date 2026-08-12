@@ -2185,6 +2185,12 @@
     <script src="/static/js/aliado-acuerdos-module.js" defer></script>
     <script src="/static/js/aliado-conexiones-module.js" defer></script>
     <script src="/static/js/aliado-centro-comunicacion-module.js" defer></script>
+    <script src="/static/js/aliado-invitaciones-module.js" defer></script>
+    <script src="/static/js/aliado-alertas-module.js" defer></script>
+    <script src="/static/js/aliado-catalogo-module.js" defer></script>
+    <script src="/static/js/aliado-contactos-module.js" defer></script>
+    <script src="/static/js/aliado-grupo-module.js" defer></script>
+    <script src="/static/js/aliado-sync-module.js" defer></script>
     <script src="/static/js/aliado-shell.js" defer></script>
     <link rel="stylesheet" href="/static/css/negociacion-guiada.css">
     <script src="/static/js/negociacion-guiada.js" defer></script>
@@ -3669,93 +3675,44 @@
             }
 
             async runWarmupSync() {
-                const bootstrapTasks = await Promise.allSettled([
-                    this.fetchCentroComunicacionSnapshot(),
-                    this.cargarMetodosPagoRuana(),
-                    this.cargarContactosPendientes(),
-                    this.cargarMisAcuerdos(),
-                    this.cargarResumenesAcuerdoFlotantes(),
-                ]);
-                bootstrapTasks.forEach((task, idx) => {
-                    if (task.status === 'rejected') {
-                        const labels = ['centro-comunicacion', 'metodos-pago', 'contactos-pendientes', 'mis-acuerdos', 'resumenes-acuerdo'];
-                        console.error(`Error en carga de fondo (${labels[idx]}):`, task.reason);
-                    }
-                });
-                this.renderCentroComunicacion();
-                this.renderAlertas();
-                this.renderNotificaciones();
-                this.renderListaPagosPendientes();
-                this.renderMisAcuerdos();
+                const mod = this._syncModule();
+                if (mod && typeof mod.runWarmupSync === 'function') {
+                    return mod.runWarmupSync(this);
+                }
             }
 
             initOnboarding() {
-                this.onboardingTour = new RuanaOnboardingTour(this);
-                const replayBtn = document.getElementById('btn-replay-onboarding');
-                if (replayBtn) {
-                    replayBtn.addEventListener('click', () => this.onboardingTour.start(true));
+                const mod = this._syncModule();
+                if (mod && typeof mod.initOnboarding === 'function') {
+                    return mod.initOnboarding(this);
                 }
-                if (this.onboardingTour.shouldAutoStart()) {
-                    setTimeout(() => this.onboardingTour.start(), 450);
-                }
-                window.addEventListener('resize', () => {
-                    if (this.onboardingTour && (this.onboardingTour.overlay || this.onboardingTour.cloud)) {
-                        this.onboardingTour.renderStep();
-                    }
-                });
             }
 
             getSyncElements(sections) {
-                const map = {
-                    perfil: '.perfil-block',
-                    metricas: '.metricas-block',
-                    directorio: '.directorio-panel',
-                    solicitudes: '.solicitudes-zone',
-                    alertas: '#ruana-alert-hub',
-                    centro: '#ruana-help-center'
-                };
-                return (sections || [])
-                    .map((k) => map[k])
-                    .filter(Boolean)
-                    .map((selector) => document.querySelector(selector))
-                    .filter(Boolean);
+                const mod = this._syncModule();
+                if (mod && typeof mod.getSyncElements === 'function') {
+                    return mod.getSyncElements(this, sections);
+                }
             }
 
             setSectionsSyncing(sections, syncing) {
-                this.getSyncElements(sections).forEach((el) => {
-                    el.classList.toggle('ruana-syncing', Boolean(syncing));
-                });
+                const mod = this._syncModule();
+                if (mod && typeof mod.setSectionsSyncing === 'function') {
+                    return mod.setSectionsSyncing(this, sections, syncing);
+                }
             }
 
             async fetchAliadoSnapshot() {
-                const apiBase = getApiBase();
-                const resp = await fetch(apiBase + '/api/aliado/datos', { credentials: 'same-origin', headers: getRuanaAuthHeaders() });
-                if (!resp.ok) return;
-                const data = await resp.json();
-                if (data.status === 'success' && data.aliado) {
-                    this.aliado = { ...(this.aliado || {}), ...data.aliado };
-                    if (Array.isArray(data.notificaciones)) this.notificaciones = data.notificaciones;
+                const mod = this._syncModule();
+                if (mod && typeof mod.fetchAliadoSnapshot === 'function') {
+                    return mod.fetchAliadoSnapshot(this);
                 }
             }
 
             async fetchSolicitudesSnapshot() {
-                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
-                if (!codigo) return;
-                const apiBase = getApiBase();
-                const resp = await fetch(apiBase + '/api/solicitudes?codigo=' + encodeURIComponent(codigo), {
-                    credentials: 'same-origin',
-                    headers: getRuanaAuthHeaders()
-                });
-                if (!resp.ok) return;
-                const data = await resp.json();
-                if (data && typeof data === 'object' && !Array.isArray(data)) {
-                    this.solicitudesEntrantes = Array.isArray(data.entrantes) ? data.entrantes : [];
-                    this.solicitudesPropias = Array.isArray(data.propias) ? data.propias : [];
-                    this.solicitudesHistorial = Array.isArray(data.historial) ? data.historial : [];
-                } else {
-                    this.solicitudesEntrantes = Array.isArray(data) ? data : [];
-                    this.solicitudesPropias = [];
-                    this.solicitudesHistorial = [];
+                const mod = this._syncModule();
+                if (mod && typeof mod.fetchSolicitudesSnapshot === 'function') {
+                    return mod.fetchSolicitudesSnapshot(this);
                 }
             }
 
@@ -3788,45 +3745,17 @@
             }
 
             async refreshAfterAction(sections, options) {
-                const opts = options || {};
-                if (this._syncInProgress && !opts.allowConcurrent) return;
-                const targetSections = Array.isArray(sections) ? sections : [];
-                this._syncInProgress = true;
-                this.setSectionsSyncing(targetSections, true);
-                try {
-                    const jobs = [];
-                    if (targetSections.includes('perfil') || targetSections.includes('metricas') || targetSections.includes('alertas')) jobs.push(this.fetchAliadoSnapshot());
-                    if (targetSections.includes('solicitudes')) jobs.push(this.fetchSolicitudesSnapshot());
-                    if (targetSections.includes('directorio')) jobs.push(this.fetchDirectorioSnapshot());
-                    if (targetSections.includes('alertas')) jobs.push(this.actualizarEstadoAlertas());
-                    if (targetSections.includes('centro')) jobs.push(this.fetchCentroComunicacionSnapshot());
-                    if (targetSections.includes('contactos')) jobs.push(this.cargarContactosPendientes());
-                    await Promise.all(jobs);
-
-                    if (targetSections.includes('perfil')) { this.renderPerfil(); this.renderGrupo(); }
-                    if (targetSections.includes('metricas')) this.renderMetricas();
-                    if (targetSections.includes('solicitudes')) this.renderSolicitudes();
-                    if (targetSections.includes('directorio')) this.renderProfesionales();
-                    if (targetSections.includes('alertas')) {
-                        this.renderNotificaciones();
-                        this.renderListaPagosPendientes();
-                        this.renderAlertas();
-                    }
-                    if (targetSections.includes('centro')) this.renderCentroComunicacion();
-                } catch (e) {
-                    console.error('Error de sincronización UI:', e);
-                } finally {
-                    this.setSectionsSyncing(targetSections, false);
-                    this._syncInProgress = false;
+                const mod = this._syncModule();
+                if (mod && typeof mod.refreshAfterAction === 'function') {
+                    return mod.refreshAfterAction(this, sections, options);
                 }
             }
 
             startAutoSync() {
-                if (this._autoSyncIntervalId) clearInterval(this._autoSyncIntervalId);
-                this._autoSyncIntervalId = setInterval(() => {
-                    if (document.visibilityState !== 'visible') return;
-                    this.refreshAfterAction(['perfil', 'metricas', 'solicitudes', 'directorio', 'alertas', 'contactos', 'centro']);
-                }, 20000);
+                const mod = this._syncModule();
+                if (mod && typeof mod.startAutoSync === 'function') {
+                    return mod.startAutoSync(this);
+                }
             }
 
             setPanelLoading(isLoading) {
@@ -3847,118 +3776,9 @@
              * - Maneja errores sin romper la UI
              */
             async loadData() {
-                try {
-                    // Código: primero URL, luego sessionStorage, luego datos aliado
-                    const codigoURL = PrivatePanel.getCodigoFromURL();
-                    if (codigoURL) this.codigoAliado = codigoURL;
-                    if (!this.codigoAliado) this.codigoAliado = sessionStorage.getItem('ruana_codigo_aliado') || null;
-
-                    // Cargar datos básicos del aliado desde sesión si existen
-                    const aliadoData = JSON.parse(sessionStorage.getItem('ruana_aliado_data') || '{}');
-                    if (aliadoData && Object.keys(aliadoData).length > 0) {
-                        this.aliado = aliadoData;
-                        if (!this.codigoAliado && (aliadoData.codigo || aliadoData.codigo_aliado)) {
-                            this.codigoAliado = aliadoData.codigo || aliadoData.codigo_aliado;
-                        }
-                    }
-
-                    // Si aún no tenemos código, sessionStorage directo
-                    if (!this.codigoAliado) {
-                        const codigoSesion = sessionStorage.getItem('ruana_codigo_aliado');
-                        if (codigoSesion) this.codigoAliado = codigoSesion;
-                    }
-
-                    // Refrescar datos del aliado desde la API (sesión cookie; backend usa sesión)
-                    const apiBase = getApiBase();
-                    if (this.codigoAliado) {
-                        const fetchedAtRaw = sessionStorage.getItem('ruana_aliado_data_fetched_at');
-                        const fetchedAt = fetchedAtRaw ? Number(fetchedAtRaw) : 0;
-                        const fetchedRecently = Number.isFinite(fetchedAt) && fetchedAt > 0 && (Date.now() - fetchedAt) < 15000;
-                        try {
-                            // Evita fetch duplicado inmediato tras bootstrap (DOMContentLoaded ya lo hizo).
-                            if (!fetchedRecently) {
-                                const respDatos = await fetch(apiBase + '/api/aliado/datos', { credentials: 'same-origin', headers: getRuanaAuthHeaders() });
-                                if (respDatos.ok) {
-                                    const dataDatos = await respDatos.json();
-                                    if (dataDatos.status === 'success' && dataDatos.aliado) {
-                                        this.aliado = { ...(this.aliado || {}), ...dataDatos.aliado };
-                                        this.notificaciones = Array.isArray(dataDatos.notificaciones) ? dataDatos.notificaciones : [];
-                                    }
-                                } else if (respDatos.status === 403) {
-                                    // Cuenta pendiente de validación: no puede acceder al panel
-                                    const errData = await respDatos.json().catch(() => ({}));
-                                    sessionStorage.removeItem('ruana_aliado_data');
-                                    sessionStorage.removeItem('ruana_codigo_aliado');
-                                    sessionStorage.removeItem('ruana_aliado_data_fetched_at');
-                                    alert(errData.message || 'Tu cuenta está pendiente de validación. Un administrador debe activarla.');
-                                    window.location.href = '/';
-                                    return;
-                                }
-                            }
-                        } catch (e) {
-                            console.error('Error refrescando datos aliado:', e);
-                        }
-
-                        const [notificacionesTask, solicitudesTask, directorioTask] = await Promise.allSettled([
-                            (async () => {
-                                // Cargar notificaciones explícitamente (mensajes de RUANA: comprobante rechazado, etc.)
-                                const respNotif = await fetch(apiBase + '/api/aliados/' + encodeURIComponent(this.codigoAliado) + '/notificaciones?limite=50', {
-                                    credentials: 'same-origin',
-                                    headers: getRuanaAuthHeaders()
-                                });
-                                if (!respNotif.ok) return;
-                                const dataNotif = await respNotif.json();
-                                if (dataNotif.status === 'success' && Array.isArray(dataNotif.notificaciones)) {
-                                    this.notificaciones = dataNotif.notificaciones;
-                                }
-                            })(),
-                            (async () => {
-                                const respSol = await fetch(apiBase + '/api/solicitudes?codigo=' + encodeURIComponent(this.codigoAliado), {
-                                    credentials: 'same-origin',
-                                    headers: getRuanaAuthHeaders()
-                                });
-                                if (!respSol.ok) return;
-                                const dataSol = await respSol.json();
-                                if (dataSol && typeof dataSol === 'object' && !Array.isArray(dataSol)) {
-                                    this.solicitudesEntrantes = Array.isArray(dataSol.entrantes) ? dataSol.entrantes : [];
-                                    this.solicitudesPropias = Array.isArray(dataSol.propias) ? dataSol.propias : [];
-                                    this.solicitudesHistorial = Array.isArray(dataSol.historial) ? dataSol.historial : [];
-                                } else {
-                                    this.solicitudesEntrantes = Array.isArray(dataSol) ? dataSol : [];
-                                    this.solicitudesPropias = [];
-                                    this.solicitudesHistorial = [];
-                                }
-                            })(),
-                            (async () => {
-                                // Directorio: todos los profesionales del mismo grupo (API dedicada)
-                                const respDirectorio = await fetch('/api/aliados/directorio', {
-                                    credentials: 'same-origin',
-                                    headers: getRuanaAuthHeaders()
-                                });
-                                if (!respDirectorio.ok) return;
-                                const dataDirectorio = await respDirectorio.json();
-                                if (dataDirectorio.status === 'success' && Array.isArray(dataDirectorio.aliados)) {
-                                    this.profesionales = dataDirectorio.aliados;
-                                }
-                            })()
-                        ]);
-
-                        if (notificacionesTask.status === 'rejected') {
-                            console.error('Error cargando notificaciones:', notificacionesTask.reason);
-                        }
-                        if (solicitudesTask.status === 'rejected') {
-                            console.error('Error cargando solicitudes de grupo:', solicitudesTask.reason);
-                        }
-                        if (directorioTask.status === 'rejected') {
-                            console.error('Error cargando directorio de profesionales:', directorioTask.reason);
-                        }
-                    }
-
-                    // Métricas se calculan directamente a partir de datos reales
-                    this.isDataLoaded = true;
-                } catch (error) {
-                    console.error('Error cargando datos:', error);
-                    this.isDataLoaded = false;
+                const mod = this._syncModule();
+                if (mod && typeof mod.loadData === 'function') {
+                    return mod.loadData(this);
                 }
             }
 
@@ -4116,23 +3936,9 @@
             }
 
             async cargarResumenesAcuerdoFlotantes() {
-                try {
-                    const resp = await fetch('/api/aliado/resumenes-acuerdo', {
-                        credentials: 'same-origin',
-                        headers: getRuanaAuthHeaders(),
-                    });
-                    if (!resp.ok) return;
-                    const data = await resp.json();
-                    const resumenes = (data.status === 'success' && Array.isArray(data.resumenes))
-                        ? data.resumenes
-                        : [];
-                    if (!resumenes.length) {
-                        this.ocultarAcuerdoFlotante();
-                        return;
-                    }
-                    this.mostrarAcuerdoFlotante(resumenes[0]);
-                } catch (e) {
-                    console.error('Error cargando resúmenes de acuerdo:', e);
+                const mod = this._contactosModule();
+                if (mod && typeof mod.cargarResumenesAcuerdoFlotantes === 'function') {
+                    return mod.cargarResumenesAcuerdoFlotantes(this);
                 }
             }
 
@@ -4171,36 +3977,10 @@
             }
 
             mostrarAcuerdoFlotante(item) {
-                const panel = document.getElementById('acuerdo-flotante');
-                if (!panel || !item) return;
-                this.acuerdoFlotanteActual = item;
-                const title = document.getElementById('acuerdo-flotante-title');
-                const body = document.getElementById('acuerdo-flotante-body');
-                const estadoEl = document.getElementById('acuerdo-flotante-estado');
-                const btnConfirmar = document.getElementById('acuerdo-flotante-confirmar');
-                if (title) title.textContent = item.servicio || 'Resumen del acuerdo';
-                const items = Array.isArray(item.resumen)
-                    ? item.resumen.filter((r) => r && r.valor && r.campo !== 'observaciones_profesional')
-                    : [];
-                if (body) {
-                    body.innerHTML = items.length
-                        ? items.map((r) => `<p><strong>${this.escapeHtml(r.label || r.campo)}:</strong> ${this.escapeHtml(String(r.valor))}</p>`).join('')
-                        : '<p>Consulta el detalle en la negociación.</p>';
+                const mod = this._contactosModule();
+                if (mod && typeof mod.mostrarAcuerdoFlotante === 'function') {
+                    return mod.mostrarAcuerdoFlotante(this, item);
                 }
-                let estadoTxt = 'El precio aceptado es el importe oficial del encargo.';
-                if (item.estado === 'trabajo_cerrado' || item.ambos_confirmaron_cierre) {
-                    estadoTxt = 'Precio aceptado. Encargo cerrado y Apoyo RUANA generado.';
-                } else if (item.yo_confirme_cierre) {
-                    estadoTxt = 'Ya revisaste el resumen.';
-                }
-                if (estadoEl) estadoEl.textContent = estadoTxt;
-                if (btnConfirmar) {
-                    const hide = !!(item.yo_confirme_cierre || item.estado === 'trabajo_cerrado' || item.ambos_confirmaron_cierre);
-                    btnConfirmar.style.display = hide ? 'none' : '';
-                    btnConfirmar.disabled = hide;
-                }
-                panel.hidden = false;
-                panel.classList.add('show');
             }
 
             ocultarAcuerdoFlotante() {
@@ -4267,31 +4047,10 @@
             }
 
             normalizarCatalogoServicios(catalogoRaw) {
-                const byPos = new Map();
-                if (Array.isArray(catalogoRaw)) {
-                    catalogoRaw.forEach((item) => {
-                        const pos = Number(item && item.posicion);
-                        if (!Number.isInteger(pos) || pos < 1 || pos > 10) return;
-                        const descripcion = (item && item.descripcion ? String(item.descripcion) : '').trim();
-                        const precio = (item && item.precio ? String(item.precio) : '').trim();
-                        byPos.set(pos, {
-                            posicion: pos,
-                            descripcion: descripcion || '',
-                            precio: precio || '',
-                            configurado: Boolean(descripcion && precio),
-                        });
-                    });
+                const mod = this._catalogoModule();
+                if (mod && typeof mod.normalizarCatalogoServicios === 'function') {
+                    return mod.normalizarCatalogoServicios(this, catalogoRaw);
                 }
-                const out = [];
-                for (let i = 1; i <= 10; i += 1) {
-                    out.push(byPos.get(i) || {
-                        posicion: i,
-                        descripcion: '',
-                        precio: '',
-                        configurado: false,
-                    });
-                }
-                return out;
             }
 
             _catalogoResumenTitulo(servicio) {
@@ -4346,139 +4105,16 @@
             }
 
             renderCatalogoServicios() {
-                const grid = document.getElementById('catalogo-servicios-grid');
-                const btnAdd = document.getElementById('btn-catalogo-anadir');
-                if (!grid) return;
-                const aliadoData = this.aliado || {};
-                const catalogo = this.normalizarCatalogoServicios(aliadoData.catalogo_servicios);
-                const editando = this.catalogoEditandoPos;
-                const configurados = catalogo.filter((s) => s.configurado);
-                const editItem = editando
-                    ? catalogo.find((s) => s.posicion === editando)
-                    : null;
-
-                // Mostrar configurados + la tarjeta en edición (aunque aún no esté configurada)
-                const visibles = [];
-                const seen = new Set();
-                configurados.forEach((s) => {
-                    visibles.push(s);
-                    seen.add(s.posicion);
-                });
-                if (editItem && !seen.has(editItem.posicion)) {
-                    visibles.push(editItem);
-                }
-                visibles.sort((a, b) => a.posicion - b.posicion);
-
-                if (!visibles.length) {
-                    grid.innerHTML = `
-                        <div class="catalogo-empty">
-                            <p>Aún no has añadido servicios al catálogo.</p>
-                            <p class="catalogo-empty-hint">Añade el primero con descripción y precio.</p>
-                        </div>`;
-                } else {
-                    grid.innerHTML = visibles.map((servicio) => {
-                        const abierta = editando === servicio.posicion;
-                        if (!abierta && servicio.configurado) {
-                            return `
-                                <article class="catalogo-servicio-card is-collapsed" data-servicio-pos="${servicio.posicion}" data-catalogo-toggle="${servicio.posicion}" role="button" tabindex="0" aria-expanded="false">
-                                    <div class="catalogo-servicio-summary">
-                                        <div class="catalogo-servicio-summary-main">
-                                            <span class="catalogo-servicio-num">Servicio ${servicio.posicion}</span>
-                                            <h4 class="catalogo-servicio-summary-title">${this.escapeHtml(this._catalogoResumenTitulo(servicio))}</h4>
-                                            <p class="catalogo-servicio-summary-precio">${this.escapeHtml(servicio.precio || '—')}</p>
-                                        </div>
-                                        <button type="button" class="catalogo-servicio-edit" data-servicio-edit="${servicio.posicion}">Editar</button>
-                                    </div>
-                                </article>`;
-                        }
-                        return `
-                            <article class="catalogo-servicio-card is-open" data-servicio-pos="${servicio.posicion}" aria-expanded="true">
-                                <div class="catalogo-servicio-head">
-                                    <span class="catalogo-servicio-num">${servicio.configurado ? `Servicio ${servicio.posicion}` : 'Nuevo servicio'}</span>
-                                    <span class="catalogo-servicio-state ${servicio.configurado ? 'ready' : 'pending'}">${servicio.configurado ? 'Editando' : 'En curso'}</span>
-                                </div>
-                                <label class="catalogo-servicio-label" for="catalogo-desc-${servicio.posicion}">Descripción</label>
-                                <textarea id="catalogo-desc-${servicio.posicion}" data-servicio-desc="${servicio.posicion}" maxlength="1000" placeholder="Qué ofreces en este servicio" rows="3">${this.escapeHtml(servicio.descripcion || '')}</textarea>
-                                <label class="catalogo-servicio-label" for="catalogo-precio-${servicio.posicion}">Precio</label>
-                                <input id="catalogo-precio-${servicio.posicion}" type="text" data-servicio-precio="${servicio.posicion}" maxlength="120" placeholder="Ej: 45 € / hora" value="${this.escapeHtml(servicio.precio || '')}" />
-                                <div class="catalogo-servicio-actions">
-                                    <button type="button" class="catalogo-servicio-save" data-servicio-save="${servicio.posicion}">Guardar</button>
-                                    <button type="button" class="catalogo-servicio-cancel" data-servicio-cancel="${servicio.posicion}">Cancelar</button>
-                                    <span class="catalogo-servicio-feedback" id="catalogo-servicio-feedback-${servicio.posicion}"></span>
-                                </div>
-                            </article>`;
-                    }).join('');
-                }
-
-                const libres = catalogo.filter((s) => !s.configurado).length;
-                const puedeAnadir = libres > 0 && editando == null;
-                if (btnAdd) {
-                    btnAdd.hidden = !puedeAnadir;
-                    btnAdd.disabled = !puedeAnadir;
-                }
-                if (typeof RuanaUI !== 'undefined') {
-                    RuanaUI.initIcons(grid);
-                    if (btnAdd) RuanaUI.initIcons(btnAdd);
+                const mod = this._catalogoModule();
+                if (mod && typeof mod.renderCatalogoServicios === 'function') {
+                    return mod.renderCatalogoServicios(this);
                 }
             }
 
             async guardarCatalogoServicio(posicion) {
-                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
-                if (!codigo) return;
-                const pos = Number(posicion);
-                if (!Number.isInteger(pos) || pos < 1 || pos > 10) return;
-                const inputDesc = document.querySelector(`[data-servicio-desc="${pos}"]`);
-                const inputPrecio = document.querySelector(`[data-servicio-precio="${pos}"]`);
-                const btnSave = document.querySelector(`[data-servicio-save="${pos}"]`);
-                const feedback = document.getElementById(`catalogo-servicio-feedback-${pos}`);
-                if (!inputDesc || !inputPrecio || !btnSave) return;
-                const descripcion = (inputDesc.value || '').trim();
-                const precio = (inputPrecio.value || '').trim();
-                if (!descripcion || !precio) {
-                    if (feedback) feedback.textContent = 'Completa descripción y precio';
-                    if (typeof RuanaUI !== 'undefined') {
-                        RuanaUI.toast('Completa descripción y precio para guardar', 'warning', 2200);
-                    }
-                    return;
-                }
-                btnSave.disabled = true;
-                if (feedback) feedback.textContent = 'Guardando...';
-                try {
-                    const resp = await fetch(`/api/aliados/${encodeURIComponent(codigo)}/catalogo-servicios/${pos}`, {
-                        method: 'PUT',
-                        headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
-                        credentials: 'same-origin',
-                        body: JSON.stringify({
-                            descripcion: descripcion,
-                            precio: precio,
-                        })
-                    });
-                    const data = await resp.json();
-                    if (data.status !== 'success') {
-                        if (feedback) feedback.textContent = data.message || 'No se pudo guardar';
-                        return;
-                    }
-                    if (!this.aliado) this.aliado = {};
-                    const current = this.normalizarCatalogoServicios(this.aliado.catalogo_servicios);
-                    const idx = current.findIndex((s) => s.posicion === pos);
-                    if (idx >= 0) {
-                        current[idx] = {
-                            posicion: pos,
-                            descripcion: descripcion,
-                            precio: precio,
-                            configurado: true,
-                        };
-                    }
-                    this.aliado.catalogo_servicios = current;
-                    this.catalogoEditandoPos = null;
-                    this.renderCatalogoServicios();
-                    if (typeof RuanaUI !== 'undefined') {
-                        RuanaUI.toast('Servicio guardado en el catálogo', 'success', 1800);
-                    }
-                } catch (e) {
-                    if (feedback) feedback.textContent = 'Error de conexión';
-                } finally {
-                    btnSave.disabled = false;
+                const mod = this._catalogoModule();
+                if (mod && typeof mod.guardarCatalogoServicio === 'function') {
+                    return mod.guardarCatalogoServicio(this, posicion);
                 }
             }
 
@@ -4486,52 +4122,10 @@
              * Banner de competencia por permanencia (activa o pendiente de retador).
              */
             renderCompetencia() {
-                const wrap = document.getElementById('competencia-banner-wrap');
-                const tituloEl = document.getElementById('competencia-banner-titulo');
-                const textoEl = document.getElementById('competencia-banner-texto');
-                const metaEl = document.getElementById('competencia-banner-meta');
-                if (!wrap || !tituloEl || !textoEl || !metaEl) return;
-
-                const info = (this.aliado && this.aliado.competencia_info) ? this.aliado.competencia_info : null;
-                wrap.classList.remove('pendiente', 'retador');
-                wrap.style.display = 'none';
-                if (!info || (!info.en_competencia && !info.competencia_pendiente)) return;
-
-                wrap.style.display = 'block';
-                const oficio = info.oficio || (this.aliado && this.aliado.oficio) || 'tu oficio';
-                const dias = info.dias_restantes != null ? info.dias_restantes : null;
-
-                if (info.competencia_pendiente) {
-                    wrap.classList.add('pendiente');
-                    tituloEl.innerHTML = '<strong>Competencia pendiente</strong>';
-                    textoEl.textContent = info.mensaje || 'Esperando retador para iniciar la competencia por permanencia.';
-                    metaEl.textContent = 'Cuando haya un profesional disponible del mismo oficio y código postal, comenzará un periodo de 30 días.';
-                    return;
+                const mod = this._grupoModule();
+                if (mod && typeof mod.renderCompetencia === 'function') {
+                    return mod.renderCompetencia(this);
                 }
-
-                const rol = info.rol || 'titular';
-                if (rol === 'retador') wrap.classList.add('retador');
-
-                if (rol === 'retador') {
-                    tituloEl.innerHTML = '<strong>Oportunidad de plaza</strong>';
-                    textoEl.textContent = 'Compites por la plaza del grupo principal. Durante 30 días, quien acumule mayor score permanece en la plaza.';
-                } else {
-                    tituloEl.innerHTML = '<strong>En competencia</strong>';
-                    textoEl.textContent = `Compites por la permanencia en la plaza de ${oficio}. Al finalizar el periodo, gana quien tenga mayor score.`;
-                }
-
-                const partes = [];
-                if (dias != null) partes.push(`${dias} día${dias === 1 ? '' : 's'} restante${dias === 1 ? '' : 's'}`);
-                if (info.fecha_fin_prevista) {
-                    const fin = new Date(String(info.fecha_fin_prevista).replace(' ', 'T'));
-                    if (!isNaN(fin.getTime())) {
-                        partes.push('Fin previsto: ' + fin.toLocaleDateString('es-ES'));
-                    }
-                }
-                if (info.contrincante_codigo) {
-                    partes.push('Contrincante: ' + info.contrincante_codigo);
-                }
-                metaEl.textContent = partes.join(' · ');
             }
 
             /**
@@ -4539,72 +4133,10 @@
              * Oficios faltantes: primeros 5 por defecto, "+ Ver todos" para expandir, buscador para filtrar.
              */
             renderGrupo() {
-                const block = document.getElementById('grupo-panel-block');
-                if (!block) return;
-                const grupoInfo = (this.aliado && this.aliado.grupo_info) ? this.aliado.grupo_info : null;
-                if (!grupoInfo) {
-                    block.style.display = 'none';
-                    const nombreEl = document.getElementById('grupo-nombre');
-                    if (nombreEl) nombreEl.textContent = '---';
-                    if (window.AliadoShell && typeof window.AliadoShell.refresh === 'function') {
-                        window.AliadoShell.refresh();
-                    }
-                    return;
+                const mod = this._grupoModule();
+                if (mod && typeof mod.renderGrupo === 'function') {
+                    return mod.renderGrupo(this);
                 }
-                block.style.display = 'block';
-                const nombreEl = document.getElementById('grupo-nombre');
-                const estadoEl = document.getElementById('grupo-estado');
-                const numEl = document.getElementById('grupo-num-oficios');
-                if (nombreEl) nombreEl.textContent = grupoInfo.nombre || '---';
-                if (estadoEl) {
-                    const estadoLabels = { 'activo': 'Activo', 'en_competencia': 'En competencia', 'disuelto': 'Disuelto' };
-                    estadoEl.textContent = estadoLabels[grupoInfo.estado] || grupoInfo.estado || '---';
-                }
-                if (numEl) numEl.textContent = String(grupoInfo.num_oficios != null ? grupoInfo.num_oficios : 0);
-
-                if (window.AliadoShell && typeof window.AliadoShell.refresh === 'function') {
-                    window.AliadoShell.refresh();
-                }
-
-                const faltantes = Array.isArray(grupoInfo.oficios_faltantes) ? [...grupoInfo.oficios_faltantes] : [];
-                const LIMIT_PREVIEW = 5;
-                const container = document.getElementById('grupo-oficios-faltantes-wrap');
-                const preview = document.getElementById('oficios-faltantes-preview');
-                const shortList = document.getElementById('oficios-faltantes-short');
-                const btnVerTodos = document.getElementById('btn-ver-todos-oficios');
-                const expanded = document.getElementById('oficios-faltantes-expanded');
-                const fullListEl = document.getElementById('oficios-faltantes-full-list');
-                const searchInput = document.getElementById('oficios-faltantes-search');
-                const emptyMsg = document.getElementById('oficios-faltantes-empty');
-
-                if (!container) return;
-
-                if (faltantes.length === 0) {
-                    if (preview) preview.style.display = 'none';
-                    if (expanded) expanded.style.display = 'none';
-                    if (emptyMsg) { emptyMsg.style.display = 'block'; emptyMsg.textContent = 'Ninguno'; }
-                    container.removeAttribute('data-oficios-faltantes');
-                    return;
-                }
-
-                container.setAttribute('data-oficios-faltantes', JSON.stringify(faltantes));
-                if (emptyMsg) emptyMsg.style.display = 'none';
-
-                const previewItems = faltantes.slice(0, LIMIT_PREVIEW);
-                if (shortList) {
-                    shortList.innerHTML = previewItems.map(o => {
-                        const texto = typeof o === 'object' && o && o.nombre != null ? String(o.nombre) : String(o || '');
-                        return `<span class="oficios-faltantes-tag" data-oficio="${texto.replace(/"/g, '&quot;')}" title="Generar código de invitación">${this.escapeHtml(texto)}</span>`;
-                    }).join('');
-                }
-                if (btnVerTodos) {
-                    btnVerTodos.style.display = faltantes.length > LIMIT_PREVIEW ? 'inline-block' : 'none';
-                    btnVerTodos.textContent = `+ Ver todos (${faltantes.length})`;
-                }
-                if (preview) preview.style.display = 'flex';
-                if (expanded) expanded.style.display = 'none';
-                if (searchInput) searchInput.value = '';
-                this.renderOficiosFaltantesFullList(faltantes);
             }
 
             renderOficiosFaltantesFullList(oficios) {
@@ -4692,6 +4224,36 @@
                 return (typeof RuanaAliadoModules !== 'undefined' && RuanaAliadoModules.conexiones) || null;
             }
 
+            /** Fachada Campamento Base → RuanaAliadoModules.invitaciones */
+            _invitacionesModule() {
+                return (typeof RuanaAliadoModules !== 'undefined' && RuanaAliadoModules.invitaciones) || null;
+            }
+
+            /** Fachada Campamento Base → RuanaAliadoModules.alertas */
+            _alertasModule() {
+                return (typeof RuanaAliadoModules !== 'undefined' && RuanaAliadoModules.alertas) || null;
+            }
+
+            /** Fachada Campamento Base → RuanaAliadoModules.catalogo */
+            _catalogoModule() {
+                return (typeof RuanaAliadoModules !== 'undefined' && RuanaAliadoModules.catalogo) || null;
+            }
+
+            /** Fachada Campamento Base → RuanaAliadoModules.contactos */
+            _contactosModule() {
+                return (typeof RuanaAliadoModules !== 'undefined' && RuanaAliadoModules.contactos) || null;
+            }
+
+            /** Fachada Campamento Base → RuanaAliadoModules.grupo */
+            _grupoModule() {
+                return (typeof RuanaAliadoModules !== 'undefined' && RuanaAliadoModules.grupo) || null;
+            }
+
+            /** Fachada Campamento Base → RuanaAliadoModules.sync */
+            _syncModule() {
+                return (typeof RuanaAliadoModules !== 'undefined' && RuanaAliadoModules.sync) || null;
+            }
+
             /**
              * Renderizar solicitudes del grupo: entrantes, propias e historial
              * (fachada → RuanaAliadoModules.solicitudes)
@@ -4715,38 +4277,9 @@
              * (sin vincular a una solicitud del grupo).
              */
             async generarCodigoInvitacionPerfil() {
-                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
-                if (!codigo) {
-                    alert('Sesión no válida');
-                    return;
-                }
-                const inviteBtns = Array.from(document.querySelectorAll('[data-action="invitar-aliado"]'));
-                inviteBtns.forEach((btn) => { btn.disabled = true; });
-                const zona = (this.aliado && this.aliado.codigo_postal) || '';
-                const apiBase = getApiBase();
-                try {
-                    const r = await fetch(apiBase + '/api/invitaciones/crear', {
-                        method: 'POST',
-                        headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
-                        body: JSON.stringify({ zona: zona }),
-                        credentials: 'same-origin'
-                    });
-                    const data = await r.json().catch(() => ({}));
-                    if (r.ok && data.status === 'success' && data.codigo) {
-                        this.currentCode = data.codigo;
-                        this.currentSolicitud = null;
-                        this.mostrarModalCodigoInvitacion(data.codigo, false);
-                        const modalText = document.querySelector('#modal-code .modal-text');
-                        if (modalText) {
-                            modalText.textContent = 'Comparte este código único con la persona que quieras invitar para que se registre como aliado:';
-                        }
-                    } else {
-                        alert(data.message || data.error || 'No se pudo generar el código. Intenta de nuevo.');
-                    }
-                } catch (e) {
-                    alert('Error de conexión: ' + (e.message || e));
-                } finally {
-                    inviteBtns.forEach((btn) => { btn.disabled = false; });
+                const mod = this._invitacionesModule();
+                if (mod && typeof mod.generarCodigoInvitacionPerfil === 'function') {
+                    return mod.generarCodigoInvitacionPerfil(this);
                 }
             }
 
@@ -4758,69 +4291,17 @@
              * la solicitud se vincula automáticamente a ese aliado.
              */
             async generateInviteCode(solicitudId) {
-                const solicitud = (this.solicitudesEntrantes || []).find(s => s.id == solicitudId);
-                if (!solicitud) {
-                    alert('No se encontró la solicitud');
-                    return;
-                }
-                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
-                if (!codigo) {
-                    alert('Sesión no válida');
-                    return;
-                }
-                const aliadoId = (this.aliado && this.aliado.id) || this.aliadoId;
-                const zona = (this.aliado && this.aliado.codigo_postal) || '';
-                this.currentSolicitud = {
-                    por: solicitud.solicitante_nombre || solicitud.solicitante_codigo || '—',
-                    texto: (solicitud.descripcion || solicitud.oficio || '') + (solicitud.oficio ? ' (' + solicitud.oficio + ')' : '')
-                };
-                const apiBase = getApiBase();
-                try {
-                    const r = await fetch(apiBase + '/api/invitaciones/crear', {
-                        method: 'POST',
-                        headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
-                        body: JSON.stringify({
-                            aliado_id: aliadoId,
-                            zona: zona,
-                            solicitud_id: parseInt(solicitudId, 10) || null
-                        }),
-                        credentials: 'same-origin'
-                    });
-                    const data = await r.json().catch(() => ({}));
-                    if (r.ok && data.status === 'success' && data.codigo) {
-                        this.currentCode = data.codigo;
-                        this.mostrarModalCodigoInvitacion(data.codigo, true);
-                        const modalText = document.querySelector('#modal-code .modal-text');
-                        if (this.currentSolicitud && modalText) {
-                            modalText.innerHTML = `
-                                <strong>Profesional que pidió:</strong> ${this.escapeHtml(this.currentSolicitud.por)}<br>
-                                <strong>Solicitud:</strong> ${this.escapeHtml(this.currentSolicitud.texto)}<br><br>
-                                Entrega este código a esa persona para que se registre. La solicitud quedará como <strong>candidato pendiente</strong> hasta que se incorpore; entonces se le asignará automáticamente.
-                            `;
-                        }
-                        try {
-                            await this.fetchSolicitudesSnapshot();
-                            this.renderSolicitudes();
-                        } catch (_) {
-                            // Fallback local: quitar de entrantes (ya no está pendiente) sin borrar el hilo
-                            this.solicitudesEntrantes = (this.solicitudesEntrantes || []).filter(s => s.id != solicitudId);
-                            this.renderSolicitudes();
-                        }
-                    } else {
-                        alert(data.message || data.error || 'No se pudo generar el código. Intenta de nuevo.');
-                    }
-                } catch (e) {
-                    alert('Error de conexión: ' + (e.message || e));
+                const mod = this._invitacionesModule();
+                if (mod && typeof mod.generateInviteCode === 'function') {
+                    return mod.generateInviteCode(this, solicitudId);
                 }
             }
 
             mostrarModalCodigoInvitacion(codigo, desdeSolicitud) {
-                const modal = document.getElementById('modal-code');
-                const codeEl = document.getElementById('code-value');
-                const codeMessageEl = modal ? modal.querySelector('.invite-code-message') : null;
-                if (codeEl) codeEl.textContent = codigo || '---';
-                if (codeMessageEl) codeMessageEl.textContent = desdeSolicitud ? 'Válido para una solicitud' : 'Código de invitación';
-                if (modal) modal.classList.add('show');
+                const mod = this._invitacionesModule();
+                if (mod && typeof mod.mostrarModalCodigoInvitacion === 'function') {
+                    return mod.mostrarModalCodigoInvitacion(this, codigo, desdeSolicitud);
+                }
             }
 
             /**
@@ -4828,91 +4309,30 @@
              * POST /api/invitaciones/crear
              */
             registerInviteCodeWithBackend(code, solicitudId) {
-                // Datos del aliado actual
-                const aliadoData = this.aliado || {};
-                const aliadoId = aliadoData.id || this.aliadoId;
-                const zona = aliadoData.codigo_postal || '';
-                const apiBase = getApiBase();
-                fetch(apiBase + '/api/invitaciones/crear', {
-                    method: 'POST',
-                    headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
-                    body: JSON.stringify({
-                        aliado_id: aliadoId,
-                        zona: zona,
-                        solicitud_id: solicitudId || null
-                    })
-                })
-                .then(response => {
-                    console.log('Response status:', response.status);
-                    return response.json();
-                })
-                .then(result => {
-                    console.log('Result:', result);
-                    if (result.status === 'success') {
-                        // Código generado y registrado en backend
-                        const codigoGenerado = result.codigo;
-                        this.currentCode = codigoGenerado;
-                        
-                        // Actualizar el modal con contexto de la solicitud
-                        const codeValueEl = document.getElementById('code-value');
-                        const codeMessageEl = document.querySelector('.invite-code-message');
-                        const modalText = document.querySelector('.modal-text');
-                        
-                        console.log('Elements found:', { codeValueEl, codeMessageEl, modalText });
-                        
-                        if (codeValueEl) codeValueEl.textContent = codigoGenerado;
-                        
-                        // Personalizar el mensaje si hay solicitud
-                        if (this.currentSolicitud && modalText) {
-                            modalText.innerHTML = `
-                                <strong>Profesional:</strong> ${this.escapeHtml(this.currentSolicitud.por)}<br>
-                                <strong>Solicitud:</strong> ${this.escapeHtml(this.currentSolicitud.texto)}<br><br>
-                                <strong>Instrucciones:</strong><br>
-                                Entrega este código al profesional para que se registre en la app. Una vez registrado, podrá contactarte como aliado.
-                            `;
-                            if (codeMessageEl) codeMessageEl.textContent = `Válido por 7 días`;
-                        } else {
-                            if (codeMessageEl) codeMessageEl.textContent = `Válido para una solicitud`;
-                        }
-                        
-                        console.log('Modal:', this.modalCode);
-                        if (this.modalCode) {
-                            this.modalCode.classList.add('show');
-                            console.log('Modal shown, classes:', this.modalCode.className);
-                        } else {
-                            console.error('Modal element not found!');
-                        }
-                    } else {
-                        alert('Error generando código: ' + (result.message || 'Intenta de nuevo'));
-                    }
-                })
-                .catch(error => {
-                    console.error('Fetch error:', error);
-                    alert('Error al generar código de invitación: ' + error.message);
-                });
+                const mod = this._invitacionesModule();
+                if (mod && typeof mod.registerInviteCodeWithBackend === 'function') {
+                    return mod.registerInviteCodeWithBackend(this, code, solicitudId);
+                }
             }
 
             /**
              * Calcular fecha de expiración
              */
             getFechaExpiracion(dias) {
-                const fecha = new Date();
-                fecha.setDate(fecha.getDate() + dias);
-                return fecha.toISOString();
+                const mod = this._invitacionesModule();
+                if (mod && typeof mod.getFechaExpiracion === 'function') {
+                    return mod.getFechaExpiracion(this, dias);
+                }
             }
 
             /**
              * Generar código aleatorio de N caracteres (mayúsculas + números)
              */
             generateRandomCode(length = 5) {
-                // Generar código numérico de 5 dígitos
-                // Esto asegura compatibilidad con la validación del backend
-                // que espera exactamente 5 dígitos numéricos
-                let code = '';
-                for (let i = 0; i < length; i++) {
-                    code += Math.floor(Math.random() * 10);
+                const mod = this._invitacionesModule();
+                if (mod && typeof mod.generateRandomCode === 'function') {
+                    return mod.generateRandomCode(this, length);
                 }
-                return code;
             }
 
             /**
@@ -5334,40 +4754,24 @@
             }
 
             async generarInvitacionOficio(oficio) {
-                const codigo = this.codigoAliado;
-                if (!codigo) { alert('No hay código de aliado.'); return; }
-                try {
-                    const resp = await fetch('/api/generar-invitacion', {
-                        method: 'POST',
-                        headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
-                        credentials: 'same-origin',
-                        body: JSON.stringify({ oficio })
-                    });
-                    const data = await resp.json();
-                    if (data.status === 'success' && data.codigo) {
-                        document.getElementById('modal-invitacion-oficio-nombre').textContent = oficio;
-                        document.getElementById('modal-invitacion-oficio-codigo').textContent = data.codigo;
-                        document.getElementById('modal-invitacion-oficio').classList.add('show');
-                        await this.refreshAfterAction(['metricas', 'alertas']);
-                    } else {
-                        alert(data.message || 'No se pudo generar el código.');
-                    }
-                } catch (e) {
-                    alert('Error de conexión.');
+                const mod = this._invitacionesModule();
+                if (mod && typeof mod.generarInvitacionOficio === 'function') {
+                    return mod.generarInvitacionOficio(this, oficio);
                 }
             }
 
             copiarCodigoInvitacionOficio() {
-                const el = document.getElementById('modal-invitacion-oficio-codigo');
-                if (!el || !el.textContent) return;
-                navigator.clipboard.writeText(el.textContent).then(() => {
-                    const btn = document.getElementById('btn-copiar-invitacion-oficio');
-                    if (btn) { const t = btn.textContent; btn.textContent = '¡Copiado!'; setTimeout(() => btn.textContent = t, 1500); }
-                }).catch(() => alert('No se pudo copiar'));
+                const mod = this._invitacionesModule();
+                if (mod && typeof mod.copiarCodigoInvitacionOficio === 'function') {
+                    return mod.copiarCodigoInvitacionOficio(this);
+                }
             }
 
             cerrarModalInvitacionOficio() {
-                document.getElementById('modal-invitacion-oficio')?.classList.remove('show');
+                const mod = this._invitacionesModule();
+                if (mod && typeof mod.cerrarModalInvitacionOficio === 'function') {
+                    return mod.cerrarModalInvitacionOficio(this);
+                }
             }
 
             expandirOficiosFaltantes() {
@@ -5458,170 +4862,44 @@
             }
 
             formatApoyoRuana(raw) {
-                const apoyoNum = (raw != null && raw !== '' && !Number.isNaN(Number(raw))) ? Number(raw) : null;
-                if (apoyoNum != null && Number.isFinite(apoyoNum) && apoyoNum > 0) {
-                    return apoyoNum.toFixed(2) + ' €';
+                const mod = this._alertasModule();
+                if (mod && typeof mod.formatApoyoRuana === 'function') {
+                    return mod.formatApoyoRuana(this, raw);
                 }
-                return 'Pendiente de cálculo';
             }
 
             buildAlertItems() {
-                const items = [];
-                const contactos = Array.isArray(this.contactosPagoPendiente) ? this.contactosPagoPendiente : [];
-                const notifs = (Array.isArray(this.notificaciones) ? this.notificaciones : []).filter(n => n && n.leida === 0);
-                const hub = typeof RuanaAlertHub !== 'undefined' ? RuanaAlertHub : null;
-                const trunc = hub ? hub.truncate.bind(hub) : (s, n) => String(s || '').slice(0, n);
-
-                if (contactos.length > 0) {
-                    const first = contactos[0];
-                    const apoyo = this.formatApoyoRuana(first.apoyo_ruana);
-                    items.push({
-                        id: 'apoyo-pago',
-                        type: 'payment',
-                        priority: 100,
-                        title: contactos.length === 1 ? 'Apoyo RUANA (12%) pendiente' : contactos.length + ' apoyos RUANA pendientes',
-                        description: contactos.length === 1
-                            ? trunc((first.servicio || 'Contacto') + ' · ' + apoyo, 52)
-                            : 'Regulariza el 12% de ' + contactos.length + ' encargos cerrados',
-                        actionLabel: 'Gestionar',
-                        hasDetail: true
-                    });
-                    items.push({
-                        id: 'pagos-restriccion',
-                        type: 'info',
-                        priority: 70,
-                        title: 'Nuevos trabajos limitados',
-                        description: 'Regulariza tus pagos para aceptar encargos',
-                        actionLabel: null,
-                        hasDetail: false
-                    });
+                const mod = this._alertasModule();
+                if (mod && typeof mod.buildAlertItems === 'function') {
+                    return mod.buildAlertItems(this);
                 }
-
-                if (notifs.length > 0) {
-                    const firstN = notifs[0];
-                    items.push({
-                        id: 'mensajes-ruana',
-                        type: 'message',
-                        priority: 90,
-                        title: notifs.length === 1 ? (firstN.titulo || 'Mensaje de RUANA') : notifs.length + ' mensajes de RUANA',
-                        description: notifs.length === 1
-                            ? trunc(firstN.mensaje || '', 56)
-                            : 'Comunicaciones sin leer del equipo RUANA',
-                        actionLabel: 'Ver',
-                        hasDetail: true
-                    });
-                }
-
-                return items.sort((a, b) => b.priority - a.priority);
             }
 
             renderAlertDetailPanel(detailEl, detailId) {
-                const hub = typeof RuanaAlertHub !== 'undefined' ? RuanaAlertHub : null;
-                if (!hub) return;
-                const self = this;
-                const titles = {
-                    'apoyo-pago': 'Apoyo RUANA pendiente',
-                    'mensajes-ruana': 'Mensajes de RUANA'
-                };
-                const body = hub.renderDetailHeader(detailEl, titles[detailId] || 'Detalle', function () {
-                    self._alertHubState.expandedDetailId = null;
-                    self.renderAlertHub();
-                });
-
-                if (detailId === 'apoyo-pago') {
-                    const contactos = Array.isArray(this.contactosPagoPendiente) ? this.contactosPagoPendiente : [];
-                    contactos.forEach(c => {
-                        const apoyo = this.formatApoyoRuana(c.apoyo_ruana);
-                        const servicio = this.escapeHtml(c.servicio || 'Contacto');
-                        const apoyoNum = (c.apoyo_ruana != null && c.apoyo_ruana !== '' && !Number.isNaN(Number(c.apoyo_ruana))) ? Number(c.apoyo_ruana) : 0;
-                        const div = document.createElement('div');
-                        div.className = 'ruana-alert-detail-item';
-                        div.innerHTML =
-                            '<div class="ruana-alert-detail-item__text">' +
-                                'Contacto <strong>#' + c.id + '</strong> · ' + servicio +
-                                ' · Apoyo: <strong>' + apoyo + '</strong>' +
-                            '</div>' +
-                            '<div class="ruana-alert-detail-item__actions">' +
-                                '<button type="button" class="ruana-alert-detail-btn ruana-alert-detail-btn--primary btn-aceptar-pagar">Aceptar y pagar</button>' +
-                                '<button type="button" class="ruana-alert-detail-btn btn-impugnar-apoyo">Reclamar</button>' +
-                                '<button type="button" class="ruana-alert-detail-btn btn-enviar-comprobante">Comprobante</button>' +
-                            '</div>';
-                        div.querySelector('.btn-enviar-comprobante')?.addEventListener('click', () => this.abrirModalComprobanteApoyo(c.id));
-                        div.querySelector('.btn-aceptar-pagar')?.addEventListener('click', () => this.abrirModalPagoApoyo(c.id, apoyoNum, c.servicio || 'Contacto'));
-                        div.querySelector('.btn-impugnar-apoyo')?.addEventListener('click', () => this.abrirModalImpugnarApoyo(c.id));
-                        body.appendChild(div);
-                    });
-                } else if (detailId === 'mensajes-ruana') {
-                    const notifs = (Array.isArray(this.notificaciones) ? this.notificaciones : []).filter(n => n && n.leida === 0);
-                    notifs.forEach(n => {
-                        const fecha = (n.creado_en ? new Date(n.creado_en).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '');
-                        const div = document.createElement('div');
-                        div.className = 'ruana-alert-notif is-unread';
-                        div.innerHTML =
-                            '<div class="ruana-alert-notif__head">' +
-                                '<span class="ruana-alert-notif__title">' + this.escapeHtml(n.titulo || 'Mensaje de RUANA') + '</span>' +
-                                (fecha ? '<span class="ruana-alert-notif__date">' + fecha + '</span>' : '') +
-                            '</div>' +
-                            '<div class="ruana-alert-notif__body">' + this.escapeHtml(n.mensaje || '') + '</div>';
-                        body.appendChild(div);
-                    });
-                    const footer = document.createElement('div');
-                    footer.className = 'ruana-alert-hub__detail-footer';
-                    footer.innerHTML = '<button type="button" class="ruana-alert-detail-btn" id="btn-marcar-notificaciones-leidas">Marcar como leídos</button>';
-                    body.appendChild(footer);
-                    footer.querySelector('#btn-marcar-notificaciones-leidas')?.addEventListener('click', () => this.marcarTodasNotificacionesLeidas());
+                const mod = this._alertasModule();
+                if (mod && typeof mod.renderAlertDetailPanel === 'function') {
+                    return mod.renderAlertDetailPanel(this, detailEl, detailId);
                 }
             }
 
             renderAlertHub() {
-                const hubEl = document.getElementById('ruana-alert-hub');
-                if (!hubEl || typeof RuanaAlertHub === 'undefined') return;
-                const items = this.buildAlertItems();
-                const self = this;
-
-                if (items.length === 0) {
-                    this._alertHubState = { showAll: false, expandedDetailId: null };
-                } else if (this._alertHubState.expandedDetailId &&
-                    !items.some(i => i.id === this._alertHubState.expandedDetailId)) {
-                    this._alertHubState.expandedDetailId = null;
+                const mod = this._alertasModule();
+                if (mod && typeof mod.renderAlertHub === 'function') {
+                    return mod.renderAlertHub(this);
                 }
-
-                RuanaAlertHub.render(hubEl, items, this._alertHubState, {
-                    onAction: function (item) {
-                        if (item.hasDetail) {
-                            self._alertHubState.expandedDetailId =
-                                self._alertHubState.expandedDetailId === item.id ? null : item.id;
-                            self._alertHubState.showAll = true;
-                        }
-                        self.renderAlertHub();
-                    },
-                    onShowAll: function () {
-                        self._alertHubState.showAll = true;
-                        self.renderAlertHub();
-                    },
-                    renderDetail: function (detailEl, detailId) {
-                        self.renderAlertDetailPanel(detailEl, detailId);
-                    }
-                });
             }
 
             renderAlertas() {
-                this.renderAlertHub();
+                const mod = this._alertasModule();
+                if (mod && typeof mod.renderAlertas === 'function') {
+                    return mod.renderAlertas(this);
+                }
             }
 
             async cargarMetodosPagoRuana() {
-                try {
-                    const resp = await fetch('/api/metodos-pago', { credentials: 'same-origin', headers: getRuanaAuthHeaders() });
-                    if (!resp.ok) return;
-                    const data = await resp.json();
-                    if (data.status === 'success' && data.metodos) {
-                        this.metodosPagoRuana = {
-                            ...this.metodosPagoRuana,
-                            ...data.metodos
-                        };
-                    }
-                } catch (e) {
-                    console.error('Error cargando metodos de pago RUANA:', e);
+                const mod = this._alertasModule();
+                if (mod && typeof mod.cargarMetodosPagoRuana === 'function') {
+                    return mod.cargarMetodosPagoRuana(this);
                 }
             }
 
@@ -5630,61 +4908,33 @@
              * Llamar tras carga inicial, visibilitychange o cuando se necesite refrescar el estado de alertas.
              */
             async actualizarEstadoAlertas() {
-                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
-                if (!codigo) return;
-                const apiBase = getApiBase();
-                try {
-                    const [respNotif, respPagos] = await Promise.all([
-                        fetch(apiBase + '/api/aliados/' + encodeURIComponent(codigo) + '/notificaciones?limite=50', { credentials: 'same-origin', headers: getRuanaAuthHeaders() }),
-                        fetch(apiBase + '/api/aliado/contactos-pago-pendiente', { credentials: 'same-origin', headers: getRuanaAuthHeaders() })
-                    ]);
-                    const dataNotif = respNotif.ok ? await respNotif.json() : {};
-                    const dataPagos = respPagos.ok ? await respPagos.json() : {};
-                    const notifList = (dataNotif.status === 'success' && Array.isArray(dataNotif.notificaciones))
-                        ? dataNotif.notificaciones
-                        : [];
-                    const contactosPago = (dataPagos.status === 'success' && Array.isArray(dataPagos.contactos))
-                        ? dataPagos.contactos
-                        : [];
-                    this.notificaciones = notifList;
-                    this.contactosPagoPendiente = contactosPago;
-                    this.tienePagosPendientes = contactosPago.length > 0;
-
-                    this.renderNotificaciones();
-                    this.renderListaPagosPendientes();
-                    this.renderAlertas();
-                    this.maybeShowScoreChangeNotification();
-                } catch (e) {
-                    console.error('Error actualizarEstadoAlertas:', e);
-                    this.renderAlertas();
+                const mod = this._alertasModule();
+                if (mod && typeof mod.actualizarEstadoAlertas === 'function') {
+                    return mod.actualizarEstadoAlertas(this);
                 }
             }
 
             renderListaPagosPendientes() {
-                this.renderAlertHub();
+                const mod = this._alertasModule();
+                if (mod && typeof mod.renderListaPagosPendientes === 'function') {
+                    return mod.renderListaPagosPendientes(this);
+                }
             }
 
             renderNotificaciones() {
-                this.renderAlertHub();
+                const mod = this._alertasModule();
+                if (mod && typeof mod.renderNotificaciones === 'function') {
+                    return mod.renderNotificaciones(this);
+                }
             }
 
             /**
              * Marcar todas las notificaciones del aliado como leídas.
              */
             async marcarTodasNotificacionesLeidas() {
-                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
-                if (!codigo) return;
-                const apiBase = getApiBase();
-                try {
-                    const r = await fetch(apiBase + '/api/aliados/' + encodeURIComponent(codigo) + '/notificaciones/marcar-todas-leidas', { method: 'POST', credentials: 'same-origin', headers: getRuanaAuthHeaders() });
-                    const data = await r.json().catch(() => ({}));
-                    if (data.status === 'success') {
-                        // Recargar estado real y cerrar mensajes (ya no habrá no leídas)
-                        await this.actualizarEstadoAlertas();
-                        await this.refreshAfterAction(['alertas']);
-                    }
-                } catch (e) {
-                    console.error('Error marcando notificaciones leídas:', e);
+                const mod = this._alertasModule();
+                if (mod && typeof mod.marcarTodasNotificacionesLeidas === 'function') {
+                    return mod.marcarTodasNotificacionesLeidas(this);
                 }
             }
 
@@ -5894,113 +5144,9 @@
              * Cargar contactos RUANA abiertos para este aliado y mostrar aviso si aplica
              */
             async cargarContactosPendientes() {
-                try {
-                    const codigo = (this.codigoAliado || (this.aliado && this.aliado.codigo) || '').toString().trim();
-                    const avisoEl = document.getElementById('contacto-aviso-persistente');
-                    if (!codigo || !avisoEl) {
-                        return;
-                    }
-
-                    const resp = await fetch(`/api/contactos/abiertos/${encodeURIComponent(codigo)}`, { credentials: 'same-origin', headers: getRuanaAuthHeaders() });
-                    if (!resp.ok) {
-                        console.warn('No se pudieron cargar contactos abiertos');
-                        return;
-                    }
-                    const data = await resp.json();
-                    if (data.status !== 'success' || !Array.isArray(data.contactos)) {
-                        return;
-                    }
-
-                    this.contactosAbiertos = data.contactos || [];
-                    // Backend ya excluye contactos con posponer_recordatorio=1 (server-driven)
-                    this.contactoActual = this.contactosAbiertos.length > 0 ? this.contactosAbiertos[0] : null;
-
-                    if (!this.contactoActual) {
-                        await this.cargarPagosApoyoPendientes();
-                        avisoEl.style.display = 'none';
-                        avisoEl.classList.remove('contacto-aviso-urgente');
-                        avisoEl.removeAttribute('data-contacto-id');
-                        avisoEl.removeAttribute('data-requiere-respuesta');
-                        const badgeUrgenteOff = document.getElementById('contacto-aviso-badge-urgente');
-                        if (badgeUrgenteOff) badgeUrgenteOff.style.display = 'none';
-                        this.renderEncargosActivos();
-                        return;
-                    }
-
-                    avisoEl.classList.toggle('contacto-aviso-urgente', !!this.contactoActual.es_urgente);
-                    const badgeUrgente = document.getElementById('contacto-aviso-badge-urgente');
-                    if (badgeUrgente) badgeUrgente.style.display = this.contactoActual.es_urgente ? 'inline-block' : 'none';
-
-                    const ui = this._encargoUiLabels(this.contactoActual);
-                    const estado = this.contactoActual.estado;
-                    const estadoEl = document.getElementById('contacto-aviso-estado');
-                    const contextoEl = document.getElementById('contacto-aviso-contexto');
-                    const pasoEl = document.getElementById('contacto-aviso-paso');
-                    const accionEl = document.getElementById('contacto-aviso-accion');
-                    const progresoFill = document.getElementById('contacto-aviso-progreso-fill');
-                    const progresoTexto = document.getElementById('contacto-aviso-progreso-texto');
-                    const btnAbrir = document.getElementById('btn-contacto-abrir-chat');
-                    let progresoConf = ui.progresoConf;
-                    let progresoTotal = ui.progresoTotal;
-                    if (estado === 'acuerdo_alcanzado' || this.contactoActual.negociacion_completa) {
-                        progresoConf = progresoTotal;
-                    }
-
-                    if (estadoEl) estadoEl.textContent = ui.estadoLabel;
-                    if (contextoEl) contextoEl.textContent = ui.contexto;
-                    if (pasoEl) {
-                        pasoEl.textContent = ui.pasoTxt;
-                        pasoEl.style.display = ui.pasoTxt ? 'block' : 'none';
-                    }
-                    if (accionEl) accionEl.textContent = ui.accionTxt;
-                    if (progresoTexto) progresoTexto.textContent = `${progresoConf}/${progresoTotal}`;
-                    if (progresoFill && progresoTotal > 0) {
-                        progresoFill.style.width = `${Math.round((progresoConf / progresoTotal) * 100)}%`;
-                    }
-                    if (btnAbrir) btnAbrir.textContent = ui.btnPrincipal;
-                    avisoEl.classList.toggle('encargo-requiere-respuesta', ui.requiereRespuesta);
-                    avisoEl.dataset.contactoId = String(this.contactoActual.id);
-                    avisoEl.dataset.requiereRespuesta = ui.requiereRespuesta ? '1' : '0';
-                    // Ocultar "Sigue en conversación" tras acuerdo alcanzado
-                    const btnSigue = document.getElementById('btn-contacto-sigue');
-                    if (btnSigue) btnSigue.style.display = (estado === 'acuerdo_alcanzado' || estado === 'trabajo_cerrado') ? 'none' : '';
-                    const btnSiTrabajo = document.getElementById('btn-contacto-si-trabajo');
-                    const btnNoConcreto = document.getElementById('btn-contacto-no-concreto');
-                    const ocultarCierreManual = estado === 'trabajo_cerrado';
-                    if (btnSiTrabajo) btnSiTrabajo.style.display = ocultarCierreManual ? 'none' : '';
-                    if (btnNoConcreto) btnNoConcreto.style.display = ocultarCierreManual ? 'none' : '';
-
-                    const subirPruebaEl = document.getElementById('contacto-aviso-subir-prueba');
-                    const codigoAliado = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
-                    if (estado === 'importe_en_disputa' && codigoAliado && this.contactoActual.solicitante_codigo === codigoAliado) {
-                        try {
-                            const r = await fetch(`/api/conflictos/por-trabajo/${this.contactoActual.id}`, { credentials: 'same-origin', headers: getRuanaAuthHeaders() });
-                            const data = await r.json();
-                            if (data.status === 'success' && data.conflicto && data.conflicto.estado === 'PENDIENTE_PRUEBA') {
-                                this._conflictoIdParaPrueba = data.conflicto.id;
-                                if (subirPruebaEl) { subirPruebaEl.style.display = 'block'; subirPruebaEl.dataset.conflictId = data.conflicto.id; }
-                                const inp = document.getElementById('input-prueba-conflicto');
-                                if (inp) inp.value = '';
-                                const res = document.getElementById('subir-prueba-resultado');
-                                if (res) res.textContent = '';
-                            } else {
-                                this._conflictoIdParaPrueba = null;
-                                if (subirPruebaEl) subirPruebaEl.style.display = 'none';
-                            }
-                        } catch (err) {
-                            this._conflictoIdParaPrueba = null;
-                            if (subirPruebaEl) subirPruebaEl.style.display = 'none';
-                        }
-                    } else {
-                        this._conflictoIdParaPrueba = null;
-                        if (subirPruebaEl) subirPruebaEl.style.display = 'none';
-                    }
-
-                    avisoEl.style.display = 'flex';
-                    await this.cargarPagosApoyoPendientes();
-                    this.renderEncargosActivos();
-                } catch (e) {
-                    console.error('Error cargando contactos pendientes:', e);
+                const mod = this._contactosModule();
+                if (mod && typeof mod.cargarContactosPendientes === 'function') {
+                    return mod.cargarContactosPendientes(this);
                 }
             }
 
@@ -6009,44 +5155,16 @@
              * Actualiza this.contactosPagoPendiente y re-renderiza lista y alertas.
              */
             async cargarPagosApoyoPendientes() {
-                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
-                if (!codigo) return;
-                try {
-                    const resp = await fetch(`/api/aliado/contactos-pago-pendiente`, { credentials: 'same-origin', headers: getRuanaAuthHeaders() });
-                    if (!resp.ok) return;
-                    const data = await resp.json();
-                    const contactos = (data.status === 'success' && Array.isArray(data.contactos)) ? data.contactos : [];
-                    this.contactosPagoPendiente = contactos;
-                    this.tienePagosPendientes = contactos.length > 0;
-                    this.renderListaPagosPendientes();
-                    this.renderAlertas();
-                } catch (e) {
-                    console.error('Error cargando pagos apoyo pendientes:', e);
-                    this.contactosPagoPendiente = [];
-                    this.tienePagosPendientes = false;
-                    this.renderListaPagosPendientes();
-                    this.renderAlertas();
+                const mod = this._alertasModule();
+                if (mod && typeof mod.cargarPagosApoyoPendientes === 'function') {
+                    return mod.cargarPagosApoyoPendientes(this);
                 }
             }
 
             abrirModalComprobanteApoyo(contactoId) {
-                this._contactoIdComprobante = contactoId;
-                const modal = document.getElementById('modal-comprobante-apoyo');
-                const input = document.getElementById('input-comprobante-apoyo');
-                const comentario = document.getElementById('input-comprobante-apoyo-comentario');
-                const resultado = document.getElementById('comprobante-apoyo-resultado');
-                const nombreEl = document.getElementById('comprobante-apoyo-nombre');
-                if (input) input.value = '';
-                if (comentario) comentario.value = '';
-                if (resultado) resultado.textContent = '';
-                if (nombreEl) nombreEl.textContent = '';
-                if (modal) modal.classList.add('show');
-                // Abrir el selector de archivos del sistema en el mismo gesto de usuario (tras pintar el modal)
-                if (input) {
-                    const abrirSelector = () => {
-                        try { input.click(); } catch (e) { console.warn('File input click:', e); }
-                    };
-                    setTimeout(abrirSelector, 150);
+                const mod = this._alertasModule();
+                if (mod && typeof mod.abrirModalComprobanteApoyo === 'function') {
+                    return mod.abrirModalComprobanteApoyo(this, contactoId);
                 }
             }
 
@@ -6056,87 +5174,24 @@
              * Link: https://www.paypal.com/send?email=... (configurable via window.RUANA_PAYPAL_EMAIL)
              */
             abrirModalPagoApoyo(contactoId, apoyoRuana, servicio) {
-                const modal = document.getElementById('modal-pago-apoyo');
-                const infoEl = document.getElementById('pago-apoyo-info');
-                const bizumEl = document.getElementById('pago-apoyo-bizum-numero');
-                const importeEl = document.getElementById('pago-apoyo-bizum-importe');
-                const conceptoEl = document.getElementById('pago-apoyo-concepto');
-                const qrRevolutEl = document.getElementById('pago-apoyo-revolut-qr');
-                const revolutImporteEl = document.getElementById('pago-apoyo-revolut-importe');
-                const ibanEl = document.getElementById('pago-apoyo-iban');
-                const transferenciaImporteEl = document.getElementById('pago-apoyo-transferencia-importe');
-                const transferenciaConceptoEl = document.getElementById('pago-apoyo-transferencia-concepto');
-                if (!modal || !infoEl || !bizumEl || !importeEl || !conceptoEl || !qrRevolutEl || !revolutImporteEl || !ibanEl || !transferenciaImporteEl || !transferenciaConceptoEl) return;
-
-                const importe = (apoyoRuana != null && !Number.isNaN(Number(apoyoRuana)) && Number(apoyoRuana) > 0)
-                    ? Number(apoyoRuana) : null;
-                const importeStr = importe != null ? importe.toFixed(2) + ' EUR' : 'Pendiente de calculo';
-                const concepto = `RUANA contacto #${contactoId}`;
-                const metodos = this.metodosPagoRuana || {};
-                const bizumNum = metodos.bizum_num || window.RUANA_BIZUM_NUM || '642868261';
-                const iban = metodos.iban || window.RUANA_IBAN || 'ES8915830001119028625152';
-                const qrRevolut = metodos.qr_revolut_path || window.RUANA_QR_REVOLUT_PATH || '/static/images/PayPal.png';
-
-                this._contactoIdPagoActual = contactoId;
-                infoEl.textContent = `Contacto #${contactoId} - ${servicio || 'Contacto'} - Apoyo RUANA: ${importeStr}`;
-                bizumEl.textContent = bizumNum;
-                importeEl.textContent = importeStr;
-                conceptoEl.textContent = concepto;
-                qrRevolutEl.src = qrRevolut;
-                revolutImporteEl.textContent = importeStr;
-                ibanEl.textContent = iban;
-                transferenciaImporteEl.textContent = importeStr;
-                transferenciaConceptoEl.textContent = concepto;
-                this.setPagoApoyoMetodo('bizum');
-                modal.classList.add('show');
+                const mod = this._alertasModule();
+                if (mod && typeof mod.abrirModalPagoApoyo === 'function') {
+                    return mod.abrirModalPagoApoyo(this, contactoId, apoyoRuana, servicio);
+                }
             }
 
             setPagoApoyoMetodo(metodo) {
-                const bizumPanel = document.getElementById('pago-apoyo-bizum-panel');
-                const revolutPanel = document.getElementById('pago-apoyo-revolut-panel');
-                const transferenciaPanel = document.getElementById('pago-apoyo-transferencia-panel');
-                const btnBizum = document.getElementById('btn-pago-apoyo-tab-bizum');
-                const btnRevolut = document.getElementById('btn-pago-apoyo-tab-revolut');
-                const btnTransferencia = document.getElementById('btn-pago-apoyo-tab-transferencia');
-                const usaBizum = metodo === 'bizum';
-                const usaRevolut = metodo === 'revolut';
-                const usaTransferencia = metodo === 'transferencia';
-                if (bizumPanel) bizumPanel.style.display = usaBizum ? 'block' : 'none';
-                if (revolutPanel) revolutPanel.style.display = usaRevolut ? 'block' : 'none';
-                if (transferenciaPanel) transferenciaPanel.style.display = usaTransferencia ? 'block' : 'none';
-                if (btnBizum) {
-                    btnBizum.classList.toggle('confirm', usaBizum);
-                    btnBizum.classList.toggle('cancel', !usaBizum);
-                    btnBizum.setAttribute('aria-pressed', String(usaBizum));
-                }
-                if (btnRevolut) {
-                    btnRevolut.classList.toggle('confirm', usaRevolut);
-                    btnRevolut.classList.toggle('cancel', !usaRevolut);
-                    btnRevolut.setAttribute('aria-pressed', String(usaRevolut));
-                }
-                if (btnTransferencia) {
-                    btnTransferencia.classList.toggle('confirm', usaTransferencia);
-                    btnTransferencia.classList.toggle('cancel', !usaTransferencia);
-                    btnTransferencia.setAttribute('aria-pressed', String(usaTransferencia));
+                const mod = this._alertasModule();
+                if (mod && typeof mod.setPagoApoyoMetodo === 'function') {
+                    return mod.setPagoApoyoMetodo(this, metodo);
                 }
             }
 
             abrirModalPayPalApoyo(contactoId, apoyoRuana, servicio) {
-                const modal = document.getElementById('modal-paypal-apoyo');
-                const infoEl = document.getElementById('paypal-apoyo-info');
-                const linkEl = document.getElementById('paypal-apoyo-link');
-                if (!modal || !infoEl || !linkEl) return;
-                const importe = (apoyoRuana != null && !Number.isNaN(Number(apoyoRuana)) && Number(apoyoRuana) > 0)
-                    ? Number(apoyoRuana) : null;
-                const importeStr = importe != null ? importe.toFixed(2) + ' €' : 'Pendiente de cálculo';
-                infoEl.textContent = `Contacto #${contactoId} · ${this.escapeHtml(servicio || 'Contacto')} · Apoyo RUANA: ${importeStr}`;
-                const email = (typeof window.RUANA_PAYPAL_EMAIL !== 'undefined' && window.RUANA_PAYPAL_EMAIL) ? window.RUANA_PAYPAL_EMAIL : 'acerotrade.signal@gmail.com';
-                const amountForUrl = importe != null ? importe.toFixed(2) : '0';
-                const paypalUrl = `https://www.paypal.com/send?email=${encodeURIComponent(email)}&amount=${amountForUrl}`;
-                linkEl.href = paypalUrl;
-                linkEl.textContent = 'Continuar a PayPal';
-                linkEl.setAttribute('title', 'Abrir PayPal para enviar pago a ' + email);
-                modal.classList.add('show');
+                const mod = this._alertasModule();
+                if (mod && typeof mod.abrirModalPayPalApoyo === 'function') {
+                    return mod.abrirModalPayPalApoyo(this, contactoId, apoyoRuana, servicio);
+                }
             }
 
             /**
@@ -6144,57 +5199,16 @@
              * El pago es manual; el aliado debe subir comprobante después.
              */
             abrirModalBizumApoyo(contactoId, apoyoRuana, servicio) {
-                const modal = document.getElementById('modal-bizum-apoyo');
-                const infoEl = document.getElementById('bizum-apoyo-info');
-                const importeEl = document.getElementById('bizum-apoyo-importe');
-                if (!modal || !infoEl || !importeEl) return;
-                const importe = (apoyoRuana != null && !Number.isNaN(Number(apoyoRuana)) && Number(apoyoRuana) > 0)
-                    ? Number(apoyoRuana) : null;
-                const importeStr = importe != null ? importe.toFixed(2) + ' €' : 'Pendiente de cálculo';
-                infoEl.textContent = `Contacto #${contactoId} · ${this.escapeHtml(servicio || 'Contacto')}`;
-                importeEl.textContent = importeStr;
-                modal.classList.add('show');
+                const mod = this._alertasModule();
+                if (mod && typeof mod.abrirModalBizumApoyo === 'function') {
+                    return mod.abrirModalBizumApoyo(this, contactoId, apoyoRuana, servicio);
+                }
             }
 
             async enviarComprobanteApoyo() {
-                const contactoId = this._contactoIdComprobante;
-                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
-                const input = document.getElementById('input-comprobante-apoyo');
-                const comentarioEl = document.getElementById('input-comprobante-apoyo-comentario');
-                const resultadoEl = document.getElementById('comprobante-apoyo-resultado');
-                if (!contactoId || !codigo) {
-                    if (resultadoEl) resultadoEl.textContent = 'Sesión o contacto no válido.';
-                    return;
-                }
-                if (!input || !input.files || !input.files.length) {
-                    if (resultadoEl) resultadoEl.textContent = 'Elige una imagen o PDF.';
-                    return;
-                }
-                const file = input.files[0];
-                const ext = (file.name || '').toLowerCase().split('.').pop();
-                if (!['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
-                    if (resultadoEl) resultadoEl.textContent = 'Formato no permitido. Usa imagen o PDF.';
-                    return;
-                }
-                if (resultadoEl) resultadoEl.textContent = 'Enviando...';
-                const fd = new FormData();
-                fd.append('codigo', codigo);
-                fd.append('archivo', file);
-                if (comentarioEl && comentarioEl.value.trim()) fd.append('comentario', comentarioEl.value.trim());
-                try {
-                    const r = await fetch(`/api/contactos/${contactoId}/comprobante-apoyo`, { method: 'POST', body: fd, credentials: 'same-origin', headers: getRuanaAuthHeaders() });
-                    const data = await r.json();
-                    if (data.status === 'success') {
-                        if (resultadoEl) resultadoEl.textContent = 'Comprobante enviado. RUANA lo revisará.';
-                        const modal = document.getElementById('modal-comprobante-apoyo');
-                        if (modal) modal.classList.remove('show');
-                        this._contactoIdComprobante = null;
-                        await this.cargarPagosApoyoPendientes();
-                    } else {
-                        if (resultadoEl) resultadoEl.textContent = data.message || 'Error al enviar.';
-                    }
-                } catch (e) {
-                    if (resultadoEl) resultadoEl.textContent = 'Error de conexión.';
+                const mod = this._alertasModule();
+                if (mod && typeof mod.enviarComprobanteApoyo === 'function') {
+                    return mod.enviarComprobanteApoyo(this);
                 }
             }
 
@@ -6202,90 +5216,16 @@
              * Impugnar el importe declarado para el Apoyo RUANA pendiente.
              */
             abrirModalImpugnarApoyo(contactoId) {
-                const modal = document.getElementById('modal-impugnar-apoyo');
-                const infoEl = document.getElementById('impugnar-apoyo-info');
-                const input = document.getElementById('input-motivo-impugnar-apoyo');
-                const resultadoEl = document.getElementById('impugnar-apoyo-resultado');
-                const btn = document.getElementById('btn-impugnar-apoyo-confirmar');
-                if (!modal || !contactoId) return;
-                this._contactoIdImpugnarApoyo = contactoId;
-                if (infoEl) infoEl.textContent = `Contacto #${contactoId}. Explica brevemente por que reclamas este Apoyo RUANA.`;
-                if (input) input.value = '';
-                if (resultadoEl) {
-                    resultadoEl.textContent = '';
-                    resultadoEl.style.color = '';
+                const mod = this._alertasModule();
+                if (mod && typeof mod.abrirModalImpugnarApoyo === 'function') {
+                    return mod.abrirModalImpugnarApoyo(this, contactoId);
                 }
-                if (btn) {
-                    btn.disabled = false;
-                    btn.textContent = 'Enviar reclamacion';
-                }
-                modal.classList.add('show');
-                if (input) input.focus();
             }
 
             async impugnarApoyoRuana(contactoId) {
-                if (!contactoId) return;
-                const modal = document.getElementById('modal-impugnar-apoyo');
-                const input = document.getElementById('input-motivo-impugnar-apoyo');
-                const resultadoEl = document.getElementById('impugnar-apoyo-resultado');
-                const btn = document.getElementById('btn-impugnar-apoyo-confirmar');
-                const motivo = input && input.value ? input.value.trim() : '';
-                if (!motivo) {
-                    if (resultadoEl) {
-                        resultadoEl.textContent = 'Indica un motivo para enviar la reclamacion.';
-                        resultadoEl.style.color = '#fbbf24';
-                    }
-                    return;
-                }
-                if (btn) {
-                    btn.disabled = true;
-                    btn.textContent = 'Enviando...';
-                }
-                if (resultadoEl) {
-                    resultadoEl.textContent = 'Enviando reclamacion...';
-                    resultadoEl.style.color = '#93c5fd';
-                }
-                try {
-                    const resp = await fetch(`/api/contactos/${contactoId}/impugnar-apoyo`, {
-                        method: 'POST',
-                        headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
-                        credentials: 'same-origin',
-                        body: JSON.stringify({ motivo })
-                    });
-                    const data = await resp.json().catch(() => ({}));
-                    if (resp.ok && data.status === 'success') {
-                        if (resultadoEl) {
-                            resultadoEl.textContent = 'Reclamacion enviada. RUANA pedira la documentacion al aliado contratante.';
-                            resultadoEl.style.color = '#4ade80';
-                        }
-                        await this.cargarPagosApoyoPendientes();
-                        await this.cargarContactosPendientes();
-                        await this.actualizarEstadoAlertas();
-                        await this.refreshAfterAction(['perfil', 'metricas', 'solicitudes', 'directorio', 'alertas', 'contactos']);
-                        setTimeout(() => {
-                            if (modal) modal.classList.remove('show');
-                            this._contactoIdImpugnarApoyo = null;
-                        }, 900);
-                    } else {
-                        if (resultadoEl) {
-                            resultadoEl.textContent = data.message || 'No se pudo registrar la reclamacion.';
-                            resultadoEl.style.color = '#f87171';
-                        }
-                        if (btn) {
-                            btn.disabled = false;
-                            btn.textContent = 'Enviar reclamacion';
-                        }
-                    }
-                } catch (e) {
-                    console.error('Error impugnando Apoyo RUANA:', e);
-                    if (resultadoEl) {
-                        resultadoEl.textContent = 'Error de conexion al registrar la reclamacion.';
-                        resultadoEl.style.color = '#f87171';
-                    }
-                    if (btn) {
-                        btn.disabled = false;
-                        btn.textContent = 'Enviar reclamacion';
-                    }
+                const mod = this._alertasModule();
+                if (mod && typeof mod.impugnarApoyoRuana === 'function') {
+                    return mod.impugnarApoyoRuana(this, contactoId);
                 }
             }
 
@@ -6293,67 +5233,16 @@
              * Mostrar modal previo a contactar.
              */
             async mostrarAvisoPrevioContacto(profesional) {
-                this.profesionalSeleccionado = profesional;
-                this._catalogoPrevioItems = [];
-                const modal = document.getElementById('modal-contacto-previo');
-                const textoEl = document.getElementById('modal-contacto-previo-text');
-                const catalogoWrap = document.getElementById('contacto-previo-catalogo-wrap');
-                const catalogoList = document.getElementById('contacto-previo-catalogo-list');
-                const inputOtro = document.getElementById('contacto-previo-servicio-otro');
-                if (inputOtro) inputOtro.value = '';
-                if (textoEl && profesional) {
-                    const nombre = this.escapeHtml(profesional.nombre || '');
-                    const oficio = this.escapeHtml(profesional.oficio || '');
-                    textoEl.innerHTML = `Vas a iniciar un contacto RUANA con <strong>${nombre}</strong> (${oficio}). Este contacto contará en tu historial y métricas personales.`;
-                }
-                const profesionalCodigo = (profesional && (profesional.codigo || '').toString().trim())
-                    || (profesional && profesional.id != null ? String(profesional.id).padStart(5, '0') : '');
-                if (catalogoList) catalogoList.innerHTML = '';
-                if (catalogoWrap) catalogoWrap.style.display = 'none';
-                if (profesionalCodigo) {
-                    await this._cargarCatalogoEnPrevioContacto(profesionalCodigo);
-                }
-                if (modal) {
-                    modal.classList.add('show');
+                const mod = this._contactosModule();
+                if (mod && typeof mod.mostrarAvisoPrevioContacto === 'function') {
+                    return mod.mostrarAvisoPrevioContacto(this, profesional);
                 }
             }
 
             async _cargarCatalogoEnPrevioContacto(profesionalCodigo) {
-                const catalogoWrap = document.getElementById('contacto-previo-catalogo-wrap');
-                const catalogoList = document.getElementById('contacto-previo-catalogo-list');
-                const inputOtro = document.getElementById('contacto-previo-servicio-otro');
-                if (!catalogoList || !profesionalCodigo) return;
-                try {
-                    const resp = await fetch(`/api/aliados/${encodeURIComponent(profesionalCodigo)}/catalogo-servicios`, {
-                        credentials: 'same-origin',
-                        headers: getRuanaAuthHeaders(),
-                    });
-                    const data = await resp.json();
-                    const servicios = (data.status === 'success' && Array.isArray(data.servicios))
-                        ? data.servicios.filter(s => s.configurado && s.descripcion)
-                        : [];
-                    this._catalogoPrevioItems = servicios;
-                    if (!servicios.length) {
-                        if (catalogoWrap) catalogoWrap.style.display = 'none';
-                        return;
-                    }
-                    if (catalogoWrap) catalogoWrap.style.display = 'block';
-                    catalogoList.innerHTML = servicios.map((s, idx) => {
-                        const desc = this.escapeHtml(s.descripcion || '');
-                        const precio = s.precio ? `<span class="neg-catalogo-precio">${this.escapeHtml(String(s.precio))}</span>` : '';
-                        return `<button type="button" class="neg-catalogo-item" data-idx="${idx}"><span class="neg-catalogo-desc">${desc}</span>${precio}</button>`;
-                    }).join('');
-                    catalogoList.querySelectorAll('.neg-catalogo-item').forEach(btn => {
-                        btn.addEventListener('click', () => {
-                            catalogoList.querySelectorAll('.neg-catalogo-item').forEach(b => b.classList.remove('selected'));
-                            btn.classList.add('selected');
-                            const idx = parseInt(btn.getAttribute('data-idx') || '-1', 10);
-                            const item = this._catalogoPrevioItems[idx];
-                            if (inputOtro && item) inputOtro.value = item.descripcion || '';
-                        });
-                    });
-                } catch (e) {
-                    if (catalogoWrap) catalogoWrap.style.display = 'none';
+                const mod = this._contactosModule();
+                if (mod && typeof mod._cargarCatalogoEnPrevioContacto === 'function') {
+                    return mod._cargarCatalogoEnPrevioContacto(this, profesionalCodigo);
                 }
             }
 
@@ -6384,100 +5273,16 @@
             }
 
             _encargoUiLabels(contacto) {
-                const estado = contacto.estado;
-                const meta = contacto.negociacion_meta || {};
-                const yaDeclaraste = contacto.ya_declaraste_importe === true;
-                let estadoLabel = 'Encargo activo';
-                let contexto = meta.contexto || 'Tienes un encargo activo con otro aliado RUANA.';
-                let pasoTxt = meta.paso_label ? `Pendiente: ${meta.paso_label}` : '';
-                let accionTxt = meta.siguiente_accion || 'Abre la negociación para continuar.';
-                let btnPrincipal = 'Abrir negociación';
-                let requiereRespuesta = !!contacto.negociacion_requiere_mi_respuesta;
-                if (contacto.es_urgente) estadoLabel = 'Encargo urgente';
-                if (estado === 'acuerdo_alcanzado' || contacto.negociacion_completa) {
-                    estadoLabel = 'Acuerdo alcanzado';
-                    contexto = 'Todos los puntos del encargo están confirmados.';
-                    pasoTxt = '';
-                    accionTxt = 'El precio aceptado es el importe oficial del encargo. Se genera el Apoyo RUANA.';
-                    btnPrincipal = 'Ver acuerdo';
-                } else if (requiereRespuesta) {
-                    estadoLabel = 'Tu turno';
-                    btnPrincipal = 'Responder ahora';
-                    accionTxt = meta.siguiente_accion || 'Confirma o sugiere un cambio para continuar.';
-                } else if (meta.fase === 'revision' && !requiereRespuesta) {
-                    estadoLabel = 'Esperando al profesional';
-                    btnPrincipal = 'Ver negociación';
-                } else if (meta.fase === 'inicio' && estado !== 'acuerdo_alcanzado') {
-                    estadoLabel = 'Preparar encargo';
-                    btnPrincipal = 'Continuar negociación';
-                } else if (estado === 'importe_en_disputa') {
-                    estadoLabel = 'Importe en disputa';
-                    contexto = 'Hay una diferencia en el importe declarado. Debes aclararlo para proteger tu reputación.';
-                    pasoTxt = '';
-                    accionTxt = 'Revisa el contacto y aporta la información necesaria.';
-                    btnPrincipal = 'Revisar contacto';
-                } else if (estado === 'trabajo_cerrado') {
-                    estadoLabel = 'Trabajo cerrado';
-                    contexto = 'El encargo quedó registrado como realizado.';
-                    pasoTxt = '';
-                    accionTxt = 'Revisa el Apoyo RUANA pendiente si corresponde.';
-                    btnPrincipal = 'Ver detalle';
+                const mod = this._contactosModule();
+                if (mod && typeof mod._encargoUiLabels === 'function') {
+                    return mod._encargoUiLabels(this, contacto);
                 }
-                if (yaDeclaraste && estado !== 'importe_en_disputa' && estado !== 'trabajo_cerrado') {
-                    accionTxt += ' Ya confirmaste el importe.';
-                }
-                const codigo = (this.codigoAliado || (this.aliado && this.aliado.codigo) || '').toString().trim();
-                const contraparte = codigo === String(contacto.solicitante_codigo || '').trim()
-                    ? contacto.profesional_codigo
-                    : contacto.solicitante_codigo;
-                return {
-                    estadoLabel, contexto, pasoTxt, accionTxt, btnPrincipal, requiereRespuesta, contraparte,
-                    progresoConf: meta.progreso_confirmados || 0,
-                    progresoTotal: meta.progreso_total || 6,
-                };
             }
 
             renderEncargosActivos() {
-                const list = document.getElementById('encargos-activos-list');
-                const wrap = document.getElementById('solicitudes-encargos-wrap');
-                if (!list || !wrap) return;
-                const encargos = Array.isArray(this.contactosAbiertos) ? this.contactosAbiertos : [];
-                if (!encargos.length) {
-                    list.innerHTML = '<p class="encargos-activos-empty">No tienes encargos activos en este momento.</p>';
-                    wrap.style.display = '';
-                    return;
-                }
-                list.innerHTML = encargos.map((c) => {
-                    const ui = this._encargoUiLabels(c);
-                    const servicio = this.escapeHtml(c.servicio || 'Encargo RUANA');
-                    const contraparte = this.escapeHtml(String(ui.contraparte || ''));
-                    const pasoHtml = ui.pasoTxt
-                        ? `<p class="encargo-card-paso">${this.escapeHtml(ui.pasoTxt)}</p>`
-                        : '';
-                    const urgente = c.es_urgente ? '<span class="encargo-card-badge urgente">Urgente</span>' : '';
-                    const turno = ui.requiereRespuesta ? '<span class="encargo-card-badge turno">Tu turno</span>' : '';
-                    return `<article class="encargo-card${ui.requiereRespuesta ? ' encargo-requiere-respuesta' : ''}" data-contacto-id="${c.id}" data-requiere-respuesta="${ui.requiereRespuesta ? '1' : '0'}">
-                        <div class="encargo-card-header">
-                            <span class="encargo-card-estado">${this.escapeHtml(ui.estadoLabel)}</span>
-                            ${urgente}${turno}
-                        </div>
-                        <h4 class="encargo-card-servicio">${servicio}</h4>
-                        <p class="encargo-card-meta">Con aliado ${contraparte}</p>
-                        <p class="encargo-card-contexto">${this.escapeHtml(ui.contexto)}</p>
-                        ${pasoHtml}
-                        <p class="encargo-card-accion">${this.escapeHtml(ui.accionTxt)}</p>
-                        <button type="button" class="encargo-card-btn" data-abrir-negociacion="${c.id}">${this.escapeHtml(ui.btnPrincipal)}</button>
-                    </article>`;
-                }).join('');
-                list.querySelectorAll('[data-abrir-negociacion]').forEach((btn) => {
-                    btn.addEventListener('click', () => {
-                        const id = parseInt(btn.getAttribute('data-abrir-negociacion') || '0', 10);
-                        if (id) this.abrirNegociacionContacto(id, null);
-                    });
-                });
-                wrap.style.display = '';
-                if (window.AliadoShell && typeof window.AliadoShell.refresh === 'function') {
-                    window.AliadoShell.refresh();
+                const mod = this._contactosModule();
+                if (mod && typeof mod.renderEncargosActivos === 'function') {
+                    return mod.renderEncargosActivos(this);
                 }
             }
 
@@ -6485,68 +5290,9 @@
              * Crear contacto e iniciar negociación guiada (sin modal de motivo).
              */
             async crearContactoYAbrirNegociacion() {
-                const modalPrevio = document.getElementById('modal-contacto-previo');
-                if (!this.profesionalSeleccionado) {
-                    if (modalPrevio) modalPrevio.classList.remove('show');
-                    return;
-                }
-
-                const codigoSolicitante = this.codigoAliado || (this.aliado && this.aliado.codigo);
-                if (!codigoSolicitante) {
-                    alert('No se pudo determinar tu código RUANA. Vuelve a entrar desde el inicio.');
-                    if (modalPrevio) modalPrevio.classList.remove('show');
-                    this.profesionalSeleccionado = null;
-                    return;
-                }
-
-                const profesional = this.profesionalSeleccionado;
-                const profesionalCodigo = (profesional.codigo || '').toString().trim() || (profesional.id != null ? String(profesional.id).padStart(5, '0') : '');
-                if (!profesionalCodigo) {
-                    alert('No se pudo obtener el código del profesional. Vuelve al directorio e inténtalo de nuevo.');
-                    return;
-                }
-                const servicio = this._obtenerServicioSeleccionadoPrevio(profesional);
-                if (!servicio) {
-                    alert('Elige un servicio del catálogo o escribe cuál necesitas.');
-                    return;
-                }
-                const precioCatalogo = this._obtenerPrecioCatalogoPrevio();
-                const btnConfirm = document.getElementById('btn-contacto-previo-confirm');
-                if (btnConfirm) btnConfirm.disabled = true;
-
-                try {
-                    const resp = await fetch('/api/contactos', {
-                        method: 'POST',
-                        headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
-                        credentials: 'same-origin',
-                        body: JSON.stringify({
-                            profesional_codigo: profesionalCodigo,
-                            servicio,
-                            es_urgente: !!(document.getElementById('check-contacto-urgente') || {}).checked,
-                            precio_catalogo: precioCatalogo,
-                        })
-                    });
-                    const data = await resp.json();
-                    if (!resp.ok || data.status !== 'success') {
-                        alert(data.message || 'No se pudo registrar el contacto. Revisa que ambos códigos existan.');
-                        return;
-                    }
-                    if (modalPrevio) modalPrevio.classList.remove('show');
-                    const checkUrgente = document.getElementById('check-contacto-urgente');
-                    if (checkUrgente) checkUrgente.checked = false;
-                    const inputOtro = document.getElementById('contacto-previo-servicio-otro');
-                    if (inputOtro) inputOtro.value = '';
-                    const catalogoList = document.getElementById('contacto-previo-catalogo-list');
-                    if (catalogoList) catalogoList.innerHTML = '';
-                    await this.cargarContactosPendientes();
-                    await this.refreshAfterAction(['metricas', 'solicitudes', 'directorio', 'alertas', 'contactos']);
-                    this.abrirNegociacionContacto(data.id, profesional, { es_urgente: !!data.es_urgente });
-                } catch (e) {
-                    console.error('Error de red:', e);
-                    alert('Error de conexión al registrar el contacto.');
-                } finally {
-                    if (btnConfirm) btnConfirm.disabled = false;
-                    this.profesionalSeleccionado = null;
+                const mod = this._contactosModule();
+                if (mod && typeof mod.crearContactoYAbrirNegociacion === 'function') {
+                    return mod.crearContactoYAbrirNegociacion(this);
                 }
             }
 
@@ -6582,142 +5328,19 @@
              * Botón "Sí, hubo trabajo" → confirma el importe ya acordado en la negociación.
              */
             handleAvisoSiHuboTrabajo() {
-                if (!this.contactoActual) return;
-                if (this.contactoActual.estado === 'trabajo_cerrado') {
-                    alert('Este contacto ya esta cerrado. Revisa el bloque de Apoyo RUANA si tienes pago pendiente.');
-                    return;
+                const mod = this._contactosModule();
+                if (mod && typeof mod.handleAvisoSiHuboTrabajo === 'function') {
+                    return mod.handleAvisoSiHuboTrabajo(this);
                 }
-                const codigo = String(this.codigoAliado || (this.aliado && this.aliado.codigo) || '').trim();
-                const solCodigo = String(this.contactoActual.solicitante_codigo || '').trim();
-                if (codigo !== solCodigo) {
-                    alert('El importe lo confirma el aliado que contrato el encargo. Si el importe declarado no es correcto, usa Impugnar o reclamar en el bloque de Apoyo RUANA.');
-                    return;
-                }
-                if (this.contactoActual.ya_declaraste_importe === true) {
-                    alert('Ya confirmaste el importe para este contacto.');
-                    return;
-                }
-                const modal = document.getElementById('modal-contacto-importe');
-                const resumenEl = document.getElementById('modal-importe-resumen');
-                const acordadoWrap = document.getElementById('modal-importe-acordado-wrap');
-                const acordadoValor = document.getElementById('modal-importe-acordado-valor');
-                const inputWrap = document.getElementById('modal-importe-input-wrap');
-                const input = document.getElementById('contacto-importe-input');
-                const texto = document.getElementById('modal-contacto-importe-text');
-                const btnConfirm = document.getElementById('btn-contacto-importe-confirm');
-                if (resumenEl) {
-                    resumenEl.style.display = 'none';
-                    resumenEl.textContent = '';
-                }
-                const oficial = this.contactoActual.importe_acordado != null
-                    ? Number(this.contactoActual.importe_acordado)
-                    : (this.contactoActual.precio_acordado != null ? Number(this.contactoActual.precio_acordado) : NaN);
-                const tieneOficial = !isNaN(oficial) && oficial > 0;
-                if (tieneOficial) {
-                    if (texto) {
-                        texto.textContent = 'El precio quedó fijado en la negociación. Confirma ese valor oficial del encargo.';
-                    }
-                    if (acordadoWrap) acordadoWrap.style.display = 'block';
-                    if (acordadoValor) acordadoValor.textContent = `${oficial.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} €`;
-                    if (inputWrap) inputWrap.style.display = 'none';
-                    if (input) { input.value = String(oficial); input.required = false; }
-                    if (btnConfirm) btnConfirm.textContent = 'Confirmar valor acordado';
-                } else {
-                    if (texto) {
-                        texto.textContent = 'No hay un precio numérico en el acuerdo. Introduce el importe para cerrar el encargo.';
-                    }
-                    if (acordadoWrap) acordadoWrap.style.display = 'none';
-                    if (inputWrap) inputWrap.style.display = 'block';
-                    if (input) { input.value = ''; input.required = true; }
-                    if (btnConfirm) btnConfirm.textContent = 'Confirmar importe';
-                }
-                if (modal) modal.classList.add('show');
             }
 
             /**
              * Confirmar importe oficial (precio negociado). No reingresa un valor distinto.
              */
             async confirmarImporteContacto() {
-                if (!this.contactoActual) return;
-                const input = document.getElementById('contacto-importe-input');
-                const btnConfirm = document.getElementById('btn-contacto-importe-confirm');
-                const codigo = String(this.codigoAliado || (this.aliado && this.aliado.codigo) || '').trim();
-                const solCodigo = String(this.contactoActual.solicitante_codigo || '').trim();
-                const parte = (solCodigo === codigo) ? 'solicitante' : 'profesional';
-
-                const oficial = this.contactoActual.importe_acordado != null
-                    ? Number(this.contactoActual.importe_acordado)
-                    : (this.contactoActual.precio_acordado != null ? Number(this.contactoActual.precio_acordado) : NaN);
-                const tieneOficial = !isNaN(oficial) && oficial > 0;
-
-                if (!tieneOficial) {
-                    if (!input) return;
-                    const raw = String(input.value || '').trim().replace(',', '.');
-                    const valor = parseFloat(raw);
-                    if (raw === '' || isNaN(valor) || valor <= 0) {
-                        alert('Introduce un importe válido mayor que cero.');
-                        return;
-                    }
-                }
-
-                if (btnConfirm) { btnConfirm.disabled = true; }
-                try {
-                    const body = tieneOficial
-                        ? { parte, confirmar_acordado: true, usar_precio_acordado: true, moneda: 'EUR' }
-                        : { parte, importe: parseFloat(String(input.value || '').trim().replace(',', '.')), moneda: 'EUR' };
-                    const resp = await fetch(`/api/contactos/${this.contactoActual.id}/declarar-importe`, {
-                        method: 'POST',
-                        headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
-                        credentials: 'same-origin',
-                        body: JSON.stringify(body)
-                    });
-                    const data = await resp.json();
-                    if (data.status !== 'success') {
-                        if (btnConfirm) btnConfirm.disabled = false;
-                        const msg = data.message || 'No se pudo registrar el importe.';
-                        if (data.estado === 'trabajo_cerrado' || (msg && msg.indexOf('ya está cerrado') !== -1)) {
-                            alert('Este contacto ya está cerrado. Ambas partes han confirmado el importe.');
-                            this.contactoActual = null;
-                            const avisoEl = document.getElementById('contacto-aviso-persistente');
-                            if (avisoEl) avisoEl.style.display = 'none';
-                            await this.cargarContactosPendientes();
-                            await this.cargarPagosApoyoPendientes();
-                            await this.refreshAfterAction(['metricas', 'solicitudes', 'alertas', 'contactos']);
-                            const modal = document.getElementById('modal-contacto-importe');
-                            if (modal) modal.classList.remove('show');
-                        } else if (msg.indexOf('Ya has declarado') !== -1) {
-                            alert('Solo puedes confirmar el importe una vez por contacto.');
-                        } else {
-                            alert(msg);
-                        }
-                        return;
-                    }
-
-                    const modal = document.getElementById('modal-contacto-importe');
-                    const resumenEl = document.getElementById('modal-importe-resumen');
-                    if (data.estado === 'trabajo_cerrado') {
-                        await this.mostrarResumenCierre(this.contactoActual.id);
-                        const avisoEl = document.getElementById('contacto-aviso-persistente');
-                        if (avisoEl) avisoEl.style.display = 'none';
-                        this.contactoActual = null;
-                        await this.cargarPagosApoyoPendientes();
-                    } else if (data.estado === 'importe_en_disputa') {
-                        const ctx = document.getElementById('contacto-aviso-contexto');
-                        const acc = document.getElementById('contacto-aviso-accion');
-                        if (ctx) ctx.textContent = 'Los importes declarados no coinciden.';
-                        if (acc) acc.textContent = 'Adjunta un comprobante de pago para continuar.';
-                    }
-                    if (modal) modal.classList.remove('show');
-                    if (input) input.value = '';
-                    if (resumenEl) { resumenEl.style.display = 'none'; resumenEl.innerHTML = ''; }
-
-                    await this.cargarContactosPendientes();
-                    await this.refreshAfterAction(['metricas', 'solicitudes', 'directorio', 'alertas', 'contactos']);
-                } catch (e) {
-                    console.error('Error declarando importe:', e);
-                    alert('Error de conexión al confirmar el importe.');
-                } finally {
-                    if (btnConfirm) btnConfirm.disabled = false;
+                const mod = this._contactosModule();
+                if (mod && typeof mod.confirmarImporteContacto === 'function') {
+                    return mod.confirmarImporteContacto(this);
                 }
             }
 
@@ -6725,33 +5348,9 @@
              * Mostrar resumen de cierre (importe y comisión) sin exponer importes individuales
              */
             async mostrarResumenCierre(contactoId) {
-                try {
-                    const resp = await fetch(`/api/contactos/${contactoId}`, { credentials: 'same-origin', headers: getRuanaAuthHeaders() });
-                    if (!resp.ok) return;
-                    const data = await resp.json();
-                    if (data.status !== 'success' || !data.contacto) return;
-
-                    const c = data.contacto;
-                    const resumenEl = document.getElementById('modal-importe-resumen');
-                    if (!resumenEl) return;
-
-                    const importe = (c.importe_final != null && !Number.isNaN(Number(c.importe_final)))
-                        ? Number(c.importe_final).toFixed(2) + ' €'
-                        : 'Pendiente de cálculo';
-                    const apoyoVal = c.apoyo_ruana != null ? c.apoyo_ruana : c.comision;
-                    const apoyoStr = (apoyoVal != null && !Number.isNaN(Number(apoyoVal)) && Number(apoyoVal) >= 0)
-                        ? Number(apoyoVal).toFixed(2) + ' €'
-                        : 'Pendiente de cálculo';
-                    const estadoPago = (c.estado_pago || 'no_generado').replace(/_/g, ' ');
-
-                    resumenEl.innerHTML = `
-                        <strong>Importe acordado:</strong> ${importe}<br>
-                        <strong>Apoyo RUANA (12%):</strong> ${apoyoStr}<br>
-                        <strong>Estado del pago:</strong> ${estadoPago}
-                    `;
-                    resumenEl.style.display = 'block';
-                } catch (e) {
-                    console.error('Error obteniendo resumen de cierre:', e);
+                const mod = this._contactosModule();
+                if (mod && typeof mod.mostrarResumenCierre === 'function') {
+                    return mod.mostrarResumenCierre(this, contactoId);
                 }
             }
 
@@ -6759,44 +5358,9 @@
              * Subir prueba de pago (solo contratante, conflicto en PENDIENTE_PRUEBA)
              */
             async subirPruebaConflicto() {
-                const conflictId = this._conflictoIdParaPrueba;
-                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
-                const input = document.getElementById('input-prueba-conflicto');
-                const resultadoEl = document.getElementById('subir-prueba-resultado');
-                if (!conflictId || !codigo) {
-                    if (resultadoEl) resultadoEl.textContent = 'No hay conflicto pendiente.';
-                    return;
-                }
-                if (!input || !input.files || !input.files.length) {
-                    if (resultadoEl) resultadoEl.textContent = 'Elige un archivo (PDF o imagen).';
-                    return;
-                }
-                const file = input.files[0];
-                const fd = new FormData();
-                fd.append('codigo', codigo);
-                fd.append('archivo', file);
-                if (resultadoEl) resultadoEl.textContent = 'Enviando...';
-                try {
-                    const r = await fetch(`/api/conflictos/${conflictId}/subir-prueba`, {
-                        method: 'POST',
-                        body: fd,
-                        credentials: 'same-origin',
-                        headers: getRuanaAuthHeaders()
-                    });
-                    const data = await r.json();
-                    if (data.status === 'success') {
-                        if (resultadoEl) resultadoEl.textContent = 'Prueba enviada. En revisión.';
-                        this._conflictoIdParaPrueba = null;
-                        const subirPruebaEl = document.getElementById('contacto-aviso-subir-prueba');
-                        if (subirPruebaEl) subirPruebaEl.style.display = 'none';
-                        await this.cargarContactosPendientes();
-                        await this.actualizarEstadoAlertas();
-                        await this.refreshAfterAction(['metricas', 'solicitudes', 'alertas', 'contactos']);
-                    } else {
-                        if (resultadoEl) resultadoEl.textContent = data.message || 'Error al subir.';
-                    }
-                } catch (e) {
-                    if (resultadoEl) resultadoEl.textContent = 'Error de conexión.';
+                const mod = this._contactosModule();
+                if (mod && typeof mod.subirPruebaConflicto === 'function') {
+                    return mod.subirPruebaConflicto(this);
                 }
             }
 
@@ -6813,30 +5377,9 @@
              * Confirmar cierre sin trabajo (desde modal)
              */
             async confirmarNoConcretado() {
-                if (!this.contactoActual) return;
-                const modal = document.getElementById('modal-no-concretado');
-                const contactoId = this.contactoActual.id;
-                try {
-                    const resp = await fetch(`/api/contactos/${contactoId}/no-concretado`, {
-                        method: 'POST',
-                        headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
-                        credentials: 'same-origin',
-                        body: JSON.stringify({
-                            motivo: 'Cierre sin trabajo desde panel RUANA'
-                        })
-                    });
-                    const data = await resp.json();
-                    if (modal) modal.classList.remove('show');
-                    const yaCerrado = data.status !== 'success' && (resp.status === 200 || resp.status === 400) && /ya está cerrado|estado final/i.test(data.message || '');
-                    if (data.status !== 'success' && !yaCerrado) {
-                        alert(data.message || 'No se pudo marcar como no concretado.');
-                        return;
-                    }
-                    await this.finalizarContactoCerradoEnUI(contactoId);
-                } catch (e) {
-                    if (modal) modal.classList.remove('show');
-                    console.error('Error marcando no concretado:', e);
-                    alert('Error de conexión al actualizar el contacto.');
+                const mod = this._contactosModule();
+                if (mod && typeof mod.confirmarNoConcretado === 'function') {
+                    return mod.confirmarNoConcretado(this);
                 }
             }
 
@@ -6845,26 +5388,9 @@
              * Backend deja de devolverlo en contactos abiertos (server-driven); no se usa sessionStorage.
              */
             async handleAvisoSigueEnConversacion() {
-                if (!this.contactoActual) return;
-                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
-                const contactoId = this.contactoActual.id;
-                try {
-                    const resp = await fetch(`/api/contactos/${contactoId}/en-conversacion`, {
-                        method: 'POST',
-                        headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
-                        credentials: 'same-origin',
-                        body: JSON.stringify({})
-                    });
-                    const data = await resp.json();
-                    if (data.status !== 'success') {
-                        alert(data.message || 'No se pudo actualizar el estado del contacto.');
-                        return;
-                    }
-                    await this.cargarContactosPendientes();
-                    await this.refreshAfterAction(['metricas', 'solicitudes', 'alertas', 'contactos']);
-                } catch (e) {
-                    console.error('Error actualizando contacto en conversación:', e);
-                    alert('Error de conexión al actualizar el contacto.');
+                const mod = this._contactosModule();
+                if (mod && typeof mod.handleAvisoSigueEnConversacion === 'function') {
+                    return mod.handleAvisoSigueEnConversacion(this);
                 }
             }
         }

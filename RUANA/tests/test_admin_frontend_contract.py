@@ -21,23 +21,27 @@ def test_readonly_admin_disables_all_write_actions():
 
 
 def test_admin_has_payment_methods_management_contract():
-    admin_html = Path(__file__).resolve().parents[1] / "web" / "admin.html"
-    text = admin_html.read_text(encoding="utf-8")
+    root = Path(__file__).resolve().parents[1] / "web"
+    admin_html = (root / "admin.html").read_text(encoding="utf-8")
+    sistema_js = (root / "static" / "js" / "admin-sistema-module.js").read_text(encoding="utf-8")
 
-    assert 'id="metodos-pago-admin-wrap"' in text
-    assert 'data-action="editar-metodos-pago"' in text
-    assert "fetch('/api/admin/metodos-pago', fetchOpts)" in text
-    assert "accionEditarMetodosPago" in text
-    assert "/api/admin/metodos-pago/qr-revolut" in text
+    assert 'id="metodos-pago-admin-wrap"' in admin_html
+    assert 'data-action="editar-metodos-pago"' in admin_html
+    assert "fetch('/api/admin/metodos-pago', fetchOpts)" in admin_html
+    assert "accionEditarMetodosPago" in admin_html
+    assert "accionEditarMetodosPago" in sistema_js
+    assert "/api/admin/metodos-pago/qr-revolut" in sistema_js
 
 
 def test_admin_qr_upload_does_not_send_json_content_type():
-    admin_html = Path(__file__).resolve().parents[1] / "web" / "admin.html"
-    text = admin_html.read_text(encoding="utf-8")
+    root = Path(__file__).resolve().parents[1] / "web"
+    sistema_js = (root / "static" / "js" / "admin-sistema-module.js").read_text(encoding="utf-8")
+    admin_html = (root / "admin.html").read_text(encoding="utf-8")
 
-    assert "_skipContentType" in text
-    start = text.index("fetch('/api/admin/metodos-pago/qr-revolut'")
-    snippet = text[start : start + 360]
+    assert "_sistemaModule" in admin_html
+    assert "_skipContentType" in sistema_js
+    start = sistema_js.index("fetch('/api/admin/metodos-pago/qr-revolut'")
+    snippet = sistema_js[start : start + 360]
 
     assert "AdminAuthenticator.getAdminAuthHeaders({ _skipContentType: true })" in snippet
 
@@ -52,12 +56,14 @@ def test_admin_conflict_resolution_refreshes_api_data():
 
 
 def test_admin_aliado_detalle_has_delete_profile_button():
-    admin_html = Path(__file__).resolve().parents[1] / "web" / "admin.html"
-    text = admin_html.read_text(encoding="utf-8")
+    root = Path(__file__).resolve().parents[1] / "web"
+    admin_html = (root / "admin.html").read_text(encoding="utf-8")
+    red_js = (root / "static" / "js" / "admin-red-module.js").read_text(encoding="utf-8")
 
-    assert 'id="aliadoDetalleEliminar"' in text
-    assert "confirmarEliminarPerfil" in text
-    assert "/api/admin/eliminar-aliado" in text
+    assert 'id="aliadoDetalleEliminar"' in admin_html
+    assert "confirmarEliminarPerfil" in admin_html
+    assert "confirmarEliminarPerfil" in red_js
+    assert "/api/admin/eliminar-aliado" in red_js
 
 
 def test_admin_document_view_uses_authenticated_access_endpoint():
@@ -129,3 +135,45 @@ def test_admin_operaciones_module_is_wired():
     assert 'id="pagos-apoyo-wrap"' in admin
     assert 'id="pagos-en-revision-wrap"' in admin
     assert "cargarDesdeApi" in admin
+
+
+def test_admin_red_module_is_wired():
+    """Módulo AdminShell `red` (jerarquía aliados); AdminPanel solo fachada."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    admin = (root / "admin.html").read_text(encoding="utf-8")
+    red_js = (root / "static" / "js" / "admin-red-module.js").read_text(encoding="utf-8")
+    modules_js = (root / "static" / "js" / "admin-modules.js").read_text(encoding="utf-8")
+
+    assert 'src="/static/js/admin-red-module.js"' in admin
+    assert "red: null" in modules_js
+    assert "modules.red" in red_js or "RuanaAdminModules.red" in red_js
+    assert "renderAliadosJerarquia" in red_js
+    assert "renderAliados" in red_js
+    assert "abrirModalDetalle" in red_js
+    assert "abrirLinajeDrawer" in red_js
+    assert "_redModule" in admin
+    assert "mod.renderAliadosJerarquia(this)" in admin
+    assert "mod.renderAliados(this, aliadosData)" in admin
+    assert 'id="aliados-jerarquia-nav"' in admin or 'id="aliados-cps-list"' in admin
+    assert 'id="aliados-admin-list"' in admin
+
+
+def test_admin_sistema_module_is_wired():
+    """Módulo AdminShell `sistema` (campañas / reglas / métodos pago); fachadas."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    admin = (root / "admin.html").read_text(encoding="utf-8")
+    sistema_js = (root / "static" / "js" / "admin-sistema-module.js").read_text(encoding="utf-8")
+    modules_js = (root / "static" / "js" / "admin-modules.js").read_text(encoding="utf-8")
+
+    assert 'src="/static/js/admin-sistema-module.js"' in admin
+    assert "sistema: null" in modules_js
+    assert "modules.sistema" in sistema_js or "RuanaAdminModules.sistema" in sistema_js
+    assert "accionCrearCampanaInvitacion" in sistema_js
+    assert "accionCambiarReglas" in sistema_js
+    assert "accionEditarMetodosPago" in sistema_js
+    assert "accionAbrirPlaza" in sistema_js
+    assert "_sistemaModule" in admin
+    assert "mod.accionEditarMetodosPago(this)" in admin
+    assert "mod.accionCrearCampanaInvitacion(this)" in admin
+    assert 'data-action="crear-campana-invitacion"' in admin
+    assert 'id="metodos-pago-admin-wrap"' in admin
