@@ -133,8 +133,11 @@ def client():
 
 @pytest.fixture
 def fake_db(monkeypatch):
+    from tests.service_forwarders import install_service_db_forwarders
+
     db = Hito2AFakeDB()
     monkeypatch.setattr(app_module, "get_db", lambda: db)
+    install_service_db_forwarders(monkeypatch)
     return db
 
 

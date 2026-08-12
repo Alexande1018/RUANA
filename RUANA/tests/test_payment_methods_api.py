@@ -1,5 +1,7 @@
 from io import BytesIO
 
+from tests.service_forwarders import install_service_db_forwarders
+
 
 class PaymentMethodsFakeDB:
     def __init__(self):
@@ -25,6 +27,7 @@ def test_aliado_can_read_payment_methods(client, fake_db, monkeypatch, session_h
 
     db = PaymentMethodsFakeDB()
     monkeypatch.setattr(app_module, "get_db", lambda: db)
+    install_service_db_forwarders(monkeypatch)
 
     response = client.get("/api/metodos-pago", headers=session_headers("aliado", "A0001"))
 
@@ -40,6 +43,7 @@ def test_admin_can_update_payment_methods(client, monkeypatch, session_headers):
 
     db = PaymentMethodsFakeDB()
     monkeypatch.setattr(app_module, "get_db", lambda: db)
+    install_service_db_forwarders(monkeypatch)
 
     response = client.post(
         "/api/admin/metodos-pago",
@@ -64,6 +68,7 @@ def test_admin_qr_upload_updates_revolut_qr_path(client, monkeypatch, session_he
     db = PaymentMethodsFakeDB()
     uploads = []
     monkeypatch.setattr(app_module, "get_db", lambda: db)
+    install_service_db_forwarders(monkeypatch)
     monkeypatch.setattr(
         app_module,
         "upload_ruana_file",

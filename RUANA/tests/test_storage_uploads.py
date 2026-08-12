@@ -1,5 +1,7 @@
 from io import BytesIO
 
+from tests.service_forwarders import install_service_db_forwarders
+
 
 class UploadFakeDB:
     def __init__(self):
@@ -20,6 +22,7 @@ def test_comprobante_apoyo_upload_uses_storage_adapter(client, monkeypatch, sess
     db = UploadFakeDB()
     uploads = []
     monkeypatch.setattr(app_module, "get_db", lambda: db)
+    install_service_db_forwarders(monkeypatch)
     monkeypatch.setattr(
         app_module,
         "upload_ruana_file",
@@ -55,6 +58,7 @@ def test_comprobante_apoyo_upload_rejects_files_over_2mb(client, monkeypatch, se
 
     db = UploadFakeDB()
     monkeypatch.setattr(app_module, "get_db", lambda: db)
+    install_service_db_forwarders(monkeypatch)
 
     response = client.post(
         "/api/contactos/33/comprobante-apoyo",
@@ -74,6 +78,7 @@ def test_conflict_proof_upload_uses_storage_adapter(client, monkeypatch, session
     db = UploadFakeDB()
     uploads = []
     monkeypatch.setattr(app_module, "get_db", lambda: db)
+    install_service_db_forwarders(monkeypatch)
     monkeypatch.setattr(
         app_module,
         "upload_ruana_file",
