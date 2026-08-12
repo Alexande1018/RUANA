@@ -46,6 +46,7 @@ from core.auth_session import (
 from web.blueprints.catalogo_bp import catalogo_bp
 from web.blueprints.negociacion_bp import negociacion_bp, priorizar_contactos_negociacion, negociacion_get
 from web.blueprints.referidos_bp import referidos_bp
+from web.blueprints.admin_bp import admin_bp
 from web.auth_decorators import (
     require_admin,
     require_admin_escritura,
@@ -74,6 +75,7 @@ configure_session_secret(app.secret_key)
 app.register_blueprint(catalogo_bp)
 app.register_blueprint(negociacion_bp)
 app.register_blueprint(referidos_bp)
+app.register_blueprint(admin_bp)
 
 # Cookie de sesi?n segura (aliado y admin): httpOnly evita acceso desde JS (XSS), SameSite limita CSRF
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -91,7 +93,7 @@ ALIADO_SESSION_EXPIRES_SECONDS = int(os.environ.get('RUANA_ALIADO_SESSION_EXPIRE
 
 # ---------- S-04: Middleware de autorizaci?n admin ----------
 # Todas las peticiones a /api/admin/* (salvo logout y validar) exigen sesi?n o JWT v?lido.
-_ADMIN_PUBLIC_PATHS = ('/api/admin/logout', '/api/admin/validar')
+_ADMIN_PUBLIC_PATHS = ('/api/admin/logout', '/api/admin/validar', '/api/admin/bp-health')
 
 @app.before_request
 def admin_auth_middleware():
@@ -2658,18 +2660,6 @@ def logout_admin():
     return jsonify({'status': 'success', 'message': 'Sesi\u00f3n cerrada'})
 
 
-@app.route('/api/admin/me', methods=['GET'])
-@require_admin
-def admin_me():
-    """
-    GET /api/admin/me
-    Devuelve permisos del admin actual (store por header o JWT).
-    """
-    permisos = _admin_permisos()
-    if not permisos and _admin_codigo():
-        permisos = ['leer', 'escribir', 'eliminar', 'configurar']
-    return jsonify({'permisos': permisos or []})
-
 
 @app.route('/api/admin/cambiar-contraseña', methods=['POST'])
 @require_admin
@@ -2717,118 +2707,8 @@ def admin_cambiar_contraseña():
     return jsonify(result), status_code
 
 
-@app.route('/api/admin/health-metrics', methods=['GET'])
-@require_admin
-def admin_health_metrics():
-    """
-    GET /api/admin/health-metrics
-    M?tricas de salud del sistema:
-    - ratio_solicitud_invitacion
-    - ratio_invitacion_registro
-    - oficios_saturados (m?s de X suplentes en competencia)
-    - oficios_disponibles (sin titular)
-    - zona_mayor_demanda
-    - tasa_retencion (activos / total)
-    """
-    try:
-        db = get_db()
-        umbral = request.args.get('umbral_suplentes', 1, type=int)
-        umbral = max(0, min(umbral, 10))
-        metrics = db.obtener_health_metrics_admin(umbral_suplentes=umbral)
-        return jsonify(metrics)
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
-@app.route('/api/admin/stats-24h', methods=['GET'])
-@require_admin
-def admin_stats_24h():
-    """
-    GET /api/admin/stats-24h
-    Endpoint ?nico: todas las m?tricas de movimiento en las ?ltimas 24h en una respuesta.
-    Respuesta: solicitudes (nuevas, atendidas, sin_respuesta), invitaciones (generadas, usadas, expiradas),
-    top_invitadores [{ nombre, total }].
-    """
-    try:
-        db = get_db()
-        data = db.obtener_stats_24h_panel()
-        return jsonify({'status': 'success', **data})
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-
-@app.route('/api/admin/invitaciones-recientes', methods=['GET'])
-@require_admin
-def admin_invitaciones_recientes():
-    """GET /api/admin/invitaciones-recientes?limite=20 - Lista ?ltimas invitaciones generadas (registro en panel)."""
-    try:
-        limite = request.args.get('limite', type=int) or 20
-        limite = min(max(1, limite), 100)
-        db = get_db()
-        lista = db.listar_invitaciones_recientes(limite=limite)
-        return jsonify({'status': 'success', 'invitaciones': lista})
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-
-@app.route('/api/admin/dashboard-summary', methods=['GET'])
-@require_admin
-def admin_dashboard_summary():
-    """
-    GET /api/admin/dashboard-summary
-    Resumen del dashboard global para el panel admin.
-    Conecta indicadores a consultas reales:
-    - total_users: COUNT users (aliados)
-    - active_users: WHERE status = active
-    - suplentes: WHERE role = suplente (en competencia activa)
-    - en_riesgo: WHERE score < umbral o en rango EN RIESGO (15 <= score < 50)
-    - solicitudes_activas: WHERE estado = pendiente (open)
-    - oficios_ocupados: COUNT oficios con titular activo
-    - grupos: COUNT grupos reales
-    """
-    try:
-        db = get_db()
-        aliados = db.listar_aliados()
-        total_users = len(aliados)
-        active_users = len([a for a in aliados if a.get('estado') == 'activo'])
-        retadores = db.contar_retadores_activos()
-        suplentes = retadores  # alias
-        en_espera = db.contar_aliados_en_espera() if hasattr(db, 'contar_aliados_en_espera') else 0
-        en_riesgo = db.contar_aliados_en_riesgo()
-        solicitudes_activas = db.contar_solicitudes_activas()
-        oficios_ocupados = db.contar_oficios_ocupados()
-        grupos_data = db.contar_grupos()
-        grupos = int(grupos_data.get('total', 0) or 0)
-
-        # Estado del sistema (Estable / Alerta / Cr?tico) para la UI
-        contactos_metricas = db.obtener_metricas_contactos()
-        contactos_disputa = contactos_metricas.get('contactos_en_disputa', 0) or 0
-        contactos_disputa_prolongada = contactos_metricas.get('contactos_en_disputa_prolongada', 0) or 0
-        pct_riesgo = (en_riesgo / active_users * 100) if active_users else 0
-        if pct_riesgo <= 10 and contactos_disputa <= 2 and contactos_disputa_prolongada == 0:
-            estado_sistema = 'Estable'
-        elif pct_riesgo <= 25 and contactos_disputa <= 5:
-            estado_sistema = 'Alerta'
-        else:
-            estado_sistema = 'Cr?tico'
-
-        return jsonify({
-            'total_users': total_users,
-            'active_users': active_users,
-            'retadores': retadores,
-            'suplentes': suplentes,  # alias compatibilidad
-            'en_espera': en_espera,
-            'en_riesgo': en_riesgo,
-            'solicitudes_activas': solicitudes_activas,
-            'oficios_ocupados': oficios_ocupados,
-            'grupos': grupos,
-            'grupos_activos': int(grupos_data.get('activos', 0) or 0),
-            'grupos_en_competencia': int(grupos_data.get('en_competencia', 0) or 0),
-            'grupos_disueltos': int(grupos_data.get('disueltos', 0) or 0),
-            'estado_sistema': estado_sistema,
-        })
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 @app.route('/api/admin/forzar-competencia', methods=['POST'])
@@ -2857,20 +2737,6 @@ def admin_forzar_competencia():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
-@app.route('/api/admin/suplentes-espera', methods=['GET'])
-@require_admin
-def admin_suplentes_espera():
-    """
-    GET /api/admin/suplentes-espera
-    Lista aliados en estado en_espera (lista de Suplentes). Solo admin.
-    """
-    try:
-        db = get_db()
-        aliados = db.listar_aliados_en_espera()
-        return jsonify({'status': 'success', 'aliados': aliados, 'total': len(aliados)})
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
 
 @app.route('/api/admin/suplentes-espera/<codigo>/incorporar', methods=['POST'])
 @require_admin_escritura
@@ -2895,21 +2761,6 @@ def admin_incorporar_suplente_espera(codigo):
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-
-@app.route('/api/admin/pending-users', methods=['GET'])
-@app.route('/api/admin/aliados-pendientes', methods=['GET'])
-@require_admin
-def admin_pending_users():
-    """
-    GET /api/admin/aliados-pendientes
-    Lista aliados con estado pendiente_validacion (oficio fuera de cat?logo, requieren activaci?n manual).
-    """
-    try:
-        db = get_db()
-        aliados = db.listar_aliados_pendiente_validacion()
-        return jsonify({'status': 'success', 'aliados': aliados, 'total': len(aliados)})
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 @app.route('/api/admin/rechazar-aliado', methods=['POST'])
