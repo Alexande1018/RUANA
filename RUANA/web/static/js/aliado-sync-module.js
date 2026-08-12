@@ -146,7 +146,7 @@
   }
 
   function initOnboarding(host) {
-    host.onboardingTour = new RuanaOnboardingTour(this);
+    host.onboardingTour = new RuanaOnboardingTour(host);
     const replayBtn = document.getElementById('btn-replay-onboarding');
     if (replayBtn) {
         replayBtn.addEventListener('click', () => host.onboardingTour.start(true));
@@ -329,7 +329,7 @@
       // Configurar listeners primero (SIEMPRE)
       host.setupEventListeners();
       if (typeof NegociacionGuiada !== 'undefined') {
-          host.negociacionGuiada = new NegociacionGuiada(this);
+          host.negociacionGuiada = new NegociacionGuiada(host);
       }
 
       // Luego, cargar datos base para pintar el panel lo antes posible

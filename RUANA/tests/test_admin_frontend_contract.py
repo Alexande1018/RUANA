@@ -87,7 +87,7 @@ def test_admin_document_view_uses_authenticated_access_endpoint():
     assert "buildAdminDocumentLink" in admin_html
     assert "abrirDocumentoAdmin" in admin_html
     assert "/api/admin/documentos/acceso" in ops_js
-    assert 'class="btn-link btn-ver-documento-admin"' in admin_html
+    assert 'class="btn-link btn-ver-documento-admin"' in ops_js
 
 
 def test_admin_resumen_module_is_wired():
