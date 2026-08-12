@@ -53,3 +53,21 @@ def test_admin_html_acciones_wrap_id():
     text = admin_html.read_text(encoding="utf-8")
     assert 'id="acciones-admin-wrap"' in text
     assert "Panel de administración" in text
+
+
+def test_admin_shell_resumen_module_aligned_with_module_defs():
+    """admin-resumen-module.js cubre targets del MODULE_DEFS.id=resumen."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    shell_js = (root / "static" / "js" / "admin-shell.js").read_text(encoding="utf-8")
+    resumen_js = (root / "static" / "js" / "admin-resumen-module.js").read_text(encoding="utf-8")
+    admin = (root / "admin.html").read_text(encoding="utf-8")
+
+    assert "id: 'resumen'" in shell_js
+    assert ".estado-global" in shell_js
+    assert ".movimiento-sistema" in shell_js
+    assert ".metricas-salud" in shell_js
+    assert 'src="/static/js/admin-resumen-module.js"' in admin
+    assert "renderEstadoGlobal" in resumen_js
+    assert "estado-sistema-label" in resumen_js
+    assert "mov-sol-nuevas" in resumen_js
+    assert "metrica-retencion" in resumen_js

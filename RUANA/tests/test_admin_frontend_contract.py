@@ -68,3 +68,34 @@ def test_admin_document_view_uses_authenticated_access_endpoint():
     assert "abrirDocumentoAdmin" in text
     assert "/api/admin/documentos/acceso" in text
     assert 'class="btn-link btn-ver-documento-admin"' in text
+
+
+def test_admin_resumen_module_is_wired():
+    """Módulo AdminShell `resumen` extraído; AdminPanel solo fachada de render."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    admin = (root / "admin.html").read_text(encoding="utf-8")
+    resumen_js = (root / "static" / "js" / "admin-resumen-module.js").read_text(encoding="utf-8")
+    modules_js = (root / "static" / "js" / "admin-modules.js").read_text(encoding="utf-8")
+
+    assert 'src="/static/js/admin-modules.js"' in admin
+    assert 'src="/static/js/admin-resumen-module.js"' in admin
+    assert "RuanaAdminModules" in modules_js
+    assert "resumen: null" in modules_js
+    assert "RuanaAdminModules.resumen" in resumen_js or "modules.resumen" in resumen_js
+    assert "renderEstadoGlobal" in resumen_js
+    assert "renderMovimiento" in resumen_js
+    assert "renderMovimientoError" in resumen_js
+    assert "renderMetricas" in resumen_js
+    assert "total-aliados" in resumen_js
+    assert "metrica-ratio-sol-inv" in resumen_js
+    # Fachadas delgadas en AdminPanel
+    assert "_resumenModule" in admin
+    assert "mod.renderEstadoGlobal(data)" in admin
+    assert "mod.renderMovimiento(this, data)" in admin
+    assert "mod.renderMetricas(data)" in admin
+    # Markup del resumen permanece (sin vaciar admin.html)
+    assert 'class="estado-global"' in admin
+    assert 'class="movimiento-sistema"' in admin
+    assert 'class="metricas-salud"' in admin
+    assert "cargarDesdeApi" in admin
+    assert "/api/admin/dashboard-summary" in admin

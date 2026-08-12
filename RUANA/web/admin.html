@@ -1103,6 +1103,7 @@
     <script src="/static/js/ruana-ui.js" defer></script>
     <script src="/static/js/ruana-api-client.js" defer></script>
     <script src="/static/js/admin-modules.js" defer></script>
+    <script src="/static/js/admin-resumen-module.js" defer></script>
     <script src="/static/js/admin-shell.js" defer></script>
 </head>
 <body class="admin-is-loading">
@@ -2293,126 +2294,36 @@
                 window.location.replace('/admin');
             }
 
+            /** Fachada Campamento Base → RuanaAdminModules.resumen */
+            _resumenModule() {
+                return (typeof RuanaAdminModules !== 'undefined' && RuanaAdminModules.resumen) || null;
+            }
+
             renderEstadoGlobal(data) {
-                /**
-                 * Renderiza indicadores de estado global desde la API real.
-                 */
-                const indicadores = data.indicadores;
-                const set = (id, value) => {
-                    const el = document.getElementById(id);
-                    if (el) el.textContent = value;
-                };
-                set('total-aliados', indicadores.totalAliados);
-                set('aliados-activos', indicadores.aliadosActivos);
-                set('retadores-count', indicadores.retadores);
-                set('en-espera-count', indicadores.enEspera);
-                set('en-riesgo-count', indicadores.enRiesgo);
-                set('solicitudes-activas', indicadores.solicitudesActivas);
-                set('oficios-ocupados', indicadores.oficiosOcupados !== undefined && indicadores.oficiosOcupados !== null ? indicadores.oficiosOcupados : '-');
-                set('total-grupos', indicadores.totalGrupos !== undefined && indicadores.totalGrupos !== null ? indicadores.totalGrupos : '0');
-                const desgloseEl = document.getElementById('total-grupos-desglose');
-                if (desgloseEl) {
-                    const a = indicadores.gruposActivos ?? 0;
-                    const c = indicadores.gruposEnCompetencia ?? 0;
-                    const d = indicadores.gruposDisueltos ?? 0;
-                    desgloseEl.textContent = a + ' activos, ' + c + ' en competencia, ' + d + ' disueltos';
-                }
-                const estadoLabel = indicadores.estadoSistema || 'Estable';
-                const estadoEl = document.getElementById('estado-sistema-label');
-                if (estadoEl) estadoEl.textContent = estadoLabel;
-                const container = estadoEl && estadoEl.closest('.estado-sistema');
-                if (container) {
-                    container.classList.remove('estable', 'alerta', 'crítico');
-                    const clase = (estadoLabel === 'Crítico' || estadoLabel === 'Alerta') ? estadoLabel.toLowerCase() : 'estable';
-                    container.classList.add(clase);
+                const mod = this._resumenModule();
+                if (mod && typeof mod.renderEstadoGlobal === 'function') {
+                    return mod.renderEstadoGlobal(data);
                 }
             }
 
             renderMovimientoError(message) {
-                const errEl = document.getElementById('movimiento-24h-error');
-                const gridEl = document.getElementById('movimiento-grid');
-                if (errEl) {
-                    errEl.textContent = message || '';
-                    errEl.style.display = message ? 'block' : 'none';
+                const mod = this._resumenModule();
+                if (mod && typeof mod.renderMovimientoError === 'function') {
+                    return mod.renderMovimientoError(message);
                 }
-                if (gridEl) gridEl.style.display = message ? 'none' : '';
             }
 
             renderMovimiento(data) {
-                /**
-                 * Actualiza la UI de Movimiento del Sistema (24h): resumen y desglose por hora.
-                 */
-                const mov = (data && data.movimiento24h) ? data.movimiento24h : null;
-                const porHora = (data && data.movimiento24hHoras) ? data.movimiento24hHoras : null;
-                if (mov) this._lastMovimiento24h = mov;
-                const set = (id, value) => {
-                    const el = document.getElementById(id);
-                    if (el) el.textContent = value;
-                };
-                if (mov) {
-                    set('mov-sol-nuevas', mov.solicitudes ? mov.solicitudes.nuevas : '-');
-                    set('mov-sol-atendidas', mov.solicitudes ? mov.solicitudes.atendidas : '-');
-                    set('mov-sol-sin-respuesta', mov.solicitudes ? mov.solicitudes.sin_respuesta : '-');
-                    set('mov-inv-generadas', mov.invitaciones ? mov.invitaciones.generadas : '-');
-                    set('mov-inv-usadas', mov.invitaciones ? mov.invitaciones.usadas : '-');
-                    set('mov-inv-expiradas', mov.invitaciones ? mov.invitaciones.expiradas : '-');
-                    const top = (mov.top_invitadores || []).slice(0, 3);
-                    for (let i = 0; i < 3; i++) {
-                        const t = top[i];
-                        set('mov-top-' + (i + 1) + '-label', t ? t.nombre : '—');
-                        set('mov-top-' + (i + 1) + '-value', t ? t.total : '-');
-                    }
-                } else {
-                    set('mov-sol-nuevas', '-');
-                    set('mov-sol-atendidas', '-');
-                    set('mov-sol-sin-respuesta', '-');
-                    set('mov-inv-generadas', '-');
-                    set('mov-inv-usadas', '-');
-                    set('mov-inv-expiradas', '-');
-                    for (let i = 1; i <= 3; i++) {
-                        set('mov-top-' + i + '-label', '—');
-                        set('mov-top-' + i + '-value', '-');
-                    }
-                }
-                const tbody = document.getElementById('movimiento-24h-tbody');
-                if (tbody) {
-                    tbody.innerHTML = '';
-                    if (porHora) {
-                        const horas = Array.from({ length: 24 }, (_, i) => (i < 10 ? '0' + i : '' + i));
-                        horas.forEach(h => {
-                            const row = porHora[h] || {};
-                            const n = (v) => (v != null && v !== '' ? Number(v) : 0);
-                            const tr = document.createElement('tr');
-                            tr.innerHTML = '<td>' + h + ':00</td><td>' + n(row.nuevas) + '</td><td>' + n(row.atendidas) + '</td><td>' + n(row.sin_respuesta) + '</td><td>' + n(row.invitaciones_generadas) + '</td><td>' + n(row.invitaciones_usadas) + '</td><td>' + n(row.invitaciones_expiradas) + '</td><td>' + n(row.contactos_creados) + '</td>';
-                            tbody.appendChild(tr);
-                        });
-                    }
+                const mod = this._resumenModule();
+                if (mod && typeof mod.renderMovimiento === 'function') {
+                    return mod.renderMovimiento(this, data);
                 }
             }
 
             renderMetricas(data) {
-                /**
-                 * Renderiza métricas de salud desde GET /api/metricas-salud.
-                 */
-                const m = (data && data.metricas) ? data.metricas : null;
-                const set = (id, value) => {
-                    const el = document.getElementById(id);
-                    if (el) el.textContent = value;
-                };
-                if (m) {
-                    set('metrica-ratio-sol-inv', m.ratio_solicitud_invitacion != null ? m.ratio_solicitud_invitacion : '-');
-                    set('metrica-ratio-inv-reg', m.ratio_invitacion_registro != null ? m.ratio_invitacion_registro : '-');
-                    set('metrica-oficios-saturados', m.oficios_saturados != null ? m.oficios_saturados : '-');
-                    set('metrica-oficios-disponibles', m.oficios_disponibles != null ? m.oficios_disponibles : '-');
-                    set('metrica-zona-demanda', m.zona_mayor_demanda != null ? m.zona_mayor_demanda : '-');
-                    set('metrica-retencion', m.tasa_retencion != null ? m.tasa_retencion + '%' : '-');
-                } else {
-                    set('metrica-ratio-sol-inv', '-');
-                    set('metrica-ratio-inv-reg', '-');
-                    set('metrica-oficios-saturados', '-');
-                    set('metrica-oficios-disponibles', '-');
-                    set('metrica-zona-demanda', '-');
-                    set('metrica-retencion', '-');
+                const mod = this._resumenModule();
+                if (mod && typeof mod.renderMetricas === 'function') {
+                    return mod.renderMetricas(data);
                 }
             }
 
