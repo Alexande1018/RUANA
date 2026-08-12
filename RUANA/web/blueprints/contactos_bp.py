@@ -12,6 +12,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request
 
 from core import db_manager as db_manager_mod
+from core.services import admin_service, contacto_service, pago_service
 from core.storage_manager import upload_ruana_file as _upload_ruana_file_default
 from web.auth_decorators import _aliado_codigo, require_aliado
 from web.blueprints.negociacion_bp import priorizar_contactos_negociacion
@@ -76,7 +77,8 @@ def crear_contacto():
             }), 400
 
         db = get_db()
-        result = db.crear_contacto_ruana(
+        result = contacto_service.crear_contacto_ruana(
+            db,
             solicitante_codigo=solicitante_codigo,
             profesional_codigo=profesional_codigo,
             servicio=servicio,
@@ -101,7 +103,7 @@ def _finalizar_chat_contacto_impl(contacto_id):
     if not usuario:
         return jsonify({'status': 'error', 'message': 'Sesión expirada'}), 401
     db = get_db()
-    result = db.ocultar_contacto_del_panel(contacto_id, codigo_aliado=usuario)
+    result = contacto_service.ocultar_contacto_del_panel(db, contacto_id, codigo_aliado=usuario)
     status_code = 200 if result.get('status') == 'success' else 400
     return jsonify(result), status_code
 
@@ -139,12 +141,12 @@ def aceptar_contacto(contacto_id):
             return jsonify({'status': 'error', 'message': 'Sesi?n expirada'}), 401
 
         db = get_db()
-        if db.tiene_pagos_ruana_pendientes(profesional_codigo):
+        if pago_service.tiene_pagos_ruana_pendientes(db, profesional_codigo):
             return jsonify({
                 'status': 'error',
                 'message': 'Tienes pagos pendientes con RUANA. No puedes aceptar nuevos trabajos hasta regularizar la situaci?n.'
             }), 403
-        result = db.aceptar_contacto_ruana(contacto_id, profesional_codigo)
+        result = contacto_service.aceptar_contacto_ruana(db, contacto_id, profesional_codigo)
         status_code = 200 if result.get('status') == 'success' else 400
         return jsonify(result), status_code
 
@@ -167,14 +169,14 @@ def marcar_trabajo_en_progreso(contacto_id):
         if not codigo:
             return jsonify({'status': 'error', 'message': 'Sesi?n expirada'}), 401
         db = get_db()
-        contacto = db.obtener_contacto_resumen(contacto_id)
+        contacto = contacto_service.obtener_contacto_resumen(db, contacto_id)
         if not contacto:
             return jsonify({'status': 'error', 'message': 'Contacto no encontrado'}), 404
         sol = str(contacto.get('solicitante_codigo') or '').strip()
         pro = str(contacto.get('profesional_codigo') or '').strip()
         if codigo not in (sol, pro):
             return jsonify({'status': 'error', 'message': 'No autorizado'}), 403
-        result = db.marcar_trabajo_en_progreso(contacto_id)
+        result = contacto_service.marcar_trabajo_en_progreso(db, contacto_id)
         status_code = 200 if result.get('status') == 'success' else 400
         return jsonify(result), status_code
     except Exception as e:
@@ -197,7 +199,9 @@ def marcar_contacto_no_concretado(contacto_id):
         usuario = _aliado_codigo() or (data.get('usuario') or '').strip()
 
         db = get_db()
-        result = db.marcar_cerrado_no_concretado(contacto_id, motivo=motivo, actor_codigo=usuario)
+        result = contacto_service.marcar_cerrado_no_concretado(
+            db, contacto_id, motivo=motivo, actor_codigo=usuario
+        )
         status_code = 200 if result.get('status') == 'success' else 400
         return jsonify(result), status_code
     except Exception as e:
@@ -215,7 +219,7 @@ def marcar_contacto_en_conversacion(contacto_id):
         usuario = _aliado_codigo() or (request.get_json() or {}).get('usuario') or ''
 
         db = get_db()
-        result = db.marcar_en_conversacion(contacto_id, actor_codigo=usuario)
+        result = contacto_service.marcar_en_conversacion(db, contacto_id, actor_codigo=usuario)
         status_code = 200 if result.get('status') == 'success' else 400
         return jsonify(result), status_code
     except Exception as e:
@@ -247,7 +251,8 @@ def declarar_importe_contacto(contacto_id):
             confirmar_acordado = True
 
         db = get_db()
-        result = db.registrar_importe_contacto(
+        result = contacto_service.registrar_importe_contacto(
+            db,
             contacto_id=contacto_id,
             parte=parte,
             importe=importe_body,
@@ -288,7 +293,7 @@ def metricas_contactos():
     """
     try:
         db = get_db()
-        metricas = db.obtener_metricas_contactos()
+        metricas = admin_service.obtener_metricas_contactos(db)
         status_code = 200 if metricas.get('status') == 'success' else 500
         return jsonify(metricas), status_code
     except Exception as e:
@@ -311,7 +316,7 @@ def contactos_abiertos_por_codigo(codigo_aliado):
             return jsonify({'status': 'error', 'message': 'No autorizado'}), 403
 
         db = get_db()
-        contactos = db.obtener_contactos_abiertos_por_codigo(codigo_aliado)
+        contactos = contacto_service.obtener_contactos_abiertos_por_codigo(db, codigo_aliado)
         contactos = priorizar_contactos_negociacion(contactos)
 
         return jsonify({
@@ -339,7 +344,7 @@ def aliado_contactos_pago_pendiente():
         if not codigo:
             return jsonify({'status': 'error', 'message': 'Sesi?n expirada'}), 401
         db = get_db()
-        lista = db.listar_contactos_pago_pendiente_profesional(codigo)
+        lista = pago_service.listar_contactos_pago_pendiente_profesional(db, codigo)
         return jsonify({'status': 'success', 'contactos': lista})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -357,7 +362,7 @@ def obtener_contacto_resumen(contacto_id):
         if not codigo:
             return jsonify({'status': 'error', 'message': 'Sesi?n expirada'}), 401
         db = get_db()
-        contacto = db.obtener_contacto_resumen(contacto_id)
+        contacto = contacto_service.obtener_contacto_resumen(db, contacto_id)
         if not contacto:
             return jsonify({
                 'status': 'error',
@@ -411,7 +416,9 @@ def subir_comprobante_apoyo(contacto_id):
         )
         comprobante_ruta = storage_result['url']
         db = get_db()
-        result = db.subir_comprobante_apoyo_ruana(contacto_id, codigo, comprobante_ruta, comentario or None)
+        result = pago_service.subir_comprobante_apoyo_ruana(
+            db, contacto_id, codigo, comprobante_ruta, comentario or None
+        )
         if result.get('status') != 'success':
             return jsonify(result), 400
         return jsonify(result), 200
@@ -435,7 +442,7 @@ def impugnar_apoyo(contacto_id):
         data = request.get_json(silent=True) or {}
         motivo = (data.get('motivo') or '').strip()
         db = get_db()
-        result = db.impugnar_apoyo_ruana(contacto_id, codigo, motivo)
+        result = pago_service.impugnar_apoyo_ruana(db, contacto_id, codigo, motivo)
         status_code = 200 if result.get('status') == 'success' else 400
         return jsonify(result), status_code
     except Exception as e:

@@ -16,6 +16,7 @@ from flask import Blueprint, jsonify, request
 from core import db_manager as db_manager_mod
 from core.db_manager import RUANA_CODIGO_INVITACION_REGEX
 from core.phone_utils import normalize_phone
+from core.services import notificacion_service
 from web.auth_decorators import (
     _admin_codigo,
     _aliado_codigo,
@@ -198,7 +199,9 @@ def get_aliado_datos():
                 aliado_dict['competencia_activa'] = True
 
             # Notificaciones del aliado (ej. comprobante rechazado con mensaje de admin)
-            notificaciones = db.listar_notificaciones_aliado(codigo, limite=50)
+            notificaciones = notificacion_service.listar_notificaciones_aliado(
+                db, codigo, limite=50
+            )
             listar_catalogo = getattr(db, 'listar_catalogo_servicios_aliado', None)
             aliado_dict['catalogo_servicios'] = listar_catalogo(codigo) if callable(listar_catalogo) else []
 
@@ -868,7 +871,9 @@ def get_notificaciones_aliado(codigo):
             return jsonify({'status': 'error', 'message': 'No autorizado'}), 403
         limite = request.args.get('limite', 50, type=int)
         db = get_db()
-        notificaciones = db.listar_notificaciones_aliado(codigo, limite=limite)
+        notificaciones = notificacion_service.listar_notificaciones_aliado(
+            db, codigo, limite=limite
+        )
         return jsonify({'status': 'success', 'notificaciones': notificaciones})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -886,7 +891,7 @@ def marcar_todas_notificaciones_leidas_api(codigo):
         if codigo != _aliado_codigo():
             return jsonify({'status': 'error', 'message': 'No autorizado'}), 403
         db = get_db()
-        result = db.marcar_todas_notificaciones_leidas(codigo)
+        result = notificacion_service.marcar_todas_notificaciones_leidas(db, codigo)
         if result.get('status') == 'error':
             return jsonify(result), 400
         return jsonify(result)
@@ -906,7 +911,7 @@ def marcar_notificacion_leida_api(codigo, notif_id):
         if codigo != _aliado_codigo():
             return jsonify({'status': 'error', 'message': 'No autorizado'}), 403
         db = get_db()
-        result = db.marcar_notificacion_leida(notif_id, codigo)
+        result = notificacion_service.marcar_notificacion_leida(db, notif_id, codigo)
         if result.get('status') == 'error':
             return jsonify(result), 400
         return jsonify(result)

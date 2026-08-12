@@ -9,6 +9,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 from core import db_manager as db_manager_mod
+from core.services import solicitud_service
 from web.auth_decorators import (
     _admin_codigo,
     _aliado_codigo,
@@ -47,9 +48,11 @@ def api_solicitudes():
     if request.method == "GET":
         try:
             db = get_db()
-            entrantes = db.listar_solicitudes_activas_por_codigo(codigo)
-            propias = db.listar_solicitudes_propias_por_codigo(codigo)
-            historial = db.listar_solicitudes_historial_grupo_por_codigo(codigo, limite=50)
+            entrantes = solicitud_service.listar_solicitudes_activas_por_codigo(db, codigo)
+            propias = solicitud_service.listar_solicitudes_propias_por_codigo(db, codigo)
+            historial = solicitud_service.listar_solicitudes_historial_grupo_por_codigo(
+                db, codigo, limite=50
+            )
             return jsonify(
                 {
                     "entrantes": entrantes,
@@ -71,7 +74,7 @@ def api_solicitudes():
             return jsonify({"error": "La descripción debe tener al menos 5 caracteres"}), 400
         try:
             db = get_db()
-            result = db.crear_solicitud_por_codigo(codigo, oficio, descripcion)
+            result = solicitud_service.crear_solicitud_por_codigo(db, codigo, oficio, descripcion)
             if result.get("status") != "success":
                 return jsonify({"error": result.get("message", "Error al crear solicitud")}), 400
             return jsonify({"ok": True, "id": result.get("id")}), 200
@@ -91,7 +94,7 @@ def atender_solicitud(solicitud_id):
         return jsonify({"error": "Sesi?n expirada"}), 401
     try:
         db = get_db()
-        result = db.atender_solicitud_por_id(solicitud_id, codigo)
+        result = solicitud_service.atender_solicitud_por_id(db, solicitud_id, codigo)
         if result.get("status") != "success":
             return jsonify({"error": result.get("message", "Error al atender")}), 400
         return jsonify({"ok": True}), 200
@@ -110,7 +113,9 @@ def admin_solicitud_atender(solicitud_id):
     try:
         admin_codigo = _admin_codigo()
         db = get_db()
-        result = db.marcar_solicitud_atendida_por_admin(solicitud_id, admin_codigo or "")
+        result = solicitud_service.marcar_solicitud_atendida_por_admin(
+            db, solicitud_id, admin_codigo or ""
+        )
         if result.get("status") != "success":
             return jsonify({"status": "error", "message": result.get("message", "Error")}), 400
         return jsonify({"status": "success", "ok": True}), 200

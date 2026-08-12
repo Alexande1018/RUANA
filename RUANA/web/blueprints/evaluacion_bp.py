@@ -7,6 +7,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 
 from core import db_manager as db_manager_mod
+from core.services import evaluacion_service
 from web.auth_decorators import (
     _aliado_codigo,
     _forbidden_unless_admin_or_aliado_self,
@@ -44,7 +45,7 @@ def obtener_evaluacion(codigo_aliado):
         if codigo_aliado != _aliado_codigo():
             return jsonify({'status': 'error', 'message': 'No autorizado'}), 403
         db = get_db()
-        evaluacion = db.obtener_evaluacion(codigo_aliado)
+        evaluacion = evaluacion_service.obtener_evaluacion(db, codigo_aliado)
         
         if not evaluacion:
             return jsonify({
@@ -78,7 +79,7 @@ def listar_evaluaciones():
         estado = request.args.get('estado', '').strip() or None
         db = get_db()
         
-        evaluaciones = db.listar_evaluaciones(estado)
+        evaluaciones = evaluacion_service.listar_evaluaciones(db, estado)
         
         return jsonify({
             'status': 'success',
@@ -108,7 +109,7 @@ def obtener_historico_evaluacion(codigo_aliado):
             return auth_err
         db = get_db()
         
-        historico = db.obtener_historico_evaluaciones(codigo_aliado)
+        historico = evaluacion_service.obtener_historico_evaluaciones(db, codigo_aliado)
         
         return jsonify({
             'status': 'success',
@@ -134,7 +135,7 @@ def estadisticas_evaluaciones():
     """
     try:
         db = get_db()
-        stats = db.obtener_estadisticas_evaluaciones()
+        stats = evaluacion_service.obtener_estadisticas_evaluaciones(db)
         
         return jsonify({
             'status': 'success',
