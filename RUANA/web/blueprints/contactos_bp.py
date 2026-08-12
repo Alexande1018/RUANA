@@ -12,7 +12,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request
 
 from core import db_manager as db_manager_mod
-from core.storage_manager import upload_ruana_file
+from core.storage_manager import upload_ruana_file as _upload_ruana_file_default
 from web.auth_decorators import _aliado_codigo, require_aliado
 from web.blueprints.negociacion_bp import priorizar_contactos_negociacion
 
@@ -29,6 +29,18 @@ def get_db():
             if callable(fn):
                 return fn()
     return db_manager_mod.get_db()
+
+
+def upload_ruana_file(**kwargs):
+    """Resuelve upload vía módulo app cargado para respetar monkeypatch en tests."""
+    import sys
+    for key in ("RUANA.web.app", "web.app"):
+        mod = sys.modules.get(key)
+        if mod is not None:
+            fn = getattr(mod, "upload_ruana_file", None)
+            if callable(fn):
+                return fn(**kwargs)
+    return _upload_ruana_file_default(**kwargs)
 
 
 @contactos_bp.route("/api/contactos/bp-health", methods=["GET"])
