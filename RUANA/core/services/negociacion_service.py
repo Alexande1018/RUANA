@@ -1,6 +1,7 @@
 """Servicio de dominio negociacion (Campamento Base).
 
 Extracción progresiva desde DBManager. Las fachadas permanecen en DBManager.
+SQL de negociación vía NegociacionRepo (negociacion_manager permanece aparte).
 """
 from __future__ import annotations
 
@@ -11,27 +12,26 @@ import sqlite3
 from typing import Any, Dict, List, Optional
 
 from core import negociacion_manager as neg_mgr
+from core.repositories.negociacion_repo import NegociacionRepo
+
+_repo = NegociacionRepo()
+
 # --- Extraído de DBManager (negociacion) ---
 
 def _iniciar_negociacion_en_cursor(db, cursor, contacto_id: int, servicio: str,
                                     solicitante_codigo: str, precio_referencia: str = '') -> None:
     estado = neg_mgr.estado_inicial(precio_referencia=precio_referencia)
     neg_json = neg_mgr.serializar_negociacion(estado)
-    cursor.execute(
-        "UPDATE contactos_ruana SET negociacion_json = ?, actualizado_en = CURRENT_TIMESTAMP WHERE id = ?",
-        (neg_json, contacto_id),
-    )
+    _repo.update_negociacion_json(cursor, neg_json, contacto_id)
 
 def _insertar_evento_negociacion(db, cursor, contacto_id: int, tipo: str, campo: str,
                                   valor: str, emisor_codigo: str, mensaje: str) -> None:
-    cursor.execute("""
-        INSERT INTO negociacion_eventos (contacto_id, tipo, campo, valor, emisor_codigo, mensaje)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (contacto_id, tipo, campo or None, valor or None, emisor_codigo or None, mensaje))
+    _repo.insertar_evento(
+        cursor, contacto_id, tipo, campo, valor, emisor_codigo, mensaje
+    )
 
 def _cargar_contacto_negociacion(db, cursor, contacto_id: int) -> Optional[Dict[str, Any]]:
-    cursor.execute("SELECT * FROM contactos_ruana WHERE id = ?", (contacto_id,))
-    row = cursor.fetchone()
+    row = _repo.select_contacto(cursor, contacto_id)
     return dict(row) if row else None
 
 def listar_eventos_negociacion(db, contacto_id: int) -> List[Dict[str, Any]]:
@@ -40,13 +40,7 @@ def listar_eventos_negociacion(db, contacto_id: int) -> List[Dict[str, Any]]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT id, contacto_id, tipo, campo, valor, emisor_codigo, mensaje, creado_en
-                FROM negociacion_eventos
-                WHERE contacto_id = ?
-                ORDER BY id ASC
-            """, (contacto_id,))
-            return [dict(r) for r in cursor.fetchall()]
+            return [dict(r) for r in _repo.listar_eventos(cursor, contacto_id)]
         except Exception as e:
             print(f"Error listar_eventos_negociacion: {e}")
             return []
@@ -97,10 +91,7 @@ def proponer_negociacion(db, contacto_id: int, codigo_aliado: str,
             estado = neg_mgr.parse_negociacion(contacto.get('negociacion_json'))
             estado, msg, tipo = neg_mgr.proponer_campo(estado, rol, campo, valor)
             neg_json = neg_mgr.serializar_negociacion(estado)
-            cursor.execute(
-                "UPDATE contactos_ruana SET negociacion_json = ?, actualizado_en = CURRENT_TIMESTAMP WHERE id = ?",
-                (neg_json, contacto_id),
-            )
+            _repo.update_negociacion_json(cursor, neg_json, contacto_id)
             db._insertar_evento_negociacion(cursor, contacto_id, tipo, campo, valor, codigo_aliado, msg)
             conn.commit()
             eventos = db.listar_eventos_negociacion(contacto_id)
@@ -143,10 +134,7 @@ def proponer_propuesta_completa_negociacion(db, contacto_id: int, codigo_aliado:
                 estado, rol, valores, precio_referencia=precio_catalogo or '',
             )
             neg_json = neg_mgr.serializar_negociacion(estado)
-            cursor.execute(
-                "UPDATE contactos_ruana SET negociacion_json = ?, actualizado_en = CURRENT_TIMESTAMP WHERE id = ?",
-                (neg_json, contacto_id),
-            )
+            _repo.update_negociacion_json(cursor, neg_json, contacto_id)
             db._insertar_evento_negociacion(
                 cursor, contacto_id, neg_mgr.TIPO_SISTEMA, None, None, codigo_aliado, msg_resumen,
             )
@@ -199,11 +187,9 @@ def contraoferta_negociacion(db, contacto_id: int, codigo_aliado: str,
             nuevo_estado_contacto = contacto.get('estado')
             if contacto.get('estado') == 'acuerdo_alcanzado':
                 nuevo_estado_contacto = 'iniciado'
-            cursor.execute("""
-                UPDATE contactos_ruana
-                SET negociacion_json = ?, estado = ?, actualizado_en = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, (neg_json, nuevo_estado_contacto, contacto_id))
+            _repo.update_negociacion_json_y_estado(
+                cursor, neg_json, nuevo_estado_contacto, contacto_id
+            )
             db._insertar_evento_negociacion(cursor, contacto_id, tipo, campo, valor, codigo_aliado, msg)
             conn.commit()
             eventos = db.listar_eventos_negociacion(contacto_id)
@@ -288,10 +274,7 @@ def aceptar_negociacion(db, contacto_id: int, codigo_aliado: str, campo: str,
             if completo:
                 nuevo_estado = 'acuerdo_alcanzado'
                 resumen_json = db._construir_acuerdo_resumen_json(estado, contacto)
-                cursor.execute(
-                    "UPDATE contactos_ruana SET fecha_trabajo_en_progreso = COALESCE(fecha_trabajo_en_progreso, CURRENT_TIMESTAMP) WHERE id = ?",
-                    (contacto_id,),
-                )
+                _repo.set_fecha_trabajo_en_progreso_si_null(cursor, contacto_id)
                 msg_sistema = (
                     'Acuerdo alcanzado. El precio aceptado es el importe oficial del encargo '
                     'y se genera el Apoyo RUANA. Resumen: '
@@ -310,21 +293,13 @@ def aceptar_negociacion(db, contacto_id: int, codigo_aliado: str, campo: str,
                     precio_raw = None
                 importe_oficial = db._parse_importe_acuerdo(precio_raw)
                 precio_para_cierre = precio_raw if precio_raw is not None else importe_oficial
-                cursor.execute("""
-                    UPDATE contactos_ruana
-                    SET negociacion_json = ?, estado = ?,
-                        acuerdo_resumen_json = COALESCE(acuerdo_resumen_json, ?),
-                        acuerdo_alcanzado_en = COALESCE(acuerdo_alcanzado_en, CURRENT_TIMESTAMP),
-                        importe_acordado = COALESCE(importe_acordado, ?),
-                        actualizado_en = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                """, (neg_json, nuevo_estado, resumen_json, importe_oficial, contacto_id))
+                _repo.update_acuerdo_completo(
+                    cursor, neg_json, nuevo_estado, resumen_json, importe_oficial, contacto_id
+                )
             else:
-                cursor.execute("""
-                    UPDATE contactos_ruana
-                    SET negociacion_json = ?, estado = ?, actualizado_en = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                """, (neg_json, nuevo_estado, contacto_id))
+                _repo.update_negociacion_json_y_estado(
+                    cursor, neg_json, nuevo_estado, contacto_id
+                )
             db._insertar_evento_negociacion(cursor, contacto_id, tipo, campo,
                 estado['campos'][campo]['valor'], codigo_aliado, msg)
             for ev_campo, ev_valor, ev_msg, ev_tipo in eventos_extra:
@@ -405,11 +380,7 @@ def cerrar_negociacion(db, contacto_id: int, actor_codigo: str,
                     else 'cierre_confirmado_profesional_en'
                 )
                 if not contacto.get(col):
-                    cursor.execute(f"""
-                        UPDATE contactos_ruana
-                        SET {col} = CURRENT_TIMESTAMP, actualizado_en = CURRENT_TIMESTAMP
-                        WHERE id = ?
-                    """, (contacto_id,))
+                    _repo.set_timestamp_col(cursor, col, contacto_id)
                     conn.commit()
                 contacto = db._cargar_contacto_negociacion(cursor, contacto_id)
                 eventos = db.listar_eventos_negociacion(contacto_id)
@@ -434,13 +405,7 @@ def cerrar_negociacion(db, contacto_id: int, actor_codigo: str,
                 and estado_actual not in ('cerrado_no_concretado', 'no_concretado')
             ):
                 if estado_actual != 'acuerdo_alcanzado':
-                    cursor.execute("""
-                        UPDATE contactos_ruana
-                        SET estado = 'acuerdo_alcanzado',
-                            acuerdo_alcanzado_en = COALESCE(acuerdo_alcanzado_en, CURRENT_TIMESTAMP),
-                            actualizado_en = CURRENT_TIMESTAMP
-                        WHERE id = ?
-                    """, (contacto_id,))
+                    _repo.marcar_acuerdo_alcanzado(cursor, contacto_id)
                     estado_actual = 'acuerdo_alcanzado'
 
                 col = (
@@ -450,11 +415,7 @@ def cerrar_negociacion(db, contacto_id: int, actor_codigo: str,
                 )
                 ya = bool(contacto.get(col))
                 if not ya:
-                    cursor.execute(f"""
-                        UPDATE contactos_ruana
-                        SET {col} = CURRENT_TIMESTAMP, actualizado_en = CURRENT_TIMESTAMP
-                        WHERE id = ?
-                    """, (contacto_id,))
+                    _repo.set_timestamp_col(cursor, col, contacto_id)
                     quien = 'contratante' if rol == 'solicitante' else 'profesional'
                     msg_evento = (
                         f'El {quien} ha cerrado la negociación y confirma el acuerdo. '
@@ -466,12 +427,7 @@ def cerrar_negociacion(db, contacto_id: int, actor_codigo: str,
                     if not contacto.get('acuerdo_resumen_json'):
                         estado_neg = neg_mgr.parse_negociacion(contacto.get('negociacion_json'))
                         resumen_json = db._construir_acuerdo_resumen_json(estado_neg, contacto)
-                        cursor.execute("""
-                            UPDATE contactos_ruana
-                            SET acuerdo_resumen_json = ?,
-                                acuerdo_alcanzado_en = COALESCE(acuerdo_alcanzado_en, CURRENT_TIMESTAMP)
-                            WHERE id = ?
-                        """, (resumen_json, contacto_id))
+                        _repo.set_acuerdo_resumen_si_vacio(cursor, resumen_json, contacto_id)
 
                 conn.commit()
                 contacto = db._cargar_contacto_negociacion(cursor, contacto_id)
@@ -511,14 +467,7 @@ def cerrar_negociacion(db, contacto_id: int, actor_codigo: str,
                 db._insertar_evento_negociacion(
                     cursor, contacto_id, neg_mgr.TIPO_SISTEMA, None, None, codigo, msg_evento,
                 )
-                cursor.execute("""
-                    UPDATE contactos_ruana
-                    SET estado = 'cerrado_no_concretado',
-                        pendiente_resolucion = 0,
-                        fecha_no_concretado = CURRENT_TIMESTAMP,
-                        actualizado_en = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                """, (contacto_id,))
+                _repo.marcar_cerrado_no_concretado(cursor, contacto_id)
                 detalles = f'aliados={sol},{pro} motivo={motivo or "cerrar_negociacion"} actor={codigo}'
                 db._audit_log(cursor, 'contacto', contacto_id, 'cerrar_negociacion',
                                 'aliado', codigo, detalles)
@@ -569,11 +518,7 @@ def dismiss_resumen_acuerdo(db, contacto_id: int, actor_codigo: str) -> Dict[str
                 if rol == 'solicitante'
                 else 'resumen_dismiss_profesional_en'
             )
-            cursor.execute(f"""
-                UPDATE contactos_ruana
-                SET {col} = CURRENT_TIMESTAMP, actualizado_en = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, (contacto_id,))
+            _repo.set_timestamp_col(cursor, col, contacto_id)
             conn.commit()
             return {'status': 'success', 'id': contacto_id, 'dismissed': True}
         except Exception as e:
@@ -590,22 +535,7 @@ def listar_negociaciones_admin(db, limite: int = 20, offset: int = 0) -> List[Di
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT c.id AS contacto_id, c.solicitante_codigo, c.profesional_codigo,
-                       c.servicio, c.estado, COALESCE(c.es_urgente, 0) AS es_urgente,
-                       c.negociacion_json, c.creado_en, c.actualizado_en,
-                       (SELECT mensaje FROM negociacion_eventos e
-                        WHERE e.contacto_id = c.id ORDER BY e.id DESC LIMIT 1) AS ultimo_evento,
-                       (SELECT creado_en FROM negociacion_eventos e
-                        WHERE e.contacto_id = c.id ORDER BY e.id DESC LIMIT 1) AS fecha_ultimo,
-                       (SELECT COUNT(*) FROM negociacion_eventos e WHERE e.contacto_id = c.id) AS num_eventos
-                FROM contactos_ruana c
-                WHERE EXISTS (SELECT 1 FROM negociacion_eventos e WHERE e.contacto_id = c.id)
-                  AND c.estado NOT IN ('cerrado_no_concretado', 'no_concretado', 'trabajo_cerrado')
-                ORDER BY c.actualizado_en DESC
-                LIMIT ? OFFSET ?
-            """, (limite, offset))
-            rows = cursor.fetchall()
+            rows = _repo.listar_admin(cursor, limite, offset)
             result = []
             for row in rows:
                 d = dict(row)
@@ -630,8 +560,7 @@ def eliminar_negociacion_admin(db, contacto_id: int, admin_codigo: str = '') -> 
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute("SELECT id FROM contactos_ruana WHERE id = ?", (contacto_id,))
-            if not cursor.fetchone():
+            if not _repo.existe_contacto(cursor, contacto_id):
                 return {'status': 'error', 'message': 'Contacto no encontrado'}
             for tabla in (
                 'negociacion_eventos', 'chat_mensajes', 'confirmaciones_trabajo',
@@ -639,15 +568,14 @@ def eliminar_negociacion_admin(db, contacto_id: int, admin_codigo: str = '') -> 
                 'chat_mensajes', 'ingresos_ruana', 'payment_conflicts',
             ):
                 try:
-                    cursor.execute(f"DELETE FROM {tabla} WHERE contacto_id = ?", (contacto_id,))
+                    _repo.delete_relacionados_por_contacto(cursor, tabla, contacto_id)
                 except Exception:
                     pass
             try:
-                cursor.execute("DELETE FROM notificaciones_aliado WHERE metadata LIKE ?",
-                               (f'%"contacto_id": {contacto_id}%',))
+                _repo.delete_notificaciones_contacto(cursor, contacto_id)
             except Exception:
                 pass
-            cursor.execute("DELETE FROM contactos_ruana WHERE id = ?", (contacto_id,))
+            _repo.delete_contacto(cursor, contacto_id)
             db._audit_log(cursor, 'contacto', contacto_id, 'negociacion_eliminada_admin',
                             'admin', admin_codigo or '', f'contacto_id={contacto_id}')
             conn.commit()
@@ -793,19 +721,9 @@ def listar_acuerdos_aliado(db,
                 params.append(hasta_f)
 
             params.append(limite)
-            cursor.execute(f"""
-                SELECT id, solicitante_codigo, profesional_codigo, servicio, estado,
-                       acuerdo_resumen_json, acuerdo_alcanzado_en, fecha_cierre,
-                       importe_final, apoyo_ruana, creado_en, actualizado_en,
-                       cierre_confirmado_solicitante_en, cierre_confirmado_profesional_en,
-                       {fecha_ref_sql} AS fecha_referencia
-                FROM contactos_ruana
-                WHERE {' AND '.join(where)}
-                ORDER BY {fecha_ref_sql} DESC, id DESC
-                LIMIT ?
-            """, params)
+            rows = _repo.listar_acuerdos_aliado(cursor, ' AND '.join(where), params)
             out = []
-            for row in cursor.fetchall():
+            for row in rows:
                 d = dict(row)
                 sol = str(d.get('solicitante_codigo') or '').strip()
                 est = (d.get('estado') or '').strip()
@@ -860,24 +778,9 @@ def listar_resumenes_acuerdo_visibles(db, codigo_aliado: str) -> List[Dict[str, 
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT id, solicitante_codigo, profesional_codigo, servicio, estado,
-                       acuerdo_resumen_json, acuerdo_alcanzado_en,
-                       cierre_confirmado_solicitante_en, cierre_confirmado_profesional_en,
-                       resumen_dismiss_solicitante_en, resumen_dismiss_profesional_en
-                FROM contactos_ruana
-                WHERE acuerdo_resumen_json IS NOT NULL
-                  AND TRIM(CAST(acuerdo_resumen_json AS TEXT)) != ''
-                  AND estado IN ('acuerdo_alcanzado', 'trabajo_cerrado')
-                  AND (
-                    (TRIM(CAST(solicitante_codigo AS TEXT)) = ? AND resumen_dismiss_solicitante_en IS NULL)
-                    OR (TRIM(CAST(profesional_codigo AS TEXT)) = ? AND resumen_dismiss_profesional_en IS NULL)
-                  )
-                ORDER BY COALESCE(acuerdo_alcanzado_en, actualizado_en) DESC
-                LIMIT 20
-            """, (codigo, codigo))
+            rows = _repo.listar_resumenes_visibles(cursor, codigo)
             out = []
-            for row in cursor.fetchall():
+            for row in rows:
                 d = dict(row)
                 sol = str(d.get('solicitante_codigo') or '').strip()
                 pro = str(d.get('profesional_codigo') or '').strip()
