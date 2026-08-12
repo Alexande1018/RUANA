@@ -1,6 +1,7 @@
 """Servicio de dominio admin (Campamento Base).
 
 Extracción progresiva desde DBManager. Las fachadas permanecen en DBManager.
+SQL de admin vía AdminRepo.
 """
 from __future__ import annotations
 
@@ -8,6 +9,11 @@ from __future__ import annotations
 import json
 import sqlite3
 from typing import Any, Dict, List, Optional
+
+from core.repositories.admin_repo import AdminRepo
+
+_repo = AdminRepo()
+
 # --- Extraído de DBManager (admin) ---
 
 def obtener_o_crear_invitador_admin(db, admin_codigo: str, nombre: str = "") -> Optional[str]:
@@ -25,10 +31,7 @@ def obtener_o_crear_invitador_admin(db, admin_codigo: str, nombre: str = "") -> 
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute("""
-                INSERT OR IGNORE INTO aliados (codigo, nombre, marca, oficio, estado, score)
-                VALUES (?, ?, 'RUANA', 'Administración', 'sistema', 0)
-            """, (admin_codigo, nombre_final))
+            _repo.insertar_invitador_admin(cursor, admin_codigo, nombre_final)
             conn.commit()
             return admin_codigo
         except Exception:
@@ -59,18 +62,7 @@ def listar_conversaciones_soporte_admin(db, aliado_codigo: str = '', estado: str
             if solo_no_leidas:
                 where.append("COALESCE(c.tiene_no_leido_admin, 0) = 1")
             params.extend([max(1, min(int(limite or 100), 300)), max(0, int(offset or 0))])
-            cursor.execute(f"""
-                SELECT c.id, c.aliado_codigo, a.nombre AS aliado_nombre, c.asunto, c.categoria, c.estado,
-                       c.ultimo_mensaje_preview, c.ultimo_mensaje_en, c.tiene_no_leido_admin, c.tiene_no_leido_aliado,
-                       c.creado_en, c.actualizado_en,
-                       (SELECT COUNT(1) FROM ruana_soporte_mensajes m WHERE m.conversacion_id = c.id) AS total_mensajes
-                FROM ruana_soporte_conversaciones c
-                LEFT JOIN aliados a ON TRIM(CAST(a.codigo AS TEXT)) = TRIM(CAST(c.aliado_codigo AS TEXT))
-                WHERE {' AND '.join(where)}
-                ORDER BY c.ultimo_mensaje_en DESC, c.id DESC
-                LIMIT ? OFFSET ?
-            """, params)
-            return [dict(r) for r in cursor.fetchall()]
+            return [dict(r) for r in _repo.listar_conversaciones_soporte(cursor, ' AND '.join(where), params)]
         except Exception:
             return []
         finally:
@@ -87,23 +79,16 @@ def actualizar_estado_soporte_admin(db, conversacion_id: int, nuevo_estado: str,
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("SELECT aliado_codigo FROM ruana_soporte_conversaciones WHERE id = ? AND COALESCE(eliminada_por_admin, 0) = 0", (int(conversacion_id),))
-            conv = cursor.fetchone()
+            conv = _repo.select_soporte_aliado_codigo(cursor, conversacion_id)
             if not conv:
                 return {'status': 'error', 'message': 'Conversación no encontrada'}
-            cursor.execute("""
-                UPDATE ruana_soporte_conversaciones
-                SET estado = ?, actualizado_en = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, (estado, int(conversacion_id)))
-            cursor.execute("""
-                INSERT INTO notificaciones_aliado (aliado_codigo, tipo, titulo, mensaje, metadata, leida)
-                VALUES (?, 'ruana_soporte_estado', '✅ Estado de tu consulta actualizado', ?, ?, 0)
-            """, (
+            _repo.update_estado_soporte(cursor, estado, conversacion_id)
+            _repo.insertar_notif_estado_soporte(
+                cursor,
                 (conv['aliado_codigo'] or '').strip(),
                 f"La conversación #{int(conversacion_id)} ahora está en estado: {estado.replace('_', ' ')}.",
-                json.dumps({'conversacion_id': int(conversacion_id), 'estado': estado, 'origen': 'centro_soporte'})
-            ))
+                json.dumps({'conversacion_id': int(conversacion_id), 'estado': estado, 'origen': 'centro_soporte'}),
+            )
             conn.commit()
             return {'status': 'success'}
         except Exception as e:
@@ -118,11 +103,7 @@ def eliminar_conversacion_soporte_admin(db, conversacion_id: int, admin_codigo: 
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE ruana_soporte_conversaciones
-                SET eliminada_por_admin = 1, actualizado_en = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, (int(conversacion_id),))
+            _repo.soft_delete_soporte(cursor, conversacion_id)
             conn.commit()
             return {'status': 'success'}
         except Exception as e:
@@ -142,41 +123,14 @@ def listar_conversaciones_admin(db, limite: int = 500, offset: int = 0) -> List[
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT c.id AS contacto_id,
-                       c.creado_en AS contacto_creado_en,
-                       COALESCE(sol.nombre, c.solicitante_codigo) AS solicitante,
-                       COALESCE(prof.nombre, c.profesional_codigo) AS profesional,
-                       c.solicitante_codigo,
-                       c.profesional_codigo,
-                       COALESCE(c.es_urgente, 0) AS es_urgente,
-                       c.urgente_marcado_en,
-                       c.motivo_contacto,
-                       (SELECT m.texto FROM chat_mensajes m WHERE m.contacto_id = c.id ORDER BY m.creado_en DESC LIMIT 1) AS ultimo_mensaje,
-                       (SELECT MAX(m.creado_en) FROM chat_mensajes m WHERE m.contacto_id = c.id) AS fecha_ultimo,
-                       (SELECT COUNT(*) FROM chat_mensajes m WHERE m.contacto_id = c.id) AS num_mensajes
-                FROM contactos_ruana c
-                LEFT JOIN aliados sol ON sol.codigo = c.solicitante_codigo
-                LEFT JOIN aliados prof ON prof.codigo = c.profesional_codigo
-                ORDER BY COALESCE((SELECT MAX(m.creado_en) FROM chat_mensajes m WHERE m.contacto_id = c.id), c.creado_en) DESC,
-                         c.id DESC
-                LIMIT ? OFFSET ?
-            """, (limite, offset))
-            contactos = [dict(row) for row in cursor.fetchall()]
+            contactos = [dict(row) for row in _repo.listar_contactos_chats(cursor, limite, offset)]
             for c in contactos:
                 c['es_urgente'] = bool(int(c.get('es_urgente') or 0))
             if not contactos:
                 return []
             ids = [c["contacto_id"] for c in contactos]
-            placeholders = ",".join("?" * len(ids))
             # Solo mensajes con contacto_id válido (siempre en chat_mensajes)
-            cursor.execute(f"""
-                SELECT m.id, m.contacto_id, m.emisor_codigo, m.texto, m.creado_en
-                FROM chat_mensajes m
-                WHERE m.contacto_id IS NOT NULL AND m.contacto_id IN ({placeholders})
-                ORDER BY m.contacto_id, m.creado_en ASC
-            """, ids)
-            filas_msg = cursor.fetchall()
+            filas_msg = _repo.listar_mensajes_contactos(cursor, ids)
             mensajes_por_contacto = {}
             for c in contactos:
                 mensajes_por_contacto[c["contacto_id"]] = []
@@ -238,26 +192,26 @@ def obtener_metricas_contactos(db) -> Dict[str, Any]:
             conn = db._connect()
             cursor = conn.cursor()
 
-            cursor.execute("""
+            _repo.execute(cursor, """
                 SELECT COUNT(*) FROM contactos_ruana
                 WHERE estado IN ('iniciado', 'aceptado', 'trabajo_en_progreso')
             """)
             abiertos = cursor.fetchone()[0] or 0
 
-            cursor.execute("""
+            _repo.execute(cursor, """
                 SELECT COUNT(*) FROM contactos_ruana
                 WHERE pendiente_resolucion = 1
             """)
             no_resueltos = cursor.fetchone()[0] or 0
 
-            cursor.execute("""
+            _repo.execute(cursor, """
                 SELECT COUNT(*) FROM contactos_ruana
                 WHERE estado = 'importe_en_disputa'
             """)
             en_disputa = cursor.fetchone()[0] or 0
 
             # Contactos en disputa "prolongada": más de 7 días desde fecha_disputa
-            cursor.execute("""
+            _repo.execute(cursor, """
                 SELECT COUNT(*) FROM contactos_ruana
                 WHERE estado = 'importe_en_disputa'
                   AND fecha_disputa IS NOT NULL
@@ -297,10 +251,7 @@ def obtener_metricas_motor_por_aliado(db, codigo_aliado: str) -> Dict[str, Any]:
                 return {"tasa_respuesta": 0.0, "tasa_confirmacion": 0.0, "meses_sin_trabajo": 24}
 
             # Contactos donde es profesional
-            cursor.execute("""
-                SELECT estado FROM contactos_ruana WHERE profesional_codigo = ?
-            """, (codigo,))
-            rows_pro = cursor.fetchall()
+            rows_pro = _repo.select_estados_profesional(cursor, codigo)
             total_pro = len(rows_pro)
             estados_pro = [r[0] for r in rows_pro if r[0]]
 
@@ -313,12 +264,7 @@ def obtener_metricas_motor_por_aliado(db, codigo_aliado: str) -> Dict[str, Any]:
             tasa_confirmacion = (cerrados / total_aceptados) if total_aceptados > 0 else 1.0
 
             # Meses desde último trabajo_cerrado (como profesional o solicitante); SQLite julianday
-            cursor.execute("""
-                SELECT (julianday('now', 'localtime') - julianday(MAX(fecha_cierre))) / 30.44 AS meses
-                FROM contactos_ruana
-                WHERE (profesional_codigo = ? OR solicitante_codigo = ?) AND estado = 'trabajo_cerrado' AND fecha_cierre IS NOT NULL
-            """, (codigo, codigo))
-            row = cursor.fetchone()
+            row = _repo.select_meses_sin_trabajo(cursor, codigo)
             meses_sin_trabajo = 24
             if row and row[0] is not None:
                 try:
@@ -358,35 +304,33 @@ def obtener_stats_24h_admin(db) -> Dict[str, Any]:
             cursor = conn.cursor()
             col_ts_sol = "created_at"
             try:
-                cursor.execute("PRAGMA table_info(solicitudes)")
-                if not any(r[1] == 'created_at' for r in cursor.fetchall()):
+                if 'created_at' not in _repo.columnas_tabla(cursor, 'solicitudes'):
                     col_ts_sol = "creado_en"
             except Exception:
                 pass
             filtro_24h_sol = f"datetime({col_ts_sol}) >= datetime('now', '-1 day')"
             estado_atendida = "atendida"
             try:
-                cursor.execute("PRAGMA table_info(solicitudes)")
-                if not any(r[1] == 'atendido_por_codigo' for r in cursor.fetchall()):
+                if 'atendido_por_codigo' not in _repo.columnas_tabla(cursor, 'solicitudes'):
                     estado_atendida = "contestada"
             except Exception:
                 pass
 
-            cursor.execute(f"SELECT COUNT(*) FROM solicitudes WHERE {filtro_24h_sol}")
+            _repo.execute(cursor, f"SELECT COUNT(*) FROM solicitudes WHERE {filtro_24h_sol}")
             solicitudes_nuevas = cursor.fetchone()[0] or 0
-            cursor.execute(f"SELECT COUNT(*) FROM solicitudes WHERE estado = ? AND {filtro_24h_sol}", (estado_atendida,))
+            _repo.execute(cursor, f"SELECT COUNT(*) FROM solicitudes WHERE estado = ? AND {filtro_24h_sol}", (estado_atendida,))
             solicitudes_atendidas = cursor.fetchone()[0] or 0
-            cursor.execute(f"SELECT COUNT(*) FROM solicitudes WHERE estado = 'pendiente' AND {filtro_24h_sol}")
+            _repo.execute(cursor, f"SELECT COUNT(*) FROM solicitudes WHERE estado = 'pendiente' AND {filtro_24h_sol}")
             solicitudes_sin_respuesta = cursor.fetchone()[0] or 0
 
             # Invitaciones generadas 24h: invitaciones (aliado) + invitaciones_oficio
             filtro_24h = "datetime(creado_en) >= datetime('now', '-1 day')"
-            cursor.execute(f"""
+            _repo.execute(cursor, f"""
                 SELECT COUNT(*) FROM invitaciones
                 WHERE {filtro_24h}
             """)
             inv_aliado_gen = cursor.fetchone()[0] or 0
-            cursor.execute("""
+            _repo.execute(cursor, """
                 SELECT COUNT(*) FROM invitaciones_oficio
                 WHERE datetime(fecha_creacion) >= datetime('now', '-1 day')
             """)
@@ -394,7 +338,7 @@ def obtener_stats_24h_admin(db) -> Dict[str, Any]:
             invitaciones_generadas = inv_aliado_gen + inv_oficio_gen
 
             # Invitaciones usadas 24h: referidos.creado_en + invitaciones_oficio marcadas usado en 24h
-            cursor.execute("""
+            _repo.execute(cursor, """
                 SELECT COUNT(*) FROM referidos
                 WHERE datetime(creado_en) >= datetime('now', '-1 day')
             """)
@@ -405,12 +349,12 @@ def obtener_stats_24h_admin(db) -> Dict[str, Any]:
             # invitaciones_oficio usadas: no hay created_at del uso. Omitir por ahora.
 
             # Invitaciones expiradas: no usadas, creadas hace >30 días (regla de negocio)
-            cursor.execute("""
+            _repo.execute(cursor, """
                 SELECT COUNT(*) FROM invitaciones
                 WHERE usado = 0 AND datetime(creado_en) < datetime('now', '-30 day')
             """)
             exp_aliado = cursor.fetchone()[0] or 0
-            cursor.execute("""
+            _repo.execute(cursor, """
                 SELECT COUNT(*) FROM invitaciones_oficio
                 WHERE estado = 'pendiente' AND datetime(fecha_creacion) < datetime('now', '-30 day')
             """)
@@ -455,44 +399,43 @@ def obtener_stats_24h_panel(db) -> Dict[str, Any]:
 
             # Solicitudes: nuevas, atendidas, sin_respuesta (compatible con tabla unificada)
             try:
-                cursor.execute("PRAGMA table_info(solicitudes)")
-                info_sol = cursor.fetchall()
-                col_ts_s = "created_at" if any(r[1] == 'created_at' for r in info_sol) else "creado_en"
-                estado_at = "atendida" if any(r[1] == 'atendido_por_codigo' for r in info_sol) else "contestada"
+                cols_sol = _repo.columnas_tabla(cursor, 'solicitudes')
+                col_ts_s = "created_at" if 'created_at' in cols_sol else "creado_en"
+                estado_at = "atendida" if 'atendido_por_codigo' in cols_sol else "contestada"
             except Exception:
                 col_ts_s, estado_at = "creado_en", "contestada"
-            cursor.execute(f"SELECT COUNT(*) FROM solicitudes WHERE datetime({col_ts_s}) >= {limite}")
+            _repo.execute(cursor, f"SELECT COUNT(*) FROM solicitudes WHERE datetime({col_ts_s}) >= {limite}")
             nuevas = cursor.fetchone()[0] or 0
-            cursor.execute(f"SELECT COUNT(*) FROM solicitudes WHERE estado = ? AND datetime({col_ts_s}) >= {limite}", (estado_at,))
+            _repo.execute(cursor, f"SELECT COUNT(*) FROM solicitudes WHERE estado = ? AND datetime({col_ts_s}) >= {limite}", (estado_at,))
             atendidas = cursor.fetchone()[0] or 0
-            cursor.execute(f"SELECT COUNT(*) FROM solicitudes WHERE estado = 'pendiente' AND datetime({col_ts_s}) >= {limite}")
+            _repo.execute(cursor, f"SELECT COUNT(*) FROM solicitudes WHERE estado = 'pendiente' AND datetime({col_ts_s}) >= {limite}")
             sin_respuesta = cursor.fetchone()[0] or 0
 
             # Invitaciones: generadas (invitaciones + invitaciones_oficio), usadas (referidos 24h), expiradas
-            cursor.execute(f"""
+            _repo.execute(cursor, f"""
                 SELECT COUNT(*) FROM invitaciones
                 WHERE datetime(creado_en) >= {limite}
             """)
             inv_gen = cursor.fetchone()[0] or 0
-            cursor.execute("""
+            _repo.execute(cursor, """
                 SELECT COUNT(*) FROM invitaciones_oficio
                 WHERE datetime(fecha_creacion) >= datetime('now', '-1 day')
             """)
             inv_oficio = cursor.fetchone()[0] or 0
             generadas = inv_gen + inv_oficio
 
-            cursor.execute(f"""
+            _repo.execute(cursor, f"""
                 SELECT COUNT(*) FROM referidos
                 WHERE datetime(creado_en) >= {limite}
             """)
             usadas = cursor.fetchone()[0] or 0
 
-            cursor.execute("""
+            _repo.execute(cursor, """
                 SELECT COUNT(*) FROM invitaciones
                 WHERE usado = 0 AND datetime(creado_en) < datetime('now', '-30 day')
             """)
             exp_a = cursor.fetchone()[0] or 0
-            cursor.execute("""
+            _repo.execute(cursor, """
                 SELECT COUNT(*) FROM invitaciones_oficio
                 WHERE estado = 'pendiente' AND datetime(fecha_creacion) < datetime('now', '-30 day')
             """)
@@ -500,7 +443,7 @@ def obtener_stats_24h_panel(db) -> Dict[str, Any]:
             expiradas = exp_a + exp_o
 
             # Top invitadores 24h: por referidos en 24h, agrupar por codigo_invitador
-            cursor.execute(f"""
+            _repo.execute(cursor, f"""
                 SELECT r.codigo_invitador, COUNT(*) AS total
                 FROM referidos r
                 WHERE datetime(r.creado_en) >= {limite}
@@ -511,8 +454,7 @@ def obtener_stats_24h_panel(db) -> Dict[str, Any]:
             rows = cursor.fetchall()
             top_invitadores = []
             for (codigo_inv, total) in rows:
-                cursor.execute("SELECT nombre FROM aliados WHERE codigo = ?", (codigo_inv or '',))
-                rn = cursor.fetchone()
+                rn = _repo.select_nombre_aliado(cursor, codigo_inv or '')
                 nombre = (rn[0] or codigo_inv or '—') if rn else (codigo_inv or '—')
                 top_invitadores.append({'nombre': nombre, 'total': total})
 
@@ -551,15 +493,15 @@ def obtener_metricas_salud(db) -> Dict[str, Any]:
             cursor = conn.cursor()
 
             # Totales básicos
-            total_aliados = cursor.execute("SELECT COUNT(*) FROM aliados").fetchone()[0] or 0
-            total_solicitudes = cursor.execute("SELECT COUNT(*) FROM solicitudes").fetchone()[0] or 0
-            total_invitaciones = cursor.execute("SELECT COUNT(*) FROM invitaciones").fetchone()[0] or 0
-            cursor.execute("SELECT COUNT(*) FROM invitaciones WHERE usado = 1")
+            total_aliados = _repo.contar(cursor, "SELECT COUNT(*) FROM aliados")
+            total_solicitudes = _repo.contar(cursor, "SELECT COUNT(*) FROM solicitudes")
+            total_invitaciones = _repo.contar(cursor, "SELECT COUNT(*) FROM invitaciones")
+            _repo.execute(cursor, "SELECT COUNT(*) FROM invitaciones WHERE usado = 1")
             invitaciones_usadas = cursor.fetchone()[0] or 0
 
             # Solicitudes que "generaron" invitación:
             # aproximación: solicitudes cuyo solicitante es un aliado que ha generado al menos una invitación.
-            cursor.execute("""
+            _repo.execute(cursor, """
                 SELECT COUNT(DISTINCT s.id)
                 FROM solicitudes s
                 JOIN aliados a ON s.solicitante_codigo = a.codigo
@@ -575,7 +517,7 @@ def obtener_metricas_salud(db) -> Dict[str, Any]:
             total_oficios_catalogo = len(catalogo) if catalogo else 0
 
             # Oficio saturado: >= 3 aliados activos con ese oficio (a nivel global)
-            cursor.execute("""
+            _repo.execute(cursor, """
                 SELECT COUNT(*) FROM (
                     SELECT oficio
                     FROM aliados
@@ -591,7 +533,7 @@ def obtener_metricas_salud(db) -> Dict[str, Any]:
                 oficios_disponibles = max(total_oficios_catalogo - num_oficios_saturados, 0)
 
             # Zona mayor demanda: CP con más solicitudes pendientes
-            cursor.execute("""
+            _repo.execute(cursor, """
                 SELECT g.codigo_postal, COUNT(*) as c
                 FROM solicitudes s
                 JOIN grupos g ON s.grupo_id = g.id
@@ -604,7 +546,7 @@ def obtener_metricas_salud(db) -> Dict[str, Any]:
             zona_mayor_demanda = (row[0] or '—') if row else '—'
 
             # Retención: aliados que han completado al menos 1 trabajo (contacto con cierre/no_concretado)
-            cursor.execute("""
+            _repo.execute(cursor, """
                 SELECT COUNT(DISTINCT codigo) FROM aliados
                 WHERE codigo IN (
                     SELECT solicitante_codigo
@@ -661,16 +603,16 @@ def obtener_health_metrics_admin(db, umbral_suplentes: int = 1) -> Dict[str, Any
             cursor = conn.cursor()
 
             # Totales
-            total_aliados = cursor.execute("SELECT COUNT(*) FROM aliados").fetchone()[0] or 0
-            cursor.execute("SELECT COUNT(*) FROM aliados WHERE estado = 'activo'")
+            total_aliados = _repo.contar(cursor, "SELECT COUNT(*) FROM aliados")
+            _repo.execute(cursor, "SELECT COUNT(*) FROM aliados WHERE estado = 'activo'")
             aliados_activos = cursor.fetchone()[0] or 0
-            total_solicitudes = cursor.execute("SELECT COUNT(*) FROM solicitudes").fetchone()[0] or 0
-            total_invitaciones = cursor.execute("SELECT COUNT(*) FROM invitaciones").fetchone()[0] or 0
-            cursor.execute("SELECT COUNT(*) FROM invitaciones WHERE usado = 1")
+            total_solicitudes = _repo.contar(cursor, "SELECT COUNT(*) FROM solicitudes")
+            total_invitaciones = _repo.contar(cursor, "SELECT COUNT(*) FROM invitaciones")
+            _repo.execute(cursor, "SELECT COUNT(*) FROM invitaciones WHERE usado = 1")
             invitaciones_usadas = cursor.fetchone()[0] or 0
 
             # Ratio solicitud → invitación
-            cursor.execute("""
+            _repo.execute(cursor, """
                 SELECT COUNT(DISTINCT s.id) FROM solicitudes s
                 JOIN aliados a ON s.solicitante_codigo = a.codigo
                 JOIN invitaciones i ON i.invitador_aliado_id = a.id
@@ -683,7 +625,7 @@ def obtener_health_metrics_admin(db, umbral_suplentes: int = 1) -> Dict[str, Any
 
             # Oficios saturados: oficios con más de X retadores en competencia activa
             col_retador = db._columna_retador_competencia(cursor)
-            cursor.execute("""
+            _repo.execute(cursor, """
                 SELECT oficio, COUNT(DISTINCT """ + col_retador + """) as n
                 FROM competencia WHERE estado = 'activa'
                 GROUP BY oficio
@@ -696,19 +638,19 @@ def obtener_health_metrics_admin(db, umbral_suplentes: int = 1) -> Dict[str, Any
             if not catalogo:
                 oficios_disponibles = 0
             else:
-                cursor.execute("""
+                _repo.execute(cursor, """
                     SELECT g.id, g.codigo_postal FROM grupos g
                     WHERE g.estado = 'activo'
                 """)
                 grupos_activos = cursor.fetchall()
                 plazas_sin_titular = 0
                 for (gid, _) in grupos_activos:
-                    cursor.execute(
+                    _repo.execute(cursor, 
                         "SELECT oficio FROM aliados WHERE grupo_id = ? AND estado = 'activo' AND oficio IS NOT NULL",
                         (gid,)
                     )
                     oficios_en_grupo = {r[0].strip() for r in cursor.fetchall() if r[0]}
-                    cursor.execute(
+                    _repo.execute(cursor, 
                         "SELECT oficio FROM grupo_oficio_cerrado WHERE grupo_id = ?",
                         (gid,)
                     )
@@ -719,7 +661,7 @@ def obtener_health_metrics_admin(db, umbral_suplentes: int = 1) -> Dict[str, Any
                 oficios_disponibles = plazas_sin_titular
 
             # Zona mayor demanda: CP con más solicitudes pendientes
-            cursor.execute("""
+            _repo.execute(cursor, """
                 SELECT g.codigo_postal, COUNT(*) as c
                 FROM solicitudes s
                 JOIN grupos g ON s.grupo_id = g.id
@@ -770,16 +712,7 @@ def _insert_evento_sistema(db,
 ) -> None:
     """Inserta un evento de sistema usando un cursor ya abierto. Idempotencia: no inserta si el mismo evento (tipo, descripcion, actor_codigo) ya existe en los últimos 30 segundos."""
     import time as _time
-    cursor.execute(
-        """
-        SELECT creado_en FROM eventos_sistema
-        WHERE tipo = ? AND descripcion = ?
-          AND ((CAST(? AS TEXT) IS NULL AND actor_codigo IS NULL) OR (actor_codigo = ?))
-        ORDER BY id DESC LIMIT 1
-        """,
-        (tipo, descripcion, actor_codigo, actor_codigo),
-    )
-    row = cursor.fetchone()
+    row = _repo.select_evento_reciente_idem(cursor, tipo, descripcion, actor_codigo)
     if row:
         try:
             from datetime import datetime
@@ -798,12 +731,8 @@ def _insert_evento_sistema(db,
         except Exception:
             pass
     meta_json = json.dumps(metadata, ensure_ascii=False) if metadata is not None else None
-    cursor.execute(
-        """
-        INSERT INTO eventos_sistema (tipo, descripcion, actor_tipo, actor_codigo, metadata)
-        VALUES (?, ?, ?, ?, ?)
-        """,
-        (tipo, descripcion, actor_tipo, actor_codigo, meta_json),
+    _repo.insertar_evento_sistema(
+        cursor, tipo, descripcion, actor_tipo, actor_codigo, meta_json
     )
 
 def registrar_evento_sistema(db,
@@ -845,16 +774,7 @@ def obtener_eventos_recientes(db, limite: int = 10) -> List[Dict[str, Any]]:
             if limite_int <= 0:
                 limite_int = 10
 
-            cursor.execute(
-                """
-                SELECT id, tipo, descripcion, actor_tipo, actor_codigo, metadata, creado_en
-                FROM eventos_sistema
-                ORDER BY datetime(creado_en) DESC, id DESC
-                LIMIT ?
-                """,
-                (limite_int,),
-            )
-            rows = cursor.fetchall()
+            rows = _repo.listar_eventos_recientes(cursor, limite_int)
             eventos: List[Dict[str, Any]] = []
             for row in rows:
                 item = dict(row)
@@ -888,46 +808,45 @@ def obtener_movimiento_24h(db) -> Dict[str, Any]:
             cursor = conn.cursor()
             # Ventana 24h (solicitudes: compatible tabla unificada)
             try:
-                cursor.execute("PRAGMA table_info(solicitudes)")
-                info_s = cursor.fetchall()
-                col_s = "created_at" if any(r[1] == 'created_at' for r in info_s) else "creado_en"
-                est_s = "atendida" if any(r[1] == 'atendido_por_codigo' for r in info_s) else "contestada"
+                cols_s = _repo.columnas_tabla(cursor, 'solicitudes')
+                col_s = "created_at" if 'created_at' in cols_s else "creado_en"
+                est_s = "atendida" if 'atendido_por_codigo' in cols_s else "contestada"
             except Exception:
                 col_s, est_s = "creado_en", "contestada"
-            cursor.execute(f"SELECT COUNT(*) FROM solicitudes WHERE datetime({col_s}) >= datetime('now', '-1 day')")
+            _repo.execute(cursor, f"SELECT COUNT(*) FROM solicitudes WHERE datetime({col_s}) >= datetime('now', '-1 day')")
             solicitudes_nuevas = cursor.fetchone()[0] or 0
-            cursor.execute(f"SELECT COUNT(*) FROM solicitudes WHERE estado = ? AND datetime({col_s}) >= datetime('now', '-1 day')", (est_s,))
+            _repo.execute(cursor, f"SELECT COUNT(*) FROM solicitudes WHERE estado = ? AND datetime({col_s}) >= datetime('now', '-1 day')", (est_s,))
             solicitudes_atendidas = cursor.fetchone()[0] or 0
-            cursor.execute("SELECT COUNT(*) FROM solicitudes WHERE estado = 'pendiente'")
+            _repo.execute(cursor, "SELECT COUNT(*) FROM solicitudes WHERE estado = 'pendiente'")
             solicitudes_sin_respuesta = cursor.fetchone()[0] or 0
 
             # Invitaciones: generadas y usadas en 24h (invitaciones.creado_en, referidos.creado_en)
-            cursor.execute("""
+            _repo.execute(cursor, """
                 SELECT COUNT(*) FROM invitaciones
                 WHERE datetime(creado_en) >= datetime('now', '-1 day')
             """)
             invitaciones_generadas = cursor.fetchone()[0] or 0
 
-            cursor.execute("""
+            _repo.execute(cursor, """
                 SELECT COUNT(*) FROM referidos
                 WHERE datetime(creado_en) >= datetime('now', '-1 day')
             """)
             invitaciones_usadas = cursor.fetchone()[0] or 0
 
             # Contactos RUANA recientes
-            cursor.execute("""
+            _repo.execute(cursor, """
                 SELECT COUNT(*) FROM contactos_ruana
                 WHERE datetime(creado_en) >= datetime('now', '-1 day')
             """)
             contactos_nuevos = cursor.fetchone()[0] or 0
 
-            cursor.execute("""
+            _repo.execute(cursor, """
                 SELECT COUNT(*) FROM contactos_ruana
                 WHERE fecha_aceptacion IS NOT NULL AND datetime(fecha_aceptacion) >= datetime('now', '-1 day')
             """)
             contactos_aceptados = cursor.fetchone()[0] or 0
 
-            cursor.execute("""
+            _repo.execute(cursor, """
                 SELECT COUNT(*) FROM contactos_ruana
                 WHERE (fecha_cierre IS NOT NULL OR fecha_no_concretado IS NOT NULL)
                 AND (datetime(fecha_cierre) >= datetime('now', '-1 day') OR datetime(fecha_no_concretado) >= datetime('now', '-1 day'))
@@ -935,7 +854,7 @@ def obtener_movimiento_24h(db) -> Dict[str, Any]:
             contactos_cerrados = cursor.fetchone()[0] or 0
 
             # Top invitadores (últimas 24h): por referidos.creado_en
-            cursor.execute("""
+            _repo.execute(cursor, """
                 SELECT r.codigo_invitador, COUNT(*) as total
                 FROM referidos r
                 WHERE datetime(r.creado_en) >= datetime('now', '-1 day')
@@ -946,8 +865,7 @@ def obtener_movimiento_24h(db) -> Dict[str, Any]:
             rows = cursor.fetchall()
             top_invitadores = []
             for codigo_inv, total in rows:
-                cursor.execute("SELECT nombre FROM aliados WHERE codigo = ?", (codigo_inv,))
-                rn = cursor.fetchone()
+                rn = _repo.select_nombre_aliado(cursor, codigo_inv)
                 nombre = (rn[0] or codigo_inv) if rn else codigo_inv
                 top_invitadores.append({'nombre': nombre, 'total': total})
 
@@ -1006,33 +924,32 @@ def obtener_movimiento_24h_por_hora(db) -> Dict[str, Dict[str, int]]:
             conn = db._connect()
             cursor = conn.cursor()
             try:
-                cursor.execute("PRAGMA table_info(solicitudes)")
-                info_s2 = cursor.fetchall()
-                col_sol = "created_at" if any(r[1] == 'created_at' for r in info_s2) else "creado_en"
-                est_sol = "atendida" if any(r[1] == 'atendido_por_codigo' for r in info_s2) else "contestada"
+                cols_s2 = _repo.columnas_tabla(cursor, 'solicitudes')
+                col_sol = "created_at" if 'created_at' in cols_s2 else "creado_en"
+                est_sol = "atendida" if 'atendido_por_codigo' in cols_s2 else "contestada"
             except Exception:
                 col_sol, est_sol = "creado_en", "contestada"
             filtro_24h_sol = f"datetime({col_sol}) >= datetime('now', '-1 day')"
             filtro_24h = "datetime(creado_en) >= datetime('now', '-1 day')"
 
-            cursor.execute(f"SELECT strftime('%H', {col_sol}) AS hora, COUNT(*) AS total FROM solicitudes WHERE {filtro_24h_sol} GROUP BY strftime('%H', {col_sol})")
+            _repo.execute(cursor, f"SELECT strftime('%H', {col_sol}) AS hora, COUNT(*) AS total FROM solicitudes WHERE {filtro_24h_sol} GROUP BY strftime('%H', {col_sol})")
             for row in cursor.fetchall():
                 h = row[0] if row[0] and len(row[0]) == 2 else (f"0{row[0]}" if row[0] and len(row[0]) == 1 else row[0])
                 if h in resultado:
                     resultado[h]['nuevas'] = row[1]
-            cursor.execute(f"SELECT strftime('%H', {col_sol}) AS hora, COUNT(*) AS total FROM solicitudes WHERE estado = ? AND {filtro_24h_sol} GROUP BY strftime('%H', {col_sol})", (est_sol,))
+            _repo.execute(cursor, f"SELECT strftime('%H', {col_sol}) AS hora, COUNT(*) AS total FROM solicitudes WHERE estado = ? AND {filtro_24h_sol} GROUP BY strftime('%H', {col_sol})", (est_sol,))
             for row in cursor.fetchall():
                 h = row[0] if row[0] and len(row[0]) == 2 else (f"0{row[0]}" if row[0] and len(row[0]) == 1 else row[0])
                 if h in resultado:
                     resultado[h]['atendidas'] = row[1]
-            cursor.execute(f"SELECT strftime('%H', {col_sol}) AS hora, COUNT(*) AS total FROM solicitudes WHERE estado = 'pendiente' AND {filtro_24h_sol} GROUP BY strftime('%H', {col_sol})")
+            _repo.execute(cursor, f"SELECT strftime('%H', {col_sol}) AS hora, COUNT(*) AS total FROM solicitudes WHERE estado = 'pendiente' AND {filtro_24h_sol} GROUP BY strftime('%H', {col_sol})")
             for row in cursor.fetchall():
                 h = row[0] if len(row[0]) == 2 else f"0{row[0]}" if row[0] and len(row[0]) == 1 else row[0]
                 if h in resultado:
                     resultado[h]['sin_respuesta'] = row[1]
 
             # Invitaciones generadas por hora
-            cursor.execute(f"""
+            _repo.execute(cursor, f"""
                 SELECT strftime('%H', creado_en) AS hora, COUNT(*) AS total
                 FROM invitaciones
                 WHERE {filtro_24h}
@@ -1044,7 +961,7 @@ def obtener_movimiento_24h_por_hora(db) -> Dict[str, Dict[str, int]]:
                     resultado[h]['invitaciones_generadas'] = row[1]
 
             # Invitaciones usadas (referidos) por hora
-            cursor.execute(f"""
+            _repo.execute(cursor, f"""
                 SELECT strftime('%H', creado_en) AS hora, COUNT(*) AS total
                 FROM referidos
                 WHERE {filtro_24h}
@@ -1056,7 +973,7 @@ def obtener_movimiento_24h_por_hora(db) -> Dict[str, Dict[str, int]]:
                     resultado[h]['invitaciones_usadas'] = row[1]
 
             # Contactos creados por hora
-            cursor.execute(f"""
+            _repo.execute(cursor, f"""
                 SELECT strftime('%H', creado_en) AS hora, COUNT(*) AS total
                 FROM contactos_ruana
                 WHERE {filtro_24h}
