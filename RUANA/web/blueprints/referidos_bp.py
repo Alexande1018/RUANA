@@ -16,7 +16,14 @@ referidos_bp = Blueprint("referidos", __name__)
 
 
 def get_db():
-    """Resuelve get_db en tiempo de llamada (compatible con monkeypatch de tests)."""
+    """Usa get_db del módulo app cargado (RUANA.web.app o web.app) para respetar monkeypatch."""
+    import sys
+    for key in ("RUANA.web.app", "web.app"):
+        mod = sys.modules.get(key)
+        if mod is not None:
+            fn = getattr(mod, "get_db", None)
+            if callable(fn):
+                return fn()
     return db_manager_mod.get_db()
 
 
