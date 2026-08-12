@@ -5,6 +5,10 @@ SQL de contactos vía ContactoRepo; cross-domain vía callbacks db.*.
 """
 from __future__ import annotations
 
+from core.db_constants import RUANA_ROOT
+from pathlib import Path
+
+
 import json
 import sqlite3
 from datetime import datetime, timedelta
@@ -603,3 +607,24 @@ def obtener_contacto_resumen(db, contacto_id: int) -> Optional[Dict[str, Any]]:
             return None
         finally:
             conn.close()
+
+def marcar_no_concretado(db, contacto_id: int, motivo: str = "") -> Dict[str, Any]:
+    """
+    Marca el contacto como 'no_concretado' (compatibilidad legacy).
+    Ver marcar_cerrado_no_concretado para el flujo con -1 y audit.
+    """
+    return db.marcar_cerrado_no_concretado(contacto_id, motivo=motivo)
+
+
+def _get_posponer_horas(db) -> int:
+    """Lee posponer_horas desde config (horas que la alerta se oculta al 'Sigue en conversación'). Por defecto 24."""
+    try:
+        config_path = RUANA_ROOT / 'config' / 'ruana_reglas_v1.json'
+        if config_path.exists():
+            with open(config_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            return int(data.get('posponer_horas', 24))
+    except Exception:
+        pass
+    return 24
+

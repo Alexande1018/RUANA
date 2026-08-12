@@ -1082,3 +1082,62 @@ def _migrar_aliados_eliminados(db, conn, cursor) -> None:
         "CREATE INDEX IF NOT EXISTS idx_aliados_eliminados_fecha ON aliados_eliminados(eliminado_en DESC)"
     )
 
+
+def _init_postgres_schema(db):
+    """Crea tablas/migraciones pendientes en Supabase/Postgres al arrancar."""
+    conn = None
+    try:
+        conn = db._connect()
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS invitacion_campanas (
+                codigo TEXT PRIMARY KEY,
+                nombre TEXT NOT NULL,
+                codigo_postal TEXT DEFAULT '',
+                max_usos INTEGER NOT NULL,
+                usos_actuales INTEGER DEFAULT 0,
+                activo INTEGER DEFAULT 1,
+                creado_por_admin_codigo TEXT DEFAULT '',
+                creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                desactivado_en TIMESTAMP
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS invitacion_campana_usos (
+                id SERIAL PRIMARY KEY,
+                codigo_campana TEXT NOT NULL REFERENCES invitacion_campanas(codigo),
+                codigo_aliado TEXT NOT NULL REFERENCES aliados(codigo),
+                usado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(codigo_campana, codigo_aliado)
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS catalogo_servicios_aliado (
+                id SERIAL PRIMARY KEY,
+                aliado_codigo TEXT NOT NULL REFERENCES aliados(codigo) ON DELETE CASCADE,
+                posicion INTEGER NOT NULL CHECK(posicion BETWEEN 1 AND 10),
+                descripcion TEXT,
+                precio TEXT,
+                actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(aliado_codigo, posicion)
+            )
+        """)
+        db._migrar_aliados_foto_perfil(conn, cursor)
+        db._migrar_aliados_invitado_por(conn, cursor)
+        db._migrar_invitaciones_solicitud_id(conn, cursor)
+        db._migrar_solicitudes_candidato(conn, cursor)
+        db._migrar_contactos_es_urgente(conn, cursor)
+        db._migrar_negociacion_guiada(conn, cursor)
+        db._migrar_acuerdo_cierre_bilateral(conn, cursor)
+        db._migrar_importe_acordado(conn, cursor)
+        db._migrar_aliado_accesos_dia(conn, cursor)
+        db._migrar_centro_comunicacion_ruana(conn, cursor)
+        db._migrar_aliados_eliminados(conn, cursor)
+        conn.commit()
+        print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil + linaje + urgente + negociación guiada + accesos día + retador + aliados eliminados)")
+    except Exception as e:
+        print(f"[RUANA][DB] Error inicializando esquema Postgres: {e}")
+    finally:
+        if conn:
+            conn.close()
+

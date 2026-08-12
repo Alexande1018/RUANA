@@ -2,7 +2,8 @@
 Servicio de Score RUANA.
 
 Reglas de mutación de score: rango [0, 500], tope ±10 por día.
-La orquestación de competencia por umbral permanece en la fachada DBManager.
+aplicar_cambio_score(cursor) muta sin side-effects;
+aplicar_cambio_score_db(db) orquesta commit + competencia por umbral.
 """
 
 from __future__ import annotations
@@ -88,6 +89,58 @@ def aplicar_cambio_score(
         "score_final": score_nuevo,
         "score_anterior": score_actual,
     }
+
+
+def aplicar_cambio_score_db(db, codigo_aliado: str, delta: int, motivo: str = "") -> Dict[str, Any]:
+    """
+    Orquestación completa: mutación de score + side-effects de competencia por umbral.
+    La mutación pura sigue en aplicar_cambio_score(cursor, ...).
+    """
+    if not codigo_aliado or delta == 0:
+        return {'status': 'success', 'aplicado': 0, 'score_final': None}
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            result = aplicar_cambio_score(
+                cursor,
+                codigo_aliado=codigo_aliado,
+                delta=delta,
+                motivo=motivo,
+            )
+            if result.get('status') == 'error':
+                return {'status': 'error', 'message': result.get('message', 'error')}
+            delta_real = int(result.get('aplicado') or 0)
+            score_nuevo = result.get('score_final')
+            score_actual = result.get('score_anterior')
+            if delta_real == 0:
+                return {
+                    'status': 'success',
+                    'aplicado': 0,
+                    'score_final': score_nuevo,
+                }
+            conn.commit()
+            umbral = db._get_umbral_competencia()
+            if umbral is not None and score_nuevo is not None and score_actual is not None:
+                if score_nuevo < umbral:
+                    if score_actual >= umbral:
+                        db._solicitar_competencia_por_score(codigo_aliado)
+                    elif not db.aliado_en_competencia_activa(codigo_aliado) and not db.tiene_competencia_pendiente(codigo_aliado):
+                        db._solicitar_competencia_por_score(codigo_aliado)
+                elif score_nuevo >= umbral:
+                    db._cancelar_competencia_pendiente(codigo_aliado, 'score_recuperado')
+            return {
+                'status': 'success',
+                'aplicado': delta_real,
+                'score_final': score_nuevo,
+            }
+        except Exception as e:
+            return {'status': 'error', 'message': str(e)}
+        finally:
+            if conn is not None:
+                conn.close()
+
 
 # --- Reglas y penalizaciones (fase 3, extraídas de DBManager) ---
 
@@ -1007,4 +1060,71 @@ def evaluar_regla4_encargos_mes_limpio(db,
         db.REGLA4_ENCARGOS_MES_DELTA,
         db._motivo_regla4_mes(anio_mes),
     )
+
+
+def _baseline_acceso_dia(db, codigo_aliado: str) -> Optional[str]:
+    """Último día de login o fecha de alta (YYYY-MM-DD)."""
+    codigo_aliado = (codigo_aliado or '').strip()
+    if not codigo_aliado:
+        return None
+    with db._lock:
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT MAX(dia) FROM aliado_accesos_dia WHERE codigo_aliado = ?
+                """,
+                (codigo_aliado,),
+            )
+            row = cursor.fetchone()
+            ultimo = (row[0] if row else None) or None
+            if ultimo and len(str(ultimo)) >= 10:
+                return str(ultimo)[:10]
+            cursor.execute(
+                "SELECT creado_en FROM aliados WHERE codigo = ?",
+                (codigo_aliado,),
+            )
+            row = cursor.fetchone()
+            if not row or not row[0]:
+                return None
+            return db._fecha_dia_servidor(row[0]) or db._dia_hoy_servidor()
+        except Exception:
+            return None
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def _fecha_dia_servidor(fecha_val: Any) -> Optional[str]:
+    """Normaliza timestamp/fecha a 'YYYY-MM-DD' (calendario del servidor)."""
+    if fecha_val is None:
+        return None
+    if isinstance(fecha_val, datetime):
+        dt = fecha_val
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+        return dt.strftime('%Y-%m-%d')
+    s = str(fecha_val).strip()
+    if len(s) >= 10 and s[4] == '-' and s[7] == '-':
+        return s[:10]
+    return None
+
+
+def _anio_mes_de(fecha_val: Any) -> Optional[str]:
+    """Normaliza timestamp/fecha a 'YYYY-MM'."""
+    if fecha_val is None:
+        return None
+    if isinstance(fecha_val, datetime):
+        return fecha_val.strftime('%Y-%m')
+    s = str(fecha_val).strip()
+    if len(s) >= 7 and s[4] == '-':
+        return s[:7]
+    return None
+
+
+def _motivo_regla8(db, dia_fin: str) -> str:
+    return f'regla8_racha_7dias_{dia_fin}'
 

@@ -229,3 +229,42 @@ def contar_oficios_ocupados(db) -> int:
             return 0
         finally:
             conn.close()
+
+def puede_ver_catalogo_aliado(db, visor_codigo: str, objetivo_codigo: str) -> bool:
+    """Catálogo privado visible al propio aliado, directorio o contacto activo."""
+    visor = (visor_codigo or '').strip()
+    objetivo = (objetivo_codigo or '').strip()
+    if not visor or not objetivo:
+        return False
+    if visor == objetivo:
+        return True
+    for aliado in db.listar_aliados_directorio_grupo(visor):
+        if (aliado.get('codigo') or '').strip() == objetivo:
+            return True
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT 1 FROM contactos_ruana
+                WHERE ((solicitante_codigo = ? AND profesional_codigo = ?)
+                    OR (solicitante_codigo = ? AND profesional_codigo = ?))
+                  AND estado NOT IN ('trabajo_cerrado', 'no_concretado', 'cerrado_no_concretado')
+                LIMIT 1
+                """,
+                (visor, objetivo, objetivo, visor),
+            )
+            return cursor.fetchone() is not None
+        except Exception:
+            return False
+        finally:
+            if conn:
+                conn.close()
+
+
+def listar_catalogo_servicios_configurados(db, codigo_aliado: str) -> List[Dict[str, Any]]:
+    """Solo posiciones con descripción y precio (para elegir al contactar)."""
+    return [s for s in db.listar_catalogo_servicios_aliado(codigo_aliado) if s.get('configurado')]
+

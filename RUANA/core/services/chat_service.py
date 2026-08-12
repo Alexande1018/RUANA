@@ -419,3 +419,46 @@ def marcar_soporte_leido_aliado(db, conversacion_id: int, aliado_codigo: str) ->
         finally:
             if conn:
                 conn.close()
+
+def _parse_timestamp(db, value) -> Optional[datetime]:
+    """Convierte valor SQLite (str/datetime) a datetime para cálculos de vigencia."""
+    if not value:
+        return None
+    try:
+        dt = None
+        if isinstance(value, datetime):
+            dt = value
+        elif isinstance(value, str):
+            raw = value.strip()
+            if not raw:
+                return None
+            normalized = raw.replace("Z", "+00:00")
+            try:
+                dt = datetime.fromisoformat(normalized)
+            except ValueError:
+                dt = datetime.strptime(raw[:19].replace("T", " "), '%Y-%m-%d %H:%M:%S')
+        if not isinstance(dt, datetime):
+            return None
+        if dt.tzinfo is not None:
+            return dt.astimezone(timezone.utc).replace(tzinfo=None)
+        return dt
+    except Exception:
+        return None
+
+
+def _chat_now(db) -> datetime:
+    """Ahora UTC naive para comparar timestamps SQLite y Postgres normalizados."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _chat_estado_cerrado(db) -> Dict[str, Any]:
+    return {
+        'chat_expirado': True,
+        'mensajes_restantes': 0,
+        'chat_referencia_en': None,
+        'chat_expira_en': None,
+        'chat_horas_restantes': 0,
+        'chat_horas_vigencia': db.CHAT_HORAS_VIGENCIA,
+        'chat_max_mensajes': db.CHAT_MAX_MENSAJES_TOTAL,
+    }
+

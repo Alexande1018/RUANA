@@ -86,62 +86,9 @@ class DBManager:
         return sqlite3.connect(self.db_path)
 
     def _init_postgres_schema(self):
-        """Crea tablas/migraciones pendientes en Supabase/Postgres al arrancar."""
-        conn = None
-        try:
-            conn = self._connect()
-            cursor = conn.cursor()
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS invitacion_campanas (
-                    codigo TEXT PRIMARY KEY,
-                    nombre TEXT NOT NULL,
-                    codigo_postal TEXT DEFAULT '',
-                    max_usos INTEGER NOT NULL,
-                    usos_actuales INTEGER DEFAULT 0,
-                    activo INTEGER DEFAULT 1,
-                    creado_por_admin_codigo TEXT DEFAULT '',
-                    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    desactivado_en TIMESTAMP
-                )
-            """)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS invitacion_campana_usos (
-                    id SERIAL PRIMARY KEY,
-                    codigo_campana TEXT NOT NULL REFERENCES invitacion_campanas(codigo),
-                    codigo_aliado TEXT NOT NULL REFERENCES aliados(codigo),
-                    usado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(codigo_campana, codigo_aliado)
-                )
-            """)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS catalogo_servicios_aliado (
-                    id SERIAL PRIMARY KEY,
-                    aliado_codigo TEXT NOT NULL REFERENCES aliados(codigo) ON DELETE CASCADE,
-                    posicion INTEGER NOT NULL CHECK(posicion BETWEEN 1 AND 10),
-                    descripcion TEXT,
-                    precio TEXT,
-                    actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(aliado_codigo, posicion)
-                )
-            """)
-            self._migrar_aliados_foto_perfil(conn, cursor)
-            self._migrar_aliados_invitado_por(conn, cursor)
-            self._migrar_invitaciones_solicitud_id(conn, cursor)
-            self._migrar_solicitudes_candidato(conn, cursor)
-            self._migrar_contactos_es_urgente(conn, cursor)
-            self._migrar_negociacion_guiada(conn, cursor)
-            self._migrar_acuerdo_cierre_bilateral(conn, cursor)
-            self._migrar_importe_acordado(conn, cursor)
-            self._migrar_aliado_accesos_dia(conn, cursor)
-            self._migrar_centro_comunicacion_ruana(conn, cursor)
-            self._migrar_aliados_eliminados(conn, cursor)
-            conn.commit()
-            print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil + linaje + urgente + negociación guiada + accesos día + retador + aliados eliminados)")
-        except Exception as e:
-            print(f"[RUANA][DB] Error inicializando esquema Postgres: {e}")
-        finally:
-            if conn:
-                conn.close()
+        """Fachada Campamento Base → schema_service._init_postgres_schema."""
+        return schema_service._init_postgres_schema(self)
+
     
     def _init_db(self):
         """Fachada Campamento Base → schema_service._init_db."""
@@ -657,41 +604,14 @@ class DBManager:
 
 
     def listar_catalogo_servicios_configurados(self, codigo_aliado: str) -> List[Dict[str, Any]]:
-        """Solo posiciones con descripción y precio (para elegir al contactar)."""
-        return [s for s in self.listar_catalogo_servicios_aliado(codigo_aliado) if s.get('configurado')]
+        """Fachada Campamento Base → catalogo_service.listar_catalogo_servicios_configurados."""
+        return catalogo_service.listar_catalogo_servicios_configurados(self, codigo_aliado)
+
 
     def puede_ver_catalogo_aliado(self, visor_codigo: str, objetivo_codigo: str) -> bool:
-        """Catálogo privado visible al propio aliado, directorio o contacto activo."""
-        visor = (visor_codigo or '').strip()
-        objetivo = (objetivo_codigo or '').strip()
-        if not visor or not objetivo:
-            return False
-        if visor == objetivo:
-            return True
-        for aliado in self.listar_aliados_directorio_grupo(visor):
-            if (aliado.get('codigo') or '').strip() == objetivo:
-                return True
-        with self._lock:
-            conn = None
-            try:
-                conn = self._connect()
-                cursor = conn.cursor()
-                cursor.execute(
-                    """
-                    SELECT 1 FROM contactos_ruana
-                    WHERE ((solicitante_codigo = ? AND profesional_codigo = ?)
-                        OR (solicitante_codigo = ? AND profesional_codigo = ?))
-                      AND estado NOT IN ('trabajo_cerrado', 'no_concretado', 'cerrado_no_concretado')
-                    LIMIT 1
-                    """,
-                    (visor, objetivo, objetivo, visor),
-                )
-                return cursor.fetchone() is not None
-            except Exception:
-                return False
-            finally:
-                if conn:
-                    conn.close()
+        """Fachada Campamento Base → catalogo_service.puede_ver_catalogo_aliado."""
+        return catalogo_service.puede_ver_catalogo_aliado(self, visor_codigo, objetivo_codigo)
+
 
     def guardar_catalogo_servicio_aliado(
         self,
@@ -719,57 +639,8 @@ class DBManager:
         return ScoreRepo().delta_score_hoy(cursor, codigo_aliado)
 
     def aplicar_cambio_score(self, codigo_aliado: str, delta: int, motivo: str = "") -> Dict[str, Any]:
-        """
-        Aplica un cambio de score respetando: score en [0, 500], máximo ±10 por día.
-        Inserta en score_movimientos y actualiza aliados.score.
-
-        Fachada Campamento Base: la mutación vive en score_service + score_repo.
-        Los side-effects de competencia por umbral permanecen aquí.
-        """
-        if not codigo_aliado or delta == 0:
-            return {'status': 'success', 'aplicado': 0, 'score_final': None}
-        with self._lock:
-            conn = None
-            try:
-                conn = self._connect()
-                cursor = conn.cursor()
-                result = score_service.aplicar_cambio_score(
-                    cursor,
-                    codigo_aliado=codigo_aliado,
-                    delta=delta,
-                    motivo=motivo,
-                )
-                if result.get('status') == 'error':
-                    return {'status': 'error', 'message': result.get('message', 'error')}
-                delta_real = int(result.get('aplicado') or 0)
-                score_nuevo = result.get('score_final')
-                score_actual = result.get('score_anterior')
-                if delta_real == 0:
-                    return {
-                        'status': 'success',
-                        'aplicado': 0,
-                        'score_final': score_nuevo,
-                    }
-                conn.commit()
-                umbral = self._get_umbral_competencia()
-                if umbral is not None and score_nuevo is not None and score_actual is not None:
-                    if score_nuevo < umbral:
-                        if score_actual >= umbral:
-                            self._solicitar_competencia_por_score(codigo_aliado)
-                        elif not self.aliado_en_competencia_activa(codigo_aliado) and not self.tiene_competencia_pendiente(codigo_aliado):
-                            self._solicitar_competencia_por_score(codigo_aliado)
-                    elif score_nuevo >= umbral:
-                        self._cancelar_competencia_pendiente(codigo_aliado, 'score_recuperado')
-                return {
-                    'status': 'success',
-                    'aplicado': delta_real,
-                    'score_final': score_nuevo,
-                }
-            except Exception as e:
-                return {'status': 'error', 'message': str(e)}
-            finally:
-                if conn is not None:
-                    conn.close()
+        """Fachada Campamento Base → score_service.aplicar_cambio_score_db."""
+        return score_service.aplicar_cambio_score_db(self, codigo_aliado, delta, motivo)
 
     def _registrar_notificacion_cambio_score(
         self,
@@ -875,16 +746,9 @@ class DBManager:
 
 
     def _get_posponer_horas(self) -> int:
-        """Lee posponer_horas desde config (horas que la alerta se oculta al 'Sigue en conversación'). Por defecto 24."""
-        try:
-            config_path = Path(__file__).resolve().parent.parent / 'config' / 'ruana_reglas_v1.json'
-            if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                return int(data.get('posponer_horas', 24))
-        except Exception:
-            pass
-        return 24
+        """Fachada Campamento Base → contacto_service._get_posponer_horas."""
+        return contacto_service._get_posponer_horas(self)
+
 
     # ===============================================
     # COMPETENCIA POR PERMANENCIA (orquestación, pendientes, info panel)
@@ -1519,23 +1383,9 @@ class DBManager:
 
 
     def _parse_importe_acuerdo(self, valor: Any) -> Optional[float]:
-        """Extrae un importe numérico > 0 del valor acordado en negociación (p. ej. «150», «150€»)."""
-        if valor is None:
-            return None
-        if isinstance(valor, (int, float)) and not isinstance(valor, bool):
-            return float(valor) if float(valor) > 0 else None
-        texto = str(valor).strip()
-        if not texto:
-            return None
-        texto = texto.replace(',', '.').replace('€', ' ').replace('EUR', ' ').replace('eur', ' ')
-        match = re.search(r'(\d+(?:\.\d+)?)', texto)
-        if not match:
-            return None
-        try:
-            importe = float(match.group(1))
-        except (TypeError, ValueError):
-            return None
-        return importe if importe > 0 else None
+        """Fachada Campamento Base → negociacion_service._parse_importe_acuerdo."""
+        return negociacion_service._parse_importe_acuerdo(self, valor)
+
 
     def _precio_valor_desde_contacto(self, contacto: Dict[str, Any]) -> Any:
         """Fachada Campamento Base → negociacion_service._precio_valor_desde_contacto."""
@@ -1543,8 +1393,9 @@ class DBManager:
 
 
     def _importe_oficial_contacto(self, contacto: Dict[str, Any]) -> Optional[float]:
-        """Importe oficial del encargo (precio negociado)."""
-        return self._parse_importe_acuerdo(self._precio_valor_desde_contacto(contacto))
+        """Fachada Campamento Base → negociacion_service._importe_oficial_contacto."""
+        return negociacion_service._importe_oficial_contacto(self, contacto)
+
 
     def _construir_acuerdo_resumen_json(
         self,
@@ -1556,32 +1407,14 @@ class DBManager:
 
 
     def _flags_cierre_acuerdo(self, contacto: Dict[str, Any], rol: str) -> Dict[str, Any]:
-        conf_sol = bool(contacto.get('cierre_confirmado_solicitante_en'))
-        conf_pro = bool(contacto.get('cierre_confirmado_profesional_en'))
-        yo = conf_sol if rol == 'solicitante' else conf_pro
-        dismiss = bool(
-            contacto.get('resumen_dismiss_solicitante_en')
-            if rol == 'solicitante'
-            else contacto.get('resumen_dismiss_profesional_en')
-        )
-        return {
-            'cierre_confirmado_solicitante': conf_sol,
-            'cierre_confirmado_profesional': conf_pro,
-            'yo_confirme_cierre': yo,
-            'ambos_confirmaron_cierre': conf_sol and conf_pro,
-            'resumen_dismissed': dismiss,
-        }
+        """Fachada Campamento Base → negociacion_service._flags_cierre_acuerdo."""
+        return negociacion_service._flags_cierre_acuerdo(self, contacto, rol)
+
 
     def _parse_acuerdo_resumen_campo(self, raw: Any) -> Optional[Dict[str, Any]]:
-        if raw is None or raw == '':
-            return None
-        if isinstance(raw, dict):
-            return raw
-        try:
-            data = json.loads(raw) if isinstance(raw, str) else None
-            return data if isinstance(data, dict) else None
-        except Exception:
-            return None
+        """Fachada Campamento Base → negociacion_service._parse_acuerdo_resumen_campo."""
+        return negociacion_service._parse_acuerdo_resumen_campo(self, raw)
+
 
     def _cerrar_encargo_tras_acuerdo(
         self,
@@ -1690,11 +1523,9 @@ class DBManager:
     )
 
     def marcar_no_concretado(self, contacto_id: int, motivo: str = "") -> Dict[str, Any]:
-        """
-        Marca el contacto como 'no_concretado' (compatibilidad legacy).
-        Ver marcar_cerrado_no_concretado para el flujo con -1 y audit.
-        """
-        return self.marcar_cerrado_no_concretado(contacto_id, motivo=motivo)
+        """Fachada Campamento Base → contacto_service.marcar_no_concretado."""
+        return contacto_service.marcar_no_concretado(self, contacto_id, motivo)
+
 
     def marcar_cerrado_no_concretado(self, contacto_id: int, motivo: str = "",
                                      actor_codigo: str = "") -> Dict[str, Any]:
@@ -1717,33 +1548,14 @@ class DBManager:
 
 
     def _chat_now(self) -> datetime:
-        """Ahora UTC naive para comparar timestamps SQLite y Postgres normalizados."""
-        return datetime.now(timezone.utc).replace(tzinfo=None)
+        """Fachada Campamento Base → chat_service._chat_now."""
+        return chat_service._chat_now(self)
+
 
     def _parse_timestamp(self, value) -> Optional[datetime]:
-        """Convierte valor SQLite (str/datetime) a datetime para cálculos de vigencia."""
-        if not value:
-            return None
-        try:
-            dt = None
-            if isinstance(value, datetime):
-                dt = value
-            elif isinstance(value, str):
-                raw = value.strip()
-                if not raw:
-                    return None
-                normalized = raw.replace("Z", "+00:00")
-                try:
-                    dt = datetime.fromisoformat(normalized)
-                except ValueError:
-                    dt = datetime.strptime(raw[:19].replace("T", " "), '%Y-%m-%d %H:%M:%S')
-            if not isinstance(dt, datetime):
-                return None
-            if dt.tzinfo is not None:
-                return dt.astimezone(timezone.utc).replace(tzinfo=None)
-            return dt
-        except Exception:
-            return None
+        """Fachada Campamento Base → chat_service._parse_timestamp."""
+        return chat_service._parse_timestamp(self, value)
+
 
     def _chat_expiry_metadata(self, ref: Optional[datetime]) -> Dict[str, Any]:
         """Fachada Campamento Base → chat_service._chat_expiry_metadata."""
@@ -1756,15 +1568,9 @@ class DBManager:
 
 
     def _chat_estado_cerrado(self) -> Dict[str, Any]:
-        return {
-            'chat_expirado': True,
-            'mensajes_restantes': 0,
-            'chat_referencia_en': None,
-            'chat_expira_en': None,
-            'chat_horas_restantes': 0,
-            'chat_horas_vigencia': self.CHAT_HORAS_VIGENCIA,
-            'chat_max_mensajes': self.CHAT_MAX_MENSAJES_TOTAL,
-        }
+        """Fachada Campamento Base → chat_service._chat_estado_cerrado."""
+        return chat_service._chat_estado_cerrado(self)
+
 
     def _chat_referencia_ts(self, cursor, contacto_id: int) -> Optional[datetime]:
         """Fachada Campamento Base → chat_service._chat_referencia_ts."""
@@ -1936,18 +1742,9 @@ class DBManager:
 
     @staticmethod
     def _fecha_dia_servidor(fecha_val: Any) -> Optional[str]:
-        """Normaliza timestamp/fecha a 'YYYY-MM-DD' (calendario del servidor)."""
-        if fecha_val is None:
-            return None
-        if isinstance(fecha_val, datetime):
-            dt = fecha_val
-            if dt.tzinfo is not None:
-                dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
-            return dt.strftime('%Y-%m-%d')
-        s = str(fecha_val).strip()
-        if len(s) >= 10 and s[4] == '-' and s[7] == '-':
-            return s[:10]
-        return None
+        """Fachada Campamento Base → score_service._fecha_dia_servidor."""
+        return score_service._fecha_dia_servidor(fecha_val)
+
 
     def _dia_hoy_servidor(self) -> str:
         """Fachada Campamento Base → score_service._dia_hoy_servidor."""
@@ -1955,7 +1752,9 @@ class DBManager:
 
 
     def _motivo_regla8(self, dia_fin: str) -> str:
-        return f'regla8_racha_7dias_{dia_fin}'
+        """Fachada Campamento Base → score_service._motivo_regla8."""
+        return score_service._motivo_regla8(self, dia_fin)
+
 
     def _tiene_premio_regla8_reciente(self, codigo_aliado: str, dia_fin: str) -> bool:
         """Fachada Campamento Base → score_service._tiene_premio_regla8_reciente."""
@@ -1972,39 +1771,9 @@ class DBManager:
 
 
     def _baseline_acceso_dia(self, codigo_aliado: str) -> Optional[str]:
-        """Último día de login o fecha de alta (YYYY-MM-DD)."""
-        codigo_aliado = (codigo_aliado or '').strip()
-        if not codigo_aliado:
-            return None
-        with self._lock:
-            try:
-                conn = self._connect()
-                cursor = conn.cursor()
-                cursor.execute(
-                    """
-                    SELECT MAX(dia) FROM aliado_accesos_dia WHERE codigo_aliado = ?
-                    """,
-                    (codigo_aliado,),
-                )
-                row = cursor.fetchone()
-                ultimo = (row[0] if row else None) or None
-                if ultimo and len(str(ultimo)) >= 10:
-                    return str(ultimo)[:10]
-                cursor.execute(
-                    "SELECT creado_en FROM aliados WHERE codigo = ?",
-                    (codigo_aliado,),
-                )
-                row = cursor.fetchone()
-                if not row or not row[0]:
-                    return None
-                return self._fecha_dia_servidor(row[0]) or self._dia_hoy_servidor()
-            except Exception:
-                return None
-            finally:
-                try:
-                    conn.close()
-                except Exception:
-                    pass
+        """Fachada Campamento Base → score_service._baseline_acceso_dia."""
+        return score_service._baseline_acceso_dia(self, codigo_aliado)
+
 
     def aplicar_penalizacion_sin_acceso_semanal(
         self,
@@ -2035,15 +1804,9 @@ class DBManager:
 
     @staticmethod
     def _anio_mes_de(fecha_val: Any) -> Optional[str]:
-        """Normaliza timestamp/fecha a 'YYYY-MM'."""
-        if fecha_val is None:
-            return None
-        if isinstance(fecha_val, datetime):
-            return fecha_val.strftime('%Y-%m')
-        s = str(fecha_val).strip()
-        if len(s) >= 7 and s[4] == '-':
-            return s[:7]
-        return None
+        """Fachada Campamento Base → score_service._anio_mes_de."""
+        return score_service._anio_mes_de(fecha_val)
+
 
     def _motivo_regla4_mes(self, anio_mes: str) -> str:
         """Fachada Campamento Base → score_service._motivo_regla4_mes."""

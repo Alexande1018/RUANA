@@ -4,6 +4,8 @@ Extracción progresiva desde DBManager. Las fachadas permanecen en DBManager.
 SQL de negociación vía NegociacionRepo (negociacion_manager permanece aparte).
 """
 from __future__ import annotations
+import re
+
 
 from datetime import datetime, timedelta
 
@@ -805,4 +807,59 @@ def listar_resumenes_acuerdo_visibles(db, codigo_aliado: str) -> List[Dict[str, 
         finally:
             if conn:
                 conn.close()
+
+
+def _parse_importe_acuerdo(db, valor: Any) -> Optional[float]:
+    """Extrae un importe numérico > 0 del valor acordado en negociación (p. ej. «150», «150€»)."""
+    if valor is None:
+        return None
+    if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+        return float(valor) if float(valor) > 0 else None
+    texto = str(valor).strip()
+    if not texto:
+        return None
+    texto = texto.replace(',', '.').replace('€', ' ').replace('EUR', ' ').replace('eur', ' ')
+    match = re.search(r'(\d+(?:\.\d+)?)', texto)
+    if not match:
+        return None
+    try:
+        importe = float(match.group(1))
+    except (TypeError, ValueError):
+        return None
+    return importe if importe > 0 else None
+
+
+def _flags_cierre_acuerdo(db, contacto: Dict[str, Any], rol: str) -> Dict[str, Any]:
+    conf_sol = bool(contacto.get('cierre_confirmado_solicitante_en'))
+    conf_pro = bool(contacto.get('cierre_confirmado_profesional_en'))
+    yo = conf_sol if rol == 'solicitante' else conf_pro
+    dismiss = bool(
+        contacto.get('resumen_dismiss_solicitante_en')
+        if rol == 'solicitante'
+        else contacto.get('resumen_dismiss_profesional_en')
+    )
+    return {
+        'cierre_confirmado_solicitante': conf_sol,
+        'cierre_confirmado_profesional': conf_pro,
+        'yo_confirme_cierre': yo,
+        'ambos_confirmaron_cierre': conf_sol and conf_pro,
+        'resumen_dismissed': dismiss,
+    }
+
+
+def _parse_acuerdo_resumen_campo(db, raw: Any) -> Optional[Dict[str, Any]]:
+    if raw is None or raw == '':
+        return None
+    if isinstance(raw, dict):
+        return raw
+    try:
+        data = json.loads(raw) if isinstance(raw, str) else None
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
+def _importe_oficial_contacto(db, contacto: Dict[str, Any]) -> Optional[float]:
+    """Importe oficial del encargo (precio negociado)."""
+    return db._parse_importe_acuerdo(db._precio_valor_desde_contacto(contacto))
 
