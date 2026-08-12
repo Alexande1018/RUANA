@@ -178,3 +178,63 @@ def test_aliado_solicitudes_module_is_wired():
     assert 'id="solicitudes-list"' in aliado
     assert 'id="solicitudes-propias-list"' in aliado
     assert 'id="solicitudes-historial-list"' in aliado
+
+
+def test_aliado_acuerdos_module_is_wired():
+    """Módulo PrivatePanel `acuerdos` (Mis acuerdos); PrivatePanel solo fachada."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    acuerdos_js = (root / "static" / "js" / "aliado-acuerdos-module.js").read_text(encoding="utf-8")
+    modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
+
+    assert 'src="/static/js/aliado-modules.js"' in aliado
+    assert 'src="/static/js/aliado-acuerdos-module.js"' in aliado
+    assert "RuanaAliadoModules" in modules_js
+    assert "acuerdos: null" in modules_js
+    assert "RuanaAliadoModules.acuerdos" in acuerdos_js or "modules.acuerdos" in acuerdos_js
+    assert "cargarMisAcuerdos" in acuerdos_js
+    assert "renderMisAcuerdos" in acuerdos_js
+    assert "mis-acuerdos-lista" in acuerdos_js
+    assert "/api/aliado/acuerdos" in acuerdos_js
+    # Fachadas delgadas en PrivatePanel
+    assert "_acuerdosModule" in aliado
+    assert "mod.cargarMisAcuerdos(this)" in aliado
+    assert "mod.renderMisAcuerdos(this)" in aliado
+    assert "mod.toggleMisAcuerdoExpandido(this, contactoId)" in aliado
+    # Markup permanece en aliado.html
+    assert 'id="mis-acuerdos-wrap"' in aliado
+    assert 'id="mis-acuerdos-lista"' in aliado
+    assert 'id="mis-acuerdos-filtros"' in aliado
+
+
+def test_aliado_centro_comunicacion_module_is_wired():
+    """Módulo PrivatePanel `centroComunicacion` (FAB soporte); PrivatePanel solo fachada."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    centro_js = (root / "static" / "js" / "aliado-centro-comunicacion-module.js").read_text(
+        encoding="utf-8"
+    )
+    modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
+
+    assert 'src="/static/js/aliado-modules.js"' in aliado
+    assert 'src="/static/js/aliado-centro-comunicacion-module.js"' in aliado
+    assert "RuanaAliadoModules" in modules_js
+    assert "centroComunicacion: null" in modules_js
+    assert (
+        "RuanaAliadoModules.centroComunicacion" in centro_js
+        or "modules.centroComunicacion" in centro_js
+    )
+    assert "renderCentroComunicacion" in centro_js
+    assert "abrirCentroComunicacion" in centro_js
+    assert "enviarNuevoMensajeSoporte" in centro_js
+    assert "ruana-help-threads" in centro_js
+    assert "/centro-comunicacion" in centro_js
+    # Fachadas delgadas en PrivatePanel
+    assert "_centroComunicacionModule" in aliado
+    assert "mod.renderCentroComunicacion(this)" in aliado
+    assert "mod.toggleCentroComunicacion(this)" in aliado
+    assert "mod.enviarNuevoMensajeSoporte(this)" in aliado
+    # Markup permanece en aliado.html
+    assert 'id="ruana-help-fab"' in aliado
+    assert 'id="ruana-help-overlay"' in aliado
+    assert 'id="ruana-help-threads"' in aliado

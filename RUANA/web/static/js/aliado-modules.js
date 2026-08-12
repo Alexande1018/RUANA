@@ -8,6 +8,8 @@
  * `referidos` → aliado-referidos-module.js (modal linaje; árbol en referidos-module.js)
  * `directorio` → aliado-directorio-module.js (lista profesionales / score etiqueta)
  * `solicitudes` → aliado-solicitudes-module.js (entrantes / propias / historial)
+ * `acuerdos` → aliado-acuerdos-module.js (Mis acuerdos)
+ * `centroComunicacion` → aliado-centro-comunicacion-module.js (FAB soporte)
  */
 (function (global) {
   'use strict';
@@ -18,5 +20,7 @@
     conexiones: null,
     perfil: null,
     referidos: null,
+    acuerdos: null,
+    centroComunicacion: null,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

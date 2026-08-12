@@ -2182,6 +2182,8 @@
     <script src="/static/js/aliado-referidos-module.js" defer></script>
     <script src="/static/js/aliado-directorio-module.js" defer></script>
     <script src="/static/js/aliado-solicitudes-module.js" defer></script>
+    <script src="/static/js/aliado-acuerdos-module.js" defer></script>
+    <script src="/static/js/aliado-centro-comunicacion-module.js" defer></script>
     <script src="/static/js/aliado-shell.js" defer></script>
     <link rel="stylesheet" href="/static/css/negociacion-guiada.css">
     <script src="/static/js/negociacion-guiada.js" defer></script>
@@ -4063,163 +4065,53 @@
                 }
             }
 
+            /** Fachada Campamento Base → RuanaAliadoModules.acuerdos */
+            _acuerdosModule() {
+                return (typeof RuanaAliadoModules !== 'undefined' && RuanaAliadoModules.acuerdos) || null;
+            }
+
             async cargarMisAcuerdos() {
-                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
-                if (!codigo) return;
-                try {
-                    const params = new URLSearchParams();
-                    params.set('limite', '100');
-                    const rol = this.misAcuerdosFiltro || 'todos';
-                    if (rol && rol !== 'todos') params.set('rol', rol);
-                    const estado = (this.misAcuerdosFiltroEstado || '').trim();
-                    if (estado) params.set('estado', estado);
-                    const desde = (this.misAcuerdosFiltroDesde || '').trim();
-                    if (desde) params.set('desde', desde);
-                    const hasta = (this.misAcuerdosFiltroHasta || '').trim();
-                    if (hasta) params.set('hasta', hasta);
-                    const resp = await fetch(`/api/aliado/acuerdos?${params.toString()}`, {
-                        credentials: 'same-origin',
-                        headers: getRuanaAuthHeaders(),
-                    });
-                    if (!resp.ok) return;
-                    const data = await resp.json();
-                    this.misAcuerdos = (data.status === 'success' && Array.isArray(data.acuerdos))
-                        ? data.acuerdos
-                        : [];
-                    this.misAcuerdosVisibles = this.misAcuerdosPageSize || 5;
-                    this.misAcuerdosExpandidos = new Set();
-                    this.renderMisAcuerdos();
-                } catch (e) {
-                    console.error('Error cargando Mis acuerdos:', e);
+                const mod = this._acuerdosModule();
+                if (mod && typeof mod.cargarMisAcuerdos === 'function') {
+                    return mod.cargarMisAcuerdos(this);
                 }
             }
 
             etiquetaEstadoAcuerdo(a) {
-                if (a && a.estado_label) return a.estado_label;
-                const labels = {
-                    iniciado: 'Iniciado',
-                    aceptado: 'Aceptado',
-                    en_conversacion: 'En conversación',
-                    trabajo_en_progreso: 'En curso',
-                    acuerdo_alcanzado: 'Acuerdo confirmado',
-                    trabajo_cerrado: 'Finalizado',
-                    cerrado_no_concretado: 'Cancelado',
-                    no_concretado: 'No concretado',
-                    importe_en_disputa: 'Importe en disputa',
-                };
-                const est = (a && a.estado) || '';
-                return labels[est] || est || 'Sin estado';
+                const mod = this._acuerdosModule();
+                if (mod && typeof mod.etiquetaEstadoAcuerdo === 'function') {
+                    return mod.etiquetaEstadoAcuerdo(a);
+                }
+                return (a && a.estado_label) || (a && a.estado) || 'Sin estado';
             }
 
             formatearFechaAcuerdo(raw) {
-                if (!raw) return '';
-                const s = String(raw).trim();
-                const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-                if (m) return `${m[3]}/${m[2]}/${m[1]}`;
-                return s.slice(0, 16);
+                const mod = this._acuerdosModule();
+                if (mod && typeof mod.formatearFechaAcuerdo === 'function') {
+                    return mod.formatearFechaAcuerdo(raw);
+                }
+                return raw ? String(raw).slice(0, 16) : '';
             }
 
             toggleMisAcuerdoExpandido(contactoId) {
-                const id = String(contactoId || '');
-                if (!id) return;
-                if (!this.misAcuerdosExpandidos) this.misAcuerdosExpandidos = new Set();
-                if (this.misAcuerdosExpandidos.has(id)) {
-                    this.misAcuerdosExpandidos.delete(id);
-                } else {
-                    this.misAcuerdosExpandidos.add(id);
+                const mod = this._acuerdosModule();
+                if (mod && typeof mod.toggleMisAcuerdoExpandido === 'function') {
+                    return mod.toggleMisAcuerdoExpandido(this, contactoId);
                 }
-                this.renderMisAcuerdos();
             }
 
             mostrarMasMisAcuerdos() {
-                const page = this.misAcuerdosPageSize || 5;
-                const total = (this.misAcuerdos || []).length;
-                this.misAcuerdosVisibles = Math.min(
-                    total,
-                    (this.misAcuerdosVisibles || page) + page
-                );
-                this.renderMisAcuerdos();
+                const mod = this._acuerdosModule();
+                if (mod && typeof mod.mostrarMasMisAcuerdos === 'function') {
+                    return mod.mostrarMasMisAcuerdos(this);
+                }
             }
 
             renderMisAcuerdos() {
-                const lista = document.getElementById('mis-acuerdos-lista');
-                if (!lista) return;
-                const filtro = this.misAcuerdosFiltro || 'todos';
-                document.querySelectorAll('.mis-acuerdos-filtro').forEach((btn) => {
-                    btn.classList.toggle('active', btn.getAttribute('data-filtro') === filtro);
-                });
-                const selEstado = document.getElementById('mis-acuerdos-filtro-estado');
-                if (selEstado && selEstado.value !== (this.misAcuerdosFiltroEstado || '')) {
-                    selEstado.value = this.misAcuerdosFiltroEstado || '';
+                const mod = this._acuerdosModule();
+                if (mod && typeof mod.renderMisAcuerdos === 'function') {
+                    return mod.renderMisAcuerdos(this);
                 }
-                const inpDesde = document.getElementById('mis-acuerdos-filtro-desde');
-                if (inpDesde) inpDesde.value = this.misAcuerdosFiltroDesde || '';
-                const inpHasta = document.getElementById('mis-acuerdos-filtro-hasta');
-                if (inpHasta) inpHasta.value = this.misAcuerdosFiltroHasta || '';
-
-                const items = this.misAcuerdos || [];
-                if (!items.length) {
-                    lista.innerHTML = '<p class="mis-acuerdos-empty">No hay acuerdos con estos filtros.</p>';
-                    return;
-                }
-
-                const page = this.misAcuerdosPageSize || 5;
-                if (!this.misAcuerdosVisibles || this.misAcuerdosVisibles < page) {
-                    this.misAcuerdosVisibles = page;
-                }
-                const visibles = items.slice(0, this.misAcuerdosVisibles);
-                const quedan = items.length - visibles.length;
-                const expandidos = this.misAcuerdosExpandidos || new Set();
-
-                const cardsHtml = visibles.map((a) => {
-                    const cid = String(a.contacto_id);
-                    const abierto = expandidos.has(cid);
-                    const badge = a.rol === 'contrate'
-                        ? '<span class="mis-acuerdos-badge contrate">Contrataste</span>'
-                        : '<span class="mis-acuerdos-badge contratado">Te contrataron</span>';
-                    const campos = a.campos || {};
-                    const detalles = ['fecha', 'hora', 'precio', 'direccion']
-                        .filter((k) => campos[k])
-                        .map((k) => `<span>${this.escapeHtml(k)}: ${this.escapeHtml(String(campos[k]))}</span>`)
-                        .join('');
-                    const estadoTxt = this.etiquetaEstadoAcuerdo(a);
-                    const estadoCls = `estado-${this.escapeHtml((a.estado || 'otro').replace(/_/g, '-'))}`;
-                    const fechaTxt = this.formatearFechaAcuerdo(
-                        a.fecha_referencia || a.acuerdo_alcanzado_en || a.fecha_cierre || a.creado_en
-                    );
-                    const fechaHtml = fechaTxt
-                        ? `<time class="mis-acuerdos-fecha" datetime="${this.escapeHtml(String(a.fecha_referencia || a.creado_en || ''))}">${this.escapeHtml(fechaTxt)}</time>`
-                        : '';
-                    const detallesBlock = detalles
-                        ? `<div class="mis-acuerdos-detalles">${detalles}</div>`
-                        : '<p class="mis-acuerdos-detalles-empty">Sin detalles adicionales del acuerdo.</p>';
-                    return `<article class="mis-acuerdos-card ${abierto ? 'is-open' : 'is-collapsed'}" data-contacto-id="${this.escapeHtml(cid)}" data-estado="${this.escapeHtml(a.estado || '')}" aria-expanded="${abierto ? 'true' : 'false'}">
-                        <button type="button" class="mis-acuerdos-card-toggle" data-acuerdo-toggle="${this.escapeHtml(cid)}" aria-expanded="${abierto ? 'true' : 'false'}">
-                            <div class="mis-acuerdos-card-head">
-                                ${badge}
-                                <span class="mis-acuerdos-estado ${estadoCls}">${this.escapeHtml(estadoTxt)}</span>
-                            </div>
-                            <div class="mis-acuerdos-card-summary">
-                                <h4 class="mis-acuerdos-servicio">${this.escapeHtml(a.servicio || 'Servicio')}</h4>
-                                <span class="mis-acuerdos-chevron" aria-hidden="true"></span>
-                            </div>
-                        </button>
-                        <div class="mis-acuerdos-card-body" ${abierto ? '' : 'hidden'}>
-                            <p class="mis-acuerdos-meta">Con aliado ${this.escapeHtml(a.contraparte_codigo || '—')}${fechaHtml ? ` · ${fechaHtml}` : ''}</p>
-                            ${detallesBlock}
-                        </div>
-                    </article>`;
-                }).join('');
-
-                const masHtml = quedan > 0
-                    ? `<div class="mis-acuerdos-mas-wrap">
-                        <button type="button" class="mis-acuerdos-mostrar-mas" id="mis-acuerdos-mostrar-mas" data-acuerdo-mas="1">
-                            Mostrar más <span class="mis-acuerdos-mas-restantes">(+${quedan})</span>
-                        </button>
-                       </div>`
-                    : '';
-
-                lista.innerHTML = cardsHtml + masHtml;
             }
 
             async cargarResumenesAcuerdoFlotantes() {
@@ -5790,188 +5682,73 @@
                 }
             }
 
+            /** Fachada Campamento Base → RuanaAliadoModules.centroComunicacion */
+            _centroComunicacionModule() {
+                return (typeof RuanaAliadoModules !== 'undefined' && RuanaAliadoModules.centroComunicacion) || null;
+            }
+
             formatHelpStatus(estado) {
-                const key = String(estado || 'pendiente').toLowerCase();
-                const labels = {
-                    pendiente: 'Pendiente',
-                    en_revision: 'En revisión',
-                    respondido: 'Respondido',
-                    cerrado: 'Cerrado',
-                    reabierto: 'Reabierto'
-                };
-                return labels[key] || 'Pendiente';
+                const mod = this._centroComunicacionModule();
+                if (mod && typeof mod.formatHelpStatus === 'function') {
+                    return mod.formatHelpStatus(estado);
+                }
+                return 'Pendiente';
             }
 
             abrirCentroComunicacion() {
-                const overlay = document.getElementById('ruana-help-overlay');
-                const fab = document.getElementById('ruana-help-fab');
-                if (!overlay) return;
-                overlay.classList.add('is-open');
-                overlay.setAttribute('aria-hidden', 'false');
-                if (fab) fab.classList.add('is-open');
-                this.renderCentroComunicacion();
-                const subject = document.getElementById('ruana-help-subject');
-                if (subject) setTimeout(() => subject.focus(), 220);
+                const mod = this._centroComunicacionModule();
+                if (mod && typeof mod.abrirCentroComunicacion === 'function') {
+                    return mod.abrirCentroComunicacion(this);
+                }
             }
 
             cerrarCentroComunicacion() {
-                const overlay = document.getElementById('ruana-help-overlay');
-                const fab = document.getElementById('ruana-help-fab');
-                if (!overlay) return;
-                overlay.classList.remove('is-open');
-                overlay.setAttribute('aria-hidden', 'true');
-                if (fab) fab.classList.remove('is-open');
+                const mod = this._centroComunicacionModule();
+                if (mod && typeof mod.cerrarCentroComunicacion === 'function') {
+                    return mod.cerrarCentroComunicacion();
+                }
             }
 
             toggleCentroComunicacion() {
-                const overlay = document.getElementById('ruana-help-overlay');
-                if (!overlay) return;
-                if (overlay.classList.contains('is-open')) this.cerrarCentroComunicacion();
-                else this.abrirCentroComunicacion();
+                const mod = this._centroComunicacionModule();
+                if (mod && typeof mod.toggleCentroComunicacion === 'function') {
+                    return mod.toggleCentroComunicacion(this);
+                }
             }
 
             renderCentroComunicacion() {
-                const list = document.getElementById('ruana-help-threads');
-                const unreadPill = document.getElementById('ruana-help-unread-pill');
-                const fabBadge = document.getElementById('ruana-help-fab-badge');
-                if (!list || !unreadPill) return;
-                const conversaciones = Array.isArray(this.soporteConversations) ? this.soporteConversations : [];
-                const unreadCount = conversaciones.filter(c => Number(c.tiene_no_leido_aliado || 0) > 0).length;
-                unreadPill.textContent = unreadCount + ' sin leer';
-                if (fabBadge) {
-                    fabBadge.textContent = String(unreadCount);
-                    fabBadge.classList.toggle('is-visible', unreadCount > 0);
+                const mod = this._centroComunicacionModule();
+                if (mod && typeof mod.renderCentroComunicacion === 'function') {
+                    return mod.renderCentroComunicacion(this);
                 }
-                if (!conversaciones.length) {
-                    list.innerHTML = '<div class="ruana-help-empty">Aún no tienes conversaciones. Escríbenos y te respondemos por aquí.</div>';
-                    this.renderMensajesCentroComunicacion();
-                    return;
-                }
-                list.innerHTML = conversaciones.map((c) => {
-                    const active = Number(c.id) === Number(this.soporteSelectedId) ? ' is-active' : '';
-                    const hasUnread = Number(c.tiene_no_leido_aliado || 0) > 0 ? ' has-unread' : '';
-                    const fecha = c.ultimo_mensaje_en ? new Date(c.ultimo_mensaje_en).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '';
-                    return `<div class="ruana-help-thread-item${active}${hasUnread}" data-conv-id="${c.id}">
-                        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">
-                            <strong style="font-size:0.85rem;">${this.escapeHtml(c.asunto || 'Consulta')}</strong>
-                            <span class="ruana-help-status estado-${this.escapeHtml(c.estado || 'pendiente')}">${this.formatHelpStatus(c.estado)}</span>
-                        </div>
-                        <div style="color:#cbd5e1;font-size:0.8rem;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${this.escapeHtml(c.ultimo_mensaje_preview || 'Sin mensajes')}</div>
-                        <div class="ruana-help-meta">${fecha}</div>
-                    </div>`;
-                }).join('');
-                list.querySelectorAll('[data-conv-id]').forEach((el) => {
-                    el.addEventListener('click', () => this.seleccionarConversacionSoporte(el.getAttribute('data-conv-id')));
-                });
-                this.renderMensajesCentroComunicacion();
             }
 
             async seleccionarConversacionSoporte(conversacionId) {
-                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
-                if (!codigo || !conversacionId) return;
-                this.soporteSelectedId = Number(conversacionId);
-                const apiBase = getApiBase();
-                const r = await fetch(apiBase + '/api/aliados/' + encodeURIComponent(codigo) + '/centro-comunicacion/' + Number(conversacionId) + '/mensajes', {
-                    credentials: 'same-origin',
-                    headers: getRuanaAuthHeaders()
-                });
-                const data = await r.json().catch(() => ({}));
-                this.soporteMensajes = data.status === 'success' && Array.isArray(data.mensajes) ? data.mensajes : [];
-                await fetch(apiBase + '/api/aliados/' + encodeURIComponent(codigo) + '/centro-comunicacion/' + Number(conversacionId) + '/marcar-leida', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: getRuanaAuthHeaders()
-                }).catch(() => null);
-                await this.fetchCentroComunicacionSnapshot();
-                this.renderCentroComunicacion();
+                const mod = this._centroComunicacionModule();
+                if (mod && typeof mod.seleccionarConversacionSoporte === 'function') {
+                    return mod.seleccionarConversacionSoporte(this, conversacionId);
+                }
             }
 
             renderMensajesCentroComunicacion() {
-                const box = document.getElementById('ruana-help-messages');
-                const header = document.getElementById('ruana-help-thread-header');
-                const reply = document.getElementById('ruana-help-reply');
-                const replyBtn = document.getElementById('ruana-help-reply-btn');
-                if (!box || !header || !reply || !replyBtn) return;
-                const conv = (this.soporteConversations || []).find(c => Number(c.id) === Number(this.soporteSelectedId));
-                if (!conv) {
-                    header.textContent = 'Selecciona una conversación para ver el historial.';
-                    box.innerHTML = '';
-                    reply.disabled = true;
-                    replyBtn.disabled = true;
-                    return;
+                const mod = this._centroComunicacionModule();
+                if (mod && typeof mod.renderMensajesCentroComunicacion === 'function') {
+                    return mod.renderMensajesCentroComunicacion(this);
                 }
-                header.innerHTML = `<strong>${this.escapeHtml(conv.asunto || 'Consulta')}</strong> · <span class="ruana-help-status estado-${this.escapeHtml(conv.estado || 'pendiente')}">${this.formatHelpStatus(conv.estado)}</span>`;
-                reply.disabled = false;
-                replyBtn.disabled = false;
-                const mensajes = Array.isArray(this.soporteMensajes) ? this.soporteMensajes : [];
-                box.innerHTML = mensajes.map((m) => {
-                    const fromAdmin = (m.emisor_tipo || '') === 'admin';
-                    const fecha = m.creado_en ? new Date(m.creado_en).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '';
-                    return `<div class="ruana-help-message ${fromAdmin ? 'from-admin' : 'from-aliado'}">
-                        ${this.escapeHtml(m.mensaje || '')}
-                        <span class="ruana-help-meta">${fromAdmin ? 'Equipo RUANA' : 'Tú'} · ${fecha}</span>
-                    </div>`;
-                }).join('');
-                box.scrollTop = box.scrollHeight;
             }
 
             async enviarNuevoMensajeSoporte() {
-                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
-                if (!codigo) return;
-                const asuntoEl = document.getElementById('ruana-help-subject');
-                const categoriaEl = document.getElementById('ruana-help-category');
-                const mensajeEl = document.getElementById('ruana-help-message');
-                if (!asuntoEl || !mensajeEl || !categoriaEl) return;
-                const asunto = (asuntoEl.value || '').trim();
-                const mensaje = (mensajeEl.value || '').trim();
-                if (!asunto || !mensaje) {
-                    if (window.RuanaUI) RuanaUI.toast('Completa asunto y mensaje.', 'warning');
-                    return;
+                const mod = this._centroComunicacionModule();
+                if (mod && typeof mod.enviarNuevoMensajeSoporte === 'function') {
+                    return mod.enviarNuevoMensajeSoporte(this);
                 }
-                const apiBase = getApiBase();
-                const r = await fetch(apiBase + '/api/aliados/' + encodeURIComponent(codigo) + '/centro-comunicacion', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
-                    body: JSON.stringify({ asunto, categoria: categoriaEl.value || 'consulta', mensaje })
-                });
-                const data = await r.json().catch(() => ({}));
-                if (data.status !== 'success') {
-                    if (window.RuanaUI) RuanaUI.toast(data.message || 'No se pudo enviar el mensaje.', 'error');
-                    return;
-                }
-                asuntoEl.value = '';
-                mensajeEl.value = '';
-                if (window.RuanaUI) RuanaUI.toast('Tu mensaje fue enviado. ✅', 'success');
-                await this.fetchCentroComunicacionSnapshot();
-                this.soporteSelectedId = Number(data.conversacion_id || 0) || this.soporteSelectedId;
-                if (this.soporteSelectedId) await this.seleccionarConversacionSoporte(this.soporteSelectedId);
-                this.renderCentroComunicacion();
             }
 
             async responderConversacionSoporte() {
-                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
-                const convId = Number(this.soporteSelectedId || 0);
-                if (!codigo || !convId) return;
-                const replyEl = document.getElementById('ruana-help-reply');
-                if (!replyEl) return;
-                const mensaje = (replyEl.value || '').trim();
-                if (!mensaje) return;
-                const apiBase = getApiBase();
-                const r = await fetch(apiBase + '/api/aliados/' + encodeURIComponent(codigo) + '/centro-comunicacion/' + convId + '/mensajes', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
-                    body: JSON.stringify({ mensaje })
-                });
-                const data = await r.json().catch(() => ({}));
-                if (data.status !== 'success') {
-                    if (window.RuanaUI) RuanaUI.toast(data.message || 'No se pudo responder.', 'error');
-                    return;
+                const mod = this._centroComunicacionModule();
+                if (mod && typeof mod.responderConversacionSoporte === 'function') {
+                    return mod.responderConversacionSoporte(this);
                 }
-                replyEl.value = '';
-                if (window.RuanaUI) RuanaUI.toast('Respuesta enviada al equipo RUANA. 💬', 'success');
-                await this.seleccionarConversacionSoporte(convId);
             }
 
             /**
