@@ -1,7 +1,8 @@
-"""Blueprint admin — bloque dashboard / lecturas (Campamento Base #3).
+"""Blueprint admin — lecturas dashboard + mutaciones seguras de control.
 
-Rutas GET movidas desde web/app.py. Comportamiento y paths idénticos.
-Auth, login/logout y mutaciones destructivas permanecen en app.py por ahora.
+Rutas GET y mutaciones (activar/rechazar/eliminar aliado, forzar competencia, plazas, reglas)
+movidas desde web/app.py. Comportamiento y paths idénticos.
+Auth JWT/login/logout y cambio de contraseña permanecen en app.py.
 """
 
 from __future__ import annotations
@@ -13,12 +14,14 @@ from datetime import datetime
 
 from core.settings import get_settings
 from core.storage_manager import resolve_admin_document_access_url
+from core.auth_session import _ruana_session_invalidate_for_codigo
 
 from core import db_manager as db_manager_mod
 from web.auth_decorators import (
     _admin_codigo,
     _admin_permisos,
     require_admin,
+    require_admin_escritura,
 )
 
 admin_bp = Blueprint("admin", __name__)
@@ -599,5 +602,227 @@ def admin_pagos_en_revision():
         db = get_db()
         lista = db.listar_contactos_pagos_en_revision()
         return jsonify({'status': 'success', 'pagos': lista})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+# ---------- Mutaciones admin (control de aliados / plazas / reglas) ----------
+
+
+@admin_bp.route('/api/admin/forzar-competencia', methods=['POST'])
+@admin_bp.route('/api/admin/forzar-suplencia', methods=['POST'])
+@require_admin
+def admin_forzar_competencia():
+    """
+    POST /api/admin/forzar-competencia (alias: /api/admin/forzar-suplencia)
+    Body: { "grupo_id": int, "oficio": str, "aliado_original_codigo": str, "retador_codigo": str }
+    También acepta "suplente_codigo" por compatibilidad.
+    """
+    try:
+        data = request.get_json() or {}
+        grupo_id = data.get('grupo_id')
+        oficio = (data.get('oficio') or '').strip()
+        aliado_original_codigo = (data.get('aliado_original_codigo') or '').strip()
+        retador_codigo = (data.get('retador_codigo') or data.get('suplente_codigo') or '').strip()
+        if grupo_id is None or not oficio or not aliado_original_codigo or not retador_codigo:
+            return jsonify({'status': 'error', 'message': 'Faltan grupo_id, oficio, aliado_original_codigo o retador_codigo'}), 400
+        db = get_db()
+        admin_codigo = _admin_codigo() or None
+        result = db.forzar_competencia(int(grupo_id), oficio, aliado_original_codigo, retador_codigo, admin_codigo=admin_codigo)
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/admin/suplentes-espera/<codigo>/incorporar', methods=['POST'])
+@require_admin_escritura
+def admin_incorporar_suplente_espera(codigo):
+    """
+    POST /api/admin/suplentes-espera/<codigo>/incorporar
+    Body opcional: { "grupo_id": int }
+    Incorpora al aliado en_espera: lo activa y asigna a un grupo con plaza libre.
+    """
+    try:
+        data = request.get_json() or {}
+        grupo_id = data.get('grupo_id')
+        db = get_db()
+        admin_codigo = _admin_codigo() or None
+        result = db.incorporar_aliado_espera(
+            codigo=codigo,
+            grupo_id=int(grupo_id) if grupo_id else None,
+            admin_codigo=admin_codigo,
+        )
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/admin/rechazar-aliado', methods=['POST'])
+@require_admin_escritura
+def admin_rechazar_aliado():
+    """
+    POST /api/admin/rechazar-aliado
+    Body: { "codigo": "12345" }
+    Rechaza un aliado pendiente de validación. Pasa a estado rechazado y no podrá entrar al panel.
+    """
+    try:
+        data = request.get_json() or {}
+        codigo = (data.get('codigo') or '').strip()
+        if not codigo:
+            return jsonify({'status': 'error', 'message': 'C?digo de aliado obligatorio'}), 400
+        db = get_db()
+        result = db.rechazar_aliado_pendiente(codigo)
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/admin/eliminar-aliado', methods=['POST'])
+@require_admin_escritura
+def admin_eliminar_aliado():
+    """
+    POST /api/admin/eliminar-aliado
+    Body: { "codigo": "12345", "motivo": "opcional" }
+    Elimina el perfil de un aliado desde Control de aliados (expulsado/rechazado o borrado si placeholder).
+    """
+    try:
+        data = request.get_json() or {}
+        codigo = (data.get('codigo') or '').strip()
+        if not codigo:
+            return jsonify({'status': 'error', 'message': 'C?digo de aliado obligatorio'}), 400
+        motivo = (data.get('motivo') or '').strip() or None
+        db = get_db()
+        result = db.eliminar_perfil_aliado_admin(
+            codigo,
+            motivo=motivo,
+            admin_codigo=_admin_codigo() or None,
+        )
+        if result.get('status') == 'success':
+            _ruana_session_invalidate_for_codigo(codigo)
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/admin/users/<int:user_id>/activate', methods=['PATCH'])
+@require_admin_escritura
+def admin_users_activate(user_id):
+    """
+    PATCH /api/admin/users/{id}/activate
+    Activa un aliado pendiente de validación por ID. Actualización en tiempo real.
+    """
+    try:
+        db = get_db()
+        result = db.activar_aliado_por_id(user_id)
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/admin/activar-aliado', methods=['POST'])
+@require_admin_escritura
+def admin_activar_aliado():
+    """
+    POST /api/admin/activar-aliado
+    Body: { "codigo": "12345" }
+    Activa un aliado pendiente de validación (cambia estado a activo).
+    """
+    try:
+        data = request.get_json() or {}
+        codigo = (data.get('codigo') or '').strip()
+        if not codigo:
+            return jsonify({'status': 'error', 'message': 'C?digo de aliado obligatorio'}), 400
+        db = get_db()
+        result = db.activar_aliado_pendiente(codigo)
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/admin/cerrar-oficio', methods=['POST'])
+@require_admin_escritura
+def admin_cerrar_oficio():
+    """
+    POST /api/admin/cerrar-oficio
+    Body: { "grupo_id": int, "oficio": str }
+    """
+    try:
+        data = request.get_json() or {}
+        grupo_id = data.get('grupo_id')
+        oficio = (data.get('oficio') or '').strip()
+        if grupo_id is None or not oficio:
+            return jsonify({'status': 'error', 'message': 'Faltan grupo_id u oficio'}), 400
+        db = get_db()
+        admin_codigo = _admin_codigo() or None
+        result = db.cerrar_oficio_grupo(int(grupo_id), oficio, admin_codigo=admin_codigo)
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/admin/abrir-plaza', methods=['POST'])
+@require_admin
+def admin_abrir_plaza():
+    """
+    POST /api/admin/abrir-plaza
+    Body: { "grupo_id": int, "oficio": str }
+    Abre plaza: nueva profesión o reabrir plaza cerrada en el grupo.
+    """
+    try:
+        data = request.get_json() or {}
+        grupo_id = data.get('grupo_id')
+        oficio = (data.get('oficio') or '').strip()
+        if grupo_id is None or not oficio:
+            return jsonify({'status': 'error', 'message': 'Faltan grupo_id u oficio'}), 400
+        db = get_db()
+        admin_codigo = _admin_codigo() or None
+        result = db.abrir_plaza_grupo(int(grupo_id), oficio, admin_codigo=admin_codigo)
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/admin/generar-reporte', methods=['POST'])
+@require_admin
+def admin_generar_reporte():
+    """
+    POST /api/admin/generar-reporte
+    Devuelve resumen de aliados, contactos, grupos, competencias, plazas cerradas.
+    """
+    try:
+        db = get_db()
+        result = db.generar_reporte()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/admin/cambiar-reglas', methods=['POST'])
+@require_admin_escritura
+def admin_cambiar_reglas():
+    """
+    POST /api/admin/cambiar-reglas
+    Body: { "clave": str, "valor": int }
+    Claves: umbral_competencia, duracion_competencia_dias, purga_mensual_meses_sin_ganar, purga_score_bajo_umbral
+    """
+    try:
+        data = request.get_json() or {}
+        clave = (data.get('clave') or '').strip()
+        valor = data.get('valor')
+        if not clave or valor is None:
+            return jsonify({'status': 'error', 'message': 'Faltan clave o valor'}), 400
+        db = get_db()
+        admin_codigo = _admin_codigo() or None
+        result = db.cambiar_regla(clave, valor, admin_codigo=admin_codigo)
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
