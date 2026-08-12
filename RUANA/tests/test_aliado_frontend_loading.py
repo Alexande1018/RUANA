@@ -45,3 +45,25 @@ def test_aceptar_y_pagar_offers_manual_methods_and_receipt_upload():
     assert "QR Revolut" in text
     assert "Transferencia" in text
     assert "Subir comprobante" in text
+
+
+def test_aliado_inicio_module_is_wired():
+    """Módulo shell `inicio` extraído a JS; PrivatePanel solo fachada."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    inicio_js = (root / "static" / "js" / "aliado-inicio-module.js").read_text(encoding="utf-8")
+    modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
+
+    assert 'src="/static/js/aliado-modules.js"' in aliado
+    assert 'src="/static/js/aliado-inicio-module.js"' in aliado
+    assert 'src="/static/js/aliado-shell.js"' in aliado
+    assert "RuanaAliadoModules" in modules_js
+    assert "RuanaAliadoModules.inicio" in inicio_js or "modules.inicio" in inicio_js
+    assert "renderMetricas" in inicio_js
+    assert "score-alerta-panel" in inicio_js
+    assert "metric-score" in inicio_js
+    assert "maybeShowScoreChangeNotification" in inicio_js
+    # Fachadas delgadas en PrivatePanel
+    assert "_inicioModule" in aliado
+    assert "mod.renderMetricas(this)" in aliado
+    assert "mod.maybeShowScoreChangeNotification(this)" in aliado
