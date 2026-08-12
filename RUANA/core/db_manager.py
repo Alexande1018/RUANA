@@ -26,6 +26,8 @@ from core.db_constants import (
     RUANA_CODIGO_INVITACION_REGEX,
     SQL_ESTADO_CONTACTO_OCUPADO,
     SUFIJOS_GRUPO,
+    _email_liberado_aliado,
+    _telefono_liberado_aliado,
 )
 from core.services import score_service
 from core.services import schema_service
@@ -47,14 +49,6 @@ from core.repositories.score_repo import ScoreRepo
 
 
 # Reexport / compat: constantes viven en core.db_constants
-
-
-def _email_liberado_aliado(codigo: str) -> str:
-    return f'liberado+{codigo}@ruana.invalid'
-
-
-def _telefono_liberado_aliado(codigo: str) -> str:
-    return f'LIBERADO-{codigo}'
 
 
 class DBManager:
@@ -331,25 +325,24 @@ class DBManager:
 
 
     def _es_condicion_aliado_placeholder_sql(self) -> str:
-        """Condición SQL (sin WHERE) para detectar placeholders reales de invitación."""
-        return """(
-            LOWER(TRIM(COALESCE(estado, ''))) = 'pendiente_completar'
-        )"""
+        """Fachada Campamento Base → admin_service._es_condicion_aliado_placeholder_sql."""
+        return admin_service._es_condicion_aliado_placeholder_sql(self)
+
 
     def _purgar_placeholders_control_aliados(self, conn, cursor) -> None:
-        """Compatibilidad: ya no se purgan placeholders automáticamente."""
-        cursor.execute("SELECT 1 FROM migraciones WHERE nombre = 'purgar_placeholders_control_v1'")
-        if cursor.fetchone():
-            return
-        cursor.execute("INSERT INTO migraciones (nombre) VALUES ('purgar_placeholders_control_v1')")
+        """Fachada Campamento Base → admin_service._purgar_placeholders_control_aliados."""
+        return admin_service._purgar_placeholders_control_aliados(self, conn, cursor)
+
 
     def _ejecutar_purga_placeholders(self, cursor) -> int:
-        """Compatibilidad: no elimina placeholders de BD."""
-        return 0
+        """Fachada Campamento Base → admin_service._ejecutar_purga_placeholders."""
+        return admin_service._ejecutar_purga_placeholders(self, cursor)
+
 
     def purgar_aliados_placeholder(self) -> Dict[str, Any]:
-        """Compatibilidad: no elimina filas; placeholders se ocultan en listados."""
-        return {'status': 'success', 'eliminados': 0}
+        """Fachada Campamento Base → admin_service.purgar_aliados_placeholder."""
+        return admin_service.purgar_aliados_placeholder(self)
+
 
     def _migrar_datos_plaza_oficio(self, conn, cursor) -> None:
         """Fachada Campamento Base → schema_service._migrar_datos_plaza_oficio."""
@@ -1417,38 +1410,9 @@ class DBManager:
 
 
     def rechazar_aliado_pendiente(self, codigo: str) -> Dict[str, Any]:
-        """Rechaza un aliado en pendiente_validacion: estado pasa a rechazado. No podrá entrar al panel."""
-        codigo = (codigo or '').strip()
-        with self._lock:
-            try:
-                conn = self._connect()
-                cursor = conn.cursor()
-                cursor.execute(
-                    f"""
-                    UPDATE aliados
-                    SET estado = 'rechazado',
-                        email = ?,
-                        telefono = ?,
-                        qr_paypal_path = NULL,
-                        bizum_num = NULL,
-                        {ALIADO_FOTO_PERFIL_COLUMN} = NULL,
-                        actualizado_en = CURRENT_TIMESTAMP
-                    WHERE codigo = ? AND estado = 'pendiente_validacion'
-                    """,
-                    (
-                        _email_liberado_aliado(codigo),
-                        _telefono_liberado_aliado(codigo),
-                        codigo,
-                    ),
-                )
-                conn.commit()
-                if cursor.rowcount > 0:
-                    return {'status': 'success', 'message': f'Aliado {codigo} rechazado. No podrá acceder al panel.'}
-                return {'status': 'error', 'message': f'Aliado {codigo} no encontrado o no está pendiente de validación'}
-            except Exception as e:
-                return {'status': 'error', 'message': str(e)}
-            finally:
-                conn.close()
+        """Fachada Campamento Base → aliado_service.rechazar_aliado_pendiente."""
+        return aliado_service.rechazar_aliado_pendiente(self, codigo)
+
 
     # ===============================================
     # SOLICITUDES (tabla única solicitudes)
@@ -1857,13 +1821,10 @@ class DBManager:
         return chat_service.listar_chat_messages(self, limit, offset)
 
 
-    def _audit_log(self, cursor, entidad: str, entidad_id: int, accion: str,
-                   actor_tipo: str = "", actor_codigo: str = "", detalles: str = "") -> None:
-        """Registra una acción en audit_log."""
-        cursor.execute("""
-            INSERT INTO audit_log (entidad, entidad_id, accion, actor_tipo, actor_codigo, detalles)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (entidad, entidad_id, accion, actor_tipo or None, actor_codigo or None, detalles or None))
+    def _audit_log(self, cursor, entidad: str, entidad_id: int, accion: str, actor_tipo: str = "", actor_codigo: str = "", detalles: str = "") -> None:
+        """Fachada Campamento Base → admin_service._audit_log."""
+        return admin_service._audit_log(self, cursor, entidad, entidad_id, accion, actor_tipo, actor_codigo, detalles)
+
 
     def registrar_importe_contacto(self, contacto_id: int, parte: str,
                                    importe: float = None, moneda: str = "EUR",
@@ -1880,19 +1841,9 @@ class DBManager:
 
 
     def listar_codigos_aliados_activos(self) -> List[str]:
-        """Lista los códigos de todos los aliados con estado activo (para motor de evaluación)."""
-        with self._lock:
-            try:
-                conn = self._connect()
-                cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT codigo FROM aliados WHERE estado = 'activo' AND codigo IS NOT NULL AND TRIM(codigo) != '' ORDER BY id"
-                )
-                return [row[0] for row in cursor.fetchall()]
-            except Exception:
-                return []
-            finally:
-                conn.close()
+        """Fachada Campamento Base → admin_service.listar_codigos_aliados_activos."""
+        return admin_service.listar_codigos_aliados_activos(self)
+
 
     def obtener_metricas_motor_por_aliado(self, codigo_aliado: str) -> Dict[str, Any]:
         """Fachada Campamento Base → admin_service.obtener_metricas_motor_por_aliado."""
@@ -2156,35 +2107,9 @@ class DBManager:
     # ===============================================
     
     def exportar_a_json(self) -> Dict[str, Any]:
-        """Exporta toda la BD a JSON (para respaldos o migraciones)"""
-        with self._lock:
-            try:
-                conn = self._connect()
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                
-                # Obtener todas las tablas
-                cursor.execute("SELECT * FROM aliados")
-                aliados = [dict(row) for row in cursor.fetchall()]
-                
-                cursor.execute("SELECT * FROM grupos")
-                grupos = [dict(row) for row in cursor.fetchall()]
-                
-                cursor.execute("SELECT * FROM solicitudes")
-                solicitudes = [dict(row) for row in cursor.fetchall()]
-                
-                return {
-                    'aliados': aliados,
-                    'grupos': grupos,
-                    'solicitudes': solicitudes,
-                    'exportado_en': datetime.now().isoformat()
-                }
-                
-            except Exception as e:
-                print(f"Error exportando: {e}")
-                return {}
-            finally:
-                conn.close()
+        """Fachada Campamento Base → admin_service.exportar_a_json."""
+        return admin_service.exportar_a_json(self)
+
     
     # ===============================================
     # OPERACIONES EVALUACIONES (Motor RUANA)
@@ -2270,16 +2195,10 @@ class DBManager:
         return competencia_service.forzar_competencia(self, grupo_id, oficio, aliado_original_codigo, retador_codigo, admin_codigo)
 
 
-    def forzar_suplencia(
-        self,
-        grupo_id: int,
-        oficio: str,
-        aliado_original_codigo: str,
-        suplente_codigo: str,
-        admin_codigo: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """Alias de forzar_competencia para compatibilidad con código existente."""
-        return self.forzar_competencia(grupo_id, oficio, aliado_original_codigo, suplente_codigo, admin_codigo=admin_codigo)
+    def forzar_suplencia(self, grupo_id: int, oficio: str, aliado_original_codigo: str, suplente_codigo: str, admin_codigo: Optional[str] = None,) -> Dict[str, Any]:
+        """Fachada Campamento Base → admin_service.forzar_suplencia."""
+        return admin_service.forzar_suplencia(self, grupo_id, oficio, aliado_original_codigo, suplente_codigo, admin_codigo)
+
 
     def cerrar_oficio_grupo(self, grupo_id: int, oficio: str, admin_codigo: Optional[str] = None) -> Dict[str, Any]:
         """Fachada Campamento Base → grupo_service.cerrar_oficio_grupo."""
@@ -2297,88 +2216,14 @@ class DBManager:
 
 
     def generar_reporte(self) -> Dict[str, Any]:
-        """Genera un resumen para el panel admin (conteos y datos agregados)."""
-        conn = None
-        with self._lock:
-            try:
-                conn = self._connect()
-                cursor = conn.cursor()
-                cursor.execute("SELECT COUNT(*) FROM aliados")
-                total_aliados = cursor.fetchone()[0] or 0
-                cursor.execute("SELECT COUNT(*) FROM aliados WHERE estado = 'activo'")
-                aliados_activos = cursor.fetchone()[0] or 0
-                cursor.execute("SELECT COUNT(*) FROM solicitudes")
-                total_solicitudes = cursor.fetchone()[0] or 0
-                cursor.execute("SELECT COUNT(*) FROM contactos_ruana")
-                total_contactos = cursor.fetchone()[0] or 0
-                cursor.execute("SELECT COUNT(*) FROM grupos WHERE estado = 'activo'")
-                grupos_activos = cursor.fetchone()[0] or 0
-                cursor.execute("SELECT COUNT(*) FROM competencia WHERE estado = 'activa'")
-                competencias_activas = cursor.fetchone()[0] or 0
-                cursor.execute("SELECT COUNT(*) FROM grupo_oficio_cerrado")
-                plazas_cerradas = cursor.fetchone()[0] or 0
-                reporte = {
-                    'total_aliados': total_aliados,
-                    'aliados_activos': aliados_activos,
-                    'total_solicitudes': total_solicitudes,
-                    'total_contactos': total_contactos,
-                    'grupos_activos': grupos_activos,
-                    'competencias_activas': competencias_activas,
-                    'plazas_cerradas': plazas_cerradas,
-                    'generado_en': datetime.now().isoformat(),
-                }
-                try:
-                    self.registrar_evento_sistema('generar_reporte', 'Reporte administrativo generado', actor_tipo='admin', metadata=reporte)
-                except Exception:
-                    pass
-                return {'status': 'success', 'reporte': reporte}
-            except Exception as e:
-                return {'status': 'error', 'message': str(e)}
-            finally:
-                try:
-                    if conn is not None:
-                        conn.close()
-                except Exception:
-                    pass
+        """Fachada Campamento Base → admin_service.generar_reporte."""
+        return admin_service.generar_reporte(self)
+
 
     def cambiar_regla(self, clave: str, valor: Any, admin_codigo: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Actualiza una clave en config/ruana_reglas_v1.json.
-        Claves permitidas: umbral_competencia, duracion_competencia_dias, purga_mensual_meses_sin_ganar, purga_score_bajo_umbral, apoyo_pct, posponer_horas.
-        """
-        permitidas = {'umbral_competencia', 'duracion_competencia_dias', 'purga_mensual_meses_sin_ganar', 'purga_score_bajo_umbral', 'apoyo_pct', 'posponer_horas'}
-        if clave not in permitidas:
-            return {'status': 'error', 'message': f'Clave no permitida. Permitidas: {", ".join(sorted(permitidas))}'}
-        try:
-            config_path = Path(__file__).resolve().parent.parent / 'config' / 'ruana_reglas_v1.json'
-            if not config_path.exists():
-                return {'status': 'error', 'message': 'Archivo de reglas no encontrado'}
-            with open(config_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            if clave == 'umbral_competencia':
-                data[clave] = int(valor)
-            elif clave == 'duracion_competencia_dias':
-                data[clave] = int(valor)
-            elif clave == 'purga_mensual_meses_sin_ganar':
-                data[clave] = int(valor)
-            elif clave == 'purga_score_bajo_umbral':
-                data[clave] = int(valor)
-            elif clave == 'apoyo_pct':
-                data[clave] = float(valor)
-            elif clave == 'posponer_horas':
-                data[clave] = int(valor)
-            with open(config_path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=0, ensure_ascii=False)
-            self.registrar_evento_sistema(
-                'cambiar_reglas',
-                f'Regla actualizada: {clave} = {valor}',
-                actor_tipo='admin',
-                actor_codigo=admin_codigo,
-                metadata={'clave': clave, 'valor': valor},
-            )
-            return {'status': 'success', 'message': f'Regla {clave} actualizada', 'clave': clave, 'valor': data[clave]}
-        except Exception as e:
-            return {'status': 'error', 'message': str(e)}
+        """Fachada Campamento Base → admin_service.cambiar_regla."""
+        return admin_service.cambiar_regla(self, clave, valor, admin_codigo)
+
 
     def pausar_aliado(self, codigo_aliado: str, razon: Optional[str] = None, admin_codigo: Optional[str] = None) -> Dict[str, Any]:
         """Fachada Campamento Base → aliado_service.pausar_aliado."""
@@ -2411,37 +2256,19 @@ class DBManager:
 
 
     def contar_retadores_activos(self) -> int:
-        """Cuenta aliados que están actuando como retador en una competencia activa."""
-        with self._lock:
-            try:
-                conn = self._connect()
-                cursor = conn.cursor()
-                col_retador = self._columna_retador_competencia(cursor)
-                cursor.execute(
-                    f"SELECT COUNT(DISTINCT {col_retador}) FROM competencia WHERE estado = 'activa'"
-                )
-                return cursor.fetchone()[0] or 0
-            except Exception:
-                return 0
-            finally:
-                conn.close()
+        """Fachada Campamento Base → admin_service.contar_retadores_activos."""
+        return admin_service.contar_retadores_activos(self)
+
 
     def contar_suplentes_activos(self) -> int:
-        """Alias de contar_retadores_activos para compatibilidad."""
-        return self.contar_retadores_activos()
+        """Fachada Campamento Base → admin_service.contar_suplentes_activos."""
+        return admin_service.contar_suplentes_activos(self)
+
 
     def contar_aliados_en_espera(self) -> int:
-        """Cuenta aliados en lista de espera (estado en_espera)."""
-        with self._lock:
-            try:
-                conn = self._connect()
-                cursor = conn.cursor()
-                cursor.execute("SELECT COUNT(*) FROM aliados WHERE estado = 'en_espera'")
-                return cursor.fetchone()[0] or 0
-            except Exception:
-                return 0
-            finally:
-                conn.close()
+        """Fachada Campamento Base → admin_service.contar_aliados_en_espera."""
+        return admin_service.contar_aliados_en_espera(self)
+
 
     def listar_aliados_en_espera(self) -> List[Dict[str, Any]]:
         """Fachada Campamento Base → aliado_service.listar_aliados_en_espera."""
@@ -2455,21 +2282,9 @@ class DBManager:
 
 
     def contar_aliados_en_riesgo(self) -> int:
-        """Cuenta aliados activos con estado RUANA 'EN RIESGO' (15 <= score < 50)."""
-        with self._lock:
-            try:
-                conn = self._connect()
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT COUNT(*) FROM aliados
-                    WHERE estado = 'activo' AND score IS NOT NULL
-                    AND CAST(score AS INTEGER) >= 15 AND CAST(score AS INTEGER) < 50
-                """)
-                return cursor.fetchone()[0] or 0
-            except Exception:
-                return 0
-            finally:
-                conn.close()
+        """Fachada Campamento Base → admin_service.contar_aliados_en_riesgo."""
+        return admin_service.contar_aliados_en_riesgo(self)
+
 
     def contar_solicitudes_activas(self) -> int:
         """Fachada Campamento Base → solicitud_service.contar_solicitudes_activas."""
@@ -2522,25 +2337,9 @@ class DBManager:
 
 
     def limpiar_bd(self):
-        """⚠️ PELIGRO: Limpia completamente la BD (solo para testing)"""
-        with self._lock:
-            try:
-                conn = self._connect()
-                cursor = conn.cursor()
-                
-                cursor.execute("DELETE FROM evaluaciones_historico")
-                cursor.execute("DELETE FROM evaluaciones")
-                cursor.execute("DELETE FROM solicitudes")
-                cursor.execute("DELETE FROM aliados")
-                cursor.execute("DELETE FROM grupos")
-                
-                conn.commit()
-                print("⚠️ Base de datos limpiada")
-                
-            except Exception as e:
-                print(f"Error limpiando BD: {e}")
-            finally:
-                conn.close()
+        """Fachada Campamento Base → admin_service.limpiar_bd."""
+        return admin_service.limpiar_bd(self)
+
 
 
 # Instancia global (singleton)

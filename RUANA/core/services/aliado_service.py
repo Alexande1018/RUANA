@@ -5,7 +5,7 @@ SQL de aliados vía AliadoRepo.
 """
 from __future__ import annotations
 
-from core.db_constants import ALIADO_FOTO_PERFIL_COLUMN, MAX_GRUPOS_POR_CP
+from core.db_constants import ALIADO_FOTO_PERFIL_COLUMN, MAX_GRUPOS_POR_CP, _email_liberado_aliado, _telefono_liberado_aliado
 from core.repositories.aliado_repo import AliadoRepo
 
 
@@ -1089,4 +1089,39 @@ def registrar_acceso_login(db,
         'regla8_aplicada': aplicado,
         'motivo': motivo,
     }
+
+
+def rechazar_aliado_pendiente(db, codigo: str) -> Dict[str, Any]:
+    """Rechaza un aliado en pendiente_validacion: estado pasa a rechazado. No podrá entrar al panel."""
+    codigo = (codigo or '').strip()
+    with db._lock:
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            cursor.execute(
+                f"""
+                UPDATE aliados
+                SET estado = 'rechazado',
+                    email = ?,
+                    telefono = ?,
+                    qr_paypal_path = NULL,
+                    bizum_num = NULL,
+                    {ALIADO_FOTO_PERFIL_COLUMN} = NULL,
+                    actualizado_en = CURRENT_TIMESTAMP
+                WHERE codigo = ? AND estado = 'pendiente_validacion'
+                """,
+                (
+                    _email_liberado_aliado(codigo),
+                    _telefono_liberado_aliado(codigo),
+                    codigo,
+                ),
+            )
+            conn.commit()
+            if cursor.rowcount > 0:
+                return {'status': 'success', 'message': f'Aliado {codigo} rechazado. No podrá acceder al panel.'}
+            return {'status': 'error', 'message': f'Aliado {codigo} no encontrado o no está pendiente de validación'}
+        except Exception as e:
+            return {'status': 'error', 'message': str(e)}
+        finally:
+            conn.close()
 
