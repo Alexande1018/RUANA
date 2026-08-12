@@ -14,7 +14,7 @@ import sqlite3
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from core import negociacion_manager as neg_mgr
+from core.services import negociacion_domain as neg_mgr
 from core.repositories.contacto_repo import ContactoRepo
 
 _repo = ContactoRepo()

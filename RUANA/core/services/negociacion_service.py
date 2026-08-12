@@ -1,7 +1,8 @@
 """Servicio de dominio negociacion (Campamento Base).
 
 Extracción progresiva desde DBManager. Las fachadas permanecen en DBManager.
-SQL de negociación vía NegociacionRepo (negociacion_manager permanece aparte).
+SQL vía NegociacionRepo; reglas de estado en negociacion_domain
+(negociacion_manager es solo fachada de compatibilidad).
 """
 from __future__ import annotations
 import re
@@ -13,7 +14,7 @@ import json
 import sqlite3
 from typing import Any, Dict, List, Optional
 
-from core import negociacion_manager as neg_mgr
+from core.services import negociacion_domain as neg_mgr
 from core.repositories.negociacion_repo import NegociacionRepo
 
 _repo = NegociacionRepo()

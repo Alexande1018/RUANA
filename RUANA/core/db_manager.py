@@ -16,7 +16,6 @@ import threading
 
 from core.postgres_compat import connect as pg_compat_connect
 from core.settings import get_settings
-from core import negociacion_manager as neg_mgr
 from core.db_constants import (
     ALIADO_FOTO_PERFIL_COLUMN,
     DB_PATH,
@@ -45,7 +44,6 @@ from core.services import negociacion_service
 from core.services import contacto_service
 from core.services import evaluacion_service
 from core.services import notificacion_service
-from core.repositories.score_repo import ScoreRepo
 
 # Reexport / compat: constantes viven en core.db_constants
 
@@ -543,8 +541,8 @@ class DBManager:
 
     
     def _delta_score_hoy(self, cursor, codigo_aliado: str) -> int:
-        """Suma de deltas aplicados hoy al aliado (para límite ±10/día)."""
-        return ScoreRepo().delta_score_hoy(cursor, codigo_aliado)
+        """Fachada Campamento Base → score_service.delta_score_hoy."""
+        return score_service.delta_score_hoy(self, cursor, codigo_aliado)
 
     def aplicar_cambio_score(self, codigo_aliado: str, delta: int, motivo: str = "") -> Dict[str, Any]:
         """Fachada Campamento Base → score_service.aplicar_cambio_score_db."""
@@ -559,14 +557,15 @@ class DBManager:
         motivo: str,
         movimiento_id: Optional[int] = None
     ) -> None:
-        """Fachada: delega en ScoreRepo."""
-        ScoreRepo().registrar_notificacion_cambio_score(
-            cursor=cursor,
-            codigo_aliado=codigo_aliado,
-            delta_real=delta_real,
-            score_nuevo=score_nuevo,
-            motivo=motivo,
-            movimiento_id=movimiento_id,
+        """Fachada Campamento Base → score_service.registrar_notificacion_cambio_score."""
+        return score_service.registrar_notificacion_cambio_score(
+            self,
+            cursor,
+            codigo_aliado,
+            delta_real,
+            score_nuevo,
+            motivo,
+            movimiento_id,
         )
 
     def _crear_notificacion_aliado(

@@ -3,7 +3,7 @@ Repositorio de Negociación (Campamento Base).
 
 Acceso a datos de contactos_ruana (negociacion_json / acuerdos) y negociacion_eventos.
 Sin reglas de negocio: solo lectura/escritura.
-No incluye la lógica de negociacion_manager.
+No incluye las reglas de negociacion_domain (antes negociacion_manager).
 """
 
 from __future__ import annotations

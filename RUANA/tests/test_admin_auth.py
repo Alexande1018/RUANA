@@ -97,8 +97,9 @@ def test_cambiar_contraseña_rejects_wrong_current_password(client, session_head
 def test_admin_html_exposes_change_password_ui():
     from pathlib import Path
 
-    admin_html = Path(__file__).resolve().parents[1] / "web" / "admin.html"
-    text = admin_html.read_text(encoding="utf-8")
-    assert 'id="admin-change-password-btn"' in text
-    assert "/api/admin/cambiar-contraseña" in text
-    assert 'id="adminLoginPassword"' in text
+    root = Path(__file__).resolve().parents[1] / "web"
+    admin_html = (root / "admin.html").read_text(encoding="utf-8")
+    host = (root / "static" / "js" / "admin-panel-host.js").read_text(encoding="utf-8")
+    assert 'id="admin-change-password-btn"' in admin_html
+    assert "/api/admin/cambiar-contraseña" in host
+    assert 'id="adminLoginPassword"' in admin_html

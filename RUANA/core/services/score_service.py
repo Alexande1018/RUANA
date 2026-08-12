@@ -19,6 +19,33 @@ _SCORE_MIN = 0
 _SCORE_MAX = 500
 _DELTA_DIA_MAX = 10
 
+_repo = ScoreRepo()
+
+
+def delta_score_hoy(db, cursor, codigo_aliado: str) -> int:
+    """Suma de deltas aplicados hoy al aliado (límite ±10/día)."""
+    return _repo.delta_score_hoy(cursor, codigo_aliado)
+
+
+def registrar_notificacion_cambio_score(
+    db,
+    cursor,
+    codigo_aliado: str,
+    delta_real: int,
+    score_nuevo: int,
+    motivo: str,
+    movimiento_id: Optional[int] = None,
+) -> None:
+    """Persiste notificación de cambio de score vía ScoreRepo."""
+    return _repo.registrar_notificacion_cambio_score(
+        cursor=cursor,
+        codigo_aliado=codigo_aliado,
+        delta_real=delta_real,
+        score_nuevo=score_nuevo,
+        motivo=motivo,
+        movimiento_id=movimiento_id,
+    )
+
 
 def calcular_delta_aplicar(delta: int, delta_hoy: int) -> int:
     """Aplica el tope diario ±10 al delta solicitado."""

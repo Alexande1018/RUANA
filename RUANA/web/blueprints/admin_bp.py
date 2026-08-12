@@ -506,7 +506,7 @@ def admin_get_negociacion(contacto_id):
         if not contacto:
             return jsonify({'status': 'error', 'message': 'Contacto no encontrado'}), 404
         eventos = negociacion_service.listar_eventos_negociacion(db, contacto_id)
-        from core import negociacion_manager as neg_mgr
+        from core.services import negociacion_domain as neg_mgr
         neg = neg_mgr.parse_negociacion(contacto.get('negociacion_json'))
         return jsonify({
             'status': 'success',

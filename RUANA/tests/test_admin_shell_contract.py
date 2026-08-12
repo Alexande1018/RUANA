@@ -89,4 +89,5 @@ def test_admin_shell_operaciones_module_aligned_with_module_defs():
     assert "renderPagosApoyo" in ops_js
     assert "renderPagosEnRevision" in ops_js
     assert "tbody-conflictos-pago" in ops_js
-    assert "_operacionesModule" in admin
+    host = (root / "static" / "js" / "admin-panel-host.js").read_text(encoding="utf-8")
+    assert "_operacionesModule" in host

@@ -1,6 +1,15 @@
 from pathlib import Path
 
 
+def _web_root() -> Path:
+    return Path(__file__).resolve().parents[1] / "web"
+
+
+def _aliado_host_js() -> str:
+    """PrivatePanel host (antes inline en aliado.html)."""
+    return (_web_root() / "static" / "js" / "aliado-panel-host.js").read_text(encoding="utf-8")
+
+
 def test_aliado_panel_starts_with_loading_state():
     aliado_html = Path(__file__).resolve().parents[1] / "web" / "aliado.html"
     styles = Path(__file__).resolve().parents[1] / "web" / "static" / "css" / "styles.css"
@@ -59,6 +68,7 @@ def test_aliado_inicio_module_is_wired():
     """Módulo shell `inicio` extraído a JS; PrivatePanel solo fachada."""
     root = Path(__file__).resolve().parents[1] / "web"
     aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    host = _aliado_host_js()
     inicio_js = (root / "static" / "js" / "aliado-inicio-module.js").read_text(encoding="utf-8")
     modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
 
@@ -72,15 +82,16 @@ def test_aliado_inicio_module_is_wired():
     assert "metric-score" in inicio_js
     assert "maybeShowScoreChangeNotification" in inicio_js
     # Fachadas delgadas en PrivatePanel
-    assert "_inicioModule" in aliado
-    assert "mod.renderMetricas(this)" in aliado
-    assert "mod.maybeShowScoreChangeNotification(this)" in aliado
+    assert "_inicioModule" in host
+    assert "mod.renderMetricas(this)" in host
+    assert "mod.maybeShowScoreChangeNotification(this)" in host
 
 
 def test_aliado_referidos_module_is_wired():
     """Módulo PrivatePanel `referidos` (modal linaje); PrivatePanel solo fachada."""
     root = Path(__file__).resolve().parents[1] / "web"
     aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    host = _aliado_host_js()
     referidos_js = (root / "static" / "js" / "aliado-referidos-module.js").read_text(encoding="utf-8")
     modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
 
@@ -94,9 +105,9 @@ def test_aliado_referidos_module_is_wired():
     assert "/api/aliado/linaje/hijos" in referidos_js
     assert "modal-linaje-hijos" in referidos_js
     # Fachadas delgadas en PrivatePanel
-    assert "_referidosModule" in aliado
-    assert "mod.abrirModalLinajeHijos(this)" in aliado
-    assert "mod.cerrarModalLinajeHijos()" in aliado
+    assert "_referidosModule" in host
+    assert "mod.abrirModalLinajeHijos(this)" in host
+    assert "mod.cerrarModalLinajeHijos()" in host
     # Markup del modal permanece en aliado.html (sin reescritura masiva)
     assert 'id="modal-linaje-hijos"' in aliado
     assert 'id="metrica-card-referidos"' in aliado
@@ -106,6 +117,7 @@ def test_aliado_perfil_module_is_wired():
     """Módulo PrivatePanel `perfil` (foto/avatar/detalles); PrivatePanel solo fachada."""
     root = Path(__file__).resolve().parents[1] / "web"
     aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    host = _aliado_host_js()
     perfil_js = (root / "static" / "js" / "aliado-perfil-module.js").read_text(encoding="utf-8")
     modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
 
@@ -121,11 +133,11 @@ def test_aliado_perfil_module_is_wired():
     assert "guardarDescripcion" in perfil_js
     assert "/foto-perfil" in perfil_js
     # Fachadas delgadas en PrivatePanel
-    assert "_perfilModule" in aliado
-    assert "mod.renderPerfil(this)" in aliado
-    assert "mod.subirFotoPerfil(this, file)" in aliado
-    assert "mod.quitarFotoPerfil(this)" in aliado
-    assert "mod.guardarDescripcion(this)" in aliado
+    assert "_perfilModule" in host
+    assert "mod.renderPerfil(this)" in host
+    assert "mod.subirFotoPerfil(this, file)" in host
+    assert "mod.quitarFotoPerfil(this)" in host
+    assert "mod.guardarDescripcion(this)" in host
     # Markup del perfil permanece en aliado.html (sin reescritura masiva)
     assert 'id="module-perfil"' in aliado
     assert 'id="perfil-avatar"' in aliado
@@ -137,6 +149,7 @@ def test_aliado_directorio_module_is_wired():
     """Módulo PrivatePanel `directorio` (lista profesionales); PrivatePanel solo fachada."""
     root = Path(__file__).resolve().parents[1] / "web"
     aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    host = _aliado_host_js()
     directorio_js = (root / "static" / "js" / "aliado-directorio-module.js").read_text(encoding="utf-8")
     modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
 
@@ -151,10 +164,10 @@ def test_aliado_directorio_module_is_wired():
     assert "directorio-search" in directorio_js
     assert "profesionales-list" in directorio_js
     # Fachadas delgadas en PrivatePanel
-    assert "_directorioModule" in aliado
-    assert "mod.renderProfesionales(this)" in aliado
-    assert "mod.codigosConConversacionActiva(this)" in aliado
-    assert "mod.scoreEtiquetaMeta(score, estadoRuana)" in aliado
+    assert "_directorioModule" in host
+    assert "mod.renderProfesionales(this)" in host
+    assert "mod.codigosConConversacionActiva(this)" in host
+    assert "mod.scoreEtiquetaMeta(score, estadoRuana)" in host
     # Markup del directorio permanece en aliado.html (sin reescritura masiva)
     assert 'id="module-directorio"' in aliado
     assert 'id="directorio-search"' in aliado
@@ -165,6 +178,7 @@ def test_aliado_solicitudes_module_is_wired():
     """Módulo PrivatePanel `solicitudes` (entrantes/propias/historial); PrivatePanel solo fachada."""
     root = Path(__file__).resolve().parents[1] / "web"
     aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    host = _aliado_host_js()
     solicitudes_js = (root / "static" / "js" / "aliado-solicitudes-module.js").read_text(encoding="utf-8")
     modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
 
@@ -178,9 +192,9 @@ def test_aliado_solicitudes_module_is_wired():
     assert "solicitudes-list" in solicitudes_js
     assert "btn-conocer" in solicitudes_js
     # Fachadas delgadas en PrivatePanel
-    assert "_solicitudesModule" in aliado
-    assert "mod.renderSolicitudes(this)" in aliado
-    assert "mod.appendSolicitudCard(this, container, solicitud, conBotonConocer)" in aliado
+    assert "_solicitudesModule" in host
+    assert "mod.renderSolicitudes(this)" in host
+    assert "mod.appendSolicitudCard(this, container, solicitud, conBotonConocer)" in host
     # Markup de solicitudes permanece en aliado.html (sin reescritura masiva)
     assert 'id="module-solicitudes"' in aliado
     assert 'id="solicitudes-list"' in aliado
@@ -192,6 +206,7 @@ def test_aliado_acuerdos_module_is_wired():
     """Módulo PrivatePanel `acuerdos` (Mis acuerdos); PrivatePanel solo fachada."""
     root = Path(__file__).resolve().parents[1] / "web"
     aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    host = _aliado_host_js()
     acuerdos_js = (root / "static" / "js" / "aliado-acuerdos-module.js").read_text(encoding="utf-8")
     modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
 
@@ -205,10 +220,10 @@ def test_aliado_acuerdos_module_is_wired():
     assert "mis-acuerdos-lista" in acuerdos_js
     assert "/api/aliado/acuerdos" in acuerdos_js
     # Fachadas delgadas en PrivatePanel
-    assert "_acuerdosModule" in aliado
-    assert "mod.cargarMisAcuerdos(this)" in aliado
-    assert "mod.renderMisAcuerdos(this)" in aliado
-    assert "mod.toggleMisAcuerdoExpandido(this, contactoId)" in aliado
+    assert "_acuerdosModule" in host
+    assert "mod.cargarMisAcuerdos(this)" in host
+    assert "mod.renderMisAcuerdos(this)" in host
+    assert "mod.toggleMisAcuerdoExpandido(this, contactoId)" in host
     # Markup permanece en aliado.html
     assert 'id="mis-acuerdos-wrap"' in aliado
     assert 'id="mis-acuerdos-lista"' in aliado
@@ -219,6 +234,7 @@ def test_aliado_centro_comunicacion_module_is_wired():
     """Módulo PrivatePanel `centroComunicacion` (FAB soporte); PrivatePanel solo fachada."""
     root = Path(__file__).resolve().parents[1] / "web"
     aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    host = _aliado_host_js()
     centro_js = (root / "static" / "js" / "aliado-centro-comunicacion-module.js").read_text(
         encoding="utf-8"
     )
@@ -238,10 +254,10 @@ def test_aliado_centro_comunicacion_module_is_wired():
     assert "ruana-help-threads" in centro_js
     assert "/centro-comunicacion" in centro_js
     # Fachadas delgadas en PrivatePanel
-    assert "_centroComunicacionModule" in aliado
-    assert "mod.renderCentroComunicacion(this)" in aliado
-    assert "mod.toggleCentroComunicacion(this)" in aliado
-    assert "mod.enviarNuevoMensajeSoporte(this)" in aliado
+    assert "_centroComunicacionModule" in host
+    assert "mod.renderCentroComunicacion(this)" in host
+    assert "mod.toggleCentroComunicacion(this)" in host
+    assert "mod.enviarNuevoMensajeSoporte(this)" in host
     # Markup permanece en aliado.html
     assert 'id="ruana-help-fab"' in aliado
     assert 'id="ruana-help-overlay"' in aliado
@@ -252,6 +268,7 @@ def test_aliado_conexiones_module_is_wired():
     """Módulo PrivatePanel `conexiones` (enviar solicitud); PrivatePanel solo fachada."""
     root = Path(__file__).resolve().parents[1] / "web"
     aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    host = _aliado_host_js()
     conexiones_js = (root / "static" / "js" / "aliado-conexiones-module.js").read_text(
         encoding="utf-8"
     )
@@ -269,8 +286,8 @@ def test_aliado_conexiones_module_is_wired():
     assert "/api/solicitudes" in conexiones_js
     assert "nueva-solicitud-oficio" in conexiones_js
     # Fachadas delgadas en PrivatePanel
-    assert "_conexionesModule" in aliado
-    assert "mod.handleEnviarSolicitud(this)" in aliado
+    assert "_conexionesModule" in host
+    assert "mod.handleEnviarSolicitud(this)" in host
     # Markup permanece en aliado.html
     assert 'id="module-conexiones"' in aliado
     assert 'id="nueva-solicitud-oficio"' in aliado
@@ -281,6 +298,7 @@ def test_aliado_invitaciones_module_is_wired():
     """Módulo PrivatePanel `invitaciones`; PrivatePanel solo fachada."""
     root = Path(__file__).resolve().parents[1] / "web"
     aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    host = _aliado_host_js()
     inv_js = (root / "static" / "js" / "aliado-invitaciones-module.js").read_text(encoding="utf-8")
     modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
 
@@ -291,8 +309,8 @@ def test_aliado_invitaciones_module_is_wired():
     assert "generateInviteCode" in inv_js
     assert "/api/invitaciones/crear" in inv_js
     assert "generarInvitacionOficio" in inv_js
-    assert "_invitacionesModule" in aliado
-    assert "mod.generateInviteCode(this, solicitudId)" in aliado
+    assert "_invitacionesModule" in host
+    assert "mod.generateInviteCode(this, solicitudId)" in host
     assert 'id="modal-code"' in aliado
     assert 'id="modal-invitacion-oficio"' in aliado
 
@@ -301,6 +319,7 @@ def test_aliado_alertas_module_is_wired():
     """Módulo PrivatePanel `alertas` (hub + apoyo + impugnación); solo fachada."""
     root = Path(__file__).resolve().parents[1] / "web"
     aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    host = _aliado_host_js()
     alertas_js = (root / "static" / "js" / "aliado-alertas-module.js").read_text(encoding="utf-8")
     modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
 
@@ -311,9 +330,9 @@ def test_aliado_alertas_module_is_wired():
     assert "abrirModalPagoApoyo" in alertas_js
     assert "impugnarApoyoRuana" in alertas_js
     assert "enviarComprobanteApoyo" in alertas_js
-    assert "_alertasModule" in aliado
-    assert "mod.renderAlertHub(this)" in aliado
-    assert "mod.abrirModalPagoApoyo(this, contactoId, apoyoRuana, servicio)" in aliado
+    assert "_alertasModule" in host
+    assert "mod.renderAlertHub(this)" in host
+    assert "mod.abrirModalPagoApoyo(this, contactoId, apoyoRuana, servicio)" in host
     assert 'id="ruana-alert-hub"' in aliado
     assert 'id="modal-pago-apoyo"' in aliado
     assert 'id="modal-impugnar-apoyo"' in aliado
@@ -323,6 +342,7 @@ def test_aliado_catalogo_contactos_grupo_sync_modules_are_wired():
     """Módulos catalogo / contactos / grupo / sync / events cableados con fachadas."""
     root = Path(__file__).resolve().parents[1] / "web"
     aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    host = _aliado_host_js()
     modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
     catalogo = (root / "static" / "js" / "aliado-catalogo-module.js").read_text(encoding="utf-8")
     contactos = (root / "static" / "js" / "aliado-contactos-module.js").read_text(encoding="utf-8")
@@ -352,11 +372,35 @@ def test_aliado_catalogo_contactos_grupo_sync_modules_are_wired():
     assert "initState" in sync
     assert "bootstrapPrivatePanel" in sync
     assert "setupEventListeners" in events
-    assert "_catalogoModule" in aliado
-    assert "_contactosModule" in aliado
-    assert "_grupoModule" in aliado
-    assert "_syncModule" in aliado
-    assert "_eventsModule" in aliado
-    assert "mod.loadData(this)" in aliado
-    assert "mod.renderGrupo(this)" in aliado
-    assert "mod.setupEventListeners(this)" in aliado
+    assert "_catalogoModule" in host
+    assert "_contactosModule" in host
+    assert "_grupoModule" in host
+    assert "_syncModule" in host
+    assert "_eventsModule" in host
+    assert "mod.loadData(this)" in host
+    assert "mod.renderGrupo(this)" in host
+    assert "mod.setupEventListeners(this)" in host
+
+
+def test_aliado_panel_host_is_wired():
+    """PrivatePanel vive en aliado-panel-host.js; markup permanece en aliado.html."""
+    root = _web_root()
+    aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    host = _aliado_host_js()
+    onboarding = (root / "static" / "js" / "aliado-onboarding-module.js").read_text(
+        encoding="utf-8"
+    )
+    assert 'src="/static/js/aliado-panel-host.js"' in aliado
+    assert 'src="/static/js/aliado-onboarding-module.js"' in aliado
+    assert "class PrivatePanel" in host
+    assert "class RuanaOnboardingTour" in onboarding
+    assert "class RuanaOnboardingTour" not in host
+    assert "window.PrivatePanel = PrivatePanel" in host
+    assert "bootstrapPrivatePanel" in host
+    assert "class PrivatePanel" not in aliado
+    # Sin bloques <script> inline en el body (solo tags con src)
+    body = aliado.split("</head>", 1)[-1]
+    import re
+
+    inline = [m.group(0) for m in re.finditer(r"<script(?![^>]*\bsrc=)[^>]*>", body, re.I)]
+    assert inline == [], inline
