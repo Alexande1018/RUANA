@@ -1,15 +1,20 @@
 """Servicio de dominio pago (Campamento Base).
 
 Extracción progresiva desde DBManager. Las fachadas permanecen en DBManager.
+SQL de pagos vía PagoRepo.
 """
 from __future__ import annotations
 
 from core.db_constants import RUANA_ROOT
+from core.repositories.pago_repo import PagoRepo
 
 import json
 import sqlite3
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+_repo = PagoRepo()
+
 # --- Extraído de DBManager (pago) ---
 
 def _get_apoyo_pct(db) -> float:
@@ -90,17 +95,7 @@ def listar_contactos_conflicto_pago(db) -> List[Dict[str, Any]]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT id, solicitante_codigo, profesional_codigo, servicio,
-                       importe_solicitante, importe_profesional, comprobante_ruta,
-                       estado, fecha_disputa, creado_en
-                FROM contactos_ruana
-                WHERE estado = 'importe_en_disputa'
-                  AND importe_solicitante IS NOT NULL AND importe_profesional IS NOT NULL
-                  AND importe_solicitante != importe_profesional
-                ORDER BY fecha_disputa DESC, id DESC
-            """)
-            return [dict(row) for row in cursor.fetchall()]
+            return [dict(row) for row in _repo.listar_contactos_conflicto_pago(cursor)]
         except Exception:
             return []
         finally:
@@ -113,23 +108,10 @@ def listar_payment_conflicts_admin(db) -> List[Dict[str, Any]]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='payment_conflicts'")
-            if not cursor.fetchone():
+            if not _repo.tabla_payment_conflicts_existe(cursor):
                 conn.close()
                 return []
-            cursor.execute("""
-                SELECT pc.id, pc.trabajo_id, pc.contratante_id, pc.profesional_id,
-                       pc.importe_contratante, pc.importe_profesional, pc.estado,
-                       pc.prueba_url, pc.comentario_admin, pc.created_at, pc.updated_at,
-                       a_cont.nombre AS contratante_nombre, a_cont.codigo AS contratante_codigo,
-                       a_prof.nombre AS profesional_nombre, a_prof.codigo AS profesional_codigo
-                FROM payment_conflicts pc
-                JOIN aliados a_cont ON a_cont.id = pc.contratante_id
-                JOIN aliados a_prof ON a_prof.id = pc.profesional_id
-                WHERE pc.estado IN ('PENDIENTE_PRUEBA', 'EN_REVISION')
-                ORDER BY pc.created_at DESC
-            """)
-            return [dict(row) for row in cursor.fetchall()]
+            return [dict(row) for row in _repo.listar_payment_conflicts_admin(cursor)]
         except Exception as e:
             print(f"Error listar_payment_conflicts_admin: {e}")
             return []
@@ -143,25 +125,14 @@ def obtener_payment_conflict_por_trabajo(db, trabajo_id: int, codigo_aliado: str
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='payment_conflicts'")
-            if not cursor.fetchone():
+            if not _repo.tabla_payment_conflicts_existe(cursor):
                 conn.close()
                 return None
-            cursor.execute(
-                "SELECT id FROM aliados WHERE codigo = ?", (codigo_aliado,)
-            )
-            r = cursor.fetchone()
-            if not r:
+            aliado_id = _repo.select_aliado_id_por_codigo(cursor, codigo_aliado)
+            if aliado_id is None:
                 conn.close()
                 return None
-            aliado_id = r[0]
-            cursor.execute("""
-                SELECT id, trabajo_id, contratante_id, profesional_id, importe_contratante, importe_profesional,
-                       estado, prueba_url, comentario_admin, created_at, updated_at
-                FROM payment_conflicts
-                WHERE trabajo_id = ? AND (contratante_id = ? OR profesional_id = ?)
-            """, (trabajo_id, aliado_id, aliado_id))
-            row = cursor.fetchone()
+            row = _repo.select_conflict_por_trabajo_y_aliado(cursor, trabajo_id, aliado_id)
             return dict(row) if row else None
         except Exception:
             return None
@@ -175,22 +146,10 @@ def obtener_payment_conflict(db, conflict_id: int) -> Optional[Dict[str, Any]]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='payment_conflicts'")
-            if not cursor.fetchone():
+            if not _repo.tabla_payment_conflicts_existe(cursor):
                 conn.close()
                 return None
-            cursor.execute("""
-                SELECT pc.id, pc.trabajo_id, pc.contratante_id, pc.profesional_id,
-                       pc.importe_contratante, pc.importe_profesional, pc.estado,
-                       pc.prueba_url, pc.comentario_admin, pc.created_at, pc.updated_at,
-                       a_cont.nombre AS contratante_nombre, a_cont.codigo AS contratante_codigo,
-                       a_prof.nombre AS profesional_nombre, a_prof.codigo AS profesional_codigo
-                FROM payment_conflicts pc
-                JOIN aliados a_cont ON a_cont.id = pc.contratante_id
-                JOIN aliados a_prof ON a_prof.id = pc.profesional_id
-                WHERE pc.id = ?
-            """, (conflict_id,))
-            row = cursor.fetchone()
+            row = _repo.select_conflict_detalle(cursor, conflict_id)
             return dict(row) if row else None
         except Exception as e:
             print(f"Error obtener_payment_conflict: {e}")
@@ -214,11 +173,7 @@ def resolver_payment_conflict_admin(db, conflict_id: int, decision: str, comenta
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT id, trabajo_id, importe_contratante, importe_profesional, estado
-                FROM payment_conflicts WHERE id = ?
-            """, (conflict_id,))
-            row = cursor.fetchone()
+            row = _repo.select_conflict_basico(cursor, conflict_id)
             if not row:
                 return {'status': 'error', 'message': 'Conflicto no encontrado'}
             pc = dict(row)
@@ -232,16 +187,11 @@ def resolver_payment_conflict_admin(db, conflict_id: int, decision: str, comenta
                 importe_valido = float(pc['importe_contratante'])
             elif decision in ('profesional', 'rechazado'):
                 importe_valido = float(pc['importe_profesional'])
-            cursor.execute("""
-                UPDATE payment_conflicts SET estado = ?, comentario_admin = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, (nuevo_estado, (comentario or "").strip()[:2000], conflict_id))
+            _repo.update_conflict_resuelto(
+                cursor, nuevo_estado, (comentario or "").strip()[:2000], conflict_id
+            )
             if importe_valido is not None and trabajo_id:
-                cursor.execute(
-                    "SELECT id, solicitante_codigo, profesional_codigo, estado FROM contactos_ruana WHERE id = ?",
-                    (trabajo_id,)
-                )
-                c = cursor.fetchone()
+                c = _repo.select_contacto_partes(cursor, trabajo_id)
                 if c and dict(c).get('estado') == 'importe_en_disputa':
                     d = dict(c)
                     pct = db._get_apoyo_pct()
@@ -249,20 +199,13 @@ def resolver_payment_conflict_admin(db, conflict_id: int, decision: str, comenta
                     comision_pct = pct / 100.0
                     estado_pago_final = 'pendiente_pago' if apoyo > 0 else 'no_generado'
                     pendiente_pago_final = 1 if apoyo > 0 else 0
-                    cursor.execute("""
-                        UPDATE contactos_ruana
-                        SET estado = 'trabajo_cerrado', pendiente_resolucion = 0,
-                            importe_final = ?, comision = ?, comision_porcentaje = ?,
-                            apoyo_ruana = ?, estado_pago = ?, pendiente_pago = ?,
-                            fecha_cierre = CURRENT_TIMESTAMP, actualizado_en = CURRENT_TIMESTAMP
-                        WHERE id = ?
-                    """, (importe_valido, apoyo, comision_pct, apoyo, estado_pago_final, pendiente_pago_final, trabajo_id))
+                    _repo.update_contacto_cerrar_disputa(
+                        cursor, importe_valido, apoyo, comision_pct,
+                        estado_pago_final, pendiente_pago_final, trabajo_id,
+                    )
                     cerro_contacto_disputa = True
                     if apoyo > 0:
-                        cursor.execute(
-                            "INSERT INTO ingresos_ruana (contacto_id, importe_final, apoyo_ruana_2pct) VALUES (?, ?, ?)",
-                            (trabajo_id, importe_valido, apoyo)
-                        )
+                        _repo.insertar_ingreso_ruana(cursor, trabajo_id, importe_valido, apoyo)
                     db._audit_log(cursor, 'contacto', trabajo_id, 'conflicto_resuelto_admin',
                                     'admin', admin_codigo, f'payment_conflict_id={conflict_id} decision={decision} importe={importe_valido}')
                     db._insert_evento_sistema(
@@ -284,11 +227,7 @@ def resolver_payment_conflict_admin(db, conflict_id: int, decision: str, comenta
                             tipos=['apoyo_ruana', 'pago_rechazado']
                         )
                     if prof_codigo and apoyo > 0:
-                        cursor.execute(
-                            "SELECT qr_paypal_path, bizum_num FROM aliados WHERE codigo = ?",
-                            (prof_codigo,)
-                        )
-                        row_aliado = cursor.fetchone()
+                        row_aliado = _repo.select_qr_bizum_aliado(cursor, prof_codigo)
                         qr_path = row_aliado[0] if row_aliado and row_aliado[0] else None
                         bizum = row_aliado[1] if row_aliado and row_aliado[1] else None
                         default_qr, default_bizum = db._get_ruana_pago_defaults()
@@ -302,10 +241,7 @@ def resolver_payment_conflict_admin(db, conflict_id: int, decision: str, comenta
                             'contacto_id': trabajo_id, 'apoyo_ruana': apoyo,
                             'qr_paypal_path': qr_path, 'bizum_num': bizum
                         }, ensure_ascii=False)
-                        cursor.execute("""
-                            INSERT INTO notificaciones_aliado (aliado_codigo, tipo, titulo, mensaje, metadata, leida)
-                            VALUES (?, 'apoyo_ruana', 'Apoyo a RUANA', ?, ?, 0)
-                        """, (prof_codigo, mensaje, meta))
+                        _repo.insertar_notif_apoyo(cursor, prof_codigo, mensaje, meta)
             conn.commit()
             resultado = {'status': 'success', 'conflict_id': conflict_id, 'estado': nuevo_estado,
                          'importe_final': importe_valido}
@@ -346,11 +282,7 @@ def resolver_conflicto_pago(db, contacto_id: int, importe_valido: float,
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT id, solicitante_codigo, profesional_codigo, estado FROM contactos_ruana WHERE id = ?",
-                (contacto_id,)
-            )
-            row = cursor.fetchone()
+            row = _repo.select_contacto_partes(cursor, contacto_id)
             if not row:
                 return {'status': 'error', 'message': 'Contacto no encontrado'}
             contacto = dict(row)
@@ -367,18 +299,8 @@ def resolver_conflicto_pago(db, contacto_id: int, importe_valido: float,
             pct = db._get_apoyo_pct()
             apoyo = round(imp * pct / 100.0, 2)
             comision_pct = pct / 100.0
-            cursor.execute("""
-                UPDATE contactos_ruana
-                SET estado = 'trabajo_cerrado', pendiente_resolucion = 0,
-                    importe_final = ?, comision = ?, comision_porcentaje = ?,
-                    apoyo_ruana = ?, estado_pago = 'pendiente_pago', pendiente_pago = 1,
-                    fecha_cierre = CURRENT_TIMESTAMP, actualizado_en = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, (imp, apoyo, comision_pct, apoyo, contacto_id))
-            cursor.execute(
-                "INSERT INTO ingresos_ruana (contacto_id, importe_final, apoyo_ruana_2pct) VALUES (?, ?, ?)",
-                (contacto_id, imp, apoyo)
-            )
+            _repo.update_contacto_resolver_conflicto(cursor, imp, apoyo, comision_pct, contacto_id)
+            _repo.insertar_ingreso_ruana(cursor, contacto_id, imp, apoyo)
             db._audit_log(cursor, 'contacto', contacto_id, 'conflicto_resuelto_admin',
                             'admin', admin_codigo, f'importe_valido={imp} apoyo_ruana={apoyo}')
             db._insert_evento_sistema(
@@ -389,11 +311,7 @@ def resolver_conflicto_pago(db, contacto_id: int, importe_valido: float,
             )
             prof_codigo = (contacto.get('profesional_codigo') or '').strip()
             if prof_codigo:
-                cursor.execute(
-                    "SELECT qr_paypal_path, bizum_num FROM aliados WHERE codigo = ?",
-                    (prof_codigo,)
-                )
-                row_aliado = cursor.fetchone()
+                row_aliado = _repo.select_qr_bizum_aliado(cursor, prof_codigo)
                 qr_path = row_aliado[0] if row_aliado and row_aliado[0] else None
                 bizum = row_aliado[1] if row_aliado and row_aliado[1] else None
                 default_qr, default_bizum = db._get_ruana_pago_defaults()
@@ -407,10 +325,7 @@ def resolver_conflicto_pago(db, contacto_id: int, importe_valido: float,
                     'contacto_id': contacto_id, 'apoyo_ruana': apoyo,
                     'qr_paypal_path': qr_path, 'bizum_num': bizum
                 }, ensure_ascii=False)
-                cursor.execute("""
-                    INSERT INTO notificaciones_aliado (aliado_codigo, tipo, titulo, mensaje, metadata, leida)
-                    VALUES (?, 'apoyo_ruana', 'Apoyo a RUANA', ?, ?, 0)
-                """, (prof_codigo, mensaje, meta))
+                _repo.insertar_notif_apoyo(cursor, prof_codigo, mensaje, meta)
             conn.commit()
         except Exception as e:
             return {'status': 'error', 'message': str(e)}
@@ -429,20 +344,7 @@ def listar_contactos_pagos_apoyo(db) -> List[Dict[str, Any]]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT c.id, c.solicitante_codigo, c.profesional_codigo, c.servicio,
-                       c.importe_final, c.apoyo_ruana, c.estado_pago, c.pendiente_pago, c.fecha_cierre,
-                       c.comprobante_ruta,
-                       COALESCE(c.es_urgente, 0) AS es_urgente, c.urgente_marcado_en, c.creado_en,
-                       a_sol.nombre AS solicitante_nombre, a_prof.nombre AS profesional_nombre
-                FROM contactos_ruana c
-                LEFT JOIN aliados a_sol ON a_sol.codigo = c.solicitante_codigo
-                LEFT JOIN aliados a_prof ON a_prof.codigo = c.profesional_codigo
-                WHERE c.estado = 'trabajo_cerrado' AND c.importe_final IS NOT NULL
-                  AND COALESCE(c.apoyo_ruana, 0) > 0
-                ORDER BY c.fecha_cierre IS NULL, c.fecha_cierre DESC, c.id DESC
-            """)
-            lista = [dict(row) for row in cursor.fetchall()]
+            lista = [dict(row) for row in _repo.listar_contactos_pagos_apoyo(cursor)]
             for d in lista:
                 d['es_urgente'] = bool(int(d.get('es_urgente') or 0))
                 if d.get('importe_final') is not None and d.get('apoyo_ruana') is None:
@@ -464,18 +366,7 @@ def listar_contactos_pagos_en_revision(db) -> List[Dict[str, Any]]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT c.id, c.solicitante_codigo, c.profesional_codigo, c.servicio,
-                       c.importe_final, c.apoyo_ruana, c.estado_pago, c.comprobante_ruta, c.fecha_cierre,
-                       a_prof.nombre AS profesional_nombre
-                FROM contactos_ruana c
-                LEFT JOIN aliados a_prof ON a_prof.codigo = c.profesional_codigo
-                WHERE c.estado = 'trabajo_cerrado' AND c.importe_final IS NOT NULL
-                  AND c.estado_pago = 'en_revision'
-                  AND COALESCE(c.apoyo_ruana, 0) > 0
-                ORDER BY c.fecha_cierre IS NULL, c.fecha_cierre DESC, c.id DESC
-            """)
-            lista = [dict(row) for row in cursor.fetchall()]
+            lista = [dict(row) for row in _repo.listar_contactos_pagos_en_revision(cursor)]
             for d in lista:
                 if d.get('importe_final') is not None and d.get('apoyo_ruana') is None:
                     try:
@@ -517,12 +408,7 @@ def actualizar_estado_pago_contacto(db, contacto_id: int, nuevo_estado: str,
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT id, estado, importe_final, estado_pago, pendiente_pago,
-                       solicitante_codigo, profesional_codigo
-                FROM contactos_ruana WHERE id = ?
-            """, (contacto_id,))
-            row = cursor.fetchone()
+            row = _repo.select_contacto_estado_pago(cursor, contacto_id)
             if not row:
                 return {'status': 'error', 'message': 'Contacto no encontrado'}
             r = dict(row)
@@ -530,14 +416,7 @@ def actualizar_estado_pago_contacto(db, contacto_id: int, nuevo_estado: str,
                 return {'status': 'error', 'message': 'El contacto no tiene Apoyo RUANA generado'}
             estado_anterior = (r.get('estado_pago') or '').strip().lower()
             if nuevo_estado == 'pagado':
-                cursor.execute("""
-                    UPDATE contactos_ruana
-                    SET estado_pago = 'pagado', pendiente_pago = 0,
-                        fecha_validacion_pago = CURRENT_TIMESTAMP,
-                        admin_validacion_codigo = ?,
-                        actualizado_en = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                """, (admin_codigo or None, contacto_id))
+                _repo.update_estado_pago_pagado(cursor, admin_codigo, contacto_id)
                 db._audit_log(cursor, 'contacto', contacto_id, 'pago_apoyo_confirmado',
                                 'admin', admin_codigo or '', f'admin={admin_codigo or ""}')
                 prof_codigo = str(r.get('profesional_codigo') or '').strip()
@@ -548,10 +427,7 @@ def actualizar_estado_pago_contacto(db, contacto_id: int, nuevo_estado: str,
                     )
                     mensaje = f"RUANA ha aceptado tu comprobante de pago. El Apoyo RUANA del contacto #{contacto_id} ha sido confirmado."
                     meta = json.dumps({'contacto_id': contacto_id, 'estado_pago': 'pagado'}, ensure_ascii=False)
-                    cursor.execute("""
-                        INSERT INTO notificaciones_aliado (aliado_codigo, tipo, titulo, mensaje, metadata, leida)
-                        VALUES (?, 'pago_aceptado', 'Pago aceptado', ?, ?, 1)
-                    """, (prof_codigo, mensaje, meta))
+                    _repo.insertar_notif_pago_aceptado(cursor, prof_codigo, mensaje, meta)
                 # Regla 2: encargo completado al confirmar Apoyo pagado (+2 a ambos)
                 if estado_anterior != 'pagado':
                     sol_codigo = str(r.get('solicitante_codigo') or '').strip()
@@ -561,13 +437,7 @@ def actualizar_estado_pago_contacto(db, contacto_id: int, nuevo_estado: str,
                         participantes_regla2.append(prof_codigo)
             elif nuevo_estado == 'rechazado':
                 motivo = (motivo_rechazo or "").strip()[:2000]
-                cursor.execute("""
-                    UPDATE contactos_ruana
-                    SET estado_pago = 'pendiente_pago', pendiente_pago = 1,
-                        motivo_rechazo_pago = ?, comprobante_ruta = NULL,
-                        actualizado_en = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                """, (motivo, contacto_id))
+                _repo.update_estado_pago_rechazado(cursor, motivo, contacto_id)
                 db._audit_log(cursor, 'contacto', contacto_id, 'pago_apoyo_rechazado',
                                 'admin', admin_codigo or '', f'motivo={motivo[:500]}')
                 prof_codigo = str(r.get('profesional_codigo') or '').strip()
@@ -578,17 +448,11 @@ def actualizar_estado_pago_contacto(db, contacto_id: int, nuevo_estado: str,
                     )
                     mensaje = f"RUANA ha rechazado el comprobante de pago del Apoyo RUANA (contacto #{contacto_id}). Motivo: {motivo}"
                     meta = json.dumps({'contacto_id': contacto_id, 'motivo': motivo}, ensure_ascii=False)
-                    cursor.execute("""
-                        INSERT INTO notificaciones_aliado (aliado_codigo, tipo, titulo, mensaje, metadata, leida)
-                        VALUES (?, 'pago_rechazado', 'Comprobante de pago rechazado', ?, ?, 0)
-                    """, (prof_codigo, mensaje, meta))
+                    _repo.insertar_notif_pago_rechazado(cursor, prof_codigo, mensaje, meta)
             else:
-                cursor.execute("""
-                    UPDATE contactos_ruana
-                    SET estado_pago = ?, pendiente_pago = ?,
-                        actualizado_en = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                """, (nuevo_estado, 1 if nuevo_estado != 'pagado' else 0, contacto_id))
+                _repo.update_estado_pago_generico(
+                    cursor, nuevo_estado, 1 if nuevo_estado != 'pagado' else 0, contacto_id
+                )
             db._audit_log(cursor, 'contacto', contacto_id, 'estado_pago_actualizado',
                             'admin', admin_codigo, f'estado_pago={nuevo_estado}')
             conn.commit()
@@ -634,14 +498,7 @@ def tiene_pagos_ruana_pendientes(db, codigo_profesional: str) -> bool:
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT 1 FROM contactos_ruana
-                WHERE profesional_codigo = ? AND estado = 'trabajo_cerrado'
-                  AND importe_final IS NOT NULL AND estado_pago = 'pendiente_pago'
-                  AND COALESCE(apoyo_ruana, 0) > 0
-                LIMIT 1
-            """, (codigo_profesional.strip(),))
-            return cursor.fetchone() is not None
+            return _repo.tiene_pagos_pendientes(cursor, codigo_profesional.strip())
         except Exception:
             return False
         finally:
@@ -658,13 +515,7 @@ def impugnar_apoyo_ruana(db, contacto_id: int, profesional_codigo: str,
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT id, solicitante_codigo, profesional_codigo, estado, importe_final,
-                       estado_pago, pendiente_pago
-                FROM contactos_ruana
-                WHERE id = ?
-            """, (contacto_id,))
-            row = cursor.fetchone()
+            row = _repo.select_contacto_impugnar(cursor, contacto_id)
             if not row:
                 return {'status': 'error', 'message': 'Contacto no encontrado'}
             contacto = dict(row)
@@ -677,43 +528,28 @@ def impugnar_apoyo_ruana(db, contacto_id: int, profesional_codigo: str,
 
             importe_final = float(contacto['importe_final'])
             solicitante_codigo = str(contacto.get('solicitante_codigo') or '').strip()
-            cursor.execute("SELECT id FROM aliados WHERE codigo = ?", (solicitante_codigo,))
-            r_sol = cursor.fetchone()
-            cursor.execute("SELECT id FROM aliados WHERE codigo = ?", (prof_norm,))
-            r_prof = cursor.fetchone()
-            if not r_sol or not r_prof:
+            id_sol = _repo.select_aliado_id_por_codigo(cursor, solicitante_codigo)
+            id_prof = _repo.select_aliado_id_por_codigo(cursor, prof_norm)
+            if id_sol is None or id_prof is None:
                 return {'status': 'error', 'message': 'No se pudo identificar a las partes del contacto'}
+            r_sol = (id_sol,)
+            r_prof = (id_prof,)
 
-            cursor.execute("""
-                UPDATE contactos_ruana
-                SET estado = 'importe_en_disputa', pendiente_resolucion = 1,
-                    estado_pago = 'no_generado', pendiente_pago = 0,
-                    fecha_disputa = COALESCE(fecha_disputa, CURRENT_TIMESTAMP),
-                    actualizado_en = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, (contacto_id,))
+            _repo.update_contacto_impugnar(cursor, contacto_id)
             db._marcar_notificaciones_contacto_leidas(
                 cursor, prof_norm, contacto_id, tipos=['apoyo_ruana', 'pago_rechazado']
             )
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='payment_conflicts'")
-            if cursor.fetchone():
-                cursor.execute("SELECT id FROM payment_conflicts WHERE trabajo_id = ?", (contacto_id,))
-                existing = cursor.fetchone()
-                if existing:
-                    cursor.execute("""
-                        UPDATE payment_conflicts
-                        SET contratante_id = ?, profesional_id = ?, importe_contratante = ?,
-                            importe_profesional = 0, estado = 'PENDIENTE_PRUEBA',
-                            prueba_url = NULL, comentario_admin = ?, updated_at = CURRENT_TIMESTAMP
-                        WHERE id = ?
-                    """, (r_sol[0], r_prof[0], importe_final, (motivo or "").strip()[:2000] or None, existing[0]))
+            if _repo.tabla_payment_conflicts_existe(cursor):
+                existing_id = _repo.select_conflict_id_por_trabajo(cursor, contacto_id)
+                comentario_pc = (motivo or "").strip()[:2000] or None
+                if existing_id is not None:
+                    _repo.update_conflict_impugnacion(
+                        cursor, r_sol[0], r_prof[0], importe_final, comentario_pc, existing_id
+                    )
                 else:
-                    cursor.execute("""
-                        INSERT INTO payment_conflicts (trabajo_id, contratante_id, profesional_id,
-                            importe_contratante, importe_profesional, estado, comentario_admin,
-                            created_at, updated_at)
-                        VALUES (?, ?, ?, ?, 0, 'PENDIENTE_PRUEBA', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                    """, (contacto_id, r_sol[0], r_prof[0], importe_final, (motivo or "").strip()[:2000] or None))
+                    _repo.insertar_conflict_impugnacion(
+                        cursor, contacto_id, r_sol[0], r_prof[0], importe_final, comentario_pc
+                    )
 
             db._audit_log(cursor, 'contacto', contacto_id, 'apoyo_impugnado',
                             'aliado', prof_norm, (motivo or 'importe impugnado')[:500])
@@ -722,10 +558,7 @@ def impugnar_apoyo_ruana(db, contacto_id: int, profesional_codigo: str,
                 "Adjunta documentación o comprobantes para que RUANA pueda validarlo."
             )
             meta = json.dumps({'contacto_id': contacto_id, 'importe_declarado': importe_final}, ensure_ascii=False)
-            cursor.execute("""
-                INSERT INTO notificaciones_aliado (aliado_codigo, tipo, titulo, mensaje, metadata, leida)
-                VALUES (?, 'importe_impugnado', 'Importe impugnado', ?, ?, 0)
-            """, (solicitante_codigo, mensaje, meta))
+            _repo.insertar_notif_importe_impugnado(cursor, solicitante_codigo, mensaje, meta)
             conn.commit()
             return {'status': 'success', 'contacto_id': contacto_id, 'estado': 'importe_en_disputa'}
         except Exception as e:
@@ -744,18 +577,7 @@ def listar_contactos_pago_pendiente_profesional(db, codigo_aliado: str) -> List[
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT c.id, c.servicio, c.importe_final, c.apoyo_ruana, c.estado_pago, c.pendiente_pago,
-                       c.fecha_cierre, c.solicitante_codigo,
-                       a_sol.nombre AS solicitante_nombre
-                FROM contactos_ruana c
-                LEFT JOIN aliados a_sol ON a_sol.codigo = c.solicitante_codigo
-                WHERE TRIM(CAST(c.profesional_codigo AS TEXT)) = ? AND c.estado = 'trabajo_cerrado'
-                  AND c.importe_final IS NOT NULL AND c.estado_pago = 'pendiente_pago'
-                  AND COALESCE(c.apoyo_ruana, 0) > 0
-                ORDER BY c.fecha_cierre IS NULL, c.fecha_cierre DESC, c.id DESC
-            """, (codigo_norm,))
-            lista = [dict(row) for row in cursor.fetchall()]
+            lista = [dict(row) for row in _repo.listar_pago_pendiente_profesional(cursor, codigo_norm)]
             for d in lista:
                 if d.get('importe_final') is not None and d.get('apoyo_ruana') is None:
                     try:
@@ -782,12 +604,7 @@ def subir_comprobante_apoyo_ruana(db, contacto_id: int, profesional_codigo: str,
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT id, profesional_codigo, estado_pago, apoyo_ruana
-                FROM contactos_ruana
-                WHERE id = ? AND estado = 'trabajo_cerrado' AND importe_final IS NOT NULL
-            """, (contacto_id,))
-            row = cursor.fetchone()
+            row = _repo.select_contacto_comprobante(cursor, contacto_id)
             if not row:
                 return {'status': 'error', 'message': 'Contacto no encontrado'}
             r = dict(row)
@@ -795,11 +612,7 @@ def subir_comprobante_apoyo_ruana(db, contacto_id: int, profesional_codigo: str,
                 return {'status': 'error', 'message': 'Solo el profesional del contacto puede subir el comprobante'}
             if (r['estado_pago'] or '') != 'pendiente_pago':
                 return {'status': 'error', 'message': 'Este contacto no tiene el pago en estado pendiente'}
-            cursor.execute("""
-                UPDATE contactos_ruana
-                SET comprobante_ruta = ?, estado_pago = 'en_revision', actualizado_en = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, (comprobante_ruta, contacto_id))
+            _repo.update_comprobante_en_revision(cursor, comprobante_ruta, contacto_id)
             db._marcar_notificaciones_contacto_leidas(
                 cursor, profesional_codigo, contacto_id,
                 tipos=['apoyo_ruana', 'pago_rechazado']
@@ -827,24 +640,14 @@ def subir_prueba_conflicto(db, conflict_id: int, contratante_codigo: str, prueba
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT pc.id, pc.trabajo_id, pc.contratante_id, a.codigo AS contratante_codigo
-                FROM payment_conflicts pc
-                JOIN aliados a ON a.id = pc.contratante_id
-                WHERE pc.id = ?
-            """, (conflict_id,))
-            row = cursor.fetchone()
+            row = _repo.select_conflict_para_prueba(cursor, conflict_id)
             if not row:
                 return {'status': 'error', 'message': 'Conflicto no encontrado'}
             conflicto = dict(row)
-            cursor.execute("SELECT id FROM aliados WHERE codigo = ?", (contratante_codigo,))
-            r_aliado = cursor.fetchone()
-            if not r_aliado or r_aliado[0] != conflicto['contratante_id']:
+            aliado_id = _repo.select_aliado_id_por_codigo(cursor, contratante_codigo)
+            if aliado_id is None or aliado_id != conflicto['contratante_id']:
                 return {'status': 'error', 'message': 'Solo el contratante puede subir la prueba'}
-            cursor.execute("""
-                UPDATE payment_conflicts SET estado = 'EN_REVISION', prueba_url = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, (prueba_url, conflict_id))
+            _repo.update_conflict_prueba(cursor, prueba_url, conflict_id)
             trabajo_id = int(conflicto['trabajo_id'])
             contratante_norm = str(conflicto.get('contratante_codigo') or contratante_codigo or '').strip()
             db._marcar_notificaciones_contacto_leidas(
@@ -860,10 +663,7 @@ def subir_prueba_conflicto(db, conflict_id: int, contratante_codigo: str, prueba
                 'conflict_id': conflict_id,
                 'prueba_url': prueba_url
             }, ensure_ascii=False)
-            cursor.execute("""
-                INSERT INTO notificaciones_aliado (aliado_codigo, tipo, titulo, mensaje, metadata, leida)
-                VALUES (?, 'prueba_conflicto_en_revision', 'Documentacion en revision', ?, ?, 0)
-            """, (contratante_norm, mensaje, meta))
+            _repo.insertar_notif_prueba_revision(cursor, contratante_norm, mensaje, meta)
             conn.commit()
             return {'status': 'success', 'id': conflict_id, 'estado': 'EN_REVISION'}
         except Exception as e:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 
 from core.db_manager import get_db
 from web.catalogo_utils import _catalogo_oficios_desde_archivo
@@ -83,3 +83,36 @@ def health():
         'status': 'healthy',
         'timestamp': datetime.now().isoformat()
     })
+
+@catalogo_bp.route('/api/grupos/especializaciones-disponibles', methods=['GET'])
+def get_especializaciones_disponibles():
+    """
+    GET /api/grupos/especializaciones-disponibles?codigo_postal=...&oficio_principal=...&grupo_id=...
+    Deprecado: la plaza es por oficio principal, no por especialización.
+    Devuelve el oficio como única opción con disponibilidad real.
+    """
+    try:
+        codigo_postal = (request.args.get('codigo_postal') or '').strip()
+        oficio_principal = (request.args.get('oficio_principal') or '').strip()
+        grupo_id_raw = request.args.get('grupo_id')
+        if not oficio_principal:
+            return jsonify({'status': 'success', 'especializaciones': [], 'grupos': [], 'timestamp': datetime.now().isoformat()})
+        db = get_db()
+        grupos_a_consultar = []
+        if grupo_id_raw and str(grupo_id_raw).isdigit():
+            grupos_a_consultar = [{'id': int(grupo_id_raw)}]
+        elif codigo_postal:
+            grupos_a_consultar = db.obtener_grupos_activos_por_cp(codigo_postal)
+        disponible = any(
+            not db.plaza_ocupada_en_grupo(g.get('id') if isinstance(g, dict) else g, oficio_principal)
+            for g in grupos_a_consultar
+        )
+        return jsonify({
+            'status': 'success',
+            'especializaciones': [{'nombre': oficio_principal, 'disponible': disponible}],
+            'grupos': [g.get('id') if isinstance(g, dict) else g for g in grupos_a_consultar],
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+

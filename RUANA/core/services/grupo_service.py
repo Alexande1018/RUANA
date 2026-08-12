@@ -1,16 +1,21 @@
 """Servicio de dominio grupo (Campamento Base).
 
 Extracción progresiva desde DBManager. Las fachadas permanecen en DBManager.
+SQL de grupos vía GrupoRepo.
 """
 from __future__ import annotations
 
 import string
 
 from core.db_constants import MAX_GRUPOS_POR_CP, SUFIJOS_GRUPO, ESTADOS_GRUPO
+from core.repositories.grupo_repo import GrupoRepo
 
 import sqlite3
 import random
 from typing import Any, Dict, List, Optional
+
+_repo = GrupoRepo()
+
 # --- Extraído de DBManager (grupo) ---
 
 def _generar_id_unico_grupo(db) -> str:
@@ -28,8 +33,7 @@ def _generar_nombre_grupo(db, cursor) -> str:
         id_part = db._generar_id_unico_grupo()
         sufijo = random.choice(SUFIJOS_GRUPO)
         nombre = f"RUANA-{id_part}-{sufijo}"
-        cursor.execute("SELECT 1 FROM grupos WHERE nombre = ?", (nombre,))
-        if not cursor.fetchone():
+        if not _repo.existe_nombre(cursor, nombre):
             return nombre
     raise RuntimeError("No se pudo generar nombre único para el grupo tras varios intentos")
 
@@ -40,12 +44,7 @@ def obtener_grupos_activos_por_cp(db, codigo_postal: str) -> List[Dict[str, Any]
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute(
-                """SELECT id, nombre, codigo_postal, ciudad, provincia, estado, fecha_creacion
-                   FROM grupos WHERE codigo_postal = ? AND estado = 'activo' ORDER BY id""",
-                (codigo_postal,),
-            )
-            return [dict(row) for row in cursor.fetchall()]
+            return [dict(row) for row in _repo.listar_activos_por_cp(cursor, codigo_postal)]
         except Exception:
             return []
         finally:
@@ -55,11 +54,7 @@ def _grupo_tiene_oficio(db, cursor, grupo_id: int, oficio: str) -> bool:
     """True si ya existe un aliado activo en el grupo con ese oficio. Compatible con plaza (oficio, especializacion)."""
     if not oficio or not grupo_id:
         return False
-    cursor.execute(
-        "SELECT 1 FROM aliados WHERE grupo_id = ? AND oficio = ? AND estado = 'activo' LIMIT 1",
-        (grupo_id, oficio.strip()),
-    )
-    return cursor.fetchone() is not None
+    return _repo.tiene_oficio(cursor, grupo_id, oficio.strip())
 
 def _grupo_tiene_plaza(db, cursor, grupo_id: int, oficio_principal: str, especializacion: Optional[str] = None) -> bool:
     """True si la plaza (oficio_principal) ya está ocupada en el grupo. Plaza por oficio principal únicamente."""
@@ -90,12 +85,7 @@ def buscar_grupo_sin_oficio(db, codigo_postal: str, oficio: str, especializacion
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute(
-                """SELECT id, nombre, codigo_postal, ciudad, provincia, estado, fecha_creacion
-                   FROM grupos WHERE codigo_postal = ? AND estado = 'activo' ORDER BY id""",
-                (codigo_postal,),
-            )
-            for row in cursor.fetchall():
+            for row in _repo.listar_activos_por_cp(cursor, codigo_postal):
                 g = dict(row)
                 if not db._grupo_tiene_oficio(cursor, g['id'], oficio):
                     return g
@@ -117,17 +107,8 @@ def buscar_grupo_formacion_en_cp(db, codigo_postal: str, oficio: str) -> Optiona
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute(
-                """SELECT g.id, g.nombre, g.codigo_postal, g.ciudad, g.provincia, g.estado, g.fecha_creacion,
-                          (SELECT COUNT(*) FROM aliados a2
-                           WHERE a2.grupo_id = g.id AND a2.estado = 'activo') AS n_aliados
-                   FROM grupos g
-                   WHERE g.codigo_postal = ? AND g.estado = 'activo'
-                   ORDER BY n_aliados ASC, g.id ASC""",
-                (codigo_postal,),
-            )
             candidatos = []
-            for row in cursor.fetchall():
+            for row in _repo.listar_activos_por_cp_con_n_aliados(cursor, codigo_postal):
                 g = dict(row)
                 if not db._grupo_tiene_oficio(cursor, g['id'], oficio):
                     candidatos.append(g)
@@ -143,11 +124,7 @@ def contar_grupos_activos_por_cp(db, codigo_postal: str) -> int:
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT COUNT(*) FROM grupos WHERE codigo_postal = ? AND estado = 'activo'",
-                (codigo_postal,),
-            )
-            return cursor.fetchone()[0] or 0
+            return _repo.contar_activos_por_cp(cursor, codigo_postal)
         except Exception:
             return 0
         finally:
@@ -161,17 +138,9 @@ def crear_grupo_en_cp(db, codigo_postal: str, ciudad: str = "", provincia: str =
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             nombre = db._generar_nombre_grupo(cursor)
-            cursor.execute("""
-                INSERT INTO grupos (nombre, codigo_postal, ciudad, provincia, estado, fecha_creacion)
-                VALUES (?, ?, ?, ?, 'activo', CURRENT_TIMESTAMP)
-            """, (nombre, codigo_postal, ciudad or None, provincia or None))
-            gid = cursor.lastrowid
+            gid = _repo.insertar_grupo(cursor, nombre, codigo_postal, ciudad, provincia)
             conn.commit()
-            cursor.execute(
-                "SELECT id, nombre, codigo_postal, ciudad, provincia, estado, fecha_creacion FROM grupos WHERE id = ?",
-                (gid,),
-            )
-            return dict(cursor.fetchone())
+            return dict(_repo.select_grupo_por_id(cursor, gid))
         except Exception as e:
             return {'status': 'error', 'message': str(e)}
         finally:
@@ -183,11 +152,7 @@ def contar_aliados_activos_grupo(db, grupo_id: int) -> int:
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT COUNT(*) FROM aliados WHERE grupo_id = ? AND estado = 'activo'",
-                (grupo_id,),
-            )
-            return cursor.fetchone()[0] or 0
+            return _repo.contar_aliados_activos(cursor, grupo_id)
         except Exception:
             return 0
         finally:
@@ -236,24 +201,20 @@ def procesar_viabilidad_grupo(db, grupo_id: int) -> Dict[str, Any]:
             if n >= 2:
                 return {'status': 'ok', 'message': 'Grupo viable', 'aliados_activos': n}
             if n == 0:
-                cursor.execute("UPDATE grupos SET estado = 'disuelto' WHERE id = ?", (grupo_id,))
+                _repo.update_estado_disuelto(cursor, grupo_id)
                 conn.commit()
                 return {'status': 'ok', 'accion': 'disuelto', 'motivo': 'sin aliados activos'}
 
             # 1 aliado activo: obtener su oficio y CP
-            cursor.execute(
-                "SELECT id, codigo, oficio, codigo_postal FROM aliados WHERE grupo_id = ? AND estado = 'activo' LIMIT 1",
-                (grupo_id,),
-            )
-            row = cursor.fetchone()
+            row = _repo.select_aliado_activo_del_grupo(cursor, grupo_id)
             if not row:
-                cursor.execute("UPDATE grupos SET estado = 'disuelto' WHERE id = ?", (grupo_id,))
+                _repo.update_estado_disuelto(cursor, grupo_id)
                 conn.commit()
                 return {'status': 'ok', 'accion': 'disuelto'}
 
             aliado_id, codigo_aliado, oficio_aliado, codigo_postal = row[0], row[1], (row[2] or '').strip(), (row[3] or '')
             if not codigo_postal:
-                cursor.execute("UPDATE grupos SET estado = 'disuelto' WHERE id = ?", (grupo_id,))
+                _repo.update_estado_disuelto(cursor, grupo_id)
                 conn.commit()
                 return {'status': 'ok', 'accion': 'disuelto', 'motivo': 'sin cp'}
 
@@ -279,14 +240,13 @@ def procesar_viabilidad_grupo(db, grupo_id: int) -> Dict[str, Any]:
             # No fusión: reasignar a grupo compatible o crear nuevo
             compatible = db._buscar_grupo_compatible_mismo_cp(cursor, codigo_postal, oficio_aliado, grupo_id)
             if compatible:
-                cursor.execute("UPDATE aliados SET grupo_id = ? WHERE id = ?", (compatible['id'], aliado_id))
-                cursor.execute("UPDATE grupos SET estado = 'disuelto' WHERE id = ?", (grupo_id,))
+                _repo.update_aliado_grupo_id(cursor, compatible['id'], aliado_id)
+                _repo.update_estado_disuelto(cursor, grupo_id)
                 conn.commit()
                 return {'status': 'ok', 'accion': 'reasignado', 'nuevo_grupo_id': compatible['id'], 'disuelto_id': grupo_id}
 
             # Sin grupo compatible: crear nuevo grupo y asignar aliado
-            cursor.execute("SELECT ciudad, provincia FROM grupos WHERE id = ?", (grupo_id,))
-            r = cursor.fetchone()
+            r = _repo.select_ciudad_provincia(cursor, grupo_id)
             ciudad = r[0] if r and r[0] else ''
             provincia = r[1] if r and r[1] else ''
             conn.commit()
@@ -297,8 +257,8 @@ def procesar_viabilidad_grupo(db, grupo_id: int) -> Dict[str, Any]:
                 with db._lock:
                     conn2 = db._connect()
                     cursor2 = conn2.cursor()
-                    cursor2.execute("UPDATE aliados SET grupo_id = ? WHERE id = ?", (nuevo['id'], aliado_id))
-                    cursor2.execute("UPDATE grupos SET estado = 'disuelto' WHERE id = ?", (grupo_id,))
+                    _repo.update_aliado_grupo_id(cursor2, nuevo['id'], aliado_id)
+                    _repo.update_estado_disuelto(cursor2, grupo_id)
                     conn2.commit()
                     conn2.close()
                 return {'status': 'ok', 'accion': 'reasignado_nuevo_grupo', 'nuevo_grupo_id': nuevo['id'], 'disuelto_id': grupo_id}
@@ -306,7 +266,7 @@ def procesar_viabilidad_grupo(db, grupo_id: int) -> Dict[str, Any]:
             with db._lock:
                 conn2 = db._connect()
                 cursor2 = conn2.cursor()
-                cursor2.execute("UPDATE grupos SET estado = 'disuelto' WHERE id = ?", (grupo_id,))
+                _repo.update_estado_disuelto(cursor2, grupo_id)
                 conn2.commit()
                 conn2.close()
             return {'status': 'ok', 'accion': 'disuelto', 'motivo': 'sin fusion ni compatible'}
@@ -326,11 +286,7 @@ def obtener_avisos_grupo(db, grupo_id: int, tipo: Optional[str] = None) -> List[
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            if tipo:
-                cursor.execute("SELECT id, grupo_id, tipo, texto, creado_en FROM avisos_grupo WHERE grupo_id = ? AND tipo = ? ORDER BY creado_en DESC", (grupo_id, tipo))
-            else:
-                cursor.execute("SELECT id, grupo_id, tipo, texto, creado_en FROM avisos_grupo WHERE grupo_id = ? ORDER BY creado_en DESC", (grupo_id,))
-            return [dict(row) for row in cursor.fetchall()]
+            return [dict(row) for row in _repo.listar_avisos(cursor, grupo_id, tipo)]
         except Exception:
             return []
         finally:
@@ -345,13 +301,9 @@ def cerrar_oficio_grupo(db, grupo_id: int, oficio: str, admin_codigo: Optional[s
             oficio_s = (oficio or '').strip()
             if not oficio_s:
                 return {'status': 'error', 'message': 'Oficio obligatorio'}
-            cursor.execute("SELECT 1 FROM grupos WHERE id = ? AND estado = 'activo'", (grupo_id,))
-            if not cursor.fetchone():
+            if not _repo.existe_grupo_activo(cursor, grupo_id):
                 return {'status': 'error', 'message': 'Grupo no encontrado o no activo'}
-            cursor.execute(
-                "INSERT OR IGNORE INTO grupo_oficio_cerrado (grupo_id, oficio) VALUES (?, ?)",
-                (grupo_id, oficio_s),
-            )
+            _repo.insertar_oficio_cerrado(cursor, grupo_id, oficio_s)
             conn.commit()
             try:
                 db.registrar_evento_sistema(
@@ -381,7 +333,7 @@ def abrir_plaza_grupo(db, grupo_id: int, oficio: str, admin_codigo: Optional[str
             oficio_s = (oficio or '').strip()
             if not oficio_s:
                 return {'status': 'error', 'message': 'Oficio obligatorio'}
-            cursor.execute("DELETE FROM grupo_oficio_cerrado WHERE grupo_id = ? AND oficio = ?", (grupo_id, oficio_s))
+            _repo.delete_oficio_cerrado(cursor, grupo_id, oficio_s)
             conn.commit()
             try:
                 db.registrar_evento_sistema(
@@ -410,11 +362,7 @@ def listar_oficios_cerrados_grupo(db, grupo_id: int) -> List[str]:
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT oficio FROM grupo_oficio_cerrado WHERE grupo_id = ? ORDER BY oficio",
-                (grupo_id,),
-            )
-            return [row[0].strip() for row in cursor.fetchall() if row[0]]
+            return [row[0].strip() for row in _repo.listar_oficios_cerrados(cursor, grupo_id) if row[0]]
         except Exception:
             return []
         finally:
@@ -430,14 +378,10 @@ def contar_grupos(db) -> Dict[str, int]:
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM grupos")
-            total = cursor.fetchone()[0] or 0
-            cursor.execute("SELECT COUNT(*) FROM grupos WHERE estado = 'activo'")
-            activos = cursor.fetchone()[0] or 0
-            cursor.execute("SELECT COUNT(*) FROM grupos WHERE estado = 'en_competencia'")
-            en_competencia = cursor.fetchone()[0] or 0
-            cursor.execute("SELECT COUNT(*) FROM grupos WHERE estado = 'disuelto'")
-            disueltos = cursor.fetchone()[0] or 0
+            total = _repo.contar_total(cursor)
+            activos = _repo.contar_por_estado(cursor, 'activo')
+            en_competencia = _repo.contar_por_estado(cursor, 'en_competencia')
+            disueltos = _repo.contar_por_estado(cursor, 'disuelto')
             return {
                 'total': total,
                 'activos': activos,
@@ -452,4 +396,257 @@ def contar_grupos(db) -> Dict[str, int]:
                     conn.close()
             except Exception:
                 pass
+
+
+def obtener_especializaciones_ocupadas(db, grupo_id: int, oficio_principal: str) -> set:
+    """Devuelve los oficios ya ocupados en el grupo (deprecado: solo devuelve el oficio si está ocupado)."""
+    if not grupo_id or not oficio_principal:
+        return set()
+    if db.plaza_ocupada_en_grupo(grupo_id, oficio_principal):
+        return {oficio_principal.strip()}
+    return set()
+
+
+def sugerir_cp_adyacente(db, codigo_postal: str) -> Optional[str]:
+    """Sugiere un CP alternativo desde la BD (misma zona: dos primeros dígitos). No usa listas abstractas."""
+    if not codigo_postal or len(codigo_postal) < 2:
+        return None
+    prefijo = codigo_postal[:2]
+    with db._lock:
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT codigo_postal FROM grupos
+                WHERE codigo_postal != ? AND codigo_postal LIKE ?
+                GROUP BY codigo_postal
+                ORDER BY codigo_postal LIMIT 1
+            """, (codigo_postal, prefijo + '%'))
+            row = cursor.fetchone()
+            return row[0] if row else None
+        except Exception:
+            return None
+        finally:
+            conn.close()
+
+
+def obtener_o_crear_grupo(db, codigo_postal: str, ciudad: str = "", provincia: str = "") -> Dict[str, Any]:
+    """
+    Obtiene el primer grupo activo del CP o crea uno si no hay ninguno.
+    Nombre generado: RUANA-<ID_UNICO>-<SUFIJO>. Estado por defecto: activo.
+    """
+    with db._lock:
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id, nombre, codigo_postal, ciudad, provincia, estado, fecha_creacion FROM grupos WHERE codigo_postal = ? AND estado = 'activo' ORDER BY id LIMIT 1",
+                (codigo_postal,),
+            )
+            row = cursor.fetchone()
+            if row:
+                return dict(row)
+            nombre = db._generar_nombre_grupo(cursor)
+            cursor.execute("""
+                INSERT INTO grupos (nombre, codigo_postal, ciudad, provincia, estado, fecha_creacion)
+                VALUES (?, ?, ?, ?, 'activo', CURRENT_TIMESTAMP)
+            """, (nombre, codigo_postal, ciudad or None, provincia or None))
+            gid = cursor.lastrowid
+            conn.commit()
+            cursor.execute(
+                "SELECT id, nombre, codigo_postal, ciudad, provincia, estado, fecha_creacion FROM grupos WHERE id = ?",
+                (gid,),
+            )
+            return dict(cursor.fetchone())
+        except Exception as e:
+            return {'status': 'error', 'message': str(e)}
+        finally:
+            conn.close()
+
+
+def obtener_grupo_por_codigo_postal(db, codigo_postal: str) -> Optional[Dict[str, Any]]:
+    """Obtiene el primer grupo activo por código postal."""
+    grupos = db.obtener_grupos_activos_por_cp(codigo_postal)
+    return grupos[0] if grupos else None
+
+
+def obtener_grupo_por_id(db, grupo_id: int) -> Optional[Dict[str, Any]]:
+    """Obtiene un grupo por su id."""
+    with db._lock:
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id, nombre, codigo_postal, ciudad, provincia, estado, fecha_creacion FROM grupos WHERE id = ?",
+                (grupo_id,),
+            )
+            row = cursor.fetchone()
+            return dict(row) if row else None
+        except Exception:
+            return None
+        finally:
+            conn.close()
+
+
+def _buscar_candidato_fusion(db, cursor, grupo_id: int, codigo_postal: str, oficio_aliado_solo: str) -> Optional[Dict[str, Any]]:
+    """
+    Busca otro grupo activo en el mismo CP con <3 aliados activos y sin ese oficio.
+    Solo fusionar si no hay oficios repetidos. Devuelve el grupo candidato (el que podría absorber o ser absorbido).
+    """
+    cursor.execute(
+        """SELECT id, nombre, codigo_postal, ciudad, provincia, estado, fecha_creacion
+           FROM grupos WHERE codigo_postal = ? AND estado = 'activo' AND id != ? ORDER BY fecha_creacion, id""",
+        (codigo_postal, grupo_id),
+    )
+    for row in cursor.fetchall():
+        g = dict(row)
+        if db._grupo_tiene_oficio(cursor, g['id'], oficio_aliado_solo):
+            continue
+        cursor.execute(
+            "SELECT COUNT(*) FROM aliados WHERE grupo_id = ? AND estado = 'activo'",
+            (g['id'],),
+        )
+        n = cursor.fetchone()[0] or 0
+        if n < 3:
+            return g
+    return None
+
+
+def _fusionar_grupos_mas_antiguo_absorbe(db, conn, cursor, grupo_absorbedor_id: int, grupo_a_disolver_id: int) -> None:
+    """Mueve todos los aliados activos del grupo a disolver al absorbedor y marca el grupo como disuelto. No reutiliza nombres."""
+    cursor.execute(
+        "UPDATE aliados SET grupo_id = ? WHERE grupo_id = ? AND estado = 'activo'",
+        (grupo_absorbedor_id, grupo_a_disolver_id),
+    )
+    cursor.execute("UPDATE grupos SET estado = 'disuelto' WHERE id = ?", (grupo_a_disolver_id,))
+
+
+def _buscar_grupo_compatible_mismo_cp(db, cursor, codigo_postal: str, oficio: str, excluir_grupo_id: int) -> Optional[Dict[str, Any]]:
+    """Grupo activo en el mismo CP que no tiene ese oficio y no es el excluido."""
+    cursor.execute(
+        """SELECT id, nombre, codigo_postal, ciudad, provincia, estado, fecha_creacion
+           FROM grupos WHERE codigo_postal = ? AND estado = 'activo' AND id != ? ORDER BY id""",
+        (codigo_postal, excluir_grupo_id),
+    )
+    for row in cursor.fetchall():
+        g = dict(row)
+        if not db._grupo_tiene_oficio(cursor, g['id'], oficio):
+            return g
+    return None
+
+
+def procesar_grupos_no_viables(db) -> List[Dict[str, Any]]:
+    """Ejecuta procesar_viabilidad_grupo para todos los grupos activos con exactamente 1 aliado activo."""
+    with db._lock:
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            cursor.execute(
+                """SELECT g.id FROM grupos g
+                   WHERE g.estado = 'activo'
+                   AND (SELECT COUNT(*) FROM aliados a WHERE a.grupo_id = g.id AND a.estado = 'activo') = 1"""
+            )
+            ids = [row[0] for row in cursor.fetchall()]
+            conn.close()
+        except Exception:
+            return []
+    resultados = []
+    for gid in ids:
+        r = db.procesar_viabilidad_grupo(gid)
+        resultados.append({'grupo_id': gid, **r})
+    return resultados
+
+
+def obtener_grupo_invitador_por_codigo_invitacion(db, codigo_invitacion: str) -> Optional[Dict[str, Any]]:
+    """
+    Devuelve el grupo del invitador para un código de invitación (tabla invitaciones).
+    Usado al registrarse con código "Conozco a alguien" para asignar al nuevo aliado al mismo grupo si cumple reglas.
+    """
+    codigo = (codigo_invitacion or '').strip()
+    if not codigo:
+        return None
+    with db._lock:
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT invitador_aliado_id FROM invitaciones WHERE codigo = ?",
+                (codigo,)
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            invitador_id = row[0] if hasattr(row, '__getitem__') else row['invitador_aliado_id']
+            cursor.execute(
+                "SELECT grupo_id, codigo_postal FROM aliados WHERE id = ?",
+                (invitador_id,)
+            )
+            r2 = cursor.fetchone()
+            if not r2 or not r2[0]:
+                return None
+            grupo_id = r2[0] if hasattr(r2, '__getitem__') else r2['grupo_id']
+            codigo_postal = r2[1] if hasattr(r2, '__getitem__') else r2['codigo_postal']
+            return {'grupo_id': grupo_id, 'codigo_postal': codigo_postal or ''}
+        except Exception:
+            return None
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def _obtener_grupo_activacion_pendiente(db, cursor, aliado: Dict[str, Any]) -> Optional[int]:
+    """
+    Resuelve grupo al activar un aliado pendiente_validacion.
+    Prioridad: grupo del invitador (si hay plaza) → otro grupo del CP → nuevo grupo.
+    """
+    oficio = (aliado.get('oficio') or '').strip()
+    codigo_postal = (aliado.get('codigo_postal') or '').strip()
+    if not oficio or not codigo_postal:
+        return None
+
+    invitador_codigo = (aliado.get('invitado_por_codigo') or '').strip()
+    if invitador_codigo:
+        cursor.execute(
+            "SELECT grupo_id FROM aliados WHERE codigo = ?",
+            (invitador_codigo,),
+        )
+        inv_row = cursor.fetchone()
+        if inv_row and inv_row[0]:
+            grupo_id = int(inv_row[0])
+            cursor.execute("SELECT estado FROM grupos WHERE id = ?", (grupo_id,))
+            g_row = cursor.fetchone()
+            if g_row and (g_row[0] or '').strip().lower() == 'activo':
+                if not db._grupo_tiene_oficio(cursor, grupo_id, oficio):
+                    return grupo_id
+
+    cursor.execute(
+        """SELECT id FROM grupos
+           WHERE codigo_postal = ? AND estado = 'activo'
+           ORDER BY id""",
+        (codigo_postal,),
+    )
+    for row in cursor.fetchall():
+        grupo_id = int(row[0])
+        if not db._grupo_tiene_oficio(cursor, grupo_id, oficio):
+            return grupo_id
+
+    cursor.execute(
+        "SELECT COUNT(*) FROM grupos WHERE codigo_postal = ? AND estado = 'activo'",
+        (codigo_postal,),
+    )
+    n_grupos = cursor.fetchone()[0] or 0
+    if n_grupos < MAX_GRUPOS_POR_CP:
+        nombre = db._generar_nombre_grupo(cursor)
+        cursor.execute(
+            """INSERT INTO grupos (nombre, codigo_postal, estado, fecha_creacion)
+               VALUES (?, ?, 'activo', CURRENT_TIMESTAMP)""",
+            (nombre, codigo_postal),
+        )
+        return int(cursor.lastrowid)
+    return None
 

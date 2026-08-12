@@ -35,3 +35,16 @@ DB_PATH = str(
     ).resolve()
 )
 RUANA_CODIGO_INVITACION_REGEX = r"^RUANA-\d+-[A-Z0-9]+-[A-Z0-9]{4}$"
+
+
+def email_liberado_aliado(codigo: str) -> str:
+    return f'liberado+{codigo}@ruana.invalid'
+
+
+def telefono_liberado_aliado(codigo: str) -> str:
+    return f'LIBERADO-{codigo}'
+
+
+# Compat aliases (nombres históricos usados en DBManager)
+_email_liberado_aliado = email_liberado_aliado
+_telefono_liberado_aliado = telefono_liberado_aliado

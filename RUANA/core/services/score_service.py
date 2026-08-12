@@ -2,7 +2,8 @@
 Servicio de Score RUANA.
 
 Reglas de mutación de score: rango [0, 500], tope ±10 por día.
-La orquestación de competencia por umbral permanece en la fachada DBManager.
+aplicar_cambio_score(cursor) muta sin side-effects;
+aplicar_cambio_score_db(db) orquesta commit + competencia por umbral.
 """
 
 from __future__ import annotations
@@ -89,6 +90,58 @@ def aplicar_cambio_score(
         "score_anterior": score_actual,
     }
 
+
+def aplicar_cambio_score_db(db, codigo_aliado: str, delta: int, motivo: str = "") -> Dict[str, Any]:
+    """
+    Orquestación completa: mutación de score + side-effects de competencia por umbral.
+    La mutación pura sigue en aplicar_cambio_score(cursor, ...).
+    """
+    if not codigo_aliado or delta == 0:
+        return {'status': 'success', 'aplicado': 0, 'score_final': None}
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            result = aplicar_cambio_score(
+                cursor,
+                codigo_aliado=codigo_aliado,
+                delta=delta,
+                motivo=motivo,
+            )
+            if result.get('status') == 'error':
+                return {'status': 'error', 'message': result.get('message', 'error')}
+            delta_real = int(result.get('aplicado') or 0)
+            score_nuevo = result.get('score_final')
+            score_actual = result.get('score_anterior')
+            if delta_real == 0:
+                return {
+                    'status': 'success',
+                    'aplicado': 0,
+                    'score_final': score_nuevo,
+                }
+            conn.commit()
+            umbral = db._get_umbral_competencia()
+            if umbral is not None and score_nuevo is not None and score_actual is not None:
+                if score_nuevo < umbral:
+                    if score_actual >= umbral:
+                        db._solicitar_competencia_por_score(codigo_aliado)
+                    elif not db.aliado_en_competencia_activa(codigo_aliado) and not db.tiene_competencia_pendiente(codigo_aliado):
+                        db._solicitar_competencia_por_score(codigo_aliado)
+                elif score_nuevo >= umbral:
+                    db._cancelar_competencia_pendiente(codigo_aliado, 'score_recuperado')
+            return {
+                'status': 'success',
+                'aplicado': delta_real,
+                'score_final': score_nuevo,
+            }
+        except Exception as e:
+            return {'status': 'error', 'message': str(e)}
+        finally:
+            if conn is not None:
+                conn.close()
+
+
 # --- Reglas y penalizaciones (fase 3, extraídas de DBManager) ---
 
 def score_a_estado(score: Any) -> str:
@@ -162,20 +215,14 @@ def aplicar_penalizaciones_contactos_abiertos(db, codigo_aliado: str) -> None:
                 except Exception:
                     d = datetime.now()
                 dias = (datetime.now() - d).days
+                repo = ScoreRepo()
                 for tipo, umbral, penalizacion in [('21d', 21, -5), ('7d', 7, -2)]:
                     if dias < umbral:
                         continue
-                    cursor.execute("""
-                        SELECT 1 FROM contacto_penalizaciones_aplicadas
-                        WHERE contacto_id = ? AND tipo = ?
-                    """, (cid, tipo))
-                    if cursor.fetchone():
+                    if repo.existe_penalizacion_aplicada(cursor, cid, tipo):
                         continue
                     db.aplicar_cambio_score(codigo_aliado, penalizacion, f'contacto_sin_cerrar_{tipo}')
-                    cursor.execute("""
-                        INSERT OR IGNORE INTO contacto_penalizaciones_aplicadas (contacto_id, tipo)
-                        VALUES (?, ?)
-                    """, (cid, tipo))
+                    repo.insertar_penalizacion_aplicada(cursor, cid, tipo)
                     conn.commit()
         except Exception as e:
             pass
@@ -229,11 +276,8 @@ def aplicar_penalizacion_comprobante_apoyo_3d(db, codigo_aliado: str) -> None:
                 dias = (datetime.now() - ref).days
                 if dias < 3:
                     continue
-                cursor.execute("""
-                    SELECT 1 FROM contacto_penalizaciones_aplicadas
-                    WHERE contacto_id = ? AND tipo = 'comprobante_3d'
-                """, (cid,))
-                if cursor.fetchone():
+                repo = ScoreRepo()
+                if repo.existe_penalizacion_aplicada(cursor, cid, 'comprobante_3d'):
                     continue
                 motivo = f'comprobante_apoyo_3d_{int(cid)}'
                 if db._ya_aplicado_motivo_score(codigo_aliado, motivo):
@@ -241,10 +285,7 @@ def aplicar_penalizacion_comprobante_apoyo_3d(db, codigo_aliado: str) -> None:
                 result = db.aplicar_cambio_score(codigo_aliado, -3, motivo)
                 if result.get('status') != 'success' or int(result.get('aplicado') or 0) == 0:
                     continue
-                cursor.execute("""
-                    INSERT OR IGNORE INTO contacto_penalizaciones_aplicadas (contacto_id, tipo)
-                    VALUES (?, 'comprobante_3d')
-                """, (cid,))
+                repo.insertar_penalizacion_aplicada(cursor, cid, 'comprobante_3d')
                 conn.commit()
         except Exception:
             pass
@@ -307,20 +348,14 @@ def aplicar_penalizacion_chat_sin_respuesta_48h(db, codigo_aliado: str) -> None:
                 ref = db._parse_timestamp(ultimo[1])
                 if not ref or not db._chat_esta_expirado(ref):
                     continue  # aún dentro de las 48 h
-                cursor.execute("""
-                    SELECT 1 FROM contacto_penalizaciones_aplicadas
-                    WHERE contacto_id = ? AND tipo = 'chat_48h'
-                """, (cid,))
-                if cursor.fetchone():
+                repo = ScoreRepo()
+                if repo.existe_penalizacion_aplicada(cursor, cid, 'chat_48h'):
                     continue
                 motivo = f'chat_sin_respuesta_48h_{int(cid)}'
                 if db._ya_aplicado_motivo_score(codigo_aliado, motivo):
                     continue
                 db.aplicar_cambio_score(codigo_aliado, -2, motivo)
-                cursor.execute("""
-                    INSERT OR IGNORE INTO contacto_penalizaciones_aplicadas (contacto_id, tipo)
-                    VALUES (?, 'chat_48h')
-                """, (cid,))
+                repo.insertar_penalizacion_aplicada(cursor, cid, 'chat_48h')
                 conn.commit()
         except Exception:
             pass
@@ -417,18 +452,12 @@ def aplicar_penalizacion_chat_agotado_sin_resultado(db, contacto_id: int, codigo
     if db._ya_aplicado_motivo_score(codigo_aliado, motivo):
         return None
     # También registrar tipo en contacto_penalizaciones_aplicadas
+    repo = ScoreRepo()
     with db._lock:
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT 1 FROM contacto_penalizaciones_aplicadas
-                WHERE contacto_id = ? AND tipo = 'chat_agotado'
-                """,
-                (int(contacto_id),),
-            )
-            if cursor.fetchone():
+            if repo.existe_penalizacion_aplicada(cursor, int(contacto_id), 'chat_agotado'):
                 return None
         except Exception:
             return None
@@ -443,13 +472,7 @@ def aplicar_penalizacion_chat_agotado_sin_resultado(db, contacto_id: int, codigo
             try:
                 conn = db._connect()
                 cursor = conn.cursor()
-                cursor.execute(
-                    """
-                    INSERT OR IGNORE INTO contacto_penalizaciones_aplicadas (contacto_id, tipo)
-                    VALUES (?, 'chat_agotado')
-                    """,
-                    (int(contacto_id),),
-                )
+                repo.insertar_penalizacion_aplicada(cursor, int(contacto_id), 'chat_agotado')
                 conn.commit()
             except Exception:
                 pass
@@ -466,15 +489,12 @@ def _ya_aplicado_motivo_score(db, codigo_aliado: str, motivo: str) -> bool:
     motivo = (motivo or '').strip()
     if not codigo_aliado or not motivo:
         return True
+    repo = ScoreRepo()
     with db._lock:
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT 1 FROM score_movimientos WHERE codigo_aliado = ? AND motivo = ? LIMIT 1",
-                (codigo_aliado, motivo),
-            )
-            return cursor.fetchone() is not None
+            return repo.existe_movimiento_motivo(cursor, codigo_aliado, motivo)
         except Exception:
             return True
         finally:
@@ -636,18 +656,12 @@ def aplicar_penalizacion_disputa_perdida(db, contacto_id: int, decision: str
     motivo = f'disputa_perdida_{int(contacto_id)}'
     if db._ya_aplicado_motivo_score(perdedor, motivo):
         return None
+    repo = ScoreRepo()
     with db._lock:
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT 1 FROM contacto_penalizaciones_aplicadas
-                WHERE contacto_id = ? AND tipo = 'disputa_perdida'
-                """,
-                (int(contacto_id),),
-            )
-            if cursor.fetchone():
+            if repo.existe_penalizacion_aplicada(cursor, int(contacto_id), 'disputa_perdida'):
                 return None
         except Exception:
             return None
@@ -662,13 +676,7 @@ def aplicar_penalizacion_disputa_perdida(db, contacto_id: int, decision: str
             try:
                 conn = db._connect()
                 cursor = conn.cursor()
-                cursor.execute(
-                    """
-                    INSERT OR IGNORE INTO contacto_penalizaciones_aplicadas (contacto_id, tipo)
-                    VALUES (?, 'disputa_perdida')
-                    """,
-                    (int(contacto_id),),
-                )
+                repo.insertar_penalizacion_aplicada(cursor, int(contacto_id), 'disputa_perdida')
                 conn.commit()
             except Exception:
                 pass
@@ -749,18 +757,12 @@ def _tiene_premio_regla8_reciente(db, codigo_aliado: str, dia_fin: str) -> bool:
         return True
     dia_min = (fin - timedelta(days=db.REGLA8_DIAS_RACHA - 1)).strftime('%Y-%m-%d')
     prefijo = 'regla8_racha_7dias_'
+    repo = ScoreRepo()
     with db._lock:
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT motivo FROM score_movimientos
-                WHERE codigo_aliado = ? AND motivo LIKE ?
-                """,
-                (codigo_aliado, prefijo + '%'),
-            )
-            rows = cursor.fetchall()
+            motivos = repo.listar_motivos_score_con_prefijo(cursor, codigo_aliado, prefijo)
         except Exception:
             return True
         finally:
@@ -768,8 +770,7 @@ def _tiene_premio_regla8_reciente(db, codigo_aliado: str, dia_fin: str) -> bool:
                 conn.close()
             except Exception:
                 pass
-    for row in rows:
-        motivo = row[0] if not isinstance(row, dict) else row.get('motivo')
+    for motivo in motivos:
         motivo = str(motivo or '')
         if not motivo.startswith(prefijo):
             continue
@@ -847,19 +848,12 @@ def evaluar_regla8_racha_7dias(db,
         (fin - timedelta(days=i)).strftime('%Y-%m-%d')
         for i in range(db.REGLA8_DIAS_RACHA)
     ]
+    repo = ScoreRepo()
     with db._lock:
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            placeholders = ','.join('?' * len(dias_requeridos))
-            cursor.execute(
-                f"""
-                SELECT dia FROM aliado_accesos_dia
-                WHERE codigo_aliado = ? AND dia IN ({placeholders})
-                """,
-                (codigo_aliado, *dias_requeridos),
-            )
-            presentes = {str(r[0]) for r in cursor.fetchall()}
+            presentes = set(repo.listar_dias_acceso(cursor, codigo_aliado, dias=dias_requeridos))
         except Exception:
             return None
         finally:
@@ -935,15 +929,12 @@ def _ya_aplicada_regla4_mes(db, codigo_aliado: str, anio_mes: str) -> bool:
     if not codigo_aliado or not anio_mes:
         return True
     motivo = db._motivo_regla4_mes(anio_mes)
+    repo = ScoreRepo()
     with db._lock:
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT 1 FROM score_movimientos WHERE codigo_aliado = ? AND motivo = ? LIMIT 1",
-                (codigo_aliado, motivo),
-            )
-            return cursor.fetchone() is not None
+            return repo.existe_movimiento_motivo(cursor, codigo_aliado, motivo)
         except Exception:
             return True
         finally:
@@ -1069,4 +1060,71 @@ def evaluar_regla4_encargos_mes_limpio(db,
         db.REGLA4_ENCARGOS_MES_DELTA,
         db._motivo_regla4_mes(anio_mes),
     )
+
+
+def _baseline_acceso_dia(db, codigo_aliado: str) -> Optional[str]:
+    """Último día de login o fecha de alta (YYYY-MM-DD)."""
+    codigo_aliado = (codigo_aliado or '').strip()
+    if not codigo_aliado:
+        return None
+    with db._lock:
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT MAX(dia) FROM aliado_accesos_dia WHERE codigo_aliado = ?
+                """,
+                (codigo_aliado,),
+            )
+            row = cursor.fetchone()
+            ultimo = (row[0] if row else None) or None
+            if ultimo and len(str(ultimo)) >= 10:
+                return str(ultimo)[:10]
+            cursor.execute(
+                "SELECT creado_en FROM aliados WHERE codigo = ?",
+                (codigo_aliado,),
+            )
+            row = cursor.fetchone()
+            if not row or not row[0]:
+                return None
+            return db._fecha_dia_servidor(row[0]) or db._dia_hoy_servidor()
+        except Exception:
+            return None
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def _fecha_dia_servidor(fecha_val: Any) -> Optional[str]:
+    """Normaliza timestamp/fecha a 'YYYY-MM-DD' (calendario del servidor)."""
+    if fecha_val is None:
+        return None
+    if isinstance(fecha_val, datetime):
+        dt = fecha_val
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+        return dt.strftime('%Y-%m-%d')
+    s = str(fecha_val).strip()
+    if len(s) >= 10 and s[4] == '-' and s[7] == '-':
+        return s[:10]
+    return None
+
+
+def _anio_mes_de(fecha_val: Any) -> Optional[str]:
+    """Normaliza timestamp/fecha a 'YYYY-MM'."""
+    if fecha_val is None:
+        return None
+    if isinstance(fecha_val, datetime):
+        return fecha_val.strftime('%Y-%m')
+    s = str(fecha_val).strip()
+    if len(s) >= 7 and s[4] == '-':
+        return s[:7]
+    return None
+
+
+def _motivo_regla8(db, dia_fin: str) -> str:
+    return f'regla8_racha_7dias_{dia_fin}'
 

@@ -1,6 +1,7 @@
 """Servicio de dominio competencia (Campamento Base).
 
 Extracción progresiva desde DBManager. Las fachadas permanecen en DBManager.
+SQL de competencia vía CompetenciaRepo.
 """
 from __future__ import annotations
 
@@ -10,6 +11,11 @@ import json
 import sqlite3
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
+
+from core.repositories.competencia_repo import CompetenciaRepo
+
+_repo = CompetenciaRepo()
+
 # --- Extraído de DBManager (competencia) ---
 
 def _get_umbral_competencia(db) -> Optional[int]:
@@ -83,13 +89,9 @@ def _cancelar_competencia_pendiente(db, codigo_aliado: str, motivo: str = 'score
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute(
-                "UPDATE competencia_pendiente SET estado = 'cancelada' "
-                "WHERE aliado_codigo = ? AND estado = 'pendiente'",
-                (codigo,),
-            )
+            rowcount = _repo.cancelar_pendiente(cursor, codigo)
             conn.commit()
-            if cursor.rowcount:
+            if rowcount:
                 try:
                     db.registrar_evento_sistema(
                         'competencia_pendiente_cancelada',
@@ -112,11 +114,7 @@ def tiene_competencia_pendiente(db, codigo_aliado: str) -> bool:
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT 1 FROM competencia_pendiente WHERE aliado_codigo = ? AND estado = 'pendiente' LIMIT 1",
-                (codigo,),
-            )
-            return cursor.fetchone() is not None
+            return _repo.tiene_pendiente(cursor, codigo)
         except Exception:
             return False
         finally:
@@ -132,17 +130,7 @@ def _procesar_competencias_pendientes(db, codigo_postal: Optional[str] = None, o
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            q = "SELECT id, aliado_codigo, grupo_id, oficio, codigo_postal FROM competencia_pendiente WHERE estado = 'pendiente'"
-            params: List[Any] = []
-            if codigo_postal:
-                q += " AND codigo_postal = ?"
-                params.append(codigo_postal.strip())
-            if oficio:
-                q += " AND oficio = ?"
-                params.append(oficio.strip())
-            q += " ORDER BY creado_en ASC"
-            cursor.execute(q, params)
-            pendientes = [dict(r) for r in cursor.fetchall()]
+            pendientes = [dict(r) for r in _repo.listar_pendientes(cursor, codigo_postal, oficio)]
         except Exception:
             return []
         finally:
@@ -180,12 +168,7 @@ def aliado_en_competencia_activa(db, codigo_aliado: str) -> bool:
             conn = db._connect()
             cursor = conn.cursor()
             col = db._columna_retador_competencia(cursor)
-            cursor.execute(
-                f"SELECT 1 FROM competencia WHERE estado = 'activa' "
-                f"AND (aliado_original_codigo = ? OR {col} = ?) LIMIT 1",
-                (codigo, codigo),
-            )
-            return cursor.fetchone() is not None
+            return _repo.en_competencia_activa(cursor, col, codigo)
         except Exception:
             return False
         finally:
@@ -211,16 +194,7 @@ def listar_competencias_pendientes_admin(db) -> List[Dict[str, Any]]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT p.id, p.aliado_codigo, p.grupo_id, p.oficio, p.codigo_postal,
-                       p.score_al_crear, p.creado_en, a.nombre AS aliado_nombre, g.nombre AS grupo_nombre
-                FROM competencia_pendiente p
-                JOIN aliados a ON a.codigo = p.aliado_codigo
-                LEFT JOIN grupos g ON g.id = p.grupo_id
-                WHERE p.estado = 'pendiente'
-                ORDER BY p.creado_en ASC
-            """)
-            return [dict(row) for row in cursor.fetchall()]
+            return [dict(row) for row in _repo.listar_pendientes_admin(cursor)]
         except Exception:
             return []
         finally:
@@ -234,24 +208,7 @@ def listar_competencias_historial_admin(db, limite: int = 50) -> List[Dict[str, 
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             col_ret = db._columna_retador_competencia(cursor)
-            cursor.execute(
-                f"""
-                SELECT c.id, c.grupo_id, c.oficio, c.aliado_original_codigo, c.{col_ret} AS retador_codigo,
-                       c.fecha_inicio, c.fecha_fin_prevista, c.fecha_cierre, c.ganador_codigo,
-                       c.score_titular_inicio, c.score_retador_inicio,
-                       c.score_titular_final, c.score_retador_final,
-                       t.nombre AS titular_nombre, r.nombre AS retador_nombre, g.nombre AS grupo_nombre
-                FROM competencia c
-                JOIN aliados t ON t.codigo = c.aliado_original_codigo
-                JOIN aliados r ON r.codigo = c.{col_ret}
-                LEFT JOIN grupos g ON g.id = c.grupo_id
-                WHERE c.estado = 'finalizada'
-                ORDER BY COALESCE(c.fecha_cierre, c.fecha_fin_prevista) DESC
-                LIMIT ?
-                """,
-                (limite,),
-            )
-            return [dict(row) for row in cursor.fetchall()]
+            return [dict(row) for row in _repo.listar_historial_admin(cursor, col_ret, limite)]
         except Exception:
             return []
         finally:
@@ -269,25 +226,7 @@ def listar_competencias_activas_admin(db) -> List[Dict[str, Any]]:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cols = db._columnas_compat_competencia(cursor)
-            cursor.execute("""
-                SELECT c.id, c.grupo_id, c.oficio, c.aliado_original_codigo,
-                       c.""" + cols["retador_codigo"] + """ AS retador_codigo,
-                       c.""" + cols["retador_grupo_anterior_id"] + """ AS retador_grupo_anterior_id,
-                       c.fecha_inicio, c.fecha_fin_prevista,
-                       c.score_titular_inicio, c.""" + cols["score_retador_inicio"] + """ AS score_retador_inicio,
-                       c.score_titular_actual, c.""" + cols["score_retador_actual"] + """ AS score_retador_actual, c.motivo,
-                       t.id AS titular_id, t.nombre AS titular_nombre, t.score AS titular_score_actual,
-                       s.id AS retador_id, s.nombre AS retador_nombre, s.score AS retador_score_actual,
-                       g.nombre AS grupo_nombre, g_origen.nombre AS grupo_origen_nombre
-                FROM competencia c
-                JOIN aliados t ON t.codigo = c.aliado_original_codigo
-                JOIN aliados s ON s.codigo = c.""" + cols["retador_codigo"] + """
-                JOIN grupos g ON g.id = c.grupo_id
-                LEFT JOIN grupos g_origen ON g_origen.id = c.""" + cols["retador_grupo_anterior_id"] + """
-                WHERE c.estado = 'activa'
-                ORDER BY c.fecha_inicio ASC
-            """)
-            rows = cursor.fetchall()
+            rows = _repo.listar_activas_admin(cursor, cols)
             now = datetime.now()
             resultado = []
             for row in rows:
@@ -376,13 +315,7 @@ def _iniciar_competencia_si_procede(db, codigo_aliado: str) -> Optional[Dict[str
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT a.grupo_id, a.oficio, a.score, g.codigo_postal, g.ciudad, g.provincia
-                FROM aliados a
-                LEFT JOIN grupos g ON g.id = a.grupo_id
-                WHERE a.codigo = ? AND a.estado = 'activo'
-            """, (codigo_aliado,))
-            row = cursor.fetchone()
+            row = _repo.select_aliado_activo_con_grupo(cursor, codigo_aliado)
             if not row or not row[0]:
                 return None
             grupo_id, oficio, score_actual, codigo_postal = row[0], row[1], int(row[2] or 0), row[3] or ''
@@ -402,23 +335,15 @@ def _iniciar_competencia_si_procede(db, codigo_aliado: str) -> Optional[Dict[str
             duracion_dias = db._get_duracion_competencia_dias()
             from datetime import timedelta
             fecha_fin = (datetime.now() + timedelta(days=duracion_dias)).strftime('%Y-%m-%d %H:%M:%S')
-            cursor.execute("""
-                INSERT INTO competencia (grupo_id, oficio, aliado_original_codigo, retador_codigo, retador_grupo_anterior_id,
-                    score_titular_inicio, score_retador_inicio, score_titular_actual, score_retador_actual,
-                    fecha_fin_prevista, estado, motivo)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'activa', 'score bajo')
-            """, (grupo_id, oficio.strip(), codigo_aliado, retador_codigo, retador_grupo_anterior_id,
-                  score_titular_inicio, score_retador_inicio, score_titular_inicio, score_retador_inicio,
-                  fecha_fin))
-            competencia_id = int(cursor.lastrowid)
+            competencia_id = _repo.insertar_competencia(
+                cursor, grupo_id, oficio.strip(), codigo_aliado, retador_codigo,
+                retador_grupo_anterior_id, score_titular_inicio, score_retador_inicio, fecha_fin,
+            )
             if retador_estado == 'en_espera':
-                cursor.execute(
-                    "UPDATE aliados SET estado = 'activo', grupo_id = ? WHERE codigo = ?",
-                    (grupo_id, retador_codigo),
-                )
+                _repo.activar_retador_en_grupo(cursor, grupo_id, retador_codigo)
             else:
-                cursor.execute("UPDATE aliados SET grupo_id = ? WHERE codigo = ?", (grupo_id, retador_codigo))
-            cursor.execute("UPDATE grupos SET estado = 'en_competencia' WHERE id = ?", (grupo_id,))
+                _repo.mover_retador_a_grupo(cursor, grupo_id, retador_codigo)
+            _repo.marcar_grupo_en_competencia(cursor, grupo_id)
             db._avisar_grupos_cp_competencia(codigo_postal, oficio.strip(), cursor)
             db._notificar_retador_competencia_iniciada(
                 retador_codigo=retador_codigo,
@@ -477,11 +402,7 @@ def finalizar_competencia_activas_vencidas(db) -> List[Dict[str, Any]]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT id, grupo_id, oficio, aliado_original_codigo, retador_codigo, retador_grupo_anterior_id
-                FROM competencia WHERE estado = 'activa' AND fecha_fin_prevista <= datetime('now')
-            """)
-            filas = cursor.fetchall()
+            filas = _repo.listar_vencidas(cursor)
         except Exception:
             return []
         finally:
@@ -515,10 +436,8 @@ def _finalizar_una_competencia(db,
     try:
         conn = db._connect()
         cursor = conn.cursor()
-        cursor.execute("SELECT score, oficio FROM aliados WHERE codigo = ?", (aliado_original_codigo,))
-        s1 = cursor.fetchone()
-        cursor.execute("SELECT score FROM aliados WHERE codigo = ?", (retador_codigo,))
-        s2 = cursor.fetchone()
+        s1 = _repo.select_score_oficio(cursor, aliado_original_codigo)
+        s2 = _repo.select_score(cursor, retador_codigo)
         score_orig = int(s1[0]) if s1 and s1[0] is not None else 0
         score_ret = int(s2[0]) if s2 and s2[0] is not None else 0
         oficio = (s1[1] or '').strip() if s1 and len(s1) > 1 else ''
@@ -526,22 +445,13 @@ def _finalizar_una_competencia(db,
             ganador = aliado_original_codigo if score_orig >= score_ret else retador_codigo
         perdedor = retador_codigo if ganador == aliado_original_codigo else aliado_original_codigo
 
-        cursor.execute("SELECT codigo_postal, ciudad, provincia FROM grupos WHERE id = ?", (grupo_id,))
-        g = cursor.fetchone()
+        g = _repo.select_grupo_ubicacion(cursor, grupo_id)
         codigo_postal = (g[0] or '') if g else ''
         ciudad = (g[1] or '') if g and len(g) > 1 else ''
         provincia = (g[2] or '') if g and len(g) > 2 else ''
 
-        cursor.execute(
-            "UPDATE aliados SET grupo_id = ? WHERE codigo = ?",
-            (grupo_id, ganador),
-        )
-
-        cursor.execute(
-            "SELECT COALESCE(derrotas_competencia, 0) FROM aliados WHERE codigo = ?",
-            (perdedor,),
-        )
-        derrotas_prev = int((cursor.fetchone() or [0])[0] or 0)
+        _repo.set_grupo_aliado(cursor, grupo_id, ganador)
+        derrotas_prev = _repo.select_derrotas(cursor, perdedor)
 
         grupo_formacion = None
         if codigo_postal and oficio:
@@ -555,31 +465,13 @@ def _finalizar_una_competencia(db,
                 grupo_alt = db.buscar_grupo_formacion_en_cp(codigo_postal, oficio)
                 gid_perdedor = grupo_alt['id'] if grupo_alt and grupo_alt.get('id') != grupo_id else None
             if gid_perdedor and gid_perdedor != grupo_id:
-                cursor.execute(
-                    """UPDATE aliados SET grupo_id = ?, score = ?,
-                       derrotas_competencia = COALESCE(derrotas_competencia, 0) + 1,
-                       actualizado_en = CURRENT_TIMESTAMP WHERE codigo = ?""",
-                    (gid_perdedor, score_reinicio, perdedor),
-                )
+                _repo.mover_perdedor_con_reinicio(cursor, gid_perdedor, score_reinicio, perdedor)
             else:
-                cursor.execute(
-                    """UPDATE aliados SET grupo_id = NULL, score = ?,
-                       derrotas_competencia = COALESCE(derrotas_competencia, 0) + 1,
-                       actualizado_en = CURRENT_TIMESTAMP WHERE codigo = ?""",
-                    (score_reinicio, perdedor),
-                )
+                _repo.sacar_perdedor_con_reinicio(cursor, score_reinicio, perdedor)
         else:
-            cursor.execute(
-                """UPDATE aliados SET grupo_id = NULL, score = ?,
-                   derrotas_competencia = COALESCE(derrotas_competencia, 0) + 1,
-                   actualizado_en = CURRENT_TIMESTAMP WHERE codigo = ?""",
-                (score_reinicio, perdedor),
-            )
+            _repo.sacar_perdedor_con_reinicio(cursor, score_reinicio, perdedor)
 
-        cursor.execute(
-            "UPDATE aliados SET estado = 'expulsado' WHERE codigo = ? AND COALESCE(derrotas_competencia, 0) >= 2",
-            (perdedor,),
-        )
+        _repo.expulsar_si_dos_derrotas(cursor, perdedor)
         perdedor_expulsado = derrotas_prev + 1 >= 2
 
         db._notificar_derrota_competencia(
@@ -592,15 +484,8 @@ def _finalizar_una_competencia(db,
         )
         db._notificar_ganador_competencia(ganador, oficio, competencia_id, cursor=cursor)
 
-        cursor.execute(
-            """UPDATE competencia SET estado = 'finalizada', ganador_codigo = ?,
-               score_titular_final = ?, score_retador_final = ?,
-               score_titular_actual = ?, score_retador_actual = ?,
-               fecha_cierre = CURRENT_TIMESTAMP
-               WHERE id = ?""",
-            (ganador, score_orig, score_ret, score_orig, score_ret, competencia_id),
-        )
-        cursor.execute("UPDATE grupos SET estado = 'activo' WHERE id = ?", (grupo_id,))
+        _repo.finalizar_competencia(cursor, ganador, score_orig, score_ret, competencia_id)
+        _repo.marcar_grupo_activo(cursor, grupo_id)
         conn.commit()
 
         if retador_grupo_anterior_id and perdedor == retador_codigo:
@@ -663,20 +548,17 @@ def forzar_competencia(db,
                 return {'status': 'error', 'message': 'Oficio obligatorio'}
             if db.competencia_activa_para_grupo_oficio(grupo_id, oficio_s):
                 return {'status': 'error', 'message': 'Ya existe una competencia activa para este grupo y oficio'}
-            cursor.execute("SELECT id FROM grupos WHERE id = ? AND estado = 'activo'", (grupo_id,))
-            if not cursor.fetchone():
+            if not _repo.existe_grupo_activo(cursor, grupo_id):
                 return {'status': 'error', 'message': 'Grupo no encontrado o no activo'}
             for cod, label in [(aliado_original_codigo, 'titular'), (retador_codigo, 'retador')]:
-                cursor.execute("SELECT 1 FROM aliados WHERE codigo = ?", (cod,))
-                if not cursor.fetchone():
+                if not _repo.existe_aliado(cursor, cod):
                     return {'status': 'error', 'message': f'Aliado {label} no encontrado'}
             duracion = db._get_duracion_competencia_dias()
             from datetime import timedelta
             fecha_fin = (datetime.now() + timedelta(days=duracion)).strftime('%Y-%m-%d %H:%M:%S')
-            cursor.execute("""
-                INSERT INTO competencia (grupo_id, oficio, aliado_original_codigo, retador_codigo, fecha_fin_prevista, estado)
-                VALUES (?, ?, ?, ?, ?, 'activa')
-            """, (grupo_id, oficio_s, aliado_original_codigo, retador_codigo, fecha_fin))
+            last_id = _repo.insertar_competencia_forzada(
+                cursor, grupo_id, oficio_s, aliado_original_codigo, retador_codigo, fecha_fin
+            )
             conn.commit()
             try:
                 db.registrar_evento_sistema(
@@ -687,7 +569,7 @@ def forzar_competencia(db,
                 )
             except Exception:
                 pass
-            return {'status': 'success', 'message': 'Competencia forzada correctamente', 'competencia_id': cursor.lastrowid}
+            return {'status': 'success', 'message': 'Competencia forzada correctamente', 'competencia_id': last_id}
         except Exception as e:
             return {'status': 'error', 'message': str(e)}
         finally:
@@ -732,19 +614,7 @@ def obtener_competencia_info_aliado(db, codigo_aliado: str) -> Optional[Dict[str
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             col_ret = db._columna_retador_competencia(cursor)
-            cursor.execute(
-                f"""
-                SELECT c.id, c.grupo_id, c.oficio, c.aliado_original_codigo, c.{col_ret} AS retador_codigo,
-                       c.fecha_inicio, c.fecha_fin_prevista, c.estado, g.nombre AS grupo_nombre
-                FROM competencia c
-                LEFT JOIN grupos g ON g.id = c.grupo_id
-                WHERE c.estado = 'activa'
-                  AND (c.aliado_original_codigo = ? OR c.{col_ret} = ?)
-                LIMIT 1
-                """,
-                (codigo, codigo),
-            )
-            row = cursor.fetchone()
+            row = _repo.select_info_aliado(cursor, col_ret, codigo)
             if not row:
                 if db.tiene_competencia_pendiente(codigo):
                     return {
@@ -783,14 +653,7 @@ def competencia_activa_para_grupo_oficio(db, grupo_id: int, oficio: str) -> Opti
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cols = db._columnas_compat_competencia(cursor)
-            cursor.execute("""
-                SELECT id, grupo_id, oficio, aliado_original_codigo,
-                       """ + cols["retador_codigo"] + """ AS retador_codigo,
-                       """ + cols["retador_grupo_anterior_id"] + """ AS retador_grupo_anterior_id,
-                       fecha_inicio, fecha_fin_prevista, estado
-                FROM competencia WHERE grupo_id = ? AND oficio = ? AND estado = 'activa' LIMIT 1
-            """, (grupo_id, (oficio or '').strip()))
-            row = cursor.fetchone()
+            row = _repo.select_activa_grupo_oficio(cursor, cols, grupo_id, oficio)
             return dict(row) if row else None
         except Exception:
             return None
@@ -817,31 +680,13 @@ def _buscar_retador(db, codigo_aliado_en_riesgo: str, grupo_id: int, oficio: str
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             # 1) Suplentes en espera (mismo CP, mismo oficio)
-            cursor.execute("""
-                SELECT a.codigo, a.score, a.grupo_id, a.estado, a.codigo_postal,
-                       0 AS n_aliados
-                FROM aliados a
-                WHERE a.estado = 'en_espera' AND a.oficio = ? AND a.codigo_postal = ?
-                  AND a.codigo != ?
-                ORDER BY a.creado_en ASC
-                LIMIT 1
-            """, (oficio, codigo_postal, codigo_aliado_en_riesgo))
-            row = cursor.fetchone()
+            row = _repo.buscar_retador_en_espera(cursor, oficio, codigo_postal, codigo_aliado_en_riesgo)
             if row:
                 return dict(row)
             # 2) Activos en el CP, mismo oficio, grupo con menos profesionales
-            cursor.execute("""
-                SELECT a.codigo, a.score, a.grupo_id, a.estado, g.codigo_postal,
-                       (SELECT COUNT(*) FROM aliados a2
-                        WHERE a2.grupo_id = a.grupo_id AND a2.estado = 'activo') AS n_aliados
-                FROM aliados a
-                JOIN grupos g ON g.id = a.grupo_id AND g.estado = 'activo'
-                WHERE a.estado = 'activo' AND a.oficio = ? AND g.codigo_postal = ?
-                  AND a.codigo != ? AND (a.grupo_id IS NULL OR a.grupo_id != ?)
-                ORDER BY n_aliados ASC, a.score DESC, a.codigo
-                LIMIT 1
-            """, (oficio, codigo_postal, codigo_aliado_en_riesgo, grupo_id))
-            row = cursor.fetchone()
+            row = _repo.buscar_retador_activo(
+                cursor, oficio, codigo_postal, codigo_aliado_en_riesgo, grupo_id
+            )
             return dict(row) if row else None
         except Exception:
             return None
@@ -856,13 +701,7 @@ def _gano_competencia_ultimos_meses(db, codigo_aliado: str, meses: int) -> bool:
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT 1 FROM competencia
-                WHERE estado = 'finalizada' AND ganador_codigo = ?
-                AND date(fecha_fin_prevista) >= date('now', ?)
-                LIMIT 1
-            """, (codigo_aliado, f'-{meses} months'))
-            return cursor.fetchone() is not None
+            return _repo.gano_ultimos_meses(cursor, codigo_aliado, meses)
         except Exception:
             return False
         finally:
@@ -898,10 +737,7 @@ def purga_mensual(db) -> Dict[str, Any]:
                 conn = db._connect()
                 cursor = conn.cursor()
                 for item in expulsados_temporal:
-                    cursor.execute(
-                        "UPDATE aliados SET estado = 'suspendido_temporal', actualizado_en = CURRENT_TIMESTAMP WHERE codigo = ?",
-                        (item['codigo'],)
-                    )
+                    _repo.suspender_temporal(cursor, item['codigo'])
                 conn.commit()
             except Exception as e:
                 try:
@@ -936,118 +772,347 @@ def _purga_datos_aliado_completa(db, cursor, codigo: str, aliado_id: int) -> Non
     codigo = (codigo or '').strip()
     if not codigo:
         return
-
     col_retador = db._columna_retador_competencia(cursor)
-    contacto_filter = (
-        "SELECT id FROM contactos_ruana "
-        "WHERE solicitante_codigo = ? OR profesional_codigo = ?"
-    )
+    _repo.purga_datos_aliado(cursor, codigo, aliado_id, col_retador, db.backend)
 
-    cursor.execute(
-        f"DELETE FROM negociacion_eventos WHERE contacto_id IN ({contacto_filter})",
-        (codigo, codigo),
-    )
-    cursor.execute(
-        f"DELETE FROM chat_mensajes WHERE contacto_id IN ({contacto_filter}) OR emisor_codigo = ?",
-        (codigo, codigo, codigo),
-    )
-    cursor.execute(
-        f"DELETE FROM contacto_panel_oculto WHERE codigo_aliado = ? "
-        f"OR contacto_id IN ({contacto_filter})",
-        (codigo, codigo, codigo),
-    )
-    cursor.execute(
-        f"DELETE FROM contacto_penalizaciones_aplicadas WHERE contacto_id IN ({contacto_filter})",
-        (codigo, codigo),
-    )
-    cursor.execute(
-        f"DELETE FROM confirmaciones_trabajo WHERE aliado_id = ? "
-        f"OR contacto_id IN ({contacto_filter})",
-        (aliado_id, codigo, codigo),
-    )
-    cursor.execute(
-        "DELETE FROM payment_conflicts WHERE contratante_id = ? OR profesional_id = ?",
-        (aliado_id, aliado_id),
-    )
-    cursor.execute(
-        f"DELETE FROM ingresos_ruana WHERE contacto_id IN ({contacto_filter})",
-        (codigo, codigo),
-    )
-    cursor.execute(
-        "DELETE FROM contactos_ruana WHERE solicitante_codigo = ? OR profesional_codigo = ?",
-        (codigo, codigo),
-    )
 
-    cursor.execute(
-        "DELETE FROM solicitudes WHERE solicitante_codigo = ? OR atendido_por_codigo = ?",
-        (codigo, codigo),
-    )
+def _columna_retador_competencia(db, cursor) -> str:
+    """
+    Devuelve la columna vigente para el retador en `competencia`.
+    Compatibilidad lectura: algunas BDs reales siguen con esquema legacy `suplente_codigo`.
+    """
     try:
-        cursor.execute("DELETE FROM solicitudes WHERE creado_por_codigo = ?", (codigo,))
-    except Exception:
-        pass
-
-    cursor.execute(
-        f"""
-        DELETE FROM competencia
-        WHERE aliado_original_codigo = ?
-           OR {col_retador} = ?
-           OR ganador_codigo = ?
-        """,
-        (codigo, codigo, codigo),
-    )
-    cursor.execute("DELETE FROM competencia_pendiente WHERE aliado_codigo = ?", (codigo,))
-    cursor.execute("DELETE FROM score_movimientos WHERE codigo_aliado = ?", (codigo,))
-    cursor.execute("DELETE FROM evaluaciones WHERE codigo_aliado = ?", (codigo,))
-    cursor.execute("DELETE FROM evaluaciones_historico WHERE codigo_aliado = ?", (codigo,))
-    cursor.execute("DELETE FROM catalogo_servicios_aliado WHERE aliado_codigo = ?", (codigo,))
-    cursor.execute("DELETE FROM notificaciones_aliado WHERE aliado_codigo = ?", (codigo,))
-
-    cursor.execute(
-        """
-        DELETE FROM ruana_soporte_mensajes
-        WHERE conversacion_id IN (
-            SELECT id FROM ruana_soporte_conversaciones WHERE aliado_codigo = ?
-        )
-        """,
-        (codigo,),
-    )
-    cursor.execute("DELETE FROM ruana_soporte_conversaciones WHERE aliado_codigo = ?", (codigo,))
-    cursor.execute("DELETE FROM aliado_accesos_dia WHERE codigo_aliado = ?", (codigo,))
-    cursor.execute("DELETE FROM invitacion_campana_usos WHERE codigo_aliado = ?", (codigo,))
-    cursor.execute(
-        "DELETE FROM referidos WHERE codigo_referido = ? OR codigo_invitador = ?",
-        (codigo, codigo),
-    )
-    cursor.execute(
-        "DELETE FROM invitaciones WHERE codigo = ? OR invitador_aliado_id = ?",
-        (codigo, aliado_id),
-    )
-    cursor.execute("DELETE FROM invitaciones_oficio WHERE aliado_id = ?", (aliado_id,))
-
-    cursor.execute(
-        """
-        UPDATE aliados
-        SET invitado_por_codigo = NULL, invitado_origen = NULL
-        WHERE invitado_por_codigo = ?
-        """,
-        (codigo,),
-    )
-
-    if db.backend == "postgres":
-        try:
-            cursor.execute("DELETE FROM profiles WHERE aliado_codigo = ?", (codigo,))
-        except Exception:
-            pass
-        try:
+        if db.backend == "postgres":
             cursor.execute(
-                "SELECT auth_user_id FROM aliados WHERE id = ?",
-                (aliado_id,),
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name = 'competencia'
+                  AND column_name IN ('retador_codigo', 'suplente_codigo')
+                """
             )
-            auth_row = cursor.fetchone()
-            auth_user_id = auth_row[0] if auth_row else None
-            if auth_user_id:
-                cursor.execute("DELETE FROM auth.users WHERE id = ?", (auth_user_id,))
+            cols = {str(r[0]) for r in (cursor.fetchall() or [])}
+        else:
+            cursor.execute("PRAGMA table_info(competencia)")
+            cols = {str(r[1]) for r in (cursor.fetchall() or [])}
+    except Exception:
+        cols = set()
+    return "retador_codigo" if "retador_codigo" in cols else "suplente_codigo"
+
+
+def _columnas_compat_competencia(db, cursor) -> Dict[str, str]:
+    """Mapea columnas de competencia entre esquema nuevo (retador_*) y legacy (suplente_*)."""
+    try:
+        if db.backend == "postgres":
+            cursor.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name = 'competencia'
+                """
+            )
+            cols = {str(r[0]) for r in (cursor.fetchall() or [])}
+        else:
+            cursor.execute("PRAGMA table_info(competencia)")
+            cols = {str(r[1]) for r in (cursor.fetchall() or [])}
+    except Exception:
+        cols = set()
+    return {
+        "retador_codigo": "retador_codigo" if "retador_codigo" in cols else "suplente_codigo",
+        "retador_grupo_anterior_id": "retador_grupo_anterior_id" if "retador_grupo_anterior_id" in cols else "suplente_grupo_anterior_id",
+        "score_retador_inicio": "score_retador_inicio" if "score_retador_inicio" in cols else "score_suplente_inicio",
+        "score_retador_actual": "score_retador_actual" if "score_retador_actual" in cols else "score_suplente_actual",
+    }
+
+
+def _notificar_retador_competencia_iniciada(
+    db,
+    retador_codigo: str,
+    titular_codigo: str,
+    oficio: str,
+    grupo_id: int,
+    competencia_id: int,
+    duracion_dias: int,
+    codigo_postal: str,
+    cursor=None,
+) -> None:
+    """Informa al retador/suplente que entra en competencia y la regla de los 30 días."""
+    oficio_txt = (oficio or '').strip()
+    mensaje = (
+        f"Has sido activado como retador en el CP {codigo_postal} por el oficio {oficio_txt}. "
+        f"Durante {duracion_dias} días tú y el titular acumularéis score; al finalizar, "
+        f"quien tenga mayor score permanece en el grupo."
+    )
+    db._crear_notificacion_aliado(
+        retador_codigo,
+        'competencia_inicio',
+        'Competencia iniciada',
+        mensaje,
+        metadata={
+            'competencia_id': competencia_id,
+            'grupo_id': grupo_id,
+            'oficio': oficio_txt,
+            'titular_codigo': titular_codigo,
+            'duracion_dias': duracion_dias,
+            'codigo_postal': codigo_postal,
+        },
+        cursor=cursor,
+    )
+
+
+def _avisar_grupos_cp_competencia(
+    db,
+    codigo_postal: str,
+    oficio: str,
+    cursor,
+) -> None:
+    """Informa a todos los grupos activos del CP que hay un oficio en competencia."""
+    cp = (codigo_postal or '').strip()
+    oficio_txt = (oficio or '').strip()
+    if not cp or not oficio_txt or cursor is None:
+        return
+    texto = f"El profesional de {oficio_txt} está en competencia en este código postal."
+    try:
+        cursor.execute(
+            "SELECT id FROM grupos WHERE codigo_postal = ? AND estado IN ('activo', 'en_competencia')",
+            (cp,),
+        )
+        for row in cursor.fetchall():
+            gid = row[0]
+            cursor.execute(
+                "INSERT INTO avisos_grupo (grupo_id, tipo, texto) VALUES (?, 'competencia', ?)",
+                (gid, texto),
+            )
+    except Exception:
+        return
+
+
+def _notificar_derrota_competencia(
+    db,
+    aliado_codigo: str,
+    oficio: str,
+    competencia_id: int,
+    score_reinicio: int,
+    expulsado: bool,
+    cursor=None,
+) -> None:
+    """Informa al perdedor el resultado de la competencia (primera o segunda derrota)."""
+    oficio_txt = (oficio or '').strip()
+    if expulsado:
+        titulo = 'Has perdido tu lugar en RUANA'
+        mensaje = (
+            'Has perdido tu lugar en RUANA tras una segunda derrota en competencia. '
+            'Para volver debes registrarte de nuevo como usuario nuevo con un código de invitación nuevo.'
+        )
+        tipo = 'competencia_expulsion'
+    else:
+        titulo = 'Has perdido la competencia'
+        mensaje = (
+            f'Has perdido la competencia por el oficio {oficio_txt}. '
+            f'Tu score se reinicia a {score_reinicio} puntos y pasas a un grupo en formación '
+            f'con menos profesionales.'
+        )
+        tipo = 'competencia_derrota'
+    db._crear_notificacion_aliado(
+        aliado_codigo,
+        tipo,
+        titulo,
+        mensaje,
+        metadata={
+            'competencia_id': competencia_id,
+            'oficio': oficio_txt,
+            'score_reinicio': score_reinicio,
+            'expulsado': expulsado,
+        },
+        cursor=cursor,
+    )
+
+
+def _notificar_titular_competencia_iniciada(
+    db,
+    titular_codigo: str,
+    retador_codigo: str,
+    oficio: str,
+    competencia_id: int,
+    duracion_dias: int,
+    fecha_fin_prevista: str,
+    cursor=None,
+) -> None:
+    """Informa al titular que ha entrado en competencia por permanencia."""
+    oficio_txt = (oficio or '').strip()
+    mensaje = (
+        f'Has entrado en competencia por el oficio {oficio_txt}. '
+        f'Durante {duracion_dias} días competirás con otro profesional; al finalizar, '
+        f'quien tenga mayor score permanece en la plaza del grupo principal.'
+    )
+    db._crear_notificacion_aliado(
+        titular_codigo,
+        'competencia_titular',
+        'Estás en competencia',
+        mensaje,
+        metadata={
+            'competencia_id': competencia_id,
+            'oficio': oficio_txt,
+            'retador_codigo': retador_codigo,
+            'duracion_dias': duracion_dias,
+            'fecha_fin_prevista': fecha_fin_prevista,
+        },
+        cursor=cursor,
+    )
+
+
+def _notificar_ganador_competencia(
+    db,
+    ganador_codigo: str,
+    oficio: str,
+    competencia_id: int,
+    cursor=None,
+) -> None:
+    mensaje = (
+        f'Has ganado la competencia por el oficio {(oficio or "").strip()}. '
+        f'Permaneces en la plaza del grupo principal.'
+    )
+    db._crear_notificacion_aliado(
+        ganador_codigo,
+        'competencia_victoria',
+        'Competencia ganada',
+        mensaje,
+        metadata={'competencia_id': competencia_id, 'oficio': (oficio or '').strip()},
+        cursor=cursor,
+    )
+
+
+def _registrar_competencia_pendiente(db, codigo_aliado: str) -> None:
+    codigo = (codigo_aliado or '').strip()
+    if not codigo or db.tiene_competencia_pendiente(codigo):
+        return
+    with db._lock:
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT a.grupo_id, a.oficio, a.score, g.codigo_postal
+                FROM aliados a
+                LEFT JOIN grupos g ON g.id = a.grupo_id
+                WHERE a.codigo = ? AND a.estado = 'activo'
+            """, (codigo,))
+            row = cursor.fetchone()
+            if not row or not row[0] or not row[1] or not row[3]:
+                return
+            umbral = db._get_umbral_competencia() or 15
+            if int(row[2] or 0) >= umbral:
+                return
+            cursor.execute("""
+                INSERT INTO competencia_pendiente
+                (aliado_codigo, grupo_id, oficio, codigo_postal, score_al_crear, estado)
+                VALUES (?, ?, ?, ?, ?, 'pendiente')
+            """, (codigo, row[0], (row[1] or '').strip(), row[3], int(row[2] or 0)))
+            conn.commit()
+            try:
+                db.registrar_evento_sistema(
+                    'competencia_pendiente',
+                    f'Competencia pendiente de retador para {codigo}',
+                    actor_tipo='sistema',
+                    metadata={'aliado_codigo': codigo, 'oficio': row[1], 'codigo_postal': row[3]},
+                )
+            except Exception:
+                pass
         except Exception:
             pass
+        finally:
+            conn.close()
+
+
+def _marcar_competencia_pendiente_resuelta(db, codigo_aliado: str, estado: str = 'iniciada') -> None:
+    codigo = (codigo_aliado or '').strip()
+    if not codigo:
+        return
+    with db._lock:
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE competencia_pendiente SET estado = ? "
+                "WHERE aliado_codigo = ? AND estado = 'pendiente'",
+                (estado, codigo),
+            )
+            conn.commit()
+        except Exception:
+            pass
+        finally:
+            conn.close()
+
+
+def _sanear_competencias_participantes_ausentes(db) -> List[Dict[str, Any]]:
+    """Si un participante abandona RUANA durante la competencia, el otro gana por walkover."""
+    resueltos: List[Dict[str, Any]] = []
+    with db._lock:
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            col_ret = db._columna_retador_competencia(cursor)
+            cols = db._columnas_compat_competencia(cursor)
+            col_prev = cols.get('retador_grupo_anterior_id', 'retador_grupo_anterior_id')
+            cursor.execute(
+                f"SELECT id, grupo_id, oficio, aliado_original_codigo, {col_ret} AS retador_codigo, "
+                f"{col_prev} AS retador_grupo_anterior_id FROM competencia WHERE estado = 'activa'"
+            )
+            activas = [dict(r) for r in cursor.fetchall()]
+        except Exception:
+            return []
+        finally:
+            conn.close()
+    estados_validos = ('activo',)
+    for c in activas:
+        tit = db.obtener_aliado_por_codigo(c.get('aliado_original_codigo'))
+        ret = db.obtener_aliado_por_codigo(c.get('retador_codigo'))
+        tit_ok = tit and (tit.get('estado') or '') in estados_validos
+        ret_ok = ret and (ret.get('estado') or '') in estados_validos
+        if tit_ok and ret_ok:
+            continue
+        if not tit_ok and not ret_ok:
+            db._cancelar_competencia_sin_participantes(c.get('id'), c.get('grupo_id'))
+            resueltos.append({'competencia_id': c.get('id'), 'motivo': 'ambos_ausentes'})
+            continue
+        ganador = c.get('retador_codigo') if not tit_ok else c.get('aliado_original_codigo')
+        r = db._finalizar_una_competencia(
+            c.get('id'), c.get('grupo_id'), c.get('aliado_original_codigo'),
+            c.get('retador_codigo'), c.get('retador_grupo_anterior_id'),
+            ganador_forzado=ganador, motivo_cierre='abandono_participante',
+        )
+        resueltos.append({'competencia_id': c.get('id'), 'ganador_codigo': ganador, **r})
+    return resueltos
+
+
+def _cancelar_competencia_sin_participantes(db, competencia_id: int, grupo_id: int) -> None:
+    with db._lock:
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE competencia SET estado = 'finalizada', fecha_cierre = CURRENT_TIMESTAMP WHERE id = ?",
+                (competencia_id,),
+            )
+            cursor.execute("UPDATE grupos SET estado = 'activo' WHERE id = ?", (grupo_id,))
+            conn.commit()
+        except Exception:
+            pass
+        finally:
+            conn.close()
+
+
+def grupo_tiene_competencia_activa(db, grupo_id: int) -> bool:
+    """True si el grupo tiene al menos una competencia activa."""
+    with db._lock:
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1 FROM competencia WHERE grupo_id = ? AND estado = 'activa' LIMIT 1", (grupo_id,))
+            return cursor.fetchone() is not None
+        except Exception:
+            return False
+        finally:
+            conn.close()
 

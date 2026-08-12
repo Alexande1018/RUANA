@@ -48,6 +48,24 @@ def test_admin_dashboard_routes_exigen_sesion(client):
         assert resp.status_code == 401, path
 
 
+def test_admin_mutation_routes_exigen_sesion(client):
+    for method, path in (
+        ("post", "/api/admin/forzar-competencia"),
+        ("post", "/api/admin/forzar-suplencia"),
+        ("post", "/api/admin/suplentes-espera/X0001/incorporar"),
+        ("post", "/api/admin/rechazar-aliado"),
+        ("post", "/api/admin/eliminar-aliado"),
+        ("patch", "/api/admin/users/1/activate"),
+        ("post", "/api/admin/activar-aliado"),
+        ("post", "/api/admin/cerrar-oficio"),
+        ("post", "/api/admin/abrir-plaza"),
+        ("post", "/api/admin/generar-reporte"),
+        ("post", "/api/admin/cambiar-reglas"),
+    ):
+        resp = getattr(client, method)(path)
+        assert resp.status_code == 401, path
+
+
 def test_admin_bp_registrado(client):
     names = {bp.name for bp in client.application.blueprints.values()}
     assert admin_bp.name in names

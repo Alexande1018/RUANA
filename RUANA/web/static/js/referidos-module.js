@@ -1,5 +1,17 @@
 /**
- * RUANA — Árbol genealógico de referidos (lazy expand + tarjetas enriquecidas)
+ * RUANA — Árbol genealógico de referidos (lazy expand + tarjetas enriquecidas).
+ *
+ * ESTADO (Campamento Base / Misión Maestra): HUÉRFANO — no cableado en HTML.
+ * - Exporta `RuanaReferidos` / `RuanaReferidosTree` pensado para bosque admin
+ *   y árbol aliado (lazy expand + polling).
+ * - Hoy admin.html usa `renderAliadosJerarquia` (CP → grupo → aliados) y declara
+ *   `_referidosTree` sin instanciarlo; aliado.html usa `aliado-referidos-module.js`
+ *   solo para el modal de linaje directo (`/api/aliado/linaje/hijos`).
+ * - `referidos-tree.css` tampoco está linkeado.
+ * No borrar: consumidor futuro claro cuando se reactive la vista árbol; hasta
+ * entonces no añadir `<script>` sin markup/DOM targets (`#referidos-tree`, etc.).
+ * `aliado-referidos-module.js` puede reutilizar `RuanaReferidos.escapeHtml` si
+ * este script se carga antes.
  */
 (function (global) {
     'use strict';

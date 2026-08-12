@@ -1,15 +1,20 @@
 """Servicio de dominio aliado (Campamento Base).
 
 Extracción progresiva desde DBManager. Las fachadas permanecen en DBManager.
+SQL de aliados vía AliadoRepo.
 """
 from __future__ import annotations
 
-from core.db_constants import ALIADO_FOTO_PERFIL_COLUMN, MAX_GRUPOS_POR_CP, SQL_ESTADO_CONTACTO_OCUPADO
+from core.db_constants import ALIADO_FOTO_PERFIL_COLUMN, MAX_GRUPOS_POR_CP, _email_liberado_aliado, _telefono_liberado_aliado
+from core.repositories.aliado_repo import AliadoRepo
 
 
 from datetime import datetime, timedelta, timezone
 import sqlite3
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+_repo = AliadoRepo()
+
 # --- Extraído de DBManager (aliado) ---
 
 def crear_aliado(db, codigo: str, nombre: str, marca: str = "",
@@ -30,22 +35,13 @@ def crear_aliado(db, codigo: str, nombre: str, marca: str = "",
             conn = db._connect()
             cursor = conn.cursor()
 
-            cursor.execute("SELECT id FROM aliados WHERE codigo = ?", (codigo,))
-            if cursor.fetchone():
+            if _repo.select_id_por_codigo(cursor, codigo) is not None:
                 return {'status': 'error', 'message': f'Código {codigo} ya existe'}
 
-            cursor.execute(
-                f"SELECT id FROM aliados WHERE email = ? AND {SQL_ESTADO_CONTACTO_OCUPADO}",
-                (email,),
-            )
-            if cursor.fetchone():
+            if _repo.select_id_por_email_ocupado(cursor, email) is not None:
                 return {'status': 'error', 'message': f'El email {email} ya está registrado'}
 
-            cursor.execute(
-                f"SELECT id FROM aliados WHERE telefono = ? AND {SQL_ESTADO_CONTACTO_OCUPADO}",
-                (telefono,),
-            )
-            if cursor.fetchone():
+            if _repo.select_id_por_telefono_ocupado(cursor, telefono) is not None:
                 return {'status': 'error', 'message': f'El teléfono {telefono} ya está registrado'}
 
             if not codigo or len(codigo) != 5 or not codigo.isdigit():
@@ -97,37 +93,29 @@ def crear_aliado(db, codigo: str, nombre: str, marca: str = "",
                         estado_final = 'en_espera'
                         mensaje_lista_espera = db.MENSAJE_LISTA_ESPERA
 
-            cursor.execute("""
-                INSERT INTO aliados
-                (codigo, nombre, marca, oficio, codigo_postal, email, telefono, estado, score, descripcion_servicio)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (codigo, nombre, marca, oficio_stripped or oficio, codigo_postal, email, telefono,
-                  estado_final, score, descripcion_servicio))
-
-            aliado_id = cursor.lastrowid
+            aliado_id = _repo.insertar(
+                cursor, codigo, nombre, marca, oficio_stripped or oficio, codigo_postal, email, telefono,
+                estado_final, score, descripcion_servicio,
+            )
             conn.commit()
 
             # Asignar grupo
             if estado_final not in ('pendiente_validacion', 'pendiente_completar', 'en_espera'):
                 if grupo_preferido_id:
-                    cursor.execute("UPDATE aliados SET grupo_id = ? WHERE id = ?", (grupo_preferido_id, aliado_id))
+                    _repo.update_grupo_id(cursor, grupo_preferido_id, aliado_id)
                     conn.commit()
                 elif codigo_postal and en_catalogo and oficio_stripped:
                     grupo_asignar = db.buscar_grupo_sin_oficio(codigo_postal, oficio_stripped)
                     if grupo_asignar:
-                        cursor.execute("UPDATE aliados SET grupo_id = ? WHERE id = ?", (grupo_asignar['id'], aliado_id))
+                        _repo.update_grupo_id(cursor, grupo_asignar['id'], aliado_id)
                     elif db.contar_grupos_activos_por_cp(codigo_postal) < MAX_GRUPOS_POR_CP:
                         nuevo_grupo = db.crear_grupo_en_cp(codigo_postal)
                         if isinstance(nuevo_grupo, dict) and 'id' in nuevo_grupo:
-                            cursor.execute("UPDATE aliados SET grupo_id = ? WHERE id = ?", (nuevo_grupo['id'], aliado_id))
+                            _repo.update_grupo_id(cursor, nuevo_grupo['id'], aliado_id)
                     if cursor.rowcount:
                         conn.commit()
 
-            cursor.execute(
-                "SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, email, telefono, estado, score, descripcion_servicio, creado_en, actualizado_en FROM aliados WHERE id = ?",
-                (aliado_id,)
-            )
-            row = cursor.fetchone()
+            row = _repo.select_fila_basica_por_id(cursor, aliado_id)
             if row and hasattr(row, 'keys'):
                 aliado_row = dict(row)
             elif row and isinstance(row, (list, tuple)):
@@ -174,8 +162,7 @@ def completar_aliado_pendiente(db, codigo: str, nombre: str, marca: str = "",
             conn = db._connect()
             cursor = conn.cursor()
 
-            cursor.execute("SELECT id, estado FROM aliados WHERE codigo = ?", (codigo,))
-            row = cursor.fetchone()
+            row = _repo.select_id_estado_por_codigo(cursor, codigo)
             if not row:
                 return {'status': 'error', 'message': 'Codigo de invitacion no encontrado'}
             aliado_id = row[0]
@@ -183,18 +170,10 @@ def completar_aliado_pendiente(db, codigo: str, nombre: str, marca: str = "",
             if estado_actual != 'pendiente_completar':
                 return {'status': 'error', 'message': 'Codigo de invitacion ya usado'}
 
-            cursor.execute(
-                f"SELECT id FROM aliados WHERE email = ? AND codigo != ? AND {SQL_ESTADO_CONTACTO_OCUPADO}",
-                (email, codigo),
-            )
-            if cursor.fetchone():
+            if _repo.select_id_por_email_ocupado_excluyendo(cursor, email, codigo) is not None:
                 return {'status': 'error', 'message': f'El email {email} ya esta registrado'}
 
-            cursor.execute(
-                f"SELECT id FROM aliados WHERE telefono = ? AND codigo != ? AND {SQL_ESTADO_CONTACTO_OCUPADO}",
-                (telefono, codigo),
-            )
-            if cursor.fetchone():
+            if _repo.select_id_por_telefono_ocupado_excluyendo(cursor, telefono, codigo) is not None:
                 return {'status': 'error', 'message': f'El telefono {telefono} ya esta registrado'}
 
             if not codigo or len(codigo) != 5 or not codigo.isdigit():
@@ -240,49 +219,30 @@ def completar_aliado_pendiente(db, codigo: str, nombre: str, marca: str = "",
                         estado_final = 'en_espera'
                         mensaje_lista_espera = db.MENSAJE_LISTA_ESPERA
 
-            cursor.execute("""
-                UPDATE aliados
-                SET nombre = ?,
-                    marca = ?,
-                    oficio = ?,
-                    codigo_postal = ?,
-                    email = ?,
-                    telefono = ?,
-                    estado = ?,
-                    score = ?,
-                    grupo_id = NULL,
-                    descripcion_servicio = ?,
-                    actualizado_en = CURRENT_TIMESTAMP
-                WHERE id = ? AND estado = 'pendiente_completar'
-            """, (
-                nombre, marca, oficio_stripped or oficio, codigo_postal, email, telefono,
-                estado_final, score, descripcion_servicio, aliado_id
-            ))
-            if cursor.rowcount != 1:
+            if _repo.update_completar_pendiente(
+                cursor, aliado_id, nombre, marca, oficio_stripped or oficio, codigo_postal, email, telefono,
+                estado_final, score, descripcion_servicio,
+            ) != 1:
                 conn.rollback()
                 return {'status': 'error', 'message': 'Codigo de invitacion ya usado'}
             conn.commit()
 
             if en_catalogo and oficio_stripped and estado_final not in ('pendiente_validacion', 'en_espera'):
                 if grupo_preferido_id:
-                    cursor.execute("UPDATE aliados SET grupo_id = ? WHERE id = ?", (grupo_preferido_id, aliado_id))
+                    _repo.update_grupo_id(cursor, grupo_preferido_id, aliado_id)
                     conn.commit()
                 elif codigo_postal:
                     grupo_asignar = db.buscar_grupo_sin_oficio(codigo_postal, oficio_stripped)
                     if grupo_asignar:
-                        cursor.execute("UPDATE aliados SET grupo_id = ? WHERE id = ?", (grupo_asignar['id'], aliado_id))
+                        _repo.update_grupo_id(cursor, grupo_asignar['id'], aliado_id)
                     elif db.contar_grupos_activos_por_cp(codigo_postal) < MAX_GRUPOS_POR_CP:
                         nuevo_grupo = db.crear_grupo_en_cp(codigo_postal)
                         if isinstance(nuevo_grupo, dict) and 'id' in nuevo_grupo:
-                            cursor.execute("UPDATE aliados SET grupo_id = ? WHERE id = ?", (nuevo_grupo['id'], aliado_id))
+                            _repo.update_grupo_id(cursor, nuevo_grupo['id'], aliado_id)
                     if cursor.rowcount:
                         conn.commit()
 
-            cursor.execute(
-                "SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, email, telefono, estado, score, descripcion_servicio, creado_en, actualizado_en FROM aliados WHERE id = ?",
-                (aliado_id,)
-            )
-            row = cursor.fetchone()
+            row = _repo.select_fila_basica_por_id(cursor, aliado_id)
             if row and hasattr(row, 'keys'):
                 aliado_row = dict(row)
             elif row and isinstance(row, (list, tuple)):
@@ -346,29 +306,20 @@ def crear_aliado_seed(db, codigo: str, nombre: str, marca: str = "",
             cursor = conn.cursor()
 
             # Verificar unicidad del código (independiente de su formato)
-            cursor.execute("SELECT id FROM aliados WHERE codigo = ?", (codigo,))
-            if cursor.fetchone():
+            if _repo.select_id_por_codigo(cursor, codigo) is not None:
                 return {
                     'status': 'error',
                     'message': f'Código {codigo} ya existe'
                 }
 
             # Reutilizar las mismas validaciones de email/teléfono que crear_aliado
-            cursor.execute(
-                f"SELECT id FROM aliados WHERE email = ? AND {SQL_ESTADO_CONTACTO_OCUPADO}",
-                (email,),
-            )
-            if cursor.fetchone():
+            if _repo.select_id_por_email_ocupado(cursor, email) is not None:
                 return {
                     'status': 'error',
                     'message': f'El email {email} ya está registrado'
                 }
 
-            cursor.execute(
-                f"SELECT id FROM aliados WHERE telefono = ? AND {SQL_ESTADO_CONTACTO_OCUPADO}",
-                (telefono,),
-            )
-            if cursor.fetchone():
+            if _repo.select_id_por_telefono_ocupado(cursor, telefono) is not None:
                 return {
                     'status': 'error',
                     'message': f'El teléfono {telefono} ya está registrado'
@@ -394,13 +345,9 @@ def crear_aliado_seed(db, codigo: str, nombre: str, marca: str = "",
                     'message': 'El teléfono es obligatorio y debe tener al menos 7 dígitos (error de validación backend)'
                 }
 
-            cursor.execute("""
-                INSERT INTO aliados
-                (codigo, nombre, marca, oficio, codigo_postal, email, telefono, estado, score)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (codigo, nombre, marca, oficio, codigo_postal, email, telefono, estado, score))
-
-            aliado_id = cursor.lastrowid
+            aliado_id = _repo.insertar_seed(
+                cursor, codigo, nombre, marca, oficio, codigo_postal, email, telefono, estado, score,
+            )
             conn.commit()
 
             # Asignación automática de grupo (misma lógica que registro; seeds no rechazan por límite 5)
@@ -408,12 +355,12 @@ def crear_aliado_seed(db, codigo: str, nombre: str, marca: str = "",
             if codigo_postal and oficio and str(oficio).strip():
                 grupo_asignar = db.buscar_grupo_sin_oficio(codigo_postal, oficio)
                 if grupo_asignar:
-                    cursor.execute("UPDATE aliados SET grupo_id = ? WHERE id = ?", (grupo_asignar['id'], aliado_id))
+                    _repo.update_grupo_id(cursor, grupo_asignar['id'], aliado_id)
                     grupo_id_final = grupo_asignar['id']
                 elif db.contar_grupos_activos_por_cp(codigo_postal) < MAX_GRUPOS_POR_CP:
                     nuevo_grupo = db.crear_grupo_en_cp(codigo_postal)
                     if isinstance(nuevo_grupo, dict) and 'id' in nuevo_grupo:
-                        cursor.execute("UPDATE aliados SET grupo_id = ? WHERE id = ?", (nuevo_grupo['id'], aliado_id))
+                        _repo.update_grupo_id(cursor, nuevo_grupo['id'], aliado_id)
                         grupo_id_final = nuevo_grupo['id']
                 if grupo_id_final is not None:
                     conn.commit()
@@ -459,11 +406,7 @@ def obtener_aliado_por_codigo(db, codigo: str) -> Optional[Dict[str, Any]]:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             # Comparar como string para que 85776 y "85776" coincidan (codigo en BD suele ser TEXT)
-            cursor.execute("""
-                SELECT * FROM aliados WHERE TRIM(CAST(codigo AS TEXT)) = ?
-            """, (codigo_str,))
-            
-            row = cursor.fetchone()
+            row = _repo.select_todo_por_codigo(cursor, codigo_str)
             
             if not row:
                 return None
@@ -484,8 +427,7 @@ def obtener_aliado_por_id(db, aliado_id: int) -> Optional[Dict[str, Any]]:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
-            cursor.execute("SELECT * FROM aliados WHERE id = ?", (aliado_id,))
-            row = cursor.fetchone()
+            row = _repo.select_todo_por_id(cursor, aliado_id)
             
             return dict(row) if row else None
             
@@ -522,22 +464,14 @@ def actualizar_aliado(db, codigo: str, **kwargs) -> Dict[str, Any]:
             with db._connect() as conn:
                 cursor = conn.cursor()
                 # Obtener grupo_id anterior por si hay que revisar viabilidad
-                cursor.execute("SELECT grupo_id FROM aliados WHERE codigo = ?", (codigo,))
-                row_prev = cursor.fetchone()
-                grupo_id_anterior = row_prev[0] if row_prev and row_prev[0] else None
+                grupo_id_prev = _repo.select_grupo_id_por_codigo(cursor, codigo)
+                grupo_id_anterior = grupo_id_prev if grupo_id_prev else None
 
-                set_clause = ", ".join([f"{k} = ?" for k in campos_update.keys()])
-                values = list(campos_update.values()) + [codigo]
-
-                cursor.execute(f"""
-                    UPDATE aliados
-                    SET {set_clause}, actualizado_en = CURRENT_TIMESTAMP
-                    WHERE codigo = ?
-                """, values)
+                rowcount = _repo.update_campos_por_codigo(cursor, campos_update, codigo)
 
                 conn.commit()
 
-                if cursor.rowcount == 0:
+                if rowcount == 0:
                     return {'status': 'error', 'message': f'Aliado {codigo} no encontrado'}
 
             # Si el aliado salió del grupo (estado inactivo o cambio de grupo), revisar viabilidad
@@ -559,14 +493,7 @@ def listar_aliados_en_pool(db) -> List[Dict[str, Any]]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, email, telefono, estado, score,
-                       COALESCE(derrotas_competencia, 0) AS derrotas_competencia, creado_en, actualizado_en
-                FROM aliados
-                WHERE estado = 'activo' AND COALESCE(derrotas_competencia, 0) = 1
-                ORDER BY codigo
-            """)
-            return [dict(row) for row in cursor.fetchall()]
+            return [dict(row) for row in _repo.listar_en_pool(cursor)]
         except Exception:
             return []
         finally:
@@ -592,71 +519,7 @@ def listar_aliados(db, filtro_postal: str = None) -> List[Dict[str, Any]]:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             col_retador = db._columna_retador_competencia(cursor)
-
-            base_query = """
-                SELECT
-                    a.*,
-                    g.nombre AS grupo_nombre,
-                    e.estado AS eval_estado,
-                    e.score AS eval_score,
-                    e.intencion AS eval_intencion,
-                    e.tasa_respuesta,
-                    e.tasa_confirmacion,
-                    e.meses_sin_trabajo,
-                    e.ciclos_consecutivos,
-                    e.razones AS eval_razones,
-                    e.severidad AS eval_severidad,
-                    e.actualizado_en AS eval_actualizado_en,
-                    inv.nombre AS invitado_por_nombre,
-                    inv.codigo AS invitado_por_codigo_join,
-                    (
-                        SELECT COUNT(*)
-                        FROM aliados h
-                        WHERE h.invitado_por_codigo = a.codigo
-                          AND COALESCE(h.estado, '') NOT IN (
-                              'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
-                          )
-                    ) AS hijos_directos_count,
-                    (
-                        SELECT COUNT(*)
-                        FROM contactos_ruana c
-                        WHERE c.solicitante_codigo = a.codigo OR c.profesional_codigo = a.codigo
-                    ) AS total_contactos,
-                    (
-                        SELECT COUNT(*)
-                        FROM contactos_ruana c
-                        WHERE (c.solicitante_codigo = a.codigo OR c.profesional_codigo = a.codigo)
-                          AND datetime(c.creado_en) >= datetime('now', '-30 day')
-                    ) AS contactos_30d,
-                    (
-                        SELECT 1 FROM competencia c
-                        WHERE c.""" + col_retador + """ = a.codigo AND c.estado = 'activa' LIMIT 1
-                    ) AS es_retador_activo,
-                    (
-                        SELECT 1 FROM competencia c
-                        WHERE c.aliado_original_codigo = a.codigo AND c.estado = 'activa' LIMIT 1
-                    ) AS es_titular_en_competencia
-                FROM aliados a
-                LEFT JOIN grupos g ON g.id = a.grupo_id
-                LEFT JOIN evaluaciones e ON e.codigo_aliado = a.codigo
-                LEFT JOIN aliados inv ON inv.codigo = a.invitado_por_codigo
-                WHERE (a.estado IS NULL OR (
-                    a.estado != 'expulsado'
-                    AND a.estado != 'suspendido_temporal'
-                    AND a.estado != 'sistema'
-                    AND a.estado != 'pendiente_completar'
-                ))
-            """
-
-            params: Tuple[Any, ...] = ()
-            if filtro_postal:
-                base_query += " AND a.codigo_postal = ?"
-                params = (filtro_postal,)
-
-            base_query += " ORDER BY a.creado_en DESC"
-
-            cursor.execute(base_query, params)
-            rows = cursor.fetchall()
+            rows = _repo.listar_admin(cursor, col_retador, filtro_postal)
 
             aliados: List[Dict[str, Any]] = []
             for row in rows:
@@ -762,54 +625,24 @@ def listar_aliados_directorio_grupo(db, codigo_aliado: str) -> List[Dict[str, An
 
             cp_filtro = codigo_postal
             if grupo_id is not None:
-                cursor.execute(
-                    "SELECT codigo_postal FROM grupos WHERE id = ?",
-                    (grupo_id,),
-                )
-                row_grupo = cursor.fetchone()
-                if row_grupo and (row_grupo[0] or '').strip():
-                    cp_filtro = (row_grupo[0] or '').strip()
+                cp_grupo = _repo.select_codigo_postal_grupo(cursor, grupo_id)
+                if cp_grupo and str(cp_grupo).strip():
+                    cp_filtro = str(cp_grupo).strip()
 
             if grupo_id is not None and cp_filtro:
-                cursor.execute(
-                    f"""
-                    SELECT {select_cols}
-                    FROM aliados a
-                    INNER JOIN grupos g ON g.id = a.grupo_id
-                    WHERE a.estado IN (?, ?) AND a.codigo != ?
-                      AND a.grupo_id = ?
-                      AND TRIM(COALESCE(g.codigo_postal, '')) = ?
-                      AND TRIM(COALESCE(a.codigo_postal, '')) = ?
-                    ORDER BY a.nombre
-                    """,
-                    (estados_ok[0], estados_ok[1], codigo_excluir, grupo_id, cp_filtro, cp_filtro),
+                rows = _repo.listar_directorio_grupo_con_cp(
+                    cursor, select_cols, codigo_excluir, grupo_id, cp_filtro, estados_ok,
                 )
             elif grupo_id is not None:
-                cursor.execute(
-                    f"""
-                    SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, estado, score,
-                           descripcion_servicio, {ALIADO_FOTO_PERFIL_COLUMN}, creado_en
-                    FROM aliados
-                    WHERE grupo_id = ? AND estado IN (?, ?) AND codigo != ?
-                    ORDER BY nombre
-                    """,
-                    (grupo_id, estados_ok[0], estados_ok[1], codigo_excluir),
+                rows = _repo.listar_directorio_solo_grupo(
+                    cursor, grupo_id, codigo_excluir, estados_ok,
                 )
             elif cp_filtro:
-                cursor.execute(
-                    f"""
-                    SELECT id, codigo, nombre, marca, oficio, codigo_postal, grupo_id, estado, score,
-                           descripcion_servicio, {ALIADO_FOTO_PERFIL_COLUMN}, creado_en
-                    FROM aliados
-                    WHERE TRIM(COALESCE(codigo_postal, '')) = ?
-                      AND estado IN (?, ?) AND codigo != ?
-                    ORDER BY nombre
-                    """,
-                    (cp_filtro, estados_ok[0], estados_ok[1], codigo_excluir),
+                rows = _repo.listar_directorio_por_cp(
+                    cursor, cp_filtro, codigo_excluir, estados_ok,
                 )
             else:
                 return []
-            rows = cursor.fetchall()
             result = []
             for row in rows:
                 item = dict(row)
@@ -841,12 +674,7 @@ def listar_aliados_pendiente_validacion(db) -> List[Dict[str, Any]]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT id, codigo, nombre, marca, oficio, codigo_postal, email, telefono, creado_en
-                FROM aliados WHERE LOWER(TRIM(COALESCE(estado, ''))) = 'pendiente_validacion'
-                ORDER BY creado_en DESC
-            """)
-            rows = cursor.fetchall()
+            rows = _repo.listar_pendiente_validacion(cursor)
             return [dict(r) for r in rows] if rows else []
         except Exception as e:
             print(f"Error listando aliados pendientes: {e}")
@@ -863,30 +691,18 @@ def _activar_aliado_pendiente_interno(db, cursor, aliado: Dict[str, Any]) -> Dic
 
     grupo_id = db._obtener_grupo_activacion_pendiente(cursor, aliado)
     if grupo_id:
-        cursor.execute(
-            """UPDATE aliados
-               SET estado = 'activo', grupo_id = ?, actualizado_en = CURRENT_TIMESTAMP
-               WHERE id = ? AND LOWER(TRIM(COALESCE(estado, ''))) = 'pendiente_validacion'""",
-            (grupo_id, int(aliado_id)),
-        )
+        rowcount = _repo.update_activar_con_grupo(cursor, grupo_id, int(aliado_id))
     else:
-        cursor.execute(
-            """UPDATE aliados
-               SET estado = 'activo', actualizado_en = CURRENT_TIMESTAMP
-               WHERE id = ? AND LOWER(TRIM(COALESCE(estado, ''))) = 'pendiente_validacion'""",
-            (int(aliado_id),),
-        )
+        rowcount = _repo.update_activar_sin_grupo(cursor, int(aliado_id))
 
-    if cursor.rowcount == 0:
+    if rowcount == 0:
         return {
             'status': 'error',
             'message': f'Aliado {codigo} no encontrado o no está pendiente de validación',
         }
 
     if grupo_id:
-        cursor.execute("SELECT nombre FROM grupos WHERE id = ?", (grupo_id,))
-        g_row = cursor.fetchone()
-        grupo_nombre = (g_row[0] if g_row else None) or f'#{grupo_id}'
+        grupo_nombre = _repo.select_nombre_grupo(cursor, grupo_id) or f'#{grupo_id}'
         return {
             'status': 'success',
             'message': f'Aliado {codigo} activado e incorporado al grupo {grupo_nombre}',
@@ -909,12 +725,7 @@ def activar_aliado_por_id(db, aliado_id: int) -> Dict[str, Any]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute(
-                """SELECT id, codigo, oficio, codigo_postal, invitado_por_codigo, estado
-                   FROM aliados WHERE id = ?""",
-                (int(aliado_id),),
-            )
-            row = cursor.fetchone()
+            row = _repo.select_activacion_por_id(cursor, int(aliado_id))
             if not row:
                 return {'status': 'error', 'message': f'Aliado con ID {aliado_id} no encontrado'}
             if (row['estado'] or '').strip().lower() != 'pendiente_validacion':
@@ -937,12 +748,7 @@ def activar_aliado_pendiente(db, codigo: str) -> Dict[str, Any]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute(
-                """SELECT id, codigo, oficio, codigo_postal, invitado_por_codigo, estado
-                   FROM aliados WHERE codigo = ?""",
-                (codigo.strip(),),
-            )
-            row = cursor.fetchone()
+            row = _repo.select_activacion_por_codigo(cursor, codigo.strip())
             if not row:
                 return {'status': 'error', 'message': f'Aliado {codigo} no encontrado'}
             if (row['estado'] or '').strip().lower() != 'pendiente_validacion':
@@ -968,11 +774,7 @@ def pausar_aliado(db, codigo_aliado: str, razon: Optional[str] = None, admin_cod
             conn = db._connect()
             cursor = conn.cursor()
 
-            cursor.execute(
-                "SELECT id, estado FROM aliados WHERE codigo = ?",
-                (codigo_aliado,),
-            )
-            row = cursor.fetchone()
+            row = _repo.select_id_estado_por_codigo(cursor, codigo_aliado)
             if not row:
                 return {'status': 'error', 'message': f'Aliado {codigo_aliado} no encontrado'}
 
@@ -984,31 +786,12 @@ def pausar_aliado(db, codigo_aliado: str, razon: Optional[str] = None, admin_cod
                     'message': f'Aliado {codigo_aliado} ya está expulsado y no se puede pausar'
                 }
 
-            cursor.execute(
-                "UPDATE aliados SET estado = 'suspendido_temporal', actualizado_en = CURRENT_TIMESTAMP WHERE codigo = ?",
-                (codigo_aliado,),
-            )
+            _repo.update_suspendido_temporal(cursor, codigo_aliado)
 
             # Opcional: registrar en histórico de evaluaciones si existe alguna
             if razon:
                 try:
-                    cursor.execute(
-                        """
-                        INSERT INTO evaluaciones_historico
-                        (codigo_aliado, estado_anterior, estado_nuevo, score_anterior, score_nuevo, razon_cambio)
-                        SELECT
-                            a.codigo,
-                            e.estado AS estado_anterior,
-                            'pausado_manual' AS estado_nuevo,
-                            e.score AS score_anterior,
-                            e.score AS score_nuevo,
-                            ?
-                        FROM aliados a
-                        LEFT JOIN evaluaciones e ON e.codigo_aliado = a.codigo
-                        WHERE a.codigo = ?
-                        """,
-                        (razon, codigo_aliado),
-                    )
+                    _repo.insertar_historico_pausa(cursor, razon, codigo_aliado)
                 except Exception:
                     # No romper por fallos en histórico
                     pass
@@ -1050,17 +833,7 @@ def listar_aliados_eliminados(db, limite: int = 200) -> List[Dict[str, Any]]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT id, codigo, nombre, marca, oficio, codigo_postal,
-                       email, telefono, estado_anterior, motivo, admin_codigo, eliminado_en
-                FROM aliados_eliminados
-                ORDER BY eliminado_en DESC
-                LIMIT ?
-                """,
-                (max(1, min(limite, 500)),),
-            )
-            rows = cursor.fetchall()
+            rows = _repo.listar_eliminados(cursor, limite)
             return [dict(r) for r in rows] if rows else []
         except Exception as e:
             print(f"Error listando aliados eliminados: {e}")
@@ -1089,14 +862,7 @@ def eliminar_perfil_aliado_admin(db,
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT id, estado, nombre, marca, oficio, codigo_postal, email, telefono
-                FROM aliados WHERE codigo = ?
-                """,
-                (codigo,),
-            )
-            row = cursor.fetchone()
+            row = _repo.select_para_eliminar(cursor, codigo)
             if not row:
                 return {'status': 'error', 'message': f'Aliado {codigo} no encontrado'}
 
@@ -1116,21 +882,13 @@ def eliminar_perfil_aliado_admin(db,
 
             db._purga_datos_aliado_completa(cursor, codigo, aliado_id)
 
-            cursor.execute(
-                """
-                INSERT INTO aliados_eliminados
-                (codigo, nombre, marca, oficio, codigo_postal, email, telefono,
-                 estado_anterior, motivo, admin_codigo)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    codigo, nombre, marca, oficio, codigo_postal, email, telefono,
-                    estado_actual, motivo_txt, admin_codigo,
-                ),
+            _repo.insertar_eliminado(
+                cursor,
+                codigo, nombre, marca, oficio, codigo_postal, email, telefono,
+                estado_actual, motivo_txt, admin_codigo,
             )
 
-            cursor.execute("DELETE FROM aliados WHERE codigo = ?", (codigo,))
-            if cursor.rowcount <= 0:
+            if _repo.delete_por_codigo(cursor, codigo) <= 0:
                 return {'status': 'error', 'message': f'No se pudo eliminar el perfil de {codigo}'}
 
             try:
@@ -1177,13 +935,7 @@ def listar_aliados_en_espera(db) -> List[Dict[str, Any]]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT id, codigo, nombre, marca, oficio, codigo_postal, email, telefono,
-                       estado, score, descripcion_servicio, creado_en, actualizado_en
-                FROM aliados WHERE estado = 'en_espera'
-                ORDER BY creado_en ASC
-            """)
-            return [dict(row) for row in cursor.fetchall()]
+            return [dict(row) for row in _repo.listar_en_espera(cursor)]
         except Exception as e:
             print(f"[RUANA][DB] Error listar_aliados_en_espera: {e}")
             return []
@@ -1202,11 +954,7 @@ def incorporar_aliado_espera(db, codigo: str, grupo_id: Optional[int] = None,
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT id, codigo, oficio, codigo_postal, estado FROM aliados WHERE codigo = ?",
-                (codigo,)
-            )
-            row = cursor.fetchone()
+            row = _repo.select_espera_por_codigo(cursor, codigo)
             if not row:
                 return {'status': 'error', 'message': 'Aliado no encontrado'}
             aliado = dict(row)
@@ -1217,8 +965,7 @@ def incorporar_aliado_espera(db, codigo: str, grupo_id: Optional[int] = None,
             codigo_postal = (aliado.get('codigo_postal') or '').strip()
             grupo_asignado = None
             if grupo_id:
-                cursor.execute("SELECT id, estado FROM grupos WHERE id = ? AND estado = 'activo'", (grupo_id,))
-                g = cursor.fetchone()
+                g = _repo.select_grupo_activo_por_id(cursor, grupo_id)
                 if not g:
                     return {'status': 'error', 'message': 'Grupo no encontrado o no activo'}
                 if oficio and db._grupo_tiene_oficio(cursor, grupo_id, oficio):
@@ -1234,10 +981,7 @@ def incorporar_aliado_espera(db, codigo: str, grupo_id: Optional[int] = None,
                         grupo_asignado = nuevo['id']
             if grupo_asignado is None:
                 return {'status': 'error', 'message': 'No hay plaza disponible. Especifica grupo_id o espera a que se libere una plaza.'}
-            cursor.execute(
-                "UPDATE aliados SET estado = 'activo', grupo_id = ?, actualizado_en = CURRENT_TIMESTAMP WHERE id = ?",
-                (grupo_asignado, aliado_id)
-            )
+            _repo.update_incorporar_espera(cursor, grupo_asignado, aliado_id)
             conn.commit()
             try:
                 db.registrar_evento_sistema(
@@ -1273,8 +1017,7 @@ def codigo_existe(db, codigo: str) -> bool:
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute("SELECT 1 FROM aliados WHERE codigo = ?", (codigo,))
-            return cursor.fetchone() is not None
+            return _repo.existe_codigo(cursor, codigo)
         except Exception as e:
             print(f"Error verificando código: {e}")
             return False
@@ -1316,19 +1059,9 @@ def registrar_acceso_login(db,
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT 1 FROM aliados WHERE codigo = ? LIMIT 1",
-                (codigo_aliado,),
-            )
-            if not cursor.fetchone():
+            if not _repo.existe_codigo_limit(cursor, codigo_aliado):
                 return {'status': 'error', 'message': 'Aliado no encontrado'}
-            cursor.execute(
-                """
-                INSERT OR IGNORE INTO aliado_accesos_dia (codigo_aliado, dia)
-                VALUES (?, ?)
-                """,
-                (codigo_aliado, dia_val),
-            )
+            _repo.insertar_acceso_dia(cursor, codigo_aliado, dia_val)
             conn.commit()
         except Exception as e:
             return {'status': 'error', 'message': str(e)}
@@ -1356,4 +1089,39 @@ def registrar_acceso_login(db,
         'regla8_aplicada': aplicado,
         'motivo': motivo,
     }
+
+
+def rechazar_aliado_pendiente(db, codigo: str) -> Dict[str, Any]:
+    """Rechaza un aliado en pendiente_validacion: estado pasa a rechazado. No podrá entrar al panel."""
+    codigo = (codigo or '').strip()
+    with db._lock:
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            cursor.execute(
+                f"""
+                UPDATE aliados
+                SET estado = 'rechazado',
+                    email = ?,
+                    telefono = ?,
+                    qr_paypal_path = NULL,
+                    bizum_num = NULL,
+                    {ALIADO_FOTO_PERFIL_COLUMN} = NULL,
+                    actualizado_en = CURRENT_TIMESTAMP
+                WHERE codigo = ? AND estado = 'pendiente_validacion'
+                """,
+                (
+                    _email_liberado_aliado(codigo),
+                    _telefono_liberado_aliado(codigo),
+                    codigo,
+                ),
+            )
+            conn.commit()
+            if cursor.rowcount > 0:
+                return {'status': 'success', 'message': f'Aliado {codigo} rechazado. No podrá acceder al panel.'}
+            return {'status': 'error', 'message': f'Aliado {codigo} no encontrado o no está pendiente de validación'}
+        except Exception as e:
+            return {'status': 'error', 'message': str(e)}
+        finally:
+            conn.close()
 

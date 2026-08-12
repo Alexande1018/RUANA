@@ -1,6 +1,7 @@
 """Servicio de dominio catalogo (Campamento Base).
 
 Extracción progresiva desde DBManager. Las fachadas permanecen en DBManager.
+SQL de catálogo vía CatalogoRepo.
 """
 from __future__ import annotations
 
@@ -11,6 +12,11 @@ from core.db_constants import RUANA_ROOT
 import json
 import sqlite3
 from typing import Any, Dict, List, Optional
+
+from core.repositories.catalogo_repo import CatalogoRepo
+
+_repo = CatalogoRepo()
+
 # --- Extraído de DBManager (catalogo) ---
 
 def _normalizar_texto_catalogo(texto: str) -> str:
@@ -48,11 +54,8 @@ def obtener_oficios_grupo(db, grupo_id: int) -> set:
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT DISTINCT oficio FROM aliados WHERE grupo_id = ? AND estado = 'activo' AND oficio IS NOT NULL AND oficio != ''",
-                (grupo_id,),
-            )
-            return {row[0].strip() for row in cursor.fetchall() if row[0]}
+            rows = _repo.listar_oficios_distintos_grupo_activo(cursor, grupo_id)
+            return {row[0].strip() for row in rows if row[0]}
         except Exception:
             return set()
         finally:
@@ -81,10 +84,8 @@ def get_catalogo_oficios_ruana(db) -> List[str]:
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT DISTINCT oficio FROM aliados WHERE oficio IS NOT NULL AND oficio != '' ORDER BY oficio"
-            )
-            return [row[0].strip() for row in cursor.fetchall() if row[0]]
+            rows = _repo.listar_oficios_distintos_todos(cursor)
+            return [row[0].strip() for row in rows if row[0]]
         except Exception:
             return []
         finally:
@@ -133,16 +134,7 @@ def listar_catalogo_servicios_aliado(db, codigo_aliado: str) -> List[Dict[str, A
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT posicion, descripcion, precio, actualizado_en
-                FROM catalogo_servicios_aliado
-                WHERE aliado_codigo = ?
-                ORDER BY posicion ASC
-                """,
-                (codigo,)
-            )
-            rows = cursor.fetchall()
+            rows = _repo.listar_servicios_aliado(cursor, codigo)
             by_pos = {}
             for row in rows:
                 item = dict(row)
@@ -206,21 +198,9 @@ def guardar_catalogo_servicio_aliado(db,
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute("SELECT 1 FROM aliados WHERE codigo = ?", (codigo,))
-            if not cursor.fetchone():
+            if not _repo.existe_aliado(cursor, codigo):
                 return {'status': 'error', 'message': f'Aliado {codigo} no encontrado'}
-            cursor.execute(
-                """
-                INSERT INTO catalogo_servicios_aliado (aliado_codigo, posicion, descripcion, precio, actualizado_en)
-                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(aliado_codigo, posicion)
-                DO UPDATE SET
-                    descripcion = excluded.descripcion,
-                    precio = excluded.precio,
-                    actualizado_en = CURRENT_TIMESTAMP
-                """,
-                (codigo, pos, desc_db, pr_db),
-            )
+            _repo.upsert_servicio_aliado(cursor, codigo, pos, desc_db, pr_db)
             conn.commit()
             return {
                 'status': 'success',
@@ -244,13 +224,47 @@ def contar_oficios_ocupados(db) -> int:
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT COUNT(DISTINCT oficio) FROM aliados
-                WHERE estado = 'activo' AND oficio IS NOT NULL AND TRIM(oficio) != ''
-            """)
-            return cursor.fetchone()[0] or 0
+            return _repo.contar_oficios_ocupados(cursor)
         except Exception:
             return 0
         finally:
             conn.close()
+
+def puede_ver_catalogo_aliado(db, visor_codigo: str, objetivo_codigo: str) -> bool:
+    """Catálogo privado visible al propio aliado, directorio o contacto activo."""
+    visor = (visor_codigo or '').strip()
+    objetivo = (objetivo_codigo or '').strip()
+    if not visor or not objetivo:
+        return False
+    if visor == objetivo:
+        return True
+    for aliado in db.listar_aliados_directorio_grupo(visor):
+        if (aliado.get('codigo') or '').strip() == objetivo:
+            return True
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT 1 FROM contactos_ruana
+                WHERE ((solicitante_codigo = ? AND profesional_codigo = ?)
+                    OR (solicitante_codigo = ? AND profesional_codigo = ?))
+                  AND estado NOT IN ('trabajo_cerrado', 'no_concretado', 'cerrado_no_concretado')
+                LIMIT 1
+                """,
+                (visor, objetivo, objetivo, visor),
+            )
+            return cursor.fetchone() is not None
+        except Exception:
+            return False
+        finally:
+            if conn:
+                conn.close()
+
+
+def listar_catalogo_servicios_configurados(db, codigo_aliado: str) -> List[Dict[str, Any]]:
+    """Solo posiciones con descripción y precio (para elegir al contactar)."""
+    return [s for s in db.listar_catalogo_servicios_aliado(codigo_aliado) if s.get('configurado')]
 

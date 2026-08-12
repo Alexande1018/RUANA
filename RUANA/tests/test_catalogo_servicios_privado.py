@@ -1,4 +1,5 @@
 from RUANA.web import app as app_module
+from tests.service_forwarders import install_service_db_forwarders
 
 
 class CatalogoFakeDB:
@@ -34,6 +35,7 @@ class CatalogoFakeDB:
 def test_guardar_catalogo_servicio_aliado_ok(client, monkeypatch, session_headers):
     fake_db = CatalogoFakeDB()
     monkeypatch.setattr(app_module, "get_db", lambda: fake_db)
+    install_service_db_forwarders(monkeypatch)
     headers = session_headers("aliado", "A0001")
 
     resp = client.put(
@@ -52,6 +54,7 @@ def test_guardar_catalogo_servicio_aliado_ok(client, monkeypatch, session_header
 def test_guardar_catalogo_servicio_aliado_forbidden_otro_codigo(client, monkeypatch, session_headers):
     fake_db = CatalogoFakeDB()
     monkeypatch.setattr(app_module, "get_db", lambda: fake_db)
+    install_service_db_forwarders(monkeypatch)
     headers = session_headers("aliado", "A0001")
 
     resp = client.put(
@@ -69,6 +72,7 @@ def test_guardar_catalogo_servicio_aliado_forbidden_otro_codigo(client, monkeypa
 def test_admin_ver_catalogo_servicios_aliado(client, monkeypatch, session_headers):
     fake_db = CatalogoFakeDB()
     monkeypatch.setattr(app_module, "get_db", lambda: fake_db)
+    install_service_db_forwarders(monkeypatch)
     headers = session_headers("admin", "ADMIN001", permisos=["escribir"])
 
     resp = client.get(
