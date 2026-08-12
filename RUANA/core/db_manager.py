@@ -321,51 +321,14 @@ class DBManager:
 
 
     def _columna_retador_competencia(self, cursor) -> str:
-        """
-        Devuelve la columna vigente para el retador en `competencia`.
-        Compatibilidad lectura: algunas BDs reales siguen con esquema legacy `suplente_codigo`.
-        """
-        try:
-            if self.backend == "postgres":
-                cursor.execute(
-                    """
-                    SELECT column_name
-                    FROM information_schema.columns
-                    WHERE table_name = 'competencia'
-                      AND column_name IN ('retador_codigo', 'suplente_codigo')
-                    """
-                )
-                cols = {str(r[0]) for r in (cursor.fetchall() or [])}
-            else:
-                cursor.execute("PRAGMA table_info(competencia)")
-                cols = {str(r[1]) for r in (cursor.fetchall() or [])}
-        except Exception:
-            cols = set()
-        return "retador_codigo" if "retador_codigo" in cols else "suplente_codigo"
+        """Fachada Campamento Base → competencia_service._columna_retador_competencia."""
+        return competencia_service._columna_retador_competencia(self, cursor)
+
 
     def _columnas_compat_competencia(self, cursor) -> Dict[str, str]:
-        """Mapea columnas de competencia entre esquema nuevo (retador_*) y legacy (suplente_*)."""
-        try:
-            if self.backend == "postgres":
-                cursor.execute(
-                    """
-                    SELECT column_name
-                    FROM information_schema.columns
-                    WHERE table_name = 'competencia'
-                    """
-                )
-                cols = {str(r[0]) for r in (cursor.fetchall() or [])}
-            else:
-                cursor.execute("PRAGMA table_info(competencia)")
-                cols = {str(r[1]) for r in (cursor.fetchall() or [])}
-        except Exception:
-            cols = set()
-        return {
-            "retador_codigo": "retador_codigo" if "retador_codigo" in cols else "suplente_codigo",
-            "retador_grupo_anterior_id": "retador_grupo_anterior_id" if "retador_grupo_anterior_id" in cols else "suplente_grupo_anterior_id",
-            "score_retador_inicio": "score_retador_inicio" if "score_retador_inicio" in cols else "score_suplente_inicio",
-            "score_retador_actual": "score_retador_actual" if "score_retador_actual" in cols else "score_suplente_actual",
-        }
+        """Fachada Campamento Base → competencia_service._columnas_compat_competencia."""
+        return competencia_service._columnas_compat_competencia(self, cursor)
+
 
     def _es_condicion_aliado_placeholder_sql(self) -> str:
         """Condición SQL (sin WHERE) para detectar placeholders reales de invitación."""
@@ -848,157 +811,30 @@ class DBManager:
             self, aliado_codigo, tipo, titulo, mensaje, metadata=metadata, cursor=cursor
         )
 
-    def _notificar_retador_competencia_iniciada(
-        self,
-        retador_codigo: str,
-        titular_codigo: str,
-        oficio: str,
-        grupo_id: int,
-        competencia_id: int,
-        duracion_dias: int,
-        codigo_postal: str,
-        cursor=None,
-    ) -> None:
-        """Informa al retador/suplente que entra en competencia y la regla de los 30 días."""
-        oficio_txt = (oficio or '').strip()
-        mensaje = (
-            f"Has sido activado como retador en el CP {codigo_postal} por el oficio {oficio_txt}. "
-            f"Durante {duracion_dias} días tú y el titular acumularéis score; al finalizar, "
-            f"quien tenga mayor score permanece en el grupo."
-        )
-        self._crear_notificacion_aliado(
-            retador_codigo,
-            'competencia_inicio',
-            'Competencia iniciada',
-            mensaje,
-            metadata={
-                'competencia_id': competencia_id,
-                'grupo_id': grupo_id,
-                'oficio': oficio_txt,
-                'titular_codigo': titular_codigo,
-                'duracion_dias': duracion_dias,
-                'codigo_postal': codigo_postal,
-            },
-            cursor=cursor,
-        )
+    def _notificar_retador_competencia_iniciada(self, retador_codigo: str, titular_codigo: str, oficio: str, grupo_id: int, competencia_id: int, duracion_dias: int, codigo_postal: str, cursor=None,) -> None:
+        """Fachada Campamento Base → competencia_service._notificar_retador_competencia_iniciada."""
+        return competencia_service._notificar_retador_competencia_iniciada(self, retador_codigo, titular_codigo, oficio, grupo_id, competencia_id, duracion_dias, codigo_postal, cursor)
 
-    def _avisar_grupos_cp_competencia(
-        self,
-        codigo_postal: str,
-        oficio: str,
-        cursor,
-    ) -> None:
-        """Informa a todos los grupos activos del CP que hay un oficio en competencia."""
-        cp = (codigo_postal or '').strip()
-        oficio_txt = (oficio or '').strip()
-        if not cp or not oficio_txt or cursor is None:
-            return
-        texto = f"El profesional de {oficio_txt} está en competencia en este código postal."
-        try:
-            cursor.execute(
-                "SELECT id FROM grupos WHERE codigo_postal = ? AND estado IN ('activo', 'en_competencia')",
-                (cp,),
-            )
-            for row in cursor.fetchall():
-                gid = row[0]
-                cursor.execute(
-                    "INSERT INTO avisos_grupo (grupo_id, tipo, texto) VALUES (?, 'competencia', ?)",
-                    (gid, texto),
-                )
-        except Exception:
-            return
 
-    def _notificar_derrota_competencia(
-        self,
-        aliado_codigo: str,
-        oficio: str,
-        competencia_id: int,
-        score_reinicio: int,
-        expulsado: bool,
-        cursor=None,
-    ) -> None:
-        """Informa al perdedor el resultado de la competencia (primera o segunda derrota)."""
-        oficio_txt = (oficio or '').strip()
-        if expulsado:
-            titulo = 'Has perdido tu lugar en RUANA'
-            mensaje = (
-                'Has perdido tu lugar en RUANA tras una segunda derrota en competencia. '
-                'Para volver debes registrarte de nuevo como usuario nuevo con un código de invitación nuevo.'
-            )
-            tipo = 'competencia_expulsion'
-        else:
-            titulo = 'Has perdido la competencia'
-            mensaje = (
-                f'Has perdido la competencia por el oficio {oficio_txt}. '
-                f'Tu score se reinicia a {score_reinicio} puntos y pasas a un grupo en formación '
-                f'con menos profesionales.'
-            )
-            tipo = 'competencia_derrota'
-        self._crear_notificacion_aliado(
-            aliado_codigo,
-            tipo,
-            titulo,
-            mensaje,
-            metadata={
-                'competencia_id': competencia_id,
-                'oficio': oficio_txt,
-                'score_reinicio': score_reinicio,
-                'expulsado': expulsado,
-            },
-            cursor=cursor,
-        )
+    def _avisar_grupos_cp_competencia(self, codigo_postal: str, oficio: str, cursor,) -> None:
+        """Fachada Campamento Base → competencia_service._avisar_grupos_cp_competencia."""
+        return competencia_service._avisar_grupos_cp_competencia(self, codigo_postal, oficio, cursor)
 
-    def _notificar_titular_competencia_iniciada(
-        self,
-        titular_codigo: str,
-        retador_codigo: str,
-        oficio: str,
-        competencia_id: int,
-        duracion_dias: int,
-        fecha_fin_prevista: str,
-        cursor=None,
-    ) -> None:
-        """Informa al titular que ha entrado en competencia por permanencia."""
-        oficio_txt = (oficio or '').strip()
-        mensaje = (
-            f'Has entrado en competencia por el oficio {oficio_txt}. '
-            f'Durante {duracion_dias} días competirás con otro profesional; al finalizar, '
-            f'quien tenga mayor score permanece en la plaza del grupo principal.'
-        )
-        self._crear_notificacion_aliado(
-            titular_codigo,
-            'competencia_titular',
-            'Estás en competencia',
-            mensaje,
-            metadata={
-                'competencia_id': competencia_id,
-                'oficio': oficio_txt,
-                'retador_codigo': retador_codigo,
-                'duracion_dias': duracion_dias,
-                'fecha_fin_prevista': fecha_fin_prevista,
-            },
-            cursor=cursor,
-        )
 
-    def _notificar_ganador_competencia(
-        self,
-        ganador_codigo: str,
-        oficio: str,
-        competencia_id: int,
-        cursor=None,
-    ) -> None:
-        mensaje = (
-            f'Has ganado la competencia por el oficio {(oficio or "").strip()}. '
-            f'Permaneces en la plaza del grupo principal.'
-        )
-        self._crear_notificacion_aliado(
-            ganador_codigo,
-            'competencia_victoria',
-            'Competencia ganada',
-            mensaje,
-            metadata={'competencia_id': competencia_id, 'oficio': (oficio or '').strip()},
-            cursor=cursor,
-        )
+    def _notificar_derrota_competencia(self, aliado_codigo: str, oficio: str, competencia_id: int, score_reinicio: int, expulsado: bool, cursor=None,) -> None:
+        """Fachada Campamento Base → competencia_service._notificar_derrota_competencia."""
+        return competencia_service._notificar_derrota_competencia(self, aliado_codigo, oficio, competencia_id, score_reinicio, expulsado, cursor)
+
+
+    def _notificar_titular_competencia_iniciada(self, titular_codigo: str, retador_codigo: str, oficio: str, competencia_id: int, duracion_dias: int, fecha_fin_prevista: str, cursor=None,) -> None:
+        """Fachada Campamento Base → competencia_service._notificar_titular_competencia_iniciada."""
+        return competencia_service._notificar_titular_competencia_iniciada(self, titular_codigo, retador_codigo, oficio, competencia_id, duracion_dias, fecha_fin_prevista, cursor)
+
+
+    def _notificar_ganador_competencia(self, ganador_codigo: str, oficio: str, competencia_id: int, cursor=None,) -> None:
+        """Fachada Campamento Base → competencia_service._notificar_ganador_competencia."""
+        return competencia_service._notificar_ganador_competencia(self, ganador_codigo, oficio, competencia_id, cursor)
+
     
     def _get_umbral_competencia(self) -> Optional[int]:
         """Fachada Campamento Base → competencia_service._get_umbral_competencia."""
@@ -1072,45 +908,9 @@ class DBManager:
 
 
     def _registrar_competencia_pendiente(self, codigo_aliado: str) -> None:
-        codigo = (codigo_aliado or '').strip()
-        if not codigo or self.tiene_competencia_pendiente(codigo):
-            return
-        with self._lock:
-            try:
-                conn = self._connect()
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT a.grupo_id, a.oficio, a.score, g.codigo_postal
-                    FROM aliados a
-                    LEFT JOIN grupos g ON g.id = a.grupo_id
-                    WHERE a.codigo = ? AND a.estado = 'activo'
-                """, (codigo,))
-                row = cursor.fetchone()
-                if not row or not row[0] or not row[1] or not row[3]:
-                    return
-                umbral = self._get_umbral_competencia() or 15
-                if int(row[2] or 0) >= umbral:
-                    return
-                cursor.execute("""
-                    INSERT INTO competencia_pendiente
-                    (aliado_codigo, grupo_id, oficio, codigo_postal, score_al_crear, estado)
-                    VALUES (?, ?, ?, ?, ?, 'pendiente')
-                """, (codigo, row[0], (row[1] or '').strip(), row[3], int(row[2] or 0)))
-                conn.commit()
-                try:
-                    self.registrar_evento_sistema(
-                        'competencia_pendiente',
-                        f'Competencia pendiente de retador para {codigo}',
-                        actor_tipo='sistema',
-                        metadata={'aliado_codigo': codigo, 'oficio': row[1], 'codigo_postal': row[3]},
-                    )
-                except Exception:
-                    pass
-            except Exception:
-                pass
-            finally:
-                conn.close()
+        """Fachada Campamento Base → competencia_service._registrar_competencia_pendiente."""
+        return competencia_service._registrar_competencia_pendiente(self, codigo_aliado)
+
 
     def _cancelar_competencia_pendiente(self, codigo_aliado: str, motivo: str = 'score_recuperado') -> None:
         """Fachada Campamento Base → competencia_service._cancelar_competencia_pendiente."""
@@ -1118,23 +918,9 @@ class DBManager:
 
 
     def _marcar_competencia_pendiente_resuelta(self, codigo_aliado: str, estado: str = 'iniciada') -> None:
-        codigo = (codigo_aliado or '').strip()
-        if not codigo:
-            return
-        with self._lock:
-            try:
-                conn = self._connect()
-                cursor = conn.cursor()
-                cursor.execute(
-                    "UPDATE competencia_pendiente SET estado = ? "
-                    "WHERE aliado_codigo = ? AND estado = 'pendiente'",
-                    (estado, codigo),
-                )
-                conn.commit()
-            except Exception:
-                pass
-            finally:
-                conn.close()
+        """Fachada Campamento Base → competencia_service._marcar_competencia_pendiente_resuelta."""
+        return competencia_service._marcar_competencia_pendiente_resuelta(self, codigo_aliado, estado)
+
 
     def tiene_competencia_pendiente(self, codigo_aliado: str) -> bool:
         """Fachada Campamento Base → competencia_service.tiene_competencia_pendiente."""
@@ -1175,61 +961,14 @@ class DBManager:
 
 
     def _sanear_competencias_participantes_ausentes(self) -> List[Dict[str, Any]]:
-        """Si un participante abandona RUANA durante la competencia, el otro gana por walkover."""
-        resueltos: List[Dict[str, Any]] = []
-        with self._lock:
-            try:
-                conn = self._connect()
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                col_ret = self._columna_retador_competencia(cursor)
-                cols = self._columnas_compat_competencia(cursor)
-                col_prev = cols.get('retador_grupo_anterior_id', 'retador_grupo_anterior_id')
-                cursor.execute(
-                    f"SELECT id, grupo_id, oficio, aliado_original_codigo, {col_ret} AS retador_codigo, "
-                    f"{col_prev} AS retador_grupo_anterior_id FROM competencia WHERE estado = 'activa'"
-                )
-                activas = [dict(r) for r in cursor.fetchall()]
-            except Exception:
-                return []
-            finally:
-                conn.close()
-        estados_validos = ('activo',)
-        for c in activas:
-            tit = self.obtener_aliado_por_codigo(c.get('aliado_original_codigo'))
-            ret = self.obtener_aliado_por_codigo(c.get('retador_codigo'))
-            tit_ok = tit and (tit.get('estado') or '') in estados_validos
-            ret_ok = ret and (ret.get('estado') or '') in estados_validos
-            if tit_ok and ret_ok:
-                continue
-            if not tit_ok and not ret_ok:
-                self._cancelar_competencia_sin_participantes(c.get('id'), c.get('grupo_id'))
-                resueltos.append({'competencia_id': c.get('id'), 'motivo': 'ambos_ausentes'})
-                continue
-            ganador = c.get('retador_codigo') if not tit_ok else c.get('aliado_original_codigo')
-            r = self._finalizar_una_competencia(
-                c.get('id'), c.get('grupo_id'), c.get('aliado_original_codigo'),
-                c.get('retador_codigo'), c.get('retador_grupo_anterior_id'),
-                ganador_forzado=ganador, motivo_cierre='abandono_participante',
-            )
-            resueltos.append({'competencia_id': c.get('id'), 'ganador_codigo': ganador, **r})
-        return resueltos
+        """Fachada Campamento Base → competencia_service._sanear_competencias_participantes_ausentes."""
+        return competencia_service._sanear_competencias_participantes_ausentes(self)
+
 
     def _cancelar_competencia_sin_participantes(self, competencia_id: int, grupo_id: int) -> None:
-        with self._lock:
-            try:
-                conn = self._connect()
-                cursor = conn.cursor()
-                cursor.execute(
-                    "UPDATE competencia SET estado = 'finalizada', fecha_cierre = CURRENT_TIMESTAMP WHERE id = ?",
-                    (competencia_id,),
-                )
-                cursor.execute("UPDATE grupos SET estado = 'activo' WHERE id = ?", (grupo_id,))
-                conn.commit()
-            except Exception:
-                pass
-            finally:
-                conn.close()
+        """Fachada Campamento Base → competencia_service._cancelar_competencia_sin_participantes."""
+        return competencia_service._cancelar_competencia_sin_participantes(self, competencia_id, grupo_id)
+
 
     def competencia_activa_para_grupo_oficio(self, grupo_id: int, oficio: str) -> Optional[Dict[str, Any]]:
         """Fachada Campamento Base → competencia_service.competencia_activa_para_grupo_oficio."""
@@ -1237,17 +976,9 @@ class DBManager:
 
 
     def grupo_tiene_competencia_activa(self, grupo_id: int) -> bool:
-        """True si el grupo tiene al menos una competencia activa."""
-        with self._lock:
-            try:
-                conn = self._connect()
-                cursor = conn.cursor()
-                cursor.execute("SELECT 1 FROM competencia WHERE grupo_id = ? AND estado = 'activa' LIMIT 1", (grupo_id,))
-                return cursor.fetchone() is not None
-            except Exception:
-                return False
-            finally:
-                conn.close()
+        """Fachada Campamento Base → competencia_service.grupo_tiene_competencia_activa."""
+        return competencia_service.grupo_tiene_competencia_activa(self, grupo_id)
+
 
     def listar_competencias_activas_admin(self) -> List[Dict[str, Any]]:
         """Fachada Campamento Base → competencia_service.listar_competencias_activas_admin."""
