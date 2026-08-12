@@ -238,3 +238,32 @@ def test_aliado_centro_comunicacion_module_is_wired():
     assert 'id="ruana-help-fab"' in aliado
     assert 'id="ruana-help-overlay"' in aliado
     assert 'id="ruana-help-threads"' in aliado
+
+
+def test_aliado_conexiones_module_is_wired():
+    """Módulo PrivatePanel `conexiones` (enviar solicitud); PrivatePanel solo fachada."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    conexiones_js = (root / "static" / "js" / "aliado-conexiones-module.js").read_text(
+        encoding="utf-8"
+    )
+    modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
+
+    assert 'src="/static/js/aliado-modules.js"' in aliado
+    assert 'src="/static/js/aliado-conexiones-module.js"' in aliado
+    assert "RuanaAliadoModules" in modules_js
+    assert "conexiones: null" in modules_js
+    assert (
+        "RuanaAliadoModules.conexiones" in conexiones_js
+        or "modules.conexiones" in conexiones_js
+    )
+    assert "handleEnviarSolicitud" in conexiones_js
+    assert "/api/solicitudes" in conexiones_js
+    assert "nueva-solicitud-oficio" in conexiones_js
+    # Fachadas delgadas en PrivatePanel
+    assert "_conexionesModule" in aliado
+    assert "mod.handleEnviarSolicitud(this)" in aliado
+    # Markup permanece en aliado.html
+    assert 'id="module-conexiones"' in aliado
+    assert 'id="nueva-solicitud-oficio"' in aliado
+    assert 'id="btn-enviar"' in aliado

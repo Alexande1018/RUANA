@@ -69,6 +69,56 @@ def listar_conversaciones_soporte_admin(db, aliado_codigo: str = '', estado: str
             if conn:
                 conn.close()
 
+def responder_soporte_admin(db, conversacion_id: int, admin_codigo: str, mensaje: str,
+                              nuevo_estado: Optional[str] = None) -> Dict[str, Any]:
+    msg = str(mensaje or '').strip()
+    if not msg:
+        return {'status': 'error', 'message': 'Mensaje requerido'}
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT aliado_codigo, asunto FROM ruana_soporte_conversaciones WHERE id = ? AND COALESCE(eliminada_por_admin, 0) = 0",
+                (int(conversacion_id),),
+            )
+            conv = cursor.fetchone()
+            if not conv:
+                return {'status': 'error', 'message': 'Conversación no encontrada'}
+            estado = (nuevo_estado or '').strip().lower()
+            if estado not in ('pendiente', 'en_revision', 'respondido', 'cerrado', 'reabierto'):
+                estado = 'respondido'
+            admin_code = (admin_codigo or '').strip() or 'admin'
+            cursor.execute("""
+                INSERT INTO ruana_soporte_mensajes
+                    (conversacion_id, emisor_tipo, emisor_codigo, mensaje, leido_por_aliado, leido_por_admin)
+                VALUES (?, 'admin', ?, ?, 0, 1)
+            """, (int(conversacion_id), admin_code, msg))
+            cursor.execute("""
+                UPDATE ruana_soporte_conversaciones
+                SET estado = ?, ultimo_mensaje_preview = ?, ultimo_mensaje_en = CURRENT_TIMESTAMP,
+                    actualizado_en = CURRENT_TIMESTAMP, tiene_no_leido_aliado = 1, tiene_no_leido_admin = 0
+                WHERE id = ?
+            """, (estado, msg[:220], int(conversacion_id)))
+            cursor.execute("""
+                INSERT INTO notificaciones_aliado (aliado_codigo, tipo, titulo, mensaje, metadata, leida)
+                VALUES (?, 'ruana_soporte', '📩 Respuesta del equipo RUANA', ?, ?, 0)
+            """, (
+                (conv['aliado_codigo'] or '').strip(),
+                f"Tu conversación #{int(conversacion_id)} tiene una respuesta nueva.",
+                json.dumps({'conversacion_id': int(conversacion_id), 'estado': estado, 'origen': 'centro_soporte'}),
+            ))
+            conn.commit()
+            return {'status': 'success'}
+        except Exception as e:
+            return {'status': 'error', 'message': str(e)}
+        finally:
+            if conn:
+                conn.close()
+
+
 def actualizar_estado_soporte_admin(db, conversacion_id: int, nuevo_estado: str, admin_codigo: str = '') -> Dict[str, Any]:
     estado = (nuevo_estado or '').strip().lower()
     if estado not in ('pendiente', 'en_revision', 'respondido', 'cerrado', 'reabierto'):

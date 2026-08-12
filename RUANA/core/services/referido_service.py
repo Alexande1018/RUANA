@@ -220,7 +220,7 @@ def _nodo_referido_resumen(db, codigo: str) -> Optional[Dict[str, Any]]:
         return None
     referidos_count = db.contar_referidos_por_codigo(codigo)
     origen = db._obtener_origen_referido(codigo)
-    invitador = db.obtener_invitador_de(codigo)
+    invitador = obtener_invitador_de(db, codigo)
     especializaciones: List[str] = []
     score = aliado.get('score')
     try:
@@ -291,7 +291,7 @@ def aliado_puede_ver_nodo_referidos(db, codigo_sesion: str, codigo_nodo: str) ->
     current = codigo_nodo
     visitados: set = set()
     while current and current not in visitados:
-        invitador = db.obtener_invitador_de(current)
+        invitador = obtener_invitador_de(db, current)
         if not invitador:
             return False
         current = (invitador.get('codigo') or '').strip()
@@ -521,3 +521,163 @@ def listar_referidos_directos(db, codigo_invitador: str) -> List[Dict[str, Any]]
         finally:
             if conn:
                 conn.close()
+
+
+def obtener_invitador_de(db, codigo_aliado: str) -> Optional[Dict[str, Any]]:
+    """Obtiene el aliado invitador de codigo_aliado, si existe en referidos."""
+    codigo_aliado = (codigo_aliado or '').strip()
+    if not codigo_aliado:
+        return None
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT a.codigo, a.nombre, a.oficio, a.codigo_postal, a.marca,
+                       a.estado, a.score, r.creado_en AS referido_en
+                FROM referidos r
+                JOIN aliados a ON a.codigo = r.codigo_invitador
+                WHERE r.codigo_referido = ?
+            """, (codigo_aliado,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            item = dict(row)
+            item['zona'] = item.get('codigo_postal') or ''
+            item['referidos_count'] = contar_referidos_por_codigo(db, item['codigo'])
+            try:
+                item['score'] = float(item.get('score') or 0)
+            except (TypeError, ValueError):
+                item['score'] = 0.0
+            return item
+        except Exception:
+            return None
+        finally:
+            if conn:
+                conn.close()
+
+
+def obtener_nodo_referidos(db, codigo: str) -> Optional[Dict[str, Any]]:
+    """Nodo individual con metadatos para el árbol."""
+    db.sincronizar_referidos_completo()
+    return _nodo_referido_resumen(db, codigo)
+
+
+def obtener_ruta_referidos_hacia_arriba(db, codigo: str) -> List[Dict[str, Any]]:
+    """Cadena desde la raíz hasta codigo (inclusive)."""
+    codigo = (codigo or '').strip()
+    if not codigo:
+        return []
+    cadena: List[Dict[str, Any]] = []
+    actual = codigo
+    visitados: set = set()
+    while actual and actual not in visitados:
+        nodo = _nodo_referido_resumen(db, actual)
+        if nodo:
+            cadena.insert(0, nodo)
+        invitador = obtener_invitador_de(db, actual)
+        if not invitador:
+            break
+        actual = (invitador.get('codigo') or '').strip()
+        visitados.add(actual)
+    return cadena
+
+
+def obtener_bosques_referidos(db, max_depth: int = 5) -> List[Dict[str, Any]]:
+    """Lista árboles raíz de toda la red de referidos."""
+    db.sincronizar_referidos_completo()
+    max_depth = max(1, min(int(max_depth or 8), 50))
+    raices = listar_raices_referidos(db)
+    bosques: List[Dict[str, Any]] = []
+    for codigo in raices:
+        arbol = obtener_arbol_referidos(db, codigo, max_depth=max_depth)
+        if arbol:
+            bosques.append(arbol)
+    return bosques
+
+
+def obtener_ruta_linaje_hacia_arriba(db, codigo: str) -> List[Dict[str, Any]]:
+    """Ruta linaje (invitado_por) hacia la raíz."""
+    codigo = (codigo or '').strip()
+    if not codigo:
+        return []
+    cadena: List[Dict[str, Any]] = []
+    actual = codigo
+    visitados: set = set()
+    while actual and actual not in visitados:
+        nodo = _nodo_referido_resumen(db, actual)
+        if nodo:
+            cadena.insert(0, nodo)
+        visitados.add(actual)
+        padre_codigo = None
+        with db._lock:
+            conn = None
+            try:
+                conn = db._connect()
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT invitado_por_codigo FROM aliados WHERE codigo = ?",
+                    (actual,),
+                )
+                row = cursor.fetchone()
+                if row and row[0]:
+                    padre_codigo = str(row[0]).strip()
+            except Exception:
+                padre_codigo = None
+            finally:
+                if conn:
+                    conn.close()
+        if not padre_codigo:
+            invitador = obtener_invitador_de(db, actual)
+            padre_codigo = (invitador or {}).get('codigo')
+        if not padre_codigo or padre_codigo in visitados:
+            break
+        actual = padre_codigo
+    return cadena
+
+
+def obtener_linaje_aliado(db, codigo: str) -> Optional[Dict[str, Any]]:
+    """Padre, nodo, hijos directos y ruta hacia la raíz para Control de Aliados."""
+    codigo = (codigo or '').strip()
+    if not codigo:
+        return None
+    backfill_invitado_por_linaje(db)
+    nodo = _nodo_referido_resumen(db, codigo)
+    if not nodo:
+        return None
+    padre = None
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT invitado_por_codigo, COALESCE(invitado_origen, '') AS origen FROM aliados WHERE codigo = ?",
+                (codigo,),
+            )
+            row = cursor.fetchone()
+            if row and (row['invitado_por_codigo'] or '').strip():
+                padre_codigo = (row['invitado_por_codigo'] or '').strip()
+                padre = _nodo_referido_resumen(db, padre_codigo)
+                if padre:
+                    padre['origen'] = (row['origen'] or '').strip()
+                    padre['origen_label'] = db.etiqueta_origen_referido(padre['origen'])
+        except Exception:
+            padre = None
+        finally:
+            if conn:
+                conn.close()
+    if not padre:
+        padre = obtener_invitador_de(db, codigo)
+    hijos = listar_hijos_directos_linaje(db, codigo)
+    ruta = obtener_ruta_linaje_hacia_arriba(db, codigo)
+    return {
+        'aliado': nodo,
+        'padre': padre,
+        'hijos': hijos,
+        'ruta': ruta,
+        'hijos_count': len(hijos),
+    }

@@ -9,6 +9,7 @@
  * `directorio` → aliado-directorio-module.js (lista profesionales / score etiqueta)
  * `solicitudes` → aliado-solicitudes-module.js (entrantes / propias / historial)
  * `acuerdos` → aliado-acuerdos-module.js (Mis acuerdos)
+ * `conexiones` → aliado-conexiones-module.js (enviar solicitud de conexión)
  * `centroComunicacion` → aliado-centro-comunicacion-module.js (FAB soporte)
  */
 (function (global) {

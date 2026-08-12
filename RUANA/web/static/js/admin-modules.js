@@ -2,6 +2,7 @@
  * Módulos del AdminPanel (Campamento Base).
  * Extracción progresiva desde admin.html — alineado al admin-shell.
  * `resumen` → admin-resumen-module.js (estado global / movimiento 24h / métricas)
+ * `operaciones` → admin-operaciones-module.js (conflictos pago / pagos Apoyo / en revisión)
  */
 (function (global) {
   'use strict';

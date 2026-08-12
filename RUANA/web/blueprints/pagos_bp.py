@@ -11,6 +11,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request
 
 from core import db_manager as db_manager_mod
+from core.services import pago_service
 from core.storage_manager import upload_ruana_file as _upload_ruana_file_default
 from web.auth_decorators import (
     _admin_codigo,
@@ -58,7 +59,7 @@ def metodos_pago_ruana():
     """Devuelve los metodos de pago RUANA visibles para aliados autenticados."""
     try:
         db = get_db()
-        return jsonify({"status": "success", "metodos": db.obtener_metodos_pago_ruana()}), 200
+        return jsonify({"status": "success", "metodos": pago_service.obtener_metodos_pago_ruana(db)}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -79,7 +80,7 @@ def admin_actualizar_metodos_pago():
                 return jsonify({"status": "error", "message": "IBAN espanol no valido"}), 400
             valores["iban"] = iban_limpio
         db = get_db()
-        result = db.actualizar_metodos_pago_ruana(valores, admin_codigo=_admin_codigo() or None)
+        result = pago_service.actualizar_metodos_pago_ruana(db, valores, admin_codigo=_admin_codigo() or None)
         status_code = 200 if result.get("status") == "success" else 400
         return jsonify(result), status_code
     except Exception as e:
@@ -108,7 +109,8 @@ def admin_subir_qr_revolut():
             content_type=file.mimetype,
         )
         db = get_db()
-        result = db.actualizar_metodos_pago_ruana(
+        result = pago_service.actualizar_metodos_pago_ruana(
+            db,
             {"qr_revolut_path": storage_result["url"]},
             admin_codigo=_admin_codigo() or None,
         )
@@ -138,7 +140,7 @@ def admin_resolver_payment_conflict(conflict_id):
             return jsonify({"status": "error", "message": "El comentario es obligatorio"}), 400
         admin_codigo = _admin_codigo() or ""
         db = get_db()
-        result = db.resolver_payment_conflict_admin(conflict_id, decision, comentario, admin_codigo)
+        result = pago_service.resolver_payment_conflict_admin(db, conflict_id, decision, comentario, admin_codigo)
         status_code = 200 if result.get("status") == "success" else 400
         return jsonify(result), status_code
     except Exception as e:
@@ -157,7 +159,7 @@ def get_conflicto_por_trabajo(trabajo_id):
         if not codigo:
             return jsonify({"status": "error", "message": "Sesi?n expirada"}), 401
         db = get_db()
-        c = db.obtener_payment_conflict_por_trabajo(trabajo_id, codigo)
+        c = pago_service.obtener_payment_conflict_por_trabajo(db, trabajo_id, codigo)
         if not c:
             return jsonify({"status": "error", "message": "No hay conflicto o no autorizado"}), 404
         return jsonify({"status": "success", "conflicto": c})
@@ -199,7 +201,7 @@ def subir_prueba_conflicto(conflict_id):
         )
         prueba_url = storage_result["url"]
         db = get_db()
-        result = db.subir_prueba_conflicto(conflict_id, codigo, prueba_url)
+        result = pago_service.subir_prueba_conflicto(db, conflict_id, codigo, prueba_url)
         if result.get("status") != "success":
             return jsonify(result), 400
         return jsonify(result), 200
@@ -225,7 +227,7 @@ def admin_resolver_conflicto_pago(contacto_id):
             return jsonify({"status": "error", "message": "Falta importe_valido"}), 400
         admin_codigo = _admin_codigo() or ""
         db = get_db()
-        result = db.resolver_conflicto_pago(contacto_id, float(importe_valido), admin_codigo)
+        result = pago_service.resolver_conflicto_pago(db, contacto_id, float(importe_valido), admin_codigo)
         status_code = 200 if result.get("status") == "success" else 400
         return jsonify(result), status_code
     except Exception as e:
@@ -253,8 +255,8 @@ def admin_estado_pago_contacto(contacto_id):
             motivo = None
         admin_codigo = _admin_codigo() or ""
         db = get_db()
-        result = db.actualizar_estado_pago_contacto(
-            contacto_id, estado_pago, admin_codigo, motivo_rechazo=motivo
+        result = pago_service.actualizar_estado_pago_contacto(
+            db, contacto_id, estado_pago, admin_codigo, motivo_rechazo=motivo
         )
         status_code = 200 if result.get("status") == "success" else 400
         return jsonify(result), status_code

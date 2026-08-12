@@ -1104,6 +1104,7 @@
     <script src="/static/js/ruana-api-client.js" defer></script>
     <script src="/static/js/admin-modules.js" defer></script>
     <script src="/static/js/admin-resumen-module.js" defer></script>
+    <script src="/static/js/admin-operaciones-module.js" defer></script>
     <script src="/static/js/admin-shell.js" defer></script>
 </head>
 <body class="admin-is-loading">
@@ -2299,6 +2300,11 @@
                 return (typeof RuanaAdminModules !== 'undefined' && RuanaAdminModules.resumen) || null;
             }
 
+            /** Fachada Campamento Base → RuanaAdminModules.operaciones */
+            _operacionesModule() {
+                return (typeof RuanaAdminModules !== 'undefined' && RuanaAdminModules.operaciones) || null;
+            }
+
             renderEstadoGlobal(data) {
                 const mod = this._resumenModule();
                 if (mod && typeof mod.renderEstadoGlobal === 'function') {
@@ -3404,134 +3410,24 @@
             }
 
             renderConflictosPago(conflictos) {
-                const tbody = document.getElementById('tbody-conflictos-pago');
-                const emptyEl = document.getElementById('conflictos-pago-empty');
-                const wrap = document.getElementById('conflictos-pago-wrap');
-                if (!tbody || !wrap) return;
-                tbody.innerHTML = '';
-                if (emptyEl) emptyEl.style.display = 'none';
-                if (!conflictos || !conflictos.length) {
-                    if (emptyEl) emptyEl.style.display = 'block';
-                    return;
+                const mod = this._operacionesModule();
+                if (mod && typeof mod.renderConflictosPago === 'function') {
+                    return mod.renderConflictosPago(this, conflictos);
                 }
-                conflictos.forEach(c => {
-                    const impCont = c.importe_contratante != null ? Number(c.importe_contratante).toFixed(2) : '—';
-                    const impProf = c.importe_profesional != null ? Number(c.importe_profesional).toFixed(2) : '—';
-                    const fecha = c.created_at ? this.formatearHora(c.created_at) : '—';
-                    const pruebaLink = c.prueba_url ? this.buildAdminDocumentLink(c.prueba_url, 'Ver') : '—';
-                    const tr = document.createElement('tr');
-                    tr.setAttribute('data-conflict-id', String(c.id || ''));
-                    tr.innerHTML = `
-                        <td>${c.id || '—'}</td>
-                        <td>${c.trabajo_id != null ? c.trabajo_id : '—'}</td>
-                        <td>${this.escapeHtml(c.contratante_nombre || c.contratante_codigo || '')}</td>
-                        <td>${this.escapeHtml(c.profesional_nombre || c.profesional_codigo || '')}</td>
-                        <td>${impCont}</td>
-                        <td>${impProf}</td>
-                        <td>${this.escapeHtml(c.estado || '')}</td>
-                        <td>${fecha}</td>
-                        <td>${pruebaLink}</td>
-                        <td><button type="button" class="btn-accion btn-ver-detalle-conflicto" data-id="${c.id}">Ver / Resolver</button></td>
-                    `;
-                    const btn = tr.querySelector('.btn-ver-detalle-conflicto');
-                    if (btn) btn.addEventListener('click', () => this.abrirModalDetalleConflicto(c.id, tr));
-                    tbody.appendChild(tr);
-                });
             }
 
             renderPagosApoyo(pagos) {
-                const tbody = document.getElementById('tbody-pagos-apoyo');
-                const emptyEl = document.getElementById('pagos-apoyo-empty');
-                const wrap = document.getElementById('pagos-apoyo-wrap');
-                if (!tbody || !wrap) return;
-                tbody.innerHTML = '';
-                if (emptyEl) emptyEl.style.display = 'none';
-                if (!pagos || !pagos.length) {
-                    if (emptyEl) emptyEl.style.display = 'block';
-                    return;
+                const mod = this._operacionesModule();
+                if (mod && typeof mod.renderPagosApoyo === 'function') {
+                    return mod.renderPagosApoyo(this, pagos);
                 }
-                const estadosPermitidos = ['en_revision', 'pagado', 'rechazado'];
-                pagos.forEach(p => {
-                    const importeFinal = (p.importe_final != null && !Number.isNaN(Number(p.importe_final)))
-                        ? Number(p.importe_final).toFixed(2) + ' €' : '—';
-                    const apoyoVal = p.apoyo_ruana;
-                    const apoyo = (apoyoVal != null && apoyoVal !== '' && !Number.isNaN(Number(apoyoVal)) && Number(apoyoVal) >= 0)
-                        ? Number(apoyoVal).toFixed(2) + ' €' : 'Pendiente de cálculo';
-                    const estadoPago = (p.estado_pago || 'pendiente_pago').replace(/_/g, ' ');
-                    const comprobanteLink = p.comprobante_ruta ? this.buildAdminDocumentLink(p.comprobante_ruta, 'Ver') : '—';
-                    const fechaCierre = p.fecha_cierre ? this.formatearHora(p.fecha_cierre) : '—';
-                    const urgenteHtml = p.es_urgente
-                        ? '<span class="estado-pago-badge" style="background:rgba(180,83,9,0.35);color:#fde68a;border:1px solid rgba(251,191,36,0.5);">URGENTE</span>'
-                        : '—';
-                    const tr = document.createElement('tr');
-                    tr.setAttribute('data-contacto-id', String(p.id || ''));
-                    if (p.es_urgente) tr.style.background = 'rgba(180, 83, 9, 0.12)';
-                    tr.innerHTML = `
-                        <td>${p.id || '—'}</td>
-                        <td>${this.escapeHtml(p.solicitante_nombre || p.solicitante_codigo || '')}</td>
-                        <td>${this.escapeHtml(p.profesional_nombre || p.profesional_codigo || '')}</td>
-                        <td>${urgenteHtml}</td>
-                        <td>${importeFinal}</td>
-                        <td>${apoyo}</td>
-                        <td><span class="estado-pago-badge estado-pago-${(p.estado_pago || '').replace(/_/g, '-')}">${this.escapeHtml(estadoPago)}</span></td>
-                        <td>${comprobanteLink}</td>
-                        <td>${fechaCierre}</td>
-                        <td class="acciones-estado-pago">
-                            ${estadosPermitidos.map(est => `<button type="button" class="btn-accion btn-estado-pago" data-contacto-id="${p.id}" data-estado="${est}">${est === 'en_revision' ? 'En revisión' : est === 'pagado' ? 'Marcar pagado' : 'Rechazar'}</button>`).join(' ')}
-                        </td>
-                    `;
-                    tr.querySelectorAll('.btn-estado-pago').forEach(btn => {
-                        const estado = btn.getAttribute('data-estado');
-                        const contactoId = Number(btn.getAttribute('data-contacto-id'));
-                        if (estado === 'rechazado') {
-                            btn.addEventListener('click', () => this.abrirModalRechazarPago(contactoId));
-                        } else {
-                            btn.addEventListener('click', () => this.cambiarEstadoPagoContacto(contactoId, estado, tr));
-                        }
-                    });
-                    tbody.appendChild(tr);
-                });
             }
 
             renderPagosEnRevision(pagos) {
-                const tbody = document.getElementById('tbody-pagos-en-revision');
-                const emptyEl = document.getElementById('pagos-en-revision-empty');
-                const wrap = document.getElementById('pagos-en-revision-wrap');
-                if (!tbody || !wrap) return;
-                tbody.innerHTML = '';
-                if (emptyEl) emptyEl.style.display = 'none';
-                if (!pagos || !pagos.length) {
-                    if (emptyEl) emptyEl.style.display = 'block';
-                    return;
+                const mod = this._operacionesModule();
+                if (mod && typeof mod.renderPagosEnRevision === 'function') {
+                    return mod.renderPagosEnRevision(this, pagos);
                 }
-                pagos.forEach(p => {
-                    const profesional = this.escapeHtml(p.profesional_codigo || '—');
-                    const contactoId = p.id || '—';
-                    const importeFinal = (p.importe_final != null && !Number.isNaN(Number(p.importe_final)))
-                        ? Number(p.importe_final).toFixed(2) + ' €' : '—';
-                    const apoyoValRev = p.apoyo_ruana;
-                    const apoyo = (apoyoValRev != null && apoyoValRev !== '' && !Number.isNaN(Number(apoyoValRev)) && Number(apoyoValRev) >= 0)
-                        ? Number(apoyoValRev).toFixed(2) + ' €' : 'Pendiente de cálculo';
-                    const comprobanteLink = p.comprobante_ruta ? this.buildAdminDocumentLink(p.comprobante_ruta, 'Ver comprobante') : '—';
-                    const fecha = p.fecha_cierre ? this.formatearHora(p.fecha_cierre) : '—';
-                    const tr = document.createElement('tr');
-                    tr.setAttribute('data-contacto-id', String(p.id || ''));
-                    tr.innerHTML = `
-                        <td>${profesional}</td>
-                        <td>${contactoId}</td>
-                        <td>${importeFinal}</td>
-                        <td>${apoyo}</td>
-                        <td>${comprobanteLink}</td>
-                        <td>${fecha}</td>
-                        <td class="acciones-estado-pago">
-                            <button type="button" class="btn-accion btn-aprobar-pago" data-contacto-id="${p.id}" title="Aprobar pago">✔️ Aprobar pago</button>
-                            <button type="button" class="btn-accion btn-rechazar-pago danger" data-contacto-id="${p.id}" title="Rechazar pago">❌ Rechazar pago</button>
-                        </td>
-                    `;
-                    tr.querySelector('.btn-aprobar-pago')?.addEventListener('click', () => this.cambiarEstadoPagoContacto(Number(p.id), 'pagado', tr));
-                    tr.querySelector('.btn-rechazar-pago')?.addEventListener('click', () => this.abrirModalRechazarPago(Number(p.id)));
-                    tbody.appendChild(tr);
-                });
             }
 
             buildAdminDocumentLink(storedUrl, label) {

@@ -99,3 +99,33 @@ def test_admin_resumen_module_is_wired():
     assert 'class="metricas-salud"' in admin
     assert "cargarDesdeApi" in admin
     assert "/api/admin/dashboard-summary" in admin
+
+
+def test_admin_operaciones_module_is_wired():
+    """Módulo AdminShell `operaciones` (pagos/conflictos); AdminPanel solo fachada de render."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    admin = (root / "admin.html").read_text(encoding="utf-8")
+    ops_js = (root / "static" / "js" / "admin-operaciones-module.js").read_text(encoding="utf-8")
+    modules_js = (root / "static" / "js" / "admin-modules.js").read_text(encoding="utf-8")
+
+    assert 'src="/static/js/admin-modules.js"' in admin
+    assert 'src="/static/js/admin-operaciones-module.js"' in admin
+    assert "RuanaAdminModules" in modules_js
+    assert "operaciones: null" in modules_js
+    assert "RuanaAdminModules.operaciones" in ops_js or "modules.operaciones" in ops_js
+    assert "renderConflictosPago" in ops_js
+    assert "renderPagosApoyo" in ops_js
+    assert "renderPagosEnRevision" in ops_js
+    assert "tbody-conflictos-pago" in ops_js
+    assert "tbody-pagos-apoyo" in ops_js
+    assert "tbody-pagos-en-revision" in ops_js
+    # Fachadas delgadas en AdminPanel
+    assert "_operacionesModule" in admin
+    assert "mod.renderConflictosPago(this, conflictos)" in admin
+    assert "mod.renderPagosApoyo(this, pagos)" in admin
+    assert "mod.renderPagosEnRevision(this, pagos)" in admin
+    # Markup permanece
+    assert 'id="conflictos-pago-wrap"' in admin
+    assert 'id="pagos-apoyo-wrap"' in admin
+    assert 'id="pagos-en-revision-wrap"' in admin
+    assert "cargarDesdeApi" in admin

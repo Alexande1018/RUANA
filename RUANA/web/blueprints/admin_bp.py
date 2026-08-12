@@ -19,6 +19,20 @@ from core.storage_manager import resolve_admin_document_access_url
 from core.auth_session import _ruana_session_invalidate_for_codigo
 
 from core import db_manager as db_manager_mod
+from core.services import (
+    admin_service,
+    aliado_service,
+    catalogo_service,
+    chat_service,
+    competencia_service,
+    contacto_service,
+    evaluacion_service,
+    grupo_service,
+    invitacion_service,
+    negociacion_service,
+    pago_service,
+    solicitud_service,
+)
 from web.auth_decorators import (
     _admin_codigo,
     _admin_permisos,
@@ -65,7 +79,7 @@ def admin_health_metrics():
         db = get_db()
         umbral = request.args.get("umbral_suplentes", 1, type=int)
         umbral = max(0, min(umbral, 10))
-        metrics = db.obtener_health_metrics_admin(umbral_suplentes=umbral)
+        metrics = admin_service.obtener_health_metrics_admin(db, umbral_suplentes=umbral)
         return jsonify(metrics)
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -77,7 +91,7 @@ def admin_stats_24h():
     """GET métricas de movimiento en las últimas 24h."""
     try:
         db = get_db()
-        data = db.obtener_stats_24h_panel()
+        data = admin_service.obtener_stats_24h_panel(db)
         return jsonify({"status": "success", **data})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -91,7 +105,7 @@ def admin_invitaciones_recientes():
         limite = request.args.get("limite", type=int) or 20
         limite = min(max(1, limite), 100)
         db = get_db()
-        lista = db.listar_invitaciones_recientes(limite=limite)
+        lista = invitacion_service.listar_invitaciones_recientes(db, limite=limite)
         return jsonify({"status": "success", "invitaciones": lista})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -103,19 +117,19 @@ def admin_dashboard_summary():
     """GET resumen del dashboard global para el panel admin."""
     try:
         db = get_db()
-        aliados = db.listar_aliados()
+        aliados = aliado_service.listar_aliados(db)
         total_users = len(aliados)
         active_users = len([a for a in aliados if a.get("estado") == "activo"])
         retadores = db.contar_retadores_activos()
         suplentes = retadores  # alias
         en_espera = db.contar_aliados_en_espera() if hasattr(db, "contar_aliados_en_espera") else 0
         en_riesgo = db.contar_aliados_en_riesgo()
-        solicitudes_activas = db.contar_solicitudes_activas()
-        oficios_ocupados = db.contar_oficios_ocupados()
-        grupos_data = db.contar_grupos()
+        solicitudes_activas = solicitud_service.contar_solicitudes_activas(db)
+        oficios_ocupados = catalogo_service.contar_oficios_ocupados(db)
+        grupos_data = grupo_service.contar_grupos(db)
         grupos = int(grupos_data.get("total", 0) or 0)
 
-        contactos_metricas = db.obtener_metricas_contactos()
+        contactos_metricas = admin_service.obtener_metricas_contactos(db)
         contactos_disputa = contactos_metricas.get("contactos_en_disputa", 0) or 0
         contactos_disputa_prolongada = contactos_metricas.get(
             "contactos_en_disputa_prolongada", 0
@@ -153,7 +167,7 @@ def admin_suplentes_espera():
     """GET aliados en estado en_espera."""
     try:
         db = get_db()
-        aliados = db.listar_aliados_en_espera()
+        aliados = aliado_service.listar_aliados_en_espera(db)
         return jsonify({"status": "success", "aliados": aliados, "total": len(aliados)})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -166,7 +180,7 @@ def admin_pending_users():
     """GET aliados pendiente_validacion."""
     try:
         db = get_db()
-        aliados = db.listar_aliados_pendiente_validacion()
+        aliados = aliado_service.listar_aliados_pendiente_validacion(db)
         return jsonify({"status": "success", "aliados": aliados, "total": len(aliados)})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -180,7 +194,7 @@ def admin_obtener_metodos_pago():
     """Admin lee la configuracion actual de metodos de pago."""
     try:
         db = get_db()
-        return jsonify({'status': 'success', 'metodos': db.obtener_metodos_pago_ruana()}), 200
+        return jsonify({'status': 'success', 'metodos': pago_service.obtener_metodos_pago_ruana(db)}), 200
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
@@ -197,10 +211,10 @@ def admin_ver_catalogo_servicios_aliado(codigo):
         if not codigo:
             return jsonify({'status': 'error', 'message': 'Código requerido'}), 400
         db = get_db()
-        aliado = db.obtener_aliado_por_codigo(codigo)
+        aliado = aliado_service.obtener_aliado_por_codigo(db, codigo)
         if not aliado:
             return jsonify({'status': 'error', 'message': f'Aliado {codigo} no encontrado'}), 404
-        catalogo = db.listar_catalogo_servicios_aliado(codigo)
+        catalogo = catalogo_service.listar_catalogo_servicios_aliado(db, codigo)
         return jsonify({
             'status': 'success',
             'codigo': codigo,
@@ -224,7 +238,7 @@ def admin_obtener_evaluacion(codigo_aliado):
         if not codigo_aliado:
             return jsonify({'status': 'error', 'message': 'Código de aliado requerido'}), 400
         db = get_db()
-        evaluacion = db.obtener_evaluacion(codigo_aliado)
+        evaluacion = evaluacion_service.obtener_evaluacion(db, codigo_aliado)
         if evaluacion:
             # Asegurar razones como lista para el frontend
             r = evaluacion.get('razones')
@@ -237,7 +251,7 @@ def admin_obtener_evaluacion(codigo_aliado):
                     evaluacion['razones'] = []
             return jsonify({'status': 'success', 'evaluacion': evaluacion, 'timestamp': datetime.now().isoformat()})
         # Sin fila en evaluaciones: calcular m?tricas y decisión del motor (sin persistir)
-        metrics = db.obtener_metricas_motor_por_aliado(codigo_aliado)
+        metrics = admin_service.obtener_metricas_motor_por_aliado(db, codigo_aliado)
         from engines.motor_evaluacion import MotorEvaluacion
         motor = MotorEvaluacion()
         decision = motor._evaluar_aliado(codigo_aliado, metrics)
@@ -270,7 +284,7 @@ def admin_listar_campanas_invitacion():
     try:
         limite = request.args.get('limite', type=int) or 50
         db = get_db()
-        campanas = db.listar_campanas_invitacion(limite=limite)
+        campanas = invitacion_service.listar_campanas_invitacion(db, limite=limite)
         for campana in campanas:
             campana['registro_url'] = _registro_url_para_invitacion(campana.get('codigo', ''))
         return jsonify({'status': 'success', 'campanas': campanas})
@@ -287,7 +301,7 @@ def admin_listar_aliados_eliminados():
     """
     try:
         db = get_db()
-        aliados = db.listar_aliados_eliminados()
+        aliados = aliado_service.listar_aliados_eliminados(db)
         return jsonify({'status': 'success', 'aliados': aliados}), 200
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -302,7 +316,7 @@ def admin_grupo_oficios_cerrados(grupo_id):
     """
     try:
         db = get_db()
-        oficios = db.listar_oficios_cerrados_grupo(grupo_id)
+        oficios = grupo_service.listar_oficios_cerrados_grupo(db, grupo_id)
         return jsonify({'status': 'success', 'oficios': oficios})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -317,7 +331,7 @@ def admin_solicitudes():
     """
     try:
         db = get_db()
-        lista = db.listar_solicitudes_admin_todas()
+        lista = solicitud_service.listar_solicitudes_admin_todas(db)
         return jsonify(lista)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -334,7 +348,7 @@ def admin_payment_conflicts():
     """
     try:
         db = get_db()
-        lista = db.listar_payment_conflicts_admin()
+        lista = pago_service.listar_payment_conflicts_admin(db)
         return jsonify({'status': 'success', 'conflictos': lista, 'total': len(lista)})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -349,7 +363,7 @@ def admin_payment_conflict_detail(conflict_id):
     """
     try:
         db = get_db()
-        c = db.obtener_payment_conflict(conflict_id)
+        c = pago_service.obtener_payment_conflict(db, conflict_id)
         if not c:
             return jsonify({'status': 'error', 'message': 'Conflicto no encontrado'}), 404
         return jsonify({'status': 'success', 'conflicto': c})
@@ -370,7 +384,7 @@ def admin_conversations():
         db = get_db()
         limite = request.args.get('limite', 10000, type=int)
         limite = min(max(1, limite), 50000)
-        raw = db.listar_contactos_recientes_con_chat(limite=limite)
+        raw = chat_service.listar_contactos_recientes_con_chat(db, limite=limite)
         lista = []
         for c in raw:
             lista.append({
@@ -412,10 +426,10 @@ def admin_competencias_activas():
     try:
         db = get_db()
         try:
-            db.procesar_competencia_automatica()
+            competencia_service.procesar_competencia_automatica(db)
         except Exception:
             pass
-        lista = db.listar_competencias_activas_admin()
+        lista = competencia_service.listar_competencias_activas_admin(db)
         return jsonify({'status': 'success', 'competencias': lista})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -427,7 +441,7 @@ def admin_competencias_pendientes():
     """GET /api/admin/competencias-pendientes — titulares esperando retador."""
     try:
         db = get_db()
-        lista = db.listar_competencias_pendientes_admin()
+        lista = competencia_service.listar_competencias_pendientes_admin(db)
         return jsonify({'status': 'success', 'pendientes': lista})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -440,7 +454,7 @@ def admin_competencias_historial():
     try:
         limite = request.args.get('limite', 50, type=int)
         db = get_db()
-        lista = db.listar_competencias_historial_admin(limite=limite)
+        lista = competencia_service.listar_competencias_historial_admin(db, limite=limite)
         return jsonify({'status': 'success', 'historial': lista})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -460,7 +474,7 @@ def admin_negociaciones():
         offset = request.args.get('offset', 0, type=int)
         offset = max(0, offset)
         db = get_db()
-        raw = db.listar_negociaciones_admin(limite=limite, offset=offset)
+        raw = negociacion_service.listar_negociaciones_admin(db, limite=limite, offset=offset)
         conversaciones = []
         for c in raw:
             conversaciones.append({
@@ -488,10 +502,10 @@ def admin_get_negociacion(contacto_id):
     """Detalle de negociación guiada para admin."""
     try:
         db = get_db()
-        contacto = db.obtener_contacto_resumen(contacto_id)
+        contacto = contacto_service.obtener_contacto_resumen(db, contacto_id)
         if not contacto:
             return jsonify({'status': 'error', 'message': 'Contacto no encontrado'}), 404
-        eventos = db.listar_eventos_negociacion(contacto_id)
+        eventos = negociacion_service.listar_eventos_negociacion(db, contacto_id)
         from core import negociacion_manager as neg_mgr
         neg = neg_mgr.parse_negociacion(contacto.get('negociacion_json'))
         return jsonify({
@@ -559,7 +573,7 @@ def admin_pagos_apoyo():
     """
     try:
         db = get_db()
-        lista = db.listar_contactos_pagos_apoyo()
+        lista = pago_service.listar_contactos_pagos_apoyo(db)
         return jsonify({'status': 'success', 'pagos': lista})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -574,7 +588,7 @@ def admin_pagos_en_revision():
     """
     try:
         db = get_db()
-        lista = db.listar_contactos_pagos_en_revision()
+        lista = pago_service.listar_contactos_pagos_en_revision(db)
         return jsonify({'status': 'success', 'pagos': lista})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -602,7 +616,7 @@ def admin_forzar_competencia():
             return jsonify({'status': 'error', 'message': 'Faltan grupo_id, oficio, aliado_original_codigo o retador_codigo'}), 400
         db = get_db()
         admin_codigo = _admin_codigo() or None
-        result = db.forzar_competencia(int(grupo_id), oficio, aliado_original_codigo, retador_codigo, admin_codigo=admin_codigo)
+        result = competencia_service.forzar_competencia(db, int(grupo_id), oficio, aliado_original_codigo, retador_codigo, admin_codigo=admin_codigo)
         status_code = 200 if result.get('status') == 'success' else 400
         return jsonify(result), status_code
     except Exception as e:
@@ -622,8 +636,7 @@ def admin_incorporar_suplente_espera(codigo):
         grupo_id = data.get('grupo_id')
         db = get_db()
         admin_codigo = _admin_codigo() or None
-        result = db.incorporar_aliado_espera(
-            codigo=codigo,
+        result = aliado_service.incorporar_aliado_espera(db, codigo=codigo,
             grupo_id=int(grupo_id) if grupo_id else None,
             admin_codigo=admin_codigo,
         )
@@ -669,8 +682,7 @@ def admin_eliminar_aliado():
             return jsonify({'status': 'error', 'message': 'C?digo de aliado obligatorio'}), 400
         motivo = (data.get('motivo') or '').strip() or None
         db = get_db()
-        result = db.eliminar_perfil_aliado_admin(
-            codigo,
+        result = aliado_service.eliminar_perfil_aliado_admin(db, codigo,
             motivo=motivo,
             admin_codigo=_admin_codigo() or None,
         )
@@ -691,7 +703,7 @@ def admin_users_activate(user_id):
     """
     try:
         db = get_db()
-        result = db.activar_aliado_por_id(user_id)
+        result = aliado_service.activar_aliado_por_id(db, user_id)
         status_code = 200 if result.get('status') == 'success' else 400
         return jsonify(result), status_code
     except Exception as e:
@@ -712,7 +724,7 @@ def admin_activar_aliado():
         if not codigo:
             return jsonify({'status': 'error', 'message': 'C?digo de aliado obligatorio'}), 400
         db = get_db()
-        result = db.activar_aliado_pendiente(codigo)
+        result = aliado_service.activar_aliado_pendiente(db, codigo)
         status_code = 200 if result.get('status') == 'success' else 400
         return jsonify(result), status_code
     except Exception as e:
@@ -734,7 +746,7 @@ def admin_cerrar_oficio():
             return jsonify({'status': 'error', 'message': 'Faltan grupo_id u oficio'}), 400
         db = get_db()
         admin_codigo = _admin_codigo() or None
-        result = db.cerrar_oficio_grupo(int(grupo_id), oficio, admin_codigo=admin_codigo)
+        result = grupo_service.cerrar_oficio_grupo(db, int(grupo_id), oficio, admin_codigo=admin_codigo)
         status_code = 200 if result.get('status') == 'success' else 400
         return jsonify(result), status_code
     except Exception as e:
@@ -757,7 +769,7 @@ def admin_abrir_plaza():
             return jsonify({'status': 'error', 'message': 'Faltan grupo_id u oficio'}), 400
         db = get_db()
         admin_codigo = _admin_codigo() or None
-        result = db.abrir_plaza_grupo(int(grupo_id), oficio, admin_codigo=admin_codigo)
+        result = grupo_service.abrir_plaza_grupo(db, int(grupo_id), oficio, admin_codigo=admin_codigo)
         status_code = 200 if result.get('status') == 'success' else 400
         return jsonify(result), status_code
     except Exception as e:
@@ -812,9 +824,9 @@ def get_stats():
     """
     try:
         db = get_db()
-        stats = db.obtener_estadisticas_evaluaciones()
+        stats = evaluacion_service.obtener_estadisticas_evaluaciones(db)
 
-        aliados = db.listar_aliados()
+        aliados = aliado_service.listar_aliados(db)
         total = len(aliados)
         activos = len([a for a in aliados if a.get('estado') == 'activo'])
 
@@ -822,9 +834,9 @@ def get_stats():
         suplentes = retadores  # alias
         en_espera = db.contar_aliados_en_espera() if hasattr(db, 'contar_aliados_en_espera') else 0
         en_riesgo = db.contar_aliados_en_riesgo()
-        solicitudes_activas = db.contar_solicitudes_activas()
-        oficios_ocupados = db.contar_oficios_ocupados()
-        grupos_counts = db.contar_grupos()
+        solicitudes_activas = solicitud_service.contar_solicitudes_activas(db)
+        oficios_ocupados = catalogo_service.contar_oficios_ocupados(db)
+        grupos_counts = grupo_service.contar_grupos(db)
         if not isinstance(grupos_counts, dict):
             grupos_counts = {'total': 0, 'activos': 0, 'en_competencia': 0, 'disueltos': 0}
         total_grupos = int(grupos_counts.get('total', 0) or 0)
@@ -833,7 +845,7 @@ def get_stats():
         grupos_disueltos = int(grupos_counts.get('disueltos', 0) or 0)
 
         # M?tricas de contactos RUANA (contactos abiertos, disputas, etc.)
-        contactos_metricas = db.obtener_metricas_contactos()
+        contactos_metricas = admin_service.obtener_metricas_contactos(db)
         if isinstance(contactos_metricas, dict) and contactos_metricas.get('status') == 'success':
             contactos_payload = {
                 k: v for k, v in contactos_metricas.items()
@@ -894,7 +906,7 @@ def get_movimiento_24h():
     """
     try:
         db = get_db()
-        movimiento = db.obtener_movimiento_24h()
+        movimiento = admin_service.obtener_movimiento_24h(db)
         return jsonify({
             'status': 'success',
             'movimiento': movimiento,
@@ -913,7 +925,7 @@ def get_movimiento_24h_horas():
     """
     try:
         db = get_db()
-        por_hora = db.obtener_movimiento_24h_por_hora()
+        por_hora = admin_service.obtener_movimiento_24h_por_hora(db)
         return jsonify({
             'status': 'success',
             'por_hora': por_hora,
@@ -934,7 +946,7 @@ def get_metricas_salud():
     """
     try:
         db = get_db()
-        metricas = db.obtener_metricas_salud()
+        metricas = admin_service.obtener_metricas_salud(db)
         return jsonify({
             'status': 'success',
             'metricas': metricas,
@@ -960,7 +972,7 @@ def get_eventos_recientes():
             limite = 10
 
         db = get_db()
-        eventos = db.obtener_eventos_recientes(limite)
+        eventos = admin_service.obtener_eventos_recientes(db, limite)
         return jsonify({
             'status': 'success',
             'eventos': eventos,
@@ -980,7 +992,7 @@ def finalizar_competencia_vencidas():
     """
     try:
         db = get_db()
-        resultados = db.finalizar_competencia_activas_vencidas()
+        resultados = competencia_service.finalizar_competencia_activas_vencidas(db)
         return jsonify({
             'status': 'success',
             'finalizadas': len(resultados),
@@ -1003,7 +1015,7 @@ def purga_mensual():
     """
     try:
         db = get_db()
-        resultado = db.purga_mensual()
+        resultado = competencia_service.purga_mensual(db)
         return jsonify({
             **resultado,
             'timestamp': datetime.now().isoformat()
@@ -1019,7 +1031,7 @@ def admin_eliminar_negociacion(contacto_id):
     try:
         admin_codigo = _admin_codigo() or ''
         db = get_db()
-        result = db.eliminar_negociacion_admin(contacto_id, admin_codigo)
+        result = negociacion_service.eliminar_negociacion_admin(db, contacto_id, admin_codigo)
         code = 200 if result.get('status') == 'success' else 400
         return jsonify(result), code
     except Exception as e:

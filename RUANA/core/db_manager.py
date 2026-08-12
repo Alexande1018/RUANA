@@ -486,87 +486,14 @@ class DBManager:
 
 
     def obtener_ruta_linaje_hacia_arriba(self, codigo: str) -> List[Dict[str, Any]]:
-        """Cadena desde raíz hasta codigo usando invitado_por_codigo."""
-        codigo = (codigo or '').strip()
-        if not codigo:
-            return []
-        cadena = []
-        actual = codigo
-        visitados = set()
-        while actual and actual not in visitados:
-            nodo = self._nodo_referido_resumen(actual)
-            if nodo:
-                cadena.insert(0, nodo)
-            visitados.add(actual)
-            padre_codigo = None
-            with self._lock:
-                conn = None
-                try:
-                    conn = self._connect()
-                    cursor = conn.cursor()
-                    cursor.execute(
-                        "SELECT invitado_por_codigo FROM aliados WHERE codigo = ?",
-                        (actual,),
-                    )
-                    row = cursor.fetchone()
-                    if row and row[0]:
-                        padre_codigo = str(row[0]).strip()
-                except Exception:
-                    padre_codigo = None
-                finally:
-                    if conn:
-                        conn.close()
-            if not padre_codigo:
-                invitador = self.obtener_invitador_de(actual)
-                padre_codigo = (invitador or {}).get('codigo')
-            if not padre_codigo or padre_codigo in visitados:
-                break
-            actual = padre_codigo
-        return cadena
+        """Fachada Campamento Base → referido_service.obtener_ruta_linaje_hacia_arriba."""
+        return referido_service.obtener_ruta_linaje_hacia_arriba(self, codigo)
+
 
     def obtener_linaje_aliado(self, codigo: str) -> Optional[Dict[str, Any]]:
-        """Padre, nodo, hijos directos y ruta hacia la raíz para Control de Aliados."""
-        codigo = (codigo or '').strip()
-        if not codigo:
-            return None
-        self.backfill_invitado_por_linaje()
-        nodo = self._nodo_referido_resumen(codigo)
-        if not nodo:
-            return None
-        padre = None
-        with self._lock:
-            conn = None
-            try:
-                conn = self._connect()
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT invitado_por_codigo, COALESCE(invitado_origen, '') AS origen FROM aliados WHERE codigo = ?",
-                    (codigo,),
-                )
-                row = cursor.fetchone()
-                if row and (row['invitado_por_codigo'] or '').strip():
-                    padre_codigo = (row['invitado_por_codigo'] or '').strip()
-                    padre = self._nodo_referido_resumen(padre_codigo)
-                    if padre:
-                        padre['origen'] = (row['origen'] or '').strip()
-                        padre['origen_label'] = self.etiqueta_origen_referido(padre['origen'])
-            except Exception:
-                padre = None
-            finally:
-                if conn:
-                    conn.close()
-        if not padre:
-            padre = self.obtener_invitador_de(codigo)
-        hijos = self.listar_hijos_directos_linaje(codigo)
-        ruta = self.obtener_ruta_linaje_hacia_arriba(codigo)
-        return {
-            'aliado': nodo,
-            'padre': padre,
-            'hijos': hijos,
-            'ruta': ruta,
-            'hijos_count': len(hijos),
-        }
+        """Fachada Campamento Base → referido_service.obtener_linaje_aliado."""
+        return referido_service.obtener_linaje_aliado(self, codigo)
+
 
     def _obtener_origen_referido(self, codigo_referido: str) -> str:
         """Fachada Campamento Base → referido_service._obtener_origen_referido."""
@@ -1606,23 +1533,9 @@ class DBManager:
 
 
     def obtener_ruta_referidos_hacia_arriba(self, codigo: str) -> List[Dict[str, Any]]:
-        """Cadena desde la raíz hasta codigo (inclusive)."""
-        codigo = (codigo or '').strip()
-        if not codigo:
-            return []
-        cadena: List[Dict[str, Any]] = []
-        actual = codigo
-        visitados: set = set()
-        while actual and actual not in visitados:
-            nodo = self._nodo_referido_resumen(actual)
-            if nodo:
-                cadena.insert(0, nodo)
-            invitador = self.obtener_invitador_de(actual)
-            if not invitador:
-                break
-            actual = (invitador.get('codigo') or '').strip()
-            visitados.add(actual)
-        return cadena
+        """Fachada Campamento Base → referido_service.obtener_ruta_referidos_hacia_arriba."""
+        return referido_service.obtener_ruta_referidos_hacia_arriba(self, codigo)
+
 
     def buscar_en_red_referidos(self, query: str, limite: int = 20) -> List[Dict[str, Any]]:
         """Fachada Campamento Base → referido_service.buscar_en_red_referidos."""
@@ -1640,9 +1553,9 @@ class DBManager:
 
 
     def obtener_nodo_referidos(self, codigo: str) -> Optional[Dict[str, Any]]:
-        """Nodo individual con metadatos para el árbol."""
-        self.sincronizar_referidos_completo()
-        return self._nodo_referido_resumen(codigo)
+        """Fachada Campamento Base → referido_service.obtener_nodo_referidos."""
+        return referido_service.obtener_nodo_referidos(self, codigo)
+
 
     def listar_referidos_directos(self, codigo_invitador: str) -> List[Dict[str, Any]]:
         """Fachada Campamento Base → referido_service.listar_referidos_directos."""
@@ -1650,39 +1563,9 @@ class DBManager:
 
 
     def obtener_invitador_de(self, codigo_aliado: str) -> Optional[Dict[str, Any]]:
-        """Obtiene el aliado invitador de codigo_aliado, si existe en referidos."""
-        codigo_aliado = (codigo_aliado or '').strip()
-        if not codigo_aliado:
-            return None
-        with self._lock:
-            conn = None
-            try:
-                conn = self._connect()
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT a.codigo, a.nombre, a.oficio, a.codigo_postal, a.marca,
-                           a.estado, a.score, r.creado_en AS referido_en
-                    FROM referidos r
-                    JOIN aliados a ON a.codigo = r.codigo_invitador
-                    WHERE r.codigo_referido = ?
-                """, (codigo_aliado,))
-                row = cursor.fetchone()
-                if not row:
-                    return None
-                item = dict(row)
-                item['zona'] = item.get('codigo_postal') or ''
-                item['referidos_count'] = self.contar_referidos_por_codigo(item['codigo'])
-                try:
-                    item['score'] = float(item.get('score') or 0)
-                except (TypeError, ValueError):
-                    item['score'] = 0.0
-                return item
-            except Exception:
-                return None
-            finally:
-                if conn:
-                    conn.close()
+        """Fachada Campamento Base → referido_service.obtener_invitador_de."""
+        return referido_service.obtener_invitador_de(self, codigo_aliado)
+
 
     def _es_invitador_elegible_score(self, codigo: str, excluir: Optional[set] = None) -> bool:
         """Fachada Campamento Base → score_service._es_invitador_elegible_score."""
@@ -1710,17 +1593,10 @@ class DBManager:
 
 
     def obtener_bosques_referidos(self, max_depth: int = 5) -> List[Dict[str, Any]]:
-        """Lista árboles raíz de toda la red de referidos."""
-        self.sincronizar_referidos_completo()
-        max_depth = max(1, min(int(max_depth or 8), 50))
-        raices = self.listar_raices_referidos()
-        bosques: List[Dict[str, Any]] = []
-        for codigo in raices:
-            arbol = self.obtener_arbol_referidos(codigo, max_depth=max_depth)
-            if arbol:
-                bosques.append(arbol)
-        return bosques
-    
+        """Fachada Campamento Base → referido_service.obtener_bosques_referidos."""
+        return referido_service.obtener_bosques_referidos(self, max_depth)
+
+
     def obtener_o_crear_invitador_admin(self, admin_codigo: str, nombre: str = "") -> Optional[str]:
         """Fachada Campamento Base → admin_service.obtener_o_crear_invitador_admin."""
         return admin_service.obtener_o_crear_invitador_admin(self, admin_codigo, nombre)
@@ -1957,70 +1833,16 @@ class DBManager:
 
     def crear_conversacion_soporte_aliado(self, aliado_codigo: str, asunto: str, mensaje: str,
                                           categoria: str = 'consulta') -> Dict[str, Any]:
-        codigo = str(aliado_codigo or '').strip()
-        asunto_txt = str(asunto or '').strip()
-        mensaje_txt = str(mensaje or '').strip()
-        categoria_txt = str(categoria or 'consulta').strip().lower() or 'consulta'
-        if not codigo:
-            return {'status': 'error', 'message': 'Código de aliado requerido'}
-        if not asunto_txt:
-            return {'status': 'error', 'message': 'Asunto requerido'}
-        if not mensaje_txt:
-            return {'status': 'error', 'message': 'Mensaje requerido'}
-        with self._lock:
-            conn = None
-            try:
-                conn = self._connect()
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute("""
-                    INSERT INTO ruana_soporte_conversaciones
-                        (aliado_codigo, asunto, categoria, estado, ultimo_mensaje_preview, tiene_no_leido_admin, tiene_no_leido_aliado)
-                    VALUES (?, ?, ?, 'pendiente', ?, 1, 0)
-                """, (codigo, asunto_txt[:160], categoria_txt[:40], mensaje_txt[:220]))
-                conv_id = cursor.lastrowid
-                cursor.execute("""
-                    INSERT INTO ruana_soporte_mensajes
-                        (conversacion_id, emisor_tipo, emisor_codigo, mensaje, leido_por_aliado, leido_por_admin)
-                    VALUES (?, 'aliado', ?, ?, 1, 0)
-                """, (conv_id, codigo, mensaje_txt))
-                cursor.execute("""
-                    UPDATE ruana_soporte_conversaciones
-                    SET ultimo_mensaje_en = CURRENT_TIMESTAMP, actualizado_en = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                """, (conv_id,))
-                conn.commit()
-                return {'status': 'success', 'conversacion_id': int(conv_id)}
-            except Exception as e:
-                return {'status': 'error', 'message': str(e)}
-            finally:
-                if conn:
-                    conn.close()
+        """Fachada Campamento Base → chat_service.crear_conversacion_soporte_aliado."""
+        return chat_service.crear_conversacion_soporte_aliado(
+            self, aliado_codigo, asunto, mensaje, categoria
+        )
+
 
     def listar_conversaciones_soporte_aliado(self, aliado_codigo: str, limite: int = 50) -> List[Dict[str, Any]]:
-        codigo = str(aliado_codigo or '').strip()
-        if not codigo:
-            return []
-        with self._lock:
-            conn = None
-            try:
-                conn = self._connect()
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT id, aliado_codigo, asunto, categoria, estado, ultimo_mensaje_preview, ultimo_mensaje_en,
-                           tiene_no_leido_aliado, creado_en, actualizado_en
-                    FROM ruana_soporte_conversaciones
-                    WHERE TRIM(CAST(aliado_codigo AS TEXT)) = ? AND COALESCE(eliminada_por_aliado, 0) = 0
-                    ORDER BY ultimo_mensaje_en DESC, id DESC
-                    LIMIT ?
-                """, (codigo, max(1, min(int(limite or 50), 200))))
-                return [dict(r) for r in cursor.fetchall()]
-            except Exception:
-                return []
-            finally:
-                if conn:
-                    conn.close()
+        """Fachada Campamento Base → chat_service.listar_conversaciones_soporte_aliado."""
+        return chat_service.listar_conversaciones_soporte_aliado(self, aliado_codigo, limite)
+
 
     def listar_mensajes_soporte_aliado(self, conversacion_id: int, aliado_codigo: str) -> List[Dict[str, Any]]:
         """Fachada Campamento Base → chat_service.listar_mensajes_soporte_aliado."""
@@ -2038,31 +1860,9 @@ class DBManager:
 
 
     def marcar_soporte_leido_aliado(self, conversacion_id: int, aliado_codigo: str) -> Dict[str, Any]:
-        codigo = str(aliado_codigo or '').strip()
-        if not codigo:
-            return {'status': 'error', 'message': 'Código requerido'}
-        with self._lock:
-            conn = None
-            try:
-                conn = self._connect()
-                cursor = conn.cursor()
-                cursor.execute("""
-                    UPDATE ruana_soporte_conversaciones
-                    SET tiene_no_leido_aliado = 0, actualizado_en = CURRENT_TIMESTAMP
-                    WHERE id = ? AND TRIM(CAST(aliado_codigo AS TEXT)) = ?
-                """, (int(conversacion_id), codigo))
-                cursor.execute("""
-                    UPDATE ruana_soporte_mensajes
-                    SET leido_por_aliado = 1
-                    WHERE conversacion_id = ? AND emisor_tipo = 'admin'
-                """, (int(conversacion_id),))
-                conn.commit()
-                return {'status': 'success'}
-            except Exception as e:
-                return {'status': 'error', 'message': str(e)}
-            finally:
-                if conn:
-                    conn.close()
+        """Fachada Campamento Base → chat_service.marcar_soporte_leido_aliado."""
+        return chat_service.marcar_soporte_leido_aliado(self, conversacion_id, aliado_codigo)
+
 
     def listar_conversaciones_soporte_admin(self, aliado_codigo: str = '', estado: str = '',
                                             solo_no_leidas: bool = False, limite: int = 100,
@@ -2073,49 +1873,11 @@ class DBManager:
 
     def responder_soporte_admin(self, conversacion_id: int, admin_codigo: str, mensaje: str,
                                 nuevo_estado: Optional[str] = None) -> Dict[str, Any]:
-        msg = str(mensaje or '').strip()
-        if not msg:
-            return {'status': 'error', 'message': 'Mensaje requerido'}
-        with self._lock:
-            conn = None
-            try:
-                conn = self._connect()
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute("SELECT aliado_codigo, asunto FROM ruana_soporte_conversaciones WHERE id = ? AND COALESCE(eliminada_por_admin, 0) = 0", (int(conversacion_id),))
-                conv = cursor.fetchone()
-                if not conv:
-                    return {'status': 'error', 'message': 'Conversación no encontrada'}
-                estado = (nuevo_estado or '').strip().lower()
-                if estado not in ('pendiente', 'en_revision', 'respondido', 'cerrado', 'reabierto'):
-                    estado = 'respondido'
-                admin_code = (admin_codigo or '').strip() or 'admin'
-                cursor.execute("""
-                    INSERT INTO ruana_soporte_mensajes
-                        (conversacion_id, emisor_tipo, emisor_codigo, mensaje, leido_por_aliado, leido_por_admin)
-                    VALUES (?, 'admin', ?, ?, 0, 1)
-                """, (int(conversacion_id), admin_code, msg))
-                cursor.execute("""
-                    UPDATE ruana_soporte_conversaciones
-                    SET estado = ?, ultimo_mensaje_preview = ?, ultimo_mensaje_en = CURRENT_TIMESTAMP,
-                        actualizado_en = CURRENT_TIMESTAMP, tiene_no_leido_aliado = 1, tiene_no_leido_admin = 0
-                    WHERE id = ?
-                """, (estado, msg[:220], int(conversacion_id)))
-                cursor.execute("""
-                    INSERT INTO notificaciones_aliado (aliado_codigo, tipo, titulo, mensaje, metadata, leida)
-                    VALUES (?, 'ruana_soporte', '📩 Respuesta del equipo RUANA', ?, ?, 0)
-                """, (
-                    (conv['aliado_codigo'] or '').strip(),
-                    f"Tu conversación #{int(conversacion_id)} tiene una respuesta nueva.",
-                    json.dumps({'conversacion_id': int(conversacion_id), 'estado': estado, 'origen': 'centro_soporte'})
-                ))
-                conn.commit()
-                return {'status': 'success'}
-            except Exception as e:
-                return {'status': 'error', 'message': str(e)}
-            finally:
-                if conn:
-                    conn.close()
+        """Fachada Campamento Base → admin_service.responder_soporte_admin."""
+        return admin_service.responder_soporte_admin(
+            self, conversacion_id, admin_codigo, mensaje, nuevo_estado
+        )
+
 
     def actualizar_estado_soporte_admin(self, conversacion_id: int, nuevo_estado: str, admin_codigo: str = '') -> Dict[str, Any]:
         """Fachada Campamento Base → admin_service.actualizar_estado_soporte_admin."""

@@ -322,3 +322,100 @@ def listar_chat_messages(db, limit: int = 50, offset: int = 0) -> List[Dict[str,
         finally:
             conn.close()
 
+
+
+def crear_conversacion_soporte_aliado(db, aliado_codigo: str, asunto: str, mensaje: str,
+                                      categoria: str = 'consulta') -> Dict[str, Any]:
+    codigo = str(aliado_codigo or '').strip()
+    asunto_txt = str(asunto or '').strip()
+    mensaje_txt = str(mensaje or '').strip()
+    categoria_txt = str(categoria or 'consulta').strip().lower() or 'consulta'
+    if not codigo:
+        return {'status': 'error', 'message': 'Código de aliado requerido'}
+    if not asunto_txt:
+        return {'status': 'error', 'message': 'Asunto requerido'}
+    if not mensaje_txt:
+        return {'status': 'error', 'message': 'Mensaje requerido'}
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO ruana_soporte_conversaciones
+                    (aliado_codigo, asunto, categoria, estado, ultimo_mensaje_preview, tiene_no_leido_admin, tiene_no_leido_aliado)
+                VALUES (?, ?, ?, 'pendiente', ?, 1, 0)
+            """, (codigo, asunto_txt[:160], categoria_txt[:40], mensaje_txt[:220]))
+            conv_id = cursor.lastrowid
+            cursor.execute("""
+                INSERT INTO ruana_soporte_mensajes
+                    (conversacion_id, emisor_tipo, emisor_codigo, mensaje, leido_por_aliado, leido_por_admin)
+                VALUES (?, 'aliado', ?, ?, 1, 0)
+            """, (conv_id, codigo, mensaje_txt))
+            cursor.execute("""
+                UPDATE ruana_soporte_conversaciones
+                SET ultimo_mensaje_en = CURRENT_TIMESTAMP, actualizado_en = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (conv_id,))
+            conn.commit()
+            return {'status': 'success', 'conversacion_id': int(conv_id)}
+        except Exception as e:
+            return {'status': 'error', 'message': str(e)}
+        finally:
+            if conn:
+                conn.close()
+
+
+def listar_conversaciones_soporte_aliado(db, aliado_codigo: str, limite: int = 50) -> List[Dict[str, Any]]:
+    codigo = str(aliado_codigo or '').strip()
+    if not codigo:
+        return []
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, aliado_codigo, asunto, categoria, estado, ultimo_mensaje_preview, ultimo_mensaje_en,
+                       tiene_no_leido_aliado, creado_en, actualizado_en
+                FROM ruana_soporte_conversaciones
+                WHERE TRIM(CAST(aliado_codigo AS TEXT)) = ? AND COALESCE(eliminada_por_aliado, 0) = 0
+                ORDER BY ultimo_mensaje_en DESC, id DESC
+                LIMIT ?
+            """, (codigo, max(1, min(int(limite or 50), 200))))
+            return [dict(r) for r in cursor.fetchall()]
+        except Exception:
+            return []
+        finally:
+            if conn:
+                conn.close()
+
+
+def marcar_soporte_leido_aliado(db, conversacion_id: int, aliado_codigo: str) -> Dict[str, Any]:
+    codigo = str(aliado_codigo or '').strip()
+    if not codigo:
+        return {'status': 'error', 'message': 'Código requerido'}
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE ruana_soporte_conversaciones
+                SET tiene_no_leido_aliado = 0, actualizado_en = CURRENT_TIMESTAMP
+                WHERE id = ? AND TRIM(CAST(aliado_codigo AS TEXT)) = ?
+            """, (int(conversacion_id), codigo))
+            cursor.execute("""
+                UPDATE ruana_soporte_mensajes
+                SET leido_por_aliado = 1
+                WHERE conversacion_id = ? AND emisor_tipo = 'admin'
+            """, (int(conversacion_id),))
+            conn.commit()
+            return {'status': 'success'}
+        except Exception as e:
+            return {'status': 'error', 'message': str(e)}
+        finally:
+            if conn:
+                conn.close()

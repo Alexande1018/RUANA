@@ -71,3 +71,22 @@ def test_admin_shell_resumen_module_aligned_with_module_defs():
     assert "estado-sistema-label" in resumen_js
     assert "mov-sol-nuevas" in resumen_js
     assert "metrica-retencion" in resumen_js
+
+
+def test_admin_shell_operaciones_module_aligned_with_module_defs():
+    """admin-operaciones-module.js cubre targets de pagos/conflictos en MODULE_DEFS.operaciones."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    shell_js = (root / "static" / "js" / "admin-shell.js").read_text(encoding="utf-8")
+    ops_js = (root / "static" / "js" / "admin-operaciones-module.js").read_text(encoding="utf-8")
+    admin = (root / "admin.html").read_text(encoding="utf-8")
+
+    assert "module: 'operaciones'" in shell_js
+    assert "#conflictos-pago-wrap" in shell_js
+    assert "#pagos-apoyo-wrap" in shell_js
+    assert "#pagos-en-revision-wrap" in shell_js
+    assert 'src="/static/js/admin-operaciones-module.js"' in admin
+    assert "renderConflictosPago" in ops_js
+    assert "renderPagosApoyo" in ops_js
+    assert "renderPagosEnRevision" in ops_js
+    assert "tbody-conflictos-pago" in ops_js
+    assert "_operacionesModule" in admin

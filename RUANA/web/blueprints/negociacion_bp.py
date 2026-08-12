@@ -8,6 +8,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 from core import db_manager as db_manager_mod
+from core.services import negociacion_service
 from web.auth_decorators import _aliado_codigo, require_aliado
 
 negociacion_bp = Blueprint("negociacion", __name__)
@@ -51,7 +52,7 @@ def negociacion_get(contacto_id):
     if not codigo:
         return jsonify({"status": "error", "message": "Sesión expirada"}), 401
     db = get_db()
-    result = db.obtener_negociacion_contacto(contacto_id, codigo)
+    result = negociacion_service.obtener_negociacion_contacto(db, contacto_id, codigo)
     code = 200 if result.get("status") == "success" else 400
     if result.get("message") == "Contacto no encontrado":
         code = 404
@@ -73,7 +74,7 @@ def negociacion_proponer(contacto_id):
     if not campo:
         return jsonify({"status": "error", "message": "campo es obligatorio"}), 400
     db = get_db()
-    result = db.proponer_negociacion(contacto_id, codigo, campo, valor)
+    result = negociacion_service.proponer_negociacion(db, contacto_id, codigo, campo, valor)
     return jsonify(result), 200 if result.get("status") == "success" else 400
 
 
@@ -96,8 +97,8 @@ def negociacion_proponer_completa(contacto_id):
     }
     precio_catalogo = (data.get("precio_catalogo") or "").strip()
     db = get_db()
-    result = db.proponer_propuesta_completa_negociacion(
-        contacto_id, codigo, campos, precio_catalogo=precio_catalogo,
+    result = negociacion_service.proponer_propuesta_completa_negociacion(
+        db, contacto_id, codigo, campos, precio_catalogo=precio_catalogo,
     )
     return jsonify(result), 200 if result.get("status") == "success" else 400
 
@@ -115,7 +116,7 @@ def negociacion_aceptar(contacto_id):
     if not campo:
         return jsonify({"status": "error", "message": "campo es obligatorio"}), 400
     db = get_db()
-    result = db.aceptar_negociacion(contacto_id, codigo, campo, obs_prof)
+    result = negociacion_service.aceptar_negociacion(db, contacto_id, codigo, campo, obs_prof)
     return jsonify(result), 200 if result.get("status") == "success" else 400
 
 
@@ -135,8 +136,8 @@ def negociacion_contraoferta(contacto_id):
     if not campo or not valor:
         return jsonify({"status": "error", "message": "campo y valor son obligatorios"}), 400
     db = get_db()
-    result = db.contraoferta_negociacion(
-        contacto_id, codigo, campo, valor, renegociar=renegociar
+    result = negociacion_service.contraoferta_negociacion(
+        db, contacto_id, codigo, campo, valor, renegociar=renegociar
     )
     return jsonify(result), 200 if result.get("status") == "success" else 400
 
@@ -151,7 +152,7 @@ def negociacion_cerrar(contacto_id):
     data = request.get_json() or {}
     motivo = (data.get("motivo") or "").strip()
     db = get_db()
-    result = db.cerrar_negociacion(contacto_id, codigo, motivo=motivo)
+    result = negociacion_service.cerrar_negociacion(db, contacto_id, codigo, motivo=motivo)
     return jsonify(result), 200 if result.get("status") == "success" else 400
 
 
@@ -165,7 +166,7 @@ def negociacion_dismiss_resumen(contacto_id):
     if not codigo:
         return jsonify({"status": "error", "message": "Sesión expirada"}), 401
     db = get_db()
-    result = db.dismiss_resumen_acuerdo(contacto_id, codigo)
+    result = negociacion_service.dismiss_resumen_acuerdo(db, contacto_id, codigo)
     return jsonify(result), 200 if result.get("status") == "success" else 400
 
 
@@ -182,7 +183,8 @@ def aliado_listar_acuerdos():
     hasta = (request.args.get("hasta") or "").strip() or None
     rol = (request.args.get("rol") or "").strip() or None
     db = get_db()
-    acuerdos = db.listar_acuerdos_aliado(
+    acuerdos = negociacion_service.listar_acuerdos_aliado(
+        db,
         codigo,
         limite=limite,
         estado=estado,
@@ -208,7 +210,7 @@ def aliado_resumenes_acuerdo():
     if not codigo:
         return jsonify({"status": "error", "message": "Sesión expirada"}), 401
     db = get_db()
-    resumenes = db.listar_resumenes_acuerdo_visibles(codigo)
+    resumenes = negociacion_service.listar_resumenes_acuerdo_visibles(db, codigo)
     return jsonify({"status": "success", "resumenes": resumenes})
 
 # ---------- Legacy chat libre → negociación ----------

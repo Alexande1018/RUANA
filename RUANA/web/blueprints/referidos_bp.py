@@ -10,6 +10,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 
 from core import db_manager as db_manager_mod
+from core.services import referido_service
 from web.auth_decorators import _aliado_codigo, require_admin, require_aliado
 
 referidos_bp = Blueprint("referidos", __name__)
@@ -51,10 +52,10 @@ def aliado_referidos_arbol():
         except (TypeError, ValueError):
             profundidad_int = 8
         db = get_db()
-        arbol = db.obtener_arbol_referidos(codigo, max_depth=profundidad_int)
+        arbol = referido_service.obtener_arbol_referidos(db, codigo, max_depth=profundidad_int)
         if not arbol:
             return jsonify({"status": "error", "message": "Aliado no encontrado"}), 404
-        invitador = db.obtener_invitador_de(codigo)
+        invitador = referido_service.obtener_invitador_de(db, codigo)
         total_descendientes = _contar_nodos_arbol(arbol) - 1
         return jsonify({
             "status": "success",
@@ -80,10 +81,10 @@ def admin_referidos_arbol():
             profundidad_int = 8
         db = get_db()
         if codigo:
-            arbol = db.obtener_arbol_referidos(codigo, max_depth=profundidad_int)
+            arbol = referido_service.obtener_arbol_referidos(db, codigo, max_depth=profundidad_int)
             if not arbol:
                 return jsonify({"status": "error", "message": f"Aliado {codigo} no encontrado"}), 404
-            invitador = db.obtener_invitador_de(codigo)
+            invitador = referido_service.obtener_invitador_de(db, codigo)
             return jsonify({
                 "status": "success",
                 "modo": "subarbol",
@@ -92,7 +93,7 @@ def admin_referidos_arbol():
                 "total_nodos": _contar_nodos_arbol(arbol),
                 "timestamp": datetime.now().isoformat(),
             })
-        bosques = db.obtener_bosques_referidos(max_depth=profundidad_int)
+        bosques = referido_service.obtener_bosques_referidos(db, max_depth=profundidad_int)
         total_nodos = sum(_contar_nodos_arbol(b) for b in bosques)
         return jsonify({
             "status": "success",
@@ -112,8 +113,8 @@ def admin_referidos_raices():
     """GET nodos raíz de la red."""
     try:
         db = get_db()
-        raices = db.listar_nodos_raiz_referidos()
-        resumen = db.obtener_resumen_referidos_red()
+        raices = referido_service.listar_nodos_raiz_referidos(db)
+        resumen = referido_service.obtener_resumen_referidos_red(db)
         return jsonify({
             "status": "success",
             "modo": "raices",
@@ -137,11 +138,11 @@ def admin_referidos_hijos(codigo):
         if not codigo:
             return jsonify({"status": "error", "message": "Código requerido"}), 400
         db = get_db()
-        nodo = db.obtener_nodo_referidos(codigo)
+        nodo = referido_service.obtener_nodo_referidos(db, codigo)
         if not nodo:
             return jsonify({"status": "error", "message": "Aliado no encontrado"}), 404
-        hijos = db.listar_referidos_directos(codigo)
-        invitador = db.obtener_invitador_de(codigo)
+        hijos = referido_service.listar_referidos_directos(db, codigo)
+        invitador = referido_service.obtener_invitador_de(db, codigo)
         return jsonify({
             "status": "success",
             "nodo": nodo,
@@ -162,7 +163,7 @@ def admin_referidos_ruta(codigo):
         if not codigo:
             return jsonify({"status": "error", "message": "Código requerido"}), 400
         db = get_db()
-        ruta = db.obtener_ruta_referidos_hacia_arriba(codigo)
+        ruta = referido_service.obtener_ruta_referidos_hacia_arriba(db, codigo)
         if not ruta:
             return jsonify({"status": "error", "message": "Aliado no encontrado en la red"}), 404
         return jsonify({
@@ -183,7 +184,7 @@ def admin_referidos_buscar():
         if not query:
             return jsonify({"status": "success", "resultados": []})
         db = get_db()
-        resultados = db.buscar_en_red_referidos(query, limite=25)
+        resultados = referido_service.buscar_en_red_referidos(db, query, limite=25)
         return jsonify({
             "status": "success",
             "resultados": resultados,
@@ -205,13 +206,13 @@ def aliado_referidos_hijos(codigo):
         if not codigo:
             return jsonify({"status": "error", "message": "Código requerido"}), 400
         db = get_db()
-        if not db.aliado_puede_ver_nodo_referidos(codigo_sesion, codigo):
+        if not referido_service.aliado_puede_ver_nodo_referidos(db, codigo_sesion, codigo):
             return jsonify({"status": "error", "message": "No autorizado"}), 403
-        nodo = db.obtener_nodo_referidos(codigo)
+        nodo = referido_service.obtener_nodo_referidos(db, codigo)
         if not nodo:
             return jsonify({"status": "error", "message": "Aliado no encontrado"}), 404
-        hijos = db.listar_referidos_directos(codigo)
-        invitador = db.obtener_invitador_de(codigo)
+        hijos = referido_service.listar_referidos_directos(db, codigo)
+        invitador = referido_service.obtener_invitador_de(db, codigo)
         return jsonify({
             "status": "success",
             "nodo": nodo,
@@ -232,11 +233,11 @@ def aliado_referidos_raiz():
         if not codigo:
             return jsonify({"status": "error", "message": "Sesión no válida"}), 401
         db = get_db()
-        nodo = db.obtener_nodo_referidos(codigo)
+        nodo = referido_service.obtener_nodo_referidos(db, codigo)
         if not nodo:
             return jsonify({"status": "error", "message": "Aliado no encontrado"}), 404
-        invitador = db.obtener_invitador_de(codigo)
-        total_desc = db.contar_referidos_por_codigo(codigo)
+        invitador = referido_service.obtener_invitador_de(db, codigo)
+        total_desc = referido_service.contar_referidos_por_codigo(db, codigo)
         return jsonify({
             "status": "success",
             "modo": "raiz",
@@ -256,9 +257,9 @@ def admin_referidos_cambios():
     try:
         desde = (request.args.get("desde") or "").strip()
         db = get_db()
-        cambios = db.listar_referidos_desde(desde)
-        raices = db.listar_nodos_raiz_referidos()
-        resumen = db.obtener_resumen_referidos_red()
+        cambios = referido_service.listar_referidos_desde(db, desde)
+        raices = referido_service.listar_nodos_raiz_referidos(db)
+        resumen = referido_service.obtener_resumen_referidos_red(db)
         return jsonify({
             "status": "success",
             "cambios": cambios,
@@ -283,12 +284,12 @@ def aliado_referidos_cambios():
             return jsonify({"status": "error", "message": "Sesión no válida"}), 401
         desde = (request.args.get("desde") or "").strip()
         db = get_db()
-        todos = db.listar_referidos_desde(desde)
+        todos = referido_service.listar_referidos_desde(db, desde)
         cambios = [
             c for c in todos
-            if db.aliado_puede_ver_nodo_referidos(codigo_sesion, c.get("codigo_referido") or "")
+            if referido_service.aliado_puede_ver_nodo_referidos(db, codigo_sesion, c.get("codigo_referido") or "")
         ]
-        nodo_raiz = db.obtener_nodo_referidos(codigo_sesion)
+        nodo_raiz = referido_service.obtener_nodo_referidos(db, codigo_sesion)
         return jsonify({
             "status": "success",
             "cambios": cambios,
@@ -308,7 +309,7 @@ def admin_aliado_linaje(codigo):
         if not codigo:
             return jsonify({"status": "error", "message": "Código requerido"}), 400
         db = get_db()
-        linaje = db.obtener_linaje_aliado(codigo)
+        linaje = referido_service.obtener_linaje_aliado(db, codigo)
         if not linaje:
             return jsonify({"status": "error", "message": "Aliado no encontrado"}), 404
         return jsonify({
@@ -329,7 +330,7 @@ def aliado_linaje_hijos():
         if not codigo:
             return jsonify({"status": "error", "message": "Sesión no válida"}), 401
         db = get_db()
-        hijos = db.listar_hijos_directos_linaje(codigo)
+        hijos = referido_service.listar_hijos_directos_linaje(db, codigo)
         return jsonify({
             "status": "success",
             "codigo": codigo,

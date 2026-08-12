@@ -13,6 +13,7 @@ import time
 from flask import Blueprint, jsonify, request
 
 from core import db_manager as db_manager_mod
+from core.services import aliado_service, invitacion_service
 from core.auth_session import (
     RUANA_SESSION_HEADER,
     _ruana_session_create,
@@ -58,7 +59,7 @@ def aliado_login():
         return jsonify({'status': 'error', 'message': 'C?digo de aliado requerido'}), 400
     try:
         db = get_db()
-        aliado = db.obtener_aliado_por_codigo(codigo)
+        aliado = aliado_service.obtener_aliado_por_codigo(db, codigo)
         if not aliado:
             return jsonify({'status': 'error', 'message': 'C?digo inv?lido o aliado no encontrado'}), 401
         estado = aliado.get('estado')
@@ -76,7 +77,7 @@ def aliado_login():
         session_id = _ruana_session_create('aliado', codigo, expires_at)
         # Regla 8: registrar día de login (calendario servidor) y evaluar racha 7 días
         try:
-            db.registrar_acceso_login(codigo)
+            aliado_service.registrar_acceso_login(db, codigo)
         except Exception:
             pass
         return jsonify({'status': 'success', 'codigo': codigo, 'session_id': session_id})
@@ -129,7 +130,7 @@ def _validar_invitacion_impl(codigo_raw):
         # Formato RUANA-{grupo_id}-{OFICIO}-{4chars}: invitaci?n por oficio (Oficios faltantes)
         codigo_upper = codigo.strip().upper()
         if re.match(RUANA_CODIGO_INVITACION_REGEX, codigo_upper):
-            inv = db.validar_invitacion_oficio(codigo_upper)
+            inv = invitacion_service.validar_invitacion_oficio(db, codigo_upper)
             if not inv:
                 return jsonify({
                     'status': 'error',
@@ -147,9 +148,7 @@ def _validar_invitacion_impl(codigo_raw):
                 }
             }), 200
 
-        campana = None
-        if hasattr(db, 'validar_campana_invitacion'):
-            campana = db.validar_campana_invitacion(codigo_upper)
+        campana = invitacion_service.validar_campana_invitacion(db, codigo_upper)
         if campana:
             return jsonify({
                 'status': 'success',
@@ -166,7 +165,7 @@ def _validar_invitacion_impl(codigo_raw):
                     'usos_restantes': campana.get('usos_restantes'),
                 }
             }), 200
-        if hasattr(db, 'obtener_campana_invitacion') and db.obtener_campana_invitacion(codigo_upper):
+        if invitacion_service.obtener_campana_invitacion(db, codigo_upper):
             return jsonify({
                 'status': 'error',
                 'message': 'Codigo de invitacion agotado o desactivado.'
@@ -184,9 +183,7 @@ def _validar_invitacion_impl(codigo_raw):
             }), 400
 
         # Preferir invitaciones reales (tabla invitaciones) frente a placeholders legacy.
-        invitacion_pendiente = None
-        if hasattr(db, 'obtener_invitacion_pendiente'):
-            invitacion_pendiente = db.obtener_invitacion_pendiente(codigo)
+        invitacion_pendiente = invitacion_service.obtener_invitacion_pendiente(db, codigo)
         if invitacion_pendiente:
             return jsonify({
                 'status': 'success',
@@ -201,7 +198,7 @@ def _validar_invitacion_impl(codigo_raw):
                 }
             }), 200
 
-        aliado = db.obtener_aliado_por_codigo(codigo)
+        aliado = aliado_service.obtener_aliado_por_codigo(db, codigo)
 
         # LOG TEMPORAL: traza completa para depuraci?n de invitaciones
         try:

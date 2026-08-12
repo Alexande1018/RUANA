@@ -12,6 +12,7 @@ from urllib.parse import quote
 from flask import Blueprint, jsonify, request
 
 from core import db_manager as db_manager_mod
+from core.services import admin_service, aliado_service, invitacion_service, solicitud_service
 from web.auth_decorators import (
     _admin_codigo,
     _aliado_codigo,
@@ -63,10 +64,10 @@ def _generar_codigo_invitacion_impl(db):
         codigo = str(random.randint(10000, 99999))
         disponible = True
         if hasattr(db, 'codigo_disponible_para_asignar'):
-            disponible = db.codigo_disponible_para_asignar(codigo)
-        elif hasattr(db, 'codigo_existe') and db.codigo_existe(codigo):
+            disponible = aliado_service.codigo_disponible_para_asignar(db, codigo)
+        elif aliado_service.codigo_existe(db, codigo):
             disponible = False
-        elif hasattr(db, 'invitacion_codigo_existe') and db.invitacion_codigo_existe(codigo):
+        elif invitacion_service.invitacion_codigo_existe(db, codigo):
             disponible = False
         if disponible:
             return codigo
@@ -95,7 +96,7 @@ def generar_invitacion():
         return jsonify({'status': 'error', 'message': 'Oficio requerido'}), 400
     try:
         db = get_db()
-        result = db.generar_invitacion_oficio(codigo, oficio)
+        result = invitacion_service.generar_invitacion_oficio(db, codigo, oficio)
         if result.get('status') == 'error':
             return jsonify(result), 400
         return jsonify({'status': 'success', 'codigo': result['codigo']})
@@ -126,7 +127,7 @@ def crear_invitacion():
 
         # La identidad del invitador sale siempre de la sesion de aliado.
         codigo_sesion = _aliado_codigo()
-        aliado_sesion = db.obtener_aliado_por_codigo(codigo_sesion) if codigo_sesion else None
+        aliado_sesion = aliado_service.obtener_aliado_por_codigo(db, codigo_sesion) if codigo_sesion else None
         if not aliado_sesion:
             return jsonify({'status': 'error', 'message': 'Aliado invitador no encontrado'}), 403
         estado_aliado = (aliado_sesion.get('estado') or '').strip().lower()
@@ -148,7 +149,7 @@ def crear_invitacion():
             except (TypeError, ValueError):
                 sid = None
         try:
-            db._registrar_invitacion(codigo, int(aliado_invitador_id), sid)
+            invitacion_service._registrar_invitacion(db, codigo, int(aliado_invitador_id), sid)
         except Exception as e:
             print(f"[RUANA] Error registrando invitacion {codigo}: {e}")
             return jsonify({
@@ -159,7 +160,7 @@ def crear_invitacion():
         # «Conozco a alguien»: no cerrar la solicitud; marcar candidato pendiente
         if sid is not None:
             try:
-                mark = db.marcar_solicitud_candidato_pendiente(sid, codigo_sesion)
+                mark = solicitud_service.marcar_solicitud_candidato_pendiente(db, sid, codigo_sesion)
                 if mark.get('status') != 'success':
                     print(f"[RUANA] Aviso candidato pendiente solicitud {sid}: {mark.get('message')}")
             except Exception as e:
@@ -195,13 +196,13 @@ def admin_crear_invitacion():
 
         # Vincular al admin como invitador para que el registro aparezca en la red de referidos.
         admin_codigo = _admin_codigo() or 'RUANA-ADMIN'
-        db.obtener_o_crear_invitador_admin(admin_codigo)
-        admin_aliado = db.obtener_aliado_por_codigo(admin_codigo)
+        admin_service.obtener_o_crear_invitador_admin(db, admin_codigo)
+        admin_aliado = aliado_service.obtener_aliado_por_codigo(db, admin_codigo)
         admin_id = admin_aliado.get('id') if admin_aliado else None
         if admin_id is None:
             return jsonify({'status': 'error', 'message': 'No se pudo vincular invitacion al admin'}), 500
         try:
-            db._registrar_invitacion(codigo, int(admin_id))
+            invitacion_service._registrar_invitacion(db, codigo, int(admin_id))
         except Exception as e:
             print(f"[RUANA] Error registrando invitacion admin {codigo}: {e}")
             return jsonify({
@@ -229,7 +230,8 @@ def admin_crear_campana_invitacion():
     try:
         data = request.get_json() or {}
         db = get_db()
-        result = db.crear_campana_invitacion(
+        result = invitacion_service.crear_campana_invitacion(
+            db,
             codigo=(data.get('codigo') or '').strip(),
             nombre=(data.get('nombre') or '').strip(),
             codigo_postal=(data.get('codigo_postal') or data.get('zona') or '').strip(),
@@ -257,7 +259,7 @@ def admin_desactivar_campana_invitacion(codigo):
     """POST /api/admin/invitacion-campanas/<codigo>/desactivar - Da de baja un codigo multiuso."""
     try:
         db = get_db()
-        result = db.desactivar_campana_invitacion(codigo)
+        result = invitacion_service.desactivar_campana_invitacion(db, codigo)
         if result.get('status') != 'success':
             return jsonify(result), 404
         return jsonify(result), 200

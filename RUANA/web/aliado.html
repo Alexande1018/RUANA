@@ -2183,6 +2183,7 @@
     <script src="/static/js/aliado-directorio-module.js" defer></script>
     <script src="/static/js/aliado-solicitudes-module.js" defer></script>
     <script src="/static/js/aliado-acuerdos-module.js" defer></script>
+    <script src="/static/js/aliado-conexiones-module.js" defer></script>
     <script src="/static/js/aliado-centro-comunicacion-module.js" defer></script>
     <script src="/static/js/aliado-shell.js" defer></script>
     <link rel="stylesheet" href="/static/css/negociacion-guiada.css">
@@ -4686,6 +4687,11 @@
                 return (typeof RuanaAliadoModules !== 'undefined' && RuanaAliadoModules.solicitudes) || null;
             }
 
+            /** Fachada Campamento Base → RuanaAliadoModules.conexiones */
+            _conexionesModule() {
+                return (typeof RuanaAliadoModules !== 'undefined' && RuanaAliadoModules.conexiones) || null;
+            }
+
             /**
              * Renderizar solicitudes del grupo: entrantes, propias e historial
              * (fachada → RuanaAliadoModules.solicitudes)
@@ -5751,76 +5757,12 @@
                 }
             }
 
-            /**
-             * Manejar envío de solicitud
-             * - Protege contra this.aliado === null
-             * - Valida entrada del usuario
-             */
+            /** Fachada Campamento Base → RuanaAliadoModules.conexiones */
             async handleEnviarSolicitud() {
-                const oficioInput = document.getElementById('nueva-solicitud-oficio');
-                const oficio = oficioInput ? oficioInput.value.trim() : '';
-                const descripcion = this.nuevaSolicitud ? this.nuevaSolicitud.value.trim() : '';
-                if (!oficio.trim()) {
-                    alert('El oficio es obligatorio');
-                    return;
+                const mod = this._conexionesModule();
+                if (mod && typeof mod.handleEnviarSolicitud === 'function') {
+                    return mod.handleEnviarSolicitud(this);
                 }
-                if (!descripcion) {
-                    alert('La descripción es obligatoria');
-                    return;
-                }
-                if (descripcion.length < 5) {
-                    alert('La descripción debe tener al menos 5 caracteres');
-                    return;
-                }
-                const codigo = this.codigoAliado || (this.aliado && this.aliado.codigo) || '';
-                if (!codigo) {
-                    alert('No hay sesión');
-                    return;
-                }
-                this.btnEnviar.disabled = true;
-                this.btnEnviar.textContent = 'Enviando...';
-                const apiBase = getApiBase();
-                const url = apiBase + '/api/solicitudes';
-                try {
-                    const r = await fetch(url, {
-                        method: 'POST',
-                        headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
-                        body: JSON.stringify({ oficio, descripcion }),
-                        credentials: 'same-origin'
-                    });
-                    if (!r.ok) {
-                        const txt = await r.text();
-                        throw new Error('HTTP ' + r.status + (txt ? ': ' + txt.slice(0, 100) : ''));
-                    }
-                    const data = await r.json().catch(() => ({}));
-                    if (data.ok === true || data.status === 'success') {
-                        if (oficioInput) oficioInput.value = '';
-                        if (this.nuevaSolicitud) this.nuevaSolicitud.value = '';
-                        this.solicitudSuccess.classList.add('show');
-                        setTimeout(() => this.solicitudSuccess.classList.remove('show'), 3000);
-                        const respSol = await fetch(apiBase + '/api/solicitudes', { credentials: 'same-origin', headers: getRuanaAuthHeaders() });
-                        if (respSol.ok) {
-                            const dataSol = await respSol.json();
-                            if (dataSol && typeof dataSol === 'object' && !Array.isArray(dataSol)) {
-                                this.solicitudesEntrantes = Array.isArray(dataSol.entrantes) ? dataSol.entrantes : [];
-                                this.solicitudesPropias = Array.isArray(dataSol.propias) ? dataSol.propias : [];
-                                this.solicitudesHistorial = Array.isArray(dataSol.historial) ? dataSol.historial : [];
-                            } else {
-                                this.solicitudesEntrantes = Array.isArray(dataSol) ? dataSol : [];
-                                this.solicitudesPropias = [];
-                                this.solicitudesHistorial = [];
-                            }
-                        }
-                        this.renderSolicitudes();
-                        await this.refreshAfterAction(['metricas', 'solicitudes', 'alertas']);
-                    } else {
-                        alert(data.error || data.message || 'Error al enviar');
-                    }
-                } catch (e) {
-                    alert('Error al enviar: ' + (e.message || e));
-                }
-                this.btnEnviar.disabled = false;
-                this.btnEnviar.textContent = 'Enviar solicitud';
             }
 
             /**
