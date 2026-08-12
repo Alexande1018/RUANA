@@ -2,8 +2,14 @@ from pathlib import Path
 
 
 def test_admin_fetch_response_destructuring_matches_fetch_order():
-    admin_html = Path(__file__).resolve().parents[1] / "web" / "admin.html"
-    text = admin_html.read_text(encoding="utf-8")
+    resumen_js = (
+        Path(__file__).resolve().parents[1]
+        / "web"
+        / "static"
+        / "js"
+        / "admin-resumen-module.js"
+    )
+    text = resumen_js.read_text(encoding="utf-8")
 
     assert "fetch('/api/admin/pagos-en-revision', fetchOpts)" in text
     assert (
@@ -24,10 +30,11 @@ def test_admin_has_payment_methods_management_contract():
     root = Path(__file__).resolve().parents[1] / "web"
     admin_html = (root / "admin.html").read_text(encoding="utf-8")
     sistema_js = (root / "static" / "js" / "admin-sistema-module.js").read_text(encoding="utf-8")
+    resumen_js = (root / "static" / "js" / "admin-resumen-module.js").read_text(encoding="utf-8")
 
     assert 'id="metodos-pago-admin-wrap"' in admin_html
     assert 'data-action="editar-metodos-pago"' in admin_html
-    assert "fetch('/api/admin/metodos-pago', fetchOpts)" in admin_html
+    assert "fetch('/api/admin/metodos-pago', fetchOpts)" in resumen_js
     assert "accionEditarMetodosPago" in admin_html
     assert "accionEditarMetodosPago" in sistema_js
     assert "/api/admin/metodos-pago/qr-revolut" in sistema_js
@@ -47,12 +54,18 @@ def test_admin_qr_upload_does_not_send_json_content_type():
 
 
 def test_admin_conflict_resolution_refreshes_api_data():
-    admin_html = Path(__file__).resolve().parents[1] / "web" / "admin.html"
-    text = admin_html.read_text(encoding="utf-8")
-    start = text.index("async resolverConflictoDecision(decision)")
+    ops_js = (
+        Path(__file__).resolve().parents[1]
+        / "web"
+        / "static"
+        / "js"
+        / "admin-operaciones-module.js"
+    )
+    text = ops_js.read_text(encoding="utf-8")
+    start = text.index("async function resolverConflictoDecision(host, decision)")
     snippet = text[start : start + 2200]
 
-    assert "await this.cargarDesdeApi()" in snippet
+    assert "await host.cargarDesdeApi()" in snippet
 
 
 def test_admin_aliado_detalle_has_delete_profile_button():
@@ -67,13 +80,14 @@ def test_admin_aliado_detalle_has_delete_profile_button():
 
 
 def test_admin_document_view_uses_authenticated_access_endpoint():
-    admin_html = Path(__file__).resolve().parents[1] / "web" / "admin.html"
-    text = admin_html.read_text(encoding="utf-8")
+    root = Path(__file__).resolve().parents[1] / "web"
+    admin_html = (root / "admin.html").read_text(encoding="utf-8")
+    ops_js = (root / "static" / "js" / "admin-operaciones-module.js").read_text(encoding="utf-8")
 
-    assert "buildAdminDocumentLink" in text
-    assert "abrirDocumentoAdmin" in text
-    assert "/api/admin/documentos/acceso" in text
-    assert 'class="btn-link btn-ver-documento-admin"' in text
+    assert "buildAdminDocumentLink" in admin_html
+    assert "abrirDocumentoAdmin" in admin_html
+    assert "/api/admin/documentos/acceso" in ops_js
+    assert 'class="btn-link btn-ver-documento-admin"' in admin_html
 
 
 def test_admin_resumen_module_is_wired():
@@ -104,7 +118,9 @@ def test_admin_resumen_module_is_wired():
     assert 'class="movimiento-sistema"' in admin
     assert 'class="metricas-salud"' in admin
     assert "cargarDesdeApi" in admin
-    assert "/api/admin/dashboard-summary" in admin
+    assert "mod.cargarDesdeApi(this)" in admin
+    assert "/api/admin/dashboard-summary" in resumen_js
+    assert "function cargarDesdeApi(host)" in resumen_js or "async function cargarDesdeApi(host)" in resumen_js
 
 
 def test_admin_operaciones_module_is_wired():
@@ -177,3 +193,25 @@ def test_admin_sistema_module_is_wired():
     assert "mod.accionCrearCampanaInvitacion(this)" in admin
     assert 'data-action="crear-campana-invitacion"' in admin
     assert 'id="metodos-pago-admin-wrap"' in admin
+
+
+def test_admin_inline_fetch_budget_and_module_coverage():
+    """admin.html conserva auth fetches; carga/ops viven en módulos."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    admin = (root / "admin.html").read_text(encoding="utf-8")
+    resumen = (root / "static" / "js" / "admin-resumen-module.js").read_text(encoding="utf-8")
+    ops = (root / "static" / "js" / "admin-operaciones-module.js").read_text(encoding="utf-8")
+    sistema = (root / "static" / "js" / "admin-sistema-module.js").read_text(encoding="utf-8")
+    red = (root / "static" / "js" / "admin-red-module.js").read_text(encoding="utf-8")
+
+    assert admin.count("fetch(") < 15
+    assert "fetch('/api/admin/validar'" in admin
+    assert "fetch('/api/admin/me'" in admin or "fetch('/api/admin/me'," in admin
+    assert "async function cargarDesdeApi(host)" in resumen
+    assert "function setupEventListeners(host)" in resumen
+    assert "abrirDocumentoAdmin" in ops
+    assert "resolverConflictoDecision" in ops
+    assert "cargarCampanasInvitacion" in sistema
+    assert "activarAliadoPendiente" in red
+    assert "mod.cargarDesdeApi(this)" in admin
+    assert "mod.setupEventListeners(this)" in admin

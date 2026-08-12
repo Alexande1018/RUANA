@@ -690,7 +690,180 @@
     }
   }
 
-  modules.contactos = {
+    function syncAcuerdoFlotante(host, data) {
+      if (!data || data.resumen_dismissed) return;
+      const estado = data.estado_contacto || '';
+      if (!(['acuerdo_alcanzado', 'trabajo_cerrado'].includes(estado) || data.acuerdo_alcanzado)) {
+          return;
+      }
+      host.mostrarAcuerdoFlotante({
+          contacto_id: data.contacto_id || host.negociacionGuiada && host.negociacionGuiada.contactoId,
+          estado,
+          servicio: data.servicio_contacto || '',
+          resumen: data.resumen || [],
+          yo_confirme_cierre: !!data.yo_confirme_cierre,
+          ambos_confirmaron_cierre: !!data.ambos_confirmaron_cierre,
+          cierre_confirmado_solicitante: !!data.cierre_confirmado_solicitante,
+          cierre_confirmado_profesional: !!data.cierre_confirmado_profesional,
+      });
+  }
+
+  function mostrarAcuerdoFlotanteDesdeNegociacion(host, contactoId, data) {
+      if (!data || data.resumen_dismissed) return;
+      const estado = data.estado_contacto || '';
+      if (!(data.acuerdo_alcanzado || ['acuerdo_alcanzado', 'trabajo_cerrado'].includes(estado))) {
+          return;
+      }
+      host.mostrarAcuerdoFlotante({
+          contacto_id: contactoId,
+          estado,
+          servicio: data.servicio_contacto || '',
+          resumen: data.resumen || [],
+          yo_confirme_cierre: !!data.yo_confirme_cierre,
+          ambos_confirmaron_cierre: !!data.ambos_confirmaron_cierre,
+      });
+  }
+
+  function ocultarAcuerdoFlotante(host) {
+      const panel = document.getElementById('acuerdo-flotante');
+      if (panel) {
+          panel.hidden = true;
+          panel.classList.remove('show');
+      }
+      host.acuerdoFlotanteActual = null;
+      host._acuerdoFlotanteOcultoPorModal = false;
+      host._acuerdoFlotanteSnapshot = null;
+  }
+
+  function ocultarAcuerdoFlotantePorModal(host) {
+      const panel = document.getElementById('acuerdo-flotante');
+      if (panel && panel.classList.contains('show')) {
+          host._acuerdoFlotanteOcultoPorModal = true;
+          host._acuerdoFlotanteSnapshot = host.acuerdoFlotanteActual;
+          panel.classList.remove('show');
+          panel.hidden = true;
+      }
+  }
+
+  function restaurarAcuerdoFlotanteTrasNegociacion(host, contactoId, dataSnapshot) {
+      host._acuerdoFlotanteOcultoPorModal = false;
+      const snap = host._acuerdoFlotanteSnapshot;
+      host._acuerdoFlotanteSnapshot = null;
+      if (dataSnapshot && contactoId) {
+          host.mostrarAcuerdoFlotanteDesdeNegociacion(contactoId, dataSnapshot);
+      } else if (snap) {
+          host.mostrarAcuerdoFlotante(snap);
+      }
+  }
+
+  async function dismissAcuerdoFlotante(host) {
+      const item = host.acuerdoFlotanteActual;
+      if (!item || !item.contacto_id) {
+          host.ocultarAcuerdoFlotante();
+          return;
+      }
+      try {
+          await fetch(`/api/contactos/${item.contacto_id}/negociacion/dismiss-resumen`, {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
+              body: '{}',
+          });
+      } catch (e) { /* ignore */ }
+      host.ocultarAcuerdoFlotante();
+  }
+
+  async function confirmarAcuerdoDesdeFlotante(host) {
+      const item = host.acuerdoFlotanteActual;
+      if (!item || !item.contacto_id) return;
+      if (host.negociacionGuiada) {
+          host.negociacionGuiada.contactoId = item.contacto_id;
+          host.negociacionGuiada.data = Object.assign({}, host.negociacionGuiada.data || {}, {
+              estado_contacto: item.estado || 'acuerdo_alcanzado',
+              acuerdo_alcanzado: true,
+              yo_confirme_cierre: !!item.yo_confirme_cierre,
+          });
+          await host.negociacionGuiada.confirmarCerrarNegociacion();
+      }
+  }
+
+  function handleAvisoNoSeConcreto(host) {
+      if (!host.contactoActual) return;
+      const modal = document.getElementById('modal-no-concretado');
+      if (modal) modal.classList.add('show');
+  }
+
+  async function finalizarContactoCerradoEnUI(host, contactoId, opts) {
+      const options = opts || {};
+      const id = contactoId != null ? Number(contactoId) : null;
+      if (id != null && host.contactoActual && Number(host.contactoActual.id) === id) {
+          host.contactoActual = null;
+      }
+      if (Array.isArray(host.contactosAbiertos) && id != null) {
+          host.contactosAbiertos = host.contactosAbiertos.filter(c => Number(c.id) !== id);
+      }
+      const avisoEl = document.getElementById('contacto-aviso-persistente');
+      if (avisoEl) avisoEl.style.display = 'none';
+      if (options.cerrarModal !== false && host.negociacionGuiada && typeof host.negociacionGuiada.cerrar === 'function') {
+          host.negociacionGuiada.cerrar();
+      }
+      await host.refreshAfterAction(['contactos', 'directorio', 'alertas', 'metricas']);
+  }
+
+  function abrirNegociacionContacto(host, contactoId, profesional, opts) {
+      if (!host.negociacionGuiada) {
+          alert('Negociación guiada no disponible.');
+          return;
+      }
+      let titulo = 'Negociación guiada RUANA';
+      if (profesional && profesional.nombre) {
+          titulo += ' · ' + profesional.nombre;
+      }
+      let esUrgente = !!(opts && opts.es_urgente);
+      if (!esUrgente && host.contactoActual && Number(host.contactoActual.id) === Number(contactoId)) {
+          esUrgente = !!host.contactoActual.es_urgente;
+      }
+      const badge = document.getElementById('neg-urgente-badge');
+      if (badge) badge.style.display = esUrgente ? 'inline-block' : 'none';
+      host.negociacionGuiada.abrir(contactoId, titulo);
+  }
+
+  function abrirNegociacionDesdeContactoActual(host) {
+      if (!host.contactoActual || !host.contactoActual.id) return;
+      host.abrirNegociacionContacto(host.contactoActual.id, null);
+  }
+
+  function abrirChatContacto(host, contactoId, profesional, opts) {
+      host.abrirNegociacionContacto(contactoId, profesional, opts);
+  }
+
+  function _obtenerServicioSeleccionadoPrevio(host, profesional) {
+      const inputOtro = document.getElementById('contacto-previo-servicio-otro');
+      const custom = inputOtro ? String(inputOtro.value || '').trim() : '';
+      if (custom) return custom;
+      const catalogoList = document.getElementById('contacto-previo-catalogo-list');
+      const selected = catalogoList ? catalogoList.querySelector('.neg-catalogo-item.selected') : null;
+      if (selected) {
+          const idx = parseInt(selected.getAttribute('data-idx') || '-1', 10);
+          const item = (host._catalogoPrevioItems || [])[idx];
+          if (item && item.descripcion) return item.descripcion;
+      }
+      if ((host._catalogoPrevioItems || []).length > 0) return '';
+      return (profesional && profesional.oficio) || 'Servicio RUANA';
+  }
+
+  function _obtenerPrecioCatalogoPrevio(host) {
+      const catalogoList = document.getElementById('contacto-previo-catalogo-list');
+      const selected = catalogoList ? catalogoList.querySelector('.neg-catalogo-item.selected') : null;
+      if (selected) {
+          const idx = parseInt(selected.getAttribute('data-idx') || '-1', 10);
+          const item = (host._catalogoPrevioItems || [])[idx];
+          if (item && item.precio) return String(item.precio).trim();
+      }
+      return '';
+  }
+
+modules.contactos = {
     mostrarAcuerdoFlotante: mostrarAcuerdoFlotante,
     cargarContactosPendientes: cargarContactosPendientes,
     mostrarAvisoPrevioContacto: mostrarAvisoPrevioContacto,
@@ -705,5 +878,20 @@
     confirmarNoConcretado: confirmarNoConcretado,
     cargarResumenesAcuerdoFlotantes: cargarResumenesAcuerdoFlotantes,
     handleAvisoSigueEnConversacion: handleAvisoSigueEnConversacion,
-  };
+  
+    syncAcuerdoFlotante: syncAcuerdoFlotante,
+    mostrarAcuerdoFlotanteDesdeNegociacion: mostrarAcuerdoFlotanteDesdeNegociacion,
+    ocultarAcuerdoFlotante: ocultarAcuerdoFlotante,
+    ocultarAcuerdoFlotantePorModal: ocultarAcuerdoFlotantePorModal,
+    restaurarAcuerdoFlotanteTrasNegociacion: restaurarAcuerdoFlotanteTrasNegociacion,
+    dismissAcuerdoFlotante: dismissAcuerdoFlotante,
+    confirmarAcuerdoDesdeFlotante: confirmarAcuerdoDesdeFlotante,
+    handleAvisoNoSeConcreto: handleAvisoNoSeConcreto,
+    finalizarContactoCerradoEnUI: finalizarContactoCerradoEnUI,
+    abrirNegociacionContacto: abrirNegociacionContacto,
+    abrirNegociacionDesdeContactoActual: abrirNegociacionDesdeContactoActual,
+    abrirChatContacto: abrirChatContacto,
+    _obtenerServicioSeleccionadoPrevio: _obtenerServicioSeleccionadoPrevio,
+    _obtenerPrecioCatalogoPrevio: _obtenerPrecioCatalogoPrevio,
+};
 })(typeof window !== 'undefined' ? window : globalThis);

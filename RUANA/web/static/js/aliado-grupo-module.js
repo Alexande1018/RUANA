@@ -154,8 +154,55 @@
     host.renderOficiosFaltantesFullList(faltantes);
   }
 
-  modules.grupo = {
+    function renderOficiosFaltantesFullList(host, oficios) {
+      const fullListEl = document.getElementById('oficios-faltantes-full-list');
+      if (!fullListEl) return;
+      const query = (document.getElementById('oficios-faltantes-search') || {}).value || '';
+      const q = query.trim().toLowerCase();
+      const toText = (o) => (typeof o === 'object' && o && o.nombre != null ? String(o.nombre) : String(o || ''));
+      const list = q ? oficios.filter(o => toText(o).toLowerCase().includes(q)) : oficios;
+      fullListEl.innerHTML = list.map(o => {
+          const texto = toText(o);
+          return `<span class="oficio-item" data-oficio="${texto.replace(/"/g, '&quot;')}" title="Generar código de invitación">${host.escapeHtml(texto)}</span>`;
+      }).join('');
+  }
+
+  function expandirOficiosFaltantes(host) {
+      const preview = document.getElementById('oficios-faltantes-preview');
+      const expanded = document.getElementById('oficios-faltantes-expanded');
+      const searchInput = document.getElementById('oficios-faltantes-search');
+      if (preview) preview.style.display = 'none';
+      if (expanded) expanded.style.display = 'block';
+      if (searchInput) { searchInput.value = ''; searchInput.focus(); }
+      const container = document.getElementById('grupo-oficios-faltantes-wrap');
+      const data = container && container.getAttribute('data-oficios-faltantes');
+      const oficios = data ? JSON.parse(data) : [];
+      host.renderOficiosFaltantesFullList(oficios);
+  }
+
+  function ocultarOficiosFaltantes(host) {
+      const preview = document.getElementById('oficios-faltantes-preview');
+      const expanded = document.getElementById('oficios-faltantes-expanded');
+      const searchInput = document.getElementById('oficios-faltantes-search');
+      if (preview) preview.style.display = 'flex';
+      if (expanded) expanded.style.display = 'none';
+      if (searchInput) searchInput.value = '';
+  }
+
+  function filtrarOficiosFaltantes(host) {
+      const container = document.getElementById('grupo-oficios-faltantes-wrap');
+      const data = container && container.getAttribute('data-oficios-faltantes');
+      const oficios = data ? JSON.parse(data) : [];
+      host.renderOficiosFaltantesFullList(oficios);
+  }
+
+modules.grupo = {
     renderCompetencia: renderCompetencia,
     renderGrupo: renderGrupo,
-  };
+  
+    renderOficiosFaltantesFullList: renderOficiosFaltantesFullList,
+    expandirOficiosFaltantes: expandirOficiosFaltantes,
+    ocultarOficiosFaltantes: ocultarOficiosFaltantes,
+    filtrarOficiosFaltantes: filtrarOficiosFaltantes,
+};
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -16,6 +16,7 @@
  * `contactos` → aliado-contactos-module.js
  * `grupo` → aliado-grupo-module.js
  * `sync` → aliado-sync-module.js (warmup / loadData / refresh)
+ * `events` → aliado-events-module.js (setupEventListeners)
  */
 (function (global) {
   'use strict';
@@ -34,5 +35,6 @@
     contactos: null,
     grupo: null,
     sync: null,
+    events: null,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

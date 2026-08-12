@@ -16,7 +16,14 @@ def test_aliado_panel_starts_with_loading_state():
     assert 'class="ruana-loader-node node-a"' in text
     assert 'class="ruana-loader-line line-a"' in text
     assert "prefers-reduced-motion: reduce" in css
-    assert "setPanelLoading(false)" in text
+    sync_js = (
+        Path(__file__).resolve().parents[1]
+        / "web"
+        / "static"
+        / "js"
+        / "aliado-sync-module.js"
+    ).read_text(encoding="utf-8")
+    assert "setPanelLoading(false)" in text or "host.setPanelLoading(false)" in sync_js
 
 
 def test_aliado_panel_does_not_ship_demo_profile_values():
@@ -313,7 +320,7 @@ def test_aliado_alertas_module_is_wired():
 
 
 def test_aliado_catalogo_contactos_grupo_sync_modules_are_wired():
-    """Módulos catalogo / contactos / grupo / sync cableados con fachadas."""
+    """Módulos catalogo / contactos / grupo / sync / events cableados con fachadas."""
     root = Path(__file__).resolve().parents[1] / "web"
     aliado = (root / "aliado.html").read_text(encoding="utf-8")
     modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
@@ -321,12 +328,14 @@ def test_aliado_catalogo_contactos_grupo_sync_modules_are_wired():
     contactos = (root / "static" / "js" / "aliado-contactos-module.js").read_text(encoding="utf-8")
     grupo = (root / "static" / "js" / "aliado-grupo-module.js").read_text(encoding="utf-8")
     sync = (root / "static" / "js" / "aliado-sync-module.js").read_text(encoding="utf-8")
+    events = (root / "static" / "js" / "aliado-events-module.js").read_text(encoding="utf-8")
 
     for src in (
         "aliado-catalogo-module.js",
         "aliado-contactos-module.js",
         "aliado-grupo-module.js",
         "aliado-sync-module.js",
+        "aliado-events-module.js",
     ):
         assert f'src="/static/js/{src}"' in aliado
 
@@ -334,14 +343,20 @@ def test_aliado_catalogo_contactos_grupo_sync_modules_are_wired():
     assert "contactos: null" in modules_js
     assert "grupo: null" in modules_js
     assert "sync: null" in modules_js
+    assert "events: null" in modules_js
     assert "renderCatalogoServicios" in catalogo
     assert "cargarContactosPendientes" in contactos
     assert "renderGrupo" in grupo
     assert "runWarmupSync" in sync
     assert "loadData" in sync
+    assert "initState" in sync
+    assert "bootstrapPrivatePanel" in sync
+    assert "setupEventListeners" in events
     assert "_catalogoModule" in aliado
     assert "_contactosModule" in aliado
     assert "_grupoModule" in aliado
     assert "_syncModule" in aliado
+    assert "_eventsModule" in aliado
     assert "mod.loadData(this)" in aliado
     assert "mod.renderGrupo(this)" in aliado
+    assert "mod.setupEventListeners(this)" in aliado

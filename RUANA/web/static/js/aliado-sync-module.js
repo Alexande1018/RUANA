@@ -285,7 +285,314 @@
     }
   }
 
-  modules.sync = {
+    async function fetchDirectorioSnapshot(host) {
+      const resp = await fetch('/api/aliados/directorio', { credentials: 'same-origin', headers: getRuanaAuthHeaders() });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.status === 'success' && Array.isArray(data.aliados)) {
+          host.profesionales = data.aliados;
+      }
+  }
+
+  async function fetchCentroComunicacionSnapshot(host) {
+      const codigo = host.codigoAliado || (host.aliado && host.aliado.codigo) || '';
+      if (!codigo) return;
+      const apiBase = getApiBase();
+      const resp = await fetch(apiBase + '/api/aliados/' + encodeURIComponent(codigo) + '/centro-comunicacion', {
+          credentials: 'same-origin',
+          headers: getRuanaAuthHeaders()
+      });
+      if (!resp.ok) return;
+      const data = await resp.json().catch(() => ({}));
+      if (data.status === 'success' && Array.isArray(data.conversaciones)) {
+          host.soporteConversations = data.conversaciones;
+          if (host.soporteSelectedId && !host.soporteConversations.some(c => Number(c.id) === Number(host.soporteSelectedId))) {
+              host.soporteSelectedId = null;
+              host.soporteMensajes = [];
+          }
+      }
+  }
+
+  function setPanelLoading(host, isLoading) {
+      document.body.classList.toggle('panel-loading', Boolean(isLoading));
+      const loadingEl = document.getElementById('panel-loading');
+      if (loadingEl) loadingEl.style.display = isLoading ? '' : 'none';
+      if (!isLoading && window.AliadoShell && typeof window.AliadoShell.refresh === 'function') {
+          window.AliadoShell.refresh();
+          if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons(document.querySelector('.aliado-shell-nav') || document.body);
+          if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons(document.querySelector('.aliado-shell-bottom'));
+          if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons(document.getElementById('module-inicio'));
+      }
+  }
+
+  async function init(host) {
+      // Configurar listeners primero (SIEMPRE)
+      host.setupEventListeners();
+      if (typeof NegociacionGuiada !== 'undefined') {
+          host.negociacionGuiada = new NegociacionGuiada(this);
+      }
+
+      // Luego, cargar datos base para pintar el panel lo antes posible
+      await host.loadData();
+
+      // Render temprano: el usuario entra al panel sin esperar sincronizaciones largas.
+      host.render();
+      host.renderAlertas();
+      host.setPanelLoading(false);
+      host.initOnboarding();
+      host.startAutoSync();
+
+      // Sincronización post-render en segundo plano (mismo comportamiento final).
+      host.runWarmupSync();
+  }
+
+  function render(host) {
+      host.renderPerfil();
+      host.renderCompetencia();
+      host.renderGrupo();
+      host.renderMetricas();
+      host.renderSolicitudes();
+      host.renderProfesionales();
+      host.renderNotificaciones();
+      host.renderCentroComunicacion();
+  }
+
+  async function handleLogout(host) {
+      try {
+          await fetch('/api/aliado/logout', { method: 'POST', credentials: 'same-origin', headers: getRuanaAuthHeaders() });
+      } catch (_) {}
+      sessionStorage.removeItem('ruana_codigo_aliado');
+      sessionStorage.removeItem('ruana_aliado_data');
+      sessionStorage.removeItem('ruana_invite_valid');
+      sessionStorage.removeItem('ruana_invite_payload');
+      sessionStorage.removeItem('ruana_invite_codigo');
+      const keysToRemove = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+          const key = sessionStorage.key(i);
+          if (key && key.startsWith('ruana_')) keysToRemove.push(key);
+      }
+      keysToRemove.forEach(key => sessionStorage.removeItem(key));
+      window.location.href = '/';
+  }
+
+  function copyCode(host) {
+      if (!host.currentCode) {
+          alert('Error: No hay código disponible');
+          return;
+      }
+
+      navigator.clipboard.writeText(host.currentCode).then(() => {
+          const originalText = host.btnCopyCode.textContent;
+          host.btnCopyCode.textContent = '✓ Copiado';
+
+          setTimeout(() => {
+              host.btnCopyCode.textContent = originalText;
+          }, 2000);
+      }).catch(err => {
+          console.error('Error copiando código:', err);
+          alert('No se pudo copiar el código');
+      });
+  }
+
+  function closeCodeModal(host) {
+      if (host.modalCode) {
+          host.modalCode.classList.remove('show');
+      }
+  }
+
+  function normalizarEstado(host, estado) {
+      // Validar que estado sea string
+      if (typeof estado !== 'string') {
+          return 'observacion'; // Fallback si estado no es válido
+      }
+
+      // Normalizar a minúsculas para comparación case-insensitive
+      const estadoLower = estado.toLowerCase().trim();
+
+      // Mapeo de estados backend → estados visuales
+      const estadoMap = {
+          'activo': 'activo',           // Backend: activo → Visual: activo (verde)
+          'active': 'activo',           // Posible variante en inglés
+          'inactivo': 'inactivo',       // Backend: inactivo → Visual: inactivo (gris/rojo)
+          'inactive': 'inactivo',       // Posible variante en inglés
+          'observacion': 'observacion', // Backend: observación → Visual: observación (amarillo)
+          'riesgo': 'riesgo',           // Backend: riesgo → Visual: riesgo (naranja)
+          'risk': 'riesgo'              // Posible variante en inglés
+      };
+
+      // Retornar estado mapeado, o 'observacion' si no existe
+      return estadoMap[estadoLower] || 'observacion';
+  }
+
+  function escapeHtml(host, text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+  }
+
+  function getCodigoFromURL() {
+      try {
+          const params = new URLSearchParams(window.location.search);
+          const codigo = params.get('codigo');
+          return codigo && codigo.trim().length > 0 ? codigo.trim() : null;
+      } catch (e) {
+          console.error('Error parsing URL params:', e);
+          return null;
+      }
+  }
+
+  async function fetchAliadoDatos(codigo) {
+      try {
+          const base = getApiBase();
+          const response = await fetch(base + '/api/aliado/datos', {
+              method: 'GET',
+              headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
+              credentials: 'same-origin'
+          });
+
+          if (!response.ok) {
+              if (response.status === 401) return null;
+              console.error(`Backend responded con status ${response.status}`);
+              return null;
+          }
+
+          const data = await response.json();
+          if (data && data.status === 'success' && data.aliado) {
+              return data;
+          }
+          console.error('Respuesta del backend sin campos requeridos:', data);
+          return null;
+      } catch (error) {
+          console.error('Error fetching aliado datos:', error);
+          return null;
+      }
+  }
+
+  function bootstrapPrivatePanel() {
+    document.addEventListener('DOMContentLoaded', async () => {
+      const errorContainer = document.getElementById('error-bootstrap');
+      const apiBase = (typeof getApiBase === 'function') ? getApiBase() : '';
+
+      const sesionRes = await fetch(apiBase + '/api/aliado/sesion', { method: 'GET', credentials: 'same-origin', headers: getRuanaAuthHeaders() });
+      if (!sesionRes.ok) {
+        window.location.replace('/');
+        return;
+      }
+      let sesionData;
+      try {
+        sesionData = await sesionRes.json();
+      } catch (_) {
+        window.location.replace('/');
+        return;
+      }
+      if (!sesionData || sesionData.status !== 'ok' || !sesionData.codigo) {
+        window.location.replace('/');
+        return;
+      }
+      const datos = await global.PrivatePanel.fetchAliadoDatos(sesionData.codigo);
+      if (!datos || !datos.aliado) {
+        document.body.classList.remove('panel-loading');
+        const loadingEl = document.getElementById('panel-loading');
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (errorContainer) {
+          const textEl = document.getElementById('error-bootstrap-text');
+          const msg = 'No se pudieron cargar tus datos. Intenta de nuevo desde el inicio.';
+          if (textEl) textEl.textContent = msg;
+          errorContainer.style.display = 'flex';
+        }
+        return;
+      }
+      sessionStorage.setItem('ruana_codigo_aliado', sesionData.codigo);
+      sessionStorage.setItem('ruana_aliado_data', JSON.stringify(datos.aliado));
+      sessionStorage.setItem('ruana_aliado_data_fetched_at', String(Date.now()));
+      new global.PrivatePanel();
+    });
+  }
+
+
+  function initState(host) {
+    // ==================================================
+    // ESTADO INICIAL SEGURO (inicializado siempre)
+    // ==================================================
+    host.motor = null; // Reservado para futuros usos backend; sin motor JS
+    host.aliadoId = 1;
+
+    // DOM references
+    host.modalCode = document.getElementById('modal-code');
+    host.btnEnviar = document.getElementById('btn-enviar');
+    host.nuevaSolicitud = document.getElementById('nueva-solicitud');
+    host.solicitudSuccess = document.getElementById('solicitud-success');
+    host.btnCopyCode = document.getElementById('btn-copy-code');
+    host.btnCloseCode = document.getElementById('btn-close-code');
+    host.solicitudesList = document.getElementById('solicitudes-list');
+    host.solicitudesPropiasList = document.getElementById('solicitudes-propias-list');
+    host.solicitudesHistorialList = document.getElementById('solicitudes-historial-list');
+
+    // Estructura de métricas por defecto (nunca undefined)
+    // Estas son las claves que espera el motor RUANA
+    host.metricasDefault = {
+        solicitudes_recibidas: 0,
+        solicitudes_enviadas: 0,
+        trabajos_realizados: 0,
+        rating_promedio: 0,
+        invitaciones_generadas: 0,
+        invitaciones_aceptadas: 0,
+        score: 0
+    };
+
+    // Estado de datos - INICIALIZADOS SIEMPRE
+    host.aliado = null; // Se llena en loadData()
+    host.solicitudesEntrantes = [];   // Solicitudes de otros del grupo (pendientes) para poder atender
+    host.solicitudesPropias = [];     // Mis solicitudes enviadas (pendientes y atendidas)
+    host.solicitudesHistorial = [];   // Historial del grupo (todas, para contexto)
+    host.profesionales = []; // Array vacío por defecto
+    host.metricas = { ...host.metricasDefault }; // Copia de valores por defecto
+
+    host.currentCode = null;
+    host.isDataLoaded = false;
+    host._referidosTree = null;
+
+    // Onboarding premium
+    host.onboardingTour = null;
+
+    // Contactos RUANA
+    host.codigoAliado = sessionStorage.getItem('ruana_codigo_aliado') || null;
+    host.contactosAbiertos = [];
+    host.contactoActual = null;
+    host.profesionalSeleccionado = null;
+    host.negociacionGuiada = null;
+    host.notificaciones = [];
+    host.soporteConversations = [];
+    host.soporteMensajes = [];
+    host.soporteSelectedId = null;
+    host.contactosPagoPendiente = [];
+    host.tienePagosPendientes = false;
+    host.misAcuerdos = [];
+    host.misAcuerdosFiltro = 'todos';
+    host.misAcuerdosFiltroEstado = '';
+    host.misAcuerdosFiltroDesde = '';
+    host.misAcuerdosFiltroHasta = '';
+    host.misAcuerdosPageSize = 5;
+    host.misAcuerdosVisibles = 5;
+    host.misAcuerdosExpandidos = new Set();
+    host.catalogoEditandoPos = null;
+    host.acuerdoFlotanteActual = null;
+    host.scoreNotifActive = false;
+    host.scoreNotifShownIds = new Set();
+    host._syncInProgress = false;
+    host._autoSyncIntervalId = null;
+    host._contactoIdImpugnarApoyo = null;
+    host._alertHubState = { showAll: false, expandedDetailId: null };
+    host.metodosPagoRuana = {
+        bizum_num: window.RUANA_BIZUM_NUM || '642868261',
+        iban: window.RUANA_IBAN || 'ES8915830001119028625152',
+        qr_revolut_path: window.RUANA_QR_REVOLUT_PATH || '/static/images/PayPal.png'
+    };
+  }
+
+modules.sync = {
+    initState: initState,
     runWarmupSync: runWarmupSync,
     getSyncElements: getSyncElements,
     setSectionsSyncing: setSectionsSyncing,
@@ -295,5 +602,20 @@
     initOnboarding: initOnboarding,
     startAutoSync: startAutoSync,
     loadData: loadData,
-  };
+  
+    fetchDirectorioSnapshot: fetchDirectorioSnapshot,
+    fetchCentroComunicacionSnapshot: fetchCentroComunicacionSnapshot,
+    setPanelLoading: setPanelLoading,
+    init: init,
+    render: render,
+    handleLogout: handleLogout,
+    copyCode: copyCode,
+    closeCodeModal: closeCodeModal,
+    normalizarEstado: normalizarEstado,
+    escapeHtml: escapeHtml,
+
+    getCodigoFromURL: getCodigoFromURL,
+    fetchAliadoDatos: fetchAliadoDatos,
+    bootstrapPrivatePanel: bootstrapPrivatePanel,
+};
 })(typeof window !== 'undefined' ? window : globalThis);

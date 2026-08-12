@@ -2074,206 +2074,17 @@
             }
 
             async cargarDesdeApi() {
-                const loader = document.getElementById('admin-loader');
-                document.body.classList.add('admin-is-loading');
-                if (loader) loader.style.display = 'flex';
-                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
-                const fetchOpts = { method: 'GET', credentials: 'same-origin', headers: authHeaders };
-                try {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 5000);
-                    const stats24hFetch = fetch('/api/admin/stats-24h', {
-                        method: 'GET',
-                        credentials: 'same-origin',
-                        headers: authHeaders,
-                        signal: controller.signal
-                    }).then(r => {
-                        clearTimeout(timeoutId);
-                        return r;
-                    }).then(r => r.ok ? r.json().catch(() => null) : null).catch(err => {
-                        clearTimeout(timeoutId);
-                        return { _error: err.name === 'AbortError' ? 'timeout' : 'fail' };
-                    });
-
-                    const fetchPromises = [
-                        fetch('/api/admin/dashboard-summary', fetchOpts),
-                        fetch('/api/stats', fetchOpts),
-                        fetch('/api/aliados/listar', fetchOpts),
-                        fetch('/api/admin/pending-users', fetchOpts),
-                        fetch('/api/metricas-salud', fetchOpts),
-                        fetch('/api/eventos-recientes', fetchOpts),
-                        fetch('/api/admin/payment-conflicts', fetchOpts),
-                        fetch('/api/admin/pagos-apoyo', fetchOpts),
-                        fetch('/api/admin/pagos-en-revision', fetchOpts),
-                        fetch('/api/admin/solicitudes', fetchOpts),
-                        fetch('/api/admin/chats?limite=10&offset=0', fetchOpts),
-                        fetch('/api/admin/competencias-activas', fetchOpts),
-                        fetch('/api/admin/competencias-pendientes', fetchOpts),
-                        fetch('/api/admin/competencias-historial?limite=30', fetchOpts),
-                        stats24hFetch,
-                        fetch('/api/admin/invitaciones-recientes?limite=15', fetchOpts),
-                        fetch('/api/admin/invitacion-campanas?limite=30', fetchOpts),
-                        fetch('/api/admin/metodos-pago', fetchOpts),
-                        fetch('/api/admin/suplentes-espera', fetchOpts),
-                        fetch('/api/admin/centro-comunicacion?limite=120', fetchOpts),
-                        fetch('/api/admin/aliados-eliminados', fetchOpts)
-                    ];
-                    const settled = await Promise.allSettled(fetchPromises);
-                    const responses = settled.map((r, i) => (r.status === 'fulfilled' ? r.value : null));
-
-                    const any401 = responses.some(r => r && typeof r.status === 'number' && r.status === 401);
-                    if (any401) {
-                        this._adminSessionExpired();
-                        return;
-                    }
-
-                    async function parseResponse(r, isStats24h) {
-                        if (isStats24h) return r;
-                        if (!r || typeof r.ok !== 'boolean') return null;
-                        if (!r.ok) return null;
-                        return r.json().catch(() => null);
-                    }
-                    const idx14 = responses[14];
-                    const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, solicitudesData, chatsData, competenciasData, competenciasPendientesData, competenciasHistorialData, stats24hData, invitacionesRecData, campanasData, metodosPagoData, suplentesEsperaData, centroComData, eliminadosData] = await Promise.all([
-                        parseResponse(responses[0], false),
-                        parseResponse(responses[1], false),
-                        parseResponse(responses[2], false),
-                        parseResponse(responses[3], false),
-                        parseResponse(responses[4], false),
-                        parseResponse(responses[5], false),
-                        parseResponse(responses[6], false),
-                        parseResponse(responses[7], false),
-                        parseResponse(responses[8], false),
-                        parseResponse(responses[9], false),
-                        parseResponse(responses[10], false),
-                        parseResponse(responses[11], false),
-                        parseResponse(responses[12], false),
-                        parseResponse(responses[13], false),
-                        Promise.resolve(idx14),
-                        parseResponse(responses[15], false),
-                        parseResponse(responses[16], false),
-                        parseResponse(responses[17], false),
-                        parseResponse(responses[18], false),
-                        parseResponse(responses[19], false),
-                        parseResponse(responses[20], false)
-                    ]);
-
-                    // Pendientes de validación (unir API + lista por código)
-                    const pendientesFromApi = (pendientesData && pendientesData.status === 'success' && Array.isArray(pendientesData.aliados)) ? pendientesData.aliados : [];
-                    const pendientesFromLista = (aliadosData && Array.isArray(aliadosData.aliados)) ? aliadosData.aliados.filter(a => (a.estado || '').toLowerCase() === 'pendiente_validacion') : [];
-                    const byCodigoPend = new Map();
-                    pendientesFromLista.forEach(a => { if (a && a.codigo) byCodigoPend.set(String(a.codigo), a); });
-                    pendientesFromApi.forEach(a => { if (a && a.codigo) byCodigoPend.set(String(a.codigo), a); });
-                    const pendientes = Array.from(byCodigoPend.values());
-
-                    // Prioridad: dashboard-summary para indicadores del dashboard global
-                    const dashOk = dashboardData && !dashboardData.status;
-                    const statsOk = statsData && statsData.status === 'success';
-                    const tieneDatosCriticos = dashOk || statsOk;
-                    if (!tieneDatosCriticos) {
-                        this.showToast('Error de conexión. Comprueba la red.', 'error');
-                    }
-                    const totalGruposRaw = dashOk ? dashboardData.grupos : (statsOk ? statsData.total_grupos : undefined);
-                    const totalGrupos = typeof totalGruposRaw === 'number' ? totalGruposRaw : (totalGruposRaw && typeof totalGruposRaw.total === 'number' ? totalGruposRaw.total : 0);
-                    const indicadores = {
-                        totalAliados: dashOk ? (dashboardData.total_users ?? 0) : (statsOk ? statsData.total_aliados : (aliadosData && aliadosData.total) || 0),
-                        aliadosActivos: dashOk ? (dashboardData.active_users ?? 0) : (statsOk ? statsData.aliados_activos : 0),
-                        retadores: dashOk ? (dashboardData.retadores ?? dashboardData.suplentes ?? 0) : (statsOk ? (statsData.retadores || statsData.suplentes || 0) : 0),
-                        enEspera: dashOk ? (dashboardData.en_espera ?? 0) : (statsOk ? (statsData.en_espera || 0) : 0),
-                        enRiesgo: dashOk ? (dashboardData.en_riesgo ?? 0) : (statsOk ? (statsData.en_riesgo || 0) : 0),
-                        solicitudesActivas: dashOk ? (dashboardData.solicitudes_activas ?? 0) : (statsOk ? (statsData.solicitudes_activas || 0) : 0),
-                        pendientesValidacion: pendientes.length,
-                        oficiosOcupados: dashOk ? (dashboardData.oficios_ocupados ?? '-') : (statsOk ? (statsData.oficios_ocupados ?? '-') : '-'),
-                        totalGrupos: dashOk ? (dashboardData.grupos ?? 0) : totalGrupos,
-                        gruposActivos: dashOk ? (dashboardData.grupos_activos ?? 0) : (statsOk ? (statsData.grupos_activos ?? 0) : 0),
-                        gruposEnCompetencia: dashOk ? (dashboardData.grupos_en_competencia ?? 0) : (statsOk ? (statsData.grupos_en_competencia ?? 0) : 0),
-                        gruposDisueltos: dashOk ? (dashboardData.grupos_disueltos ?? 0) : (statsOk ? (statsData.grupos_disueltos ?? 0) : 0),
-                        estadoSistema: (() => {
-                            const e = dashOk ? (dashboardData.estado_sistema || 'Estable') : (statsOk ? (statsData.estado_sistema || 'Estable') : 'Estable');
-                            const low = String(e).toLowerCase();
-                            if (low === 'estable' || low === 'alerta') return e.charAt(0).toUpperCase() + e.slice(1).toLowerCase();
-                            if (low === 'crítico' || low === 'critico') return 'Crítico';
-                            return 'Estable';
-                        })()
-                    };
-
-                    this.renderEstadoGlobal({ indicadores });
-                    const tieneMovimiento24h = stats24hData && !stats24hData._error && (stats24hData.status === 'success' || stats24hData.solicitudes != null || stats24hData.invitaciones != null || (Array.isArray(stats24hData.top_invitadores) && stats24hData.top_invitadores.length > 0));
-                    if (stats24hData && stats24hData._error) {
-                        this.renderMovimientoError(stats24hData._error === 'timeout' ? 'No se pudieron cargar estadísticas' : 'Sin datos disponibles');
-                    } else if (tieneMovimiento24h) {
-                        this.renderMovimientoError(null);
-                        this.renderMovimiento({
-                            movimiento24h: {
-                                solicitudes: stats24hData.solicitudes || { nuevas: 0, atendidas: 0, sin_respuesta: 0 },
-                                invitaciones: stats24hData.invitaciones || { generadas: 0, usadas: 0, expiradas: 0 },
-                                top_invitadores: stats24hData.top_invitadores || []
-                            },
-                            movimiento24hHoras: null
-                        });
-                    } else {
-                        this.renderMovimientoError('Sin datos disponibles');
-                    }
-                    const metricasPayload = (metricasData && metricasData.status === 'success' && metricasData.metricas != null)
-                        ? metricasData.metricas
-                        : { ratio_solicitud_invitacion: 0, ratio_invitacion_registro: 0, oficios_saturados: 0, oficios_disponibles: 0, zona_mayor_demanda: '—', tasa_retencion: 0 };
-                    this.renderMetricas({ metricas: metricasPayload });
-                    this.renderPendientesValidacion(pendientes);
-                    this.renderAliadosEliminados((eliminadosData && eliminadosData.status === 'success' && Array.isArray(eliminadosData.aliados)) ? eliminadosData.aliados : []);
-                    this._aliadosData = ((aliadosData && aliadosData.aliados) || []).filter(a => !this.esAliadoPlaceholder(a));
-                    this.renderAliadosJerarquia();
-                    this.renderEventos((eventosData && eventosData.status === 'success' && Array.isArray(eventosData.eventos)) ? eventosData.eventos : []);
-                    const permisos = (statsData && Array.isArray(statsData.permisos)) ? statsData.permisos : ['leer', 'escribir', 'eliminar', 'configurar'];
-                    this.applyPermisosUI(permisos);
-                    this.renderConflictosPago((conflictosData && conflictosData.status === 'success' && Array.isArray(conflictosData.conflictos)) ? conflictosData.conflictos : []);
-                    this.renderPagosApoyo((pagosApoyoData && pagosApoyoData.status === 'success' && Array.isArray(pagosApoyoData.pagos)) ? pagosApoyoData.pagos : []);
-                    this.renderPagosEnRevision((pagosEnRevisionData && pagosEnRevisionData.status === 'success' && Array.isArray(pagosEnRevisionData.pagos)) ? pagosEnRevisionData.pagos : []);
-                    this.renderSolicitudesAdmin(Array.isArray(solicitudesData) ? solicitudesData : (solicitudesData && Array.isArray(solicitudesData.solicitudes) ? solicitudesData.solicitudes : []));
-                    this.renderInvitacionesRecientes(invitacionesRecData && invitacionesRecData.status === 'success' && Array.isArray(invitacionesRecData.invitaciones) ? invitacionesRecData.invitaciones : []);
-                    this.renderCampanasInvitacion(campanasData && campanasData.status === 'success' && Array.isArray(campanasData.campanas) ? campanasData.campanas : []);
-                    this.renderMetodosPago((metodosPagoData && metodosPagoData.status === 'success' && metodosPagoData.metodos) ? metodosPagoData.metodos : null);
-                    this.renderCompetenciasActivas((competenciasData && competenciasData.status === 'success' && Array.isArray(competenciasData.competencias)) ? competenciasData.competencias : []);
-                    this.renderCompetenciasPendientes((competenciasPendientesData && competenciasPendientesData.status === 'success' && Array.isArray(competenciasPendientesData.pendientes)) ? competenciasPendientesData.pendientes : []);
-                    this.renderCompetenciasHistorial((competenciasHistorialData && competenciasHistorialData.status === 'success' && Array.isArray(competenciasHistorialData.historial)) ? competenciasHistorialData.historial : []);
-                    this.renderSuplentesEspera((suplentesEsperaData && suplentesEsperaData.status === 'success' && Array.isArray(suplentesEsperaData.aliados)) ? suplentesEsperaData.aliados : []);
-                    this._centroComunicacion = (centroComData && centroComData.status === 'success' && Array.isArray(centroComData.conversaciones)) ? centroComData.conversaciones : [];
-                    this.renderCentroComunicacionAdmin(this._centroComunicacion);
-                    let conversaciones = (chatsData && chatsData.status === 'success' && Array.isArray(chatsData.conversaciones)) ? chatsData.conversaciones : [];
-                    this._conversacionesList = conversaciones;
-                    this._conversacionesOffset = conversaciones.length;
-                    this._conversacionesHasMore = conversaciones.length >= 10;
-                    this.renderConversaciones(conversaciones);
-                    this.updateConversacionesPaginationUI();
-                    if (conversaciones.length === 0) {
-                        this.cargarChatsFallback();
-                    }
-                } catch (e) {
-                    this.showToast('Error de conexión. Comprueba la red.', 'error');
-                    this._conversacionesList = [];
-                    this._conversacionesOffset = 0;
-                    this._conversacionesHasMore = false;
-                    this.renderConversaciones([]);
-                    this.updateConversacionesPaginationUI();
-                    this.cargarChatsFallback();
-                } finally {
-                    if (loader) loader.style.display = 'none';
-                    document.body.classList.remove('admin-is-loading');
+                const mod = this._resumenModule();
+                if (mod && typeof mod.cargarDesdeApi === 'function') {
+                    return mod.cargarDesdeApi(this);
                 }
             }
 
             async cargarChatsFallback() {
-                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
-                try {
-                    const r = await fetch('/api/admin/chats?limite=10&offset=0', { method: 'GET', credentials: 'same-origin', headers: authHeaders });
-                    const data = await (r.ok ? r.json().catch(() => null) : null);
-                    if (data && data.status === 'success' && Array.isArray(data.conversaciones)) {
-                        this._conversacionesList = data.conversaciones;
-                        this._conversacionesOffset = data.conversaciones.length;
-                        this._conversacionesHasMore = data.conversaciones.length >= 10;
-                        this.renderConversaciones(data.conversaciones);
-                        this.updateConversacionesPaginationUI();
-                    }
-                } catch (e) { /* ignorar */ }
+                const mod = this._resumenModule();
+                if (mod && typeof mod.cargarChatsFallback === 'function') {
+                    return mod.cargarChatsFallback(this);
+                }
             }
 
             applyPermisosUI(permisos) {
@@ -2346,309 +2157,65 @@
             }
 
             setupEventListeners() {
-                const indicadorPend = document.getElementById('indicador-pendientes-validacion');
-                if (indicadorPend) {
-                    indicadorPend.addEventListener('click', () => {
-                        const wrap = document.getElementById('pendientes-validacion-wrap');
-                        if (wrap) wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    });
-                }
-                const indicadorEnEspera = document.getElementById('indicador-en-espera');
-                if (indicadorEnEspera) {
-                    indicadorEnEspera.addEventListener('click', () => {
-                        const wrap = document.getElementById('suplentes-espera-wrap');
-                        if (wrap) wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    });
-                }
-                // Navegación jerárquica aliados: Volver a CPs / Volver a grupos
-                const btnVolverCPs = document.getElementById('aliados-btn-volver-cps');
-                const btnVolverGrupos = document.getElementById('aliados-btn-volver-grupos');
-                if (btnVolverCPs) btnVolverCPs.addEventListener('click', () => { this.aliadosNivel = 'cps'; this.aliadosCPSeleccionado = null; this.aliadosGrupoSeleccionado = null; this.aliadosGrupoNombreSeleccionado = null; this.renderAliadosJerarquia(); });
-                if (btnVolverGrupos) btnVolverGrupos.addEventListener('click', () => { this.aliadosNivel = 'grupos'; this.aliadosGrupoSeleccionado = null; this.aliadosGrupoNombreSeleccionado = null; this.renderAliadosJerarquia(); });
-
-
-                document.addEventListener('click', function ruanaConversacionesClick(e) {
-                    var target = e.target;
-                    if (!target || !target.closest) return;
-                    var btnMas = target.closest('#btn-conversaciones-mostrar-mas');
-                    var btnMenos = target.closest('#btn-conversaciones-mostrar-menos');
-                    var panel = window._ruanaAdminPanel;
-                    if (btnMas && panel && typeof panel.loadMoreConversaciones === 'function') {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        panel.loadMoreConversaciones();
-                        return;
-                    }
-                    if (btnMenos && panel && typeof panel.mostrarMenosConversaciones === 'function') {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        panel.mostrarMenosConversaciones();
-                    }
-                }, true);
-
-                const ccRefreshBtn = document.getElementById('cc-admin-refresh');
-                const ccSearch = document.getElementById('cc-admin-search');
-                const ccStatus = document.getElementById('cc-admin-status');
-                const ccUnread = document.getElementById('cc-admin-only-unread');
-                if (ccRefreshBtn) ccRefreshBtn.addEventListener('click', () => this.cargarCentroComunicacionAdmin());
-                if (ccSearch) ccSearch.addEventListener('input', () => this.renderCentroComunicacionAdmin(this._centroComunicacion || []));
-                if (ccStatus) ccStatus.addEventListener('change', () => this.cargarCentroComunicacionAdmin());
-                if (ccUnread) ccUnread.addEventListener('change', () => this.cargarCentroComunicacionAdmin());
-                const ccClose = document.getElementById('cc-admin-modal-close');
-                if (ccClose) ccClose.addEventListener('click', () => this.cerrarModalCentroComunicacionAdmin());
-                const ccSend = document.getElementById('cc-admin-modal-send');
-                if (ccSend) ccSend.addEventListener('click', () => this.responderCentroComunicacionAdmin());
-                const ccUpd = document.getElementById('cc-admin-modal-update-status');
-                if (ccUpd) ccUpd.addEventListener('click', () => this.actualizarEstadoCentroComunicacionAdmin());
-                const ccDel = document.getElementById('cc-admin-modal-delete');
-                if (ccDel) ccDel.addEventListener('click', () => this.eliminarCentroComunicacionAdmin());
-                const ccModal = document.getElementById('modal-centro-comunicacion-admin');
-                if (ccModal) ccModal.addEventListener('click', (e) => { if (e.target === ccModal) this.cerrarModalCentroComunicacionAdmin(); });
-
-                this.setupAdminActionButtons();
-
-                document.addEventListener('click', (e) => {
-                    const btn = e.target && e.target.closest ? e.target.closest('.btn-ver-documento-admin') : null;
-                    if (!btn) return;
-                    e.preventDefault();
-                    const storedUrl = btn.getAttribute('data-documento-url');
-                    if (storedUrl) this.abrirDocumentoAdmin(storedUrl);
-                });
-
-                const logoutBtn = document.getElementById('admin-logout-btn');
-                if (logoutBtn) {
-                    logoutBtn.addEventListener('click', () => this.logout());
-                }
-
-                const changePasswordBtn = document.getElementById('admin-change-password-btn');
-                if (changePasswordBtn) {
-                    changePasswordBtn.addEventListener('click', () => this.openChangePasswordModal());
-                }
-                this.setupChangePasswordForm();
-
-                const cerrarDetalleBtn = document.getElementById('aliadoDetalleCerrar');
-                if (cerrarDetalleBtn) {
-                    cerrarDetalleBtn.addEventListener('click', () => this.cerrarModalDetalle());
-                }
-                const cerrarCatalogoBtn = document.getElementById('aliadoCatalogoCerrar');
-                if (cerrarCatalogoBtn) {
-                    cerrarCatalogoBtn.addEventListener('click', () => this.cerrarCatalogoServiciosModal());
-                }
-                const catalogoModal = document.getElementById('aliadoCatalogoModal');
-                if (catalogoModal) {
-                    catalogoModal.addEventListener('click', (e) => {
-                        if (e.target === catalogoModal) this.cerrarCatalogoServiciosModal();
-                    });
-                }
-
-                const eliminarDetalleBtn = document.getElementById('aliadoDetalleEliminar');
-                if (eliminarDetalleBtn) {
-                    eliminarDetalleBtn.addEventListener('click', () => this.confirmarEliminarPerfil());
-                }
-
-                const linajeCerrar = document.getElementById('linaje-drawer-cerrar');
-                const linajeOverlay = document.getElementById('linaje-drawer-overlay');
-                if (linajeCerrar) {
-                    linajeCerrar.addEventListener('click', () => this.cerrarLinajeDrawer());
-                }
-                if (linajeOverlay) {
-                    linajeOverlay.addEventListener('click', (e) => {
-                        if (e.target === linajeOverlay) this.cerrarLinajeDrawer();
-                    });
-                }
-
-                const btnResolverConfirm = document.getElementById('btn-resolver-conflicto-confirm');
-                const btnResolverCancel = document.getElementById('btn-resolver-conflicto-cancel');
-                if (btnResolverConfirm) btnResolverConfirm.addEventListener('click', () => this.confirmarResolverConflicto());
-                if (btnResolverCancel) btnResolverCancel.addEventListener('click', () => {
-                    document.getElementById('modal-resolver-conflicto').style.display = 'none';
-                });
-
-                const modalDetalleConflicto = document.getElementById('modal-detalle-conflicto');
-                const btnCerrarDetalleConflicto = document.getElementById('btn-cerrar-detalle-conflicto');
-                if (btnCerrarDetalleConflicto) btnCerrarDetalleConflicto.addEventListener('click', () => { if (modalDetalleConflicto) modalDetalleConflicto.style.display = 'none'; });
-                const btnFavorContratante = document.getElementById('btn-resolver-favor-contratante');
-                const btnFavorProfesional = document.getElementById('btn-resolver-favor-profesional');
-                const btnRechazarPrueba = document.getElementById('btn-rechazar-prueba');
-                if (btnFavorContratante) btnFavorContratante.addEventListener('click', () => this.resolverConflictoDecision('contratante'));
-                if (btnFavorProfesional) btnFavorProfesional.addEventListener('click', () => this.resolverConflictoDecision('profesional'));
-                if (btnRechazarPrueba) btnRechazarPrueba.addEventListener('click', () => this.resolverConflictoDecision('rechazado'));
-
-                const btnFiltrarSolicitudes = document.getElementById('btn-filtrar-solicitudes');
-                if (btnFiltrarSolicitudes) btnFiltrarSolicitudes.addEventListener('click', () => this.cargarSolicitudesAdminConFiltros());
-
-                const modalVerChat = document.getElementById('modal-ver-chat');
-                const btnCerrarVerChat = document.getElementById('btn-cerrar-ver-chat');
-                function cerrarModalChat() {
-                    if (modalVerChat) modalVerChat.style.display = 'none';
-                }
-                if (btnCerrarVerChat) {
-                    btnCerrarVerChat.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); cerrarModalChat(); });
-                }
-                if (modalVerChat) {
-                    modalVerChat.addEventListener('click', (e) => {
-                        if (e.target === modalVerChat) cerrarModalChat();
-                    });
-                    const modalChatContent = modalVerChat.querySelector('.modal-content');
-                    if (modalChatContent) modalChatContent.addEventListener('click', (e) => e.stopPropagation());
-                }
-
-                const modalRechazarPago = document.getElementById('modal-rechazar-pago');
-                const btnConfirmarRechazar = document.getElementById('btn-confirmar-rechazar-pago');
-                const btnCancelarRechazar = document.getElementById('btn-cancelar-rechazar-pago');
-                if (btnConfirmarRechazar) btnConfirmarRechazar.addEventListener('click', () => this.confirmarRechazarPago());
-                if (btnCancelarRechazar && modalRechazarPago) {
-                    btnCancelarRechazar.addEventListener('click', () => { modalRechazarPago.style.display = 'none'; });
-                }
-                if (modalRechazarPago) {
-                    modalRechazarPago.addEventListener('click', (e) => {
-                        if (e.target === modalRechazarPago) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            modalRechazarPago.style.display = 'none';
-                        }
-                    });
-                }
-
-                const btnToggleDesglose = document.getElementById('btn-toggle-desglose-hora');
-                const btnOcultarDesglose = document.getElementById('btn-ocultar-desglose-hora');
-                const desgloseContainer = document.getElementById('desglose-por-hora-container');
-                if (btnToggleDesglose && desgloseContainer) {
-                    btnToggleDesglose.addEventListener('click', () => this.toggleDesglosePorHora(true));
-                }
-                if (btnOcultarDesglose && desgloseContainer) {
-                    btnOcultarDesglose.addEventListener('click', () => this.toggleDesglosePorHora(false));
+                const mod = this._resumenModule();
+                if (mod && typeof mod.setupEventListeners === 'function') {
+                    return mod.setupEventListeners(this);
                 }
             }
 
             async toggleDesglosePorHora(mostrar) {
-                const container = document.getElementById('desglose-por-hora-container');
-                const btnVer = document.getElementById('btn-toggle-desglose-hora');
-                if (!container || !btnVer) return;
-                if (mostrar) {
-                    if (!container.dataset.loaded) {
-                        const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
-                        try {
-                            const r = await fetch('/api/movimiento-24h-horas', { method: 'GET', credentials: 'same-origin', headers: authHeaders });
-                            const data = await (r.ok ? r.json().catch(() => null) : Promise.resolve(null));
-                            const porHora = (data && data.status === 'success' && data.por_hora) ? data.por_hora : null;
-                            this.renderMovimiento({ movimiento24h: this._lastMovimiento24h || null, movimiento24hHoras: porHora });
-                            container.dataset.loaded = '1';
-                        } catch (e) { console.error(e); }
-                    }
-                    container.style.display = 'block';
-                    btnVer.textContent = 'Ocultar desglose';
-                } else {
-                    container.style.display = 'none';
-                    btnVer.textContent = 'Ver desglose por hora (24h)';
+                const mod = this._resumenModule();
+                if (mod && typeof mod.toggleDesglosePorHora === 'function') {
+                    return mod.toggleDesglosePorHora(this, mostrar);
                 }
             }
 
             renderInvitacionesRecientes(invitaciones) {
-                const tbody = document.getElementById('admin-invitaciones-recientes-tbody');
-                if (!tbody) return;
-                const n = (v) => (v == null || v === '') ? '—' : String(v);
-                const fmtFecha = (creadoEn) => {
-                    if (!creadoEn) return '—';
-                    try {
-                        const d = new Date(creadoEn);
-                        return isNaN(d.getTime()) ? creadoEn : d.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
-                    } catch (_) { return creadoEn; }
-                };
-                if (!Array.isArray(invitaciones) || invitaciones.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4">No hay invitaciones recientes</td></tr>';
-                    return;
+                const mod = this._sistemaModule();
+                if (mod && typeof mod.renderInvitacionesRecientes === 'function') {
+                    return mod.renderInvitacionesRecientes(this, invitaciones);
                 }
-                tbody.innerHTML = invitaciones.map(inv => {
-                    const estado = inv.usado ? 'Usada' : 'Pendiente';
-                    const invitador = n(inv.invitador_nombre) + (inv.invitador_codigo ? ' (' + inv.invitador_codigo + ')' : '');
-                    return `<tr><td>${n(inv.codigo)}</td><td>${invitador}</td><td>${fmtFecha(inv.creado_en)}</td><td>${estado}</td></tr>`;
-                }).join('');
             }
 
             renderCampanasInvitacion(campanas) {
-                const tbody = document.getElementById('admin-campanas-invitacion-tbody');
-                if (!tbody) return;
-                this._campanasInvitacion = Array.isArray(campanas) ? campanas : [];
-                const n = (v) => (v == null || v === '') ? '—' : String(v);
-                if (!Array.isArray(campanas) || campanas.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5">No hay códigos multiuso creados</td></tr>';
-                    return;
+                const mod = this._sistemaModule();
+                if (mod && typeof mod.renderCampanasInvitacion === 'function') {
+                    return mod.renderCampanasInvitacion(this, campanas);
                 }
-                tbody.innerHTML = campanas.map(campana => {
-                    const codigoValor = n(campana.codigo);
-                    const codigoSeguro = this.escapeHtml(codigoValor);
-                    const codigo = `<button type="button" class="btn-admin-action btn-ver-campana" data-codigo="${codigoSeguro}">${codigoSeguro}</button>`;
-                    const maxUsos = Number(campana.max_usos || 0);
-                    const usosActuales = Number(campana.usos_actuales || 0);
-                    const activo = Number(campana.activo || 0) === 1 && (!maxUsos || usosActuales < maxUsos);
-                    const estado = Number(campana.activo || 0) !== 1 ? 'Desactivado' : (maxUsos && usosActuales >= maxUsos ? 'Agotado' : 'Activo');
-                    const accion = activo
-                        ? `<button type="button" class="btn-admin-action danger btn-desactivar-campana" data-codigo="${codigoSeguro}">Desactivar</button>`
-                        : '<span style="color:#94a3b8;">—</span>';
-                    return `<tr><td>${codigo}</td><td>${n(campana.codigo_postal)}</td><td>${usosActuales}/${maxUsos || '∞'}</td><td>${estado}</td><td>${accion}</td></tr>`;
-                }).join('');
             }
 
             async cargarCampanasInvitacion() {
-                try {
-                    const r = await fetch('/api/admin/invitacion-campanas?limite=30', {
-                        method: 'GET',
-                        credentials: 'same-origin',
-                        headers: AdminAuthenticator.getAdminAuthHeaders()
-                    });
-                    if (r.status === 401) { this._adminSessionExpired(); return; }
-                    const data = await (r.ok ? r.json().catch(() => null) : null);
-                    this.renderCampanasInvitacion(data && data.status === 'success' && Array.isArray(data.campanas) ? data.campanas : []);
-                } catch (_) {
-                    this.showToast('No se pudieron recargar los codigos multiuso.', 'error');
+                const mod = this._sistemaModule();
+                if (mod && typeof mod.cargarCampanasInvitacion === 'function') {
+                    return mod.cargarCampanasInvitacion(this);
                 }
             }
 
             buildCampanaRegistroUrl(codigo) {
-                const origin = window.RUANA_PUBLIC_APP_URL || 'https://ruana-4293f.web.app';
-                return `${origin}/invite.html?codigo=${encodeURIComponent(codigo || '')}`;
+                const mod = this._sistemaModule();
+                if (mod && typeof mod.buildCampanaRegistroUrl === 'function') {
+                    return mod.buildCampanaRegistroUrl(this, codigo);
+                }
             }
 
             buildCampanaQrUrl(registroUrl) {
-                return 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(registroUrl || '');
+                const mod = this._sistemaModule();
+                if (mod && typeof mod.buildCampanaQrUrl === 'function') {
+                    return mod.buildCampanaQrUrl(this, registroUrl);
+                }
             }
 
             verDetalleCampanaInvitacion(codigo) {
-                const campana = (this._campanasInvitacion || []).find(c => String(c.codigo || '') === String(codigo || ''));
-                if (!campana) {
-                    this.showToast('No se encontro el codigo multiuso.', 'error');
-                    return;
+                const mod = this._sistemaModule();
+                if (mod && typeof mod.verDetalleCampanaInvitacion === 'function') {
+                    return mod.verDetalleCampanaInvitacion(this, codigo);
                 }
-                const registroUrl = campana.registro_url || this.buildCampanaRegistroUrl(campana.codigo || codigo);
-                this.renderCampanaInvitacionCreada({
-                    campana,
-                    registro_url: registroUrl,
-                    qr_url: campana.qr_url || this.buildCampanaQrUrl(registroUrl),
-                    modo: 'detalle'
-                });
             }
 
             async desactivarCampanaInvitacion(codigo) {
-                if (!codigo) return;
-                if (!confirm(`¿Desactivar el código multiuso ${codigo}? Dejará de validar inmediatamente.`)) return;
-                try {
-                    const r = await fetch('/api/admin/invitacion-campanas/' + encodeURIComponent(codigo) + '/desactivar', {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: this.getAuthHeaders()
-                    });
-                    if (r.status === 401) { this._adminSessionExpired(); return; }
-                    if (r.status === 403) { this.showToast('Sin permiso de escritura (solo lectura).', 'error'); return; }
-                    const data = await r.json().catch(() => ({}));
-                    if (r.ok && data.status === 'success') {
-                        this.showToast('Código multiuso desactivado.', 'success');
-                        this.cargarDesdeApi();
-                    } else {
-                        this.showToast(data.message || 'No se pudo desactivar el código.', 'error');
-                    }
-                } catch (_) {
-                    this.showToast('Error de conexión al desactivar el código.', 'error');
+                const mod = this._sistemaModule();
+                if (mod && typeof mod.desactivarCampanaInvitacion === 'function') {
+                    return mod.desactivarCampanaInvitacion(this, codigo);
                 }
             }
 
@@ -2804,28 +2371,10 @@
             }
 
             accionPausarAliado() {
-                this._abrirModalAccionAdmin({
-                    title: 'Pausar aliado',
-                    bodyHtml: `
-                        <label class="modal-importe-label" style="display:block; margin-bottom:6px;">Código del aliado (5 dígitos) *</label>
-                        <input type="text" id="accion-pausar-codigo" placeholder="Ej: A0001" style="width:100%; padding:8px; margin-bottom:12px; box-sizing:border-box;" />
-                        <label class="modal-importe-label" style="display:block; margin-bottom:6px;">Motivo (opcional)</label>
-                        <input type="text" id="accion-pausar-razon" placeholder="Motivo de la pausa" style="width:100%; padding:8px; box-sizing:border-box;" />
-                    `,
-                    getPayload: () => ({
-                        codigo: (document.getElementById('accion-pausar-codigo')?.value || '').trim(),
-                        razon: (document.getElementById('accion-pausar-razon')?.value || '').trim() || ''
-                    }),
-                    validate: (p) => !p.codigo ? 'El código del aliado es obligatorio.' : null,
-                    getConfirmSummary: (p) => `¿Confirmar que desea <strong>pausar</strong> al aliado con código <strong>${p.codigo}</strong>?${p.razon ? ' Motivo: ' + p.razon : ''}`,
-                    execute: async (p) => {
-                        const r = await fetch('/api/aliado/pausar', { method: 'POST', credentials: 'same-origin', headers: this.getAuthHeaders(), body: JSON.stringify({ codigo: p.codigo, razon: p.razon }) });
-                        if (r.status === 401) { this._adminSessionExpired(); return; }
-                        const data = await r.json().catch(() => ({}));
-                        if (data.status === 'success') { this.showToast(data.message || 'Aliado pausado correctamente.', 'success'); this.cargarDesdeApi(); }
-                        else { this.showToast(data.message || 'Error al pausar.', 'error'); }
-                    }
-                });
+                const mod = this._redModule();
+                if (mod && typeof mod.accionPausarAliado === 'function') {
+                    return mod.accionPausarAliado(this);
+                }
             }
 
             accionForzarSuplencia() {
@@ -2836,29 +2385,10 @@
             }
 
             accionCerrarOficio() {
-                this._abrirModalAccionAdmin({
-                    title: 'Cerrar oficio',
-                    bodyHtml: `
-                        <label class="modal-importe-label" style="display:block; margin-bottom:6px;">ID del grupo *</label>
-                        <input type="number" id="accion-co-grupo" placeholder="Ej: 1" style="width:100%; padding:8px; margin-bottom:12px; box-sizing:border-box;" />
-                        <label class="modal-importe-label" style="display:block; margin-bottom:6px;">Oficio a cerrar *</label>
-                        <input type="text" id="accion-co-oficio" placeholder="Ej: Fontanería" style="width:100%; padding:8px; box-sizing:border-box;" />
-                    `,
-                    getPayload: () => ({
-                        grupo_id: document.getElementById('accion-co-grupo')?.value?.trim(),
-                        oficio: (document.getElementById('accion-co-oficio')?.value || '').trim()
-                    }),
-                    validate: (p) => !p.grupo_id || !p.oficio ? 'Grupo y oficio son obligatorios.' : null,
-                    getConfirmSummary: (p) => `¿Confirmar <strong>cerrar el oficio</strong> "${p.oficio}" en el grupo ${p.grupo_id}? No se asignarán nuevos aliados a esa plaza.`,
-                    execute: async (p) => {
-                        const r = await fetch('/api/admin/cerrar-oficio', { method: 'POST', credentials: 'same-origin', headers: this.getAuthHeaders(), body: JSON.stringify({ grupo_id: parseInt(p.grupo_id, 10), oficio: p.oficio }) });
-                        if (r.status === 401) { this._adminSessionExpired(); return; }
-                        if (r.status === 403) { this.showToast('Sin permiso de escritura (solo lectura).', 'error'); return; }
-                        const data = await r.json().catch(() => ({}));
-                        if (data.status === 'success') { this.showToast(data.message || 'Oficio cerrado.', 'success'); this.cargarDesdeApi(); }
-                        else { this.showToast(data.message || 'Error.', 'error'); }
-                    }
-                });
+                const mod = this._redModule();
+                if (mod && typeof mod.accionCerrarOficio === 'function') {
+                    return mod.accionCerrarOficio(this);
+                }
             }
 
             accionAbrirPlaza() {
@@ -2869,23 +2399,9 @@
             }
 
             async accionGenerarReporte() {
-                try {
-                    const r = await fetch('/api/admin/generar-reporte', {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: this.getAuthHeaders()
-                    });
-                    const data = await r.json().catch(() => ({}));
-                    if (data.status === 'success' && data.reporte) {
-                        const rep = data.reporte;
-                        const texto = `Aliados: ${rep.total_aliados} (activos: ${rep.aliados_activos}) · Solicitudes: ${rep.total_solicitudes} · Contactos: ${rep.total_contactos} · Grupos: ${rep.grupos_activos} · Competencias activas: ${rep.competencias_activas} · Plazas cerradas: ${rep.plazas_cerradas}`;
-                        this.showToast('Reporte generado. ' + texto, 'success');
-                        this.cargarDesdeApi();
-                    } else {
-                        this.showToast(data.message || 'Error al generar reporte.', 'error');
-                    }
-                } catch (e) {
-                    this.showToast('Error de conexión.', 'error');
+                const mod = this._sistemaModule();
+                if (mod && typeof mod.accionGenerarReporte === 'function') {
+                    return mod.accionGenerarReporte(this);
                 }
             }
 
@@ -3020,44 +2536,16 @@
             }
 
             async cargarSolicitudesAdminConFiltros() {
-                const estado = document.getElementById('filtro-solicitudes-estado')?.value || '';
-                const grupoId = document.getElementById('filtro-solicitudes-grupo')?.value?.trim() || '';
-                const desde = document.getElementById('filtro-solicitudes-desde')?.value || '';
-                const hasta = document.getElementById('filtro-solicitudes-hasta')?.value || '';
-                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
-                try {
-                    const r = await fetch('/api/admin/solicitudes', { credentials: 'same-origin', headers: authHeaders });
-                    if (r.status === 401) { this._adminSessionExpired(); return; }
-                    const data = await r.json();
-                    const list = Array.isArray(data) ? data : [];
-                    let filtered = list;
-                    if (estado) filtered = filtered.filter(s => (s.estado || '') === estado);
-                    if (grupoId) filtered = filtered.filter(s => String(s.grupo_id) === grupoId);
-                    if (desde) filtered = filtered.filter(s => (s.created_at || '').slice(0, 10) >= desde);
-                    if (hasta) filtered = filtered.filter(s => (s.created_at || '').slice(0, 10) <= hasta);
-                    this.renderSolicitudesAdmin(filtered);
-                } catch (e) {
-                    this.showToast('Error al cargar solicitudes', 'error');
+                const mod = this._sistemaModule();
+                if (mod && typeof mod.cargarSolicitudesAdminConFiltros === 'function') {
+                    return mod.cargarSolicitudesAdminConFiltros(this);
                 }
             }
 
             async marcarSolicitudAtendidaAdmin(solicitudId, tr) {
-                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
-                try {
-                    const r = await fetch(`/api/admin/solicitudes/${solicitudId}/atender`, {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: { ...authHeaders, 'Content-Type': 'application/json' }
-                    });
-                    const data = await r.json().catch(() => ({}));
-                    if (r.ok && data.status === 'success') {
-                        this.showToast('Solicitud marcada como atendida');
-                        await this.cargarSolicitudesAdminConFiltros();
-                    } else {
-                        this.showToast(data.message || 'Error al marcar atendida', 'error');
-                    }
-                } catch (e) {
-                    this.showToast('Error de conexión', 'error');
+                const mod = this._sistemaModule();
+                if (mod && typeof mod.marcarSolicitudAtendidaAdmin === 'function') {
+                    return mod.marcarSolicitudAtendidaAdmin(this, solicitudId, tr);
                 }
             }
 
@@ -3083,214 +2571,65 @@
             }
 
             buildAdminDocumentLink(storedUrl, label) {
-                if (!storedUrl) return '—';
-                const safeLabel = this.escapeHtml(label || 'Ver');
-                const safeUrl = this.escapeHtml(storedUrl);
-                return `<button type="button" class="btn-link btn-ver-documento-admin" data-documento-url="${safeUrl}">${safeLabel}</button>`;
+                const mod = this._operacionesModule();
+                if (mod && typeof mod.buildAdminDocumentLink === 'function') {
+                    return mod.buildAdminDocumentLink(this, storedUrl, label);
+                }
             }
 
             async abrirDocumentoAdmin(storedUrl) {
-                if (!storedUrl) return;
-                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
-                try {
-                    const r = await fetch(`/api/admin/documentos/acceso?url=${encodeURIComponent(storedUrl)}`, {
-                        method: 'GET',
-                        credentials: 'same-origin',
-                        headers: authHeaders
-                    });
-                    if (r.status === 401) { this._adminSessionExpired(); return; }
-                    const data = await r.json();
-                    if (data.status === 'success' && data.url) {
-                        window.open(data.url, '_blank', 'noopener');
-                        return;
-                    }
-                    this.showToast(data.message || 'No se pudo abrir el documento.', 'error');
-                } catch (e) {
-                    this.showToast('Error de conexión al abrir el documento.', 'error');
+                const mod = this._operacionesModule();
+                if (mod && typeof mod.abrirDocumentoAdmin === 'function') {
+                    return mod.abrirDocumentoAdmin(this, storedUrl);
                 }
             }
 
             abrirModalRechazarPago(contactoId) {
-                this._contactoIdRechazo = contactoId;
-                const modal = document.getElementById('modal-rechazar-pago');
-                const input = document.getElementById('input-motivo-rechazo-pago');
-                if (input) input.value = '';
-                if (modal) modal.style.display = 'flex';
+                const mod = this._operacionesModule();
+                if (mod && typeof mod.abrirModalRechazarPago === 'function') {
+                    return mod.abrirModalRechazarPago(this, contactoId);
+                }
             }
 
             async confirmarRechazarPago() {
-                const contactoId = this._contactoIdRechazo;
-                const input = document.getElementById('input-motivo-rechazo-pago');
-                const motivo = input && input.value ? input.value.trim() : '';
-                if (!contactoId) { this.showToast('No hay contacto seleccionado.', 'error'); return; }
-                if (!motivo) {
-                    this.showToast('Debe escribir un mensaje al Aliado.', 'error');
-                    return;
-                }
-                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
-                try {
-                    const r = await fetch(`/api/admin/contactos/${contactoId}/estado-pago`, {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: { ...authHeaders, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ estado_pago: 'rechazado', motivo: motivo })
-                    });
-                    const data = await r.json();
-                    if (r.status === 401) { this._adminSessionExpired(); return; }
-                    const modal = document.getElementById('modal-rechazar-pago');
-                    if (modal) modal.style.display = 'none';
-                    if (data.status === 'success') {
-                        this.showToast('Mensaje enviado y pago rechazado. El profesional puede volver a subir comprobante.', 'success');
-                        this._contactoIdRechazo = null;
-                        this.cargarDesdeApi();
-                    } else {
-                        this.showToast(data.message || 'Error al rechazar.', 'error');
-                    }
-                } catch (e) {
-                    this.showToast('Error de conexión.', 'error');
+                const mod = this._operacionesModule();
+                if (mod && typeof mod.confirmarRechazarPago === 'function') {
+                    return mod.confirmarRechazarPago(this);
                 }
             }
 
             async cambiarEstadoPagoContacto(contactoId, nuevoEstado, rowEl) {
-                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
-                try {
-                    const body = { estado_pago: nuevoEstado };
-                    const r = await fetch(`/api/admin/contactos/${contactoId}/estado-pago`, {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: { ...authHeaders, 'Content-Type': 'application/json' },
-                        body: JSON.stringify(body)
-                    });
-                    const data = await r.json();
-                    if (r.status === 401) { this._adminSessionExpired(); return; }
-                    if (data.status === 'success') {
-                        this.showToast('Estado de pago actualizado.', 'success');
-                        if (rowEl) {
-                            const badge = rowEl.querySelector('.estado-pago-badge');
-                            if (badge) {
-                                badge.textContent = (nuevoEstado || '').replace(/_/g, ' ');
-                                badge.className = 'estado-pago-badge estado-pago-' + (nuevoEstado || '').replace(/_/g, '-');
-                            }
-                        }
-                        this.cargarDesdeApi();
-                    } else {
-                        this.showToast(data.message || 'Error al actualizar estado.', 'error');
-                    }
-                } catch (e) {
-                    this.showToast('Error de conexión.', 'error');
+                const mod = this._operacionesModule();
+                if (mod && typeof mod.cambiarEstadoPagoContacto === 'function') {
+                    return mod.cambiarEstadoPagoContacto(this, contactoId, nuevoEstado, rowEl);
                 }
             }
 
             async abrirModalDetalleConflicto(conflictId, rowEl) {
-                this._conflictoId = conflictId;
-                this._conflictoRowEl = rowEl;
-                const modal = document.getElementById('modal-detalle-conflicto');
-                const infoEl = document.getElementById('detalle-conflicto-info');
-                const pruebaEl = document.getElementById('detalle-conflicto-prueba');
-                const comentarioEl = document.getElementById('detalle-conflicto-comentario-admin');
-                const inputComentario = document.getElementById('input-comentario-resolver');
-                if (modal) modal.style.display = 'flex';
-                if (inputComentario) inputComentario.value = '';
-                if (infoEl) infoEl.textContent = 'Cargando...';
-                if (pruebaEl) pruebaEl.innerHTML = '';
-                if (comentarioEl) comentarioEl.textContent = '';
-                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
-                try {
-                    const r = await fetch(`/api/admin/payment-conflicts/${conflictId}`, { credentials: 'same-origin', headers: authHeaders });
-                    const data = await r.json();
-                    if (r.status === 401) { this._adminSessionExpired(); return; }
-                    if (data.status !== 'success' || !data.conflicto) {
-                        this.showToast(data.message || 'Error al cargar conflicto.', 'error');
-                        return;
-                    }
-                    const c = data.conflicto;
-                    if (infoEl) {
-                        infoEl.innerHTML = `Trabajo #${c.trabajo_id || '—'} · Contratante: ${this.escapeHtml(c.contratante_nombre || c.contratante_codigo || '')} · Profesional: ${this.escapeHtml(c.profesional_nombre || c.profesional_codigo || '')}<br>` +
-                            `Importe contratante: ${c.importe_contratante != null ? Number(c.importe_contratante).toFixed(2) : '—'} € · Importe profesional: ${c.importe_profesional != null ? Number(c.importe_profesional).toFixed(2) : '—'} € · Estado: ${this.escapeHtml(c.estado || '')}`;
-                    }
-                    if (pruebaEl) {
-                        if (c.prueba_url) pruebaEl.innerHTML = `Documento: ${this.buildAdminDocumentLink(c.prueba_url, 'Abrir prueba')}`;
-                        else pruebaEl.textContent = 'Sin prueba subida.';
-                    }
-                    if (comentarioEl && (c.estado === 'RESUELTO' || c.estado === 'RECHAZADO') && c.comentario_admin) {
-                        comentarioEl.textContent = 'Comentario admin: ' + c.comentario_admin;
-                    }
-                } catch (e) {
-                    if (infoEl) infoEl.textContent = 'Error de conexión.';
+                const mod = this._operacionesModule();
+                if (mod && typeof mod.abrirModalDetalleConflicto === 'function') {
+                    return mod.abrirModalDetalleConflicto(this, conflictId, rowEl);
                 }
             }
 
             async resolverConflictoDecision(decision) {
-                const id = this._conflictoId;
-                const rowEl = this._conflictoRowEl;
-                const input = document.getElementById('input-comentario-resolver');
-                const comentario = input && input.value ? input.value.trim() : '';
-                if (!id) { this.showToast('No hay conflicto seleccionado.', 'error'); return; }
-                if (!comentario) { this.showToast('El comentario es obligatorio.', 'error'); return; }
-                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
-                try {
-                    const r = await fetch(`/api/admin/payment-conflicts/${id}/resolver`, {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: { ...authHeaders, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ decision, comentario })
-                    });
-                    const data = await r.json();
-                    if (r.status === 401) { this._adminSessionExpired(); return; }
-                    if (data.status === 'success') {
-                        this.showToast('Resolución registrada.', 'success');
-                        document.getElementById('modal-detalle-conflicto').style.display = 'none';
-                        if (rowEl && rowEl.parentNode) rowEl.remove();
-                        const tbody = document.getElementById('tbody-conflictos-pago');
-                        const emptyEl = document.getElementById('conflictos-pago-empty');
-                        if (emptyEl && tbody && !tbody.querySelector('tr')) emptyEl.style.display = 'block';
-                        await this.cargarDesdeApi();
-                    } else {
-                        this.showToast(data.message || 'Error al resolver.', 'error');
-                    }
-                } catch (e) {
-                    this.showToast('Error de conexión.', 'error');
+                const mod = this._operacionesModule();
+                if (mod && typeof mod.resolverConflictoDecision === 'function') {
+                    return mod.resolverConflictoDecision(this, decision);
                 }
             }
 
             abrirModalResolverConflicto(contactoId, rowEl) {
-                this._conflictoContactoId = contactoId;
-                this._conflictoRowEl = rowEl;
-                const modal = document.getElementById('modal-resolver-conflicto');
-                const input = document.getElementById('input-importe-valido');
-                if (modal) modal.style.display = 'flex';
-                if (input) { input.value = ''; input.focus(); }
+                const mod = this._operacionesModule();
+                if (mod && typeof mod.abrirModalResolverConflicto === 'function') {
+                    return mod.abrirModalResolverConflicto(this, contactoId, rowEl);
+                }
             }
 
             async confirmarResolverConflicto() {
-                const id = this._conflictoContactoId;
-                const rowEl = this._conflictoRowEl;
-                const input = document.getElementById('input-importe-valido');
-                const importeValido = input && input.value ? parseFloat(input.value) : NaN;
-                if (!id) { this.showToast('No hay conflicto seleccionado.', 'error'); return; }
-                if (isNaN(importeValido) || importeValido <= 0) { this.showToast('Introduce un importe válido mayor que cero.', 'error'); return; }
-                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
-                try {
-                    const r = await fetch(`/api/admin/conflictos-pago/${id}/resolver`, {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: { ...authHeaders, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ importe_valido: importeValido })
-                    });
-                    const data = await r.json();
-                    if (r.status === 401) { this._adminSessionExpired(); return; }
-                    if (data.status === 'success') {
-                        this.showToast('Conflicto resuelto. Contacto cerrado.', 'success');
-                        document.getElementById('modal-resolver-conflicto').style.display = 'none';
-                        if (rowEl && rowEl.parentNode) rowEl.remove();
-                        const tbody = document.getElementById('tbody-conflictos-pago');
-                        const emptyEl = document.getElementById('conflictos-pago-empty');
-                        if (emptyEl && tbody && !tbody.querySelector('tr')) emptyEl.style.display = 'block';
-                    } else {
-                        this.showToast(data.message || 'Error al resolver.', 'error');
-                    }
-                } catch (e) {
-                    this.showToast('Error de conexión.', 'error');
+                const mod = this._operacionesModule();
+                if (mod && typeof mod.confirmarResolverConflicto === 'function') {
+                    return mod.confirmarResolverConflicto(this);
                 }
             }
 
@@ -3309,53 +2648,16 @@
             }
 
             async activarAliadoPendiente(id, rowEl) {
-                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
-                try {
-                    const r = await fetch(`/api/admin/users/${id}/activate`, {
-                        method: 'PATCH',
-                        credentials: 'same-origin',
-                        headers: authHeaders
-                    });
-                    const data = await r.json();
-                    if (r.status === 401) { this._adminSessionExpired(); return; }
-                    if (data.status === 'success') {
-                        this.showToast('Aliado activado. Puede ingresar con su código.', 'success');
-                        // Actualización en tiempo real: quitar fila sin recargar
-                        if (rowEl && rowEl.parentNode) rowEl.remove();
-                        const tbody = document.getElementById('tbody-pendientes-validacion');
-                        const emptyEl = document.getElementById('pendientes-empty');
-                        if (emptyEl && tbody && !tbody.querySelector('tr')) emptyEl.style.display = 'block';
-                    } else {
-                        this.showToast(data.message || 'Error al activar', 'error');
-                    }
-                } catch (e) {
-                    this.showToast('Error de conexión', 'error');
+                const mod = this._redModule();
+                if (mod && typeof mod.activarAliadoPendiente === 'function') {
+                    return mod.activarAliadoPendiente(this, id, rowEl);
                 }
             }
 
             async rechazarAliadoPendiente(codigo, rowEl) {
-                if (!confirm('¿Rechazar a este aliado? No podrá acceder al panel hasta que un administrador lo reactive.')) return;
-                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
-                try {
-                    const r = await fetch('/api/admin/rechazar-aliado', {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: authHeaders,
-                        body: JSON.stringify({ codigo })
-                    });
-                    const data = await r.json();
-                    if (r.status === 401) { this._adminSessionExpired(); return; }
-                    if (data.status === 'success') {
-                        this.showToast('Aliado rechazado. No podrá entrar al panel.', 'success');
-                        if (rowEl && rowEl.parentNode) rowEl.remove();
-                        const tbody = document.getElementById('tbody-pendientes-validacion');
-                        const emptyEl = document.getElementById('pendientes-empty');
-                        if (emptyEl && tbody && !tbody.querySelector('tr')) emptyEl.style.display = 'block';
-                    } else {
-                        this.showToast(data.message || 'Error al rechazar', 'error');
-                    }
-                } catch (e) {
-                    this.showToast('Error de conexión', 'error');
+                const mod = this._redModule();
+                if (mod && typeof mod.rechazarAliadoPendiente === 'function') {
+                    return mod.rechazarAliadoPendiente(this, codigo, rowEl);
                 }
             }
 
@@ -3495,31 +2797,10 @@
             }
 
             confirmarPausa(aliado) {
-                if (!aliado || !aliado.codigo) return;
-                const ok = window.confirm(`¿Pausar temporalmente al aliado ${aliado.nombre} (${aliado.codigo})?`);
-                if (!ok) return;
-
-                const razon = window.prompt('Motivo de la pausa (opcional):', '') || '';
-                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
-                const headers = Object.assign({}, authHeaders, { 'Content-Type': 'application/json' });
-
-                fetch('/api/aliado/pausar', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers,
-                    body: JSON.stringify({ codigo: aliado.codigo, razon })
-                })
-                    .then(r => r.json().catch(() => null))
-                    .then(data => {
-                        if (!data || data.status !== 'success') {
-                            alert(data && data.message ? data.message : 'No se pudo pausar al aliado.');
-                            return;
-                        }
-                        this.cargarDesdeApi();
-                    })
-                    .catch(() => {
-                        alert('Error de red al pausar aliado.');
-                    });
+                const mod = this._redModule();
+                if (mod && typeof mod.confirmarPausa === 'function') {
+                    return mod.confirmarPausa(this, aliado);
+                }
             }
 
             renderEventos(eventosData) {
@@ -3530,253 +2811,94 @@
             }
 
             formatearHora(timestamp) {
-                /**
-                 * Convierte timestamp a formato legible
-                 */
-                const fecha = new Date(timestamp);
-                const ahora = new Date();
-                const diff = Math.floor((ahora - fecha) / 1000); // segundos
-
-                if (diff < 60) return 'Hace segundos';
-                if (diff < 3600) return `Hace ${Math.floor(diff / 60)} min`;
-                if (diff < 86400) return `Hace ${Math.floor(diff / 3600)} horas`;
-                return fecha.toLocaleDateString();
+                const mod = this._resumenModule();
+                if (mod && typeof mod.formatearHora === 'function') {
+                    return mod.formatearHora(this, timestamp);
+                }
             }
 
             renderConversaciones(conversaciones) {
-                const tbody = document.getElementById('tbody-conversaciones');
-                const emptyEl = document.getElementById('conversaciones-empty');
-                if (!tbody) return;
-                tbody.innerHTML = '';
-                const lista = Array.isArray(conversaciones) ? conversaciones : [];
-                if (emptyEl) emptyEl.style.display = lista.length ? 'none' : 'block';
-                lista.forEach(c => this.appendConversacionRow(tbody, c));
+                const mod = this._resumenModule();
+                if (mod && typeof mod.renderConversaciones === 'function') {
+                    return mod.renderConversaciones(this, conversaciones);
+                }
             }
 
             appendConversacionRow(tbody, c) {
-                const id = c.contacto_id != null ? c.contacto_id : c.id;
-                const ultimoTexto = (c.ultimo_evento || c.ultimo_mensaje || '').substring(0, 80) + ((c.ultimo_evento || c.ultimo_mensaje || '').length > 80 ? '…' : '');
-                const fecha = c.fecha_ultimo ? this.formatearHora(c.fecha_ultimo) : '—';
-                const estadoHtml = c.acuerdo_completo
-                    ? '<span class="estado-pago-badge" style="background:rgba(34,197,94,0.25);color:#86efac;">ACUERDO</span>'
-                    : this.escapeHtml(c.estado || '—');
-                const tr = document.createElement('tr');
-                if (c.es_urgente) tr.style.background = 'rgba(180, 83, 9, 0.12)';
-                tr.innerHTML = `
-                    <td>${id}</td>
-                    <td>${this.escapeHtml(c.solicitante || '')}</td>
-                    <td>${this.escapeHtml(c.profesional || '')}</td>
-                    <td>${estadoHtml}</td>
-                    <td>${this.escapeHtml(c.paso_actual || '—')}</td>
-                    <td>${this.escapeHtml(String(c.precio_acordado || '—'))}</td>
-                    <td>${this.escapeHtml(ultimoTexto) || '—'}</td>
-                    <td>${fecha}</td>
-                    <td style="white-space:nowrap;">
-                        <button type="button" class="btn-accion btn-ver-chat" data-contacto-id="${id}">Ver</button>
-                        <button type="button" class="btn-accion btn-eliminar-neg" data-contacto-id="${id}" style="margin-left:6px;color:#f87171;">Eliminar</button>
-                    </td>
-                `;
-                const btn = tr.querySelector('.btn-ver-chat');
-                const btnDel = tr.querySelector('.btn-eliminar-neg');
-                if (btn) btn.addEventListener('click', () => this.abrirModalVerChat(id));
-                if (btnDel) btnDel.addEventListener('click', () => this.eliminarNegociacion(id));
-                tbody.appendChild(tr);
+                const mod = this._resumenModule();
+                if (mod && typeof mod.appendConversacionRow === 'function') {
+                    return mod.appendConversacionRow(this, tbody, c);
+                }
             }
 
             updateConversacionesPaginationUI() {
-                const wrap = document.getElementById('conversaciones-load-more-wrap');
-                const btnMas = document.getElementById('btn-conversaciones-mostrar-mas');
-                const btnMenos = document.getElementById('btn-conversaciones-mostrar-menos');
-                const noMas = document.getElementById('conversaciones-no-mas');
-                const total = (this._conversacionesList || []).length;
-                const hasMore = this._conversacionesHasMore === true;
-                const puedeMostrarMenos = total > 10;
-                if (wrap) wrap.style.display = (hasMore || puedeMostrarMenos) ? 'flex' : 'none';
-                if (btnMas) {
-                    btnMas.style.display = hasMore ? 'inline-block' : 'none';
-                    btnMas.disabled = false;
+                const mod = this._resumenModule();
+                if (mod && typeof mod.updateConversacionesPaginationUI === 'function') {
+                    return mod.updateConversacionesPaginationUI(this);
                 }
-                if (btnMenos) {
-                    btnMenos.style.display = puedeMostrarMenos ? 'inline-block' : 'none';
-                }
-                if (noMas) noMas.style.display = (!hasMore && total > 0 && !puedeMostrarMenos) ? 'block' : 'none';
             }
 
             async loadMoreConversaciones() {
-                const btn = document.getElementById('btn-conversaciones-mostrar-mas');
-                const tbody = document.getElementById('tbody-conversaciones');
-                if (!tbody) return;
-                const list = this._conversacionesList || [];
-                const offsetGuardado = this._conversacionesOffset != null ? this._conversacionesOffset : 0;
-                const offset = Math.max(offsetGuardado, list.length);
-                const scrollY = window.scrollY !== undefined ? window.scrollY : document.documentElement.scrollTop;
-                if (btn) btn.disabled = true;
-                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
-                try {
-                    const r = await fetch('/api/admin/chats?limite=10&offset=' + offset, { method: 'GET', credentials: 'same-origin', headers: authHeaders });
-                    const data = await (r.ok ? r.json().catch(() => null) : null);
-                    if (r.status === 401) { this._adminSessionExpired(); return; }
-                    if (!data || data.status !== 'success') return;
-                    const conversaciones = Array.isArray(data.conversaciones) ? data.conversaciones : [];
-                    const yaMostrados = new Set(list.map(c => c.contacto_id != null ? c.contacto_id : c.id));
-                    const nuevas = conversaciones.filter(c => {
-                        const id = c.contacto_id != null ? c.contacto_id : c.id;
-                        return id != null && !yaMostrados.has(id);
-                    });
-                    this._conversacionesList = list.concat(nuevas);
-                    this._conversacionesOffset = offset + conversaciones.length;
-                    this._conversacionesHasMore = conversaciones.length >= 10;
-                    nuevas.forEach(c => this.appendConversacionRow(tbody, c));
-                    this.updateConversacionesPaginationUI();
-                    requestAnimationFrame(() => { window.scrollTo(0, scrollY); });
-                } finally {
-                    if (btn) btn.disabled = false;
+                const mod = this._resumenModule();
+                if (mod && typeof mod.loadMoreConversaciones === 'function') {
+                    return mod.loadMoreConversaciones(this);
                 }
             }
 
             mostrarMenosConversaciones() {
-                const list = this._conversacionesList || [];
-                if (list.length <= 10) return;
-                this._conversacionesList = list.slice(0, 10);
-                this._conversacionesOffset = 10;
-                this._conversacionesHasMore = true;
-                this.renderConversaciones(this._conversacionesList);
-                this.updateConversacionesPaginationUI();
+                const mod = this._resumenModule();
+                if (mod && typeof mod.mostrarMenosConversaciones === 'function') {
+                    return mod.mostrarMenosConversaciones(this);
+                }
             }
 
             async cargarCentroComunicacionAdmin() {
-                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
-                const status = (document.getElementById('cc-admin-status')?.value || '').trim();
-                const unreadOnly = document.getElementById('cc-admin-only-unread')?.checked ? '1' : '0';
-                const params = new URLSearchParams({ limite: '120', solo_no_leidas: unreadOnly });
-                if (status) params.set('estado', status);
-                try {
-                    const r = await fetch('/api/admin/centro-comunicacion?' + params.toString(), { method: 'GET', credentials: 'same-origin', headers: authHeaders });
-                    if (r.status === 401) { this._adminSessionExpired(); return; }
-                    const data = await r.json().catch(() => ({}));
-                    this._centroComunicacion = data.status === 'success' && Array.isArray(data.conversaciones) ? data.conversaciones : [];
-                    this.renderCentroComunicacionAdmin(this._centroComunicacion);
-                } catch (_) {
-                    this.showToast('No se pudo cargar el centro de comunicación.', 'error');
+                const mod = this._operacionesModule();
+                if (mod && typeof mod.cargarCentroComunicacionAdmin === 'function') {
+                    return mod.cargarCentroComunicacionAdmin(this);
                 }
             }
 
             renderCentroComunicacionAdmin(conversaciones) {
-                const tbody = document.getElementById('tbody-centro-comunicacion-admin');
-                const empty = document.getElementById('centro-comunicacion-admin-empty');
-                if (!tbody) return;
-                const filtro = (document.getElementById('cc-admin-search')?.value || '').trim().toLowerCase();
-                const lista = (Array.isArray(conversaciones) ? conversaciones : []).filter((c) => {
-                    if (!filtro) return true;
-                    const full = `${c.aliado_codigo || ''} ${c.aliado_nombre || ''} ${c.asunto || ''}`.toLowerCase();
-                    return full.includes(filtro);
-                });
-                tbody.innerHTML = '';
-                if (empty) empty.style.display = lista.length ? 'none' : 'block';
-                lista.forEach((c) => {
-                    const tr = document.createElement('tr');
-                    const fecha = c.ultimo_mensaje_en ? this.formatearHora(c.ultimo_mensaje_en) : '—';
-                    const estadoClass = (c.estado || 'pendiente').replace(/[^a-z_]/g, '');
-                    const nuevo = Number(c.tiene_no_leido_admin || 0) > 0 ? '<span class="estado-pago-badge" style="background:rgba(251,191,36,0.2);color:#fbbf24;">Nuevo</span>' : '—';
-                    tr.innerHTML = `
-                        <td>#${c.id}</td>
-                        <td>${this.escapeHtml((c.aliado_nombre || c.aliado_codigo || '—'))}<br><span style="color:#94a3b8;font-size:0.75rem;">${this.escapeHtml(c.aliado_codigo || '')}</span></td>
-                        <td>${this.escapeHtml(c.asunto || 'Consulta')}</td>
-                        <td><span class="estado-pago-badge estado-pago-${estadoClass.replace('_', '-')}">${this.escapeHtml((c.estado || 'pendiente').replace('_', ' '))}</span></td>
-                        <td>${this.escapeHtml(c.ultimo_mensaje_preview || '—')}</td>
-                        <td>${fecha}</td>
-                        <td>${nuevo}</td>
-                        <td><button type="button" class="btn-accion btn-cc-ver" data-cc-id="${c.id}">Abrir</button></td>
-                    `;
-                    tr.querySelector('.btn-cc-ver')?.addEventListener('click', () => this.abrirModalCentroComunicacionAdmin(c));
-                    tbody.appendChild(tr);
-                });
+                const mod = this._operacionesModule();
+                if (mod && typeof mod.renderCentroComunicacionAdmin === 'function') {
+                    return mod.renderCentroComunicacionAdmin(this, conversaciones);
+                }
             }
 
             async abrirModalCentroComunicacionAdmin(conv) {
-                this._centroComunicacionActiva = conv || null;
-                const modal = document.getElementById('modal-centro-comunicacion-admin');
-                const title = document.getElementById('cc-admin-modal-title');
-                const msgBox = document.getElementById('cc-admin-modal-messages');
-                const status = document.getElementById('cc-admin-modal-status');
-                if (!modal || !conv) return;
-                if (title) title.textContent = `Conversación #${conv.id} · ${conv.aliado_nombre || conv.aliado_codigo || ''}`;
-                if (status) status.value = conv.estado || 'pendiente';
-                if (msgBox) msgBox.innerHTML = '<p style="color:#94a3b8;">Cargando mensajes…</p>';
-                modal.style.display = 'flex';
-                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
-                const r = await fetch('/api/admin/centro-comunicacion/' + conv.id + '/mensajes', { method: 'GET', credentials: 'same-origin', headers: authHeaders });
-                const data = await r.json().catch(() => ({}));
-                const mensajes = data.status === 'success' && Array.isArray(data.mensajes) ? data.mensajes : [];
-                if (msgBox) {
-                    msgBox.innerHTML = mensajes.map((m) => {
-                        const esAdmin = (m.emisor_tipo || '') === 'admin';
-                        const fecha = m.creado_en ? new Date(m.creado_en).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '';
-                        return `<div style="padding:8px 10px; border-radius:8px; margin-bottom:8px; background:${esAdmin ? 'rgba(34,197,94,0.15)' : 'rgba(59,130,246,0.16)'}; border:1px solid ${esAdmin ? 'rgba(74,222,128,0.38)' : 'rgba(147,197,253,0.35)'};">
-                            ${this.escapeHtml(m.mensaje || '')}
-                            <div style="font-size:0.76rem;color:#94a3b8;margin-top:4px;">${esAdmin ? 'RUANA' : 'Aliado'} · ${fecha}</div>
-                        </div>`;
-                    }).join('') || '<p style="color:#94a3b8;">Sin mensajes.</p>';
-                    msgBox.scrollTop = msgBox.scrollHeight;
+                const mod = this._operacionesModule();
+                if (mod && typeof mod.abrirModalCentroComunicacionAdmin === 'function') {
+                    return mod.abrirModalCentroComunicacionAdmin(this, conv);
                 }
             }
 
             cerrarModalCentroComunicacionAdmin() {
-                const modal = document.getElementById('modal-centro-comunicacion-admin');
-                if (modal) modal.style.display = 'none';
-                this._centroComunicacionActiva = null;
+                const mod = this._operacionesModule();
+                if (mod && typeof mod.cerrarModalCentroComunicacionAdmin === 'function') {
+                    return mod.cerrarModalCentroComunicacionAdmin(this);
+                }
             }
 
             async responderCentroComunicacionAdmin() {
-                const conv = this._centroComunicacionActiva;
-                if (!conv) return;
-                const msgEl = document.getElementById('cc-admin-modal-reply');
-                const estadoEl = document.getElementById('cc-admin-modal-status');
-                const mensaje = (msgEl?.value || '').trim();
-                if (!mensaje) { this.showToast('Escribe una respuesta.', 'error'); return; }
-                const authHeaders = Object.assign({}, AdminAuthenticator.getAdminAuthHeaders(), { 'Content-Type': 'application/json' });
-                const r = await fetch('/api/admin/centro-comunicacion/' + conv.id + '/responder', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: authHeaders,
-                    body: JSON.stringify({ mensaje, estado: estadoEl?.value || 'respondido' })
-                });
-                const data = await r.json().catch(() => ({}));
-                if (data.status !== 'success') { this.showToast(data.message || 'No se pudo responder.', 'error'); return; }
-                if (msgEl) msgEl.value = '';
-                this.showToast('Respuesta enviada.', 'success');
-                await this.cargarCentroComunicacionAdmin();
-                await this.abrirModalCentroComunicacionAdmin((this._centroComunicacion || []).find(c => Number(c.id) === Number(conv.id)) || conv);
+                const mod = this._operacionesModule();
+                if (mod && typeof mod.responderCentroComunicacionAdmin === 'function') {
+                    return mod.responderCentroComunicacionAdmin(this);
+                }
             }
 
             async actualizarEstadoCentroComunicacionAdmin() {
-                const conv = this._centroComunicacionActiva;
-                const estado = (document.getElementById('cc-admin-modal-status')?.value || '').trim();
-                if (!conv || !estado) return;
-                const authHeaders = Object.assign({}, AdminAuthenticator.getAdminAuthHeaders(), { 'Content-Type': 'application/json' });
-                const r = await fetch('/api/admin/centro-comunicacion/' + conv.id + '/estado', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: authHeaders,
-                    body: JSON.stringify({ estado })
-                });
-                const data = await r.json().catch(() => ({}));
-                if (data.status !== 'success') { this.showToast(data.message || 'No se pudo actualizar estado.', 'error'); return; }
-                this.showToast('Estado actualizado.', 'success');
-                await this.cargarCentroComunicacionAdmin();
+                const mod = this._operacionesModule();
+                if (mod && typeof mod.actualizarEstadoCentroComunicacionAdmin === 'function') {
+                    return mod.actualizarEstadoCentroComunicacionAdmin(this);
+                }
             }
 
             async eliminarCentroComunicacionAdmin() {
-                const conv = this._centroComunicacionActiva;
-                if (!conv) return;
-                if (!window.confirm('¿Eliminar esta conversación del panel admin?')) return;
-                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
-                const r = await fetch('/api/admin/centro-comunicacion/' + conv.id, { method: 'DELETE', credentials: 'same-origin', headers: authHeaders });
-                const data = await r.json().catch(() => ({}));
-                if (data.status !== 'success') { this.showToast(data.message || 'No se pudo eliminar.', 'error'); return; }
-                this.showToast('Conversación eliminada.', 'success');
-                this.cerrarModalCentroComunicacionAdmin();
-                await this.cargarCentroComunicacionAdmin();
+                const mod = this._operacionesModule();
+                if (mod && typeof mod.eliminarCentroComunicacionAdmin === 'function') {
+                    return mod.eliminarCentroComunicacionAdmin(this);
+                }
             }
 
             renderCompetenciasActivas(competencias) {
@@ -3808,98 +2930,23 @@
             }
 
             accionIncorporarSuplente(codigo) {
-                this._abrirModalAccionAdmin({
-                    title: 'Incorporar Suplente en Espera',
-                    bodyHtml: `
-                        <p style="color:#ccc; margin-bottom:12px;">Aliado: <strong>${this.escapeHtml(codigo)}</strong></p>
-                        <label class="modal-importe-label" style="display:block; margin-bottom:6px;">ID de grupo (opcional — dejar vacío para asignar automáticamente)</label>
-                        <input type="number" id="accion-inc-grupo" placeholder="Dejar vacío = automático" style="width:100%; padding:8px; box-sizing:border-box;" />
-                    `,
-                    getPayload: () => ({
-                        grupo_id: (document.getElementById('accion-inc-grupo')?.value || '').trim() || null
-                    }),
-                    validate: () => null,
-                    getConfirmSummary: (p) => `¿Incorporar <strong>${this.escapeHtml(codigo)}</strong>${p.grupo_id ? ' al grupo ' + p.grupo_id : ' automáticamente'}?`,
-                    execute: async (p) => {
-                        const body = p.grupo_id ? { grupo_id: parseInt(p.grupo_id, 10) } : {};
-                        const r = await fetch(`/api/admin/suplentes-espera/${encodeURIComponent(codigo)}/incorporar`, { method: 'POST', credentials: 'same-origin', headers: this.getAuthHeaders(), body: JSON.stringify(body) });
-                        if (r.status === 401) { this._adminSessionExpired(); return; }
-                        if (r.status === 403) { this.showToast('Sin permiso de escritura (solo lectura).', 'error'); return; }
-                        const data = await r.json().catch(() => ({}));
-                        if (data.status === 'success') { this.showToast(data.message || 'Suplente incorporado.', 'success'); this.cargarDesdeApi(); }
-                        else { this.showToast(data.message || 'Error al incorporar.', 'error'); }
-                    }
-                });
+                const mod = this._redModule();
+                if (mod && typeof mod.accionIncorporarSuplente === 'function') {
+                    return mod.accionIncorporarSuplente(this, codigo);
+                }
             }
 
             async abrirModalVerChat(contactoId) {
-                this._negociacionContactoId = contactoId;
-                const modal = document.getElementById('modal-ver-chat');
-                const titulo = document.getElementById('modal-chat-titulo');
-                const cont = document.getElementById('admin-chat-mensajes');
-                const resumenEl = document.getElementById('admin-neg-resumen');
-                if (!modal || !cont) return;
-                if (titulo) titulo.textContent = 'Negociación del contacto #' + contactoId;
-                cont.innerHTML = '<p style="color:#888;">Cargando...</p>';
-                if (resumenEl) resumenEl.textContent = '';
-                modal.style.display = 'flex';
-                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
-                const btnDel = document.getElementById('btn-eliminar-negociacion');
-                if (btnDel && !btnDel._bound) {
-                    btnDel._bound = true;
-                    btnDel.addEventListener('click', () => this.eliminarNegociacion(this._negociacionContactoId));
-                }
-                try {
-                    const r = await fetch(`/api/admin/contactos/${contactoId}/negociacion`, { method: 'GET', credentials: 'same-origin', headers: authHeaders });
-                    const data = await r.json().catch(() => null);
-                    if (r.status === 401) { this._adminSessionExpired(); return; }
-                    if (!data || data.status !== 'success') {
-                        cont.innerHTML = '<p style="color:#f87171;">No se pudo cargar la negociación.</p>';
-                        return;
-                    }
-                    if (resumenEl && Array.isArray(data.resumen)) {
-                        resumenEl.innerHTML = data.resumen.map(item =>
-                            `<span style="margin-right:12px;"><strong>${this.escapeHtml(item.label)}:</strong> ${this.escapeHtml(String(item.valor || '—'))} (${item.estado})</span>`
-                        ).join('');
-                    }
-                    const eventos = Array.isArray(data.eventos) ? data.eventos : [];
-                    if (!eventos.length) {
-                        cont.innerHTML = '<p style="color:#888;">Sin eventos aún</p>';
-                        return;
-                    }
-                    cont.innerHTML = eventos.map(ev => {
-                        const fecha = ev.creado_en ? new Date(ev.creado_en).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '';
-                        return `<div style="margin-bottom:12px; padding:10px 12px; border-radius:8px; background:rgba(255,255,255,0.06); border-left:3px solid ${ev.tipo === 'sistema' ? '#22c55e' : '#6366f1'}"><strong>${this.escapeHtml(ev.tipo || '')}</strong> — ${fecha}<br>${this.escapeHtml(ev.mensaje || '')}</div>`;
-                    }).join('');
-                    cont.scrollTop = cont.scrollHeight;
-                } catch (e) {
-                    cont.innerHTML = '<p style="color:#f87171;">Error de conexión.</p>';
+                const mod = this._operacionesModule();
+                if (mod && typeof mod.abrirModalVerChat === 'function') {
+                    return mod.abrirModalVerChat(this, contactoId);
                 }
             }
 
             async eliminarNegociacion(contactoId) {
-                if (!contactoId) return;
-                if (!confirm('¿Eliminar esta negociación y todo el contacto asociado? Esta acción no se puede deshacer.')) return;
-                const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
-                try {
-                    const r = await fetch(`/api/admin/contactos/${contactoId}/negociacion`, {
-                        method: 'DELETE',
-                        credentials: 'same-origin',
-                        headers: authHeaders,
-                    });
-                    const data = await r.json().catch(() => ({}));
-                    if (r.status === 401) { this._adminSessionExpired(); return; }
-                    if (data.status !== 'success') {
-                        alert(data.message || 'No se pudo eliminar');
-                        return;
-                    }
-                    const modal = document.getElementById('modal-ver-chat');
-                    if (modal) modal.style.display = 'none';
-                    this._conversacionesList = (this._conversacionesList || []).filter(c => (c.contacto_id || c.id) !== contactoId);
-                    this.renderConversaciones(this._conversacionesList);
-                    this.showToast('Negociación eliminada', 'success');
-                } catch (e) {
-                    alert('Error de conexión');
+                const mod = this._operacionesModule();
+                if (mod && typeof mod.eliminarNegociacion === 'function') {
+                    return mod.eliminarNegociacion(this, contactoId);
                 }
             }
 

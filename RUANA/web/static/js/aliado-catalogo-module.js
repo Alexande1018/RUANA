@@ -199,9 +199,66 @@
     }
   }
 
-  modules.catalogo = {
+    function abrirCatalogoEdicion(host, posicion) {
+      const pos = Number(posicion);
+      if (!Number.isInteger(pos) || pos < 1 || pos > 10) return;
+      host.catalogoEditandoPos = pos;
+      host.renderCatalogoServicios();
+      const card = document.querySelector(`.catalogo-servicio-card[data-servicio-pos="${pos}"]`);
+      if (card && typeof card.scrollIntoView === 'function') {
+          card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+      const inputDesc = document.querySelector(`[data-servicio-desc="${pos}"]`);
+      if (inputDesc) {
+          try { inputDesc.focus(); } catch (e) { /* ignore */ }
+      }
+  }
+
+  function anadirEspecializacionCatalogo(host) {
+      const catalogo = host.normalizarCatalogoServicios((host.aliado || {}).catalogo_servicios);
+      const libre = host._primeraPosicionLibreCatalogo(catalogo);
+      if (libre == null) {
+          if (typeof RuanaUI !== 'undefined') {
+              RuanaUI.toast('Has alcanzado el máximo de 10 servicios en el catálogo', 'info', 2200);
+          }
+          return;
+      }
+      host.abrirCatalogoEdicion(libre);
+  }
+
+  function cancelarEdicionCatalogo(host, posicion) {
+      const pos = Number(posicion);
+      const catalogo = host.normalizarCatalogoServicios((host.aliado || {}).catalogo_servicios);
+      const item = catalogo.find((s) => s.posicion === pos);
+      // Si era un hueco vacío sin guardar, solo cerramos; si tenía datos, restauramos vista resumen
+      host.catalogoEditandoPos = null;
+      host.renderCatalogoServicios();
+      if (item && !item.configurado && typeof RuanaUI !== 'undefined') {
+          RuanaUI.toast('Edición cancelada', 'info', 1400);
+      }
+  }
+
+  function _catalogoResumenTitulo(host, servicio) {
+      const desc = String(servicio.descripcion || '').trim();
+      if (!desc) return `Servicio ${servicio.posicion}`;
+      const primera = desc.split(/\n/)[0].trim();
+      return primera.length > 72 ? `${primera.slice(0, 72)}…` : primera;
+  }
+
+  function _primeraPosicionLibreCatalogo(host, catalogo) {
+      const item = (catalogo || []).find((s) => !s.configurado);
+      return item ? item.posicion : null;
+  }
+
+modules.catalogo = {
     normalizarCatalogoServicios: normalizarCatalogoServicios,
     renderCatalogoServicios: renderCatalogoServicios,
     guardarCatalogoServicio: guardarCatalogoServicio,
-  };
+  
+    abrirCatalogoEdicion: abrirCatalogoEdicion,
+    anadirEspecializacionCatalogo: anadirEspecializacionCatalogo,
+    cancelarEdicionCatalogo: cancelarEdicionCatalogo,
+    _catalogoResumenTitulo: _catalogoResumenTitulo,
+    _primeraPosicionLibreCatalogo: _primeraPosicionLibreCatalogo,
+};
 })(typeof window !== 'undefined' ? window : globalThis);

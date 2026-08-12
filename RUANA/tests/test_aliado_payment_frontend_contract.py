@@ -35,10 +35,11 @@ def test_aceptar_y_pagar_opens_manual_payment_modal_with_bizum_first():
     assert 'id="pago-apoyo-bizum-panel"' in aliado_html
     assert 'id="pago-apoyo-revolut-panel"' in aliado_html
     assert 'id="pago-apoyo-transferencia-panel"' in aliado_html
-    # Tabs en setupEventListeners (HTML) + default bizum en módulo
-    assert "this.setPagoApoyoMetodo('bizum')" in aliado_html
-    assert "this.setPagoApoyoMetodo('revolut')" in aliado_html
-    assert "this.setPagoApoyoMetodo('transferencia')" in aliado_html
+    # Tabs en setupEventListeners (aliado-events-module) + default bizum en módulo
+    events_js = (root / "static" / "js" / "aliado-events-module.js").read_text(encoding="utf-8")
+    assert "host.setPagoApoyoMetodo('bizum')" in events_js
+    assert "host.setPagoApoyoMetodo('revolut')" in events_js
+    assert "host.setPagoApoyoMetodo('transferencia')" in events_js
     assert "host.setPagoApoyoMetodo('bizum')" in alertas_js
     assert "/api/metodos-pago" in alertas_js
 

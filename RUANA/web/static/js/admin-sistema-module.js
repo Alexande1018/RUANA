@@ -595,7 +595,178 @@
     });
   }
 
-  modules.sistema = {
+  function renderInvitacionesRecientes(host, invitaciones) {
+      const tbody = document.getElementById('admin-invitaciones-recientes-tbody');
+      if (!tbody) return;
+      const n = (v) => (v == null || v === '') ? '—' : String(v);
+      const fmtFecha = (creadoEn) => {
+          if (!creadoEn) return '—';
+          try {
+              const d = new Date(creadoEn);
+              return isNaN(d.getTime()) ? creadoEn : d.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+          } catch (_) { return creadoEn; }
+      };
+      if (!Array.isArray(invitaciones) || invitaciones.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4">No hay invitaciones recientes</td></tr>';
+          return;
+      }
+      tbody.innerHTML = invitaciones.map(inv => {
+          const estado = inv.usado ? 'Usada' : 'Pendiente';
+          const invitador = n(inv.invitador_nombre) + (inv.invitador_codigo ? ' (' + inv.invitador_codigo + ')' : '');
+          return `<tr><td>${n(inv.codigo)}</td><td>${invitador}</td><td>${fmtFecha(inv.creado_en)}</td><td>${estado}</td></tr>`;
+      }).join('');
+}
+
+function renderCampanasInvitacion(host, campanas) {
+      const tbody = document.getElementById('admin-campanas-invitacion-tbody');
+      if (!tbody) return;
+      host._campanasInvitacion = Array.isArray(campanas) ? campanas : [];
+      const n = (v) => (v == null || v === '') ? '—' : String(v);
+      if (!Array.isArray(campanas) || campanas.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5">No hay códigos multiuso creados</td></tr>';
+          return;
+      }
+      tbody.innerHTML = campanas.map(campana => {
+          const codigoValor = n(campana.codigo);
+          const codigoSeguro = host.escapeHtml(codigoValor);
+          const codigo = `<button type="button" class="btn-admin-action btn-ver-campana" data-codigo="${codigoSeguro}">${codigoSeguro}</button>`;
+          const maxUsos = Number(campana.max_usos || 0);
+          const usosActuales = Number(campana.usos_actuales || 0);
+          const activo = Number(campana.activo || 0) === 1 && (!maxUsos || usosActuales < maxUsos);
+          const estado = Number(campana.activo || 0) !== 1 ? 'Desactivado' : (maxUsos && usosActuales >= maxUsos ? 'Agotado' : 'Activo');
+          const accion = activo
+              ? `<button type="button" class="btn-admin-action danger btn-desactivar-campana" data-codigo="${codigoSeguro}">Desactivar</button>`
+              : '<span style="color:#94a3b8;">—</span>';
+          return `<tr><td>${codigo}</td><td>${n(campana.codigo_postal)}</td><td>${usosActuales}/${maxUsos || '∞'}</td><td>${estado}</td><td>${accion}</td></tr>`;
+      }).join('');
+}
+
+async function cargarCampanasInvitacion(host) {
+      try {
+          const r = await fetch('/api/admin/invitacion-campanas?limite=30', {
+              method: 'GET',
+              credentials: 'same-origin',
+              headers: AdminAuthenticator.getAdminAuthHeaders()
+          });
+          if (r.status === 401) { host._adminSessionExpired(); return; }
+          const data = await (r.ok ? r.json().catch(() => null) : null);
+          host.renderCampanasInvitacion(data && data.status === 'success' && Array.isArray(data.campanas) ? data.campanas : []);
+      } catch (_) {
+          host.showToast('No se pudieron recargar los codigos multiuso.', 'error');
+      }
+}
+
+function buildCampanaRegistroUrl(host, codigo) {
+      const origin = window.RUANA_PUBLIC_APP_URL || 'https://ruana-4293f.web.app';
+      return `${origin}/invite.html?codigo=${encodeURIComponent(codigo || '')}`;
+}
+
+function buildCampanaQrUrl(host, registroUrl) {
+      return 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(registroUrl || '');
+}
+
+function verDetalleCampanaInvitacion(host, codigo) {
+      const campana = (host._campanasInvitacion || []).find(c => String(c.codigo || '') === String(codigo || ''));
+      if (!campana) {
+          host.showToast('No se encontro el codigo multiuso.', 'error');
+          return;
+      }
+      const registroUrl = campana.registro_url || host.buildCampanaRegistroUrl(campana.codigo || codigo);
+      host.renderCampanaInvitacionCreada({
+          campana,
+          registro_url: registroUrl,
+          qr_url: campana.qr_url || host.buildCampanaQrUrl(registroUrl),
+          modo: 'detalle'
+      });
+}
+
+async function desactivarCampanaInvitacion(host, codigo) {
+      if (!codigo) return;
+      if (!confirm(`¿Desactivar el código multiuso ${codigo}? Dejará de validar inmediatamente.`)) return;
+      try {
+          const r = await fetch('/api/admin/invitacion-campanas/' + encodeURIComponent(codigo) + '/desactivar', {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: host.getAuthHeaders()
+          });
+          if (r.status === 401) { host._adminSessionExpired(); return; }
+          if (r.status === 403) { host.showToast('Sin permiso de escritura (solo lectura).', 'error'); return; }
+          const data = await r.json().catch(() => ({}));
+          if (r.ok && data.status === 'success') {
+              host.showToast('Código multiuso desactivado.', 'success');
+              host.cargarDesdeApi();
+          } else {
+              host.showToast(data.message || 'No se pudo desactivar el código.', 'error');
+          }
+      } catch (_) {
+          host.showToast('Error de conexión al desactivar el código.', 'error');
+      }
+}
+
+async function accionGenerarReporte(host) {
+      try {
+          const r = await fetch('/api/admin/generar-reporte', {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: host.getAuthHeaders()
+          });
+          const data = await r.json().catch(() => ({}));
+          if (data.status === 'success' && data.reporte) {
+              const rep = data.reporte;
+              const texto = `Aliados: ${rep.total_aliados} (activos: ${rep.aliados_activos}) · Solicitudes: ${rep.total_solicitudes} · Contactos: ${rep.total_contactos} · Grupos: ${rep.grupos_activos} · Competencias activas: ${rep.competencias_activas} · Plazas cerradas: ${rep.plazas_cerradas}`;
+              host.showToast('Reporte generado. ' + texto, 'success');
+              host.cargarDesdeApi();
+          } else {
+              host.showToast(data.message || 'Error al generar reporte.', 'error');
+          }
+      } catch (e) {
+          host.showToast('Error de conexión.', 'error');
+      }
+}
+
+async function cargarSolicitudesAdminConFiltros(host) {
+      const estado = document.getElementById('filtro-solicitudes-estado')?.value || '';
+      const grupoId = document.getElementById('filtro-solicitudes-grupo')?.value?.trim() || '';
+      const desde = document.getElementById('filtro-solicitudes-desde')?.value || '';
+      const hasta = document.getElementById('filtro-solicitudes-hasta')?.value || '';
+      const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+      try {
+          const r = await fetch('/api/admin/solicitudes', { credentials: 'same-origin', headers: authHeaders });
+          if (r.status === 401) { host._adminSessionExpired(); return; }
+          const data = await r.json();
+          const list = Array.isArray(data) ? data : [];
+          let filtered = list;
+          if (estado) filtered = filtered.filter(s => (s.estado || '') === estado);
+          if (grupoId) filtered = filtered.filter(s => String(s.grupo_id) === grupoId);
+          if (desde) filtered = filtered.filter(s => (s.created_at || '').slice(0, 10) >= desde);
+          if (hasta) filtered = filtered.filter(s => (s.created_at || '').slice(0, 10) <= hasta);
+          host.renderSolicitudesAdmin(filtered);
+      } catch (e) {
+          host.showToast('Error al cargar solicitudes', 'error');
+      }
+}
+
+async function marcarSolicitudAtendidaAdmin(host, solicitudId, tr) {
+      const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+      try {
+          const r = await fetch(`/api/admin/solicitudes/${solicitudId}/atender`, {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: { ...authHeaders, 'Content-Type': 'application/json' }
+          });
+          const data = await r.json().catch(() => ({}));
+          if (r.ok && data.status === 'success') {
+              host.showToast('Solicitud marcada como atendida');
+              await host.cargarSolicitudesAdminConFiltros();
+          } else {
+              host.showToast(data.message || 'Error al marcar atendida', 'error');
+          }
+      } catch (e) {
+          host.showToast('Error de conexión', 'error');
+      }
+}
+
+modules.sistema = {
     accionCrearCampanaInvitacion: accionCrearCampanaInvitacion,
     renderCampanaInvitacionCreada: renderCampanaInvitacionCreada,
     accionCrearCodigoAliado: accionCrearCodigoAliado,
@@ -610,5 +781,16 @@
     renderCompetenciasActivas: renderCompetenciasActivas,
     renderCompetenciasPendientes: renderCompetenciasPendientes,
     renderCompetenciasHistorial: renderCompetenciasHistorial,
-  };
+  
+    renderInvitacionesRecientes: renderInvitacionesRecientes,
+    renderCampanasInvitacion: renderCampanasInvitacion,
+    cargarCampanasInvitacion: cargarCampanasInvitacion,
+    buildCampanaRegistroUrl: buildCampanaRegistroUrl,
+    buildCampanaQrUrl: buildCampanaQrUrl,
+    verDetalleCampanaInvitacion: verDetalleCampanaInvitacion,
+    desactivarCampanaInvitacion: desactivarCampanaInvitacion,
+    accionGenerarReporte: accionGenerarReporte,
+    cargarSolicitudesAdminConFiltros: cargarSolicitudesAdminConFiltros,
+    marcarSolicitudAtendidaAdmin: marcarSolicitudAtendidaAdmin,
+};
 })(typeof window !== 'undefined' ? window : globalThis);

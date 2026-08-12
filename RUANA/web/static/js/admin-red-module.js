@@ -702,7 +702,162 @@
     }
   }
 
-  modules.red = {
+  function accionPausarAliado(host) {
+      host._abrirModalAccionAdmin({
+          title: 'Pausar aliado',
+          bodyHtml: `
+              <label class="modal-importe-label" style="display:block; margin-bottom:6px;">Código del aliado (5 dígitos) *</label>
+              <input type="text" id="accion-pausar-codigo" placeholder="Ej: A0001" style="width:100%; padding:8px; margin-bottom:12px; box-sizing:border-box;" />
+              <label class="modal-importe-label" style="display:block; margin-bottom:6px;">Motivo (opcional)</label>
+              <input type="text" id="accion-pausar-razon" placeholder="Motivo de la pausa" style="width:100%; padding:8px; box-sizing:border-box;" />
+          `,
+          getPayload: () => ({
+              codigo: (document.getElementById('accion-pausar-codigo')?.value || '').trim(),
+              razon: (document.getElementById('accion-pausar-razon')?.value || '').trim() || ''
+          }),
+          validate: (p) => !p.codigo ? 'El código del aliado es obligatorio.' : null,
+          getConfirmSummary: (p) => `¿Confirmar que desea <strong>pausar</strong> al aliado con código <strong>${p.codigo}</strong>?${p.razon ? ' Motivo: ' + p.razon : ''}`,
+          execute: async (p) => {
+              const r = await fetch('/api/aliado/pausar', { method: 'POST', credentials: 'same-origin', headers: host.getAuthHeaders(), body: JSON.stringify({ codigo: p.codigo, razon: p.razon }) });
+              if (r.status === 401) { host._adminSessionExpired(); return; }
+              const data = await r.json().catch(() => ({}));
+              if (data.status === 'success') { host.showToast(data.message || 'Aliado pausado correctamente.', 'success'); host.cargarDesdeApi(); }
+              else { host.showToast(data.message || 'Error al pausar.', 'error'); }
+          }
+      });
+}
+
+function accionCerrarOficio(host) {
+      host._abrirModalAccionAdmin({
+          title: 'Cerrar oficio',
+          bodyHtml: `
+              <label class="modal-importe-label" style="display:block; margin-bottom:6px;">ID del grupo *</label>
+              <input type="number" id="accion-co-grupo" placeholder="Ej: 1" style="width:100%; padding:8px; margin-bottom:12px; box-sizing:border-box;" />
+              <label class="modal-importe-label" style="display:block; margin-bottom:6px;">Oficio a cerrar *</label>
+              <input type="text" id="accion-co-oficio" placeholder="Ej: Fontanería" style="width:100%; padding:8px; box-sizing:border-box;" />
+          `,
+          getPayload: () => ({
+              grupo_id: document.getElementById('accion-co-grupo')?.value?.trim(),
+              oficio: (document.getElementById('accion-co-oficio')?.value || '').trim()
+          }),
+          validate: (p) => !p.grupo_id || !p.oficio ? 'Grupo y oficio son obligatorios.' : null,
+          getConfirmSummary: (p) => `¿Confirmar <strong>cerrar el oficio</strong> "${p.oficio}" en el grupo ${p.grupo_id}? No se asignarán nuevos aliados a esa plaza.`,
+          execute: async (p) => {
+              const r = await fetch('/api/admin/cerrar-oficio', { method: 'POST', credentials: 'same-origin', headers: host.getAuthHeaders(), body: JSON.stringify({ grupo_id: parseInt(p.grupo_id, 10), oficio: p.oficio }) });
+              if (r.status === 401) { host._adminSessionExpired(); return; }
+              if (r.status === 403) { host.showToast('Sin permiso de escritura (solo lectura).', 'error'); return; }
+              const data = await r.json().catch(() => ({}));
+              if (data.status === 'success') { host.showToast(data.message || 'Oficio cerrado.', 'success'); host.cargarDesdeApi(); }
+              else { host.showToast(data.message || 'Error.', 'error'); }
+          }
+      });
+}
+
+async function activarAliadoPendiente(host, id, rowEl) {
+      const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+      try {
+          const r = await fetch(`/api/admin/users/${id}/activate`, {
+              method: 'PATCH',
+              credentials: 'same-origin',
+              headers: authHeaders
+          });
+          const data = await r.json();
+          if (r.status === 401) { host._adminSessionExpired(); return; }
+          if (data.status === 'success') {
+              host.showToast('Aliado activado. Puede ingresar con su código.', 'success');
+              // Actualización en tiempo real: quitar fila sin recargar
+              if (rowEl && rowEl.parentNode) rowEl.remove();
+              const tbody = document.getElementById('tbody-pendientes-validacion');
+              const emptyEl = document.getElementById('pendientes-empty');
+              if (emptyEl && tbody && !tbody.querySelector('tr')) emptyEl.style.display = 'block';
+          } else {
+              host.showToast(data.message || 'Error al activar', 'error');
+          }
+      } catch (e) {
+          host.showToast('Error de conexión', 'error');
+      }
+}
+
+async function rechazarAliadoPendiente(host, codigo, rowEl) {
+      if (!confirm('¿Rechazar a este aliado? No podrá acceder al panel hasta que un administrador lo reactive.')) return;
+      const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+      try {
+          const r = await fetch('/api/admin/rechazar-aliado', {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: authHeaders,
+              body: JSON.stringify({ codigo })
+          });
+          const data = await r.json();
+          if (r.status === 401) { host._adminSessionExpired(); return; }
+          if (data.status === 'success') {
+              host.showToast('Aliado rechazado. No podrá entrar al panel.', 'success');
+              if (rowEl && rowEl.parentNode) rowEl.remove();
+              const tbody = document.getElementById('tbody-pendientes-validacion');
+              const emptyEl = document.getElementById('pendientes-empty');
+              if (emptyEl && tbody && !tbody.querySelector('tr')) emptyEl.style.display = 'block';
+          } else {
+              host.showToast(data.message || 'Error al rechazar', 'error');
+          }
+      } catch (e) {
+          host.showToast('Error de conexión', 'error');
+      }
+}
+
+function confirmarPausa(host, aliado) {
+      if (!aliado || !aliado.codigo) return;
+      const ok = window.confirm(`¿Pausar temporalmente al aliado ${aliado.nombre} (${aliado.codigo})?`);
+      if (!ok) return;
+
+      const razon = window.prompt('Motivo de la pausa (opcional):', '') || '';
+      const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+      const headers = Object.assign({}, authHeaders, { 'Content-Type': 'application/json' });
+
+      fetch('/api/aliado/pausar', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers,
+          body: JSON.stringify({ codigo: aliado.codigo, razon })
+      })
+          .then(r => r.json().catch(() => null))
+          .then(data => {
+              if (!data || data.status !== 'success') {
+                  alert(data && data.message ? data.message : 'No se pudo pausar al aliado.');
+                  return;
+              }
+              host.cargarDesdeApi();
+          })
+          .catch(() => {
+              alert('Error de red al pausar aliado.');
+          });
+}
+
+function accionIncorporarSuplente(host, codigo) {
+      host._abrirModalAccionAdmin({
+          title: 'Incorporar Suplente en Espera',
+          bodyHtml: `
+              <p style="color:#ccc; margin-bottom:12px;">Aliado: <strong>${host.escapeHtml(codigo)}</strong></p>
+              <label class="modal-importe-label" style="display:block; margin-bottom:6px;">ID de grupo (opcional — dejar vacío para asignar automáticamente)</label>
+              <input type="number" id="accion-inc-grupo" placeholder="Dejar vacío = automático" style="width:100%; padding:8px; box-sizing:border-box;" />
+          `,
+          getPayload: () => ({
+              grupo_id: (document.getElementById('accion-inc-grupo')?.value || '').trim() || null
+          }),
+          validate: () => null,
+          getConfirmSummary: (p) => `¿Incorporar <strong>${host.escapeHtml(codigo)}</strong>${p.grupo_id ? ' al grupo ' + p.grupo_id : ' automáticamente'}?`,
+          execute: async (p) => {
+              const body = p.grupo_id ? { grupo_id: parseInt(p.grupo_id, 10) } : {};
+              const r = await fetch(`/api/admin/suplentes-espera/${encodeURIComponent(codigo)}/incorporar`, { method: 'POST', credentials: 'same-origin', headers: host.getAuthHeaders(), body: JSON.stringify(body) });
+              if (r.status === 401) { host._adminSessionExpired(); return; }
+              if (r.status === 403) { host.showToast('Sin permiso de escritura (solo lectura).', 'error'); return; }
+              const data = await r.json().catch(() => ({}));
+              if (data.status === 'success') { host.showToast(data.message || 'Suplente incorporado.', 'success'); host.cargarDesdeApi(); }
+              else { host.showToast(data.message || 'Error al incorporar.', 'error'); }
+          }
+      });
+}
+
+modules.red = {
     esAliadoPlaceholder: esAliadoPlaceholder,
     getClaveGrupoRed: getClaveGrupoRed,
     getNombreGrupoRed: getNombreGrupoRed,
@@ -720,5 +875,12 @@
     abrirLinajeDrawer: abrirLinajeDrawer,
     abrirModalDetalle: abrirModalDetalle,
     confirmarEliminarPerfil: confirmarEliminarPerfil,
-  };
+  
+    accionPausarAliado: accionPausarAliado,
+    accionCerrarOficio: accionCerrarOficio,
+    activarAliadoPendiente: activarAliadoPendiente,
+    rechazarAliadoPendiente: rechazarAliadoPendiente,
+    confirmarPausa: confirmarPausa,
+    accionIncorporarSuplente: accionIncorporarSuplente,
+};
 })(typeof window !== 'undefined' ? window : globalThis);
