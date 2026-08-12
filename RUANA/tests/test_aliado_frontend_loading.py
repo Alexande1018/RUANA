@@ -92,3 +92,34 @@ def test_aliado_referidos_module_is_wired():
     # Markup del modal permanece en aliado.html (sin reescritura masiva)
     assert 'id="modal-linaje-hijos"' in aliado
     assert 'id="metrica-card-referidos"' in aliado
+
+
+def test_aliado_perfil_module_is_wired():
+    """Módulo PrivatePanel `perfil` (foto/avatar/detalles); PrivatePanel solo fachada."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    perfil_js = (root / "static" / "js" / "aliado-perfil-module.js").read_text(encoding="utf-8")
+    modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
+
+    assert 'src="/static/js/aliado-modules.js"' in aliado
+    assert 'src="/static/js/aliado-perfil-module.js"' in aliado
+    assert "RuanaAliadoModules" in modules_js
+    assert "perfil: null" in modules_js
+    assert "RuanaAliadoModules.perfil" in perfil_js or "modules.perfil" in perfil_js
+    assert "aplicarAvatarPerfil" in perfil_js
+    assert "subirFotoPerfil" in perfil_js
+    assert "quitarFotoPerfil" in perfil_js
+    assert "renderPerfil" in perfil_js
+    assert "guardarDescripcion" in perfil_js
+    assert "/foto-perfil" in perfil_js
+    # Fachadas delgadas en PrivatePanel
+    assert "_perfilModule" in aliado
+    assert "mod.renderPerfil(this)" in aliado
+    assert "mod.subirFotoPerfil(this, file)" in aliado
+    assert "mod.quitarFotoPerfil(this)" in aliado
+    assert "mod.guardarDescripcion(this)" in aliado
+    # Markup del perfil permanece en aliado.html (sin reescritura masiva)
+    assert 'id="module-perfil"' in aliado
+    assert 'id="perfil-avatar"' in aliado
+    assert 'id="input-foto-perfil"' in aliado
+    assert 'id="detail-descripcion"' in aliado

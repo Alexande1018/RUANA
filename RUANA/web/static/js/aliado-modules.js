@@ -4,6 +4,7 @@
  * Las implementaciones se migrarán aquí (o en aliado-*-module.js) manteniendo
  * PrivatePanel como fachada.
  * `inicio` → aliado-inicio-module.js
+ * `perfil` → aliado-perfil-module.js (foto/avatar/detalles/edición básica)
  * `referidos` → aliado-referidos-module.js (modal linaje; árbol en referidos-module.js)
  */
 (function (global) {

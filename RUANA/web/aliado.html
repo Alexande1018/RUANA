@@ -2178,6 +2178,7 @@
     <script src="/static/js/ruana-api-client.js" defer></script>
     <script src="/static/js/aliado-modules.js" defer></script>
     <script src="/static/js/aliado-inicio-module.js" defer></script>
+    <script src="/static/js/aliado-perfil-module.js" defer></script>
     <script src="/static/js/aliado-referidos-module.js" defer></script>
     <script src="/static/js/aliado-shell.js" defer></script>
     <link rel="stylesheet" href="/static/css/negociacion-guiada.css">
@@ -3991,239 +3992,73 @@
                 }
             }
 
+            /** Fachada Campamento Base → RuanaAliadoModules.perfil */
+            _perfilModule() {
+                return (typeof RuanaAliadoModules !== 'undefined' && RuanaAliadoModules.perfil) || null;
+            }
+
             getIniciales(nombre) {
+                const mod = this._perfilModule();
+                if (mod && typeof mod.getIniciales === 'function') {
+                    return mod.getIniciales(nombre);
+                }
                 const texto = (nombre || '').trim();
                 return texto.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]).join('').toUpperCase().slice(0, 2) || '?';
             }
 
             renderAvatarHtml(fotoUrl, nombre, className, etiquetaStatus) {
-                const iniciales = this.getIniciales(nombre);
-                const foto = (fotoUrl || '').trim();
-                const etiqueta = this._mapEtiquetaAvatarStatus(etiquetaStatus || 'estable');
-                const etiquetaAttr = ` data-etiqueta="${this.escapeHtml(etiqueta)}"`;
-                if (foto) {
-                    return `<div class="${className} avatar-has-photo"${etiquetaAttr}><img src="${this.escapeHtml(foto)}" alt="" class="ruana-avatar-photo"></div>`;
+                const mod = this._perfilModule();
+                if (mod && typeof mod.renderAvatarHtml === 'function') {
+                    return mod.renderAvatarHtml(this, fotoUrl, nombre, className, etiquetaStatus);
                 }
-                return `<div class="${className}"${etiquetaAttr} aria-hidden="true"><span class="ruana-avatar-iniciales">${this.escapeHtml(iniciales)}</span></div>`;
+                return '';
             }
 
             _mapEtiquetaAvatarStatus(status) {
-                const key = (status || '').toString().trim().toLowerCase();
-                const map = {
-                    elite: 'elite',
-                    destacado: 'destacado',
-                    estable: 'estable',
-                    en_riesgo: 'en_riesgo',
-                    competencia: 'competencia',
-                    activo: 'estable',
-                    observacion: 'en_riesgo',
-                    riesgo: 'competencia',
-                    inactivo: 'inactivo'
-                };
-                return map[key] || 'estable';
+                const mod = this._perfilModule();
+                if (mod && typeof mod.mapEtiquetaAvatarStatus === 'function') {
+                    return mod.mapEtiquetaAvatarStatus(status);
+                }
+                return 'estable';
             }
 
             _syncPerfilAvatarEtiqueta(status) {
-                const avatarEl = document.getElementById('perfil-avatar');
-                if (!avatarEl) return;
-                avatarEl.dataset.etiqueta = this._mapEtiquetaAvatarStatus(status);
+                const mod = this._perfilModule();
+                if (mod && typeof mod.syncPerfilAvatarEtiqueta === 'function') {
+                    return mod.syncPerfilAvatarEtiqueta(status);
+                }
             }
 
             aplicarAvatarPerfil(aliadoData) {
-                const nombre = (aliadoData && aliadoData.nombre) || 'Nombre no disponible';
-                const fotoUrl = (aliadoData && (aliadoData.foto_perfil_url || aliadoData.foto_perfil)) || '';
-                const avatarEl = document.getElementById('perfil-avatar');
-                const imgEl = document.getElementById('perfil-avatar-img');
-                const inicialesEl = document.getElementById('perfil-avatar-iniciales');
-                const btnQuitar = document.getElementById('btn-quitar-foto-perfil');
-                const iniciales = this.getIniciales(nombre);
-                if (inicialesEl) inicialesEl.textContent = iniciales;
-                if (avatarEl) avatarEl.classList.toggle('avatar-has-photo', Boolean(fotoUrl));
-                if (imgEl) {
-                    if (fotoUrl) {
-                        imgEl.src = fotoUrl;
-                        imgEl.hidden = false;
-                        if (inicialesEl) inicialesEl.hidden = true;
-                        if (btnQuitar) btnQuitar.hidden = false;
-                    } else {
-                        imgEl.removeAttribute('src');
-                        imgEl.hidden = true;
-                        if (inicialesEl) inicialesEl.hidden = false;
-                        if (btnQuitar) btnQuitar.hidden = true;
-                    }
+                const mod = this._perfilModule();
+                if (mod && typeof mod.aplicarAvatarPerfil === 'function') {
+                    return mod.aplicarAvatarPerfil(this, aliadoData);
                 }
             }
 
             async subirFotoPerfil(file) {
-                const codigo = this.codigoAliado;
-                if (!codigo || !file) return;
-                const sid = sessionStorage.getItem('ruana_session_id');
-                if (!sid) {
-                    alert('Tu sesión expiró. Vuelve a iniciar sesión con tu código.');
-                    window.location.replace('/');
-                    return;
-                }
-                const maxBytes = 15 * 1024 * 1024;
-                if (file.size > maxBytes) {
-                    const mb = (file.size / (1024 * 1024)).toFixed(1);
-                    alert(`La foto pesa ${mb} MB. El máximo permitido es 15 MB. Prueba con otra imagen o reduce su tamaño.`);
-                    const inputEl = document.getElementById('input-foto-perfil');
-                    if (inputEl) inputEl.value = '';
-                    return;
-                }
-                const formData = new FormData();
-                formData.append('archivo', file);
-                const inputEl = document.getElementById('input-foto-perfil');
-                if (inputEl) inputEl.disabled = true;
-                const apiBase = getApiBase();
-                try {
-                    const resp = await fetch(`${apiBase}/api/aliados/${encodeURIComponent(codigo)}/foto-perfil`, {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: getRuanaAuthHeaders(),
-                        body: formData,
-                    });
-                    if (resp.status === 401) {
-                        alert('Tu sesión expiró. Vuelve a iniciar sesión con tu código.');
-                        window.location.replace('/');
-                        return;
-                    }
-                    const data = await resp.json();
-                    if (data.status === 'success') {
-                        if (!this.aliado) this.aliado = {};
-                        this.aliado.foto_perfil_url = data.foto_perfil_url || null;
-                        this.aplicarAvatarPerfil(this.aliado);
-                        await this.refreshAfterAction(['perfil', 'directorio']);
-                        if (typeof RuanaUI !== 'undefined') {
-                            RuanaUI.toast('Foto de perfil actualizada', 'success');
-                        }
-                    } else {
-                        alert(data.message || 'No se pudo subir la foto.');
-                    }
-                } catch (e) {
-                    alert('Error de conexión al subir la foto.');
-                } finally {
-                    if (inputEl) {
-                        inputEl.value = '';
-                        inputEl.disabled = false;
-                    }
+                const mod = this._perfilModule();
+                if (mod && typeof mod.subirFotoPerfil === 'function') {
+                    return mod.subirFotoPerfil(this, file);
                 }
             }
 
             async quitarFotoPerfil() {
-                const codigo = this.codigoAliado;
-                if (!codigo) return;
-                const ok = typeof RuanaUI !== 'undefined'
-                    ? await RuanaUI.confirm('¿Quitar tu foto de perfil y volver a mostrar las iniciales?', { title: 'Quitar foto' })
-                    : confirm('¿Quitar tu foto de perfil y volver a mostrar las iniciales?');
-                if (!ok) return;
-                try {
-                    const apiBase = getApiBase();
-                    const resp = await fetch(`${apiBase}/api/aliados/${encodeURIComponent(codigo)}/foto-perfil`, {
-                        method: 'DELETE',
-                        credentials: 'same-origin',
-                        headers: getRuanaAuthHeaders(),
-                    });
-                    if (resp.status === 401) {
-                        alert('Tu sesión expiró. Vuelve a iniciar sesión con tu código.');
-                        window.location.replace('/');
-                        return;
-                    }
-                    const data = await resp.json();
-                    if (data.status === 'success') {
-                        if (!this.aliado) this.aliado = {};
-                        this.aliado.foto_perfil_url = null;
-                        this.aplicarAvatarPerfil(this.aliado);
-                        await this.refreshAfterAction(['perfil', 'directorio']);
-                    } else {
-                        alert(data.message || 'No se pudo quitar la foto.');
-                    }
-                } catch (e) {
-                    alert('Error de conexión.');
+                const mod = this._perfilModule();
+                if (mod && typeof mod.quitarFotoPerfil === 'function') {
+                    return mod.quitarFotoPerfil(this);
                 }
             }
 
             /**
-             * Renderizar perfil del aliado
+             * Renderizar perfil del aliado (fachada → RuanaAliadoModules.perfil)
              * - Protege contra this.aliado === null
              */
             renderPerfil() {
-                const aliadoData = this.aliado || {};
-                
-                // Actualizar el DOM con los datos obtenidos (con valores por defecto)
-                const nombre = aliadoData.nombre || 'Nombre no disponible';
-                document.getElementById('perfil-nombre').textContent = nombre;
-                document.getElementById('perfil-marca').textContent = aliadoData.marca || 'Marca no disponible';
-                this.aplicarAvatarPerfil(aliadoData);
-                document.getElementById('detail-codigo').textContent = aliadoData.codigo || this.codigoAliado || '---';
-                document.getElementById('detail-oficio').textContent = aliadoData.oficio || '---';
-                const esp = aliadoData.especializaciones;
-                const espWrap = document.getElementById('detail-especializaciones-wrap');
-                const espEl = document.getElementById('detail-especializaciones');
-                if (espWrap && espEl) {
-                    if (Array.isArray(esp) && esp.length > 0) {
-                        espEl.textContent = esp.join(', ');
-                        espWrap.style.display = '';
-                    } else {
-                        espWrap.style.display = 'none';
-                    }
+                const mod = this._perfilModule();
+                if (mod && typeof mod.renderPerfil === 'function') {
+                    return mod.renderPerfil(this);
                 }
-                document.getElementById('detail-codigo-postal').textContent = aliadoData.codigo_postal || '---';
-
-                // Descripción del servicio: lo que el aliado escribió al registrarse (o completa después)
-                const descripcionServicio = aliadoData.descripcion_servicio || aliadoData.descripcion || '(sin descripción)';
-                const descEl = document.getElementById('detail-descripcion');
-                const btnEditarDesc = document.getElementById('btn-editar-descripcion');
-                if (descEl) {
-                    descEl.textContent = descripcionServicio;
-                }
-                if (btnEditarDesc) {
-                    btnEditarDesc.textContent = (descripcionServicio === '(sin descripción)' || !(aliadoData.descripcion_servicio || aliadoData.descripcion)) ? 'Completar' : 'Editar';
-                }
-
-                // Desde: fecha y hora de registro en RUANA (creado_en)
-                let desdeTexto = '---';
-                if (aliadoData.creado_en) {
-                    const d = new Date(aliadoData.creado_en);
-                    if (!isNaN(d.getTime())) {
-                        desdeTexto = d.toLocaleString('es-ES');
-                    }
-                } else if (aliadoData.fecha_registro) {
-                    const d = new Date(aliadoData.fecha_registro);
-                    if (!isNaN(d.getTime())) {
-                        desdeTexto = d.toLocaleString('es-ES');
-                    }
-                }
-                document.getElementById('detail-fecha').textContent = desdeTexto;
-
-                // Score RUANA: estado derivado del score (ÉLITE / DESTACADO / ESTABLE / EN RIESGO / COMPETENCIA)
-                const statusEl = document.getElementById('perfil-status');
-                const estadoRuana = (aliadoData.estado_ruana || '').trim().toUpperCase();
-                const estadoMap = {
-                    'ÉLITE': { status: 'elite', label: 'Élite' },
-                    'ELITE': { status: 'elite', label: 'Élite' },
-                    'DESTACADO': { status: 'destacado', label: 'Destacado' },
-                    'PRIORITARIO': { status: 'destacado', label: 'Destacado' },
-                    'ESTABLE': { status: 'estable', label: 'Estable' },
-                    'EN RIESGO': { status: 'en_riesgo', label: 'En riesgo' },
-                    'COMPETENCIA': { status: 'competencia', label: 'Competencia' },
-                    'EN COMPETENCIA': { status: 'competencia', label: 'En competencia' }
-                };
-                if (estadoMap[estadoRuana]) {
-                    statusEl.dataset.status = estadoMap[estadoRuana].status;
-                    statusEl.querySelector('.status-text').textContent = estadoMap[estadoRuana].label;
-                    this._syncPerfilAvatarEtiqueta(estadoMap[estadoRuana].status);
-                } else {
-                    const estado = aliadoData.estado || aliadoData.status || 'observacion';
-                    const estadoNormalizado = this.normalizarEstado(estado);
-                    statusEl.dataset.status = estadoNormalizado;
-                    const statusTexts = { 'activo': 'Activo', 'inactivo': 'Inactivo', 'observacion': 'En observación', 'riesgo': 'En riesgo' };
-                    statusEl.querySelector('.status-text').textContent = statusTexts[estadoNormalizado] || 'Estado desconocido';
-                    this._syncPerfilAvatarEtiqueta(estadoNormalizado);
-                }
-                this.renderCatalogoServicios();
-                this.renderMisAcuerdos();
-                this.renderCompetencia();
             }
 
             async cargarMisAcuerdos() {
@@ -5745,65 +5580,23 @@
             }
 
             iniciarEditarDescripcion() {
-                const descEl = document.getElementById('detail-descripcion');
-                const formEl = document.getElementById('form-editar-descripcion');
-                const inputEl = document.getElementById('input-descripcion-servicio');
-                const rowEl = document.querySelector('.detail-descripcion-row');
-                if (!formEl || !inputEl || !rowEl) return;
-                const actual = (this.aliado && (this.aliado.descripcion_servicio || this.aliado.descripcion)) || '';
-                inputEl.value = actual;
-                rowEl.style.display = 'none';
-                formEl.style.display = 'block';
-                inputEl.focus();
+                const mod = this._perfilModule();
+                if (mod && typeof mod.iniciarEditarDescripcion === 'function') {
+                    return mod.iniciarEditarDescripcion(this);
+                }
             }
 
             cancelarEditarDescripcion() {
-                const formEl = document.getElementById('form-editar-descripcion');
-                const rowEl = document.querySelector('.detail-descripcion-row');
-                if (formEl) formEl.style.display = 'none';
-                if (rowEl) rowEl.style.display = 'flex';
+                const mod = this._perfilModule();
+                if (mod && typeof mod.cancelarEditarDescripcion === 'function') {
+                    return mod.cancelarEditarDescripcion();
+                }
             }
 
             async guardarDescripcion() {
-                const codigo = this.codigoAliado;
-                if (!codigo) {
-                    alert('No se puede guardar: código de aliado no disponible.');
-                    return;
-                }
-                const inputEl = document.getElementById('input-descripcion-servicio');
-                const btnGuardar = document.getElementById('btn-guardar-descripcion');
-                if (!inputEl || !btnGuardar) return;
-                const valor = (inputEl.value || '').trim();
-                if (!valor) {
-                    const ok = typeof RuanaUI !== 'undefined'
-                        ? await RuanaUI.confirm('¿Guardar sin descripción? Tu perfil mostrará "(sin descripción)" para el resto de aliados.', { title: 'Guardar perfil' })
-                        : confirm('¿Guardar sin descripción? Tu perfil mostrará "(sin descripción)" para el resto de aliados.');
-                    if (!ok) {
-                        return;
-                    }
-                }
-                btnGuardar.disabled = true;
-                try {
-                    const resp = await fetch(`/api/aliados/${encodeURIComponent(codigo)}`, {
-                        method: 'PUT',
-                        headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
-                        credentials: 'same-origin',
-                        body: JSON.stringify({ descripcion_servicio: valor || null })
-                    });
-                    const data = await resp.json();
-                    if (data.status === 'success') {
-                        if (!this.aliado) this.aliado = {};
-                        this.aliado.descripcion_servicio = valor || null;
-                        this.cancelarEditarDescripcion();
-                        this.renderPerfil();
-                        await this.refreshAfterAction(['perfil', 'directorio']);
-                    } else {
-                        alert(data.message || 'No se pudo guardar.');
-                    }
-                } catch (e) {
-                    alert('Error de conexión al guardar.');
-                } finally {
-                    btnGuardar.disabled = false;
+                const mod = this._perfilModule();
+                if (mod && typeof mod.guardarDescripcion === 'function') {
+                    return mod.guardarDescripcion(this);
                 }
             }
 
