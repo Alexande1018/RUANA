@@ -6,6 +6,8 @@
  * `inicio` → aliado-inicio-module.js
  * `perfil` → aliado-perfil-module.js (foto/avatar/detalles/edición básica)
  * `referidos` → aliado-referidos-module.js (modal linaje; árbol en referidos-module.js)
+ * `directorio` → aliado-directorio-module.js (lista profesionales / score etiqueta)
+ * `solicitudes` → aliado-solicitudes-module.js (entrantes / propias / historial)
  */
 (function (global) {
   'use strict';

@@ -123,3 +123,58 @@ def test_aliado_perfil_module_is_wired():
     assert 'id="perfil-avatar"' in aliado
     assert 'id="input-foto-perfil"' in aliado
     assert 'id="detail-descripcion"' in aliado
+
+
+def test_aliado_directorio_module_is_wired():
+    """Módulo PrivatePanel `directorio` (lista profesionales); PrivatePanel solo fachada."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    directorio_js = (root / "static" / "js" / "aliado-directorio-module.js").read_text(encoding="utf-8")
+    modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
+
+    assert 'src="/static/js/aliado-modules.js"' in aliado
+    assert 'src="/static/js/aliado-directorio-module.js"' in aliado
+    assert "RuanaAliadoModules" in modules_js
+    assert "directorio: null" in modules_js
+    assert "RuanaAliadoModules.directorio" in directorio_js or "modules.directorio" in directorio_js
+    assert "renderProfesionales" in directorio_js
+    assert "codigosConConversacionActiva" in directorio_js
+    assert "scoreEtiquetaMeta" in directorio_js
+    assert "directorio-search" in directorio_js
+    assert "profesionales-list" in directorio_js
+    # Fachadas delgadas en PrivatePanel
+    assert "_directorioModule" in aliado
+    assert "mod.renderProfesionales(this)" in aliado
+    assert "mod.codigosConConversacionActiva(this)" in aliado
+    assert "mod.scoreEtiquetaMeta(score, estadoRuana)" in aliado
+    # Markup del directorio permanece en aliado.html (sin reescritura masiva)
+    assert 'id="module-directorio"' in aliado
+    assert 'id="directorio-search"' in aliado
+    assert 'id="profesionales-list"' in aliado
+
+
+def test_aliado_solicitudes_module_is_wired():
+    """Módulo PrivatePanel `solicitudes` (entrantes/propias/historial); PrivatePanel solo fachada."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    solicitudes_js = (root / "static" / "js" / "aliado-solicitudes-module.js").read_text(encoding="utf-8")
+    modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
+
+    assert 'src="/static/js/aliado-modules.js"' in aliado
+    assert 'src="/static/js/aliado-solicitudes-module.js"' in aliado
+    assert "RuanaAliadoModules" in modules_js
+    assert "solicitudes: null" in modules_js
+    assert "RuanaAliadoModules.solicitudes" in solicitudes_js or "modules.solicitudes" in solicitudes_js
+    assert "renderSolicitudes" in solicitudes_js
+    assert "appendSolicitudCard" in solicitudes_js
+    assert "solicitudes-list" in solicitudes_js
+    assert "btn-conocer" in solicitudes_js
+    # Fachadas delgadas en PrivatePanel
+    assert "_solicitudesModule" in aliado
+    assert "mod.renderSolicitudes(this)" in aliado
+    assert "mod.appendSolicitudCard(this, container, solicitud, conBotonConocer)" in aliado
+    # Markup de solicitudes permanece en aliado.html (sin reescritura masiva)
+    assert 'id="module-solicitudes"' in aliado
+    assert 'id="solicitudes-list"' in aliado
+    assert 'id="solicitudes-propias-list"' in aliado
+    assert 'id="solicitudes-historial-list"' in aliado

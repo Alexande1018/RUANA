@@ -2180,6 +2180,8 @@
     <script src="/static/js/aliado-inicio-module.js" defer></script>
     <script src="/static/js/aliado-perfil-module.js" defer></script>
     <script src="/static/js/aliado-referidos-module.js" defer></script>
+    <script src="/static/js/aliado-directorio-module.js" defer></script>
+    <script src="/static/js/aliado-solicitudes-module.js" defer></script>
     <script src="/static/js/aliado-shell.js" defer></script>
     <link rel="stylesheet" href="/static/css/negociacion-guiada.css">
     <script src="/static/js/negociacion-guiada.js" defer></script>
@@ -4787,107 +4789,27 @@
                 }
             }
 
+            /** Fachada Campamento Base → RuanaAliadoModules.solicitudes */
+            _solicitudesModule() {
+                return (typeof RuanaAliadoModules !== 'undefined' && RuanaAliadoModules.solicitudes) || null;
+            }
+
             /**
              * Renderizar solicitudes del grupo: entrantes, propias e historial
+             * (fachada → RuanaAliadoModules.solicitudes)
              */
             renderSolicitudes() {
-                const entrantes = Array.isArray(this.solicitudesEntrantes) ? this.solicitudesEntrantes : [];
-                const propias = Array.isArray(this.solicitudesPropias) ? this.solicitudesPropias : [];
-                const historial = Array.isArray(this.solicitudesHistorial) ? this.solicitudesHistorial : [];
-
-                // ——— Entrantes al grupo (con botón Conozco a alguien)
-                if (this.solicitudesList) {
-                    this.solicitudesList.innerHTML = '';
-                    if (entrantes.length === 0) {
-                        this.solicitudesList.innerHTML = '<p class="solicitudes-empty">No hay solicitudes entrantes en este momento</p>';
-                    } else {
-                        entrantes.forEach(solicitud => this.appendSolicitudCard(this.solicitudesList, solicitud, true));
-                    }
-                    document.querySelectorAll('#solicitudes-list .btn-conocer').forEach(btn => {
-                        btn.addEventListener('click', (e) => {
-                            const el = e.currentTarget || e.target.closest('.btn-conocer');
-                            this.generateInviteCode(el && el.dataset ? el.dataset.id : null);
-                        });
-                    });
+                const mod = this._solicitudesModule();
+                if (mod && typeof mod.renderSolicitudes === 'function') {
+                    return mod.renderSolicitudes(this);
                 }
-
-                // ——— Mis solicitudes
-                if (this.solicitudesPropiasList) {
-                    this.solicitudesPropiasList.innerHTML = '';
-                    if (propias.length === 0) {
-                        this.solicitudesPropiasList.innerHTML = '<p class="solicitudes-empty">Aún no has enviado ninguna solicitud. Usa el formulario de abajo.</p>';
-                    } else {
-                        propias.forEach(solicitud => this.appendSolicitudCard(this.solicitudesPropiasList, solicitud, false));
-                    }
-                }
-
-                // ——— Historial
-                if (this.solicitudesHistorialList) {
-                    this.solicitudesHistorialList.innerHTML = '';
-                    if (historial.length === 0) {
-                        this.solicitudesHistorialList.innerHTML = '<p class="solicitudes-empty">No hay historial de solicitudes en el grupo</p>';
-                    } else {
-                        historial.forEach(solicitud => this.appendSolicitudCard(this.solicitudesHistorialList, solicitud, false));
-                    }
-                }
-                if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons(document.querySelector('.solicitudes-zone'));
             }
 
             appendSolicitudCard(container, solicitud, conBotonConocer) {
-                if (!container) return;
-                const card = document.createElement('div');
-                const texto = solicitud.descripcion || solicitud.texto || '(sin descripción)';
-                const por = solicitud.solicitante_nombre || solicitud.por || '(sin autor)';
-                const zona = solicitud.oficio || solicitud.zona || '(sin oficio)';
-                const estado = (solicitud.estado || 'pendiente').toLowerCase();
-                card.className = 'solicitud-card estado-' + estado;
-                let estadoLabel = 'Pendiente';
-                let badgeClass = 'ruana-badge pendiente';
-                if (estado === 'atendida') {
-                    estadoLabel = 'Atendida';
-                    badgeClass = 'ruana-badge atendida';
-                } else if (estado === 'candidato_pendiente') {
-                    estadoLabel = 'Candidato pendiente';
-                    badgeClass = 'ruana-badge warning';
+                const mod = this._solicitudesModule();
+                if (mod && typeof mod.appendSolicitudCard === 'function') {
+                    return mod.appendSolicitudCard(this, container, solicitud, conBotonConocer);
                 }
-                const fechaRaw = solicitud.creado_en || solicitud.fecha || solicitud.created_at || '';
-                const fechaFmt = fechaRaw ? new Date(fechaRaw).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' }) : '';
-                const atendidoPor = solicitud.atendido_por_nombre || solicitud.atendido_por_codigo || '';
-                const atendidoAt = solicitud.atendido_at ? new Date(solicitud.atendido_at).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '';
-                const candidatoPor = solicitud.candidato_por_nombre || solicitud.candidato_por_codigo || '';
-                const asignadaA = solicitud.asignada_a_nombre || solicitud.asignada_a_codigo || '';
-                const metaExtraParts = [];
-                if (estado === 'atendida' && (atendidoPor || atendidoAt)) {
-                    metaExtraParts.push(`<div class="meta-item"><span class="meta-label">Atendida por</span><span class="meta-value"><span class="solicitud-timeline-dot"></span>${this.escapeHtml(atendidoPor || '—')}${atendidoAt ? ' · ' + atendidoAt : ''}</span></div>`);
-                }
-                if (estado === 'candidato_pendiente' && candidatoPor) {
-                    metaExtraParts.push(`<div class="meta-item"><span class="meta-label">Candidato propuesto por</span><span class="meta-value">${this.escapeHtml(candidatoPor)}</span></div>`);
-                }
-                if (asignadaA) {
-                    metaExtraParts.push(`<div class="meta-item"><span class="meta-label">Asignada a</span><span class="meta-value">${this.escapeHtml(asignadaA)}</span></div>`);
-                }
-                const metaExtra = metaExtraParts.join('');
-                const mostrarConocer = conBotonConocer && estado === 'pendiente' && !asignadaA;
-                card.innerHTML = `
-                    <div class="solicitud-card-header">
-                        <div class="solicitud-texto">${this.escapeHtml(texto)}</div>
-                        <span class="solicitud-estado-badge ${badgeClass}"><span class="ruana-badge-dot"></span>${estadoLabel}</span>
-                    </div>
-                    <div class="solicitud-meta">
-                        <div class="meta-item">
-                            <span class="meta-label">Por</span>
-                            <span class="meta-value">${this.escapeHtml(por)}</span>
-                        </div>
-                        <div class="meta-item">
-                            <span class="meta-label">Oficio</span>
-                            <span class="meta-value">${this.escapeHtml(zona)}</span>
-                        </div>
-                        ${fechaFmt ? `<div class="meta-item"><span class="meta-label">Fecha</span><span class="meta-value">${fechaFmt}</span></div>` : ''}
-                        ${metaExtra}
-                    </div>
-                    ${mostrarConocer ? `<div class="solicitud-actions"><button class="btn-conocer" data-id="${solicitud.id || 0}"><i data-lucide="user-plus" style="width:16px;height:16px;vertical-align:-2px;margin-right:6px"></i>Conozco a alguien</button></div>` : ''}
-                `;
-                container.appendChild(card);
             }
 
             /**
@@ -5600,160 +5522,41 @@
                 }
             }
 
+            /** Fachada Campamento Base → RuanaAliadoModules.directorio */
+            _directorioModule() {
+                return (typeof RuanaAliadoModules !== 'undefined' && RuanaAliadoModules.directorio) || null;
+            }
+
             /**
-             * Códigos del directorio con los que ya hay una conversación activa (contacto abierto).
-             * Mapa codigo -> { contacto } para abrir el chat existente.
+             * Códigos del directorio con conversación activa (fachada → módulo).
              */
             _codigosConConversacionActiva() {
-                const codigo = (this.codigoAliado || (this.aliado && this.aliado.codigo) || '').toString().trim();
-                const contactos = Array.isArray(this.contactosAbiertos) ? this.contactosAbiertos : [];
-                const map = new Map();
-                contactos.forEach(c => {
-                    const sol = (c.solicitante_codigo || '').toString().trim();
-                    const pro = (c.profesional_codigo || '').toString().trim();
-                    const otro = codigo === sol ? pro : codigo === pro ? sol : null;
-                    if (otro && c.id != null) map.set(otro, c);
-                });
-                return map;
+                const mod = this._directorioModule();
+                if (mod && typeof mod.codigosConConversacionActiva === 'function') {
+                    return mod.codigosConConversacionActiva(this);
+                }
+                return new Map();
             }
 
             /**
-             * Meta de etiqueta/score RUANA para tarjetas del directorio.
-             * Bandas: ÉLITE ≥350, DESTACADO ≥200, ESTABLE ≥50, EN RIESGO ≥15, COMPETENCIA <15.
+             * Meta de etiqueta/score RUANA para tarjetas del directorio (fachada → módulo).
              */
             _scoreEtiquetaMeta(score, estadoRuana) {
-                let s = 0;
-                try {
-                    s = score != null && score !== '' ? parseInt(score, 10) : 0;
-                    if (isNaN(s)) s = 0;
-                } catch (e) {
-                    s = 0;
+                const mod = this._directorioModule();
+                if (mod && typeof mod.scoreEtiquetaMeta === 'function') {
+                    return mod.scoreEtiquetaMeta(score, estadoRuana);
                 }
-                const map = {
-                    'ÉLITE': { status: 'elite', label: 'Élite' },
-                    'ELITE': { status: 'elite', label: 'Élite' },
-                    'DESTACADO': { status: 'destacado', label: 'Destacado' },
-                    'PRIORITARIO': { status: 'destacado', label: 'Destacado' },
-                    'ESTABLE': { status: 'estable', label: 'Estable' },
-                    'EN RIESGO': { status: 'en_riesgo', label: 'En riesgo' },
-                    'COMPETENCIA': { status: 'competencia', label: 'Competencia' }
-                };
-                const key = (estadoRuana || '').toString().trim().toUpperCase();
-                if (map[key]) {
-                    return { score: s, status: map[key].status, label: map[key].label };
-                }
-                if (s >= 350) return { score: s, status: 'elite', label: 'Élite' };
-                if (s >= 200) return { score: s, status: 'destacado', label: 'Destacado' };
-                if (s >= 50) return { score: s, status: 'estable', label: 'Estable' };
-                if (s >= 15) return { score: s, status: 'en_riesgo', label: 'En riesgo' };
-                return { score: s, status: 'competencia', label: 'Competencia' };
+                return { score: 0, status: 'competencia', label: 'Competencia' };
             }
 
             /**
-             * Renderizar lista de profesionales del grupo (panel Directorio)
-             * - Oculta "Contactar" y muestra "Conversación activa" / "Abrir chat" si ya hay contacto abierto con ese profesional.
-             * - Filtra por buscador (nombre, oficio, zona).
+             * Renderizar lista de profesionales del grupo (fachada → RuanaAliadoModules.directorio)
              */
             renderProfesionales() {
-                const listaProfesionales = document.getElementById('profesionales-list');
-                if (!listaProfesionales) return;
-
-                listaProfesionales.innerHTML = '';
-
-                let profesionalesArray = Array.isArray(this.profesionales) ? this.profesionales : [];
-                const miCp = ((this.aliado && this.aliado.codigo_postal) || '').trim();
-                if (miCp) {
-                    profesionalesArray = profesionalesArray.filter(p => {
-                        const cp = ((p && (p.codigo_postal || p.zona)) || '').trim();
-                        return cp === miCp;
-                    });
+                const mod = this._directorioModule();
+                if (mod && typeof mod.renderProfesionales === 'function') {
+                    return mod.renderProfesionales(this);
                 }
-                const profesionalesDisponibles = profesionalesArray.some(p => p && (p.rol !== undefined && p.rol !== null))
-                    ? profesionalesArray.filter(p => p.rol === 'Titular')
-                    : profesionalesArray;
-
-                const query = ((document.getElementById('directorio-search') || {}).value || '').trim().toLowerCase();
-                const filtrados = query
-                    ? profesionalesDisponibles.filter(p => {
-                        const nombre = (p.nombre || '').toLowerCase();
-                        const oficio = (p.oficio || '').toLowerCase();
-                        const zona = (p.zona || p.codigo_postal || '').toLowerCase();
-                        return nombre.includes(query) || oficio.includes(query) || zona.includes(query);
-                    })
-                    : profesionalesDisponibles;
-
-                if (filtrados.length === 0) {
-                    listaProfesionales.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">' +
-                        (query ? 'Ningún profesional coincide con la búsqueda.' : 'No hay profesionales disponibles en este momento') + '</p>';
-                    return;
-                }
-
-                const contactoPorCodigo = this._codigosConConversacionActiva();
-
-                filtrados.forEach(prof => {
-                    const codigoProf = (prof.codigo || '').toString().trim();
-                    const tieneConversacion = codigoProf && contactoPorCodigo.has(codigoProf);
-                    const contactoExistente = tieneConversacion ? contactoPorCodigo.get(codigoProf) : null;
-
-                    const esIncompleto = prof.perfil_incompleto === true;
-                    const nombre = prof.nombre || '(sin nombre)';
-                    const oficio = prof.oficio || '(sin oficio)';
-                    const zona = prof.zona || prof.codigo_postal || '(sin zona)';
-                    const descripcionServicio = (prof.descripcion_servicio || prof.descripcion || '').trim();
-                    const badgeTexto = tieneConversacion ? 'Negociación activa' : (esIncompleto ? 'Perfil incompleto' : 'DISPONIBLE');
-                    const scoreMeta = this._scoreEtiquetaMeta(prof.score, prof.estado_ruana);
-
-                    const badgeRuana = tieneConversacion ? 'conversacion-activa' : (esIncompleto ? 'perfil-incompleto' : '');
-                    const badgeTipo = tieneConversacion ? 'ruana-badge pendiente' : (esIncompleto ? 'ruana-badge observacion' : 'ruana-badge disponible');
-                    const avatarHtml = this.renderAvatarHtml(prof.foto_perfil_url, nombre, 'profesional-avatar', scoreMeta.status);
-
-                    const card = document.createElement('div');
-                    card.className = 'profesional-card' + (esIncompleto ? ' perfil-incompleto' : '');
-                    card.innerHTML = `
-                        <div class="profesional-header">
-                            <div class="profesional-identity">
-                                ${avatarHtml}
-                                <div>
-                                    <div class="profesional-nombre">${this.escapeHtml(nombre)}</div>
-                                    <div class="profesional-oficio-sub">${this.escapeHtml(oficio)} · ${this.escapeHtml(zona)}</div>
-                                </div>
-                            </div>
-                            <div class="profesional-badge ${badgeRuana} ${badgeTipo}"><span class="ruana-badge-dot"></span>${this.escapeHtml(badgeTexto)}</div>
-                        </div>
-                        <div class="profesional-score-row">
-                            <span class="profesional-etiqueta ${scoreMeta.status}">${this.escapeHtml(scoreMeta.label)}</span>
-                            ${scoreMeta.score >= 100
-                                ? `<span class="profesional-score ${scoreMeta.status}">Score <strong>${this.escapeHtml(String(scoreMeta.score))}</strong></span>`
-                                : ''}
-                        </div>
-                        ${descripcionServicio ? `<div class="profesional-descripcion">${this.escapeHtml(descripcionServicio)}</div>` : ''}
-                        <div class="profesional-acciones">
-                            ${tieneConversacion
-                                ? `<button type="button" class="btn-abrir-chat" data-contacto-id="${contactoExistente.id}" data-id="${prof.id || 0}"><i data-lucide="message-circle" style="width:16px;height:16px;vertical-align:-2px;margin-right:4px"></i>Abrir negociación</button>`
-                                : `<button type="button" class="btn-contactar" data-id="${prof.id || 0}"><i data-lucide="handshake" style="width:16px;height:16px;vertical-align:-2px;margin-right:4px"></i>Contactar</button>`
-                            }
-                        </div>
-                    `;
-                    listaProfesionales.appendChild(card);
-                });
-
-                document.querySelectorAll('.btn-contactar').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        const proId = e.target.dataset.id;
-                        const profesional = profesionalesArray.find(p => p.id == proId);
-                        if (profesional && profesional.nombre) this.mostrarAvisoPrevioContacto(profesional);
-                        else alert('No se pudo iniciar el contacto');
-                    });
-                });
-                document.querySelectorAll('.btn-abrir-chat').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        const contactoId = e.target.dataset.contactoId;
-                        const proId = e.target.dataset.id;
-                        const profesional = profesionalesArray.find(p => p.id == proId);
-                        if (contactoId && profesional) this.abrirChatContacto(parseInt(contactoId, 10), profesional);
-                    });
-                });
-                if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons(document.getElementById('profesionales-list'));
             }
 
             formatApoyoRuana(raw) {
