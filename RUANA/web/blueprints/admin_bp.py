@@ -3,6 +3,8 @@
 Rutas GET y mutaciones (activar/rechazar/eliminar aliado, forzar competencia, plazas, reglas)
 movidas desde web/app.py. Comportamiento y paths idénticos.
 Auth JWT/login/logout y cambio de contraseña permanecen en app.py.
+Centro-comunicación mutaciones/listados → soporte_bp.
+Incluye /api/stats, movimiento-24h, métricas, purga y finalizar competencias.
 """
 
 from __future__ import annotations
@@ -517,34 +519,6 @@ def admin_chat_messages_legacy():
     }), 410
 
 
-@admin_bp.route('/api/admin/centro-comunicacion', methods=['GET'])
-@require_admin
-def admin_listar_centro_comunicacion():
-    try:
-        db = get_db()
-        conversaciones = db.listar_conversaciones_soporte_admin(
-            aliado_codigo=request.args.get('aliado', ''),
-            estado=request.args.get('estado', ''),
-            solo_no_leidas=(request.args.get('solo_no_leidas', '0') == '1'),
-            limite=request.args.get('limite', 100, type=int),
-            offset=request.args.get('offset', 0, type=int),
-        )
-        return jsonify({'status': 'success', 'conversaciones': conversaciones})
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-
-@admin_bp.route('/api/admin/centro-comunicacion/<int:conversacion_id>/mensajes', methods=['GET'])
-@require_admin
-def admin_mensajes_centro_comunicacion(conversacion_id):
-    try:
-        db = get_db()
-        mensajes = db.listar_mensajes_soporte_admin(conversacion_id)
-        return jsonify({'status': 'success', 'mensajes': mensajes})
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-
 def _resolve_admin_document_access_url(stored_url):
     """Respeta monkeypatch de web.app.resolve_admin_document_access_url en tests."""
     import sys
@@ -826,3 +800,228 @@ def admin_cambiar_reglas():
         return jsonify(result), status_code
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# ---------- Stats / movimiento / cron competencias-purga ----------
+
+@admin_bp.route('/api/stats', methods=['GET'])
+@require_admin
+def get_stats():
+    """
+    GET /api/stats
+    Retorna estad?sticas generales del dashboard desde SQLite
+    """
+    try:
+        db = get_db()
+        stats = db.obtener_estadisticas_evaluaciones()
+
+        aliados = db.listar_aliados()
+        total = len(aliados)
+        activos = len([a for a in aliados if a.get('estado') == 'activo'])
+
+        retadores = db.contar_retadores_activos()
+        suplentes = retadores  # alias
+        en_espera = db.contar_aliados_en_espera() if hasattr(db, 'contar_aliados_en_espera') else 0
+        en_riesgo = db.contar_aliados_en_riesgo()
+        solicitudes_activas = db.contar_solicitudes_activas()
+        oficios_ocupados = db.contar_oficios_ocupados()
+        grupos_counts = db.contar_grupos()
+        if not isinstance(grupos_counts, dict):
+            grupos_counts = {'total': 0, 'activos': 0, 'en_competencia': 0, 'disueltos': 0}
+        total_grupos = int(grupos_counts.get('total', 0) or 0)
+        grupos_activos = int(grupos_counts.get('activos', 0) or 0)
+        grupos_en_competencia = int(grupos_counts.get('en_competencia', 0) or 0)
+        grupos_disueltos = int(grupos_counts.get('disueltos', 0) or 0)
+
+        # M?tricas de contactos RUANA (contactos abiertos, disputas, etc.)
+        contactos_metricas = db.obtener_metricas_contactos()
+        if isinstance(contactos_metricas, dict) and contactos_metricas.get('status') == 'success':
+            contactos_payload = {
+                k: v for k, v in contactos_metricas.items()
+                if k != 'status'
+            }
+        else:
+            contactos_payload = {}
+
+        # Estado del sistema (Estable / Alerta / Cr?tico) basado en m?tricas reales
+        contactos_disputa = contactos_payload.get('contactos_en_disputa', 0) or 0
+        contactos_disputa_prolongada = contactos_payload.get('contactos_en_disputa_prolongada', 0) or 0
+        pct_riesgo = (en_riesgo / activos * 100) if activos else 0
+        if pct_riesgo <= 10 and contactos_disputa <= 2 and contactos_disputa_prolongada == 0:
+            estado_sistema = 'Estable'
+        elif pct_riesgo <= 25 and contactos_disputa <= 5:
+            estado_sistema = 'Alerta'
+        else:
+            estado_sistema = 'Cr?tico'
+
+        permisos = _admin_permisos()
+        if not permisos and _admin_codigo():
+            permisos = ['leer', 'escribir', 'eliminar', 'configurar']
+        return jsonify({
+            'status': 'success',
+            'permisos': permisos or [],
+            'total_aliados': total,
+            'aliados_activos': activos,
+            'retadores': retadores,
+            'suplentes': suplentes,  # alias compatibilidad
+            'en_espera': en_espera,
+            'en_riesgo': en_riesgo,
+            'solicitudes_activas': solicitudes_activas,
+            'oficios_ocupados': oficios_ocupados,
+            'total_grupos': total_grupos,
+            'grupos_activos': grupos_activos,
+            'grupos_en_competencia': grupos_en_competencia,
+            'grupos_disueltos': grupos_disueltos,
+            'estado_sistema': estado_sistema,
+            'evaluaciones': stats,
+            'contactos': contactos_payload,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@admin_bp.route('/api/movimiento-24h', methods=['GET'])
+@require_admin
+def get_movimiento_24h():
+    """
+    GET /api/movimiento-24h
+    Movimiento del sistema en las ?ltimas 24h: solicitudes, invitaciones, contactos, top invitadores.
+    Requiere sesi?n admin o JWT.
+    """
+    try:
+        db = get_db()
+        movimiento = db.obtener_movimiento_24h()
+        return jsonify({
+            'status': 'success',
+            'movimiento': movimiento,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/movimiento-24h-horas', methods=['GET'])
+@require_admin
+def get_movimiento_24h_horas():
+    """
+    GET /api/movimiento-24h-horas
+    Movimiento en las ?ltimas 24h agrupado por hora (00-23). Siempre devuelve 24 claves con valores num?ricos.
+    """
+    try:
+        db = get_db()
+        por_hora = db.obtener_movimiento_24h_por_hora()
+        return jsonify({
+            'status': 'success',
+            'por_hora': por_hora,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/metricas-salud', methods=['GET'])
+@require_admin
+def get_metricas_salud():
+    """
+    GET /api/metricas-salud
+    Cruce aliados, contactos, evaluaciones, invitaciones: ratio solicitud?invitaci?n,
+    ratio invitaci?n?registro, oficios saturados/disponibles, zona mayor demanda, tasa retenci?n.
+    Requiere sesi?n admin o JWT.
+    """
+    try:
+        db = get_db()
+        metricas = db.obtener_metricas_salud()
+        return jsonify({
+            'status': 'success',
+            'metricas': metricas,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/eventos-recientes', methods=['GET'])
+@require_admin
+def get_eventos_recientes():
+    """
+    GET /api/eventos-recientes
+    Devuelve las ?ltimas acciones relevantes registradas en el sistema (trazabilidad).
+    Requiere sesi?n admin o JWT.
+    """
+    try:
+        limite_raw = (request.args.get('limit') or '').strip()
+        try:
+            limite = int(limite_raw) if limite_raw else 10
+        except Exception:
+            limite = 10
+
+        db = get_db()
+        eventos = db.obtener_eventos_recientes(limite)
+        return jsonify({
+            'status': 'success',
+            'eventos': eventos,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/competencia/finalizar-vencidas', methods=['POST'])
+@require_admin_escritura
+def finalizar_competencia_vencidas():
+    """
+    POST /api/competencia/finalizar-vencidas
+    Finaliza competencias cuya fecha_fin_prevista ha pasado. Mayor score permanece, el otro sale.
+    Pensado para cron o ejecuci?n peri?dica.
+    """
+    try:
+        db = get_db()
+        resultados = db.finalizar_competencia_activas_vencidas()
+        return jsonify({
+            'status': 'success',
+            'finalizadas': len(resultados),
+            'resultados': resultados,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/purga/mensual', methods=['POST'])
+@require_admin_escritura
+def purga_mensual():
+    """
+    POST /api/purga/mensual
+    Ejecuta la purga mensual de calidad: finaliza competencias vencidas y aplica reglas de pool.
+    Aliados en pool (1 derrota) que no ganan competencia en N meses o mantienen score bajo
+    ? expulsi?n temporal (suspendido_temporal). No permite acumulaci?n indefinida.
+    Pensado para cron mensual.
+    """
+    try:
+        db = get_db()
+        resultado = db.purga_mensual()
+        return jsonify({
+            **resultado,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/admin/contactos/<int:contacto_id>/negociacion', methods=['DELETE'])
+@require_admin
+def admin_eliminar_negociacion(contacto_id):
+    """Elimina contacto y toda su negociación."""
+    try:
+        admin_codigo = _admin_codigo() or ''
+        db = get_db()
+        result = db.eliminar_negociacion_admin(contacto_id, admin_codigo)
+        code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+

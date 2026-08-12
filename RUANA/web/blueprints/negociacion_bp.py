@@ -210,3 +210,28 @@ def aliado_resumenes_acuerdo():
     db = get_db()
     resumenes = db.listar_resumenes_acuerdo_visibles(codigo)
     return jsonify({"status": "success", "resumenes": resumenes})
+
+# ---------- Legacy chat libre → negociación ----------
+
+@negociacion_bp.route('/api/chat_mensajes', methods=['GET'])
+@negociacion_bp.route('/api/chat/mensajes', methods=['GET'])
+@negociacion_bp.route('/api/contactos/<int:contacto_id>/mensajes', methods=['GET'])
+@require_aliado
+def chat_legacy_get_redirect(contacto_id=None):
+    cid = contacto_id or request.args.get('contacto_id', type=int)
+    if not cid:
+        return jsonify({'status': 'error', 'message': 'El chat libre fue reemplazado por negociación guiada. Usa GET /api/contactos/<id>/negociacion'}), 410
+    return negociacion_get(cid)
+
+
+@negociacion_bp.route('/api/chat_enviar', methods=['POST', 'OPTIONS'])
+@negociacion_bp.route('/api/chat/enviar', methods=['POST'])
+@negociacion_bp.route('/api/contactos/<int:contacto_id>/mensajes', methods=['POST'])
+def chat_legacy_post_disabled(contacto_id=None):
+    if request.method == 'OPTIONS':
+        return '', 200
+    return jsonify({
+        'status': 'error',
+        'message': 'El chat libre fue reemplazado por negociación guiada. Usa /api/contactos/<id>/negociacion/proponer, /aceptar o /contraoferta',
+    }), 410
+
