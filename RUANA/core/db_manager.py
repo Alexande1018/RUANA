@@ -42,6 +42,7 @@ from core.services import referido_service
 from core.services import negociacion_service
 from core.services import contacto_service
 from core.services import evaluacion_service
+from core.services import notificacion_service
 from core.repositories.score_repo import ScoreRepo
 
 
@@ -1024,30 +1025,10 @@ class DBManager:
         metadata: Optional[Dict[str, Any]] = None,
         cursor=None,
     ) -> None:
-        """Inserta una notificación persistente para un aliado."""
-        codigo = (aliado_codigo or '').strip()
-        if not codigo:
-            return
-        meta_json = json.dumps(metadata or {}, ensure_ascii=False)
-        sql = """
-            INSERT INTO notificaciones_aliado (aliado_codigo, tipo, titulo, mensaje, metadata, leida)
-            VALUES (?, ?, ?, ?, ?, 0)
-        """
-        params = (codigo, tipo, titulo, mensaje, meta_json)
-        try:
-            if cursor is not None:
-                cursor.execute(sql, params)
-                return
-            with self._lock:
-                conn = self._connect()
-                try:
-                    cur = conn.cursor()
-                    cur.execute(sql, params)
-                    conn.commit()
-                finally:
-                    conn.close()
-        except Exception:
-            return
+        """Fachada Campamento Base → notificacion_service.crear_notificacion_aliado."""
+        return notificacion_service.crear_notificacion_aliado(
+            self, aliado_codigo, tipo, titulo, mensaje, metadata=metadata, cursor=cursor
+        )
 
     def _notificar_retador_competencia_iniciada(
         self,
@@ -1955,109 +1936,24 @@ class DBManager:
 
 
     def listar_notificaciones_aliado(self, aliado_codigo: str, limite: int = 50) -> List[Dict[str, Any]]:
-        """Lista notificaciones del aliado (ej. Apoyo RUANA) para mostrar en su panel. metadata es JSON con qr_paypal_path, bizum_num, etc."""
-        codigo_norm = str(aliado_codigo or '').strip()
-        if not codigo_norm:
-            return []
-        with self._lock:
-            try:
-                conn = self._connect()
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT id, aliado_codigo, tipo, titulo, mensaje, metadata, leida, creado_en
-                    FROM notificaciones_aliado
-                    WHERE TRIM(CAST(aliado_codigo AS TEXT)) = ?
-                    ORDER BY creado_en DESC
-                    LIMIT ?
-                """, (codigo_norm, max(1, min(limite, 200))))
-                rows = cursor.fetchall()
-                out = []
-                for r in rows:
-                    item = dict(r)
-                    if item.get('metadata'):
-                        try:
-                            item['metadata'] = json.loads(item['metadata'])
-                        except Exception:
-                            pass
-                    out.append(item)
-                return out
-            except Exception as e:
-                print(f"Error listando notificaciones aliado: {e}")
-                return []
-            finally:
-                conn.close()
+        """Fachada Campamento Base → notificacion_service.listar_notificaciones_aliado."""
+        return notificacion_service.listar_notificaciones_aliado(self, aliado_codigo, limite)
 
     def marcar_notificacion_leida(self, notificacion_id: int, aliado_codigo: str) -> Dict[str, Any]:
-        """Marca una notificación como leída solo si pertenece al aliado."""
-        codigo_norm = str(aliado_codigo or '').strip()
-        if not codigo_norm:
-            return {'status': 'error', 'message': 'Código requerido'}
-        with self._lock:
-            try:
-                conn = self._connect()
-                cursor = conn.cursor()
-                cursor.execute(
-                    "UPDATE notificaciones_aliado SET leida = 1 WHERE id = ? AND TRIM(CAST(aliado_codigo AS TEXT)) = ?",
-                    (notificacion_id, codigo_norm)
-                )
-                conn.commit()
-                if cursor.rowcount > 0:
-                    return {'status': 'success'}
-                return {'status': 'error', 'message': 'Notificación no encontrada o no pertenece al aliado'}
-            except Exception as e:
-                return {'status': 'error', 'message': str(e)}
-            finally:
-                conn.close()
+        """Fachada Campamento Base → notificacion_service.marcar_notificacion_leida."""
+        return notificacion_service.marcar_notificacion_leida(self, notificacion_id, aliado_codigo)
 
     def marcar_todas_notificaciones_leidas(self, aliado_codigo: str) -> Dict[str, Any]:
-        """Marca todas las notificaciones del aliado como leídas (para cerrar alertas ya resueltas)."""
-        codigo_norm = str(aliado_codigo or '').strip()
-        if not codigo_norm:
-            return {'status': 'error', 'message': 'Código requerido'}
-        with self._lock:
-            try:
-                conn = self._connect()
-                cursor = conn.cursor()
-                cursor.execute(
-                    "UPDATE notificaciones_aliado SET leida = 1 WHERE TRIM(CAST(aliado_codigo AS TEXT)) = ? AND leida = 0",
-                    (codigo_norm,)
-                )
-                conn.commit()
-                return {'status': 'success', 'actualizadas': cursor.rowcount}
-            except Exception as e:
-                return {'status': 'error', 'message': str(e)}
-            finally:
-                conn.close()
+        """Fachada Campamento Base → notificacion_service.marcar_todas_notificaciones_leidas."""
+        return notificacion_service.marcar_todas_notificaciones_leidas(self, aliado_codigo)
 
     def _marcar_notificaciones_contacto_leidas(self, cursor, aliado_codigo: str,
                                                contacto_id: int,
                                                tipos: Optional[List[str]] = None) -> int:
-        """Marca como leidas las notificaciones de un aliado ligadas a un contacto."""
-        codigo_norm = str(aliado_codigo or '').strip()
-        if not codigo_norm or not contacto_id:
-            return 0
-
-        condiciones = [
-            "TRIM(CAST(aliado_codigo AS TEXT)) = ?",
-            "leida = 0",
-            "(metadata LIKE ? OR metadata LIKE ?)"
-        ]
-        params = [
-            codigo_norm,
-            f'%"contacto_id": {int(contacto_id)}%',
-            f'%"contacto_id":{int(contacto_id)}%'
-        ]
-        tipos_norm = [str(t or '').strip() for t in (tipos or []) if str(t or '').strip()]
-        if tipos_norm:
-            condiciones.append("tipo IN (" + ",".join(["?"] * len(tipos_norm)) + ")")
-            params.extend(tipos_norm)
-
-        cursor.execute(
-            "UPDATE notificaciones_aliado SET leida = 1 WHERE " + " AND ".join(condiciones),
-            params
+        """Fachada Campamento Base → notificacion_service.marcar_notificaciones_contacto_leidas."""
+        return notificacion_service.marcar_notificaciones_contacto_leidas(
+            self, cursor, aliado_codigo, contacto_id, tipos
         )
-        return cursor.rowcount
 
     def crear_conversacion_soporte_aliado(self, aliado_codigo: str, asunto: str, mensaje: str,
                                           categoria: str = 'consulta') -> Dict[str, Any]:
