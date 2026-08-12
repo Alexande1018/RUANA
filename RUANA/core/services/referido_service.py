@@ -1,11 +1,17 @@
 """Servicio de dominio referido (Campamento Base).
 
 Extracción progresiva desde DBManager. Las fachadas permanecen en DBManager.
+SQL de referidos vía ReferidoRepo.
 """
 from __future__ import annotations
 
 import sqlite3
 from typing import Any, Dict, List, Optional, Tuple
+
+from core.repositories.referido_repo import ReferidoRepo
+
+_repo = ReferidoRepo()
+
 # --- Extraído de DBManager (referido) ---
 
 def asignar_invitado_por(db,
@@ -28,46 +34,26 @@ def asignar_invitado_por(db,
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            if not db._aliados_tiene_invitado_por(cursor):
+            if not _repo.aliados_tiene_invitado_por(cursor):
                 return False
             if overwrite:
-                cursor.execute("""
-                    UPDATE aliados
-                    SET invitado_por_codigo = ?,
-                        invitado_origen = COALESCE(NULLIF(?, ''), invitado_origen),
-                        actualizado_en = CURRENT_TIMESTAMP
-                    WHERE codigo = ?
-                """, (codigo_invitador, origen, codigo_referido))
+                updated = _repo.update_invitado_por_overwrite(
+                    cursor, codigo_invitador, origen, codigo_referido
+                ) > 0
             else:
-                cursor.execute("""
-                    UPDATE aliados
-                    SET invitado_por_codigo = ?,
-                        invitado_origen = CASE
-                            WHEN COALESCE(invitado_origen, '') = '' THEN ?
-                            ELSE invitado_origen
-                        END,
-                        actualizado_en = CURRENT_TIMESTAMP
-                    WHERE codigo = ?
-                      AND (invitado_por_codigo IS NULL OR TRIM(COALESCE(invitado_por_codigo, '')) = '')
-                """, (codigo_invitador, origen, codigo_referido))
-            updated = cursor.rowcount > 0
-            if db._referidos_tiene_origen(cursor):
-                cursor.execute("""
-                    INSERT OR IGNORE INTO referidos (codigo_referido, codigo_invitador, origen)
-                    VALUES (?, ?, ?)
-                """, (codigo_referido, codigo_invitador, origen))
+                updated = _repo.update_invitado_por_si_vacio(
+                    cursor, codigo_invitador, origen, codigo_referido
+                ) > 0
+            if _repo.referidos_tiene_origen(cursor):
+                _repo.insert_referido_con_origen(
+                    cursor, codigo_referido, codigo_invitador, origen
+                )
                 if origen:
-                    cursor.execute("""
-                        UPDATE referidos
-                        SET origen = ?
-                        WHERE codigo_referido = ?
-                          AND (origen IS NULL OR origen = '')
-                    """, (origen, codigo_referido))
+                    _repo.update_origen_si_vacio(cursor, origen, codigo_referido)
             else:
-                cursor.execute("""
-                    INSERT OR IGNORE INTO referidos (codigo_referido, codigo_invitador)
-                    VALUES (?, ?)
-                """, (codigo_referido, codigo_invitador))
+                _repo.insert_referido_sin_origen(
+                    cursor, codigo_referido, codigo_invitador
+                )
             conn.commit()
             return updated or cursor.rowcount > 0
         except Exception:
@@ -86,25 +72,13 @@ def backfill_invitado_por_linaje(db) -> Dict[str, int]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            if not db._aliados_tiene_invitado_por(cursor):
+            if not _repo.aliados_tiene_invitado_por(cursor):
                 return stats
-            has_origen = db._referidos_tiene_origen(cursor)
+            has_origen = _repo.referidos_tiene_origen(cursor)
             if has_origen:
-                cursor.execute("""
-                    SELECT r.codigo_referido, r.codigo_invitador,
-                           COALESCE(r.origen, '') AS origen
-                    FROM referidos r
-                    JOIN aliados a ON a.codigo = r.codigo_referido
-                    WHERE a.invitado_por_codigo IS NULL OR TRIM(COALESCE(a.invitado_por_codigo, '')) = ''
-                """)
+                rows = _repo.listar_pendientes_backfill_desde_referidos_con_origen(cursor)
             else:
-                cursor.execute("""
-                    SELECT r.codigo_referido, r.codigo_invitador, '' AS origen
-                    FROM referidos r
-                    JOIN aliados a ON a.codigo = r.codigo_referido
-                    WHERE a.invitado_por_codigo IS NULL OR TRIM(COALESCE(a.invitado_por_codigo, '')) = ''
-                """)
-            rows = cursor.fetchall()
+                rows = _repo.listar_pendientes_backfill_desde_referidos_sin_origen(cursor)
         except Exception:
             rows = []
         finally:
@@ -123,16 +97,7 @@ def backfill_invitado_por_linaje(db) -> Dict[str, int]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT i.codigo AS codigo_referido, inv.codigo AS codigo_invitador,
-                       inv.estado AS invitador_estado
-                FROM invitaciones i
-                JOIN aliados inv ON inv.id = i.invitador_aliado_id
-                JOIN aliados ref ON ref.codigo = i.codigo
-                WHERE COALESCE(ref.estado, '') NOT IN ('pendiente_completar', 'sistema')
-                  AND (ref.invitado_por_codigo IS NULL OR TRIM(COALESCE(ref.invitado_por_codigo, '')) = '')
-            """)
-            pendientes = cursor.fetchall()
+            pendientes = _repo.listar_pendientes_backfill_desde_invitaciones(cursor)
         except Exception:
             pendientes = []
         finally:
@@ -149,16 +114,8 @@ def backfill_invitado_por_linaje(db) -> Dict[str, int]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT a.codigo
-                FROM aliados a
-                WHERE COALESCE(a.estado, '') NOT IN (
-                    'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
-                )
-                  AND a.codigo != ?
-                  AND (a.invitado_por_codigo IS NULL OR TRIM(COALESCE(a.invitado_por_codigo, '')) = '')
-            """, (admin_codigo,))
-            huerfanos = [r['codigo'] for r in cursor.fetchall() if r and r['codigo']]
+            huerfanos_rows = _repo.listar_huerfanos_sin_invitado_por(cursor, admin_codigo)
+            huerfanos = [r['codigo'] for r in huerfanos_rows if r and r['codigo']]
         except Exception:
             huerfanos = []
         finally:
@@ -181,26 +138,8 @@ def listar_hijos_directos_linaje(db, codigo_invitador: str) -> List[Dict[str, An
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT a.codigo, a.nombre, a.oficio, a.codigo_postal, a.marca,
-                       a.estado, a.score, a.telefono, a.email,
-                       a.creado_en, a.invitado_origen AS origen,
-                       (
-                           SELECT COUNT(*) FROM aliados h
-                           WHERE h.invitado_por_codigo = a.codigo
-                             AND COALESCE(h.estado, '') NOT IN (
-                                 'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
-                             )
-                       ) AS referidos_count
-                FROM aliados a
-                WHERE a.invitado_por_codigo = ?
-                  AND COALESCE(a.estado, '') NOT IN (
-                      'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
-                  )
-                ORDER BY a.creado_en ASC
-            """, (codigo_invitador,))
             result = []
-            for row in cursor.fetchall():
+            for row in _repo.listar_hijos_directos_linaje(cursor, codigo_invitador):
                 item = dict(row)
                 item['zona'] = item.get('codigo_postal') or ''
                 item['especializaciones'] = []
@@ -229,42 +168,19 @@ def _obtener_origen_referido(db, codigo_referido: str) -> str:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            if db._aliados_tiene_invitado_por(cursor):
-                cursor.execute(
-                    "SELECT COALESCE(invitado_origen, '') AS origen FROM aliados WHERE codigo = ?",
-                    (codigo_referido,),
-                )
-                row = cursor.fetchone()
+            if _repo.aliados_tiene_invitado_por(cursor):
+                row = _repo.select_invitado_origen_aliado(cursor, codigo_referido)
                 if row and (row['origen'] or '').strip():
                     return (row['origen'] or '').strip()
-            if db._referidos_tiene_origen(cursor):
-                cursor.execute(
-                    "SELECT origen FROM referidos WHERE codigo_referido = ?",
-                    (codigo_referido,),
-                )
-                row = cursor.fetchone()
+            if _repo.referidos_tiene_origen(cursor):
+                row = _repo.select_origen_referidos(cursor, codigo_referido)
                 if row and (row['origen'] or '').strip():
                     return (row['origen'] or '').strip()
-            cursor.execute(
-                "SELECT 1 FROM invitacion_campana_usos WHERE codigo_aliado = ? LIMIT 1",
-                (codigo_referido,),
-            )
-            if cursor.fetchone():
+            if _repo.existe_uso_campana(cursor, codigo_referido):
                 return 'campana'
-            cursor.execute("""
-                SELECT 1 FROM invitaciones_oficio
-                WHERE codigo_referido = ? AND estado = 'usado'
-                LIMIT 1
-            """, (codigo_referido,))
-            if cursor.fetchone():
+            if _repo.existe_invitacion_oficio_usada(cursor, codigo_referido):
                 return 'oficio'
-            cursor.execute("""
-                SELECT inv.estado AS invitador_estado
-                FROM referidos r
-                JOIN aliados inv ON inv.codigo = r.codigo_invitador
-                WHERE r.codigo_referido = ?
-            """, (codigo_referido,))
-            inv_row = cursor.fetchone()
+            inv_row = _repo.select_invitador_estado_por_referido(cursor, codigo_referido)
             if inv_row and (inv_row['invitador_estado'] or '').strip() == 'sistema':
                 return 'huerfano'
             if inv_row:
@@ -289,39 +205,9 @@ def contar_referidos_por_codigo(db, codigo_aliado: str) -> int:
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            if db._aliados_tiene_invitado_por(cursor):
-                cursor.execute("""
-                    SELECT COUNT(*) FROM (
-                        SELECT a.codigo AS codigo
-                        FROM aliados a
-                        WHERE a.invitado_por_codigo = ?
-                          AND COALESCE(a.estado, '') NOT IN (
-                              'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
-                          )
-                        UNION
-                        SELECT r.codigo_referido AS codigo
-                        FROM referidos r
-                        JOIN aliados a ON a.codigo = r.codigo_referido
-                        WHERE r.codigo_invitador = ?
-                          AND COALESCE(a.estado, '') NOT IN (
-                              'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
-                          )
-                    )
-                """, (codigo_aliado, codigo_aliado))
-                return cursor.fetchone()[0] or 0
-            cursor.execute(
-                """
-                SELECT COUNT(*)
-                FROM referidos r
-                JOIN aliados a ON a.codigo = r.codigo_referido
-                WHERE r.codigo_invitador = ?
-                  AND COALESCE(a.estado, '') NOT IN (
-                      'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
-                  )
-                """,
-                (codigo_aliado,),
-            )
-            return cursor.fetchone()[0] or 0
+            if _repo.aliados_tiene_invitado_por(cursor):
+                return _repo.contar_referidos_union_linaje(cursor, codigo_aliado)
+            return _repo.contar_referidos_tabla(cursor, codigo_aliado)
         except Exception:
             return 0
         finally:
@@ -376,13 +262,7 @@ def asegurar_referido_desde_invitacion(db, codigo_invitacion: str, nuevo_aliado_
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT i.invitador_aliado_id, inv.codigo AS codigo_invitador, inv.estado AS invitador_estado
-                FROM invitaciones i
-                JOIN aliados inv ON inv.id = i.invitador_aliado_id
-                WHERE i.codigo = ?
-            """, (codigo_invitacion,))
-            row = cursor.fetchone()
+            row = _repo.select_invitacion_con_invitador(cursor, codigo_invitacion)
             if not row:
                 return False
             origen = 'admin_invitacion' if (row['invitador_estado'] or '').strip() == 'sistema' else 'aliado'
@@ -391,10 +271,7 @@ def asegurar_referido_desde_invitacion(db, codigo_invitacion: str, nuevo_aliado_
                 row['codigo_invitador'],
                 origen,
             )
-            cursor.execute(
-                "UPDATE invitaciones SET usado = 1 WHERE codigo = ?",
-                (codigo_invitacion,),
-            )
+            _repo.marcar_invitacion_usada(cursor, codigo_invitacion)
             conn.commit()
             return registrado or True
         except Exception:
@@ -436,22 +313,8 @@ def buscar_en_red_referidos(db, query: str, limite: int = 20) -> List[Dict[str, 
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT DISTINCT a.codigo
-                FROM aliados a
-                WHERE a.codigo IN (
-                    SELECT codigo_referido FROM referidos
-                    UNION
-                    SELECT codigo_invitador FROM referidos
-                )
-                AND (
-                    a.codigo LIKE ? OR a.nombre LIKE ? OR a.oficio LIKE ?
-                    OR a.marca LIKE ? OR a.codigo_postal LIKE ?
-                )
-                ORDER BY a.nombre
-                LIMIT ?
-            """, (like, like, like, like, like, limite))
-            codigos = [row['codigo'] for row in cursor.fetchall() if row and row['codigo']]
+            rows = _repo.buscar_codigos_en_red(cursor, like, limite)
+            codigos = [row['codigo'] for row in rows if row and row['codigo']]
         except Exception:
             return []
         finally:
@@ -477,13 +340,7 @@ def listar_raices_referidos(db) -> List[str]:
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT DISTINCT r.codigo_invitador
-                FROM referidos r
-                WHERE r.codigo_invitador NOT IN (SELECT codigo_referido FROM referidos)
-                ORDER BY r.codigo_invitador
-            """)
-            return [row[0] for row in cursor.fetchall() if row and row[0]]
+            return [row[0] for row in _repo.listar_raices(cursor) if row and row[0]]
         except Exception:
             return []
         finally:
@@ -534,20 +391,7 @@ def sincronizar_referidos_invitaciones_usadas(db) -> int:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT i.codigo AS codigo_referido,
-                       inv.codigo AS codigo_invitador,
-                       inv.estado AS invitador_estado
-                FROM invitaciones i
-                JOIN aliados inv ON inv.id = i.invitador_aliado_id
-                JOIN aliados ref ON ref.codigo = i.codigo
-                WHERE i.invitador_aliado_id IS NOT NULL
-                  AND COALESCE(ref.estado, '') NOT IN ('pendiente_completar', 'sistema')
-                  AND NOT EXISTS (
-                      SELECT 1 FROM referidos r WHERE r.codigo_referido = i.codigo
-                  )
-            """)
-            pendientes = cursor.fetchall()
+            pendientes = _repo.listar_invitaciones_usadas_sin_referido(cursor)
         except Exception:
             return 0
         finally:
@@ -572,20 +416,7 @@ def sincronizar_referidos_invitaciones_oficio_usadas(db) -> int:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT io.codigo_referido, inv.codigo AS codigo_invitador
-                FROM invitaciones_oficio io
-                JOIN aliados inv ON inv.id = io.aliado_id
-                WHERE io.estado = 'usado'
-                  AND COALESCE(io.codigo_referido, '') != ''
-                  AND EXISTS (
-                      SELECT 1 FROM aliados a WHERE a.codigo = io.codigo_referido
-                  )
-                  AND NOT EXISTS (
-                      SELECT 1 FROM referidos r WHERE r.codigo_referido = io.codigo_referido
-                  )
-            """)
-            pendientes = cursor.fetchall()
+            pendientes = _repo.listar_invitaciones_oficio_usadas_sin_referido(cursor)
         except Exception:
             return 0
         finally:
@@ -605,38 +436,10 @@ def obtener_resumen_referidos_red(db) -> Dict[str, int]:
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT COUNT(DISTINCT codigo) FROM (
-                    SELECT codigo_referido AS codigo FROM referidos
-                    UNION
-                    SELECT codigo_invitador AS codigo FROM referidos
-                )
-            """)
-            total_nodos = cursor.fetchone()[0] or 0
-            cursor.execute("""
-                SELECT COUNT(*) FROM aliados
-                WHERE COALESCE(estado, '') NOT IN (
-                    'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
-                )
-            """)
-            total_aliados_activos = cursor.fetchone()[0] or 0
-            cursor.execute("""
-                SELECT COUNT(*) FROM aliados a
-                WHERE COALESCE(a.estado, '') = 'pendiente_completar'
-                   OR (
-                       COALESCE(a.estado, '') NOT IN ('sistema', 'rechazado', 'expulsado')
-                       AND NOT EXISTS (
-                           SELECT 1 FROM referidos r
-                           WHERE r.codigo_referido = a.codigo
-                              OR r.codigo_invitador = a.codigo
-                       )
-                   )
-            """)
-            aliados_fuera_red = cursor.fetchone()[0] or 0
             return {
-                'total_nodos': total_nodos,
-                'total_aliados_activos': total_aliados_activos,
-                'aliados_fuera_red': aliados_fuera_red,
+                'total_nodos': _repo.contar_nodos_red(cursor),
+                'total_aliados_activos': _repo.contar_aliados_activos_red(cursor),
+                'aliados_fuera_red': _repo.contar_aliados_fuera_red(cursor),
             }
         except Exception:
             return {
@@ -658,20 +461,7 @@ def listar_referidos_desde(db, desde: str) -> List[Dict[str, Any]]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            if desde:
-                cursor.execute("""
-                    SELECT r.codigo_referido, r.codigo_invitador, r.creado_en
-                    FROM referidos r
-                    WHERE datetime(r.creado_en) > datetime(?)
-                    ORDER BY r.creado_en ASC
-                """, (desde,))
-            else:
-                cursor.execute("""
-                    SELECT r.codigo_referido, r.codigo_invitador, r.creado_en
-                    FROM referidos r
-                    ORDER BY r.creado_en ASC
-                """)
-            rows = cursor.fetchall()
+            rows = _repo.listar_referidos_desde(cursor, desde)
         except Exception:
             return []
         finally:
@@ -710,25 +500,7 @@ def listar_referidos_directos(db, codigo_invitador: str) -> List[Dict[str, Any]]
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT COALESCE(a.codigo, r.codigo_referido) AS codigo,
-                       COALESCE(a.nombre, r.codigo_referido) AS nombre,
-                       COALESCE(a.oficio, '—') AS oficio,
-                       COALESCE(a.codigo_postal, '') AS codigo_postal,
-                       COALESCE(a.marca, '') AS marca,
-                       COALESCE(a.estado, 'desconocido') AS estado,
-                       COALESCE(a.score, 0) AS score,
-                       COALESCE(a.telefono, '') AS telefono,
-                       COALESCE(a.email, '') AS email,
-                       COALESCE(a.creado_en, r.creado_en) AS creado_en,
-                       r.creado_en AS referido_en,
-                       COALESCE(r.origen, '') AS origen
-                FROM referidos r
-                LEFT JOIN aliados a ON a.codigo = r.codigo_referido
-                WHERE r.codigo_invitador = ?
-                ORDER BY r.creado_en ASC
-            """, (codigo_invitador,))
-            rows = cursor.fetchall()
+            rows = _repo.listar_referidos_directos(cursor, codigo_invitador)
             result: List[Dict[str, Any]] = []
             for row in rows:
                 item = dict(row)
@@ -749,4 +521,3 @@ def listar_referidos_directos(db, codigo_invitador: str) -> List[Dict[str, Any]]
         finally:
             if conn:
                 conn.close()
-
