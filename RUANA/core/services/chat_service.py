@@ -1,12 +1,18 @@
 """Servicio de dominio chat (Campamento Base).
 
 Extracción progresiva desde DBManager. Las fachadas permanecen en DBManager.
+SQL de chat vía ChatRepo.
 """
 from __future__ import annotations
 
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
+
+from core.repositories.chat_repo import ChatRepo
+
+_repo = ChatRepo()
+
 # --- Extraído de DBManager (chat) ---
 
 def listar_mensajes_soporte_aliado(db, conversacion_id: int, aliado_codigo: str) -> List[Dict[str, Any]]:
@@ -19,19 +25,9 @@ def listar_mensajes_soporte_aliado(db, conversacion_id: int, aliado_codigo: str)
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT 1 FROM ruana_soporte_conversaciones
-                WHERE id = ? AND TRIM(CAST(aliado_codigo AS TEXT)) = ? AND COALESCE(eliminada_por_aliado, 0) = 0
-            """, (int(conversacion_id), codigo))
-            if not cursor.fetchone():
+            if not _repo.conversacion_soporte_visible_aliado(cursor, conversacion_id, codigo):
                 return []
-            cursor.execute("""
-                SELECT id, conversacion_id, emisor_tipo, emisor_codigo, mensaje, creado_en, leido_por_aliado, leido_por_admin
-                FROM ruana_soporte_mensajes
-                WHERE conversacion_id = ?
-                ORDER BY creado_en ASC, id ASC
-            """, (int(conversacion_id),))
-            return [dict(r) for r in cursor.fetchall()]
+            return [dict(r) for r in _repo.listar_mensajes_soporte(cursor, conversacion_id)]
         except Exception:
             return []
         finally:
@@ -45,13 +41,7 @@ def listar_mensajes_soporte_admin(db, conversacion_id: int) -> List[Dict[str, An
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT id, conversacion_id, emisor_tipo, emisor_codigo, mensaje, creado_en, leido_por_aliado, leido_por_admin
-                FROM ruana_soporte_mensajes
-                WHERE conversacion_id = ?
-                ORDER BY creado_en ASC, id ASC
-            """, (int(conversacion_id),))
-            return [dict(r) for r in cursor.fetchall()]
+            return [dict(r) for r in _repo.listar_mensajes_soporte(cursor, conversacion_id)]
         except Exception:
             return []
         finally:
@@ -69,24 +59,10 @@ def enviar_mensaje_soporte_aliado(db, conversacion_id: int, aliado_codigo: str, 
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT id FROM ruana_soporte_conversaciones
-                WHERE id = ? AND TRIM(CAST(aliado_codigo AS TEXT)) = ? AND COALESCE(eliminada_por_aliado, 0) = 0
-            """, (int(conversacion_id), codigo))
-            if not cursor.fetchone():
+            if _repo.select_id_conversacion_soporte_aliado(cursor, conversacion_id, codigo) is None:
                 return {'status': 'error', 'message': 'Conversación no encontrada'}
-            cursor.execute("""
-                INSERT INTO ruana_soporte_mensajes
-                    (conversacion_id, emisor_tipo, emisor_codigo, mensaje, leido_por_aliado, leido_por_admin)
-                VALUES (?, 'aliado', ?, ?, 1, 0)
-            """, (int(conversacion_id), codigo, msg))
-            cursor.execute("""
-                UPDATE ruana_soporte_conversaciones
-                SET estado = CASE WHEN estado = 'cerrado' THEN 'reabierto' ELSE estado END,
-                    ultimo_mensaje_preview = ?, ultimo_mensaje_en = CURRENT_TIMESTAMP, actualizado_en = CURRENT_TIMESTAMP,
-                    tiene_no_leido_admin = 1, tiene_no_leido_aliado = 0
-                WHERE id = ?
-            """, (msg[:220], int(conversacion_id)))
+            _repo.insertar_mensaje_soporte_aliado(cursor, conversacion_id, codigo, msg)
+            _repo.update_conversacion_tras_mensaje_aliado(cursor, msg[:220], conversacion_id)
             conn.commit()
             return {'status': 'success'}
         except Exception as e:
@@ -109,18 +85,7 @@ def listar_mensajes_contacto(db, contacto_id: int) -> List[Dict[str, Any]]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT m.id, m.contacto_id, m.emisor_codigo, m.texto, m.creado_en,
-                       COALESCE(a.nombre, m.emisor_codigo) AS emisor_nombre
-                FROM chat_mensajes m
-                LEFT JOIN aliados a ON a.codigo = m.emisor_codigo
-                WHERE m.contacto_id = ?
-                ORDER BY m.creado_en ASC
-                """,
-                (contacto_id,)
-            )
-            return [dict(row) for row in cursor.fetchall()]
+            return [dict(row) for row in _repo.listar_mensajes_contacto(cursor, contacto_id)]
         except Exception as e:
             print(f"Error listar_mensajes_contacto: {e}")
             return []
@@ -157,18 +122,10 @@ def _chat_referencia_ts(db, cursor, contacto_id: int) -> Optional[datetime]:
     Timestamp de referencia para vigencia del chat: última actividad.
     A) Si hay mensajes → último mensaje. B) Si no → fecha_aceptacion o creado_en del contacto.
     """
-    cursor.execute(
-        "SELECT MAX(creado_en) FROM chat_mensajes WHERE contacto_id = ?",
-        (contacto_id,)
-    )
-    ultimo_msg = (cursor.fetchone() or [None])[0]
+    ultimo_msg = _repo.max_creado_en_mensajes(cursor, contacto_id)
     if ultimo_msg:
         return db._parse_timestamp(ultimo_msg)
-    cursor.execute(
-        "SELECT fecha_aceptacion, creado_en FROM contactos_ruana WHERE id = ?",
-        (contacto_id,)
-    )
-    row = cursor.fetchone()
+    row = _repo.select_fechas_contacto(cursor, contacto_id)
     if not row:
         return None
     fa, ce = row[0], row[1]
@@ -187,8 +144,7 @@ def estado_chat_contacto(db, contacto_id: int, codigo: str) -> Dict[str, Any]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("SELECT id, estado FROM contactos_ruana WHERE id = ?", (contacto_id,))
-            row = cursor.fetchone()
+            row = _repo.select_contacto_id_estado(cursor, contacto_id)
             if not row:
                 return db._chat_estado_cerrado()
             estado = (row[1] or '').strip()
@@ -196,8 +152,7 @@ def estado_chat_contacto(db, contacto_id: int, codigo: str) -> Dict[str, Any]:
                 return db._chat_estado_cerrado()
             ref = db._parse_timestamp(db._chat_referencia_ts(cursor, contacto_id))
             expirado = db._chat_esta_expirado(ref)
-            cursor.execute("SELECT COUNT(*) FROM chat_mensajes WHERE contacto_id = ?", (contacto_id,))
-            count = (cursor.fetchone() or [0])[0]
+            count = _repo.contar_mensajes(cursor, contacto_id)
             restantes = max(0, db.CHAT_MAX_MENSAJES_TOTAL - count)
             estado_chat = {
                 'chat_expirado': expirado,
@@ -248,11 +203,7 @@ def enviar_mensaje_chat(db, contacto_id: int, emisor_codigo: str, texto: str) ->
             cursor = conn.cursor()
 
             # --- 1. Validar que el contacto existe ---
-            cursor.execute(
-                "SELECT id, solicitante_codigo, profesional_codigo, estado FROM contactos_ruana WHERE id = ?",
-                (contacto_id,)
-            )
-            row = cursor.fetchone()
+            row = _repo.select_contacto_chat(cursor, contacto_id)
             if not row:
                 return {'status': 'error', 'message': 'Contacto no encontrado'}
             contacto = dict(row)
@@ -277,11 +228,7 @@ def enviar_mensaje_chat(db, contacto_id: int, emisor_codigo: str, texto: str) ->
                 }
 
             # --- 5. Validar que el chat no supera el limite total de mensajes ---
-            cursor.execute(
-                "SELECT COUNT(*) FROM chat_mensajes WHERE contacto_id = ?",
-                (contacto_id,)
-            )
-            count_total = (cursor.fetchone() or [0])[0]
+            count_total = _repo.contar_mensajes(cursor, contacto_id)
             if count_total >= db.CHAT_MAX_MENSAJES_TOTAL:
                 return {
                     'status': 'error',
@@ -290,38 +237,25 @@ def enviar_mensaje_chat(db, contacto_id: int, emisor_codigo: str, texto: str) ->
 
             # --- 6. Inserción: guardar mensaje (visible para ambos aliados vía listar_mensajes_contacto) ---
             receptor_codigo = pro if emisor_norm == sol else sol
-            cursor.execute("PRAGMA table_info(chat_mensajes)")
-            cols_msg = [r[1] for r in cursor.fetchall()]
+            cols_msg = _repo.columnas_chat_mensajes(cursor)
             if 'receptor_codigo' in cols_msg:
-                cursor.execute(
-                    "INSERT INTO chat_mensajes (contacto_id, emisor_codigo, receptor_codigo, texto) VALUES (?, ?, ?, ?)",
-                    (contacto_id, emisor_norm, receptor_codigo or None, texto_clean)
+                msg_id = _repo.insertar_mensaje_con_receptor(
+                    cursor, contacto_id, emisor_norm, receptor_codigo, texto_clean
                 )
             else:
-                cursor.execute(
-                    "INSERT INTO chat_mensajes (contacto_id, emisor_codigo, texto) VALUES (?, ?, ?)",
-                    (contacto_id, emisor_norm, texto_clean)
+                msg_id = _repo.insertar_mensaje_sin_receptor(
+                    cursor, contacto_id, emisor_norm, texto_clean
                 )
-            msg_id = cursor.lastrowid
 
             # --- 7. Actualizacion de estado: si el chat llega al limite total -> chat_agotado ---
             chat_agotado_ahora = False
             if count_total + 1 >= db.CHAT_MAX_MENSAJES_TOTAL:
-                cursor.execute(
-                    """UPDATE contactos_ruana SET estado = 'chat_agotado', actualizado_en = CURRENT_TIMESTAMP
-                       WHERE id = ? AND estado IN ('iniciado', 'aceptado', 'trabajo_en_progreso', 'en_conversacion')""",
-                    (contacto_id,)
-                )
-                chat_agotado_ahora = (cursor.rowcount or 0) > 0
+                chat_agotado_ahora = _repo.update_contacto_chat_agotado(cursor, contacto_id) > 0
 
             conn.commit()
 
             # --- 8. Retorno: mensaje insertado (ambos aliados lo verán en GET /api/chat_mensajes) ---
-            cursor.execute(
-                "SELECT id, contacto_id, emisor_codigo, texto, creado_en FROM chat_mensajes WHERE id = ?",
-                (msg_id,)
-            )
-            msg_row = cursor.fetchone()
+            msg_row = _repo.select_mensaje_por_id(cursor, msg_id)
             resultado = {'status': 'success', 'mensaje': dict(msg_row)}
             # Regla 5 solo si quien escribe es el profesional
             if emisor_norm == pro:
@@ -358,20 +292,12 @@ def listar_contactos_recientes_con_chat(db, limite: int = 100) -> List[Dict[str,
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("PRAGMA table_info(contactos_ruana)")
-            cols = [r[1] for r in cursor.fetchall()]
+            cols = _repo.columnas_contactos_ruana(cursor)
             motivo_col = 'c.motivo_contacto, ' if 'motivo_contacto' in cols else ''
             urgente_col = 'COALESCE(c.es_urgente, 0) AS es_urgente, c.urgente_marcado_en, ' if 'es_urgente' in cols else ''
-            cursor.execute(f"""
-                SELECT c.id, c.solicitante_codigo, c.profesional_codigo, c.servicio, c.estado, c.creado_en,
-                       c.fecha_cierre, c.fecha_no_concretado, c.importe_final, c.comision, {motivo_col}{urgente_col}
-                       (SELECT COUNT(*) FROM chat_mensajes m WHERE m.contacto_id = c.id) AS num_mensajes,
-                       (SELECT MAX(m.creado_en) FROM chat_mensajes m WHERE m.contacto_id = c.id) AS ultimo_mensaje_en
-                FROM contactos_ruana c
-                ORDER BY c.creado_en DESC
-                LIMIT ?
-            """, (limite,))
-            lista = [dict(row) for row in cursor.fetchall()]
+            lista = [dict(row) for row in _repo.listar_contactos_recientes_con_chat(
+                cursor, motivo_col, urgente_col, limite
+            )]
             for d in lista:
                 if 'es_urgente' in d:
                     d['es_urgente'] = bool(int(d.get('es_urgente') or 0))
@@ -389,21 +315,7 @@ def listar_chat_messages(db, limit: int = 50, offset: int = 0) -> List[Dict[str,
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT cm.id, cm.texto AS content, cm.creado_en AS created_at,
-                       s.codigo AS sender_codigo, s.nombre AS sender_nombre,
-                       r.codigo AS receiver_codigo, r.nombre AS receiver_nombre
-                FROM chat_mensajes cm
-                JOIN contactos_ruana c ON c.id = cm.contacto_id
-                JOIN aliados s ON s.codigo = cm.emisor_codigo
-                LEFT JOIN aliados r ON r.codigo = (
-                    CASE WHEN cm.emisor_codigo = c.solicitante_codigo THEN c.profesional_codigo
-                         ELSE c.solicitante_codigo END
-                )
-                ORDER BY cm.creado_en DESC
-                LIMIT ? OFFSET ?
-            """, (limit, offset))
-            return [dict(row) for row in cursor.fetchall()]
+            return [dict(row) for row in _repo.listar_chat_messages_admin(cursor, limit, offset)]
         except Exception as e:
             print(f"Error listar_chat_messages: {e}")
             return []
