@@ -139,3 +139,70 @@ def test_notificacion_score_change(sqlite_db):
     rows = cur.fetchall()
     conn.close()
     assert any(r[0] == "score_change" for r in rows)
+
+
+def test_score_repo_existe_movimiento_y_motivos_prefijo(sqlite_db):
+    _crear_activo(sqlite_db, "81006", score=40)
+    assert sqlite_db.aplicar_cambio_score("81006", 2, motivo="regla8_racha_7dias_2026-08-10")["aplicado"] == 2
+    assert sqlite_db.aplicar_cambio_score("81006", 1, motivo="otro_motivo")["aplicado"] == 1
+
+    repo = ScoreRepo()
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    assert repo.existe_movimiento_motivo(cur, "81006", "regla8_racha_7dias_2026-08-10") is True
+    assert repo.existe_movimiento_motivo(cur, "81006", "no_existe") is False
+    motivos = repo.listar_motivos_score_con_prefijo(cur, "81006", "regla8_racha_7dias_")
+    conn.close()
+    assert "regla8_racha_7dias_2026-08-10" in motivos
+    assert "otro_motivo" not in motivos
+
+
+def test_score_repo_penalizacion_aplicada(sqlite_db):
+    _crear_activo(sqlite_db, "81007", score=50)
+    _crear_activo(sqlite_db, "81008", score=50)
+    creado = sqlite_db.crear_contacto_ruana("81007", "81008", "Electricidad", "Avería")
+    assert creado["status"] == "success"
+    cid = int(creado["id"])
+
+    repo = ScoreRepo()
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    assert repo.existe_penalizacion_aplicada(cur, cid, "chat_48h") is False
+    repo.insertar_penalizacion_aplicada(cur, cid, "chat_48h")
+    conn.commit()
+    assert repo.existe_penalizacion_aplicada(cur, cid, "chat_48h") is True
+    # Idempotente
+    repo.insertar_penalizacion_aplicada(cur, cid, "chat_48h")
+    conn.commit()
+    assert repo.existe_penalizacion_aplicada(cur, cid, "7d") is False
+    conn.close()
+
+
+def test_score_repo_listar_dias_acceso(sqlite_db):
+    _crear_activo(sqlite_db, "81009", score=50)
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    for dia in ("2026-08-08", "2026-08-09", "2026-08-11"):
+        cur.execute(
+            "INSERT OR IGNORE INTO aliado_accesos_dia (codigo_aliado, dia) VALUES (?, ?)",
+            ("81009", dia),
+        )
+    conn.commit()
+
+    repo = ScoreRepo()
+    presentes = repo.listar_dias_acceso(
+        cur, "81009", dias=["2026-08-08", "2026-08-09", "2026-08-10"]
+    )
+    assert set(presentes) == {"2026-08-08", "2026-08-09"}
+    desde = repo.listar_dias_acceso(cur, "81009", desde_dia="2026-08-09")
+    conn.close()
+    assert desde == ["2026-08-09", "2026-08-11"]
+
+
+def test_ya_aplicado_motivo_score_via_repo(sqlite_db):
+    _crear_activo(sqlite_db, "81010", score=45)
+    assert sqlite_db._ya_aplicado_motivo_score("81010", "motivo_unico_x") is False
+    assert sqlite_db.aplicar_cambio_score("81010", 1, motivo="motivo_unico_x")["aplicado"] == 1
+    assert sqlite_db._ya_aplicado_motivo_score("81010", "motivo_unico_x") is True
+    assert sqlite_db._ya_aplicado_motivo_score("81010", "") is True
+    assert sqlite_db._ya_aplicado_motivo_score("", "x") is True
