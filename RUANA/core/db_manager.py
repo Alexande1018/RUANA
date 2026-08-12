@@ -41,6 +41,7 @@ from core.services import invitacion_service
 from core.services import referido_service
 from core.services import negociacion_service
 from core.services import contacto_service
+from core.services import evaluacion_service
 from core.repositories.score_repo import ScoreRepo
 
 
@@ -3069,224 +3070,36 @@ class DBManager:
     # ===============================================
     # OPERACIONES EVALUACIONES (Motor RUANA)
     # ===============================================
-    
+
     def guardar_evaluacion(self, codigo_aliado: str, estado: str, score: float,
                           intencion: str = "", tasa_respuesta: float = 0.0,
                           tasa_confirmacion: float = 0.0, meses_sin_trabajo: int = 0,
                           ciclos_consecutivos: int = 1, razones: list = None,
                           severidad: str = "normal") -> Dict[str, Any]:
-        """
-        Guarda o actualiza la evaluación de un aliado
-        
-        Args:
-            codigo_aliado: Código del aliado
-            estado: Estado (verde, amarillo, rojo)
-            score: Score de 0-500
-            intencion: Intención (mantener, vigilar, evaluar_suplencia)
-            tasa_respuesta: Métrica de respuesta (0-1)
-            tasa_confirmacion: Métrica de confirmación (0-1)
-            meses_sin_trabajo: Meses sin trabajo
-            ciclos_consecutivos: Ciclos consecutivos en este estado
-            razones: Lista de razones del estado
-            severidad: normal, alerta, critico
-            
-        Returns:
-            Dict con resultado de la operación
-        """
-        with self._lock:
-            try:
-                conn = self._connect()
-                cursor = conn.cursor()
-                
-                # Verificar si ya existe evaluación
-                cursor.execute(
-                    "SELECT estado, score FROM evaluaciones WHERE codigo_aliado = ?",
-                    (codigo_aliado,)
-                )
-                resultado = cursor.fetchone()
-                
-                razones_str = json.dumps(razones or [], ensure_ascii=False)
-                
-                if resultado:
-                    # Actualizar - registrar cambio en histórico
-                    estado_anterior, score_anterior = resultado
-                    
-                    if estado_anterior != estado or score_anterior != score:
-                        cursor.execute("""
-                            INSERT INTO evaluaciones_historico
-                            (codigo_aliado, estado_anterior, estado_nuevo, score_anterior, score_nuevo)
-                            VALUES (?, ?, ?, ?, ?)
-                        """, (codigo_aliado, estado_anterior, estado, score_anterior, score))
-                    
-                    cursor.execute("""
-                        UPDATE evaluaciones
-                        SET estado = ?, score = ?, intencion = ?, tasa_respuesta = ?,
-                            tasa_confirmacion = ?, meses_sin_trabajo = ?, ciclos_consecutivos = ?,
-                            razones = ?, severidad = ?, actualizado_en = CURRENT_TIMESTAMP
-                        WHERE codigo_aliado = ?
-                    """, (estado, score, intencion, tasa_respuesta, tasa_confirmacion,
-                          meses_sin_trabajo, ciclos_consecutivos, razones_str, severidad,
-                          codigo_aliado))
-                else:
-                    # Crear nueva evaluación
-                    cursor.execute("""
-                        INSERT INTO evaluaciones
-                        (codigo_aliado, estado, score, intencion, tasa_respuesta,
-                         tasa_confirmacion, meses_sin_trabajo, ciclos_consecutivos, razones, severidad)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (codigo_aliado, estado, score, intencion, tasa_respuesta,
-                          tasa_confirmacion, meses_sin_trabajo, ciclos_consecutivos, razones_str, severidad))
-                
-                conn.commit()
-                
-                return {
-                    'status': 'success',
-                    'codigo_aliado': codigo_aliado,
-                    'estado': estado,
-                    'score': score
-                }
-                
-            except Exception as e:
-                return {'status': 'error', 'message': str(e)}
-            finally:
-                conn.close()
-    
+        """Fachada Campamento Base → evaluacion_service.guardar_evaluacion."""
+        return evaluacion_service.guardar_evaluacion(
+            self, codigo_aliado, estado, score,
+            intencion=intencion, tasa_respuesta=tasa_respuesta,
+            tasa_confirmacion=tasa_confirmacion, meses_sin_trabajo=meses_sin_trabajo,
+            ciclos_consecutivos=ciclos_consecutivos, razones=razones,
+            severidad=severidad,
+        )
+
     def obtener_evaluacion(self, codigo_aliado: str) -> Optional[Dict[str, Any]]:
-        """Obtiene la evaluación más reciente de un aliado"""
-        with self._lock:
-            try:
-                conn = self._connect()
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                
-                cursor.execute(
-                    "SELECT * FROM evaluaciones WHERE codigo_aliado = ?",
-                    (codigo_aliado,)
-                )
-                
-                row = cursor.fetchone()
-                if not row:
-                    return None
-                
-                # Parsear razones JSON
-                resultado = dict(row)
-                if resultado.get('razones'):
-                    try:
-                        resultado['razones'] = json.loads(resultado['razones'])
-                    except:
-                        resultado['razones'] = []
-                
-                return resultado
-                
-            except Exception as e:
-                print(f"Error obteniendo evaluación: {e}")
-                return None
-            finally:
-                conn.close()
-    
+        """Fachada Campamento Base → evaluacion_service.obtener_evaluacion."""
+        return evaluacion_service.obtener_evaluacion(self, codigo_aliado)
+
     def listar_evaluaciones(self, estado: str = None) -> List[Dict[str, Any]]:
-        """
-        Lista evaluaciones, opcionalmente filtradas por estado
-        
-        Args:
-            estado: Estado a filtrar (verde, amarillo, rojo) - opcional
-            
-        Returns:
-            Lista de evaluaciones
-        """
-        with self._lock:
-            try:
-                conn = self._connect()
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                
-                if estado:
-                    cursor.execute(
-                        "SELECT * FROM evaluaciones WHERE estado = ? ORDER BY actualizado_en DESC",
-                        (estado,)
-                    )
-                else:
-                    cursor.execute("SELECT * FROM evaluaciones ORDER BY actualizado_en DESC")
-                
-                rows = cursor.fetchall()
-                
-                resultado = []
-                for row in rows:
-                    item = dict(row)
-                    if item.get('razones'):
-                        try:
-                            item['razones'] = json.loads(item['razones'])
-                        except:
-                            item['razones'] = []
-                    resultado.append(item)
-                
-                return resultado
-                
-            except Exception as e:
-                print(f"Error listando evaluaciones: {e}")
-                return []
-            finally:
-                conn.close()
-    
+        """Fachada Campamento Base → evaluacion_service.listar_evaluaciones."""
+        return evaluacion_service.listar_evaluaciones(self, estado)
+
     def obtener_historico_evaluaciones(self, codigo_aliado: str) -> List[Dict[str, Any]]:
-        """Obtiene el histórico de cambios de evaluación de un aliado"""
-        with self._lock:
-            try:
-                conn = self._connect()
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    SELECT * FROM evaluaciones_historico
-                    WHERE codigo_aliado = ?
-                    ORDER BY registrado_en DESC
-                    LIMIT 100
-                """, (codigo_aliado,))
-                
-                rows = cursor.fetchall()
-                return [dict(row) for row in rows]
-                
-            except Exception as e:
-                print(f"Error obteniendo histórico: {e}")
-                return []
-            finally:
-                conn.close()
-    
+        """Fachada Campamento Base → evaluacion_service.obtener_historico_evaluaciones."""
+        return evaluacion_service.obtener_historico_evaluaciones(self, codigo_aliado)
+
     def obtener_estadisticas_evaluaciones(self) -> Dict[str, Any]:
-        """Obtiene estadísticas generales de las evaluaciones"""
-        with self._lock:
-            try:
-                conn = self._connect()
-                cursor = conn.cursor()
-                
-                # Contar por estado
-                cursor.execute("SELECT estado, COUNT(*) as cantidad FROM evaluaciones GROUP BY estado")
-                por_estado = {row[0]: row[1] for row in cursor.fetchall()}
-                
-                # Contar por severidad
-                cursor.execute("SELECT severidad, COUNT(*) as cantidad FROM evaluaciones GROUP BY severidad")
-                por_severidad = {row[0]: row[1] for row in cursor.fetchall()}
-                
-                # Score promedio
-                cursor.execute("SELECT AVG(score) FROM evaluaciones")
-                score_promedio = cursor.fetchone()[0] or 0.0
-                
-                # Total de aliados evaluados
-                cursor.execute("SELECT COUNT(*) FROM evaluaciones")
-                total_evaluados = cursor.fetchone()[0]
-                
-                return {
-                    'total_evaluados': total_evaluados,
-                    'por_estado': por_estado,
-                    'por_severidad': por_severidad,
-                    'score_promedio': round(score_promedio, 2)
-                }
-                
-            except Exception as e:
-                print(f"Error obteniendo estadísticas: {e}")
-                return {}
-            finally:
-                conn.close()
+        """Fachada Campamento Base → evaluacion_service.obtener_estadisticas_evaluaciones."""
+        return evaluacion_service.obtener_estadisticas_evaluaciones(self)
 
     # ===============================================
     # EVENTOS DEL SISTEMA (TRAZABILIDAD)
