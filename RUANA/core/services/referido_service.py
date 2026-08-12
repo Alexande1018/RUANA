@@ -681,3 +681,152 @@ def obtener_linaje_aliado(db, codigo: str) -> Optional[Dict[str, Any]]:
         'ruta': ruta,
         'hijos_count': len(hijos),
     }
+
+def etiqueta_origen_referido(db, origen: str) -> str:
+    return db.ORIGEN_REFERIDO_LABELS.get((origen or '').strip(), '')
+
+
+def obtener_codigo_admin_referidos(db) -> str:
+    """Código del aliado sistema que actúa como raíz admin en la red."""
+    codigo = db.obtener_o_crear_invitador_admin('RUANA-ADMIN')
+    return codigo or 'RUANA-ADMIN'
+
+
+def _referidos_tiene_origen(db, cursor) -> bool:
+    try:
+        cursor.execute("PRAGMA table_info(referidos)")
+        return 'origen' in [row[1] for row in cursor.fetchall()]
+    except Exception:
+        return False
+
+
+def _aliados_tiene_invitado_por(db, cursor) -> bool:
+    try:
+        cursor.execute("PRAGMA table_info(aliados)")
+        return 'invitado_por_codigo' in [row[1] for row in cursor.fetchall()]
+    except Exception:
+        return False
+
+
+def _insert_referido(db, codigo_referido: str, codigo_invitador: str, origen: str = '') -> bool:
+    """Compatibilidad: delega en asignar_invitado_por (linaje en aliados + referidos)."""
+    return db.asignar_invitado_por(codigo_referido, codigo_invitador, origen=origen)
+
+
+def _origen_por_invitador(db, codigo_invitador: str, default: str = 'aliado') -> str:
+    invitador = db.obtener_aliado_por_codigo(codigo_invitador)
+    if invitador and (invitador.get('estado') or '').strip() == 'sistema':
+        return 'admin_invitacion'
+    return default
+
+
+def sincronizar_referidos_completo(db) -> Dict[str, int]:
+    """Sincroniza referidos legacy + backfill de linaje en aliados.invitado_por_codigo."""
+    campanas = db.sincronizar_referidos_campanas_admin()
+    invitaciones = db.sincronizar_referidos_invitaciones_usadas()
+    oficio = db.sincronizar_referidos_invitaciones_oficio_usadas()
+    huerfanos = db.sincronizar_referidos_huerfanos_admin()
+    linaje = db.backfill_invitado_por_linaje()
+    return {
+        'campanas': campanas,
+        'invitaciones': invitaciones,
+        'oficio': oficio,
+        'huerfanos': huerfanos,
+        'linaje': linaje,
+    }
+
+
+def sincronizar_referidos_huerfanos_admin(db) -> int:
+    """
+    Asigna al administrador como invitador a aliados registrados sin vínculo previo.
+    Garantiza que todos los aliados activos aparezcan en el árbol genealógico.
+    """
+    admin_codigo = db.obtener_codigo_admin_referidos()
+    if not admin_codigo:
+        return 0
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT a.codigo
+                FROM aliados a
+                WHERE COALESCE(a.estado, '') NOT IN (
+                    'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
+                )
+                  AND a.codigo != ?
+                  AND NOT EXISTS (
+                      SELECT 1 FROM referidos r WHERE r.codigo_referido = a.codigo
+                  )
+            """, (admin_codigo,))
+            huerfanos = [row['codigo'] for row in cursor.fetchall() if row and row['codigo']]
+        except Exception:
+            return 0
+        finally:
+            if conn:
+                conn.close()
+    sincronizados = 0
+    for codigo in huerfanos:
+        if db._insert_referido(codigo, admin_codigo, 'huerfano'):
+            sincronizados += 1
+    return sincronizados
+
+
+def contar_total_nodos_referidos_red(db) -> int:
+    """Total de aliados que participan en la red (como referido o invitador)."""
+    return db.obtener_resumen_referidos_red().get('total_nodos', 0)
+
+
+def _registrar_referido_campana_admin(db, codigo_campana: str, codigo_aliado: str) -> bool:
+    """Registra en referidos un aliado registrado por campaña admin."""
+    codigo_campana = (codigo_campana or "").strip().upper()
+    codigo_aliado = (codigo_aliado or "").strip()
+    if not codigo_campana or not codigo_aliado:
+        return False
+    campana = db.obtener_campana_invitacion(codigo_campana)
+    if not campana:
+        return False
+    admin_codigo = (campana.get('creado_por_admin_codigo') or "").strip() or "RUANA-ADMIN"
+    invitador = db.obtener_o_crear_invitador_admin(admin_codigo)
+    if not invitador:
+        return False
+    return db._insert_referido(codigo_aliado, invitador, 'campana')
+
+
+def sincronizar_referidos_campanas_admin(db) -> int:
+    """
+    Backfill: crea filas referidos para usos de campaña admin que aún no están en referidos.
+    """
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT u.codigo_aliado, u.codigo_campana, c.creado_por_admin_codigo
+                FROM invitacion_campana_usos u
+                JOIN invitacion_campanas c ON c.codigo = u.codigo_campana
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM referidos r WHERE r.codigo_referido = u.codigo_aliado
+                )
+            """)
+            pendientes = cursor.fetchall()
+        except Exception:
+            return 0
+        finally:
+            if conn:
+                conn.close()
+    sincronizados = 0
+    for row in pendientes:
+        admin_codigo = (row['creado_por_admin_codigo'] or "").strip() or "RUANA-ADMIN"
+        invitador = db.obtener_o_crear_invitador_admin(admin_codigo)
+        if not invitador:
+            continue
+        codigo_aliado = row['codigo_aliado']
+        if db._insert_referido(codigo_aliado, invitador, 'campana'):
+            sincronizados += 1
+    return sincronizados
+

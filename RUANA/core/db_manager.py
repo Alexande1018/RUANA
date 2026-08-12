@@ -433,26 +433,24 @@ class DBManager:
     }
 
     def etiqueta_origen_referido(self, origen: str) -> str:
-        return self.ORIGEN_REFERIDO_LABELS.get((origen or '').strip(), '')
+        """Fachada Campamento Base → referido_service.etiqueta_origen_referido."""
+        return referido_service.etiqueta_origen_referido(self, origen)
+
 
     def obtener_codigo_admin_referidos(self) -> str:
-        """Código del aliado sistema que actúa como raíz admin en la red."""
-        codigo = self.obtener_o_crear_invitador_admin('RUANA-ADMIN')
-        return codigo or 'RUANA-ADMIN'
+        """Fachada Campamento Base → referido_service.obtener_codigo_admin_referidos."""
+        return referido_service.obtener_codigo_admin_referidos(self)
+
 
     def _referidos_tiene_origen(self, cursor) -> bool:
-        try:
-            cursor.execute("PRAGMA table_info(referidos)")
-            return 'origen' in [row[1] for row in cursor.fetchall()]
-        except Exception:
-            return False
+        """Fachada Campamento Base → referido_service._referidos_tiene_origen."""
+        return referido_service._referidos_tiene_origen(self, cursor)
+
 
     def _aliados_tiene_invitado_por(self, cursor) -> bool:
-        try:
-            cursor.execute("PRAGMA table_info(aliados)")
-            return 'invitado_por_codigo' in [row[1] for row in cursor.fetchall()]
-        except Exception:
-            return False
+        """Fachada Campamento Base → referido_service._aliados_tiene_invitado_por."""
+        return referido_service._aliados_tiene_invitado_por(self, cursor)
+
 
     def asignar_invitado_por(
         self,
@@ -466,14 +464,14 @@ class DBManager:
 
 
     def _insert_referido(self, codigo_referido: str, codigo_invitador: str, origen: str = '') -> bool:
-        """Compatibilidad: delega en asignar_invitado_por (linaje en aliados + referidos)."""
-        return self.asignar_invitado_por(codigo_referido, codigo_invitador, origen=origen)
+        """Fachada Campamento Base → referido_service._insert_referido."""
+        return referido_service._insert_referido(self, codigo_referido, codigo_invitador, origen)
+
 
     def _origen_por_invitador(self, codigo_invitador: str, default: str = 'aliado') -> str:
-        invitador = self.obtener_aliado_por_codigo(codigo_invitador)
-        if invitador and (invitador.get('estado') or '').strip() == 'sistema':
-            return 'admin_invitacion'
-        return default
+        """Fachada Campamento Base → referido_service._origen_por_invitador."""
+        return referido_service._origen_por_invitador(self, codigo_invitador, default)
+
 
     def backfill_invitado_por_linaje(self) -> Dict[str, int]:
         """Fachada Campamento Base → referido_service.backfill_invitado_por_linaje."""
@@ -1452,19 +1450,9 @@ class DBManager:
 
 
     def sincronizar_referidos_completo(self) -> Dict[str, int]:
-        """Sincroniza referidos legacy + backfill de linaje en aliados.invitado_por_codigo."""
-        campanas = self.sincronizar_referidos_campanas_admin()
-        invitaciones = self.sincronizar_referidos_invitaciones_usadas()
-        oficio = self.sincronizar_referidos_invitaciones_oficio_usadas()
-        huerfanos = self.sincronizar_referidos_huerfanos_admin()
-        linaje = self.backfill_invitado_por_linaje()
-        return {
-            'campanas': campanas,
-            'invitaciones': invitaciones,
-            'oficio': oficio,
-            'huerfanos': huerfanos,
-            'linaje': linaje,
-        }
+        """Fachada Campamento Base → referido_service.sincronizar_referidos_completo."""
+        return referido_service.sincronizar_referidos_completo(self)
+
 
     def sincronizar_referidos_invitaciones_usadas(self) -> int:
         """Fachada Campamento Base → referido_service.sincronizar_referidos_invitaciones_usadas."""
@@ -1477,41 +1465,9 @@ class DBManager:
 
 
     def sincronizar_referidos_huerfanos_admin(self) -> int:
-        """
-        Asigna al administrador como invitador a aliados registrados sin vínculo previo.
-        Garantiza que todos los aliados activos aparezcan en el árbol genealógico.
-        """
-        admin_codigo = self.obtener_codigo_admin_referidos()
-        if not admin_codigo:
-            return 0
-        with self._lock:
-            conn = None
-            try:
-                conn = self._connect()
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT a.codigo
-                    FROM aliados a
-                    WHERE COALESCE(a.estado, '') NOT IN (
-                        'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
-                    )
-                      AND a.codigo != ?
-                      AND NOT EXISTS (
-                          SELECT 1 FROM referidos r WHERE r.codigo_referido = a.codigo
-                      )
-                """, (admin_codigo,))
-                huerfanos = [row['codigo'] for row in cursor.fetchall() if row and row['codigo']]
-            except Exception:
-                return 0
-            finally:
-                if conn:
-                    conn.close()
-        sincronizados = 0
-        for codigo in huerfanos:
-            if self._insert_referido(codigo, admin_codigo, 'huerfano'):
-                sincronizados += 1
-        return sincronizados
+        """Fachada Campamento Base → referido_service.sincronizar_referidos_huerfanos_admin."""
+        return referido_service.sincronizar_referidos_huerfanos_admin(self)
+
 
     def asegurar_referido_desde_invitacion(self, codigo_invitacion: str, nuevo_aliado_codigo: str) -> bool:
         """Fachada Campamento Base → referido_service.asegurar_referido_desde_invitacion."""
@@ -1519,8 +1475,9 @@ class DBManager:
 
 
     def contar_total_nodos_referidos_red(self) -> int:
-        """Total de aliados que participan en la red (como referido o invitador)."""
-        return self.obtener_resumen_referidos_red().get('total_nodos', 0)
+        """Fachada Campamento Base → referido_service.contar_total_nodos_referidos_red."""
+        return referido_service.contar_total_nodos_referidos_red(self)
+
 
     def obtener_resumen_referidos_red(self) -> Dict[str, int]:
         """Fachada Campamento Base → referido_service.obtener_resumen_referidos_red."""
@@ -1603,54 +1560,14 @@ class DBManager:
 
 
     def _registrar_referido_campana_admin(self, codigo_campana: str, codigo_aliado: str) -> bool:
-        """Registra en referidos un aliado registrado por campaña admin."""
-        codigo_campana = (codigo_campana or "").strip().upper()
-        codigo_aliado = (codigo_aliado or "").strip()
-        if not codigo_campana or not codigo_aliado:
-            return False
-        campana = self.obtener_campana_invitacion(codigo_campana)
-        if not campana:
-            return False
-        admin_codigo = (campana.get('creado_por_admin_codigo') or "").strip() or "RUANA-ADMIN"
-        invitador = self.obtener_o_crear_invitador_admin(admin_codigo)
-        if not invitador:
-            return False
-        return self._insert_referido(codigo_aliado, invitador, 'campana')
+        """Fachada Campamento Base → referido_service._registrar_referido_campana_admin."""
+        return referido_service._registrar_referido_campana_admin(self, codigo_campana, codigo_aliado)
+
 
     def sincronizar_referidos_campanas_admin(self) -> int:
-        """
-        Backfill: crea filas referidos para usos de campaña admin que aún no están en referidos.
-        """
-        with self._lock:
-            conn = None
-            try:
-                conn = self._connect()
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT u.codigo_aliado, u.codigo_campana, c.creado_por_admin_codigo
-                    FROM invitacion_campana_usos u
-                    JOIN invitacion_campanas c ON c.codigo = u.codigo_campana
-                    WHERE NOT EXISTS (
-                        SELECT 1 FROM referidos r WHERE r.codigo_referido = u.codigo_aliado
-                    )
-                """)
-                pendientes = cursor.fetchall()
-            except Exception:
-                return 0
-            finally:
-                if conn:
-                    conn.close()
-        sincronizados = 0
-        for row in pendientes:
-            admin_codigo = (row['creado_por_admin_codigo'] or "").strip() or "RUANA-ADMIN"
-            invitador = self.obtener_o_crear_invitador_admin(admin_codigo)
-            if not invitador:
-                continue
-            codigo_aliado = row['codigo_aliado']
-            if self._insert_referido(codigo_aliado, invitador, 'campana'):
-                sincronizados += 1
-        return sincronizados
+        """Fachada Campamento Base → referido_service.sincronizar_referidos_campanas_admin."""
+        return referido_service.sincronizar_referidos_campanas_admin(self)
+
 
     def _registrar_invitacion(
         self,
