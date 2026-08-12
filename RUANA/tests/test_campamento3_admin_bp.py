@@ -37,6 +37,12 @@ def test_admin_dashboard_routes_exigen_sesion(client):
         "/api/admin/suplentes-espera",
         "/api/admin/aliados-pendientes",
         "/api/admin/pending-users",
+        "/api/admin/conversations",
+        "/api/admin/competencias-activas",
+        "/api/admin/negociaciones",
+        "/api/admin/pagos-en-revision",
+        "/api/admin/aliados-eliminados",
+        "/api/admin/metodos-pago",
     ):
         resp = client.get(path)
         assert resp.status_code == 401, path
