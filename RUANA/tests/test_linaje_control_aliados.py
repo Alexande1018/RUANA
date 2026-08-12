@@ -80,6 +80,7 @@ def test_backfill_huerfanos_bajo_admin(sqlite_db):
 
 def test_listar_hijos_y_linaje_api(client, sqlite_db, monkeypatch):
     monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    monkeypatch.setattr(db_module, "get_db", lambda: sqlite_db)
     sqlite_db.obtener_o_crear_invitador_admin("RUANA-ADMIN")
     _crear_activo(sqlite_db, "11111", "Padre")
     _crear_activo(sqlite_db, "22222", "Hijo")

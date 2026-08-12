@@ -37,6 +37,7 @@ def _crear_contacto(db):
 
 def test_negociacion_aceptar_y_cerrar_rutas(client, sqlite_db, monkeypatch, session_headers):
     monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    monkeypatch.setattr(db_module, "get_db", lambda: sqlite_db)
     cid = _crear_contacto(sqlite_db)
 
     valores = {
