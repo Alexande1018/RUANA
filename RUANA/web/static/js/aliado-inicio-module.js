@@ -12,6 +12,7 @@
     solicitudes: null,
     conexiones: null,
     perfil: null,
+    referidos: null,
   };
 
   function getApiBaseSafe() {

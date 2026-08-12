@@ -2178,6 +2178,7 @@
     <script src="/static/js/ruana-api-client.js" defer></script>
     <script src="/static/js/aliado-modules.js" defer></script>
     <script src="/static/js/aliado-inicio-module.js" defer></script>
+    <script src="/static/js/aliado-referidos-module.js" defer></script>
     <script src="/static/js/aliado-shell.js" defer></script>
     <link rel="stylesheet" href="/static/css/negociacion-guiada.css">
     <script src="/static/js/negociacion-guiada.js" defer></script>
@@ -3971,53 +3972,23 @@
                 this.renderCentroComunicacion();
             }
 
+            /** Fachada Campamento Base → RuanaAliadoModules.referidos */
+            _referidosModule() {
+                return (typeof RuanaAliadoModules !== 'undefined' && RuanaAliadoModules.referidos) || null;
+            }
+
             async abrirModalLinajeHijos() {
-                const modal = document.getElementById('modal-linaje-hijos');
-                const list = document.getElementById('modal-linaje-hijos-list');
-                const meta = document.getElementById('modal-linaje-hijos-meta');
-                if (!modal || !list) return;
-                list.innerHTML = '<p style="color:#94a3b8;">Cargando…</p>';
-                if (meta) meta.textContent = 'Tus invitaciones directas';
-                modal.style.display = 'flex';
-                try {
-                    const apiBase = (typeof getApiBase === 'function' ? getApiBase() : '');
-                    const resp = await fetch(apiBase + '/api/aliado/linaje/hijos', {
-                        credentials: 'same-origin',
-                        headers: getRuanaAuthHeaders(),
-                    });
-                    const data = await resp.json();
-                    if (!resp.ok || data.status !== 'success') {
-                        list.innerHTML = '<p style="color:#f87171;">No se pudieron cargar tus referidos.</p>';
-                        return;
-                    }
-                    const hijos = Array.isArray(data.hijos) ? data.hijos : [];
-                    if (meta) {
-                        meta.textContent = hijos.length === 0
-                            ? 'Aún no has referido aliados a RUANA.'
-                            : (hijos.length + ' referido' + (hijos.length === 1 ? '' : 's') + ' directo' + (hijos.length === 1 ? '' : 's'));
-                    }
-                    if (!hijos.length) {
-                        list.innerHTML = '<p style="color:#94a3b8;">Cuando alguien se registre con tu invitación, aparecerá aquí.</p>';
-                        return;
-                    }
-                    list.innerHTML = hijos.map(h => {
-                        const nombre = this.escapeHtml(h.nombre || '(sin nombre)');
-                        const codigo = this.escapeHtml(h.codigo || '');
-                        const oficio = this.escapeHtml(h.oficio || '—');
-                        const zona = this.escapeHtml(h.zona || h.codigo_postal || '—');
-                        return '<div style="border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:10px 12px; margin-bottom:8px;">' +
-                            '<div style="font-weight:600;">' + nombre + '</div>' +
-                            '<div style="font-size:0.85rem; color:#94a3b8; margin-top:2px;">' + codigo + ' · ' + oficio + ' · ' + zona + '</div>' +
-                            '</div>';
-                    }).join('');
-                } catch (e) {
-                    list.innerHTML = '<p style="color:#f87171;">Error de red al cargar referidos.</p>';
+                const mod = this._referidosModule();
+                if (mod && typeof mod.abrirModalLinajeHijos === 'function') {
+                    return mod.abrirModalLinajeHijos(this);
                 }
             }
 
             cerrarModalLinajeHijos() {
-                const modal = document.getElementById('modal-linaje-hijos');
-                if (modal) modal.style.display = 'none';
+                const mod = this._referidosModule();
+                if (mod && typeof mod.cerrarModalLinajeHijos === 'function') {
+                    return mod.cerrarModalLinajeHijos();
+                }
             }
 
             getIniciales(nombre) {
