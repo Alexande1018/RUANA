@@ -1,6 +1,6 @@
 {
- "generated_at": "2026-08-12T15:21:26.447285+00:00",
- "repo_commit": "9118f8c",
+ "generated_at": "2026-08-13T18:49:00.713124+00:00",
+ "repo_commit": "8e62803",
  "nodes": [
   {
    "id": "RUANA/__init__.py",
@@ -1251,7 +1251,7 @@
    "type": "file",
    "group": "tests",
    "path": "RUANA/tests/test_aliado_frontend_loading.py",
-   "loc": 363,
+   "loc": 371,
    "degree": 0,
    "classes": [],
    "functions": [
@@ -6218,7 +6218,7 @@
    "type": "file",
    "group": "frontend",
    "path": "RUANA/web/static/js/aliado-sync-module.js",
-   "loc": 622,
+   "loc": 627,
    "degree": 3,
    "classes": [],
    "functions": [
@@ -6373,7 +6373,7 @@
    "type": "file",
    "group": "frontend",
    "path": "RUANA/web/static/js/aliado-alertas-module.js",
-   "loc": 550,
+   "loc": 548,
    "degree": 26,
    "classes": [],
    "functions": [
@@ -7000,7 +7000,7 @@
    "type": "file",
    "group": "backend",
    "path": "RUANA/web/aliado.html",
-   "loc": 2242,
+   "loc": 2238,
    "degree": 22,
    "classes": [],
    "functions": [],
@@ -14780,7 +14780,12 @@
   },
   {
    "source": "RUANA/test_competencia_automatica.py",
-   "target": "table::aliados",
+   "target": "table::score_movimientos",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/test_competencia_automatica.py",
+   "target": "table::grupos",
    "type": "db"
   },
   {
@@ -14790,47 +14795,37 @@
   },
   {
    "source": "RUANA/test_competencia_automatica.py",
+   "target": "table::aliados",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/test_solicitud_grupo.py",
    "target": "table::grupos",
    "type": "db"
   },
   {
-   "source": "RUANA/test_competencia_automatica.py",
+   "source": "RUANA/test_solicitud_grupo.py",
+   "target": "table::aliados",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/tests/test_activar_pendiente_grupo_invitador.py",
+   "target": "table::grupos",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/tests/test_activar_pendiente_grupo_invitador.py",
+   "target": "table::aliados",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/tests/test_admin_eliminar_aliado.py",
    "target": "table::score_movimientos",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/test_solicitud_grupo.py",
-   "target": "table::aliados",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/test_solicitud_grupo.py",
-   "target": "table::grupos",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/tests/test_activar_pendiente_grupo_invitador.py",
-   "target": "table::aliados",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/tests/test_activar_pendiente_grupo_invitador.py",
-   "target": "table::grupos",
    "type": "db"
   },
   {
    "source": "RUANA/tests/test_admin_eliminar_aliado.py",
    "target": "table::notificaciones_aliado",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/tests/test_admin_eliminar_aliado.py",
-   "target": "table::score_movimientos",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/tests/test_chat_timestamp_state.py",
-   "target": "table::aliados",
    "type": "db"
   },
   {
@@ -14839,13 +14834,23 @@
    "type": "db"
   },
   {
-   "source": "RUANA/tests/test_competencia_reglas_cp.py",
+   "source": "RUANA/tests/test_chat_timestamp_state.py",
    "target": "table::aliados",
    "type": "db"
   },
   {
    "source": "RUANA/tests/test_competencia_reglas_cp.py",
    "target": "table::competencia",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/tests/test_competencia_reglas_cp.py",
+   "target": "table::aliados",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/tests/test_conozco_alguien_solicitud.py",
+   "target": "table::grupos",
    "type": "db"
   },
   {
@@ -14856,11 +14861,6 @@
   {
    "source": "RUANA/tests/test_conozco_alguien_solicitud.py",
    "target": "table::notificaciones_aliado",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/tests/test_conozco_alguien_solicitud.py",
-   "target": "table::grupos",
    "type": "db"
   },
   {
@@ -14870,27 +14870,27 @@
   },
   {
    "source": "RUANA/tests/test_invitation_campaigns.py",
+   "target": "table::invitaciones",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/tests/test_invitation_campaigns.py",
+   "target": "table::aliados",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/tests/test_invitation_campaigns.py",
    "target": "table::referidos",
    "type": "db"
   },
   {
-   "source": "RUANA/tests/test_invitation_campaigns.py",
+   "source": "RUANA/tests/test_invitation_placeholder_completion.py",
    "target": "table::invitaciones",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/tests/test_invitation_campaigns.py",
-   "target": "table::aliados",
    "type": "db"
   },
   {
    "source": "RUANA/tests/test_invitation_placeholder_completion.py",
    "target": "table::aliados",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/tests/test_invitation_placeholder_completion.py",
-   "target": "table::invitaciones",
    "type": "db"
   },
   {
@@ -14900,22 +14900,22 @@
   },
   {
    "source": "RUANA/tests/test_listar_aliados_grupo_nombre.py",
-   "target": "table::aliados",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/tests/test_listar_aliados_grupo_nombre.py",
    "target": "table::grupos",
    "type": "db"
   },
   {
-   "source": "RUANA/tests/test_payment_dispute_state_machine.py",
+   "source": "RUANA/tests/test_listar_aliados_grupo_nombre.py",
    "target": "table::aliados",
    "type": "db"
   },
   {
    "source": "RUANA/tests/test_payment_dispute_state_machine.py",
    "target": "table::contactos_ruana",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/tests/test_payment_dispute_state_machine.py",
+   "target": "table::aliados",
    "type": "db"
   },
   {
@@ -14940,7 +14940,22 @@
   },
   {
    "source": "RUANA/tests/test_score_penalizaciones_ajustes.py",
+   "target": "table::aliado_accesos_dia",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/tests/test_score_penalizaciones_ajustes.py",
    "target": "table::aliados",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/tests/test_score_penalizaciones_ajustes.py",
+   "target": "table::score_movimientos",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/tests/test_score_penalizaciones_ajustes.py",
+   "target": "table::contactos_ruana",
    "type": "db"
   },
   {
@@ -14949,17 +14964,7 @@
    "type": "db"
   },
   {
-   "source": "RUANA/tests/test_score_penalizaciones_ajustes.py",
-   "target": "table::aliado_accesos_dia",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/tests/test_score_penalizaciones_ajustes.py",
-   "target": "table::contactos_ruana",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/tests/test_score_penalizaciones_ajustes.py",
+   "source": "RUANA/tests/test_score_regla3_referidos.py",
    "target": "table::score_movimientos",
    "type": "db"
   },
@@ -14969,18 +14974,13 @@
    "type": "db"
   },
   {
-   "source": "RUANA/tests/test_score_regla3_referidos.py",
+   "source": "RUANA/tests/test_score_regla4_encargos_mes.py",
    "target": "table::score_movimientos",
    "type": "db"
   },
   {
    "source": "RUANA/tests/test_score_regla4_encargos_mes.py",
    "target": "table::contactos_ruana",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/tests/test_score_regla4_encargos_mes.py",
-   "target": "table::score_movimientos",
    "type": "db"
   },
   {
@@ -15000,11 +15000,16 @@
   },
   {
    "source": "RUANA/tests/test_score_regla6_urgente.py",
-   "target": "table::contactos_ruana",
+   "target": "table::score_movimientos",
    "type": "db"
   },
   {
    "source": "RUANA/tests/test_score_regla6_urgente.py",
+   "target": "table::contactos_ruana",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/tests/test_score_regla7_declaracion.py",
    "target": "table::score_movimientos",
    "type": "db"
   },
@@ -15014,28 +15019,23 @@
    "type": "db"
   },
   {
-   "source": "RUANA/tests/test_score_regla7_declaracion.py",
+   "source": "RUANA/tests/test_score_regla8_racha.py",
    "target": "table::score_movimientos",
    "type": "db"
   },
   {
    "source": "RUANA/tests/test_score_regla8_racha.py",
    "target": "table::aliado_accesos_dia",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/tests/test_score_regla8_racha.py",
-   "target": "table::score_movimientos",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/tests/test_solicitudes_qa_flow.py",
-   "target": "table::aliados",
    "type": "db"
   },
   {
    "source": "RUANA/tests/test_solicitudes_qa_flow.py",
    "target": "table::grupos",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/tests/test_solicitudes_qa_flow.py",
+   "target": "table::aliados",
    "type": "db"
   },
   {
@@ -15045,7 +15045,7 @@
   },
   {
    "source": "RUANA/tests/test_score_service_aplicar_cambio.py",
-   "target": "table::notificaciones_aliado",
+   "target": "table::score_movimientos",
    "type": "db"
   },
   {
@@ -15055,32 +15055,7 @@
   },
   {
    "source": "RUANA/tests/test_score_service_aplicar_cambio.py",
-   "target": "table::score_movimientos",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/services/admin_service.py",
-   "target": "table::referidos",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/services/admin_service.py",
-   "target": "table::invitaciones",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/services/admin_service.py",
-   "target": "table::grupos",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/services/admin_service.py",
-   "target": "table::evaluaciones",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/services/admin_service.py",
-   "target": "table::aliados",
+   "target": "table::notificaciones_aliado",
    "type": "db"
   },
   {
@@ -15090,12 +15065,32 @@
   },
   {
    "source": "RUANA/core/services/admin_service.py",
-   "target": "table::evaluaciones_historico",
+   "target": "table::invitaciones_oficio",
    "type": "db"
   },
   {
    "source": "RUANA/core/services/admin_service.py",
-   "target": "table::notificaciones_aliado",
+   "target": "table::evaluaciones",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/services/admin_service.py",
+   "target": "table::grupo_oficio_cerrado",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/services/admin_service.py",
+   "target": "table::aliados",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/services/admin_service.py",
+   "target": "table::referidos",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/services/admin_service.py",
+   "target": "table::evaluaciones_historico",
    "type": "db"
   },
   {
@@ -15110,22 +15105,22 @@
   },
   {
    "source": "RUANA/core/services/admin_service.py",
+   "target": "table::invitaciones",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/services/admin_service.py",
+   "target": "table::notificaciones_aliado",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/services/admin_service.py",
+   "target": "table::grupos",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/services/admin_service.py",
    "target": "table::competencia",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/services/admin_service.py",
-   "target": "table::invitaciones_oficio",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/services/admin_service.py",
-   "target": "table::grupo_oficio_cerrado",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/services/grupo_service.py",
-   "target": "table::aliados",
    "type": "db"
   },
   {
@@ -15136,6 +15131,11 @@
   {
    "source": "RUANA/core/services/grupo_service.py",
    "target": "table::grupos",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/services/grupo_service.py",
+   "target": "table::aliados",
    "type": "db"
   },
   {
@@ -15145,7 +15145,7 @@
   },
   {
    "source": "RUANA/core/services/score_service.py",
-   "target": "table::aliados",
+   "target": "table::contacto_panel_oculto",
    "type": "db"
   },
   {
@@ -15155,7 +15155,17 @@
   },
   {
    "source": "RUANA/core/services/score_service.py",
-   "target": "table::contacto_panel_oculto",
+   "target": "table::aliado_accesos_dia",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/services/score_service.py",
+   "target": "table::payment_conflicts",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/services/score_service.py",
+   "target": "table::aliados",
    "type": "db"
   },
   {
@@ -15165,17 +15175,7 @@
   },
   {
    "source": "RUANA/core/services/score_service.py",
-   "target": "table::aliado_accesos_dia",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/services/score_service.py",
    "target": "table::contactos_ruana",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/services/score_service.py",
-   "target": "table::payment_conflicts",
    "type": "db"
   },
   {
@@ -15185,37 +15185,27 @@
   },
   {
    "source": "RUANA/core/services/referido_service.py",
-   "target": "table::referidos",
+   "target": "table::aliados",
    "type": "db"
   },
   {
    "source": "RUANA/core/services/referido_service.py",
+   "target": "table::referidos",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/services/schema_service.py",
+   "target": "table::invitaciones_oficio",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/services/schema_service.py",
    "target": "table::aliados",
    "type": "db"
   },
   {
    "source": "RUANA/core/services/schema_service.py",
    "target": "table::referidos",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/services/schema_service.py",
-   "target": "table::invitaciones",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/services/schema_service.py",
-   "target": "table::grupos",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/services/schema_service.py",
-   "target": "table::aliados",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/services/schema_service.py",
-   "target": "table::notificaciones_aliado",
    "type": "db"
   },
   {
@@ -15225,26 +15215,26 @@
   },
   {
    "source": "RUANA/core/services/schema_service.py",
+   "target": "table::grupos",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/services/schema_service.py",
    "target": "table::solicitudes",
    "type": "db"
   },
   {
    "source": "RUANA/core/services/schema_service.py",
-   "target": "table::competencia",
+   "target": "table::notificaciones_aliado",
    "type": "db"
   },
   {
    "source": "RUANA/core/services/schema_service.py",
-   "target": "table::invitaciones_oficio",
+   "target": "table::invitaciones",
    "type": "db"
   },
   {
-   "source": "RUANA/core/services/competencia_service.py",
-   "target": "table::aliados",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/services/competencia_service.py",
+   "source": "RUANA/core/services/schema_service.py",
    "target": "table::competencia",
    "type": "db"
   },
@@ -15256,6 +15246,16 @@
   {
    "source": "RUANA/core/services/competencia_service.py",
    "target": "table::grupos",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/services/competencia_service.py",
+   "target": "table::competencia",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/services/competencia_service.py",
+   "target": "table::aliados",
    "type": "db"
   },
   {
@@ -15265,7 +15265,7 @@
   },
   {
    "source": "RUANA/core/repositories/referido_repo.py",
-   "target": "table::referidos",
+   "target": "table::aliados",
    "type": "db"
   },
   {
@@ -15280,12 +15280,7 @@
   },
   {
    "source": "RUANA/core/repositories/referido_repo.py",
-   "target": "table::aliados",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/repositories/chat_repo.py",
-   "target": "table::aliados",
+   "target": "table::referidos",
    "type": "db"
   },
   {
@@ -15296,6 +15291,16 @@
   {
    "source": "RUANA/core/repositories/chat_repo.py",
    "target": "table::contactos_ruana",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/repositories/chat_repo.py",
+   "target": "table::aliados",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/repositories/admin_repo.py",
+   "target": "table::aliados",
    "type": "db"
   },
   {
@@ -15305,17 +15310,7 @@
   },
   {
    "source": "RUANA/core/repositories/admin_repo.py",
-   "target": "table::aliados",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/repositories/admin_repo.py",
    "target": "table::chat_mensajes",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/repositories/admin_repo.py",
-   "target": "table::notificaciones_aliado",
    "type": "db"
   },
   {
@@ -15324,13 +15319,18 @@
    "type": "db"
   },
   {
-   "source": "RUANA/core/repositories/evaluacion_repo.py",
-   "target": "table::evaluaciones_historico",
+   "source": "RUANA/core/repositories/admin_repo.py",
+   "target": "table::notificaciones_aliado",
    "type": "db"
   },
   {
    "source": "RUANA/core/repositories/evaluacion_repo.py",
    "target": "table::evaluaciones",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/repositories/evaluacion_repo.py",
+   "target": "table::evaluaciones_historico",
    "type": "db"
   },
   {
@@ -15340,12 +15340,12 @@
   },
   {
    "source": "RUANA/core/repositories/pago_repo.py",
-   "target": "table::aliados",
+   "target": "table::payment_conflicts",
    "type": "db"
   },
   {
    "source": "RUANA/core/repositories/pago_repo.py",
-   "target": "table::notificaciones_aliado",
+   "target": "table::aliados",
    "type": "db"
   },
   {
@@ -15355,12 +15355,12 @@
   },
   {
    "source": "RUANA/core/repositories/pago_repo.py",
-   "target": "table::payment_conflicts",
+   "target": "table::notificaciones_aliado",
    "type": "db"
   },
   {
    "source": "RUANA/core/repositories/invitacion_repo.py",
-   "target": "table::referidos",
+   "target": "table::aliados",
    "type": "db"
   },
   {
@@ -15375,7 +15375,32 @@
   },
   {
    "source": "RUANA/core/repositories/invitacion_repo.py",
-   "target": "table::aliados",
+   "target": "table::referidos",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/repositories/competencia_repo.py",
+   "target": "table::invitaciones_oficio",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/repositories/competencia_repo.py",
+   "target": "table::ingresos_ruana",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/repositories/competencia_repo.py",
+   "target": "table::evaluaciones",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/repositories/competencia_repo.py",
+   "target": "table::chat_mensajes",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/repositories/competencia_repo.py",
+   "target": "table::score_movimientos",
    "type": "db"
   },
   {
@@ -15385,7 +15410,12 @@
   },
   {
    "source": "RUANA/core/repositories/competencia_repo.py",
-   "target": "table::contacto_penalizaciones_aplicadas",
+   "target": "table::notificaciones_aliado",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/repositories/competencia_repo.py",
+   "target": "table::confirmaciones_trabajo",
    "type": "db"
   },
   {
@@ -15395,42 +15425,12 @@
   },
   {
    "source": "RUANA/core/repositories/competencia_repo.py",
-   "target": "table::evaluaciones",
+   "target": "table::contactos_ruana",
    "type": "db"
   },
   {
    "source": "RUANA/core/repositories/competencia_repo.py",
-   "target": "table::chat_mensajes",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/repositories/competencia_repo.py",
-   "target": "table::referidos",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/repositories/competencia_repo.py",
-   "target": "table::ingresos_ruana",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/repositories/competencia_repo.py",
-   "target": "table::aliados",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/repositories/competencia_repo.py",
-   "target": "table::contacto_panel_oculto",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/repositories/competencia_repo.py",
-   "target": "table::aliado_accesos_dia",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/repositories/competencia_repo.py",
-   "target": "table::confirmaciones_trabajo",
+   "target": "table::solicitudes",
    "type": "db"
   },
   {
@@ -15440,22 +15440,12 @@
   },
   {
    "source": "RUANA/core/repositories/competencia_repo.py",
-   "target": "table::notificaciones_aliado",
+   "target": "table::contacto_panel_oculto",
    "type": "db"
   },
   {
    "source": "RUANA/core/repositories/competencia_repo.py",
-   "target": "table::score_movimientos",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/repositories/competencia_repo.py",
-   "target": "table::invitaciones_oficio",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/repositories/competencia_repo.py",
-   "target": "table::payment_conflicts",
+   "target": "table::referidos",
    "type": "db"
   },
   {
@@ -15465,27 +15455,27 @@
   },
   {
    "source": "RUANA/core/repositories/competencia_repo.py",
-   "target": "table::evaluaciones_historico",
+   "target": "table::contacto_penalizaciones_aplicadas",
    "type": "db"
   },
   {
    "source": "RUANA/core/repositories/competencia_repo.py",
-   "target": "table::contactos_ruana",
+   "target": "table::aliado_accesos_dia",
    "type": "db"
   },
   {
    "source": "RUANA/core/repositories/competencia_repo.py",
-   "target": "table::solicitudes",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/repositories/contacto_repo.py",
-   "target": "table::ingresos_ruana",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/repositories/contacto_repo.py",
    "target": "table::aliados",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/repositories/competencia_repo.py",
+   "target": "table::payment_conflicts",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/repositories/competencia_repo.py",
+   "target": "table::evaluaciones_historico",
    "type": "db"
   },
   {
@@ -15495,7 +15485,17 @@
   },
   {
    "source": "RUANA/core/repositories/contacto_repo.py",
-   "target": "table::notificaciones_aliado",
+   "target": "table::ingresos_ruana",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/repositories/contacto_repo.py",
+   "target": "table::payment_conflicts",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/repositories/contacto_repo.py",
+   "target": "table::aliados",
    "type": "db"
   },
   {
@@ -15505,22 +15505,12 @@
   },
   {
    "source": "RUANA/core/repositories/contacto_repo.py",
-   "target": "table::confirmaciones_trabajo",
+   "target": "table::notificaciones_aliado",
    "type": "db"
   },
   {
    "source": "RUANA/core/repositories/contacto_repo.py",
-   "target": "table::payment_conflicts",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/repositories/solicitud_repo.py",
-   "target": "table::aliados",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/repositories/solicitud_repo.py",
-   "target": "table::invitaciones",
+   "target": "table::confirmaciones_trabajo",
    "type": "db"
   },
   {
@@ -15534,13 +15524,18 @@
    "type": "db"
   },
   {
-   "source": "RUANA/core/repositories/notificacion_repo.py",
-   "target": "table::notificaciones_aliado",
+   "source": "RUANA/core/repositories/solicitud_repo.py",
+   "target": "table::invitaciones",
    "type": "db"
   },
   {
-   "source": "RUANA/core/repositories/grupo_repo.py",
+   "source": "RUANA/core/repositories/solicitud_repo.py",
    "target": "table::aliados",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/repositories/notificacion_repo.py",
+   "target": "table::notificaciones_aliado",
    "type": "db"
   },
   {
@@ -15550,22 +15545,27 @@
   },
   {
    "source": "RUANA/core/repositories/grupo_repo.py",
+   "target": "table::grupos",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/repositories/grupo_repo.py",
    "target": "table::grupo_oficio_cerrado",
    "type": "db"
   },
   {
    "source": "RUANA/core/repositories/grupo_repo.py",
-   "target": "table::grupos",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/repositories/negociacion_repo.py",
-   "target": "table::notificaciones_aliado",
+   "target": "table::aliados",
    "type": "db"
   },
   {
    "source": "RUANA/core/repositories/negociacion_repo.py",
    "target": "table::contactos_ruana",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/repositories/negociacion_repo.py",
+   "target": "table::notificaciones_aliado",
    "type": "db"
   },
   {
@@ -15575,17 +15575,12 @@
   },
   {
    "source": "RUANA/core/repositories/score_repo.py",
-   "target": "table::aliados",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/repositories/score_repo.py",
    "target": "table::aliado_accesos_dia",
    "type": "db"
   },
   {
    "source": "RUANA/core/repositories/score_repo.py",
-   "target": "table::notificaciones_aliado",
+   "target": "table::aliados",
    "type": "db"
   },
   {
@@ -15594,8 +15589,13 @@
    "type": "db"
   },
   {
+   "source": "RUANA/core/repositories/score_repo.py",
+   "target": "table::notificaciones_aliado",
+   "type": "db"
+  },
+  {
    "source": "RUANA/core/repositories/aliado_repo.py",
-   "target": "table::grupos",
+   "target": "table::aliado_accesos_dia",
    "type": "db"
   },
   {
@@ -15610,22 +15610,22 @@
   },
   {
    "source": "RUANA/core/repositories/aliado_repo.py",
-   "target": "table::aliados_eliminados",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/repositories/aliado_repo.py",
-   "target": "table::aliado_accesos_dia",
-   "type": "db"
-  },
-  {
-   "source": "RUANA/core/repositories/aliado_repo.py",
    "target": "table::evaluaciones_historico",
    "type": "db"
   },
   {
    "source": "RUANA/core/repositories/aliado_repo.py",
+   "target": "table::grupos",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/repositories/aliado_repo.py",
    "target": "table::contactos_ruana",
+   "type": "db"
+  },
+  {
+   "source": "RUANA/core/repositories/aliado_repo.py",
+   "target": "table::aliados_eliminados",
    "type": "db"
   },
   {
@@ -15776,6 +15776,6 @@
   "html_files": 18,
   "routes": 191,
   "tables": 25,
-  "total_loc": 60282
+  "total_loc": 60289
  }
 }
