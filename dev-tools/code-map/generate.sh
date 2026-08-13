@@ -1,26 +1,18 @@
 #!/usr/bin/env bash
-# RUANA Code Map — regenerar el grafo a partir del código REAL del repo.
-# Uso: bash dev-tools/code-map/generate.sh
+# RUANA Mapa — regenerar inventario + standalone
 set -euo pipefail
-
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 
-echo "[code-map] escaneando el repositorio real…"
+echo "[mapa] escaneando territorio real…"
 "$PYTHON_BIN" "$HERE/scanner.py"
-
-echo "[code-map] generando HTML standalone (Brave a doble clic)…"
+echo "[mapa] empaquetando standalone…"
 "$PYTHON_BIN" "$HERE/build_standalone.py"
 
 echo ""
-echo "[code-map] listo."
-echo "  graph.json  → $HERE/graph.json"
-echo "  standalone  → $HERE/ruana-code-map.html"
-echo ""
-echo "Forma más fácil (Brave, doble clic):"
-echo "  abre $HERE/ruana-code-map.html"
-echo ""
-echo "Recomendado (código profundo /api/src):"
-echo "  python3 $HERE/serve.py"
-echo "  abre http://127.0.0.1:8842"
+echo "[mapa] listo."
+echo "  Ver con código profundo:"
+echo "    python3 $HERE/serve.py"
+echo "    http://127.0.0.1:8842"
+echo "  O abre en Brave (doble clic):"
+echo "    $HERE/ruana-code-map.html"

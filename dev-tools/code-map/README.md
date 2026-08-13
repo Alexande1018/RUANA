@@ -1,10 +1,10 @@
-# RUANA Atlas
+# RUANA — Mapa del territorio
 
-Mapa ligero del código **real** de RUANA. Navegas por capas (área → carpeta →
-archivo) y el centro solo dibuja el **vecindario** del nodo elegido: qué
-conecta con qué, sin renderizar los 400+ nodos a la vez.
+Explorador visual tipo **Google Earth** del proyecto real.
 
-## Cómo verlo
+> Si existe en RUANA, debe poder encontrarse.
+
+## Ver
 
 ```bash
 bash dev-tools/code-map/generate.sh
@@ -12,28 +12,26 @@ python3 dev-tools/code-map/serve.py
 # http://127.0.0.1:8842
 ```
 
-`serve.py` habilita **Ver código profundo** (`/api/src`).
+Standalone (Brave): `dev-tools/code-map/ruana-code-map.html`
 
-### Sin servidor (Brave, doble clic)
+## Niveles (zoom semántico)
 
-```text
-dev-tools/code-map/ruana-code-map.html
-```
+0 Planeta → 1 Continentes (dominios) → 2–3 Carpetas → 4 Archivos → 5 Símbolos → 6 Código
 
-## Qué incluye
+## Modos
 
-- Capas: áreas → carpetas → archivos
-- Grafo enfocado: nodo + vecinos (ligero)
-- Panel de conexiones: sale hacia / entra desde, tipadas
-- Modos: Todo · Huérfanos · Sin uso · Calientes
-- Símbolos del archivo (clases, métodos, funciones, rutas)
-- Código fuente vía `serve.py`
+- **Explorar** — recorrido espacial
+- **X-Ray** — más relaciones visibles
+- **Auditoría / Encuéntrame todo** — huérfanos, señales, no clasificados
+
+## Principios
+
+- Inventario real (no inventa módulos)
+- Diferencia Hecho / Detección / Inferencia / Desconocido
+- «Sin clasificar» nunca se oculta
+- Solo lectura (+ `/api/src` para inspeccionar código)
 
 ## Archivos
 
-- `scanner.py` — escáner (solo lectura)
-- `generate.sh` — regenera `graph.json` + standalone
-- `build_standalone.py` — HTML autocontenido
-- `serve.py` — servidor + `/api/src`
-- `index.html` / `ruana-code-map.html` / `graph.json`
-- `vendor/code-map-libs.js`
+- `scanner.py` · `serve.py` · `generate.sh` · `build_standalone.py`
+- `index.html` · `graph.json` · `ruana-code-map.html`
