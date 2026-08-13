@@ -48,50 +48,41 @@ header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:
 #crumbs button{background:transparent;border:1px solid transparent;color:var(--dim);border-radius:999px;padding:3px 8px;cursor:pointer;font:12px var(--mono)}
 #crumbs button:hover,#crumbs button.on{border-color:var(--border2);color:var(--text)}
 #crumbs button.on{color:var(--lime);border-color:rgba(184,232,106,.35)}
-#homeBtn,#backBtn{border:1px solid var(--border2);background:var(--surface);color:var(--text);border-radius:10px;padding:6px 10px;font:11px var(--mono);cursor:pointer}
-#homeBtn:hover{border-color:var(--lime);color:var(--lime)}
+#homeBtn,#backBtn,#enterBtnTop{border:1px solid var(--border2);background:var(--surface);color:var(--text);border-radius:10px;padding:6px 10px;font:11px var(--mono);cursor:pointer}
+#homeBtn:hover,#enterBtnTop:hover{border-color:var(--lime);color:var(--lime)}
 #altTag{font:10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--lime);border:1px solid rgba(184,232,106,.3);border-radius:999px;padding:4px 10px;background:rgba(184,232,106,.06)}
-#main{display:grid;grid-template-columns:1fr 360px;min-height:0}
-#stage{position:relative;overflow:hidden;background:rgba(9,12,10,.5)}
-#map{position:absolute;inset:0;width:100%;height:100%}
+#main{display:grid;grid-template-columns:280px minmax(0,1fr) 340px;min-height:0}
+#side{border-right:1px solid var(--border);background:rgba(14,18,16,.92);overflow:auto;min-height:0}
+#side h2{margin:0;padding:12px 12px 8px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.side-item{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:9px 12px;cursor:pointer;border-left:3px solid transparent;font:12.5px var(--mono);color:var(--dim)}
+.side-item:hover{background:rgba(63,159,110,.07);color:var(--text)}
+.side-item.on{background:rgba(63,159,110,.12);color:var(--text);border-left-color:var(--lime)}
+.side-item .meta{color:var(--faint);font-size:10px;white-space:nowrap}
+.side-item .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-right:8px;display:inline-block;vertical-align:middle}
+#stage{position:relative;overflow:auto;background:rgba(9,12,10,.5);min-height:0}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;padding:16px 16px 80px;align-content:start}
+#grid.hidden{display:none}
+.tile{border:1px solid var(--border);background:rgba(18,24,22,.9);border-radius:14px;padding:14px;cursor:pointer;min-height:100px;display:flex;flex-direction:column;gap:6px}
+.tile:hover{border-color:rgba(184,232,106,.45)}
+.tile.on{border-color:var(--lime);box-shadow:0 0 0 1px rgba(184,232,106,.25)}
+.tile .kicker{font:10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.tile .name{font:700 14px/1.25 var(--sans);word-break:break-word}
+.tile .sub{font:11px var(--mono);color:var(--dim)}
+.tile .marks{margin-top:auto;display:flex;flex-wrap:wrap;gap:4px}
+#mapWrap{display:none;padding:12px 16px 80px}
+#mapWrap.on{display:block}
+#map{width:100%;min-height:480px;height:60vh}
 #overlay{position:absolute;inset:0;display:none;overflow:auto;padding:22px 28px;background:rgba(9,12,10,.96);z-index:20}
-#hudL{position:absolute;left:12px;top:12px;z-index:8;display:flex;flex-direction:column;gap:8px;max-width:230px}
-.card{background:rgba(18,24,22,.9);border:1px solid var(--border);border-radius:14px;padding:10px 12px;backdrop-filter:blur(8px);font-size:11px}
+#hudL{position:sticky;top:0;z-index:5;padding:12px 16px 0;pointer-events:none}
+#hudL .card{pointer-events:auto;display:inline-block;max-width:240px}
+.card{background:rgba(18,24,22,.92);border:1px solid var(--border);border-radius:14px;padding:10px 12px;backdrop-filter:blur(8px);font-size:11px}
 .card h4{margin:0 0 6px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
-#summary div{display:flex;justify-content:space-between;padding:2px 0;color:var(--dim);font-family:var(--mono)}
+#summary div{display:flex;justify-content:space-between;gap:16px;padding:2px 0;color:var(--dim);font-family:var(--mono)}
 #summary b{color:var(--text);font-weight:500}
-#minimap{width:160px;height:110px;border-radius:12px;border:1px solid var(--border);background:#0b100e;position:relative;overflow:hidden}
-#minimap svg{width:100%;height:100%}
-#minimap .vp{position:absolute;border:1px solid var(--lime);background:rgba(184,232,106,.08);pointer-events:none}
-#hint{position:absolute;right:12px;bottom:12px;z-index:8;font:11px/1.45 var(--mono);color:var(--dim);background:rgba(18,24,22,.9);border:1px solid var(--border);border-radius:12px;padding:8px 10px;max-width:260px}
-#panel{border-left:1px solid var(--border);background:rgba(18,24,22,.95);overflow:auto;padding:14px 14px 28px}
+#hint{position:sticky;bottom:12px;margin:0 16px 12px auto;width:fit-content;z-index:8;font:11px/1.45 var(--mono);color:var(--dim);background:rgba(18,24,22,.92);border:1px solid var(--border);border-radius:12px;padding:8px 10px;max-width:320px}
+#panel{border-left:1px solid var(--border);background:rgba(18,24,22,.95);overflow:auto;padding:14px 14px 28px;min-height:0}
 #panel h2{margin:0 0 10px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
-.empty{color:var(--faint);font:13px/1.55 var(--sans)}
-.title{font:800 18px/1.25 var(--sans);word-break:break-word}
-.path{font:11px var(--mono);color:var(--faint);margin:4px 0 12px;word-break:break-all}
-.block{margin:0 0 14px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
-.block h3{margin:0 0 6px;font-size:11px;color:var(--lime);letter-spacing:.04em}
-.block p{margin:0;font-size:13px;line-height:1.5;color:var(--dim)}
-.kv{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px}
-.kv span:first-child{color:var(--dim)}.kv span:last-child{font-family:var(--mono)}
-.badge{display:inline-block;margin:4px 4px 0 0;padding:3px 8px;border-radius:999px;font:10px var(--mono);border:1px solid}
-.badge.ok{color:var(--ok);border-color:rgba(94,207,154,.35)}
-.badge.warn{color:var(--warn);border-color:rgba(232,196,104,.4)}
-.badge.risk{color:var(--risk);border-color:rgba(212,146,110,.4)}
-.badge.unk{color:var(--comp);border-color:rgba(184,106,138,.4)}
-.badge.det{color:var(--dim);border-color:var(--border2)}
-.btns{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
-.btns button{border:1px solid rgba(63,159,110,.35);background:rgba(63,159,110,.1);color:var(--lime);border-radius:10px;padding:8px 10px;font:11px var(--mono);cursor:pointer}
-.btns button.sec{border-color:var(--border2);background:transparent;color:var(--dim)}
-.chips{display:flex;flex-wrap:wrap;gap:5px}
-.chip{border:1px solid var(--border2);border-radius:8px;padding:4px 8px;font:11px var(--mono);color:var(--dim);cursor:pointer;background:rgba(255,255,255,.02)}
-.chip:hover{border-color:var(--accent);color:var(--text)}
-.list div{padding:5px 6px;border-radius:8px;font:11.5px var(--mono);color:var(--dim);cursor:pointer}
-.list div:hover{background:rgba(63,159,110,.08);color:var(--text)}
-#codeMeta{display:none;margin-top:8px;font:10px var(--mono);color:var(--faint)}
-#codeBox{display:none;margin-top:8px;max-height:300px;overflow:auto;background:#050806;border:1px solid var(--border);border-radius:10px;padding:10px;font:11px/1.45 var(--mono);white-space:pre;color:#d5e0d4}
-footer{display:flex;gap:14px;align-items:center;padding:6px 16px;border-top:1px solid var(--border);font:10.5px var(--mono);color:var(--faint);background:rgba(18,24,22,.92)}
-.node-label{font-family:var(--mono);font-size:11px;fill:#e8f0e6;pointer-events:none}
+@media(max-width:1100px){#main{grid-template-columns:1fr 320px}#side{display:none}}
 @media(max-width:900px){#main{grid-template-columns:1fr}#panel{display:none}}
 </style>
 </head>
@@ -115,22 +106,27 @@ footer{display:flex;gap:14px;align-items:center;padding:6px 16px;border-top:1px 
   <div id="navstrip">
     <button id="homeBtn" title="Volver a RUANA">⌂ RUANA</button>
     <button id="backBtn" title="Subir un nivel">⤴ Subir</button>
+    <button id="enterBtnTop" title="Entrar al seleccionado">⤵ Entrar</button>
     <div id="altTag">PLANETA</div>
     <div id="crumbs"></div>
   </div>
   <div id="main">
+    <nav id="side">
+      <h2>Índice (scroll)</h2>
+      <div id="sideList"></div>
+    </nav>
     <div id="stage">
-      <svg id="map" xmlns="http://www.w3.org/2000/svg"></svg>
-      <div id="overlay"></div>
       <div id="hudL">
         <div class="card" id="summary"><h4>Territorio</h4></div>
-        <div class="card"><h4>Minimapa</h4><div id="minimap"><svg id="miniSvg"></svg><div class="vp" id="miniVp"></div></div></div>
       </div>
-      <div id="hint">Rueda o botones = zoom semántico · doble clic = entrar · Esc = subir</div>
+      <div id="grid"></div>
+      <div id="mapWrap"><svg id="map" xmlns="http://www.w3.org/2000/svg"></svg></div>
+      <div id="overlay"></div>
+      <div id="hint">Lista o tarjetas · clic = ficha · doble clic / Entrar = bajar de nivel · Esc / Subir = volver · scroll normal en el centro</div>
     </div>
     <aside id="panel">
       <h2>Ficha del lugar</h2>
-      <div id="panelBody"><div class="empty">Estás en la vista planeta de RUANA. Entra en un continente (área) para explorar. Todo lo que existe en el proyecto puede encontrarse aquí — también lo no clasificado.</div></div>
+      <div id="panelBody"><div class="empty">Estás en la vista planeta de RUANA. Usa la lista de la izquierda o las tarjetas. Nada se oculta — también verás «Sin clasificar».</div></div>
     </aside>
   </div>
   <footer>
@@ -209,12 +205,13 @@ footer{display:flex;gap:14px;align-items:center;padding:6px 16px;border-top:1px 
     });
     $('homeBtn').onclick=function(){goPlanet(true);};
     $('backBtn').onclick=function(){surface();};
+    var et=$('enterBtnTop'); if(et) et.onclick=function(){enter();};
     $('search').oninput=function(){search(this.value.trim());};
-    document.addEventListener('keydown',function(ev){if(ev.key==='Escape')surface();});
-    $('map').addEventListener('wheel',function(ev){
-      ev.preventDefault();
-      if(ev.deltaY>0) surface(); else if(selected) enter();
-    },{passive:false});
+    document.addEventListener('keydown',function(ev){
+      if(ev.key==='Escape') surface();
+      if(ev.key==='Enter' && selected) enter();
+    });
+    // NO capturar wheel: scroll nativo del #stage
   }
 
   function setLevel(L){
@@ -232,7 +229,7 @@ footer{display:flex;gap:14px;align-items:center;padding:6px 16px;border-top:1px 
     document.querySelectorAll('.mode').forEach(function(x){x.classList.toggle('on',x.dataset.m==='explore');});
     $('overlay').style.display='none';
     setLevel(0); render();
-    $('panelBody').innerHTML='<div class="empty">Estás en la vista planeta de <b>RUANA</b>. Entra en un continente. Lo no clasificado también aparece: nada se oculta.</div>';
+    $('panelBody').innerHTML='<div class="empty">Vista planeta de <b>RUANA</b>. Usa el índice (izquierda) o las tarjetas. Scroll normal. Doble clic o «Entrar» para bajar de nivel.</div>';
   }
 
   function surface(){
@@ -268,204 +265,130 @@ footer{display:flex;gap:14px;align-items:center;padding:6px 16px;border-top:1px 
     if(focusFile) add((by[focusFile]||{}).label||focusFile, level>=4, function(){setLevel(4);render();showCard(focusFile);});
   }
 
-  function domainColor(i, total){
+  function domainColor(i){
     var hues=[140,90,40,200,320,180,20,260];
-    var h=hues[i%hues.length];
-    return 'hsl('+h+' 45% 42%)';
+    return 'hsl('+hues[i%hues.length]+' 42% 38%)';
+  }
+
+  function currentItems(){
+    if(level===0){
+      return (raw.planet.domains||[]).map(function(d,i){
+        return {id:d.id, title:d.label, sub:(d.files||0)+' archivos · '+(d.no_refs||0)+' sin refs', kicker:'continente', color:d.domain==='sin_clasificar'?'#6b4a58':domainColor(i), badge:d.domain==='sin_clasificar'?'unk':(d.no_refs>0?'warn':null), count:d.files||0};
+      });
+    }
+    if(level===1){
+      var files=raw.nodes.filter(function(n){return n.type==='file'&&n.domain===focusDomain;});
+      var folders={};
+      files.forEach(function(n){var f=n.folder||'(sin carpeta)'; folders[f]=folders[f]||{count:0,no:0}; folders[f].count++; if((n.flags||[]).some(function(x){return x.code==='no_refs_detected';})) folders[f].no++;});
+      return Object.keys(folders).sort().map(function(f){
+        var info=folders[f];
+        return {id:'folder::'+f, title:f.split('/').slice(-3).join('/'), sub:f+' · '+info.count+' archivos', kicker:'carpeta', color:'#2f7d56', badge:info.no?'warn':null, count:info.count};
+      });
+    }
+    if(level===2||level===3){
+      var files=raw.nodes.filter(function(n){return n.type==='file'&&n.folder===focusFolder&&(!focusDomain||n.domain===focusDomain);});
+      if(mode==='audit') files=files.filter(function(n){return (n.flags||[]).length;});
+      return files.sort(function(a,b){return (b.degree||0)-(a.degree||0);}).map(function(n){
+        var no=(n.flags||[]).some(function(f){return f.code==='no_refs_detected';});
+        var unk=n.domain_certainty==='unknown';
+        return {id:n.id, title:n.label, sub:(n.kind||n.type)+' · grado '+(n.degree||0)+(n.loc?(' · '+n.loc+' LOC'):''), kicker:'archivo', color:unk?'#6b4a58':(no?'#8a6a3a':'#3f9f6e'), badge:unk?'unk':(no?'warn':null), count:n.degree||0};
+      });
+    }
+    if(level>=4){
+      var n=by[focusFile]; if(!n) return [];
+      var syms=n.symbols||[];
+      if(level===4){
+        // show self + neighbors as cards too
+        var items=[{id:n.id, title:n.label, sub:'archivo central · '+(n.degree||0)+' enlaces', kicker:'centro', color:'#b8e86a', badge:null, count:n.degree||0}];
+        var seen={}; seen[n.id]=1;
+        (outE[n.id]||[]).concat(inE[n.id]||[]).forEach(function(e){
+          var o=e.source===n.id?e.target:e.source; if(seen[o]) return; seen[o]=1;
+          var x=by[o]; if(!x) return;
+          items.push({id:o, title:x.label, sub:(ELAB[e.type]||e.type)+' · '+(x.type||''), kicker:'conectado', color:'#3f9f6e', badge:null, count:x.degree||0});
+        });
+        return items.slice(0,60);
+      }
+      return syms.map(function(s){return {id:s.id, title:s.name, sub:s.kind, kicker:'símbolo', color:s.kind==='class'?'#5ecf9a':s.kind==='route'?'#b86a8a':'#e8c468', badge:null, count:0};});
+    }
+    return [];
   }
 
   function render(){
     if(mode==='findall'||mode==='audit'){showOverlayAudit();return;}
+    var items=currentItems();
+    paintSide(items);
+    // grid for browse levels; radial only as optional diagram at file detail
+    var useDiagram = (level===4 && mode==='xray');
+    $('grid').classList.toggle('hidden', !!useDiagram);
+    $('mapWrap').classList.toggle('on', !!useDiagram);
+    if(useDiagram) renderFileDiagram();
+    else paintGrid(items);
+    $('stage').scrollTop=0;
+  }
+
+  function paintSide(items){
+    var box=$('sideList'); if(!box) return;
+    box.innerHTML='';
+    if(!items.length){box.innerHTML='<div class="empty" style="padding:12px">Sin elementos en este nivel.</div>';return;}
+    items.forEach(function(it){
+      var el=document.createElement('div');
+      el.className='side-item'+(selected===it.id?' on':'');
+      el.innerHTML='<span><span class="dot" style="background:'+it.color+'"></span>'+esc(it.title)+'</span><span class="meta">'+esc(String(it.count))+'</span>';
+      el.onclick=function(){selected=it.id; showCard(it.id); paintSide(items); paintGrid(items);};
+      el.ondblclick=function(){selected=it.id; enter();};
+      box.appendChild(el);
+    });
+  }
+
+  function paintGrid(items){
+    var g=$('grid'); g.innerHTML='';
+    items.forEach(function(it){
+      var t=document.createElement('div');
+      t.className='tile'+(selected===it.id?' on':'');
+      var marks='';
+      if(it.badge==='unk') marks+='<span class="badge unk">sin clasificar</span>';
+      if(it.badge==='warn') marks+='<span class="badge warn">sin refs</span>';
+      t.innerHTML='<div class="kicker">'+esc(it.kicker)+'</div><div class="name">'+esc(it.title)+'</div><div class="sub">'+esc(it.sub)+'</div><div class="marks">'+marks+'</div>';
+      t.onclick=function(){selected=it.id; showCard(it.id); paintSide(items); paintGrid(items);};
+      t.ondblclick=function(){selected=it.id; enter();};
+      g.appendChild(t);
+    });
+  }
+
+  function renderFileDiagram(){
     var svg=$('map'); svg.innerHTML='';
-    var w=svg.clientWidth||svg.parentElement.clientWidth||900;
-    var h=svg.clientHeight||svg.parentElement.clientHeight||600;
+    var n=by[focusFile]; if(!n) return;
+    var w=svg.clientWidth||700, h=Math.max(480, svg.clientHeight||500);
     svg.setAttribute('viewBox','0 0 '+w+' '+h);
-
-    if(level===0) renderPlanet(svg,w,h);
-    else if(level===1) renderDomain(svg,w,h);
-    else if(level===2||level===3) renderFolder(svg,w,h);
-    else if(level===4) renderFile(svg,w,h);
-    else renderSymbols(svg,w,h);
-    paintMini(w,h);
-    if(mode==='xray') drawXray(svg,w,h);
-  }
-
-  function bubbleLayout(n,w,h){
+    var neigh=[]; var seen={}; seen[n.id]=1;
+    (outE[n.id]||[]).concat(inE[n.id]||[]).forEach(function(e){var o=e.source===n.id?e.target:e.source; if(!seen[o]&&by[o]){seen[o]=1;neigh.push(o);}});
+    neigh=neigh.slice(0,24);
     var cx=w/2, cy=h/2, R=Math.min(w,h)*0.34;
-    var pos=[];
-    for(var i=0;i<n;i++){
-      var ang=-Math.PI/2+(i/Math.max(n,1))*Math.PI*2;
-      var r = n===1?0:R*(0.55+0.45*((i%3)/2));
-      pos.push({x:cx+Math.cos(ang)*r, y:cy+Math.sin(ang)*r});
-    }
-    return pos;
-  }
-
-  function drawNode(svg, x,y,r, color, label, id, badge){
-    var g=document.createElementNS('http://www.w3.org/2000/svg','g');
-    g.style.cursor='pointer';
-    var c=document.createElementNS('http://www.w3.org/2000/svg','circle');
-    c.setAttribute('cx',x);c.setAttribute('cy',y);c.setAttribute('r',r);
-    c.setAttribute('fill',color); c.setAttribute('fill-opacity','0.92');
-    c.setAttribute('stroke','rgba(248,250,246,.18)'); c.setAttribute('stroke-width','1.2');
-    g.appendChild(c);
-    if(badge){
-      var b=document.createElementNS('http://www.w3.org/2000/svg','circle');
-      b.setAttribute('cx',x+r*0.7);b.setAttribute('cy',y-r*0.7);b.setAttribute('r',5);
-      b.setAttribute('fill', badge==='unk'?'#b86a8a': badge==='warn'?'#e8c468':'#d4926e');
-      g.appendChild(b);
-    }
-    var t=document.createElementNS('http://www.w3.org/2000/svg','text');
-    t.setAttribute('x',x); t.setAttribute('y',y+r+14); t.setAttribute('text-anchor','middle');
-    t.setAttribute('class','node-label'); t.textContent=(label||'').slice(0,28);
-    g.appendChild(t);
-    g.onclick=function(){selected=id; showCard(id); highlight(svg,id);};
-    g.ondblclick=function(){selected=id; enter();};
-    svg.appendChild(g);
-  }
-
-  function highlight(svg,id){ /* visual feedback via panel is enough for light UI */ }
-
-  function renderPlanet(svg,w,h){
-    var domains=raw.planet.domains||[];
-    // always include all domains from data — never hide sin_clasificar
-    var pos=bubbleLayout(domains.length,w,h);
-    // soft links between domains that share edges
-    if(mode==='xray' || true){
-      var bag={};
-      raw.edges.forEach(function(e){
-        var a=by[e.source],b=by[e.target]; if(!a||!b||a.domain===b.domain) return;
-        var k=a.domain+'|'+b.domain; bag[k]=(bag[k]||0)+1;
-      });
-      Object.keys(bag).forEach(function(k){
-        if(bag[k]<3) return; // only main relations at planet
-        var p=k.split('|');
-        var ia=domains.findIndex(function(d){return d.domain===p[0];});
-        var ib=domains.findIndex(function(d){return d.domain===p[1];});
-        if(ia<0||ib<0) return;
-        var line=document.createElementNS('http://www.w3.org/2000/svg','line');
-        line.setAttribute('x1',pos[ia].x);line.setAttribute('y1',pos[ia].y);
-        line.setAttribute('x2',pos[ib].x);line.setAttribute('y2',pos[ib].y);
-        line.setAttribute('stroke','rgba(63,159,110,.18)'); line.setAttribute('stroke-width', Math.min(4,1+Math.log2(bag[k])));
-        svg.appendChild(line);
-      });
-    }
-    domains.forEach(function(d,i){
-      var r=18+Math.min(36, Math.sqrt(d.files||1)*3.2);
-      var badge = d.domain==='sin_clasificar'?'unk': (d.no_refs>0?'warn':null);
-      var col = d.domain==='sin_clasificar' ? '#6b4a58' : domainColor(i, domains.length);
-      drawNode(svg, pos[i].x, pos[i].y, r, col, d.label+' · '+(d.files||0), d.id, badge);
-    });
-    // center label
-    var t=document.createElementNS('http://www.w3.org/2000/svg','text');
-    t.setAttribute('x',w/2); t.setAttribute('y',h/2); t.setAttribute('text-anchor','middle');
-    t.setAttribute('fill', '#b8e86a'); t.setAttribute('font-size','22'); t.setAttribute('font-family','Manrope,sans-serif'); t.setAttribute('font-weight','800');
-    t.textContent='RUANA';
-    svg.appendChild(t);
-  }
-
-  function renderDomain(svg,w,h){
-    var files=raw.nodes.filter(function(n){return n.type==='file' && n.domain===focusDomain;});
-    var folders={};
-    files.forEach(function(n){var f=n.folder||'(sin carpeta)'; folders[f]=folders[f]||{count:0,no:0}; folders[f].count++; if((n.flags||[]).some(function(f){return f.code==='no_refs_detected';})) folders[f].no++;});
-    var keys=Object.keys(folders).sort();
-    var pos=bubbleLayout(keys.length,w,h);
-    keys.forEach(function(f,i){
-      var info=folders[f];
-      var r=12+Math.min(22,Math.sqrt(info.count)*2.5);
-      drawNode(svg,pos[i].x,pos[i].y,r,'#2f7d56', f.split('/').slice(-2).join('/')+' · '+info.count, 'folder::'+f, info.no?'warn':null);
-    });
-  }
-
-  function renderFolder(svg,w,h){
-    var files=raw.nodes.filter(function(n){return n.type==='file' && n.folder===focusFolder && (!focusDomain || n.domain===focusDomain);});
-    if(mode==='audit'){
-      files=files.filter(function(n){return (n.flags||[]).length;});
-    }
-    var pos=bubbleLayout(Math.min(files.length,80),w,h);
-    files.slice(0,80).forEach(function(n,i){
-      var no=(n.flags||[]).some(function(f){return f.code==='no_refs_detected';});
-      var unk=n.domain_certainty==='unknown';
-      var r=8+Math.min(14,(n.degree||0)*0.2);
-      drawNode(svg,pos[i].x,pos[i].y,r, unk?'#6b4a58': (no?'#8a6a3a':'#3f9f6e'), n.label, n.id, unk?'unk':(no?'warn':null));
-    });
-    // direct edges among visible
-    var keep={}; files.slice(0,80).forEach(function(n){keep[n.id]=1;});
-    raw.edges.forEach(function(e){
-      if(!keep[e.source]||!keep[e.target]) return;
-      var ia=files.findIndex(function(n){return n.id===e.source;});
-      var ib=files.findIndex(function(n){return n.id===e.target;});
-      if(ia<0||ib<0||ia>=80||ib>=80) return;
-      var line=document.createElementNS('http://www.w3.org/2000/svg','line');
-      line.setAttribute('x1',pos[ia].x);line.setAttribute('y1',pos[ia].y);
-      line.setAttribute('x2',pos[ib].x);line.setAttribute('y2',pos[ib].y);
-      line.setAttribute('stroke', ECOL[e.type]||'rgba(63,159,110,.35)');
-      line.setAttribute('stroke-width','1.2'); line.setAttribute('stroke-opacity', mode==='xray'?'0.85':'0.35');
-      svg.appendChild(line);
-    });
-  }
-
-  function renderFile(svg,w,h){
-    var n=by[focusFile]; if(!n){setLevel(3);render();return;}
-    var neigh=[];
-    (outE[n.id]||[]).concat(inE[n.id]||[]).forEach(function(e){
-      var o=e.source===n.id?e.target:e.source; if(neigh.indexOf(o)<0) neigh.push(o);
-    });
-    var nodes=[{id:n.id,label:n.label,center:true}].concat(neigh.slice(0,36).map(function(id){return {id:id,label:(by[id]||{}).label||id};}));
-    var cx=w/2,cy=h/2; var R=Math.min(w,h)*0.32;
     var pos={}; pos[n.id]={x:cx,y:cy};
-    nodes.slice(1).forEach(function(node,i){
-      var ang=-Math.PI/2+(i/Math.max(nodes.length-1,1))*Math.PI*2;
-      pos[node.id]={x:cx+Math.cos(ang)*R,y:cy+Math.sin(ang)*R};
-    });
+    neigh.forEach(function(id,i){var ang=-Math.PI/2+(i/Math.max(neigh.length,1))*Math.PI*2; pos[id]={x:cx+Math.cos(ang)*R,y:cy+Math.sin(ang)*R};});
     raw.edges.forEach(function(e){
       if(!(e.source===n.id||e.target===n.id)) return;
       if(!pos[e.source]||!pos[e.target]) return;
       var line=document.createElementNS('http://www.w3.org/2000/svg','line');
-      line.setAttribute('x1',pos[e.source].x);line.setAttribute('y1',pos[e.source].y);
-      line.setAttribute('x2',pos[e.target].x);line.setAttribute('y2',pos[e.target].y);
-      line.setAttribute('stroke',ECOL[e.type]||'#3f9f6e'); line.setAttribute('stroke-width','1.8');
+      line.setAttribute('x1',pos[e.source].x); line.setAttribute('y1',pos[e.source].y);
+      line.setAttribute('x2',pos[e.target].x); line.setAttribute('y2',pos[e.target].y);
+      line.setAttribute('stroke',ECOL[e.type]||'#3f9f6e'); line.setAttribute('stroke-width','1.6');
       svg.appendChild(line);
     });
-    nodes.forEach(function(node){
-      var p=pos[node.id]; var nn=by[node.id]||node;
-      var r=node.center?18:9;
-      drawNode(svg,p.x,p.y,r, node.center?'#b8e86a':'#3f9f6e', nn.label||node.label, node.id, null);
-    });
-  }
-
-  function renderSymbols(svg,w,h){
-    var n=by[focusFile]; if(!n){setLevel(4);render();return;}
-    var syms=n.symbols||[];
-    if(!syms.length){
-      var t=document.createElementNS('http://www.w3.org/2000/svg','text');
-      t.setAttribute('x',w/2);t.setAttribute('y',h/2);t.setAttribute('text-anchor','middle');t.setAttribute('fill','#a7b3a8');
-      t.setAttribute('font-size','14'); t.textContent='Sin símbolos internos detectados en este archivo.';
-      svg.appendChild(t); return;
-    }
-    var pos=bubbleLayout(Math.min(syms.length,60),w,h);
-    syms.slice(0,60).forEach(function(s,i){
-      var col=s.kind==='class'?'#5ecf9a':s.kind==='method'?'#3f9f6e':s.kind==='route'?'#b86a8a':'#e8c468';
-      drawNode(svg,pos[i].x,pos[i].y, s.kind==='class'?12:8, col, s.name, s.id, null);
-    });
-  }
-
-  function drawXray(svg,w,h){ /* edges already denser in folder mode when xray */ }
-
-  function paintMini(w,h){
-    var ms=$('miniSvg'); ms.innerHTML='';
-    ms.setAttribute('viewBox','0 0 160 110');
-    var domains=raw.planet.domains||[];
-    domains.forEach(function(d,i){
-      var x=12+(i%8)*18, y=16+Math.floor(i/8)*28;
+    function node(id,center){
+      var p=pos[id], x=by[id]||{label:id}; var r=center?16:8;
+      var g=document.createElementNS('http://www.w3.org/2000/svg','g'); g.style.cursor='pointer';
       var c=document.createElementNS('http://www.w3.org/2000/svg','circle');
-      c.setAttribute('cx',x);c.setAttribute('cy',y);c.setAttribute('r', d.domain===focusDomain?6:3.5);
-      c.setAttribute('fill', d.domain==='sin_clasificar'?'#b86a8a':'#3f9f6e');
-      ms.appendChild(c);
-    });
-    var vp=$('miniVp');
-    vp.style.left=(8+level*18)+'px'; vp.style.top=(8+level*10)+'px';
-    vp.style.width=(40+level*8)+'px'; vp.style.height=(28+level*6)+'px';
+      c.setAttribute('cx',p.x);c.setAttribute('cy',p.y);c.setAttribute('r',r);
+      c.setAttribute('fill',center?'#b8e86a':'#3f9f6e'); g.appendChild(c);
+      var t=document.createElementNS('http://www.w3.org/2000/svg','text');
+      t.setAttribute('x',p.x);t.setAttribute('y',p.y+r+12);t.setAttribute('text-anchor','middle');
+      t.setAttribute('fill','#e8f0e6');t.setAttribute('font-size','10');t.setAttribute('font-family','IBM Plex Mono,monospace');
+      t.textContent=(x.label||id).slice(0,22); g.appendChild(t);
+      g.onclick=function(){selected=id;showCard(id);};
+      svg.appendChild(g);
+    }
+    node(n.id,true); neigh.forEach(function(id){node(id,false);});
   }
 
   function showCard(id){
