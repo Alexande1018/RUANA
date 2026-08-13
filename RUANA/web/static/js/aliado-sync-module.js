@@ -474,7 +474,7 @@
       const errorContainer = document.getElementById('error-bootstrap');
       const apiBase = (typeof getApiBase === 'function') ? getApiBase() : '';
 
-      const sesionRes = await fetch(apiBase + '/api/aliado/sesion', { method: 'GET', credentials: 'same-origin', headers: getRuanaAuthHeaders() });
+      const sesionRes = await fetch(apiBase + '/api/aliado/sesion', { method: 'GET', credentials: 'same-origin', headers: getAuthHeadersSafe() });
       if (!sesionRes.ok) {
         window.location.replace('/');
         return;
@@ -618,4 +618,9 @@ modules.sync = {
     fetchAliadoDatos: fetchAliadoDatos,
     bootstrapPrivatePanel: bootstrapPrivatePanel,
 };
+
+  // El script inline de aliado.html corre antes que los defer; PrivatePanel ya está en window.
+  if (typeof global.PrivatePanel !== 'undefined') {
+    bootstrapPrivatePanel();
+  }
 })(typeof window !== 'undefined' ? window : globalThis);

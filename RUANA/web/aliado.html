@@ -2230,12 +2230,8 @@
             }
         }
 
-        // Bootstrap sesión aliado → RuanaAliadoModules.sync.bootstrapPrivatePanel
+        // PrivatePanel debe existir antes de que aliado-sync-module.js (defer) arranque el bootstrap.
         window.PrivatePanel = PrivatePanel;
-        if (typeof RuanaAliadoModules !== 'undefined' && RuanaAliadoModules.sync &&
-            typeof RuanaAliadoModules.sync.bootstrapPrivatePanel === 'function') {
-            RuanaAliadoModules.sync.bootstrapPrivatePanel();
-        }
     </script>
 </body>
 </html>

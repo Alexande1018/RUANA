@@ -351,6 +351,8 @@ def test_aliado_catalogo_contactos_grupo_sync_modules_are_wired():
     assert "loadData" in sync
     assert "initState" in sync
     assert "bootstrapPrivatePanel" in sync
+    assert "global.PrivatePanel" in sync
+    assert "bootstrapPrivatePanel();" in sync
     assert "setupEventListeners" in events
     assert "_catalogoModule" in aliado
     assert "_contactosModule" in aliado
@@ -360,3 +362,6 @@ def test_aliado_catalogo_contactos_grupo_sync_modules_are_wired():
     assert "mod.loadData(this)" in aliado
     assert "mod.renderGrupo(this)" in aliado
     assert "mod.setupEventListeners(this)" in aliado
+    # Bootstrap: inline define PrivatePanel; sync-module (defer) lo invoca al cargar
+    assert "window.PrivatePanel = PrivatePanel" in aliado
+    assert "RuanaAliadoModules.sync.bootstrapPrivatePanel()" not in aliado
