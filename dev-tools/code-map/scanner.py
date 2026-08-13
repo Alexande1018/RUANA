@@ -408,11 +408,17 @@ def main():
         n.meta.pop("_raw_imports", None)
         n.meta.pop("_src", None)
 
-    # --- degree (para tamaño de nodo) ---
+    # --- degree / dirección / tipos de arista ---
     degree = {nid: 0 for nid in nodes}
+    in_degree = {nid: 0 for nid in nodes}
+    out_degree = {nid: 0 for nid in nodes}
+    edge_type_counts: dict[str, int] = {}
     for e in edges:
         degree[e.source] = degree.get(e.source, 0) + 1
         degree[e.target] = degree.get(e.target, 0) + 1
+        out_degree[e.source] = out_degree.get(e.source, 0) + 1
+        in_degree[e.target] = in_degree.get(e.target, 0) + 1
+        edge_type_counts[e.type] = edge_type_counts.get(e.type, 0) + 1
 
     # --- Health: ciclos de imports (grafo dirigido, solo aristas "import") ---
     import_adj: dict[str, list[str]] = {}
@@ -444,11 +450,51 @@ def main():
         key=lambda x: -x["degree"],
     )[:10]
 
+    # Huérfanos tipados (para el modo mapa)
+    orphans = []
+    for nid in isolated:
+        n = nodes[nid]
+        kind = "entry_script" if (
+            nid in entry_points
+            or nid.endswith(("run.py", "FIRST_RUN.py", "QUICKSTART.py", "STATS.py"))
+            or "/scripts/" in nid
+            or nid.startswith("scripts/")
+        ) else "orphan"
+        orphans.append({"id": nid, "label": n.label, "group": n.group, "kind": kind, "path": n.path})
+
     try:
         commit = subprocess.run(["git", "-C", str(REPO_ROOT), "rev-parse", "--short", "HEAD"],
                                  capture_output=True, text=True, timeout=5).stdout.strip()
     except Exception:
         commit = "unknown"
+
+    def folder_of(path: Optional[str]) -> str:
+        if not path:
+            return "(sin carpeta)"
+        parent = str(Path(path).parent).replace("\\", "/")
+        return parent if parent not in (".", "") else "(raíz)"
+
+    def symbols_for(n: Node) -> list[dict]:
+        """Capa profunda: clases / métodos / funciones / rutas como símbolos navegables."""
+        out_syms: list[dict] = []
+        for c in n.classes:
+            out_syms.append({"id": f"{n.id}::class::{c['name']}", "kind": "class", "name": c["name"],
+                             "methods": c.get("methods", [])})
+            for m in c.get("methods", []):
+                out_syms.append({"id": f"{n.id}::method::{c['name']}.{m}", "kind": "method",
+                                 "name": f"{c['name']}.{m}", "parent": c["name"]})
+        for fn in n.functions:
+            out_syms.append({"id": f"{n.id}::fn::{fn}", "kind": "function", "name": fn})
+        for r in n.routes:
+            methods = r.get("methods") or ["GET"]
+            for method in methods:
+                out_syms.append({
+                    "id": f"{n.id}::route::{method}::{r['path']}",
+                    "kind": "route",
+                    "name": f"{method} {r['path']}",
+                    "handler": r.get("handler"),
+                })
+        return out_syms
 
     out = {
         "generated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
@@ -456,8 +502,12 @@ def main():
         "nodes": [
             {
                 "id": n.id, "label": n.label, "type": n.type, "group": n.group,
-                "path": n.path, "loc": n.loc, "degree": degree.get(n.id, 0),
+                "path": n.path, "folder": folder_of(n.path) if n.type == "file" else None,
+                "loc": n.loc, "degree": degree.get(n.id, 0),
+                "in_degree": in_degree.get(n.id, 0),
+                "out_degree": out_degree.get(n.id, 0),
                 "classes": n.classes, "functions": n.functions, "routes": n.routes,
+                "symbols": symbols_for(n) if n.type == "file" else [],
                 "meta": n.meta,
             }
             for n in nodes.values()
@@ -468,6 +518,7 @@ def main():
             "isolated_files": isolated,
             "unused_candidates": unused_candidates,
             "hot_modules": hot_modules,
+            "orphans": orphans,
             "unresolved_internal_imports": unresolved_imports,
         },
         "stats": {
@@ -479,6 +530,9 @@ def main():
             "routes": sum(1 for n in nodes.values() if n.type == "route"),
             "tables": sum(1 for n in nodes.values() if n.type == "table"),
             "total_loc": sum(n.loc for n in nodes.values() if n.type == "file"),
+            "edge_types": edge_type_counts,
+            "orphan_count": len(orphans),
+            "unused_count": len(unused_candidates),
         },
     }
 
