@@ -339,28 +339,44 @@ footer{display:flex;gap:14px;padding:6px 14px;border-top:1px solid var(--line);f
   }
 
   function drawFocus(nodes, edges, title){
+    // Diferir: no matar Sigma dentro de su propio click handler
+    setTimeout(function(){ drawFocusNow(nodes, edges); }, 0);
+  }
+
+  function drawFocusNow(nodes, edges){
     $('stageEmpty').style.display=nodes.length?'none':'flex';
     if(sigma){try{sigma.kill();}catch(e){} sigma=null;}
+    var el=$('sigma-canvas');
+    el.innerHTML='';
     graph=new graphology.Graph();
     nodes.forEach(function(n,i){
       var ang=(i/Math.max(nodes.length,1))*Math.PI*2;
-      graph.addNode(n.id,{label:n.label,size:n.size,color:n.color,x:Math.cos(ang),y:Math.sin(ang)});
+      var r = n.size>=12 ? 0 : 1.6;
+      graph.addNode(n.id,{label:n.label,size:n.size,color:n.color,x:Math.cos(ang)*r,y:Math.sin(ang)*r});
     });
     edges.forEach(function(e,i){
       if(!graph.hasNode(e.source)||!graph.hasNode(e.target)) return;
       var key=e.source+'|'+e.target+'|'+(e.type||'x')+'|'+i;
-      if(!graph.hasEdge(key)) graph.addEdgeWithKey(key,e.source,e.target,{size:e.weight?Math.min(5,1+Math.log2(e.weight+1)):1.4,color:ECOL[e.type]||'#64748b',type:e.type});
+      if(!graph.hasEdge(key)) graph.addEdgeWithKey(key,e.source,e.target,{size:e.weight?Math.min(5,1+Math.log2(e.weight+1)):1.4,color:ECOL[e.type]||'#64748b',type:e.type||'import'});
     });
-    try{graphologyLayout.circular.assign(graph);}catch(e){}
-    if(graph.order>2 && graph.order<80){
-      try{var st=graphologyLayoutForceAtlas2.inferSettings(graph);graphologyLayoutForceAtlas2.assign(graph,{iterations:60,settings:st});}catch(e){}
+    try{ if(typeof graphologyLayout!=='undefined') graphologyLayout.circular.assign(graph); }catch(e){}
+    if(graph.order>2 && graph.size>0 && graph.order<60){
+      try{
+        var st=graphologyLayoutForceAtlas2.inferSettings(graph);
+        graphologyLayoutForceAtlas2.assign(graph,{iterations:40,settings:st});
+      }catch(e){}
     }
-    sigma=new Sigma(graph,$('sigma-canvas'),{renderLabels:true,labelRenderedSizeThreshold:0,labelFont:'IBM Plex Mono',labelColor:{color:'#dbeafe'}});
-    sigma.on('clickNode',function(ev){
-      var id=ev.node;
-      if(String(id).indexOf('area::')===0){focusArea=id.slice(6);level='folders';paintNav();showArea(focusArea);return;}
-      if(by[id]){selected=id; if(by[id].group)focusArea=by[id].group; if(by[id].folder){focusFolder=by[id].folder;level='files';} paintNav();showFocus(id);}
-    });
+    try{
+      sigma=new Sigma(graph, el, {renderLabels:true,labelRenderedSizeThreshold:0,labelFont:'IBM Plex Mono',labelColor:{color:'#dbeafe'}});
+      sigma.on('clickNode',function(ev){
+        var id=ev.node;
+        if(String(id).indexOf('area::')===0){focusArea=id.slice(6);level='folders';paintNav();showArea(focusArea);return;}
+        if(by[id]){selected=id; if(by[id].group)focusArea=by[id].group; if(by[id].folder){focusFolder=by[id].folder;level='files';} paintNav();showFocus(id);}
+      });
+    }catch(e){
+      $('stageEmpty').style.display='flex';
+      $('stageEmpty').textContent='Grafo no disponible: '+e.message;
+    }
   }
 
   function loadCode(path){
