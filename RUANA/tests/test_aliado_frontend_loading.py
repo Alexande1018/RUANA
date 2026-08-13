@@ -315,6 +315,9 @@ def test_aliado_alertas_module_is_wired():
     assert "mod.renderAlertHub(this)" in aliado
     assert "mod.abrirModalPagoApoyo(this, contactoId, apoyoRuana, servicio)" in aliado
     assert 'id="ruana-alert-hub"' in aliado
+    assert "renderAlertHub(host)" in alertas_js
+    assert "renderAlertDetailPanel(host, detailEl, detailId)" in alertas_js
+    assert "const self = this" not in alertas_js
     assert 'id="modal-pago-apoyo"' in aliado
     assert 'id="modal-impugnar-apoyo"' in aliado
 
@@ -351,6 +354,8 @@ def test_aliado_catalogo_contactos_grupo_sync_modules_are_wired():
     assert "loadData" in sync
     assert "initState" in sync
     assert "bootstrapPrivatePanel" in sync
+    assert "global.PrivatePanel" in sync
+    assert "bootstrapPrivatePanel();" in sync
     assert "setupEventListeners" in events
     assert "_catalogoModule" in aliado
     assert "_contactosModule" in aliado
@@ -360,3 +365,6 @@ def test_aliado_catalogo_contactos_grupo_sync_modules_are_wired():
     assert "mod.loadData(this)" in aliado
     assert "mod.renderGrupo(this)" in aliado
     assert "mod.setupEventListeners(this)" in aliado
+    # Bootstrap: inline define PrivatePanel; sync-module (defer) lo invoca al cargar
+    assert "window.PrivatePanel = PrivatePanel" in aliado
+    assert "RuanaAliadoModules.sync.bootstrapPrivatePanel()" not in aliado
