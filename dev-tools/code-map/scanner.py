@@ -96,25 +96,229 @@ def classify_domain(path: str) -> tuple[str, str, str, str]:
     return "sin_clasificar", "Sin clasificar", "unknown", "No coincidió con reglas de nombre conocidas del repo."
 
 
-def human_what(kind: str, path: str) -> str:
+DOMAIN_PURPOSE: dict[str, str] = {
+    "aliados": "Ciclo de vida de aliados: registro, perfil, estado, grupos, plazas y directorio.",
+    "administracion": "Operaciones de administración, panel y control del sistema.",
+    "autenticacion": "Acceso, sesión, registro e invitaciones de entrada.",
+    "chat": "Mensajería, comunicación entre aliados y alertas.",
+    "pagos": "Pagos, apoyo RUANA, métodos de cobro y conflictos de importe.",
+    "acuerdos": "Negociación y acuerdos entre aliados.",
+    "captacion": "Referidos, linaje y captación de nuevos aliados.",
+    "notificaciones": "Avisos y feedback al usuario.",
+    "grupos": "Grupos territoriales, plazas y oficios.",
+    "score": "Puntuación, élite y cambios de score.",
+    "catalogo": "Catálogo oficial de oficios y especializaciones.",
+    "solicitudes": "Solicitudes entre aliados o hacia el sistema.",
+    "invitaciones": "Invitaciones a unirse a RUANA o a un grupo.",
+    "contactos": "Contactos comerciales entre aliados.",
+    "evaluacion": "Evaluaciones y valoraciones.",
+    "competencia": "Competencia y reglas asociadas.",
+    "soporte": "Soporte y centro de comunicación.",
+    "base_datos": "Esquema, migraciones SQL y persistencia.",
+    "tests": "Pruebas automáticas y e2e.",
+    "infraestructura": "Deploy, CI, Docker y scripts operativos.",
+    "motores": "Motores, eventos, métricas y orquestación.",
+    "documentacion": "Documentación del proyecto.",
+    "estilos": "Hojas de estilo y apariencia visual.",
+    "assets": "Imágenes, iconos y recursos visuales.",
+    "sin_clasificar": "Elementos reales del repo que aún no encajan en un dominio conocido.",
+}
+
+
+def first_paragraph(text: str, limit: int = 420) -> str:
+    if not text:
+        return ""
+    parts = [p.strip() for p in re.split(r"\n\s*\n", text.strip()) if p.strip()]
+    para = parts[0] if parts else text.strip()
+    para = re.sub(r"\s+", " ", para).strip()
+    if len(para) > limit:
+        return para[: limit - 1].rstrip() + "…"
+    return para
+
+
+def first_line(text: str, limit: int = 180) -> str:
+    if not text:
+        return ""
+    line = text.strip().split("\n", 1)[0].strip()
+    line = re.sub(r"\s+", " ", line)
+    if len(line) > limit:
+        return line[: limit - 1].rstrip() + "…"
+    return line
+
+
+def infer_role(path: str, kind: str) -> dict[str, str]:
+    """Rol funcional a partir de la ubicación/nombre real del archivo."""
     name = Path(path).name
-    mapping = {
-        "python": f"Archivo Python «{name}».",
-        "javascript": f"Script JavaScript «{name}».",
-        "html": f"Página/plantilla HTML «{name}».",
-        "css": f"Hoja de estilos «{name}».",
-        "sql": f"Migración o script SQL «{name}».",
-        "markdown": f"Documento «{name}».",
-        "image": f"Recurso de imagen «{name}».",
-        "config": f"Archivo de configuración «{name}».",
-        "script": f"Script operativo «{name}».",
-        "route": "Ruta HTTP (API o página) detectada en el código.",
-        "table": "Tabla de base de datos detectada en migraciones.",
-        "folder": f"Carpeta «{name}».",
-        "domain": "Área lógica agrupada por evidencia de nombres reales del proyecto.",
-        "symbol": "Elemento interno (función/clase/método) detectado en el código.",
+    stem = Path(path).stem
+    p = path.replace("\\", "/")
+    low = p.lower()
+
+    if kind == "route":
+        return {
+            "id": "route",
+            "function": "Ruta HTTP",
+            "what": f"Endpoint HTTP «{name}»: recibe peticiones y las despacha a un handler Flask.",
+        }
+    if kind == "table":
+        return {
+            "id": "table",
+            "function": "Tabla de base de datos",
+            "what": f"Tabla SQL «{name}»: almacena datos persistentes del dominio.",
+        }
+    if name == "db_manager.py" or stem == "db_manager":
+        return {
+            "id": "db_manager",
+            "function": "Gestor central de base de datos",
+            "what": "Fachada monolítica DBManager: API histórica de persistencia; parte ya delega a services/repos.",
+        }
+    if name == "app.py" and "/web/" in low:
+        return {
+            "id": "flask_app",
+            "function": "Servidor web Flask",
+            "what": "Punto de entrada del dashboard: setup Flask, middleware y registro de blueprints.",
+        }
+    if "/services/" in low or stem.endswith("_service"):
+        dom = stem.replace("_service", "").replace("-", "_")
+        return {
+            "id": "service",
+            "function": f"Servicio de dominio «{dom}»",
+            "what": f"Servicio «{name}»: lógica de negocio, validaciones y orquestación del dominio {dom}.",
+        }
+    if "/repositories/" in low or stem.endswith("_repo"):
+        dom = stem.replace("_repo", "").replace("-", "_")
+        return {
+            "id": "repository",
+            "function": f"Repositorio «{dom}»",
+            "what": f"Repositorio «{name}»: acceso a datos (SQL/lectura-escritura) sin reglas de negocio.",
+        }
+    if "/blueprints/" in low or stem.endswith("_bp"):
+        dom = stem.replace("_bp", "").replace("-", "_")
+        return {
+            "id": "blueprint",
+            "function": f"Blueprint HTTP «{dom}»",
+            "what": f"Blueprint Flask «{name}»: rutas HTTP y handlers del área {dom}.",
+        }
+    if "/engines/" in low:
+        return {
+            "id": "engine",
+            "function": f"Motor «{stem}»",
+            "what": f"Motor/proceso «{name}»: lógica de ejecución o cálculo del sistema.",
+        }
+    if kind == "javascript":
+        return {
+            "id": "frontend_js",
+            "function": "Script de interfaz",
+            "what": f"JavaScript «{name}»: comportamiento de la interfaz (eventos, fetch, UI).",
+        }
+    if kind == "html":
+        return {
+            "id": "page",
+            "function": "Página / plantilla",
+            "what": f"HTML «{name}»: pantalla o plantilla que ve el usuario.",
+        }
+    if kind == "css":
+        return {
+            "id": "stylesheet",
+            "function": "Hoja de estilos",
+            "what": f"CSS «{name}»: apariencia visual de la interfaz.",
+        }
+    if kind == "sql":
+        return {
+            "id": "migration",
+            "function": "Migración SQL",
+            "what": f"SQL «{name}»: define o altera el esquema real de la base de datos.",
+        }
+    if kind == "markdown":
+        return {
+            "id": "docs",
+            "function": "Documento",
+            "what": f"Documento «{name}»: explicación o guía del proyecto.",
+        }
+    if kind in ("config", "json", "env", "env_example"):
+        return {
+            "id": "config",
+            "function": "Configuración",
+            "what": f"Configuración «{name}»: parámetros o metadatos del sistema.",
+        }
+    if kind == "script":
+        return {
+            "id": "ops_script",
+            "function": "Script operativo",
+            "what": f"Script «{name}»: automatización o operación del entorno.",
+        }
+    if kind == "image":
+        return {
+            "id": "asset",
+            "function": "Recurso visual",
+            "what": f"Imagen «{name}»: asset visual del producto.",
+        }
+    return {
+        "id": "file",
+        "function": f"Archivo {kind}",
+        "what": f"Archivo «{name}» presente en el proyecto ({kind}).",
     }
-    return mapping.get(kind, f"Elemento «{name}» presente en el proyecto.")
+
+
+def summarize_does(items: list[dict], limit: int = 10) -> str:
+    if not items:
+        return ""
+    bits = []
+    for it in items[:limit]:
+        name = it.get("name") or ""
+        doc = it.get("doc") or ""
+        if doc:
+            bits.append(f"{name}: {doc}")
+        else:
+            bits.append(name)
+    return " · ".join(bits)
+
+
+def build_human(
+    *,
+    path: str,
+    kind: str,
+    domain_label: str,
+    domain_certainty: str,
+    domain_evidence: str,
+    module_doc: str = "",
+    does: Optional[list] = None,
+    extra_purpose: str = "",
+) -> dict:
+    role = infer_role(path, kind)
+    does = does or []
+    desc = first_paragraph(module_doc)
+    certainty = "fact"
+    evidence = path
+    if desc:
+        purpose = desc
+    elif extra_purpose:
+        purpose = extra_purpose
+        certainty = "detection"
+        evidence = domain_evidence or path
+    else:
+        does_txt = summarize_does(does, 8)
+        if does_txt:
+            purpose = f"Expone: {does_txt}"
+            certainty = "detection"
+            evidence = "Símbolos/funciones detectados en el archivo."
+        else:
+            purpose = f"Pertenece al dominio «{domain_label}»."
+            certainty = domain_certainty
+            evidence = domain_evidence
+    return {
+        "function": role["function"],
+        "what": role["what"],
+        "description": purpose,
+        "where": path,
+        "purpose": {"text": purpose, "certainty": certainty, "evidence": evidence},
+        "does": does[:14],
+        "role": role["id"],
+        "module_doc": first_paragraph(module_doc, 600) if module_doc else "",
+    }
+
+
+def human_what(kind: str, path: str) -> str:
+    return infer_role(path, kind)["what"]
 
 
 def iter_all_files():
@@ -212,11 +416,6 @@ def scan_python(path: Path):
         id=r, label=path.name, type="file", kind="python", path=r,
         folder=str(Path(r).parent).replace("\\", "/"),
         domain=did, domain_label=dlab, domain_certainty=dcert, loc=loc,
-        human={
-            "what": human_what("python", r),
-            "where": r,
-            "purpose": {"text": f"Clasificado en «{dlab}» por evidencia de nombre.", "certainty": dcert, "evidence": evid},
-        },
         meta={"domain_evidence": evid},
     )
     if loc >= LARGE_LOC:
@@ -226,18 +425,53 @@ def scan_python(path: Path):
     except SyntaxError as e:
         n.flags.append({"code": "parse_error", "level": "fact", "msg": f"Error de sintaxis: {e}"})
         n.meta["parse_error"] = str(e)
+        n.human = build_human(path=r, kind="python", domain_label=dlab, domain_certainty=dcert, domain_evidence=evid)
         add_node(n)
         return
 
+    module_doc = ast.get_docstring(tree) or ""
     imports = []
-    for item in ast.walk(tree):
+    does: list[dict] = []
+
+    for item in tree.body:
         if isinstance(item, ast.ClassDef):
-            methods = [m.name for m in item.body if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef))]
-            n.classes.append({"name": item.name, "methods": methods})
-            n.symbols.append({"id": f"{r}::class::{item.name}", "kind": "class", "name": item.name, "methods": methods})
-            for m in methods:
-                n.symbols.append({"id": f"{r}::method::{item.name}.{m}", "kind": "method", "name": f"{item.name}.{m}", "parent": item.name})
-        elif isinstance(item, ast.Import):
+            class_doc = first_line(ast.get_docstring(item) or "")
+            methods_info = []
+            for m in item.body:
+                if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    md = first_line(ast.get_docstring(m) or "")
+                    methods_info.append({"name": m.name, "doc": md, "lineno": m.lineno})
+            method_names = [m["name"] for m in methods_info]
+            n.classes.append({"name": item.name, "methods": method_names, "doc": class_doc})
+            n.symbols.append({
+                "id": f"{r}::class::{item.name}", "kind": "class", "name": item.name,
+                "methods": method_names, "doc": class_doc, "lineno": item.lineno,
+            })
+            does.append({"name": item.name, "doc": class_doc or f"Clase con {len(method_names)} métodos", "kind": "class"})
+            for m in methods_info:
+                n.symbols.append({
+                    "id": f"{r}::method::{item.name}.{m['name']}", "kind": "method",
+                    "name": f"{item.name}.{m['name']}", "parent": item.name,
+                    "doc": m["doc"], "lineno": m["lineno"],
+                })
+                if m["doc"] and not m["name"].startswith("_"):
+                    does.append({"name": f"{item.name}.{m['name']}", "doc": m["doc"], "kind": "method"})
+        elif isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            fn_doc = first_line(ast.get_docstring(item) or "")
+            n.functions.append(item.name)
+            n.symbols.append({
+                "id": f"{r}::fn::{item.name}", "kind": "function", "name": item.name,
+                "doc": fn_doc, "lineno": item.lineno,
+            })
+            if not item.name.startswith("_") or fn_doc:
+                does.append({"name": item.name, "doc": fn_doc, "kind": "function"})
+            span = getattr(item, "end_lineno", item.lineno) - item.lineno + 1
+            if span >= LARGE_FN_LINES:
+                n.flags.append({"code": "large_function", "level": "detection",
+                                "msg": f"Función «{item.name}» con ~{span} líneas (umbral {LARGE_FN_LINES})."})
+
+    for item in ast.walk(tree):
+        if isinstance(item, ast.Import):
             for a in item.names:
                 imports.append(a.name)
         elif isinstance(item, ast.ImportFrom):
@@ -245,15 +479,6 @@ def scan_python(path: Path):
                 imports.append(item.module)
                 for a in item.names:
                     imports.append(f"{item.module}.{a.name}")
-
-    for item in tree.body:
-        if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            n.functions.append(item.name)
-            n.symbols.append({"id": f"{r}::fn::{item.name}", "kind": "function", "name": item.name})
-            span = getattr(item, "end_lineno", item.lineno) - item.lineno + 1
-            if span >= LARGE_FN_LINES:
-                n.flags.append({"code": "large_function", "level": "detection",
-                                "msg": f"Función «{item.name}» con ~{span} líneas (umbral {LARGE_FN_LINES})."})
 
     route_defs = []
     for item in ast.walk(tree):
@@ -265,8 +490,14 @@ def scan_python(path: Path):
                             "path": dec.args[0].value,
                             "methods": route_methods(dec),
                             "handler": item.name,
+                            "doc": first_line(ast.get_docstring(item) or ""),
                         })
     n.routes = route_defs
+    n.human = build_human(
+        path=r, kind="python", domain_label=dlab, domain_certainty=dcert,
+        domain_evidence=evid, module_doc=module_doc, does=does,
+    )
+    n.meta["module_doc"] = first_paragraph(module_doc, 600) if module_doc else ""
     add_node(n)
     raw_imports[r] = imports
     file_sources[r] = src
@@ -282,18 +513,32 @@ def scan_js(path: Path):
     did, dlab, dcert, evid = classify_domain(r)
     fns = sorted(set(JS_FUNC_RE.findall(src)) | set(JS_CONST_FN_RE.findall(src)))
     fetches = sorted(set(m for m in FETCH_RE.findall(src) if m.startswith("/")))
+    # Comentario de cabecera /** ... */ o // líneas iniciales
+    module_doc = ""
+    m = re.match(r"^\s*/\*\*?([\s\S]*?)\*/", src)
+    if m:
+        module_doc = re.sub(r"^\s*\*\s?", "", m.group(1), flags=re.M).strip()
+    else:
+        heads = []
+        for line in src.splitlines()[:12]:
+            if line.strip().startswith("//"):
+                heads.append(line.strip().lstrip("/").strip())
+            elif line.strip():
+                break
+        module_doc = " ".join(heads)
+    does = [{"name": f, "doc": "", "kind": "function"} for f in fns if not f.startswith("_")]
     n = Node(
         id=r, label=path.name, type="file", kind="javascript", path=r,
         folder=str(Path(r).parent).replace("\\", "/"),
         domain=did, domain_label=dlab, domain_certainty=dcert, loc=loc,
         functions=fns,
-        symbols=[{"id": f"{r}::fn::{f}", "kind": "function", "name": f} for f in fns],
-        human={
-            "what": human_what("javascript", r),
-            "where": r,
-            "purpose": {"text": f"Clasificado en «{dlab}» por evidencia de nombre.", "certainty": dcert, "evidence": evid},
-        },
-        meta={"fetch_paths": fetches, "domain_evidence": evid},
+        symbols=[{"id": f"{r}::fn::{f}", "kind": "function", "name": f, "doc": ""} for f in fns],
+        human=build_human(
+            path=r, kind="javascript", domain_label=dlab, domain_certainty=dcert,
+            domain_evidence=evid, module_doc=module_doc, does=does,
+            extra_purpose=("Llama a: " + ", ".join(fetches[:8])) if fetches else "",
+        ),
+        meta={"fetch_paths": fetches, "domain_evidence": evid, "module_doc": first_paragraph(module_doc, 600)},
     )
     if loc >= LARGE_LOC:
         n.flags.append({"code": "large_file", "level": "detection", "msg": f"Archivo grande: {loc} líneas."})
@@ -309,16 +554,23 @@ def scan_html(path: Path):
     loc = src.count("\n") + 1
     did, dlab, dcert, evid = classify_domain(r)
     srcs = SCRIPT_SRC_RE.findall(src)
+    title_m = re.search(r"<title[^>]*>([^<]+)</title>", src, re.I)
+    title = (title_m.group(1).strip() if title_m else "")
+    desc_m = re.search(r'<meta[^>]+name=["\']description["\'][^>]+content=["\']([^"\']+)["\']', src, re.I)
+    if not desc_m:
+        desc_m = re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']description["\']', src, re.I)
+    meta_desc = desc_m.group(1).strip() if desc_m else ""
+    module_doc = meta_desc or (f"Página titulada «{title}»." if title else "")
     n = Node(
         id=r, label=path.name, type="file", kind="html", path=r,
         folder=str(Path(r).parent).replace("\\", "/"),
         domain=did, domain_label=dlab, domain_certainty=dcert, loc=loc,
-        human={
-            "what": human_what("html", r),
-            "where": r,
-            "purpose": {"text": f"Clasificado en «{dlab}» por evidencia de nombre.", "certainty": dcert, "evidence": evid},
-        },
-        meta={"script_srcs": srcs, "domain_evidence": evid},
+        human=build_human(
+            path=r, kind="html", domain_label=dlab, domain_certainty=dcert,
+            domain_evidence=evid, module_doc=module_doc,
+            extra_purpose=f"Carga scripts: {', '.join(srcs[:6])}" if srcs else "",
+        ),
+        meta={"script_srcs": srcs, "domain_evidence": evid, "page_title": title},
     )
     add_node(n)
 
@@ -333,15 +585,26 @@ def scan_sql(path: Path):
     did, dlab, dcert, evid = classify_domain(r)
     tables = CREATE_TABLE_RE.findall(src)
     all_tables.update(tables)
+    # Comentarios iniciales SQL
+    heads = []
+    for line in src.splitlines()[:20]:
+        s = line.strip()
+        if s.startswith("--"):
+            heads.append(s.lstrip("-").strip())
+        elif s:
+            break
+    module_doc = " ".join(heads)
+    if tables and not module_doc:
+        module_doc = f"Crea/altera tablas: {', '.join(tables[:12])}."
     n = Node(
         id=r, label=path.name, type="file", kind="sql", path=r,
         folder=str(Path(r).parent).replace("\\", "/"),
         domain=did, domain_label=dlab, domain_certainty=dcert, loc=loc,
-        human={
-            "what": human_what("sql", r),
-            "where": r,
-            "purpose": {"text": "Migración SQL real del proyecto.", "certainty": "fact", "evidence": r},
-        },
+        human=build_human(
+            path=r, kind="sql", domain_label=dlab, domain_certainty=dcert,
+            domain_evidence=evid, module_doc=module_doc,
+            extra_purpose="Migración SQL real del proyecto.",
+        ),
         meta={"creates_tables": tables, "domain_evidence": evid},
     )
     add_node(n)
@@ -354,11 +617,12 @@ def scan_sql(path: Path):
                 domain=td if td != "sin_clasificar" else "base_datos",
                 domain_label=tl if td != "sin_clasificar" else "Base de datos",
                 domain_certainty="fact",
-                human={
-                    "what": human_what("table", t),
-                    "where": f"Detectada en {r}",
-                    "purpose": {"text": "Tabla creada en migración SQL.", "certainty": "fact", "evidence": r},
-                },
+                human=build_human(
+                    path=t, kind="table", domain_label=tl if td != "sin_clasificar" else "Base de datos",
+                    domain_certainty="fact", domain_evidence=r,
+                    module_doc=f"Tabla «{t}» creada en la migración {Path(r).name}.",
+                    extra_purpose="Persistencia de datos del dominio.",
+                ),
                 meta={"defined_in": r},
             ))
         add_edge(r, tid, "db", "fact")
@@ -370,11 +634,19 @@ def scan_generic(path: Path):
         return
     ext = path.suffix.lower()
     kind = KIND_BY_EXT.get(ext, "other")
-    # skip huge binaries content read
     loc = 0
+    module_doc = ""
     try:
         if kind not in ("image", "document", "database_file") and path.stat().st_size < 2_000_000:
-            loc = path.read_text(encoding="utf-8", errors="replace").count("\n") + 1
+            text = path.read_text(encoding="utf-8", errors="replace")
+            loc = text.count("\n") + 1
+            if kind == "markdown":
+                for line in text.splitlines()[:15]:
+                    if line.startswith("#"):
+                        module_doc = line.lstrip("#").strip()
+                        break
+                if not module_doc:
+                    module_doc = first_paragraph(text, 240)
     except OSError:
         pass
     did, dlab, dcert, evid = classify_domain(r)
@@ -382,16 +654,12 @@ def scan_generic(path: Path):
         id=r, label=path.name, type="file", kind=kind, path=r,
         folder=str(Path(r).parent).replace("\\", "/"),
         domain=did, domain_label=dlab, domain_certainty=dcert, loc=loc,
-        human={
-            "what": human_what(kind, r),
-            "where": r,
-            "purpose": {
-                "text": ("Elemento cuyo propósito no pudo determinarse automáticamente."
-                         if dcert == "unknown" else f"Clasificado en «{dlab}» por evidencia de nombre."),
-                "certainty": dcert,
-                "evidence": evid,
-            },
-        },
+        human=build_human(
+            path=r, kind=kind, domain_label=dlab, domain_certainty=dcert,
+            domain_evidence=evid, module_doc=module_doc,
+            extra_purpose=("Elemento cuyo propósito no pudo determinarse automáticamente."
+                           if dcert == "unknown" else ""),
+        ),
         meta={"domain_evidence": evid, "size_bytes": path.stat().st_size if path.exists() else 0},
         flags=([{"code": "unclassified", "level": "unknown",
                  "msg": "Elemento cuyo propósito no pudo determinarse."}] if dcert == "unknown" else []),
@@ -508,15 +776,19 @@ def main():
             for method in rdef.get("methods") or ["GET"]:
                 rid = f"route::{method}::{rdef['path']}"
                 if rid not in nodes:
+                    handler = rdef.get("handler") or "?"
+                    rdoc = rdef.get("doc") or ""
+                    purpose = rdoc or f"Handler Flask «{handler}» en {Path(n.id).name}."
                     add_node(Node(
                         id=rid, label=f"{method} {rdef['path']}", type="route", kind="route",
                         domain=n.domain, domain_label=n.domain_label, domain_certainty=n.domain_certainty,
-                        human={
-                            "what": human_what("route", rdef["path"]),
-                            "where": f"Definida en {n.id}",
-                            "purpose": {"text": f"Handler «{rdef.get('handler')}».", "certainty": "fact", "evidence": n.id},
-                        },
-                        meta={"defined_in": n.id, "handler": rdef.get("handler")},
+                        human=build_human(
+                            path=f"{method} {rdef['path']}", kind="route",
+                            domain_label=n.domain_label, domain_certainty="fact",
+                            domain_evidence=n.id, module_doc=purpose,
+                            does=[{"name": handler, "doc": rdoc, "kind": "handler"}],
+                        ),
+                        meta={"defined_in": n.id, "handler": handler, "doc": rdoc},
                     ))
                 add_edge(n.id, rid, "defines", "fact")
 
@@ -608,6 +880,18 @@ def main():
             "label": n.domain_label,
             "domain": n.domain,
             "certainty": n.domain_certainty if n.domain != "sin_clasificar" else "unknown",
+            "function": f"Dominio «{n.domain_label}»",
+            "description": DOMAIN_PURPOSE.get(
+                n.domain,
+                "Área lógica agrupada por evidencia de nombres reales del proyecto.",
+            ),
+            "what": (
+                f"Continente lógico «{n.domain_label}»: "
+                + DOMAIN_PURPOSE.get(
+                    n.domain,
+                    "agrupa archivos y símbolos relacionados por nombre en el repo.",
+                )
+            ),
             "files": 0, "routes": 0, "tables": 0, "symbols": 0, "loc": 0, "no_refs": 0,
         })
         if n.type == "file":
@@ -643,7 +927,7 @@ def main():
     out = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "repo_commit": commit or "unknown",
-        "schema_version": 2,
+        "schema_version": 3,
         "planet": {
             "name": "RUANA",
             "tagline": "Mapa completo del territorio real del proyecto",
