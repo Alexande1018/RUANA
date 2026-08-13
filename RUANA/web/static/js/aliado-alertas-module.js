@@ -93,14 +93,13 @@
   function renderAlertDetailPanel(host, detailEl, detailId) {
     const hub = typeof RuanaAlertHub !== 'undefined' ? RuanaAlertHub : null;
     if (!hub) return;
-    const self = this;
     const titles = {
         'apoyo-pago': 'Apoyo RUANA pendiente',
         'mensajes-ruana': 'Mensajes de RUANA'
     };
     const body = hub.renderDetailHeader(detailEl, titles[detailId] || 'Detalle', function () {
-        self._alertHubState.expandedDetailId = null;
-        self.renderAlertHub();
+        host._alertHubState.expandedDetailId = null;
+        renderAlertHub(host);
     });
 
     if (detailId === 'apoyo-pago') {
@@ -152,7 +151,6 @@
     const hubEl = document.getElementById('ruana-alert-hub');
     if (!hubEl || typeof RuanaAlertHub === 'undefined') return;
     const items = host.buildAlertItems();
-    const self = this;
 
     if (items.length === 0) {
         host._alertHubState = { showAll: false, expandedDetailId: null };
@@ -164,18 +162,18 @@
     RuanaAlertHub.render(hubEl, items, host._alertHubState, {
         onAction: function (item) {
             if (item.hasDetail) {
-                self._alertHubState.expandedDetailId =
-                    self._alertHubState.expandedDetailId === item.id ? null : item.id;
-                self._alertHubState.showAll = true;
+                host._alertHubState.expandedDetailId =
+                    host._alertHubState.expandedDetailId === item.id ? null : item.id;
+                host._alertHubState.showAll = true;
             }
-            self.renderAlertHub();
+            renderAlertHub(host);
         },
         onShowAll: function () {
-            self._alertHubState.showAll = true;
-            self.renderAlertHub();
+            host._alertHubState.showAll = true;
+            renderAlertHub(host);
         },
         renderDetail: function (detailEl, detailId) {
-            self.renderAlertDetailPanel(detailEl, detailId);
+            renderAlertDetailPanel(host, detailEl, detailId);
         }
     });
   }
