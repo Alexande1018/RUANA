@@ -229,6 +229,18 @@
   function byId(id){ return document.getElementById(id); }
 
   function loadGraph(){
+    // Preferir JSON embebido (ruana-code-map.html standalone → Brave a doble clic)
+    var embedded = document.getElementById('embedded-graph');
+    if(embedded && embedded.textContent && embedded.textContent.trim()){
+      try {
+        raw = JSON.parse(embedded.textContent);
+        init();
+        return;
+      } catch (e) {
+        byId('loadingMsg').textContent = 'JSON embebido inválido: ' + e.message;
+        return;
+      }
+    }
     fetch('graph.json').then(function(r){
       if(!r.ok) throw new Error('HTTP '+r.status);
       return r.json();
@@ -238,10 +250,10 @@
     }).catch(function(err){
       byId('loadingMsg').innerHTML =
         'No se pudo cargar <code>graph.json</code> (' + err.message + ').<br><br>' +
-        'Este visor usa <code>fetch()</code>, que los navegadores bloquean sobre archivos abiertos con doble clic (file://).<br>' +
-        'Sirve la carpeta con un servidor local, por ejemplo:<br><br>' +
-        '<code style="background:#171b22;padding:4px 8px;border-radius:4px;">cd dev-tools/code-map &amp;&amp; python3 -m http.server 8842</code><br><br>' +
-        'y abre <code>http://localhost:8842</code>.';
+        'Opción fácil: abre <code>ruana-code-map.html</code> a doble clic en Brave<br>' +
+        '(generado con <code>bash dev-tools/code-map/generate.sh</code>).<br><br>' +
+        'O sirve la carpeta:<br>' +
+        '<code style="background:#171b22;padding:4px 8px;border-radius:4px;">cd dev-tools/code-map &amp;&amp; python3 -m http.server 8842</code>';
     });
   }
 

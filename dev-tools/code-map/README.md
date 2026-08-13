@@ -8,20 +8,29 @@ Sigma.js (WebGL), pensado para cientos/miles de nodos sin bloquear la interfaz.
 Herramienta 100% de desarrollo, aislada en `dev-tools/code-map/`. No importa
 nada de `RUANA/`, no se ejecuta como parte de la app, y no toca producción.
 
-## Cómo ejecutarlo
+## Cómo verlo (forma fácil)
 
 ```bash
-# 1. Regenerar el grafo desde el código actual
 bash dev-tools/code-map/generate.sh
+```
 
-# 2. Servirlo localmente (fetch() no funciona con file://, necesita un servidor)
+Luego abre en Brave (doble clic, sin servidor):
+
+```text
+dev-tools/code-map/ruana-code-map.html
+```
+
+Ese HTML es **standalone**: lleva libs + `graph.json` embebidos.
+
+### Alternativa con servidor
+
+```bash
 cd dev-tools/code-map && python3 -m http.server 8842
-
-# 3. Abrir http://localhost:8842
+# http://127.0.0.1:8842
 ```
 
 Cada vez que cambie el código, vuelve a correr `generate.sh` para refrescar
-`graph.json` (no necesitas reiniciar el servidor).
+`graph.json` y el HTML standalone.
 
 ## Vistas
 
@@ -70,8 +79,9 @@ Cada vez que cambie el código, vuelve a correr `generate.sh` para refrescar
 ## Archivos
 
 - `scanner.py` — el escáner (solo lectura, no modifica nada del repo).
-- `generate.sh` — wrapper para regenerar y recordar cómo servirlo.
+- `generate.sh` — regenera `graph.json` + `ruana-code-map.html`.
+- `build_standalone.py` — empaqueta libs + grafo en un HTML autocontenido.
 - `graph.json` — salida generada (se sobreescribe en cada regeneración).
-- `index.html` — el visor (Sigma.js + graphology).
-- `vendor/code-map-libs.js` — bundle local de graphology, layouts y sigma
-  (las builds UMD de esas libs no están disponibles de forma fiable en CDN).
+- `ruana-code-map.html` — visor standalone (ábrelo en Brave a doble clic).
+- `index.html` — el visor (modo servidor + compatible con JSON embebido).
+- `vendor/code-map-libs.js` — bundle local de graphology, layouts y sigma.
