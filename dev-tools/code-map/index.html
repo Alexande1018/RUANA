@@ -7,7 +7,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
-<script src="vendor/code-map-libs.js"></script>
 <style>
 :root{
   --bg:#071018; --panel:#0b1622; --line:rgba(140,180,210,.14); --line2:rgba(140,180,210,.28);
@@ -48,8 +47,8 @@ header{display:flex;gap:12px;align-items:center;padding:10px 14px;border-bottom:
 .nav-item.on{background:rgba(30,201,168,.1);color:var(--text);border-left-color:var(--teal)}
 .nav-item .meta{color:var(--faint);font-size:10px;white-space:nowrap}
 .nav-item .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:7px}
-#stage{position:relative;background:rgba(4,10,16,.55)}
-#sigma-canvas{position:absolute;inset:0}
+#stage{position:relative;background:rgba(4,10,16,.55);overflow:hidden}
+#mapSvg{position:absolute;inset:0;width:100%;height:100%}
 #stageEmpty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;color:var(--faint);font:13px/1.5 var(--mono);pointer-events:none}
 #hint{position:absolute;left:12px;bottom:12px;z-index:5;font:10.5px var(--mono);color:var(--faint);background:rgba(11,22,34,.85);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
 #panel{background:rgba(8,16,26,.85);padding-bottom:20px}
@@ -109,9 +108,9 @@ footer{display:flex;gap:14px;padding:6px 14px;border-top:1px solid var(--line);f
       <div id="navList"></div>
     </div>
     <div id="stage">
-      <div id="sigma-canvas"></div>
+      <svg id="mapSvg" xmlns="http://www.w3.org/2000/svg"></svg>
       <div id="stageEmpty">Elige un área, carpeta o archivo a la izquierda.<br>El centro muestra solo sus conexiones reales.</div>
-      <div id="hint">Grafo enfocado · solo vecinos · clic en chip para saltar</div>
+      <div id="hint">Mapa radial ligero · clic en nodo o chip para saltar</div>
     </div>
     <aside class="col" id="panel">
       <h2>Conexiones</h2>
@@ -136,7 +135,6 @@ footer{display:flex;gap:14px;padding:6px 14px;border-top:1px solid var(--line);f
   var raw=null, by={}, out={}, inn={};
   var level='areas'; // areas|folders|files
   var focusArea=null, focusFolder=null, selected=null, mode='all';
-  var graph=null, sigma=null;
 
   function $(id){return document.getElementById(id);}
   function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
@@ -225,7 +223,7 @@ footer{display:flex;gap:14px;padding:6px 14px;border-top:1px solid var(--line);f
   }
 
   function clearFocus(){
-    if(sigma){try{sigma.kill();}catch(e){} sigma=null;} graph=null;
+    var svg=$('mapSvg'); if(svg) svg.innerHTML='';
     $('stageEmpty').style.display='flex';
     $('panelBody').innerHTML='<div class="empty">Nada seleccionado. Atlas evita dibujar todo el repo a la vez: navegas por capas y ves qué está unido a qué.</div>';
   }
@@ -338,46 +336,67 @@ footer{display:flex;gap:14px;padding:6px 14px;border-top:1px solid var(--line);f
     });
   }
 
-  function drawFocus(nodes, edges, title){
-    // Diferir: no matar Sigma dentro de su propio click handler
-    setTimeout(function(){ drawFocusNow(nodes, edges); }, 0);
-  }
-
-  function drawFocusNow(nodes, edges){
+  function drawFocus(nodes, edges){
+    var svg=$('mapSvg');
+    svg.innerHTML='';
     $('stageEmpty').style.display=nodes.length?'none':'flex';
-    if(sigma){try{sigma.kill();}catch(e){} sigma=null;}
-    var el=$('sigma-canvas');
-    el.innerHTML='';
-    graph=new graphology.Graph();
-    nodes.forEach(function(n,i){
-      var ang=(i/Math.max(nodes.length,1))*Math.PI*2;
-      var r = n.size>=12 ? 0 : 1.6;
-      graph.addNode(n.id,{label:n.label,size:n.size,color:n.color,x:Math.cos(ang)*r,y:Math.sin(ang)*r});
+    if(!nodes.length) return;
+
+    var w=svg.clientWidth||svg.parentElement.clientWidth||600;
+    var h=svg.clientHeight||svg.parentElement.clientHeight||500;
+    svg.setAttribute('viewBox','0 0 '+w+' '+h);
+    var cx=w/2, cy=h/2;
+    var center=nodes[0];
+    var others=nodes.slice(1);
+    var pos={};
+    pos[center.id]={x:cx,y:cy,r:Math.max(14, center.size||12)};
+    var n=Math.max(others.length,1);
+    var radius=Math.min(w,h)*0.34;
+    others.forEach(function(node,i){
+      var ang=-Math.PI/2+(i/n)*Math.PI*2;
+      pos[node.id]={x:cx+Math.cos(ang)*radius, y:cy+Math.sin(ang)*radius, r:Math.max(7, Math.min(14, node.size||6))};
     });
-    edges.forEach(function(e,i){
-      if(!graph.hasNode(e.source)||!graph.hasNode(e.target)) return;
-      var key=e.source+'|'+e.target+'|'+(e.type||'x')+'|'+i;
-      if(!graph.hasEdge(key)) graph.addEdgeWithKey(key,e.source,e.target,{size:e.weight?Math.min(5,1+Math.log2(e.weight+1)):1.4,color:ECOL[e.type]||'#64748b',type:e.type||'import'});
+
+    // edges first
+    edges.forEach(function(e){
+      var a=pos[e.source], b=pos[e.target]; if(!a||!b) return;
+      var line=document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1',a.x); line.setAttribute('y1',a.y);
+      line.setAttribute('x2',b.x); line.setAttribute('y2',b.y);
+      line.setAttribute('stroke', ECOL[e.type]||'#64748b');
+      line.setAttribute('stroke-width', e.weight?Math.min(4,1+Math.log2(e.weight+1)):1.6);
+      line.setAttribute('stroke-opacity','0.75');
+      svg.appendChild(line);
     });
-    try{ if(typeof graphologyLayout!=='undefined') graphologyLayout.circular.assign(graph); }catch(e){}
-    if(graph.order>2 && graph.size>0 && graph.order<60){
-      try{
-        var st=graphologyLayoutForceAtlas2.inferSettings(graph);
-        graphologyLayoutForceAtlas2.assign(graph,{iterations:40,settings:st});
-      }catch(e){}
-    }
-    try{
-      sigma=new Sigma(graph, el, {renderLabels:true,labelRenderedSizeThreshold:0,labelFont:'IBM Plex Mono',labelColor:{color:'#dbeafe'}});
-      sigma.on('clickNode',function(ev){
-        var id=ev.node;
+
+    nodes.forEach(function(node){
+      var p=pos[node.id]; if(!p) return;
+      var g=document.createElementNS('http://www.w3.org/2000/svg','g');
+      g.style.cursor='pointer';
+      g.setAttribute('data-id', node.id);
+      var c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      c.setAttribute('cx',p.x); c.setAttribute('cy',p.y); c.setAttribute('r',p.r);
+      c.setAttribute('fill', node.color||'#94a3b8');
+      c.setAttribute('stroke','rgba(255,255,255,.25)'); c.setAttribute('stroke-width','1');
+      g.appendChild(c);
+      var t=document.createElementNS('http://www.w3.org/2000/svg','text');
+      t.setAttribute('x',p.x); t.setAttribute('y',p.y+p.r+12);
+      t.setAttribute('text-anchor','middle');
+      t.setAttribute('fill','#dbeafe');
+      t.setAttribute('font-size','10');
+      t.setAttribute('font-family','IBM Plex Mono, monospace');
+      t.textContent=(node.label||'').slice(0,22);
+      g.appendChild(t);
+      g.onclick=function(){
+        var id=node.id;
         if(String(id).indexOf('area::')===0){focusArea=id.slice(6);level='folders';paintNav();showArea(focusArea);return;}
         if(by[id]){selected=id; if(by[id].group)focusArea=by[id].group; if(by[id].folder){focusFolder=by[id].folder;level='files';} paintNav();showFocus(id);}
-      });
-    }catch(e){
-      $('stageEmpty').style.display='flex';
-      $('stageEmpty').textContent='Grafo no disponible: '+e.message;
-    }
+      };
+      svg.appendChild(g);
+    });
   }
+
+  function drawFocusNow(){ /* legacy no-op */ }
 
   function loadCode(path){
     var box=$('codeBox'), meta=$('codeMeta'); if(!box) return;
