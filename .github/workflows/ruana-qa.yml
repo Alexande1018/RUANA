@@ -14,8 +14,6 @@ on:
 permissions:
   actions: write
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: ruana-qa-${{ github.event_name }}-${{ github.ref }}
@@ -60,9 +58,6 @@ jobs:
     needs: pytest
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy-pages.outputs.page_url }}
 
     env:
       CI: "true"
@@ -180,34 +175,13 @@ jobs:
           if-no-files-found: warn
           retention-days: 1
 
-      - name: Configurar GitHub Pages
-        if: always()
-        continue-on-error: true
-        uses: actions/configure-pages@v5
-
-      - name: Preparar reporte para GitHub Pages
-        if: always()
-        continue-on-error: true
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: qa-artifacts/playwright-report
-
-      - name: Publicar reporte en GitHub Pages
-        id: deploy-pages
-        if: always()
-        continue-on-error: true
-        uses: actions/deploy-pages@v4
-
-      - name: Mostrar enlace directo al reporte
+      - name: Mostrar enlace al artefacto QA
         if: always()
         shell: bash
         run: |
           {
-            echo "## Reporte HTML"
+            echo "## Reporte QA"
             echo
-            if [ -n "${{ steps.deploy-pages.outputs.page_url }}" ]; then
-              echo "Reporte publicado: ${{ steps.deploy-pages.outputs.page_url }}"
-            else
-              echo "No se pudo publicar en GitHub Pages. Revisa que Pages este configurado para GitHub Actions en Settings > Pages."
-            fi
+            echo "- Artefacto descargable: **ruana-qa-latest** (HTML Playwright + videos + logs)."
+            echo "- Para publicar en GitHub Pages, configura Pages en el repo y activa \`RUANA_QA_PUBLISH_PAGES=1\` como variable de repositorio."
           } >> "$GITHUB_STEP_SUMMARY"
