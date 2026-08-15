@@ -386,6 +386,14 @@ class ContactoRepo:
         posponer_sql: str,
     ) -> List[Dict[str, Any]]:
         placeholders = ",".join("?" for _ in estados_abiertos)
+        columnas = self.columnas_contactos_ruana(cursor)
+        pago_cols = ""
+        if "modo_pago" in columnas:
+            pago_cols += ", c.modo_pago"
+        if "estado_pago" in columnas:
+            pago_cols += ", c.estado_pago"
+        if "precio_congelado" in columnas:
+            pago_cols += ", COALESCE(c.precio_congelado, 0) AS precio_congelado"
         cursor.execute(
             f"""
             SELECT
@@ -408,7 +416,8 @@ class ContactoRepo:
                 c.motivo_contacto,
                 c.negociacion_json,
                 c.importe_acordado,
-                c.acuerdo_resumen_json,
+                c.acuerdo_resumen_json
+                {pago_cols},
                 (SELECT 1 FROM confirmaciones_trabajo ct
                  INNER JOIN aliados a ON a.id = ct.aliado_id
                  WHERE ct.contacto_id = c.id AND TRIM(CAST(a.codigo AS TEXT)) = ?) AS ya_declaraste_importe

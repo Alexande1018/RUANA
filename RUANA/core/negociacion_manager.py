@@ -309,6 +309,19 @@ def meta_negociacion(
             'siguiente_accion': 'Revisa el Apoyo RUANA pendiente si corresponde.',
         }
 
+    if contacto_estado == 'pendiente_de_pago':
+        return {
+            'fase': 'pago',
+            'progreso_confirmados': total,
+            'progreso_total': total,
+            'turno': 'completado',
+            'requiere_mi_respuesta': False,
+            'paso': None,
+            'paso_label': 'Pago pendiente',
+            'contexto': 'El importe acordado está congelado.',
+            'siguiente_accion': 'Completa el pago con Stripe para reservar el encargo.',
+        }
+
     if contacto_estado == 'acuerdo_alcanzado' or estado.get('completo'):
         return {
             'fase': 'acuerdo',
@@ -915,4 +928,7 @@ def construir_payload(
             if contacto.get('importe_acordado') is not None
             else None
         ),
+        'modo_pago': (contacto.get('modo_pago') or '').strip() or None,
+        'estado_pago': (contacto.get('estado_pago') or '').strip() or None,
+        'precio_congelado': bool(int(contacto.get('precio_congelado') or 0)),
     }

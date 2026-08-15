@@ -97,6 +97,8 @@
             avisoEl.removeAttribute('data-requiere-respuesta');
             const badgeUrgenteOff = document.getElementById('contacto-aviso-badge-urgente');
             if (badgeUrgenteOff) badgeUrgenteOff.style.display = 'none';
+            const stripeSlotOff = document.getElementById('contacto-aviso-stripe-acciones');
+            if (stripeSlotOff) stripeSlotOff.innerHTML = '';
             host.renderEncargosActivos();
             return;
         }
@@ -119,6 +121,9 @@
         if (estado === 'acuerdo_alcanzado' || host.contactoActual.negociacion_completa) {
             progresoConf = progresoTotal;
         }
+        if (estado === 'pendiente_de_pago') {
+            progresoConf = progresoTotal;
+        }
 
         if (estadoEl) estadoEl.textContent = ui.estadoLabel;
         if (contextoEl) contextoEl.textContent = ui.contexto;
@@ -127,6 +132,13 @@
             pasoEl.style.display = ui.pasoTxt ? 'block' : 'none';
         }
         if (accionEl) accionEl.textContent = ui.accionTxt;
+        const stripeSlot = document.getElementById('contacto-aviso-stripe-acciones');
+        if (stripeSlot) {
+            stripeSlot.innerHTML = '';
+            if (global.RuanaStripePagos && typeof global.RuanaStripePagos.renderStripeAcciones === 'function') {
+                global.RuanaStripePagos.renderStripeAcciones(host, host.contactoActual, stripeSlot);
+            }
+        }
         if (progresoTexto) progresoTexto.textContent = `${progresoConf}/${progresoTotal}`;
         if (progresoFill && progresoTotal > 0) {
             progresoFill.style.width = `${Math.round((progresoConf / progresoTotal) * 100)}%`;
@@ -265,7 +277,29 @@
     let btnPrincipal = 'Abrir negociación';
     let requiereRespuesta = !!contacto.negociacion_requiere_mi_respuesta;
     if (contacto.es_urgente) estadoLabel = 'Encargo urgente';
-    if (estado === 'acuerdo_alcanzado' || contacto.negociacion_completa) {
+    if (
+        estado === 'pendiente_de_pago'
+        || (contacto.modo_pago === 'stripe' && estado === 'trabajo_en_progreso')
+    ) {
+        estadoLabel = contacto.modo_pago === 'stripe' ? 'Pago Stripe pendiente' : estadoLabel;
+        if (contacto.modo_pago === 'stripe') {
+            contexto = 'El importe acordado está congelado. El contratante debe completar el pago.';
+            if (esProfesional) {
+                accionTxt = contacto.estado_pago === 'cobro_confirmado'
+                    ? 'El contratante ya pagó. Tu importe está retenido y se liberará cuando confirme que el trabajo quedó hecho.'
+                    : 'Tu pago quedará retenido hasta que el contratante pague y confirme que el trabajo quedó hecho.';
+            } else if (esContratante) {
+                accionTxt = contacto.estado_pago === 'cobro_confirmado'
+                    ? 'Confirma que el trabajo se realizó para liberar el pago al profesional.'
+                    : 'Pulsa «Ir a pagar» para completar el pago con Stripe.';
+            } else {
+                accionTxt = contacto.estado_pago === 'cobro_confirmado'
+                    ? 'Confirma que el trabajo se realizó para liberar el pago al profesional.'
+                    : 'El contratante debe completar el pago con Stripe.';
+            }
+            btnPrincipal = 'Ver encargo';
+        }
+    } else if (estado === 'acuerdo_alcanzado' || contacto.negociacion_completa) {
         estadoLabel = 'Acuerdo alcanzado';
         contexto = 'Todos los puntos del encargo están confirmados.';
         pasoTxt = '';
@@ -295,28 +329,6 @@
         pasoTxt = '';
         accionTxt = 'Revisa el contacto y aporta la información necesaria.';
         btnPrincipal = 'Revisar contacto';
-    } else if (
-        estado === 'pendiente_de_pago'
-        || (contacto.modo_pago === 'stripe' && estado === 'trabajo_en_progreso')
-    ) {
-        estadoLabel = contacto.modo_pago === 'stripe' ? 'Pago Stripe pendiente' : estadoLabel;
-        if (contacto.modo_pago === 'stripe') {
-            contexto = 'El importe acordado está congelado. El contratante debe completar el pago.';
-            if (esProfesional) {
-                accionTxt = contacto.estado_pago === 'cobro_confirmado'
-                    ? 'El contratante ya pagó. Se liberará tu pago cuando confirme que el trabajo quedó hecho.'
-                    : 'Acuerdo confirmado. Tu pago está reservado y se desbloqueará automáticamente en cuanto el contratante confirme que el trabajo quedó hecho.';
-            } else if (esContratante) {
-                accionTxt = contacto.estado_pago === 'cobro_confirmado'
-                    ? 'Confirma que el trabajo se realizó para liberar el pago al profesional.'
-                    : 'Pulsa «Pagar ahora» cuando estés listo.';
-            } else {
-                accionTxt = contacto.estado_pago === 'cobro_confirmado'
-                    ? 'Confirma que el trabajo se realizó para liberar el pago al profesional.'
-                    : 'Pulsa «Pagar ahora» cuando estés listo.';
-            }
-            btnPrincipal = 'Ver encargo';
-        }
     } else if (estado === 'trabajo_cerrado') {
         estadoLabel = 'Trabajo cerrado';
         contexto = 'El encargo quedó registrado como realizado.';
