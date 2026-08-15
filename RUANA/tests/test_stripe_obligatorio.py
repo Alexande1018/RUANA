@@ -118,6 +118,21 @@ class TestStripeObligatorio(unittest.TestCase):
             pago_service.MSG_PROFESIONAL_DEBE_CONECTAR_STRIPE,
         )
 
+    def test_contactos_abiertos_y_negociacion_exponen_pago_stripe(self):
+        cid = self._crear_par()
+        self._habilitar_stripe("91002")
+        self._flujo_hasta_precio(cid)
+        res = self.db.aceptar_negociacion(cid, "91001", "precio")
+        self.assertEqual(res["status"], "success", res.get("message"))
+        neg = self.db.obtener_negociacion_contacto(cid, "91001")
+        self.assertEqual(neg.get("modo_pago"), "stripe")
+        self.assertEqual(neg.get("estado_pago"), "esperando_cobro_cliente")
+        abiertos = self.db.obtener_contactos_abiertos_por_codigo("91001")
+        contacto = next((c for c in abiertos if c["id"] == cid), None)
+        self.assertIsNotNone(contacto)
+        self.assertEqual(contacto.get("modo_pago"), "stripe")
+        self.assertEqual(contacto.get("estado_pago"), "esperando_cobro_cliente")
+
 
 if __name__ == "__main__":
     unittest.main()

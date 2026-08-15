@@ -180,29 +180,108 @@
     const estadoPago = contacto.estado_pago || '';
     const codigo = (host.codigoAliado || (host.aliado && host.aliado.codigo) || '').toString().trim();
     const esContratante = codigo === String(contacto.solicitante_codigo || '').trim();
+    const esProfesional = codigo === String(contacto.profesional_codigo || '').trim();
     container.innerHTML = '';
     if (modo !== 'stripe') return;
 
-    if (esContratante && ['esperando_cobro_cliente', 'checkout_activo'].includes(estadoPago)) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'encargo-card-btn stripe-pagar-btn';
-      btn.textContent = 'Pagar ahora';
-      btn.addEventListener('click', () => {
-        iniciarPagoStripe(host, contacto.id).catch((e) => alert(e.message));
-      });
-      container.appendChild(btn);
+    const importeVal = contacto.importe_acordado != null ? Number(contacto.importe_acordado) : NaN;
+    const importeTxt = (!Number.isNaN(importeVal) && importeVal > 0)
+      ? `${importeVal.toFixed(2)} €`
+      : '';
+    const parts = [];
+
+    if (esProfesional) {
+      if (['esperando_cobro_cliente', 'checkout_activo', 'no_generado'].includes(estadoPago)) {
+        parts.push(
+          '<p class="stripe-estado-msg stripe-estado-msg--pro">'
+          + 'Tu pago quedará retenido hasta que el contratante pague. '
+          + 'Después se liberará cuando confirme que el trabajo quedó hecho.</p>'
+        );
+      } else if (estadoPago === 'cobro_confirmado') {
+        parts.push(
+          '<p class="stripe-estado-msg stripe-estado-msg--pro">'
+          + 'El contratante ya pagó. Tu importe está retenido y se liberará '
+          + 'cuando confirme que el trabajo quedó hecho.</p>'
+        );
+      } else if (estadoPago === 'transferido') {
+        parts.push('<p class="stripe-estado-msg stripe-estado-msg--ok">Pago transferido a tu cuenta.</p>');
+      }
     }
 
-    if (esContratante && estadoPago === 'cobro_confirmado') {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'encargo-card-btn stripe-confirmar-btn';
-      btn.textContent = 'Confirmar trabajo realizado';
-      btn.addEventListener('click', () => {
+    if (esContratante) {
+      if (['esperando_cobro_cliente', 'checkout_activo'].includes(estadoPago)) {
+        parts.push(
+          `<p class="stripe-estado-msg">${importeTxt
+            ? `Importe acordado: <strong>${escapeHtml(importeTxt)}</strong>. `
+            : ''}Completa el pago para reservar el encargo.</p>`
+          + '<button type="button" class="encargo-card-btn stripe-pagar-btn">Ir a pagar</button>'
+        );
+      } else if (estadoPago === 'cobro_confirmado') {
+        parts.push(
+          '<p class="stripe-estado-msg">Pago realizado. Confirma que el trabajo quedó hecho '
+          + 'para liberar el importe al profesional.</p>'
+          + '<button type="button" class="encargo-card-btn stripe-confirmar-btn">'
+          + 'Confirmar trabajo y liberar pago</button>'
+        );
+      }
+    }
+
+    container.innerHTML = parts.join('');
+    const btnPagar = container.querySelector('.stripe-pagar-btn');
+    if (btnPagar) {
+      btnPagar.addEventListener('click', () => {
+        iniciarPagoStripe(host, contacto.id).catch((e) => alert(e.message));
+      });
+    }
+    const btnConfirmar = container.querySelector('.stripe-confirmar-btn');
+    if (btnConfirmar) {
+      btnConfirmar.addEventListener('click', () => {
         confirmarTrabajoStripe(host, contacto.id).catch((e) => alert(e.message));
       });
-      container.appendChild(btn);
+    }
+  }
+
+  function handlePagoReturn(host) {
+    if (!global.location || !global.location.search) return;
+    const params = new URLSearchParams(global.location.search);
+    const pago = params.get('stripe_pago');
+    if (!pago) return;
+
+    const contactoId = params.get('contacto_id');
+    params.delete('stripe_pago');
+    params.delete('contacto_id');
+    const clean = params.toString();
+    const newUrl = global.location.pathname + (clean ? '?' + clean : '') + global.location.hash;
+    global.history.replaceState({}, '', newUrl);
+
+    const refresh = async () => {
+      if (host && typeof host.cargarContactosPendientes === 'function') {
+        await host.cargarContactosPendientes();
+      }
+      if (host && typeof host.refreshAfterAction === 'function') {
+        await host.refreshAfterAction(['contactos', 'alertas', 'metricas']);
+      }
+    };
+
+    if (pago === 'ok') {
+      refresh().then(() => {
+        if (typeof global.RuanaUI !== 'undefined' && global.RuanaUI.success) {
+          global.RuanaUI.success('Pago recibido correctamente.');
+        } else {
+          alert('Pago recibido correctamente.');
+        }
+        if (contactoId && host && typeof host.abrirNegociacionContacto === 'function') {
+          host.abrirNegociacionContacto(parseInt(contactoId, 10), null);
+        }
+      });
+    } else if (pago === 'cancel') {
+      refresh().then(() => {
+        if (typeof global.RuanaUI !== 'undefined' && global.RuanaUI.warning) {
+          global.RuanaUI.warning('', 'Pago cancelado. Puedes intentarlo de nuevo cuando quieras.');
+        } else {
+          alert('Pago cancelado. Puedes intentarlo de nuevo cuando quieras.');
+        }
+      });
     }
   }
 
@@ -283,6 +362,7 @@
     renderOnboardingUi,
     refreshStripeEstadoFromServer,
     handleOnboardingReturn,
+    handlePagoReturn,
     renderAvisoNegociacion,
     htmlBloqueoPrecioNegociacion,
     enlazarBotonesOnboarding,

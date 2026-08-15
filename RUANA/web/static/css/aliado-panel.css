@@ -2193,3 +2193,24 @@
             margin: 8px 0 0;
             color: rgba(253, 230, 138, 0.9);
         }
+        .encargo-stripe-acciones {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .stripe-estado-msg {
+            margin: 0;
+            font-size: 0.9rem;
+            line-height: 1.45;
+            color: rgba(255, 255, 255, 0.88);
+        }
+        .stripe-estado-msg--pro {
+            color: #fde68a;
+        }
+        .stripe-estado-msg--ok {
+            color: #86efac;
+        }
+        .encargo-stripe-acciones .encargo-card-btn {
+            width: 100%;
+        }

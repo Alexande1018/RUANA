@@ -348,6 +348,9 @@
       if (global.RuanaStripePagos && typeof global.RuanaStripePagos.handleOnboardingReturn === 'function') {
           global.RuanaStripePagos.handleOnboardingReturn(host);
       }
+      if (global.RuanaStripePagos && typeof global.RuanaStripePagos.handlePagoReturn === 'function') {
+          global.RuanaStripePagos.handlePagoReturn(host);
+      }
       host.startAutoSync();
 
       // Sincronización post-render en segundo plano (mismo comportamiento final).

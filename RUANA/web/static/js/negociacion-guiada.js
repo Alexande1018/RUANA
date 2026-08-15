@@ -192,6 +192,56 @@
             }
         }
 
+        _hostStripe() {
+            if (this.panel) return this.panel;
+            return {
+                codigoAliado: this._miCodigo(),
+                aliado: { codigo: this._miCodigo() },
+                cargarContactosPendientes: async () => {
+                    if (this.panel && typeof this.panel.cargarContactosPendientes === 'function') {
+                        await this.panel.cargarContactosPendientes();
+                    }
+                },
+                refreshAfterAction: async (keys) => {
+                    if (this.panel && typeof this.panel.refreshAfterAction === 'function') {
+                        await this.panel.refreshAfterAction(keys);
+                    }
+                },
+            };
+        }
+
+        _contactoStripeDesdeData() {
+            return {
+                id: this.contactoId,
+                modo_pago: this.data.modo_pago || 'stripe',
+                estado_pago: this.data.estado_pago || '',
+                importe_acordado: this.data.importe_acordado,
+                solicitante_codigo: this.data.solicitante_codigo,
+                profesional_codigo: this.data.profesional_codigo,
+            };
+        }
+
+        _renderAccionesPagoStripe() {
+            const el = document.getElementById('neg-acciones-wrap');
+            if (!el || !this.data) return;
+            const importe = this.data.importe_acordado;
+            const importeTxt = importe != null && Number(importe) > 0
+                ? ` Importe acordado: ${Number(importe).toFixed(2)} €.`
+                : '';
+            el.innerHTML = `<div class="neg-compose-stack neg-pago-stripe-wrap">
+                <p class="neg-esperar-msg">Acuerdo confirmado.${importeTxt}</p>
+                <div id="neg-stripe-pago-acciones" class="encargo-stripe-acciones"></div>
+            </div>`;
+            const slot = document.getElementById('neg-stripe-pago-acciones');
+            if (slot && global.RuanaStripePagos && global.RuanaStripePagos.renderStripeAcciones) {
+                global.RuanaStripePagos.renderStripeAcciones(
+                    this._hostStripe(),
+                    this._contactoStripeDesdeData(),
+                    slot
+                );
+            }
+        }
+
         _camposSolicitante() {
             if (this.data && Array.isArray(this.data.campos_solicitante)) {
                 return this.data.campos_solicitante;
@@ -671,6 +721,11 @@
                 return;
             }
             this._lastAccionKey = accionKey;
+
+            if (this.data.estado_contacto === 'pendiente_de_pago' && this.data.modo_pago === 'stripe') {
+                this._renderAccionesPagoStripe();
+                return;
+            }
 
             if (this.data.acuerdo_alcanzado
                 || this.data.estado_contacto === 'acuerdo_alcanzado'
