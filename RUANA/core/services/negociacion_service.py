@@ -73,8 +73,20 @@ def obtener_negociacion_contacto(db, contacto_id: int, codigo_aliado: str) -> Di
                     pago_service.sincronizar_estado_stripe_profesional(db, pro)
                 listo = pago_service.profesional_stripe_listo(db, pro)
                 result['profesional_stripe_listo'] = listo
-                if rol == 'solicitante' and not listo:
-                    result['aviso_pago_no_disponible'] = pago_service.AVISO_PAGO_NO_DISPONIBLE
+                if not listo:
+                    if rol == 'solicitante':
+                        result['aviso_pago_no_disponible'] = pago_service.AVISO_PAGO_NO_DISPONIBLE
+                        result['mensaje_stripe_negociacion'] = (
+                            pago_service.MSG_CONTRATANTE_ESPERA_STRIPE_PROFESIONAL
+                        )
+                    elif rol == 'profesional':
+                        result['aviso_stripe_profesional'] = (
+                            pago_service.MSG_PROFESIONAL_DEBE_CONECTAR_STRIPE
+                        )
+                        result['mensaje_stripe_negociacion'] = (
+                            pago_service.MSG_PROFESIONAL_DEBE_CONECTAR_STRIPE
+                        )
+                        result['puede_iniciar_onboarding_stripe'] = True
             return result
         except Exception as e:
             return {'status': 'error', 'message': str(e)}

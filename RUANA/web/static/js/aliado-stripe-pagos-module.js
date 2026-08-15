@@ -202,6 +202,64 @@
     }
   }
 
+  function enlazarBotonesOnboarding(container) {
+    _bindOnboardingButton(container);
+  }
+
+  /**
+   * Aviso en negociación cuando el pago Stripe del profesional no está listo.
+   * @param {HTMLElement} el contenedor
+   * @param {'profesional'|'solicitante'|string} rol
+   * @param {object} [opts] mensajes opcionales del backend
+   */
+  function renderAvisoNegociacion(el, rol, opts) {
+    if (!el) return;
+    const options = opts || {};
+    const esProfesional = rol === 'profesional';
+    const titulo = esProfesional
+      ? (options.mensaje || 'Debes conectar tu cuenta de pago antes de poder cerrar encargos con precio.')
+      : (options.mensaje || options.aviso || MSG_PAGO_NO_DISPONIBLE);
+    const detalle = esProfesional
+      ? 'Sin esto, el contratante no podrá confirmar el precio final del encargo.'
+      : 'Pídele al profesional que conecte su cuenta desde su panel RUANA (banner superior o Perfil).';
+    const btnHtml = esProfesional
+      ? '<button type="button" class="neg-btn neg-btn-primary neg-btn-block stripe-onboarding-btn">'
+        + 'Conectar cuenta de pago ahora</button>'
+      : '';
+    el.className = 'neg-stripe-aviso';
+    el.innerHTML = `<strong>${escapeHtml(titulo)}</strong><p>${escapeHtml(detalle)}</p>${btnHtml}`;
+    el.style.display = 'block';
+    enlazarBotonesOnboarding(el);
+  }
+
+  function htmlBloqueoPrecioNegociacion(rol, opts) {
+    const options = opts || {};
+    const esProfesional = rol === 'profesional';
+    const titulo = esProfesional
+      ? (options.mensaje || 'Debes conectar tu cuenta de pago para confirmar este precio.')
+      : (options.mensaje || MSG_PAGO_NO_DISPONIBLE);
+    const detalle = esProfesional
+      ? 'Pulsa el botón para abrir el proceso de conexión con Stripe. Cuando termines, vuelve aquí y confirma el precio.'
+      : 'El profesional debe activar su cuenta de pago. Hasta entonces no podrás confirmar el precio final.';
+    const btnHtml = esProfesional
+      ? '<button type="button" class="neg-btn neg-btn-primary neg-btn-block stripe-onboarding-btn">'
+        + 'Conectar cuenta de pago ahora</button>'
+      : '';
+    return `<div class="neg-stripe-bloqueo-precio" role="alert">
+      <strong>${escapeHtml(titulo)}</strong>
+      <p>${escapeHtml(detalle)}</p>
+      ${btnHtml}
+    </div>`;
+  }
+
+  function escapeHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
   function labelEstadoPago(estadoPago) {
     const map = {
       esperando_cobro_cliente: 'Pendiente de pago',
@@ -221,6 +279,9 @@
     renderOnboardingUi,
     refreshStripeEstadoFromServer,
     handleOnboardingReturn,
+    renderAvisoNegociacion,
+    htmlBloqueoPrecioNegociacion,
+    enlazarBotonesOnboarding,
     isStripeConectado,
     labelEstadoPago,
     MSG_PAGO_NO_DISPONIBLE,
