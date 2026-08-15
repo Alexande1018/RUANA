@@ -19,11 +19,19 @@
     return true;
   }
 
+  function authHeaders(extra) {
+    const base = extra || {};
+    if (typeof global.getRuanaAuthHeaders === 'function') {
+      return global.getRuanaAuthHeaders(base);
+    }
+    return base;
+  }
+
   async function iniciarPagoStripe(host, contactoId) {
     const resp = await fetch(`/api/contactos/${contactoId}/stripe/checkout`, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
     });
     const data = await resp.json();
     if (data.status !== 'success' || !data.checkout_url) {
@@ -39,7 +47,7 @@
     const resp = await fetch(`/api/contactos/${contactoId}/stripe/confirmar-trabajo`, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
     });
     const data = await resp.json();
     if (data.status !== 'success') {
@@ -55,7 +63,7 @@
     const resp = await fetch('/api/aliado/stripe/onboarding', {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
     });
     const data = await resp.json();
     if (data.status !== 'success' || !data.onboarding_url) {
@@ -111,9 +119,7 @@
     try {
       const resp = await fetch('/api/aliado/stripe/estado', {
         credentials: 'include',
-        headers: typeof global.getRuanaAuthHeaders === 'function'
-          ? global.getRuanaAuthHeaders()
-          : {},
+        headers: authHeaders(),
       });
       const data = await resp.json();
       if (data.status === 'success') {
@@ -126,9 +132,7 @@
       }
       const respDatos = await fetch('/api/aliado/datos', {
         credentials: 'include',
-        headers: typeof global.getRuanaAuthHeaders === 'function'
-          ? global.getRuanaAuthHeaders()
-          : {},
+        headers: authHeaders(),
       });
       const datos = await respDatos.json();
       if (datos.status === 'success' && datos.aliado) {
