@@ -414,6 +414,7 @@ def _init_db(db):
             db._migrar_retador_rename(conn, cursor)
             db._migrar_competencia_permanencia(conn, cursor)
             db._migrar_aliados_eliminados(conn, cursor)
+            db._migrar_stripe_pagos(conn, cursor)
 
             conn.commit()
             print(f"[RUANA][DB] Base de datos inicializada en: {db.db_path}")
@@ -790,6 +791,56 @@ def _migrar_payment_conflicts(db, conn, cursor) -> None:
     _repo.execute(cursor, "CREATE INDEX IF NOT EXISTS idx_payment_conflicts_trabajo ON payment_conflicts(trabajo_id)")
     _repo.execute(cursor, "CREATE INDEX IF NOT EXISTS idx_payment_conflicts_created ON payment_conflicts(created_at DESC)")
 
+def _migrar_stripe_pagos(db, conn, cursor) -> None:
+    """Columnas y tablas para pagos Stripe Connect (separate charges and transfers)."""
+    contacto_cols_sqlite = [
+        ("modo_pago", "TEXT DEFAULT 'manual'"),
+        ("precio_congelado", "INTEGER DEFAULT 0"),
+        ("precio_congelado_en", "TIMESTAMP"),
+        ("stripe_checkout_session_id", "TEXT"),
+        ("stripe_payment_intent_id", "TEXT"),
+        ("stripe_transfer_id", "TEXT"),
+        ("importe_neto_profesional", "REAL"),
+        ("fecha_cobro_confirmado", "TIMESTAMP"),
+        ("fecha_confirmacion_trabajo", "TIMESTAMP"),
+        ("fecha_transferencia", "TIMESTAMP"),
+        ("stripe_cobro_estado", "TEXT"),
+    ]
+    columnas_contacto = _repo.columnas_tabla(cursor, "contactos_ruana")
+    for nombre, sqlite_def in contacto_cols_sqlite:
+        if nombre not in columnas_contacto:
+            _repo.execute(cursor, f"ALTER TABLE contactos_ruana ADD COLUMN {nombre} {sqlite_def}")
+
+    aliado_cols_sqlite = [
+        ("stripe_account_id", "TEXT"),
+        ("stripe_onboarding_completo", "INTEGER DEFAULT 0"),
+        ("stripe_charges_enabled", "INTEGER DEFAULT 0"),
+        ("stripe_payouts_enabled", "INTEGER DEFAULT 0"),
+    ]
+    columnas_aliado = _repo.columnas_tabla(cursor, "aliados")
+    for nombre, sqlite_def in aliado_cols_sqlite:
+        if nombre not in columnas_aliado:
+            _repo.execute(cursor, f"ALTER TABLE aliados ADD COLUMN {nombre} {sqlite_def}")
+
+    columnas_pc = _repo.columnas_tabla(cursor, "payment_conflicts")
+    if columnas_pc and "tipo" not in columnas_pc:
+        _repo.execute(cursor, "ALTER TABLE payment_conflicts ADD COLUMN tipo TEXT DEFAULT 'importe_discrepante'")
+    if columnas_pc and "stripe_payment_intent_id" not in columnas_pc:
+        _repo.execute(cursor, "ALTER TABLE payment_conflicts ADD COLUMN stripe_payment_intent_id TEXT")
+
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS stripe_webhook_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            stripe_event_id TEXT NOT NULL UNIQUE,
+            tipo TEXT NOT NULL,
+            contacto_id INTEGER,
+            procesado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            resultado TEXT,
+            FOREIGN KEY (contacto_id) REFERENCES contactos_ruana(id)
+        )
+    """)
+    _repo.execute(cursor, "CREATE INDEX IF NOT EXISTS idx_stripe_webhook_contacto ON stripe_webhook_events(contacto_id)")
+
 def _migrar_contactos_validacion_pago(db, conn, cursor) -> None:
     """Añade fecha_validacion_pago, admin_validacion_codigo y motivo_rechazo_pago a contactos_ruana."""
     columnas = _repo.columnas_tabla(cursor, "contactos_ruana")
@@ -1133,6 +1184,7 @@ def _init_postgres_schema(db):
         db._migrar_aliado_accesos_dia(conn, cursor)
         db._migrar_centro_comunicacion_ruana(conn, cursor)
         db._migrar_aliados_eliminados(conn, cursor)
+        db._migrar_stripe_pagos(conn, cursor)
         conn.commit()
         print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil + linaje + urgente + negociación guiada + accesos día + retador + aliados eliminados)")
     except Exception as e:

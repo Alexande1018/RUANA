@@ -7,8 +7,11 @@ from __future__ import annotations
 
 from core.db_constants import RUANA_ROOT
 from core.repositories.pago_repo import PagoRepo
+from core import stripe_client
+from core.settings import get_settings
 
 import json
+import os
 import sqlite3
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
@@ -668,6 +671,595 @@ def subir_prueba_conflicto(db, conflict_id: int, contratante_codigo: str, prueba
             return {'status': 'success', 'id': conflict_id, 'estado': 'EN_REVISION'}
         except Exception as e:
             return {'status': 'error', 'message': str(e)}
+        finally:
+            conn.close()
+
+# --- Stripe Connect (separate charges and transfers) ---
+
+def _importe_centimos(importe: float) -> int:
+    return int(round(float(importe) * 100))
+
+
+def _calcular_importes_stripe(importe: float, db) -> Tuple[float, float, float, float]:
+    pct = _get_apoyo_pct(db)
+    importe_val = round(float(importe), 2)
+    apoyo = round(importe_val * pct / 100.0, 2)
+    neto = round(importe_val - apoyo, 2)
+    comision_pct = pct / 100.0
+    return importe_val, apoyo, neto, comision_pct
+
+
+def stripe_habilitado_global() -> bool:
+    return stripe_client.stripe_payments_enabled() and stripe_client.stripe_configured()
+
+
+def profesional_stripe_listo(db, codigo_profesional: str) -> bool:
+    codigo = (codigo_profesional or "").strip()
+    if not codigo:
+        return False
+    with db._lock:
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            row = _repo.select_aliado_stripe(cursor, codigo)
+            if not row:
+                return False
+            data = dict(row) if hasattr(row, "keys") else {
+                "stripe_account_id": row[3],
+                "stripe_charges_enabled": row[4],
+            }
+            return bool(
+                (data.get("stripe_account_id") or "").strip()
+                and int(data.get("stripe_charges_enabled") or 0) == 1
+            )
+        except Exception:
+            return False
+        finally:
+            conn.close()
+
+
+def puede_usar_stripe_para_contacto(db, contacto: Dict[str, Any]) -> bool:
+    if not stripe_habilitado_global():
+        return False
+    prof = str(contacto.get("profesional_codigo") or "").strip()
+    return profesional_stripe_listo(db, prof)
+
+
+def activar_pago_stripe_tras_acuerdo(
+    db,
+    contacto_id: int,
+    solicitante_codigo: str,
+    importe: float,
+) -> Dict[str, Any]:
+    """Tras acuerdo bilateral: congela importe y deja el encargo pendiente de pago Stripe."""
+    importe_val, apoyo, neto, comision_pct = _calcular_importes_stripe(importe, db)
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            updated = _repo.update_contacto_pendiente_pago_stripe(
+                cursor, contacto_id, importe_val, apoyo, comision_pct, neto
+            )
+            if updated != 1:
+                conn.close()
+                return {
+                    "status": "error",
+                    "message": "No se pudo activar el pago Stripe para este contacto",
+                }
+            mensaje = (
+                f"El encargo #{contacto_id} está listo para pagar ({importe_val:g} €). "
+                "Pulsa «Pagar ahora» para completar el pago de forma segura."
+            )
+            meta = json.dumps(
+                {
+                    "contacto_id": contacto_id,
+                    "importe_acordado": importe_val,
+                    "modo_pago": "stripe",
+                },
+                ensure_ascii=False,
+            )
+            _repo.insertar_notif_pago_stripe(
+                cursor,
+                (solicitante_codigo or "").strip(),
+                "Pago pendiente del encargo",
+                mensaje,
+                meta,
+            )
+            db._audit_log(
+                cursor, "contacto", contacto_id, "stripe_pendiente_pago",
+                "sistema", solicitante_codigo or "",
+                f"importe={importe_val} apoyo={apoyo} neto={neto}",
+            )
+            conn.commit()
+            return {
+                "status": "success",
+                "contacto_id": contacto_id,
+                "estado": "pendiente_de_pago",
+                "estado_pago": "esperando_cobro_cliente",
+                "modo_pago": "stripe",
+                "importe_acordado": importe_val,
+            }
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            return {"status": "error", "message": str(e)}
+        finally:
+            if conn:
+                conn.close()
+
+
+def crear_checkout_stripe(
+    db, contacto_id: int, solicitante_codigo: str
+) -> Dict[str, Any]:
+    """Crea sesión Checkout; importe leído exclusivamente de BD."""
+    codigo = (solicitante_codigo or "").strip()
+    if not stripe_habilitado_global():
+        return {"status": "error", "message": "Pagos Stripe no habilitados"}
+    settings = get_settings()
+    base_url = (settings.public_app_url or "http://localhost:5000").rstrip("/")
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            row = _repo.reclamar_checkout_stripe(
+                cursor, contacto_id, ("esperando_cobro_cliente", "checkout_activo")
+            )
+            if not row:
+                return {"status": "error", "message": "Contacto no disponible para pago Stripe"}
+            contacto = dict(row)
+            if str(contacto.get("solicitante_codigo") or "").strip() != codigo:
+                return {"status": "error", "message": "Solo el contratante puede iniciar el pago"}
+            importe = contacto.get("importe_acordado")
+            if importe is None:
+                importe = contacto.get("importe_final")
+            if importe is None or float(importe) <= 0:
+                return {"status": "error", "message": "Importe acordado no válido en base de datos"}
+            importe_val = round(float(importe), 2)
+            amount_cents = _importe_centimos(importe_val)
+            session = stripe_client.create_checkout_session(
+                amount_cents=amount_cents,
+                currency="eur",
+                contacto_id=contacto_id,
+                success_url=f"{base_url}/aliado.html?stripe_pago=ok&contacto_id={contacto_id}",
+                cancel_url=f"{base_url}/aliado.html?stripe_pago=cancel&contacto_id={contacto_id}",
+                idempotency_key=f"checkout-contacto-{contacto_id}-v1",
+            )
+            session_id = session.get("id")
+            if not session_id:
+                return {"status": "error", "message": "Stripe no devolvió sesión de checkout"}
+            _repo.update_checkout_stripe_activo(cursor, session_id, contacto_id)
+            db._audit_log(
+                cursor, "contacto", contacto_id, "stripe_checkout_creado",
+                "aliado", codigo, f"session={session_id} importe={importe_val}",
+            )
+            conn.commit()
+            return {
+                "status": "success",
+                "checkout_url": session.get("url"),
+                "session_id": session_id,
+                "importe": importe_val,
+            }
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            return {"status": "error", "message": str(e)}
+        finally:
+            if conn:
+                conn.close()
+
+
+def _aplicar_score_tras_transfer(db, contacto_id: int, solicitante_codigo: str, profesional_codigo: str) -> None:
+    participantes = [c for c in (solicitante_codigo, profesional_codigo) if c]
+    scores_aplicar: List[Tuple[str, int, str]] = []
+    anio_mes_actual = datetime.now().strftime("%Y-%m")
+    for codigo in participantes:
+        scores_aplicar.append((codigo, 2, "encargo_completado_stripe_transferido"))
+        for ancestro, generacion in db.ancestros_referidos_para_score(
+            codigo, max_generaciones=2, excluir=set(participantes)
+        ):
+            scores_aplicar.append((ancestro, 1, f"referido_encargo_completado_gen{generacion}"))
+        hito_regla4 = db.evaluar_regla4_encargos_mes_limpio(codigo, anio_mes_actual)
+        if hito_regla4:
+            scores_aplicar.append(hito_regla4)
+    hito_regla6 = db.evaluar_regla6_urgente_mismo_dia(contacto_id)
+    if hito_regla6:
+        scores_aplicar.append(hito_regla6)
+    for codigo, delta, motivo in scores_aplicar:
+        try:
+            db.aplicar_cambio_score(codigo, delta, motivo)
+        except Exception:
+            pass
+
+
+def confirmar_trabajo_y_transferir(
+    db, contacto_id: int, contratante_codigo: str
+) -> Dict[str, Any]:
+    """
+    El aliado contratante confirma que el trabajo se realizó y RUANA transfiere al profesional.
+    """
+    codigo = (contratante_codigo or "").strip()
+    if not codigo:
+        return {"status": "error", "message": "Código de aliado obligatorio"}
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            row = _repo.select_contacto_stripe_por_id(cursor, contacto_id)
+            if not row:
+                return {"status": "error", "message": "Contacto no encontrado"}
+            contacto = dict(row)
+            if str(contacto.get("solicitante_codigo") or "").strip() != codigo:
+                return {
+                    "status": "error",
+                    "message": "Solo el aliado que contrató el encargo puede confirmar que el trabajo se realizó",
+                }
+            if contacto.get("modo_pago") != "stripe":
+                return {"status": "error", "message": "Este contacto no usa pago Stripe"}
+            if (contacto.get("estado_pago") or "") != "cobro_confirmado":
+                return {
+                    "status": "error",
+                    "message": "El pago del cliente aún no está confirmado o ya se transfirió al profesional",
+                }
+            if contacto.get("stripe_transfer_id"):
+                return {"status": "error", "message": "La transferencia al profesional ya se realizó"}
+            prof_codigo = str(contacto.get("profesional_codigo") or "").strip()
+            aliado_row = _repo.select_aliado_stripe(cursor, prof_codigo)
+            if not aliado_row:
+                return {"status": "error", "message": "Profesional no encontrado"}
+            aliado = dict(aliado_row) if hasattr(aliado_row, "keys") else {
+                "stripe_account_id": aliado_row[3],
+            }
+            account_id = (aliado.get("stripe_account_id") or "").strip()
+            if not account_id:
+                return {"status": "error", "message": "El profesional no tiene cuenta Stripe Connect activa"}
+            neto = contacto.get("importe_neto_profesional")
+            if neto is None:
+                _, _, neto, _ = _calcular_importes_stripe(
+                    float(contacto.get("importe_final") or contacto.get("importe_acordado") or 0),
+                    db,
+                )
+            neto_val = round(float(neto), 2)
+            if neto_val <= 0:
+                return {"status": "error", "message": "Importe neto del profesional no válido"}
+            _repo.marcar_confirmacion_trabajo_contratante(cursor, contacto_id)
+            transfer = stripe_client.create_transfer(
+                amount_cents=_importe_centimos(neto_val),
+                currency="eur",
+                destination_account_id=account_id,
+                contacto_id=contacto_id,
+                idempotency_key=f"transfer-contacto-{contacto_id}",
+            )
+            transfer_id = transfer.get("id")
+            if not transfer_id:
+                conn.rollback()
+                return {"status": "error", "message": "Stripe no devolvió transferencia"}
+            updated = _repo.marcar_transfer_stripe_completado(cursor, contacto_id, transfer_id)
+            if updated != 1:
+                conn.rollback()
+                return {"status": "error", "message": "No se pudo cerrar el contacto tras la transferencia"}
+            db._audit_log(
+                cursor, "contacto", contacto_id, "stripe_transfer_completado",
+                "aliado", codigo, f"transfer={transfer_id} neto={neto_val}",
+            )
+            mensaje_prof = (
+                f"El contratante confirmó el trabajo del encargo #{contacto_id}. "
+                f"RUANA ha transferido {neto_val:g} € a tu cuenta."
+            )
+            meta = json.dumps(
+                {"contacto_id": contacto_id, "importe_neto": neto_val, "transfer_id": transfer_id},
+                ensure_ascii=False,
+            )
+            _repo.insertar_notif_pago_stripe(
+                cursor, prof_codigo, "Pago transferido", mensaje_prof, meta
+            )
+            conn.commit()
+            solicitante = codigo
+            _aplicar_score_tras_transfer(db, contacto_id, solicitante, prof_codigo)
+            return {
+                "status": "success",
+                "contacto_id": contacto_id,
+                "estado": "trabajo_cerrado",
+                "estado_pago": "transferido",
+                "stripe_transfer_id": transfer_id,
+                "importe_neto_profesional": neto_val,
+            }
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            return {"status": "error", "message": str(e)}
+        finally:
+            if conn:
+                conn.close()
+
+
+def _procesar_pago_confirmado(
+    db, contacto_id: int, payment_intent_id: str
+) -> Dict[str, Any]:
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            row = _repo.select_contacto_stripe_por_id(cursor, contacto_id)
+            if not row:
+                return {"status": "ignored", "message": "contacto no encontrado"}
+            contacto = dict(row)
+            if contacto.get("stripe_payment_intent_id"):
+                return {"status": "ignored", "message": "ya procesado"}
+            importe = contacto.get("importe_acordado") or contacto.get("importe_final")
+            if importe is None:
+                return {"status": "error", "message": "sin importe"}
+            importe_val, apoyo, neto, comision_pct = _calcular_importes_stripe(float(importe), db)
+            updated = _repo.marcar_cobro_stripe_confirmado(
+                cursor,
+                contacto_id,
+                payment_intent_id,
+                importe_val,
+                apoyo,
+                comision_pct,
+                neto,
+            )
+            if updated != 1:
+                conn.commit()
+                return {"status": "ignored", "message": "estado no aplicable"}
+            _repo.insertar_ingreso_ruana(cursor, contacto_id, importe_val, apoyo)
+            prof_codigo = str(contacto.get("profesional_codigo") or "").strip()
+            sol_codigo = str(contacto.get("solicitante_codigo") or "").strip()
+            meta_sol = json.dumps(
+                {"contacto_id": contacto_id, "importe": importe_val, "estado_pago": "cobro_confirmado"},
+                ensure_ascii=False,
+            )
+            _repo.insertar_notif_pago_stripe(
+                cursor,
+                sol_codigo,
+                "Pago confirmado",
+                (
+                    f"Tu pago de {importe_val:g} € del encargo #{contacto_id} está confirmado. "
+                    "Cuando el trabajo esté terminado, confirma la entrega para liberar el pago al profesional."
+                ),
+                meta_sol,
+            )
+            meta_prof = json.dumps(
+                {"contacto_id": contacto_id, "importe_neto": neto},
+                ensure_ascii=False,
+            )
+            _repo.insertar_notif_pago_stripe(
+                cursor,
+                prof_codigo,
+                "Pago del cliente recibido",
+                (
+                    f"El cliente pagó {importe_val:g} € por el encargo #{contacto_id}. "
+                    "Realiza el trabajo; el contratante confirmará la entrega para liberar tu pago."
+                ),
+                meta_prof,
+            )
+            db._audit_log(
+                cursor, "contacto", contacto_id, "stripe_cobro_confirmado",
+                "sistema", "", f"pi={payment_intent_id} importe={importe_val}",
+            )
+            conn.commit()
+            return {"status": "success", "contacto_id": contacto_id}
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            return {"status": "error", "message": str(e)}
+        finally:
+            if conn:
+                conn.close()
+
+
+def procesar_webhook_stripe(db, payload: bytes, sig_header: str) -> Dict[str, Any]:
+    """Verifica firma e idempotencia; procesa eventos Stripe relevantes."""
+    try:
+        event = stripe_client.construct_webhook_event(payload, sig_header)
+    except Exception as e:
+        return {"status": "error", "message": f"firma webhook inválida: {e}"}
+    event_id = getattr(event, "id", None) or (event.get("id") if isinstance(event, dict) else None)
+    event_type = getattr(event, "type", None) or (event.get("type") if isinstance(event, dict) else None)
+    data_obj = getattr(event, "data", None) or (event.get("data") if isinstance(event, dict) else {})
+    obj = getattr(data_obj, "object", None) if data_obj is not None else None
+    if obj is None and isinstance(data_obj, dict):
+        obj = data_obj.get("object")
+    if not event_id or not event_type:
+        return {"status": "error", "message": "evento incompleto"}
+    contacto_id: Optional[int] = None
+    resultado = "ignorado"
+    try:
+        with db._lock:
+            conn = db._connect()
+            cursor = conn.cursor()
+            if _repo.webhook_evento_existe(cursor, event_id):
+                conn.close()
+                return {"status": "success", "message": "evento ya procesado", "duplicate": True}
+            conn.close()
+        if event_type == "checkout.session.completed":
+            payment_status = getattr(obj, "payment_status", None) or obj.get("payment_status")
+            if payment_status != "paid":
+                resultado = "ignored_unpaid"
+            else:
+                metadata = getattr(obj, "metadata", None) or obj.get("metadata") or {}
+                contacto_id = int(metadata.get("contacto_id") or 0) or None
+                payment_intent_id = getattr(obj, "payment_intent", None) or obj.get("payment_intent")
+                if contacto_id and payment_intent_id:
+                    res = _procesar_pago_confirmado(db, contacto_id, str(payment_intent_id))
+                    resultado = res.get("status", "error")
+        elif event_type == "payment_intent.succeeded":
+            metadata = getattr(obj, "metadata", None) or obj.get("metadata") or {}
+            if metadata.get("tipo") == "encargo_ruana":
+                contacto_id = int(metadata.get("contacto_id") or 0) or None
+                payment_intent_id = getattr(obj, "id", None) or obj.get("id")
+                if contacto_id and payment_intent_id:
+                    res = _procesar_pago_confirmado(db, contacto_id, str(payment_intent_id))
+                    resultado = res.get("status", "error")
+        elif event_type == "checkout.session.expired":
+            metadata = getattr(obj, "metadata", None) or obj.get("metadata") or {}
+            contacto_id = int(metadata.get("contacto_id") or 0) or None
+            if contacto_id:
+                with db._lock:
+                    conn = db._connect()
+                    cursor = conn.cursor()
+                    _repo.reset_checkout_expirado(cursor, contacto_id)
+                    conn.commit()
+                    conn.close()
+                resultado = "ok"
+        elif event_type == "account.updated":
+            account_id = getattr(obj, "id", None) or obj.get("id")
+            charges = getattr(obj, "charges_enabled", False) or obj.get("charges_enabled", False)
+            payouts = getattr(obj, "payouts_enabled", False) or obj.get("payouts_enabled", False)
+            details = getattr(obj, "details_submitted", False) or obj.get("details_submitted", False)
+            if account_id:
+                with db._lock:
+                    conn = db._connect()
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        """
+                        UPDATE aliados
+                        SET stripe_charges_enabled = ?, stripe_payouts_enabled = ?,
+                            stripe_onboarding_completo = ?,
+                            actualizado_en = CURRENT_TIMESTAMP
+                        WHERE stripe_account_id = ?
+                        """,
+                        (1 if charges else 0, 1 if payouts else 0, 1 if details else 0, account_id),
+                    )
+                    conn.commit()
+                    conn.close()
+                resultado = "ok"
+        with db._lock:
+            conn = db._connect()
+            cursor = conn.cursor()
+            _repo.insertar_webhook_evento(cursor, event_id, event_type, contacto_id, resultado)
+            conn.commit()
+            conn.close()
+        return {"status": "success", "event_type": event_type, "resultado": resultado}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+def procesar_timeouts_sin_confirmacion_stripe(db) -> int:
+    """Plazo sin confirmación del contratante → payment_conflicts para revisión admin."""
+    dias = int(os.environ.get("RUANA_STRIPE_TRANSFER_TIMEOUT_DAYS", "12") or "12")
+    procesados = 0
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            rows = _repo.listar_stripe_sin_confirmacion_vencidos(
+                cursor, dias, postgres=(getattr(db, "backend", "") == "postgres")
+            )
+            for row in rows:
+                item = dict(row)
+                contacto_id = int(item["id"])
+                importe = float(item.get("importe_final") or 0)
+                id_sol = _repo.select_aliado_id_por_codigo(cursor, item.get("solicitante_codigo") or "")
+                id_prof = _repo.select_aliado_id_por_codigo(cursor, item.get("profesional_codigo") or "")
+                if id_sol is None or id_prof is None:
+                    continue
+                _repo.insertar_conflict_sin_confirmacion(
+                    cursor,
+                    contacto_id,
+                    id_sol,
+                    id_prof,
+                    importe,
+                    item.get("stripe_payment_intent_id"),
+                )
+                _repo.marcar_stripe_revision_admin(cursor, contacto_id)
+                procesados += 1
+            conn.commit()
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            print(f"[RUANA] Error procesar_timeouts_sin_confirmacion_stripe: {e}")
+        finally:
+            if conn:
+                conn.close()
+    return procesados
+
+
+def iniciar_onboarding_stripe_profesional(db, codigo_profesional: str) -> Dict[str, Any]:
+    """Crea cuenta Connect Express y devuelve URL de onboarding."""
+    codigo = (codigo_profesional or "").strip()
+    if not stripe_habilitado_global():
+        return {"status": "error", "message": "Pagos Stripe no habilitados"}
+    settings = get_settings()
+    base_url = (settings.public_app_url or "http://localhost:5000").rstrip("/")
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            row = _repo.select_aliado_stripe(cursor, codigo)
+            if not row:
+                return {"status": "error", "message": "Aliado no encontrado"}
+            aliado = dict(row)
+            account_id = (aliado.get("stripe_account_id") or "").strip()
+            if not account_id:
+                account = stripe_client.create_connect_account(email=aliado.get("email"))
+                account_id = account.get("id")
+                if not account_id:
+                    return {"status": "error", "message": "No se pudo crear cuenta Connect"}
+                _repo.update_aliado_stripe_account(cursor, codigo, account_id, 0, 0, 0)
+            link = stripe_client.create_account_link(
+                account_id=account_id,
+                refresh_url=f"{base_url}/aliado.html?stripe_onboarding=refresh",
+                return_url=f"{base_url}/aliado.html?stripe_onboarding=done",
+            )
+            conn.commit()
+            return {
+                "status": "success",
+                "onboarding_url": link.get("url"),
+                "stripe_account_id": account_id,
+            }
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            return {"status": "error", "message": str(e)}
+        finally:
+            if conn:
+                conn.close()
+
+
+def estado_pago_stripe_contacto(db, contacto_id: int, codigo_aliado: str) -> Dict[str, Any]:
+    """Estado de pago Stripe visible para participantes del contacto."""
+    codigo = (codigo_aliado or "").strip()
+    with db._lock:
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            row = _repo.select_contacto_stripe_por_id(cursor, contacto_id)
+            if not row:
+                return {"status": "error", "message": "Contacto no encontrado"}
+            contacto = dict(row)
+            sol = str(contacto.get("solicitante_codigo") or "").strip()
+            pro = str(contacto.get("profesional_codigo") or "").strip()
+            if codigo not in (sol, pro):
+                return {"status": "error", "message": "No autorizado"}
+            es_contratante = codigo == sol
+            return {
+                "status": "success",
+                "modo_pago": contacto.get("modo_pago") or "manual",
+                "estado": contacto.get("estado"),
+                "estado_pago": contacto.get("estado_pago"),
+                "importe_acordado": contacto.get("importe_acordado"),
+                "importe_neto_profesional": contacto.get("importe_neto_profesional"),
+                "puede_pagar": es_contratante and contacto.get("estado_pago") in (
+                    "esperando_cobro_cliente", "checkout_activo"
+                ),
+                "puede_confirmar_trabajo": es_contratante and contacto.get("estado_pago") == "cobro_confirmado",
+                "es_contratante": es_contratante,
+            }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
         finally:
             conn.close()
 

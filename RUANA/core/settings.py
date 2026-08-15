@@ -41,6 +41,9 @@ class Settings:
     smtp_user: str = os.environ.get("RUANA_SMTP_USER", "team.ruana@gmail.com")
     smtp_password: str = os.environ.get("RUANA_SMTP_PASSWORD", "")
     smtp_from_email: str = os.environ.get("RUANA_SMTP_FROM_EMAIL", "")
+    stripe_secret_key: str = os.environ.get("STRIPE_SECRET_KEY", "")
+    stripe_publishable_key: str = os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
+    stripe_webhook_secret: str = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 
     @property
     def supabase_configured(self) -> bool:
@@ -53,6 +56,10 @@ class Settings:
     @property
     def smtp_configured(self) -> bool:
         return bool(self.smtp_host and self.smtp_user and self.smtp_password)
+
+    @property
+    def stripe_configured(self) -> bool:
+        return bool(self.stripe_secret_key and self.stripe_webhook_secret)
 
 
 @lru_cache(maxsize=1)
@@ -82,4 +89,7 @@ def get_settings() -> Settings:
         smtp_user=os.environ.get("RUANA_SMTP_USER", "team.ruana@gmail.com"),
         smtp_password=os.environ.get("RUANA_SMTP_PASSWORD", ""),
         smtp_from_email=smtp_from,
+        stripe_secret_key=os.environ.get("STRIPE_SECRET_KEY", ""),
+        stripe_publishable_key=os.environ.get("STRIPE_PUBLISHABLE_KEY", ""),
+        stripe_webhook_secret=os.environ.get("STRIPE_WEBHOOK_SECRET", ""),
     )

@@ -46,6 +46,7 @@ from web.blueprints.admin_bp import admin_bp, _registro_url_para_invitacion
 from web.blueprints.contactos_bp import contactos_bp
 from web.blueprints.auth_bp import auth_bp
 from web.blueprints.pagos_bp import pagos_bp
+from web.blueprints.stripe_webhook_bp import stripe_webhook_bp
 from web.blueprints.solicitudes_bp import solicitudes_bp
 from web.blueprints.aliado_bp import (
     aliado_bp,
@@ -90,6 +91,7 @@ app.register_blueprint(admin_bp)
 app.register_blueprint(contactos_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(pagos_bp)
+app.register_blueprint(stripe_webhook_bp)
 app.register_blueprint(solicitudes_bp)
 app.register_blueprint(aliado_bp)
 app.register_blueprint(invitacion_bp)

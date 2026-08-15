@@ -511,7 +511,7 @@ def obtener_contactos_abiertos_por_codigo(db, codigo_aliado: str) -> List[Dict[s
         return []
     estados_abiertos = (
         'iniciado', 'aceptado', 'trabajo_en_progreso', 'importe_en_disputa',
-        'en_conversacion', 'acuerdo_alcanzado',
+        'en_conversacion', 'acuerdo_alcanzado', 'pendiente_de_pago',
     )
     with db._lock:
         try:
