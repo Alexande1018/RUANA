@@ -109,20 +109,36 @@
   async function refreshStripeEstadoFromServer(host) {
     if (!host) return;
     try {
-      const resp = await fetch('/api/aliado/datos', {
+      const resp = await fetch('/api/aliado/stripe/estado', {
         credentials: 'include',
         headers: typeof global.getRuanaAuthHeaders === 'function'
           ? global.getRuanaAuthHeaders()
           : {},
       });
       const data = await resp.json();
-      if (data.status === 'success' && data.aliado) {
-        host.aliado = { ...(host.aliado || {}), ...data.aliado };
+      if (data.status === 'success') {
+        if (host.aliado) {
+          host.aliado.stripe_pago_listo = !!data.stripe_pago_listo;
+          host.aliado.stripe_charges_enabled = data.stripe_pago_listo ? 1 : 0;
+        }
+        renderOnboardingUi(host);
+        return data;
+      }
+      const respDatos = await fetch('/api/aliado/datos', {
+        credentials: 'include',
+        headers: typeof global.getRuanaAuthHeaders === 'function'
+          ? global.getRuanaAuthHeaders()
+          : {},
+      });
+      const datos = await respDatos.json();
+      if (datos.status === 'success' && datos.aliado) {
+        host.aliado = { ...(host.aliado || {}), ...datos.aliado };
         renderOnboardingUi(host);
       }
     } catch (e) {
       console.error('Error refrescando estado Stripe:', e);
     }
+    return null;
   }
 
   function handleOnboardingReturn(host) {

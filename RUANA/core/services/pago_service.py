@@ -725,6 +725,54 @@ def profesional_stripe_listo(db, codigo_profesional: str) -> bool:
             conn.close()
 
 
+def sincronizar_estado_stripe_profesional(db, codigo_profesional: str) -> Dict[str, Any]:
+    """Consulta Stripe y actualiza flags locales (p. ej. si el webhook account.updated tarda)."""
+    codigo = (codigo_profesional or "").strip()
+    if not codigo or not stripe_habilitado_global():
+        return {"status": "skipped", "stripe_pago_listo": False}
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            row = _repo.select_aliado_stripe(cursor, codigo)
+            if not row:
+                return {"status": "error", "message": "Aliado no encontrado"}
+            aliado = dict(row)
+            account_id = (aliado.get("stripe_account_id") or "").strip()
+            if not account_id:
+                return {
+                    "status": "success",
+                    "stripe_pago_listo": False,
+                    "stripe_account_id": "",
+                }
+            account = stripe_client.retrieve_account(account_id)
+            charges = bool(account.get("charges_enabled"))
+            payouts = bool(account.get("payouts_enabled"))
+            details = bool(account.get("details_submitted"))
+            _repo.update_aliado_stripe_account(
+                cursor, codigo, account_id,
+                1 if charges else 0,
+                1 if payouts else 0,
+                1 if details else 0,
+            )
+            conn.commit()
+            return {
+                "status": "success",
+                "stripe_pago_listo": charges,
+                "stripe_account_id": account_id,
+                "stripe_charges_enabled": 1 if charges else 0,
+            }
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            return {"status": "error", "message": str(e)}
+        finally:
+            if conn:
+                conn.close()
+
+
 def puede_usar_stripe_para_contacto(db, contacto: Dict[str, Any]) -> bool:
     if not stripe_habilitado_global():
         return False

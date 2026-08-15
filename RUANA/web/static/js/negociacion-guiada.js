@@ -165,6 +165,23 @@
                 : String(this.data.solicitante_codigo || '').trim();
         }
 
+        _stripePagoBloqueado() {
+            return !!(this.data && this.data.profesional_stripe_listo === false);
+        }
+
+        _htmlAvisoStripeBloqueo() {
+            const msg = (this.data && this.data.aviso_pago_no_disponible)
+                || (global.RuanaStripePagos && global.RuanaStripePagos.MSG_PAGO_NO_DISPONIBLE)
+                || 'Pago no disponible todavía con este profesional';
+            const detalle = this.data.rol === 'profesional'
+                ? 'Conecta tu cuenta de pago desde el banner superior o tu perfil para poder cerrar encargos con precio.'
+                : 'Este profesional debe activar su cuenta de pago antes de que puedas confirmar el precio final.';
+            return `<div class="neg-stripe-bloqueo-precio" role="alert">
+                <strong>${this.escapeHtml(msg)}</strong>
+                <p>${this.escapeHtml(detalle)}</p>
+            </div>`;
+        }
+
         _camposSolicitante() {
             if (this.data && Array.isArray(this.data.campos_solicitante)) {
                 return this.data.campos_solicitante;
@@ -865,17 +882,22 @@
             const label = PASO_LABELS[campo] || campo;
             const inputType = INPUT_TYPES[campo] || 'text';
             const isTextarea = inputType === 'textarea';
+            const bloqueoPrecio = campo === 'precio' && this._stripePagoBloqueado();
             const contraInput = isTextarea
                 ? `<textarea id="neg-input-contraoferta" class="neg-compose-input" placeholder="Tu alternativa" rows="2">${this.escapeHtml(valorContra)}</textarea>`
                 : `<input id="neg-input-contraoferta" class="neg-compose-input" type="${inputType}" ${campo === 'precio' ? 'step="0.01" min="0"' : ''} placeholder="Tu alternativa" value="${this.escapeHtml(valorContra)}" />`;
+            const accionesHtml = bloqueoPrecio
+                ? `${this._htmlAvisoStripeBloqueo()}
+                   <button type="button" class="neg-btn neg-btn-secondary neg-btn-block" id="neg-btn-contraoferta-toggle">Sugerir otro valor</button>`
+                : `<button type="button" class="neg-btn neg-btn-primary neg-btn-block" id="neg-btn-aceptar">Confirmar</button>
+                   <button type="button" class="neg-btn neg-btn-secondary neg-btn-block" id="neg-btn-contraoferta-toggle">Sugerir otro valor</button>`;
             el.innerHTML = `<div class="neg-compose-stack">
                 <div class="neg-respuesta-valor">
                     <span class="neg-respuesta-label">${this.escapeHtml(label)}:</span>
                     <strong>${this.escapeHtml(String(valorActual))}</strong>
                 </div>
                 <div class="neg-compose-actions">
-                    <button type="button" class="neg-btn neg-btn-primary neg-btn-block" id="neg-btn-aceptar">Confirmar</button>
-                    <button type="button" class="neg-btn neg-btn-secondary neg-btn-block" id="neg-btn-contraoferta-toggle">Sugerir otro valor</button>
+                    ${accionesHtml}
                 </div>
                 <div id="neg-contraoferta-form" class="neg-contraoferta-form" style="display:none;">
                     ${contraInput}
@@ -884,7 +906,8 @@
                 </div>
             </div>`;
             this._enlazarGuardadoBorrador(campo);
-            document.getElementById('neg-btn-aceptar').addEventListener('click', () => this.aceptar(campo));
+            const btnAceptar = document.getElementById('neg-btn-aceptar');
+            if (btnAceptar) btnAceptar.addEventListener('click', () => this.aceptar(campo));
             document.getElementById('neg-btn-contraoferta-toggle').addEventListener('click', () => {
                 const f = document.getElementById('neg-contraoferta-form');
                 if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
@@ -942,7 +965,8 @@
                     return;
                 }
                 if (data.status !== 'success') {
-                    notify(data.message || `Error en la operación (${resp.status})`, 'error');
+                    const tipo = data.stripe_pago_no_disponible ? 'warning' : 'error';
+                    notify(data.message || `Error en la operación (${resp.status})`, tipo);
                     return;
                 }
                 this.data = data;

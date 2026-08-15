@@ -69,6 +69,8 @@ def obtener_negociacion_contacto(db, contacto_id: int, codigo_aliado: str) -> Di
             result = {'status': 'success', **payload}
             from core.services import pago_service
             if pago_service.stripe_habilitado_global():
+                if not pago_service.profesional_stripe_listo(db, pro):
+                    pago_service.sincronizar_estado_stripe_profesional(db, pro)
                 listo = pago_service.profesional_stripe_listo(db, pro)
                 result['profesional_stripe_listo'] = listo
                 if rol == 'solicitante' and not listo:
@@ -278,12 +280,15 @@ def aceptar_negociacion(db, contacto_id: int, codigo_aliado: str, campo: str,
             )
             if completo:
                 from core.services import pago_service
-                if pago_service.stripe_habilitado_global() and not pago_service.profesional_stripe_listo(db, pro):
-                    return {
-                        'status': 'error',
-                        'message': pago_service.MSG_PROFESIONAL_STRIPE_NO_LISTO,
-                        'stripe_pago_no_disponible': True,
-                    }
+                if pago_service.stripe_habilitado_global():
+                    if not pago_service.profesional_stripe_listo(db, pro):
+                        pago_service.sincronizar_estado_stripe_profesional(db, pro)
+                    if not pago_service.profesional_stripe_listo(db, pro):
+                        return {
+                            'status': 'error',
+                            'message': pago_service.MSG_PROFESIONAL_STRIPE_NO_LISTO,
+                            'stripe_pago_no_disponible': True,
+                        }
             neg_json = neg_mgr.serializar_negociacion(estado)
             nuevo_estado = contacto.get('estado') or 'iniciado'
             resumen_json = None

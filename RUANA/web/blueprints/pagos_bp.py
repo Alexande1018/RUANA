@@ -312,6 +312,27 @@ def estado_pago_stripe(contacto_id):
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@pagos_bp.route("/api/aliado/stripe/estado", methods=["GET"])
+@require_aliado
+def aliado_stripe_estado():
+    """Sincroniza y devuelve el estado de la cuenta Connect del aliado en sesión."""
+    try:
+        codigo = _aliado_codigo()
+        if not codigo:
+            return jsonify({"status": "error", "message": "Sesión expirada"}), 401
+        db = get_db()
+        sync = pago_service.sincronizar_estado_stripe_profesional(db, codigo)
+        listo = pago_service.profesional_stripe_listo(db, codigo)
+        payload = {
+            "status": "success",
+            "stripe_pago_listo": listo,
+            "sync": sync,
+        }
+        return jsonify(payload), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @pagos_bp.route("/api/aliado/stripe/onboarding", methods=["POST"])
 @require_aliado
 def aliado_stripe_onboarding():
