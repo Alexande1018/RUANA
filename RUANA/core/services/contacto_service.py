@@ -322,6 +322,9 @@ def registrar_importe_contacto(db, contacto_id: int, parte: str,
     Registra la confirmación de importe por el contratante.
     Si existe precio negociado (importe_acordado), ese es el valor oficial y se ignora
     cualquier importe distinto enviado por el cliente.
+
+    # DEPRECADO para uso normal — solo accesible vía panel admin como respaldo de
+    # emergencia. Ver PROMPT_CURSOR_ELIMINAR_FLUJO_MANUAL.md.
     """
     resultado = None
     evaluar_regla7 = False
@@ -340,6 +343,16 @@ def registrar_importe_contacto(db, contacto_id: int, parte: str,
             if not contacto:
                 conn.close()
                 return {'status': 'error', 'message': f'Contacto {contacto_id} no encontrado'}
+            if (contacto.get('modo_pago') or '').strip() == 'stripe':
+                conn.close()
+                return {
+                    'status': 'error',
+                    'message': (
+                        'Este encargo se gestiona con pago Stripe. '
+                        'El cobro manual solo está disponible desde el panel de administración.'
+                    ),
+                    'estado': contacto.get('estado'),
+                }
             estado_actual = contacto['estado']
 
             if estado_actual in ('trabajo_cerrado', 'no_concretado', 'cerrado_no_concretado'):

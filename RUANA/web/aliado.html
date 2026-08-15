@@ -142,6 +142,7 @@
         </div>
 
         <div class="aliado-shell-alerts" id="aliado-shell-alerts">
+        <div id="stripe-onboarding-banner" class="stripe-onboarding-banner" style="display:none;" role="alert" aria-live="polite"></div>
         <!-- Hub compacto: Apoyo RUANA, pagos pendientes, mensajes RUANA -->
         <div id="ruana-alert-hub" class="ruana-alert-hub" hidden>
             <div class="ruana-alert-hub__cards"></div>
@@ -357,6 +358,8 @@
                 <div id="competencia-banner-texto"></div>
                 <div class="competencia-banner-meta" id="competencia-banner-meta"></div>
             </div>
+
+            <div id="stripe-perfil-section" class="stripe-perfil-section ruana-card-premium" style="display:none;" aria-live="polite"></div>
 
             <div class="perfil-acciones">
                 <button type="button"
@@ -638,9 +641,10 @@
             </div>
             <ul class="modal-contacto-list">
                 <li>Cada contacto abierto cuenta en tus métricas personales.</li>
-                <li>Si no declaras el resultado, tu panel mostrará avisos permanentes.</li>
                 <li>RUANA registrará este contacto y guiará la negociación paso a paso.</li>
+                <li>Los encargos con precio acordado se pagan con tarjeta de forma segura.</li>
             </ul>
+            <p id="contacto-previo-stripe-aviso" class="contacto-previo-stripe-aviso" style="display:none;" role="alert"></p>
             <label class="motivo-urgente-label" for="check-contacto-urgente" style="display:flex; align-items:center; gap:10px; margin:12px 0 4px; cursor:pointer;">
                 <input type="checkbox" id="check-contacto-urgente" style="width:18px; height:18px;">
                 <span><strong>Marcar como urgente</strong> — el profesional lo verá resaltado</span>
@@ -672,6 +676,7 @@
                 </div>
             </div>
             <div id="neg-acuerdo-final" style="display:none;"></div>
+            <div id="neg-stripe-aviso" class="neg-stripe-aviso" style="display:none;" role="alert" aria-live="polite"></div>
             <div id="neg-estado-bar" class="neg-estado-bar" style="display:none;" aria-live="polite"></div>
             <div class="neg-modal-body">
                 <div class="neg-chat-main">

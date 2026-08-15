@@ -6,6 +6,7 @@ from datetime import datetime
 
 from core.db_manager import DBManager
 from core import negociacion_manager as neg_mgr
+from core.settings import get_settings
 
 
 class TestNegociacionGuiada(unittest.TestCase):
@@ -13,6 +14,10 @@ class TestNegociacionGuiada(unittest.TestCase):
         self.tmp = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
         self.tmp.close()
         os.environ['RUANA_DB_PATH'] = self.tmp.name
+        os.environ['RUANA_STRIPE_PAYMENTS_ENABLED'] = '1'
+        os.environ['STRIPE_SECRET_KEY'] = 'sk_test_x'
+        os.environ['STRIPE_WEBHOOK_SECRET'] = 'whsec_test'
+        get_settings.cache_clear()
         self.db = DBManager(db_path=self.tmp.name)
 
     def tearDown(self):
@@ -20,6 +25,15 @@ class TestNegociacionGuiada(unittest.TestCase):
             os.unlink(self.tmp.name)
         except OSError:
             pass
+
+    def _habilitar_stripe_profesional(self, codigo='90002'):
+        conn = self.db._connect()
+        conn.execute(
+            "UPDATE aliados SET stripe_account_id=?, stripe_charges_enabled=1 WHERE codigo=?",
+            ('acct_test123', codigo),
+        )
+        conn.commit()
+        conn.close()
 
     def _crear_aliados_y_contacto(self, servicio='Reparación grifo'):
         for i, (codigo, nombre) in enumerate((('90001', 'Sol'), ('90002', 'Pro'))):
@@ -33,6 +47,7 @@ class TestNegociacionGuiada(unittest.TestCase):
             '90001', '90002', servicio=servicio, motivo_contacto='Presupuesto'
         )
         self.assertEqual(r['status'], 'success', r.get('message'))
+        self._habilitar_stripe_profesional('90002')
         return r['id']
 
     def test_inicio_solicitante_debe_proponer_completo(self):
@@ -88,16 +103,16 @@ class TestNegociacionGuiada(unittest.TestCase):
         ok = self.db.aceptar_negociacion(cid, '90001', 'precio')
         self.assertEqual(ok['status'], 'success', ok.get('message'))
         self.assertTrue(ok.get('cierre_automatico'), ok)
-        self.assertEqual(ok.get('estado_contacto') or ok.get('estado_cierre'), 'trabajo_cerrado')
+        self.assertEqual(ok.get('estado_contacto') or ok.get('estado_cierre'), 'pendiente_de_pago')
 
         final = self.db.obtener_negociacion_contacto(cid, '90001')
         self.assertTrue(final.get('acuerdo_alcanzado') or final['negociacion'].get('completo'))
-        self.assertEqual(final['estado_contacto'], 'trabajo_cerrado')
-        self.assertEqual(final['accion']['tipo'], 'cerrado')
+        self.assertEqual(final['estado_contacto'], 'pendiente_de_pago')
 
         contacto = self.db.obtener_contacto_por_id(cid)
         self.assertIsNotNone(contacto)
-        self.assertEqual(contacto['estado'], 'trabajo_cerrado')
+        self.assertEqual(contacto['estado'], 'pendiente_de_pago')
+        self.assertEqual(contacto.get('modo_pago'), 'stripe')
         self.assertTrue(contacto.get('acuerdo_resumen_json'))
         self.assertEqual(float(contacto.get('importe_acordado') or 0), 150.0)
 
@@ -140,21 +155,19 @@ class TestNegociacionGuiada(unittest.TestCase):
             self.assertEqual(last['status'], 'success', last.get('message'))
 
         self.assertTrue(last.get('cierre_automatico'), last)
-        self.assertEqual(last.get('estado_contacto') or last.get('estado_cierre'), 'trabajo_cerrado')
+        self.assertEqual(last.get('estado_contacto') or last.get('estado_cierre'), 'pendiente_de_pago')
 
         final = self.db.obtener_negociacion_contacto(cid, '90001')
         self.assertTrue(final.get('acuerdo_alcanzado') or final['negociacion'].get('completo'))
-        self.assertEqual(final['estado_contacto'], 'trabajo_cerrado')
-        self.assertEqual(final['accion']['tipo'], 'cerrado')
+        self.assertEqual(final['estado_contacto'], 'pendiente_de_pago')
 
         contacto = self.db.obtener_contacto_por_id(cid)
         self.assertIsNotNone(contacto)
-        self.assertEqual(contacto['estado'], 'trabajo_cerrado')
+        self.assertEqual(contacto['estado'], 'pendiente_de_pago')
         self.assertTrue(contacto.get('acuerdo_resumen_json'))
         self.assertEqual(float(contacto.get('importe_acordado')), 150.0)
-        self.assertEqual(float(contacto['importe_final']), 150.0)
-        self.assertEqual(contacto.get('estado_pago'), 'pendiente_pago')
-        self.assertGreater(float(contacto.get('apoyo_ruana') or 0), 0)
+        self.assertEqual(contacto.get('estado_pago'), 'esperando_cobro_cliente')
+        self.assertEqual(contacto.get('modo_pago'), 'stripe')
 
     def _flujo_hasta_acuerdo(self, precio='150'):
         cid = self._crear_aliados_y_contacto()
@@ -181,22 +194,21 @@ class TestNegociacionGuiada(unittest.TestCase):
         return cid
 
     def test_cierre_bilateral_registra_trabajo(self):
-        """Al aceptar el precio ya queda trabajo_cerrado; el cierre bilateral solo acusa el resumen."""
+        """Tras aceptar el precio queda pendiente_de_pago (Stripe); el cierre bilateral acusa el resumen."""
         cid = self._flujo_hasta_acuerdo('150')
         contacto = self.db.obtener_contacto_por_id(cid)
-        self.assertEqual(contacto['estado'], 'trabajo_cerrado')
-        self.assertEqual(float(contacto['importe_final']), 150.0)
-        self.assertEqual(contacto.get('estado_pago'), 'pendiente_pago')
-        self.assertGreater(float(contacto.get('apoyo_ruana') or 0), 0)
+        self.assertEqual(contacto['estado'], 'pendiente_de_pago')
+        self.assertEqual(float(contacto.get('importe_acordado')), 150.0)
+        self.assertEqual(contacto.get('estado_pago'), 'esperando_cobro_cliente')
 
         r1 = self.db.cerrar_negociacion(cid, '90001')
         self.assertEqual(r1['status'], 'success', r1.get('message'))
-        self.assertEqual(r1.get('estado_contacto'), 'trabajo_cerrado')
+        self.assertIn(r1.get('estado_contacto'), ('pendiente_de_pago', 'acuerdo_alcanzado'))
         self.assertTrue(r1.get('yo_confirme_cierre'))
 
         r2 = self.db.cerrar_negociacion(cid, '90002')
         self.assertEqual(r2['status'], 'success', r2.get('message'))
-        self.assertEqual(r2.get('estado_contacto'), 'trabajo_cerrado')
+        self.assertIn(r2.get('estado_contacto'), ('pendiente_de_pago', 'acuerdo_alcanzado'))
 
         acuerdos_sol = self.db.listar_acuerdos_aliado('90001')
         acuerdos_pro = self.db.listar_acuerdos_aliado('90002')
@@ -244,7 +256,7 @@ class TestNegociacionGuiada(unittest.TestCase):
                 ok = self.db.proponer_negociacion(cid_fin, codigo, campo, valor)
             self.assertEqual(ok['status'], 'success', ok.get('message'))
         contacto_fin = self.db.obtener_contacto_por_id(cid_fin)
-        self.assertEqual(contacto_fin['estado'], 'trabajo_cerrado')
+        self.assertEqual(contacto_fin['estado'], 'pendiente_de_pago')
 
         todos = self.db.listar_acuerdos_aliado('90001')
         ids = {a['contacto_id'] for a in todos}
@@ -255,8 +267,8 @@ class TestNegociacionGuiada(unittest.TestCase):
         por_estado = {a['contacto_id']: a for a in todos}
         self.assertEqual(por_estado[cid_ini]['estado'], 'iniciado')
         self.assertEqual(por_estado[cid_ini]['estado_label'], 'Iniciado')
-        self.assertEqual(por_estado[cid_fin]['estado'], 'trabajo_cerrado')
-        self.assertEqual(por_estado[cid_fin]['estado_label'], 'Finalizado')
+        self.assertEqual(por_estado[cid_fin]['estado'], 'pendiente_de_pago')
+        self.assertEqual(por_estado[cid_fin]['estado_label'], 'Pendiente de pago')
         self.assertEqual(por_estado[cid_cancel]['estado'], 'cerrado_no_concretado')
         self.assertEqual(por_estado[cid_cancel]['estado_label'], 'Cancelado')
 
@@ -264,10 +276,10 @@ class TestNegociacionGuiada(unittest.TestCase):
         fechas = [str(a.get('fecha_referencia') or '') for a in todos]
         self.assertEqual(fechas, sorted(fechas, reverse=True))
 
-        solo_finalizados = self.db.listar_acuerdos_aliado('90001', estado='trabajo_cerrado')
-        self.assertTrue(all(a['estado'] == 'trabajo_cerrado' for a in solo_finalizados))
-        self.assertTrue(any(a['contacto_id'] == cid_fin for a in solo_finalizados))
-        self.assertFalse(any(a['contacto_id'] == cid_ini for a in solo_finalizados))
+        solo_pendientes = self.db.listar_acuerdos_aliado('90001', estado='pendiente_de_pago')
+        self.assertTrue(all(a['estado'] == 'pendiente_de_pago' for a in solo_pendientes))
+        self.assertTrue(any(a['contacto_id'] == cid_fin for a in solo_pendientes))
+        self.assertFalse(any(a['contacto_id'] == cid_ini for a in solo_pendientes))
 
         solo_cancelados = self.db.listar_acuerdos_aliado('90001', estado='cerrado_no_concretado')
         self.assertTrue(any(a['contacto_id'] == cid_cancel for a in solo_cancelados))
@@ -287,21 +299,20 @@ class TestNegociacionGuiada(unittest.TestCase):
         # que un segundo intento con otro importe no cambia el oficial ya cerrado.
         cid = self._flujo_hasta_acuerdo('200')
         contacto = self.db.obtener_contacto_por_id(cid)
-        self.assertEqual(contacto['estado'], 'trabajo_cerrado')
-        self.assertEqual(float(contacto['importe_final']), 200.0)
+        self.assertEqual(contacto['estado'], 'pendiente_de_pago')
+        self.assertEqual(float(contacto.get('importe_acordado')), 200.0)
         r = self.db.registrar_importe_contacto(
             cid, 'solicitante', 999.0, usuario='90001', usar_precio_acordado=False,
         )
         self.assertEqual(r['status'], 'error')
-        self.assertEqual(r.get('estado'), 'trabajo_cerrado')
+        self.assertEqual(r.get('estado'), 'pendiente_de_pago')
         contacto = self.db.obtener_contacto_por_id(cid)
-        self.assertEqual(float(contacto['importe_final']), 200.0)
+        self.assertEqual(float(contacto.get('importe_acordado')), 200.0)
 
     def test_confirmar_acordado_sin_reingreso(self):
         cid = self._flujo_hasta_acuerdo('175')
         contacto = self.db.obtener_contacto_por_id(cid)
-        self.assertEqual(contacto['estado'], 'trabajo_cerrado')
-        self.assertEqual(float(contacto['importe_final']), 175.0)
+        self.assertEqual(contacto['estado'], 'pendiente_de_pago')
         self.assertEqual(float(contacto.get('importe_acordado')), 175.0)
 
     def test_dismiss_resumen_oculta_flotante(self):

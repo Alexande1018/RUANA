@@ -411,6 +411,7 @@
 
         render() {
             if (!this.data) return;
+            this.renderStripeAviso();
             this.renderPasoActual();
             this.renderEstadoBar();
             this.renderTimeline();
@@ -418,6 +419,21 @@
             this.renderAcciones();
             this.renderAcuerdoFinal();
             this.renderBotonesHeader();
+        }
+
+        renderStripeAviso() {
+            const el = document.getElementById('neg-stripe-aviso');
+            if (!el || !this.data) return;
+            const show = this.data.rol === 'solicitante'
+                && this.data.profesional_stripe_listo === false
+                && this.data.aviso_pago_no_disponible;
+            if (!show) {
+                el.style.display = 'none';
+                el.textContent = '';
+                return;
+            }
+            el.style.display = 'block';
+            el.textContent = this.data.aviso_pago_no_disponible;
         }
 
         renderEstadoBar() {

@@ -693,6 +693,13 @@ def stripe_habilitado_global() -> bool:
     return stripe_client.stripe_payments_enabled() and stripe_client.stripe_configured()
 
 
+MSG_PROFESIONAL_STRIPE_NO_LISTO = (
+    "Este profesional está completando la activación de su cuenta de pago. "
+    "Podrás cerrar el encargo en cuanto esté lista."
+)
+AVISO_PAGO_NO_DISPONIBLE = "Pago no disponible todavía con este profesional"
+
+
 def profesional_stripe_listo(db, codigo_profesional: str) -> bool:
     codigo = (codigo_profesional or "").strip()
     if not codigo:
