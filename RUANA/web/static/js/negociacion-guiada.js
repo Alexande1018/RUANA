@@ -170,16 +170,26 @@
         }
 
         _htmlAvisoStripeBloqueo() {
-            const msg = (this.data && this.data.aviso_pago_no_disponible)
-                || (global.RuanaStripePagos && global.RuanaStripePagos.MSG_PAGO_NO_DISPONIBLE)
-                || 'Pago no disponible todavía con este profesional';
-            const detalle = this.data.rol === 'profesional'
-                ? 'Conecta tu cuenta de pago desde el banner superior o tu perfil para poder cerrar encargos con precio.'
+            const rol = this.data.rol || 'solicitante';
+            const opts = {
+                mensaje: this.data.mensaje_stripe_negociacion
+                    || this.data.aviso_stripe_profesional
+                    || this.data.aviso_pago_no_disponible,
+            };
+            if (global.RuanaStripePagos && global.RuanaStripePagos.htmlBloqueoPrecioNegociacion) {
+                return global.RuanaStripePagos.htmlBloqueoPrecioNegociacion(rol, opts);
+            }
+            const detalle = rol === 'profesional'
+                ? 'Conecta tu cuenta de pago para poder cerrar encargos con precio.'
                 : 'Este profesional debe activar su cuenta de pago antes de que puedas confirmar el precio final.';
-            return `<div class="neg-stripe-bloqueo-precio" role="alert">
-                <strong>${this.escapeHtml(msg)}</strong>
-                <p>${this.escapeHtml(detalle)}</p>
-            </div>`;
+            return `<div class="neg-stripe-bloqueo-precio" role="alert"><p>${this.escapeHtml(detalle)}</p></div>`;
+        }
+
+        _enlazarStripeEnAcciones() {
+            const wrap = document.getElementById('neg-acciones-wrap');
+            if (wrap && global.RuanaStripePagos && global.RuanaStripePagos.enlazarBotonesOnboarding) {
+                global.RuanaStripePagos.enlazarBotonesOnboarding(wrap);
+            }
         }
 
         _camposSolicitante() {
@@ -441,16 +451,23 @@
         renderStripeAviso() {
             const el = document.getElementById('neg-stripe-aviso');
             if (!el || !this.data) return;
-            const show = this.data.rol === 'solicitante'
-                && this.data.profesional_stripe_listo === false
-                && this.data.aviso_pago_no_disponible;
-            if (!show) {
+            if (this.data.profesional_stripe_listo !== false) {
                 el.style.display = 'none';
-                el.textContent = '';
+                el.innerHTML = '';
+                return;
+            }
+            if (global.RuanaStripePagos && global.RuanaStripePagos.renderAvisoNegociacion) {
+                global.RuanaStripePagos.renderAvisoNegociacion(el, this.data.rol, {
+                    mensaje: this.data.mensaje_stripe_negociacion
+                        || this.data.aviso_stripe_profesional,
+                    aviso: this.data.aviso_pago_no_disponible,
+                });
                 return;
             }
             el.style.display = 'block';
-            el.textContent = this.data.aviso_pago_no_disponible;
+            el.textContent = this.data.mensaje_stripe_negociacion
+                || this.data.aviso_pago_no_disponible
+                || 'Pago no disponible todavía con este profesional';
         }
 
         renderEstadoBar() {
@@ -858,20 +875,32 @@
             if (campo === 'precio' && acc.precio_desde_catalogo && valorInicial) {
                 btnLabel = 'Confirmar precio';
             }
-            el.innerHTML = `<div class="neg-compose-stack">
-                ${catalogoHtml}
-                ${hintCatalogo}
-                <div class="neg-compose-row">
+            const bloqueoPrecio = campo === 'precio' && this._stripePagoBloqueado();
+            const avisoProponerPrecio = bloqueoPrecio
+                && this.data.rol === 'profesional' && acc.tipo === 'proponer';
+            const avisoHtml = avisoProponerPrecio ? this._htmlAvisoStripeBloqueo() : '';
+            const filaProponerHtml = avisoProponerPrecio
+                ? ''
+                : `<div class="neg-compose-row">
                     ${inputHtml}
                     <button type="button" class="neg-btn neg-btn-primary neg-btn-send" id="neg-btn-proponer">${btnLabel}</button>
-                </div>
+                </div>`;
+            el.innerHTML = `<div class="neg-compose-stack">
+                ${avisoHtml}
+                ${catalogoHtml}
+                ${hintCatalogo}
+                ${filaProponerHtml}
             </div>`;
             if (campo === 'servicio') {
                 const profCodigo = (this.data.profesional_codigo || '').trim();
                 this._enlazarCatalogoServicio(campo, profCodigo);
             }
-            this._enlazarGuardadoBorrador(campo);
-            document.getElementById('neg-btn-proponer').addEventListener('click', () => this.proponer(campo));
+            if (!avisoProponerPrecio) {
+                this._enlazarGuardadoBorrador(campo);
+            }
+            this._enlazarStripeEnAcciones();
+            const btnProponer = document.getElementById('neg-btn-proponer');
+            if (btnProponer) btnProponer.addEventListener('click', () => this.proponer(campo));
         }
 
         _renderFormResponder(acc) {
@@ -908,6 +937,7 @@
             this._enlazarGuardadoBorrador(campo);
             const btnAceptar = document.getElementById('neg-btn-aceptar');
             if (btnAceptar) btnAceptar.addEventListener('click', () => this.aceptar(campo));
+            this._enlazarStripeEnAcciones();
             document.getElementById('neg-btn-contraoferta-toggle').addEventListener('click', () => {
                 const f = document.getElementById('neg-contraoferta-form');
                 if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';

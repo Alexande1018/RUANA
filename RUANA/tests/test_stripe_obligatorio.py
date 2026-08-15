@@ -102,6 +102,21 @@ class TestStripeObligatorio(unittest.TestCase):
         self.assertEqual(neg["status"], "success")
         self.assertFalse(neg.get("profesional_stripe_listo"))
         self.assertEqual(neg.get("aviso_pago_no_disponible"), pago_service.AVISO_PAGO_NO_DISPONIBLE)
+        self.assertEqual(
+            neg.get("mensaje_stripe_negociacion"),
+            pago_service.MSG_CONTRATANTE_ESPERA_STRIPE_PROFESIONAL,
+        )
+
+    def test_negociacion_profesional_expone_onboarding_stripe(self):
+        cid = self._crear_par()
+        neg = self.db.obtener_negociacion_contacto(cid, "91002")
+        self.assertEqual(neg["status"], "success")
+        self.assertFalse(neg.get("profesional_stripe_listo"))
+        self.assertTrue(neg.get("puede_iniciar_onboarding_stripe"))
+        self.assertEqual(
+            neg.get("mensaje_stripe_negociacion"),
+            pago_service.MSG_PROFESIONAL_DEBE_CONECTAR_STRIPE,
+        )
 
 
 if __name__ == "__main__":

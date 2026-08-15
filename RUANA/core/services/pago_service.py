@@ -698,6 +698,12 @@ MSG_PROFESIONAL_STRIPE_NO_LISTO = (
     "Podrás cerrar el encargo en cuanto esté lista."
 )
 AVISO_PAGO_NO_DISPONIBLE = "Pago no disponible todavía con este profesional"
+MSG_PROFESIONAL_DEBE_CONECTAR_STRIPE = (
+    "Debes conectar tu cuenta de pago antes de poder cerrar encargos con precio."
+)
+MSG_CONTRATANTE_ESPERA_STRIPE_PROFESIONAL = (
+    "Este profesional debe activar su cuenta de pago antes de que puedas confirmar el precio final."
+)
 
 
 def profesional_stripe_listo(db, codigo_profesional: str) -> bool:
