@@ -220,7 +220,7 @@ class NegociacionRepo:
             FROM contactos_ruana
             WHERE acuerdo_resumen_json IS NOT NULL
               AND TRIM(CAST(acuerdo_resumen_json AS TEXT)) != ''
-              AND estado IN ('acuerdo_alcanzado', 'trabajo_cerrado')
+              AND estado IN ('acuerdo_alcanzado', 'trabajo_cerrado', 'pendiente_de_pago')
               AND (
                 (TRIM(CAST(solicitante_codigo AS TEXT)) = ? AND resumen_dismiss_solicitante_en IS NULL)
                 OR (TRIM(CAST(profesional_codigo AS TEXT)) = ? AND resumen_dismiss_profesional_en IS NULL)

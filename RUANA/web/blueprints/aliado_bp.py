@@ -202,6 +202,13 @@ def get_aliado_datos():
                 aliado_dict['estado_ruana'] = 'EN COMPETENCIA'
                 aliado_dict['competencia_activa'] = True
 
+            from core.services import pago_service
+            aliado_dict['stripe_pago_listo'] = (
+                pago_service.profesional_stripe_listo(db, codigo)
+                if pago_service.stripe_habilitado_global()
+                else True
+            )
+
             # Notificaciones del aliado (ej. comprobante rechazado con mensaje de admin)
             notificaciones = notificacion_service.listar_notificaciones_aliado(
                 db, codigo, limite=50
@@ -317,6 +324,11 @@ def get_aliados_directorio():
             return jsonify({'status': 'error', 'message': 'Sesi?n expirada'}), 401
         db = get_db()
         aliados = db.listar_aliados_directorio_grupo(codigo)
+        from core.services import pago_service
+        if pago_service.stripe_habilitado_global():
+            for aliado in aliados:
+                cod = str(aliado.get('codigo') or '').strip()
+                aliado['stripe_pago_listo'] = pago_service.profesional_stripe_listo(db, cod)
         print(f"[directorio] codigo={codigo!r} -> {len(aliados)} profesionales")
         return jsonify({
             'status': 'success',

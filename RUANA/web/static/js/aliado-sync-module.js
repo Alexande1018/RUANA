@@ -128,6 +128,11 @@
         await Promise.all(jobs);
 
         if (targetSections.includes('perfil')) { host.renderPerfil(); host.renderGrupo(); }
+        if (targetSections.includes('perfil') || targetSections.includes('metricas')) {
+            if (global.RuanaStripePagos && typeof global.RuanaStripePagos.renderOnboardingUi === 'function') {
+                global.RuanaStripePagos.renderOnboardingUi(host);
+            }
+        }
         if (targetSections.includes('metricas')) host.renderMetricas();
         if (targetSections.includes('solicitudes')) host.renderSolicitudes();
         if (targetSections.includes('directorio')) host.renderProfesionales();
@@ -340,6 +345,9 @@
       host.renderAlertas();
       host.setPanelLoading(false);
       host.initOnboarding();
+      if (global.RuanaStripePagos && typeof global.RuanaStripePagos.handleOnboardingReturn === 'function') {
+          global.RuanaStripePagos.handleOnboardingReturn(host);
+      }
       host.startAutoSync();
 
       // Sincronización post-render en segundo plano (mismo comportamiento final).
@@ -355,6 +363,9 @@
       host.renderProfesionales();
       host.renderNotificaciones();
       host.renderCentroComunicacion();
+      if (global.RuanaStripePagos && typeof global.RuanaStripePagos.renderOnboardingUi === 'function') {
+          global.RuanaStripePagos.renderOnboardingUi(host);
+      }
   }
 
   async function handleLogout(host) {

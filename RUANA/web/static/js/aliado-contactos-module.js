@@ -140,9 +140,9 @@
         if (btnSigue) btnSigue.style.display = (estado === 'acuerdo_alcanzado' || estado === 'trabajo_cerrado') ? 'none' : '';
         const btnSiTrabajo = document.getElementById('btn-contacto-si-trabajo');
         const btnNoConcreto = document.getElementById('btn-contacto-no-concreto');
-        const ocultarCierreManual = estado === 'trabajo_cerrado';
-        if (btnSiTrabajo) btnSiTrabajo.style.display = ocultarCierreManual ? 'none' : '';
-        if (btnNoConcreto) btnNoConcreto.style.display = ocultarCierreManual ? 'none' : '';
+        // Fase 3: el cierre manual por «Sí, hubo trabajo» no está disponible en el panel normal.
+        if (btnSiTrabajo) btnSiTrabajo.style.display = 'none';
+        if (btnNoConcreto) btnNoConcreto.style.display = (estado === 'trabajo_cerrado') ? 'none' : '';
 
         const subirPruebaEl = document.getElementById('contacto-aviso-subir-prueba');
         const codigoAliado = host.codigoAliado || (host.aliado && host.aliado.codigo) || '';
@@ -191,6 +191,13 @@
         const nombre = host.escapeHtml(profesional.nombre || '');
         const oficio = host.escapeHtml(profesional.oficio || '');
         textoEl.innerHTML = `Vas a iniciar un contacto RUANA con <strong>${nombre}</strong> (${oficio}). Este contacto contará en tu historial y métricas personales.`;
+    }
+    const avisoStripe = document.getElementById('contacto-previo-stripe-aviso');
+    const stripeListo = profesional && profesional.stripe_pago_listo !== false;
+    if (avisoStripe) {
+        avisoStripe.style.display = stripeListo ? 'none' : 'block';
+        avisoStripe.textContent = (global.RuanaStripePagos && global.RuanaStripePagos.MSG_PAGO_NO_DISPONIBLE)
+            || 'Pago no disponible todavía con este profesional';
     }
     const profesionalCodigo = (profesional && (profesional.codigo || '').toString().trim())
         || (profesional && profesional.id != null ? String(profesional.id).padStart(5, '0') : '');
@@ -247,6 +254,10 @@
     const estado = contacto.estado;
     const meta = contacto.negociacion_meta || {};
     const yaDeclaraste = contacto.ya_declaraste_importe === true;
+    const codigo = (host.codigoAliado || (host.aliado && host.aliado.codigo) || '').toString().trim();
+    const esContratante = codigo === String(contacto.solicitante_codigo || '').trim();
+    const esProfesional = codigo === String(contacto.profesional_codigo || '').trim();
+    const modoStripe = contacto.modo_pago === 'stripe';
     let estadoLabel = 'Encargo activo';
     let contexto = meta.contexto || 'Tienes un encargo activo con otro aliado RUANA.';
     let pasoTxt = meta.paso_label ? `Pendiente: ${meta.paso_label}` : '';
@@ -258,7 +269,15 @@
         estadoLabel = 'Acuerdo alcanzado';
         contexto = 'Todos los puntos del encargo están confirmados.';
         pasoTxt = '';
-        accionTxt = 'El precio aceptado es el importe oficial del encargo. Se genera el Apoyo RUANA.';
+        if (modoStripe && esProfesional) {
+            accionTxt = 'Acuerdo confirmado. Tu pago está reservado y se desbloqueará automáticamente en cuanto el contratante confirme que el trabajo quedó hecho.';
+        } else if (modoStripe && esContratante) {
+            accionTxt = 'El importe acordado está congelado. Completa el pago con «Pagar ahora» para reservar el encargo.';
+        } else if (modoStripe) {
+            accionTxt = 'El importe acordado está congelado. El contratante debe completar el pago.';
+        } else {
+            accionTxt = 'El importe acordado está congelado. El contratante debe completar el pago con tarjeta.';
+        }
         btnPrincipal = 'Ver acuerdo';
     } else if (requiereRespuesta) {
         estadoLabel = 'Tu turno';
@@ -283,23 +302,34 @@
         estadoLabel = contacto.modo_pago === 'stripe' ? 'Pago Stripe pendiente' : estadoLabel;
         if (contacto.modo_pago === 'stripe') {
             contexto = 'El importe acordado está congelado. El contratante debe completar el pago.';
-            accionTxt = contacto.estado_pago === 'cobro_confirmado'
-                ? 'Confirma que el trabajo se realizó para liberar el pago al profesional.'
-                : 'Pulsa «Pagar ahora» cuando estés listo.';
+            if (esProfesional) {
+                accionTxt = contacto.estado_pago === 'cobro_confirmado'
+                    ? 'El contratante ya pagó. Se liberará tu pago cuando confirme que el trabajo quedó hecho.'
+                    : 'Acuerdo confirmado. Tu pago está reservado y se desbloqueará automáticamente en cuanto el contratante confirme que el trabajo quedó hecho.';
+            } else if (esContratante) {
+                accionTxt = contacto.estado_pago === 'cobro_confirmado'
+                    ? 'Confirma que el trabajo se realizó para liberar el pago al profesional.'
+                    : 'Pulsa «Pagar ahora» cuando estés listo.';
+            } else {
+                accionTxt = contacto.estado_pago === 'cobro_confirmado'
+                    ? 'Confirma que el trabajo se realizó para liberar el pago al profesional.'
+                    : 'Pulsa «Pagar ahora» cuando estés listo.';
+            }
             btnPrincipal = 'Ver encargo';
         }
     } else if (estado === 'trabajo_cerrado') {
         estadoLabel = 'Trabajo cerrado';
         contexto = 'El encargo quedó registrado como realizado.';
         pasoTxt = '';
-        accionTxt = 'Revisa el Apoyo RUANA pendiente si corresponde.';
+        accionTxt = modoStripe
+            ? 'Revisa el estado del pago en el detalle del encargo.'
+            : 'Revisa el detalle del encargo si necesitas más información.';
         btnPrincipal = 'Ver detalle';
     }
     if (yaDeclaraste && estado !== 'importe_en_disputa' && estado !== 'trabajo_cerrado') {
         accionTxt += ' Ya confirmaste el importe.';
     }
-    const codigo = (host.codigoAliado || (host.aliado && host.aliado.codigo) || '').toString().trim();
-    const contraparte = codigo === String(contacto.solicitante_codigo || '').trim()
+    const contraparte = esContratante
         ? contacto.profesional_codigo
         : contacto.solicitante_codigo;
     return {
@@ -574,18 +604,22 @@
         const resumenEl = document.getElementById('modal-importe-resumen');
         if (!resumenEl) return;
 
-        const importe = (c.importe_final != null && !Number.isNaN(Number(c.importe_final)))
-            ? Number(c.importe_final).toFixed(2) + ' €'
+        const codigo = (host.codigoAliado || (host.aliado && host.aliado.codigo) || '').toString().trim();
+        const esProfesional = codigo === String(c.profesional_codigo || '').trim();
+        const importeVal = c.importe_acordado != null ? Number(c.importe_acordado)
+            : (c.importe_final != null ? Number(c.importe_final) : NaN);
+        const importe = (!Number.isNaN(importeVal) && importeVal > 0)
+            ? importeVal.toFixed(2) + ' €'
             : 'Pendiente de cálculo';
-        const apoyoVal = c.apoyo_ruana != null ? c.apoyo_ruana : c.comision;
-        const apoyoStr = (apoyoVal != null && !Number.isNaN(Number(apoyoVal)) && Number(apoyoVal) >= 0)
-            ? Number(apoyoVal).toFixed(2) + ' €'
-            : 'Pendiente de cálculo';
-        const estadoPago = (c.estado_pago || 'no_generado').replace(/_/g, ' ');
+        const estadoPagoRaw = c.estado_pago || 'no_generado';
+        const labelFn = global.RuanaStripePagos && global.RuanaStripePagos.labelEstadoPago;
+        let estadoPago = labelFn ? labelFn(estadoPagoRaw) : estadoPagoRaw.replace(/_/g, ' ');
+        if (esProfesional && ['esperando_cobro_cliente', 'checkout_activo', 'no_generado'].includes(estadoPagoRaw)) {
+            estadoPago = 'Reservado — se desbloqueará cuando el contratante confirme el trabajo';
+        }
 
         resumenEl.innerHTML = `
             <strong>Importe acordado:</strong> ${importe}<br>
-            <strong>Apoyo RUANA (12%):</strong> ${apoyoStr}<br>
             <strong>Estado del pago:</strong> ${estadoPago}
         `;
         resumenEl.style.display = 'block';

@@ -233,6 +233,9 @@ def declarar_importe_contacto(contacto_id):
     POST /api/contactos/<id>/declarar-importe
     Confirma el importe del encargo. Si hay precio negociado, ese es el valor oficial
     (no se reingresa manualmente). Preferir body: confirmar_acordado=true.
+
+    DEPRECADO para uso normal — solo accesible vía panel admin como respaldo de
+    emergencia. Ver PROMPT_CURSOR_ELIMINAR_FLUJO_MANUAL.md.
     """
     try:
         usuario = _aliado_codigo()

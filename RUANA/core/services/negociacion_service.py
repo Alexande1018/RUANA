@@ -66,7 +66,14 @@ def obtener_negociacion_contacto(db, contacto_id: int, codigo_aliado: str) -> Di
                 return {'status': 'error', 'message': 'No autorizado'}
             eventos = db.listar_eventos_negociacion(contacto_id)
             payload = neg_mgr.construir_payload(contacto, eventos, rol)
-            return {'status': 'success', **payload}
+            result = {'status': 'success', **payload}
+            from core.services import pago_service
+            if pago_service.stripe_habilitado_global():
+                listo = pago_service.profesional_stripe_listo(db, pro)
+                result['profesional_stripe_listo'] = listo
+                if rol == 'solicitante' and not listo:
+                    result['aviso_pago_no_disponible'] = pago_service.AVISO_PAGO_NO_DISPONIBLE
+            return result
         except Exception as e:
             return {'status': 'error', 'message': str(e)}
         finally:
@@ -269,6 +276,14 @@ def aceptar_negociacion(db, contacto_id: int, codigo_aliado: str, campo: str,
             estado, msg, tipo, completo, eventos_extra = neg_mgr.aceptar_campo(
                 estado, rol, campo, observaciones_profesional
             )
+            if completo:
+                from core.services import pago_service
+                if pago_service.stripe_habilitado_global() and not pago_service.profesional_stripe_listo(db, pro):
+                    return {
+                        'status': 'error',
+                        'message': pago_service.MSG_PROFESIONAL_STRIPE_NO_LISTO,
+                        'stripe_pago_no_disponible': True,
+                    }
             neg_json = neg_mgr.serializar_negociacion(estado)
             nuevo_estado = contacto.get('estado') or 'iniciado'
             resumen_json = None
@@ -371,6 +386,27 @@ def cerrar_negociacion(db, contacto_id: int, actor_codigo: str,
             if not rol:
                 return {'status': 'error', 'message': 'No autorizado'}
             estado_actual = (contacto.get('estado') or '').strip()
+
+            # Ya en pago Stripe pendiente: solo acuse bilateral del resumen (sin cobro manual)
+            if estado_actual == 'pendiente_de_pago' and (contacto.get('modo_pago') or '').strip() == 'stripe':
+                col = (
+                    'cierre_confirmado_solicitante_en'
+                    if rol == 'solicitante'
+                    else 'cierre_confirmado_profesional_en'
+                )
+                if not contacto.get(col):
+                    _repo.set_timestamp_col(cursor, col, contacto_id)
+                    conn.commit()
+                contacto = db._cargar_contacto_negociacion(cursor, contacto_id)
+                eventos = db.listar_eventos_negociacion(contacto_id)
+                payload = neg_mgr.construir_payload(contacto, eventos, rol)
+                return {
+                    'status': 'success',
+                    'message': 'Has confirmado el acuerdo. El pago se gestiona con Stripe.',
+                    'completo': True,
+                    'cierre_automatico': True,
+                    **payload,
+                }
 
             # Ya cerrado por cobro automático tras aceptar precio: solo acuse bilateral del resumen
             if estado_actual == 'trabajo_cerrado' and (
@@ -647,40 +683,15 @@ def _cerrar_encargo_tras_acuerdo(db,
             out['importe_acordado'] = stripe_res.get('importe_acordado')
             return out
 
-    cierre = db.registrar_importe_contacto(
-        contacto_id,
-        'solicitante',
-        importe,
-        'EUR',
-        usuario=(solicitante_codigo or '').strip(),
-        usar_precio_acordado=True,
-    )
-    if not cierre or cierre.get('status') != 'success':
-        out = dict(payload_base)
-        out['cierre_automatico'] = False
-        out['cierre_aviso'] = (cierre or {}).get('message') or (
-            'Acuerdo alcanzado. No se pudo registrar el cobro del Apoyo RUANA con el precio aceptado.'
-        )
-        return out
-
-    refreshed = db.obtener_negociacion_contacto(contacto_id, codigo_viewer)
-    if refreshed.get('status') == 'success':
-        refreshed['completo'] = True
-        refreshed['cierre_automatico'] = True
-        refreshed['message'] = (
-            (mensaje_acuerdo or 'Acuerdo alcanzado.')
-            + ' Precio aceptado como importe oficial; se genera el Apoyo RUANA.'
-        )
-        refreshed['estado_cierre'] = cierre.get('estado')
-        if cierre.get('importe_acordado') is not None:
-            refreshed['importe_acordado'] = cierre.get('importe_acordado')
-        return refreshed
-
+    # Seguridad: el cobro manual ya no es un camino válido tras acuerdo con precio.
     out = dict(payload_base)
-    out['cierre_automatico'] = True
-    out['estado_contacto'] = cierre.get('estado') or 'trabajo_cerrado'
-    out['estado_cierre'] = cierre.get('estado')
-    return out
+    out['cierre_automatico'] = False
+    out['cierre_aviso'] = pago_service.MSG_PROFESIONAL_STRIPE_NO_LISTO
+    return {
+        'status': 'error',
+        'message': pago_service.MSG_PROFESIONAL_STRIPE_NO_LISTO,
+        **out,
+    }
 
 def listar_acuerdos_aliado(db,
     codigo_aliado: str,
