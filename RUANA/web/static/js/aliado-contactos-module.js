@@ -276,6 +276,18 @@
         pasoTxt = '';
         accionTxt = 'Revisa el contacto y aporta la información necesaria.';
         btnPrincipal = 'Revisar contacto';
+    } else if (
+        estado === 'pendiente_de_pago'
+        || (contacto.modo_pago === 'stripe' && estado === 'trabajo_en_progreso')
+    ) {
+        estadoLabel = contacto.modo_pago === 'stripe' ? 'Pago Stripe pendiente' : estadoLabel;
+        if (contacto.modo_pago === 'stripe') {
+            contexto = 'El importe acordado está congelado. El contratante debe completar el pago.';
+            accionTxt = contacto.estado_pago === 'cobro_confirmado'
+                ? 'Confirma que el trabajo se realizó para liberar el pago al profesional.'
+                : 'Pulsa «Pagar ahora» cuando estés listo.';
+            btnPrincipal = 'Ver encargo';
+        }
     } else if (estado === 'trabajo_cerrado') {
         estadoLabel = 'Trabajo cerrado';
         contexto = 'El encargo quedó registrado como realizado.';
@@ -326,6 +338,7 @@
             <p class="encargo-card-contexto">${host.escapeHtml(ui.contexto)}</p>
             ${pasoHtml}
             <p class="encargo-card-accion">${host.escapeHtml(ui.accionTxt)}</p>
+            <div class="encargo-stripe-acciones" data-stripe-contacto="${c.id}"></div>
             <button type="button" class="encargo-card-btn" data-abrir-negociacion="${c.id}">${host.escapeHtml(ui.btnPrincipal)}</button>
         </article>`;
     }).join('');
@@ -335,6 +348,12 @@
             if (id) host.abrirNegociacionContacto(id, null);
         });
     });
+    if (global.RuanaStripePagos && typeof global.RuanaStripePagos.renderStripeAcciones === 'function') {
+        encargos.forEach((c) => {
+            const slot = list.querySelector(`[data-stripe-contacto="${c.id}"]`);
+            if (slot) global.RuanaStripePagos.renderStripeAcciones(host, c, slot);
+        });
+    }
     wrap.style.display = '';
     if (window.AliadoShell && typeof window.AliadoShell.refresh === 'function') {
         window.AliadoShell.refresh();

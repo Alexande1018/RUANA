@@ -262,3 +262,67 @@ def admin_estado_pago_contacto(contacto_id):
         return jsonify(result), status_code
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@pagos_bp.route("/api/contactos/<int:contacto_id>/stripe/checkout", methods=["POST"])
+@require_aliado
+def crear_checkout_stripe_contacto(contacto_id):
+    """El contratante inicia el pago Stripe (importe desde BD)."""
+    try:
+        codigo = _aliado_codigo()
+        if not codigo:
+            return jsonify({"status": "error", "message": "Sesión expirada"}), 401
+        db = get_db()
+        result = pago_service.crear_checkout_stripe(db, contacto_id, codigo)
+        status_code = 200 if result.get("status") == "success" else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@pagos_bp.route("/api/contactos/<int:contacto_id>/stripe/confirmar-trabajo", methods=["POST"])
+@require_aliado
+def confirmar_trabajo_stripe(contacto_id):
+    """Solo el contratante confirma trabajo realizado → Transfer al profesional."""
+    try:
+        codigo = _aliado_codigo()
+        if not codigo:
+            return jsonify({"status": "error", "message": "Sesión expirada"}), 401
+        db = get_db()
+        result = pago_service.confirmar_trabajo_y_transferir(db, contacto_id, codigo)
+        status_code = 200 if result.get("status") == "success" else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@pagos_bp.route("/api/contactos/<int:contacto_id>/stripe/estado", methods=["GET"])
+@require_aliado
+def estado_pago_stripe(contacto_id):
+    """Estado de pago Stripe para participantes del contacto."""
+    try:
+        codigo = _aliado_codigo()
+        if not codigo:
+            return jsonify({"status": "error", "message": "Sesión expirada"}), 401
+        db = get_db()
+        result = pago_service.estado_pago_stripe_contacto(db, contacto_id, codigo)
+        status_code = 200 if result.get("status") == "success" else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@pagos_bp.route("/api/aliado/stripe/onboarding", methods=["POST"])
+@require_aliado
+def aliado_stripe_onboarding():
+    """Profesional inicia onboarding Stripe Connect Express."""
+    try:
+        codigo = _aliado_codigo()
+        if not codigo:
+            return jsonify({"status": "error", "message": "Sesión expirada"}), 401
+        db = get_db()
+        result = pago_service.iniciar_onboarding_stripe_profesional(db, codigo)
+        status_code = 200 if result.get("status") == "success" else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500

@@ -616,6 +616,37 @@ def _cerrar_encargo_tras_acuerdo(db,
         )
         return out
 
+    from core.services import pago_service
+    if pago_service.puede_usar_stripe_para_contacto(db, contacto):
+        stripe_res = pago_service.activar_pago_stripe_tras_acuerdo(
+            db,
+            contacto_id,
+            (solicitante_codigo or '').strip(),
+            float(importe),
+        )
+        if stripe_res.get('status') == 'success':
+            refreshed = db.obtener_negociacion_contacto(contacto_id, codigo_viewer)
+            if refreshed.get('status') == 'success':
+                refreshed['completo'] = True
+                refreshed['cierre_automatico'] = True
+                refreshed['modo_pago'] = 'stripe'
+                refreshed['message'] = (
+                    (mensaje_acuerdo or 'Acuerdo alcanzado.')
+                    + ' Precio congelado. El contratante puede pagar con Stripe.'
+                )
+                refreshed['estado_cierre'] = stripe_res.get('estado')
+                refreshed['estado_pago'] = stripe_res.get('estado_pago')
+                refreshed['importe_acordado'] = stripe_res.get('importe_acordado')
+                return refreshed
+            out = dict(payload_base)
+            out['cierre_automatico'] = True
+            out['modo_pago'] = 'stripe'
+            out['estado_contacto'] = stripe_res.get('estado')
+            out['estado_cierre'] = stripe_res.get('estado')
+            out['estado_pago'] = stripe_res.get('estado_pago')
+            out['importe_acordado'] = stripe_res.get('importe_acordado')
+            return out
+
     cierre = db.registrar_importe_contacto(
         contacto_id,
         'solicitante',

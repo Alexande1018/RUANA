@@ -124,6 +124,10 @@ def get_aliado_datos():
             db.procesar_competencia_automatica()
         except Exception:
             pass
+        try:
+            db.procesar_timeouts_sin_confirmacion_stripe()
+        except Exception:
+            pass
         # Aplicar penalizaciones (abiertos 7d/21d, chat 48h, sin acceso semanal, comprobante 3d)
         db.aplicar_penalizaciones_contactos_abiertos(codigo)
         aliado = db.obtener_aliado_por_codigo(codigo)

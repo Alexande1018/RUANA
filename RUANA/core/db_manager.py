@@ -202,6 +202,10 @@ class DBManager:
         """Fachada Campamento Base → schema_service._migrar_payment_conflicts."""
         return schema_service._migrar_payment_conflicts(self, conn, cursor)
 
+    def _migrar_stripe_pagos(self, conn, cursor) -> None:
+        """Fachada Campamento Base → schema_service._migrar_stripe_pagos."""
+        return schema_service._migrar_stripe_pagos(self, conn, cursor)
+
     def _migrar_contactos_validacion_pago(self, conn, cursor) -> None:
         """Fachada Campamento Base → schema_service._migrar_contactos_validacion_pago."""
         return schema_service._migrar_contactos_validacion_pago(self, conn, cursor)
@@ -1230,6 +1234,7 @@ class DBManager:
         'en_conversacion': 'En conversación',
         'trabajo_en_progreso': 'En curso',
         'acuerdo_alcanzado': 'Acuerdo confirmado',
+        'pendiente_de_pago': 'Pendiente de pago',
         'trabajo_cerrado': 'Finalizado',
         'no_concretado': 'No concretado',
         'cerrado_no_concretado': 'Cancelado',
@@ -1587,6 +1592,30 @@ class DBManager:
                                        comprobante_ruta: str, comentario: Optional[str] = None) -> Dict[str, Any]:
         """Fachada Campamento Base → pago_service.subir_comprobante_apoyo_ruana."""
         return pago_service.subir_comprobante_apoyo_ruana(self, contacto_id, profesional_codigo, comprobante_ruta, comentario)
+
+    def crear_checkout_stripe(self, contacto_id: int, solicitante_codigo: str) -> Dict[str, Any]:
+        """Fachada Campamento Base → pago_service.crear_checkout_stripe."""
+        return pago_service.crear_checkout_stripe(self, contacto_id, solicitante_codigo)
+
+    def confirmar_trabajo_y_transferir(self, contacto_id: int, contratante_codigo: str) -> Dict[str, Any]:
+        """Fachada Campamento Base → pago_service.confirmar_trabajo_y_transferir."""
+        return pago_service.confirmar_trabajo_y_transferir(self, contacto_id, contratante_codigo)
+
+    def procesar_webhook_stripe(self, payload: bytes, sig_header: str) -> Dict[str, Any]:
+        """Fachada Campamento Base → pago_service.procesar_webhook_stripe."""
+        return pago_service.procesar_webhook_stripe(self, payload, sig_header)
+
+    def procesar_timeouts_sin_confirmacion_stripe(self) -> int:
+        """Fachada Campamento Base → pago_service.procesar_timeouts_sin_confirmacion_stripe."""
+        return pago_service.procesar_timeouts_sin_confirmacion_stripe(self)
+
+    def iniciar_onboarding_stripe_profesional(self, codigo_profesional: str) -> Dict[str, Any]:
+        """Fachada Campamento Base → pago_service.iniciar_onboarding_stripe_profesional."""
+        return pago_service.iniciar_onboarding_stripe_profesional(self, codigo_profesional)
+
+    def estado_pago_stripe_contacto(self, contacto_id: int, codigo_aliado: str) -> Dict[str, Any]:
+        """Fachada Campamento Base → pago_service.estado_pago_stripe_contacto."""
+        return pago_service.estado_pago_stripe_contacto(self, contacto_id, codigo_aliado)
 
     # ===============================================
     # UTILIDADES

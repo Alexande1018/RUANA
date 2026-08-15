@@ -307,6 +307,7 @@ class PagoRepo:
             WHERE profesional_codigo = ? AND estado = 'trabajo_cerrado'
               AND importe_final IS NOT NULL AND estado_pago = 'pendiente_pago'
               AND COALESCE(apoyo_ruana, 0) > 0
+              AND COALESCE(modo_pago, 'manual') = 'manual'
             LIMIT 1
             """,
             (codigo_profesional,),
@@ -470,4 +471,298 @@ class PagoRepo:
             VALUES (?, 'prueba_conflicto_en_revision', 'Documentacion en revision', ?, ?, 0)
             """,
             (contratante_norm, mensaje, meta),
+        )
+
+    # --- Stripe Connect ---
+
+    def select_aliado_stripe(self, cursor, codigo_profesional: str) -> Optional[Any]:
+        cursor.execute(
+            """
+            SELECT id, codigo, email, stripe_account_id, stripe_charges_enabled,
+                   stripe_payouts_enabled, stripe_onboarding_completo
+            FROM aliados WHERE TRIM(CAST(codigo AS TEXT)) = ?
+            """,
+            (codigo_profesional.strip(),),
+        )
+        return cursor.fetchone()
+
+    def update_aliado_stripe_account(
+        self,
+        cursor,
+        codigo_profesional: str,
+        account_id: str,
+        charges_enabled: int,
+        payouts_enabled: int,
+        onboarding_completo: int,
+    ) -> None:
+        cursor.execute(
+            """
+            UPDATE aliados
+            SET stripe_account_id = ?, stripe_charges_enabled = ?,
+                stripe_payouts_enabled = ?, stripe_onboarding_completo = ?,
+                actualizado_en = CURRENT_TIMESTAMP
+            WHERE TRIM(CAST(codigo AS TEXT)) = ?
+            """,
+            (account_id, charges_enabled, payouts_enabled, onboarding_completo, codigo_profesional.strip()),
+        )
+
+    def select_contacto_stripe_por_id(self, cursor, contacto_id: int) -> Optional[Any]:
+        cursor.execute(
+            """
+            SELECT id, solicitante_codigo, profesional_codigo, servicio, estado,
+                   importe_acordado, importe_final, apoyo_ruana, comision, comision_porcentaje,
+                   modo_pago, precio_congelado, estado_pago, pendiente_pago,
+                   stripe_checkout_session_id, stripe_payment_intent_id, stripe_transfer_id,
+                   importe_neto_profesional, fecha_cobro_confirmado, stripe_cobro_estado
+            FROM contactos_ruana WHERE id = ?
+            """,
+            (contacto_id,),
+        )
+        return cursor.fetchone()
+
+    def update_contacto_pendiente_pago_stripe(
+        self,
+        cursor,
+        contacto_id: int,
+        importe: float,
+        apoyo: float,
+        comision_pct: float,
+        neto_profesional: float,
+    ) -> int:
+        cursor.execute(
+            """
+            UPDATE contactos_ruana
+            SET estado = 'pendiente_de_pago', pendiente_resolucion = 0,
+                modo_pago = 'stripe', precio_congelado = 1,
+                precio_congelado_en = CURRENT_TIMESTAMP,
+                importe_acordado = ?, importe_final = ?,
+                comision = ?, comision_porcentaje = ?, apoyo_ruana = ?,
+                importe_neto_profesional = ?,
+                estado_pago = 'esperando_cobro_cliente', pendiente_pago = 0,
+                stripe_cobro_estado = 'pendiente',
+                actualizado_en = CURRENT_TIMESTAMP
+            WHERE id = ? AND estado NOT IN ('trabajo_cerrado', 'no_concretado', 'cerrado_no_concretado')
+              AND COALESCE(modo_pago, 'manual') = 'manual'
+            """,
+            (importe, importe, apoyo, comision_pct, apoyo, neto_profesional, contacto_id),
+        )
+        return cursor.rowcount
+
+    def reclamar_checkout_stripe(
+        self, cursor, contacto_id: int, estados_pago_permitidos: tuple
+    ) -> Optional[Any]:
+        placeholders = ",".join("?" for _ in estados_pago_permitidos)
+        cursor.execute(
+            f"""
+            SELECT id, importe_acordado, importe_final, estado, estado_pago,
+                   stripe_checkout_session_id, solicitante_codigo, profesional_codigo
+            FROM contactos_ruana
+            WHERE id = ? AND estado = 'pendiente_de_pago' AND modo_pago = 'stripe'
+              AND precio_congelado = 1
+              AND estado_pago IN ({placeholders})
+            """,
+            (contacto_id, *estados_pago_permitidos),
+        )
+        return cursor.fetchone()
+
+    def update_checkout_stripe_activo(
+        self, cursor, session_id: str, contacto_id: int
+    ) -> int:
+        cursor.execute(
+            """
+            UPDATE contactos_ruana
+            SET stripe_checkout_session_id = ?, estado_pago = 'checkout_activo',
+                actualizado_en = CURRENT_TIMESTAMP
+            WHERE id = ? AND modo_pago = 'stripe' AND estado = 'pendiente_de_pago'
+              AND estado_pago IN ('esperando_cobro_cliente', 'checkout_activo')
+            """,
+            (session_id, contacto_id),
+        )
+        return cursor.rowcount
+
+    def marcar_cobro_stripe_confirmado(
+        self,
+        cursor,
+        contacto_id: int,
+        payment_intent_id: str,
+        importe: float,
+        apoyo: float,
+        comision_pct: float,
+        neto_profesional: float,
+    ) -> int:
+        cursor.execute(
+            """
+            UPDATE contactos_ruana
+            SET estado = 'trabajo_en_progreso',
+                importe_final = ?, comision = ?, comision_porcentaje = ?, apoyo_ruana = ?,
+                importe_neto_profesional = ?,
+                estado_pago = 'cobro_confirmado', pendiente_pago = 0,
+                stripe_payment_intent_id = ?, stripe_cobro_estado = 'confirmado',
+                fecha_cobro_confirmado = CURRENT_TIMESTAMP,
+                fecha_trabajo_en_progreso = COALESCE(fecha_trabajo_en_progreso, CURRENT_TIMESTAMP),
+                actualizado_en = CURRENT_TIMESTAMP
+            WHERE id = ? AND modo_pago = 'stripe'
+              AND stripe_payment_intent_id IS NULL
+              AND estado_pago IN ('esperando_cobro_cliente', 'checkout_activo')
+            """,
+            (
+                importe, apoyo, comision_pct, apoyo, neto_profesional,
+                payment_intent_id, contacto_id,
+            ),
+        )
+        return cursor.rowcount
+
+    def marcar_transfer_stripe_completado(
+        self, cursor, contacto_id: int, transfer_id: str
+    ) -> int:
+        cursor.execute(
+            """
+            UPDATE contactos_ruana
+            SET estado = 'trabajo_cerrado', estado_pago = 'transferido',
+                stripe_transfer_id = ?, fecha_transferencia = CURRENT_TIMESTAMP,
+                fecha_cierre = CURRENT_TIMESTAMP, pendiente_resolucion = 0,
+                actualizado_en = CURRENT_TIMESTAMP
+            WHERE id = ? AND modo_pago = 'stripe' AND estado_pago = 'cobro_confirmado'
+              AND stripe_transfer_id IS NULL
+            """,
+            (transfer_id, contacto_id),
+        )
+        return cursor.rowcount
+
+    def marcar_confirmacion_trabajo_contratante(
+        self, cursor, contacto_id: int
+    ) -> int:
+        cursor.execute(
+            """
+            UPDATE contactos_ruana
+            SET fecha_confirmacion_trabajo = CURRENT_TIMESTAMP,
+                actualizado_en = CURRENT_TIMESTAMP
+            WHERE id = ? AND modo_pago = 'stripe' AND estado_pago = 'cobro_confirmado'
+            """,
+            (contacto_id,),
+        )
+        return cursor.rowcount
+
+    def reset_checkout_expirado(self, cursor, contacto_id: int) -> int:
+        cursor.execute(
+            """
+            UPDATE contactos_ruana
+            SET estado_pago = 'esperando_cobro_cliente',
+                stripe_checkout_session_id = NULL,
+                actualizado_en = CURRENT_TIMESTAMP
+            WHERE id = ? AND modo_pago = 'stripe' AND estado_pago = 'checkout_activo'
+            """,
+            (contacto_id,),
+        )
+        return cursor.rowcount
+
+    def webhook_evento_existe(self, cursor, stripe_event_id: str) -> bool:
+        cursor.execute(
+            "SELECT 1 FROM stripe_webhook_events WHERE stripe_event_id = ? LIMIT 1",
+            (stripe_event_id,),
+        )
+        return cursor.fetchone() is not None
+
+    def insertar_webhook_evento(
+        self,
+        cursor,
+        stripe_event_id: str,
+        tipo: str,
+        contacto_id: Optional[int],
+        resultado: str,
+    ) -> None:
+        cursor.execute(
+            """
+            INSERT INTO stripe_webhook_events (stripe_event_id, tipo, contacto_id, resultado)
+            VALUES (?, ?, ?, ?)
+            """,
+            (stripe_event_id, tipo, contacto_id, resultado),
+        )
+
+    def insertar_conflict_sin_confirmacion(
+        self,
+        cursor,
+        trabajo_id: int,
+        contratante_id: int,
+        profesional_id: int,
+        importe: float,
+        payment_intent_id: Optional[str],
+    ) -> None:
+        cursor.execute(
+            """
+            INSERT INTO payment_conflicts (
+                trabajo_id, contratante_id, profesional_id,
+                importe_contratante, importe_profesional,
+                estado, tipo, stripe_payment_intent_id, comentario_admin
+            )
+            SELECT ?, ?, ?, ?, ?, 'EN_REVISION', 'sin_confirmacion_trabajo', ?, ?
+            WHERE NOT EXISTS (
+                SELECT 1 FROM payment_conflicts
+                WHERE trabajo_id = ? AND tipo = 'sin_confirmacion_trabajo'
+                  AND estado IN ('PENDIENTE_PRUEBA', 'EN_REVISION')
+            )
+            """,
+            (
+                trabajo_id, contratante_id, profesional_id,
+                importe, importe, payment_intent_id,
+                'Plazo de 12 días sin confirmación del contratante',
+                trabajo_id,
+            ),
+        )
+
+    def listar_stripe_sin_confirmacion_vencidos(
+        self, cursor, dias: int, postgres: bool = False
+    ) -> List[Any]:
+        if postgres:
+            cursor.execute(
+                """
+                SELECT c.id, c.solicitante_codigo, c.profesional_codigo,
+                       c.importe_final, c.stripe_payment_intent_id, c.fecha_cobro_confirmado
+                FROM contactos_ruana c
+                WHERE c.modo_pago = 'stripe'
+                  AND c.estado = 'trabajo_en_progreso'
+                  AND c.estado_pago = 'cobro_confirmado'
+                  AND c.fecha_cobro_confirmado IS NOT NULL
+                  AND c.fecha_confirmacion_trabajo IS NULL
+                  AND c.fecha_cobro_confirmado <= (CURRENT_TIMESTAMP - (? || ' days')::interval)
+                """,
+                (str(int(dias)),),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT c.id, c.solicitante_codigo, c.profesional_codigo,
+                       c.importe_final, c.stripe_payment_intent_id, c.fecha_cobro_confirmado
+                FROM contactos_ruana c
+                WHERE c.modo_pago = 'stripe'
+                  AND c.estado = 'trabajo_en_progreso'
+                  AND c.estado_pago = 'cobro_confirmado'
+                  AND c.fecha_cobro_confirmado IS NOT NULL
+                  AND c.fecha_confirmacion_trabajo IS NULL
+                  AND datetime(c.fecha_cobro_confirmado) <= datetime('now', ?)
+                """,
+                (f"-{int(dias)} days",),
+            )
+        return cursor.fetchall()
+
+    def marcar_stripe_revision_admin(self, cursor, contacto_id: int) -> int:
+        cursor.execute(
+            """
+            UPDATE contactos_ruana
+            SET estado_pago = 'revision_admin', actualizado_en = CURRENT_TIMESTAMP
+            WHERE id = ? AND modo_pago = 'stripe' AND estado_pago = 'cobro_confirmado'
+            """,
+            (contacto_id,),
+        )
+        return cursor.rowcount
+
+    def insertar_notif_pago_stripe(
+        self, cursor, aliado_codigo: str, titulo: str, mensaje: str, meta: str
+    ) -> None:
+        cursor.execute(
+            """
+            INSERT INTO notificaciones_aliado (aliado_codigo, tipo, titulo, mensaje, metadata, leida)
+            VALUES (?, 'pago_stripe', ?, ?, ?, 0)
+            """,
+            (aliado_codigo, titulo, mensaje, meta),
         )
