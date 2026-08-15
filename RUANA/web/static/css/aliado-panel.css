@@ -2178,7 +2178,8 @@
             font-weight: 600;
         }
         .neg-stripe-aviso,
-        .contacto-previo-stripe-aviso {
+        .contacto-previo-stripe-aviso,
+        .neg-stripe-bloqueo-precio {
             margin: 10px 0;
             padding: 10px 12px;
             border-radius: 10px;
@@ -2187,4 +2188,8 @@
             color: #fde68a;
             font-size: 0.9rem;
             line-height: 1.4;
+        }
+        .neg-stripe-bloqueo-precio p {
+            margin: 8px 0 0;
+            color: rgba(253, 230, 138, 0.9);
         }
