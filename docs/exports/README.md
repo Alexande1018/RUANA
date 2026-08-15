@@ -24,4 +24,10 @@ python scripts/generate_manual_maestro_documents.py
 
 Fuente Markdown archivada: [`docs/archive/AUDITORIA_FORENSE_RUANA.md`](../archive/AUDITORIA_FORENSE_RUANA.md).
 
+## Auditoría documental (15 ago 2026)
+
+| Archivo | Formato | Descripción |
+|---|---|---|
+| [AUDITORIA_DOCUMENTAL_2026-08-15.md](./AUDITORIA_DOCUMENTAL_2026-08-15.md) | Markdown | Auditoría completa documentación vs código actual |
+
 > La verdad actual del producto está en el [Manual Maestro](../../README.md).

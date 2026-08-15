@@ -12,11 +12,11 @@
 ## Regla de plaza (código vigente)
 
 **Una plaza = un oficio principal por grupo.**  
-Comentario explícito en `app.py` / `db_manager.py`: especializaciones ignoradas para la lógica de plaza.
+Comentario explícito en `aliado_service` / `grupo_service`: especializaciones ignoradas para la lógica de plaza.
 
 `GET /api/grupos/especializaciones-disponibles` permanece como endpoint **deprecado** respecto a la plaza.
 
-## Algoritmo al registrar (`POST /api/aliados/registrar`)
+## Algoritmo al registrar (`POST /api/aliados/registrar` → `aliado_service`)
 
 1. Validar nombre, email, teléfono (F07) y unicidad.
 2. Generar código numérico de 5 dígitos; score inicial **50**.

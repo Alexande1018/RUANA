@@ -21,7 +21,7 @@ Copia histórica retirada de la raíz: [`docs/archive/README_RUANA_COMPLETO.md`]
 | [`operaciones/roadmap.md`](operaciones/roadmap.md) | Roadmap operativo vivo |
 | [`qa/plan-testing.md`](qa/plan-testing.md) | Plan QA / Playwright |
 | [`qa/solicitudes-flow.md`](qa/solicitudes-flow.md) | Nota QA solicitudes |
-| [`exports/`](exports/) | Informes descargables (auditoría) |
+| [`exports/`](exports/) | Informes descargables (auditoría); último: [`AUDITORIA_DOCUMENTAL_2026-08-15.md`](exports/AUDITORIA_DOCUMENTAL_2026-08-15.md) |
 | [`INFORME_REORGANIZACION_DOCS.md`](INFORME_REORGANIZACION_DOCS.md) | Informe de la reorganización documental |
 | [`archive/`](archive/) | Documentación histórica (contenido íntegro, no borrar) |
 

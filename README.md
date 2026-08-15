@@ -6,8 +6,9 @@
 
 | Campo | Valor |
 |-------|-------|
-| Fecha de auditoría | 2026-08-11 (reescriura contra código post Campamento Base) |
-| Commit de referencia al auditar | `main` (incluye extracción a `services/` + fachadas `DBManager`) |
+| Fecha de auditoría | 2026-08-15 (auditoría documental completa contra código) |
+| Commit de referencia al auditar | `main` (13 blueprints, 16 services/repos, Stripe opcional) |
+| Informe de auditoría | [`docs/exports/AUDITORIA_DOCUMENTAL_2026-08-15.md`](docs/exports/AUDITORIA_DOCUMENTAL_2026-08-15.md) |
 | Fase declarada en roadmap | pre-MVP avanzada (v0.9) |
 | Código fuente principal | `RUANA/` |
 | Hosting público verificado | Firebase Hosting → Cloud Run (`https://ruana-4293f.web.app`) |
@@ -64,16 +65,18 @@ Orden profesional territorial: un oficio principal por plaza en cada grupo, repu
 | Umbral de competencia = 15 | `ruana_reglas_v1.json` | Reinicio tras derrota: 50 |
 | Apoyo RUANA = % sobre importe | `apoyo_pct` (12.0 en config) | `pago_service` |
 | Backend-first | Flask sirve UI y API | Firebase Hosting reescribe a Cloud Run |
-| Campamento Base | Dominios en `services/` + fachadas `DBManager` | Repos reales aún parciales |
+| Campamento Base | 16 `services/` + 16 `repositories/` con SQL real + fachada `DBManager` | Extracción avanzada; `DBManager` sigue como compatibilidad |
 
-### ⚠️ INCONSISTENCIAS DETECTADAS
+### ⚠️ INCONSISTENCIAS / DISCREPANCIAS DETECTADAS
 
-1. **Documentación de chat:** `docs/flujos/chat-y-alerta.md` describe APIs de chat libre; en `app.py` los POST de chat libre responden **410**. El flujo vigente es **negociación guiada**.
-2. **E2E desfasado:** `e2e/ruana-critical-flows.spec.js` aún busca selectores de chat (`#modal-chat-ruana`); la UI usa «Abrir negociación».
-3. **Repositorios incompletos:** existen stubs en `core/repositories/` para casi todos los dominios; **solo `score_repo.py` tiene SQL real**. El resto del SQL sigue en services / fachada.
-4. **Blueprints parciales:** `catalogo_bp` y `negociacion_bp` existen; la mayoría de rutas mutables siguen en `app.py`.
-5. **Esquema competencia `suplente_*` vs `retador_*`:** hay compatibilidad/migración entre nombres legacy y nuevos.
-6. **RLS vs service role:** migraciones definen RLS; el backend usa **service role** y bypasea RLS. La autorización efectiva es la de la API Flask.
+1. **Chat libre vs negociación:** las rutas legacy `/api/chat_enviar`, `/api/chat/enviar` (POST) responden **410** (`negociacion_bp`). El flujo vigente de encargo es **negociación guiada**. El chat de mensajes (`chat_service`, tabla `chat_mensajes`) sigue existiendo para contactos que lo usen vía `/api/contactos/<id>/mensajes`, pero la UI principal no promueve chat libre.
+2. **Esquema `comision_porcentaje`:** DDL default `0.05` en `schema_service`; en runtime el cierre usa `apoyo_pct/100` (= **0.12** con config actual). Ver `contacto_service`.
+3. **Esquema competencia `suplente_*` vs `retador_*`:** migración renombra; código mantiene compatibilidad.
+4. **RLS vs service role:** migraciones definen RLS; el backend usa **service role** y bypasea RLS. La autorización efectiva es la de la API Flask.
+5. **Drift SQLite/Postgres:** varias tablas/columnas existen solo en init SQLite o parches runtime Postgres (`schema_service._init_postgres_schema`). No asumir paridad sin verificar migraciones.
+6. **`ingresos_ruana.apoyo_ruana_2pct`** (PG migración) vs **`contactos_ruana.apoyo_ruana`** — nombres distintos en tablas relacionadas.
+7. **Motor evaluación:** umbrales de filtros (0.70, 0.80, 6 meses) están **hardcodeados** en `motor_evaluacion.py`; no en `ruana_reglas_v1.json` (`reglas: []` vacío).
+8. **`RUANA/ruana.db` commiteado:** snapshot antiguo (25 tablas); no representa el schema actual tras `_init_db()`.
 
 ---
 
@@ -86,18 +89,20 @@ Leyenda: 🟢 operativo · 🟡 parcial / requiere revisión · 🔴 no implemen
 | Registro | 🟢 | `register.html` + `POST /api/aliados/registrar` → `aliado_service` |
 | Perfil | 🟢 | Datos, foto, catálogo de servicios |
 | Grupos / territorio | 🟢 | Grupos por CP, plazas, suplentes `en_espera` (`grupo_service` / `aliado_service`) |
-| Chat libre | 🔴 | Endpoints legacy → 410; sustituido por negociación |
-| Negociación / acuerdos | 🟢 | `negociacion_service` + APIs en `app.py` + UI; E2E desfasado |
+| Chat libre (encargo) | 🔴 | Rutas globales legacy → 410; sustituido por negociación guiada |
+| Mensajes de contacto (chat_mensajes) | 🟡 | `chat_service` + `/api/contactos/<id>/mensajes`; no es el flujo principal de UI |
+| Negociación / acuerdos | 🟢 | `negociacion_service` + `negociacion_bp` + UI; E2E alineado |
 | Captación (invitaciones / referidos / campañas) | 🟢 | `invitacion_service`, `referido_service`; no hay módulo llamado “captación” |
-| Aliados | 🟢 | CRUD, estados, directorio, pausa, foto |
-| Pagos / Apoyo RUANA | 🟡 | Comprobantes, métodos de pago, impugnación; **sin pasarela API** |
+| Aliados | 🟢 | CRUD, estados, directorio, pausa, foto, Stripe onboarding |
+| Pagos / Apoyo RUANA | 🟢 | Manual (Bizum/IBAN/QR) + revisión admin + impugnación |
+| Stripe Connect (pagos encargo) | 🟡 | Implementado (`pagos_bp`, webhook); requiere `RUANA_STRIPE_PAYMENTS_ENABLED=1` y secretos |
 | Notificaciones | 🟢 | Inbox aliado + centro de comunicación / soporte |
 | Administración | 🟢 | Panel amplio vía `admin_service` + rutas admin |
 | Competencia por score | 🟢 | `competencia_service`; umbral config; UI/E2E parcial |
 | Purga mensual | 🟡 | Lógica/endpoint existen; operación en producción `NO VERIFICADO` |
 | Auth admin Firebase | 🔴 | `PLANIFICADO` (plan en archive); vigente: credenciales hasheadas |
 | Supabase Auth / `profiles` | 🟡 | Tabla en migración; login Flask **no** usa `auth.users` |
-| Modularización Campamento Base | 🟡 | Services extraídos; repos casi todos stub; `DBManager` sigue como fachada |
+| Modularización Campamento Base | 🟡 | 16 services + 16 repos con SQL; `DBManager` (~1.835 LOC) sigue como fachada |
 
 ---
 
@@ -114,37 +119,38 @@ Firebase Hosting (proyecto ruana-4293f)
 Cloud Run service "ruana" (europe-west1)
   Docker: python:3.13-slim + gunicorn → web.app:app
         │
-        ├── web/app.py (+ blueprints parciales)
-        │     └── core/services/<dominio>_service.py
-        │           └── (score) core/repositories/score_repo.py
-        │           └── resto: SQL aún en service / fachada DBManager
+        ├── web/app.py (455 líneas: HTML, estáticos, auth admin legacy)
+        │     └── 13 Blueprints (~166 rutas API)
+        │           └── core/services/<dominio>_service.py
+        │                 └── core/repositories/<dominio>_repo.py
         ├── Postgres (Supabase) vía DATABASE_URL
         ├── Supabase Storage
         ├── SMTP (correo de bienvenida)
+        ├── Stripe Connect (opcional, flag)
         └── Fallback local: SQLite (RUANA_DB_PATH)
 ```
 
 | Capa | Tecnología / pieza verificada |
 |------|-------------------------------|
 | Frontend | HTML, CSS, JS vanilla en `RUANA/web/` |
-| Backend | Flask 2.3.3, Flask-Cors, PyJWT, Werkzeug, gunicorn |
-| Dominio | `RUANA/core/services/` (13 services de dominio) |
-| Persistencia | `DBManager` fachada (~4331 líneas) + `ScoreRepo`; stubs de otros repos |
+| Backend | Flask 2.3.3, Flask-Cors, PyJWT, Werkzeug, gunicorn, stripe |
+| Dominio | `RUANA/core/services/` (16 services) |
+| Persistencia | `DBManager` fachada (~1.835 líneas) + 16 repositories con SQL |
 | Constantes BD | `RUANA/core/db_constants.py` |
 | Sesiones | `RUANA/core/auth_session.py` |
-| Blueprints | `catalogo_bp`, `negociacion_bp` (cobertura mínima) |
+| Blueprints | 13: `admin`, `aliado`, `auth`, `catalogo`, `contactos`, `evaluacion`, `invitacion`, `negociacion`, `pagos`, `referidos`, `solicitudes`, `soporte`, `stripe_webhook` |
 | BD | Postgres (psycopg) o SQLite |
-| Storage | Supabase Storage |
+| Storage | Supabase Storage (+ fallback local con `RUANA_ALLOW_LOCAL_UPLOADS`) |
 | Hosting | Firebase Hosting → Cloud Run |
-| QA | pytest (push/PR) + Playwright E2E (push / manual) |
+| QA | pytest 383 tests (push/PR) + Playwright E2E (push / manual) |
 
 ### Patrón Campamento Base (verificado)
 
 ```text
-Consumidor (app.py / tests)
-    → DBManager.método()          # fachada / wrapper
+Consumidor (blueprints / tests)
+    → DBManager.método()          # fachada / wrapper (~1.835 LOC)
         → <dominio>_service.*     # lógica de negocio
-            → ScoreRepo (solo score) / SQL en service (resto)
+            → <dominio>_repo.*    # SQL (16 repos con consultas reales)
                 → SQLite o Postgres
 ```
 
@@ -173,18 +179,18 @@ No hay herencia de services desde `DBManager`: es **delegación** pasando `self`
 └── RUANA/
     ├── config/                   # Reglas, oficios, ejemplos admin
     ├── core/
-    │   ├── db_manager.py         # Fachada Campamento Base
+    │   ├── db_manager.py         # Fachada Campamento Base (~1.835 LOC)
     │   ├── db_constants.py
     │   ├── auth_session.py
     │   ├── admin_auth.py
     │   ├── negociacion_manager.py
-    │   ├── services/             # Lógica de dominio
-    │   └── repositories/         # ScoreRepo real + stubs
-    ├── engines/                  # Motor de evaluación
+    │   ├── services/             # 16 módulos de dominio
+    │   └── repositories/         # 16 repos con SQL
+    ├── engines/                  # Motor de evaluación v0.2
     ├── events/ / metrics/
     ├── web/
-    │   ├── app.py                # Rutas principales (~170)
-    │   ├── blueprints/           # catalogo + negociacion (parcial)
+    │   ├── app.py                # Setup Flask + HTML (~455 LOC)
+    │   ├── blueprints/           # 13 blueprints (~166 rutas API)
     │   ├── *.html
     │   └── static/
     ├── tests/
@@ -311,7 +317,8 @@ Fuente: `score_service` (rango **0–500**, tope diario **±10**):
 
 - Contacto → trabajo → declarar importe → Apoyo = `importe × apoyo_pct/100` (default 12%).
 - Comprobante → revisión admin → posible impugnación.
-- Cobro: Bizum / IBAN / QR (manual, sin pasarela).
+- Cobro manual: Bizum / IBAN / QR (config en `ruana_reglas_v1.json`).
+- Cobro Stripe Connect: checkout + transfer al profesional (si `RUANA_STRIPE_PAYMENTS_ENABLED=1`).
 
 ### Negociación
 
@@ -321,7 +328,8 @@ Fuente: `score_service` (rango **0–500**, tope diario **±10**):
 
 - Activar/rechazar/eliminar; suplentes; cerrar/abrir plazas; pagos; reglas; métricas.
 - Permisos: `leer`, `escribir`, `eliminar`, `configurar`.
-- ⚠️ Si un admin autenticado tiene lista de permisos vacía, el código puede otorgar el conjunto completo (fallback) — atención en seguridad.
+- `require_admin`: cualquier admin autenticado accede a endpoints de lectura del panel.
+- `require_admin_escritura`: exige `escribir` o `configurar` en la lista de permisos; si está vacía → **403** en escritura (no hay fallback a permisos completos).
 
 ---
 
@@ -420,8 +428,8 @@ App: aliado / admin. `profiles.role` preparado para Supabase Auth — no cablead
 | Artifact Registry | Imágenes Docker | 🟢 |
 | Google Secret Manager | Secretos runtime | 🟢 |
 | SMTP | Email bienvenida | 🟡 Depende de vars |
-| PayPal / Revolut / Bizum | Cobro Apoyo (QR/datos) | 🟡 Manual |
-| Stripe / PayPal REST | Pagos automáticos | 🔴 No integrado |
+| PayPal / Revolut / Bizum | Cobro Apoyo manual (QR/datos en config) | 🟡 Manual |
+| Stripe Connect | Pagos encargo (checkout, onboarding, webhook) | 🟡 Implementado; flag + secretos |
 | Firebase Authentication | Auth admin/usuarios | 🔴 Planificado |
 
 ---
@@ -443,6 +451,11 @@ App: aliado / admin. `profiles.role` preparado para Supabase Auth — no cablead
 | `RUANA_DB_PATH` | SQLite fallback |
 | `RUANA_SMTP_*` | Correo |
 | `RUANA_PUBLIC_APP_URL` / `PUBLIC_APP_URL` | URL pública |
+| `RUANA_STRIPE_PAYMENTS_ENABLED` | Activa Stripe Connect (0/1) |
+| `STRIPE_SECRET_KEY` / `STRIPE_PUBLISHABLE_KEY` / `STRIPE_WEBHOOK_SECRET` | Stripe |
+| `STRIPE_API_VERSION` | Versión API Stripe (default `2024-11-20.acacia`) |
+| `RUANA_STRIPE_TRANSFER_TIMEOUT_DAYS` | Timeout transferencias |
+| `RUANA_ALLOW_LOCAL_UPLOADS` | Storage local en QA |
 | `PORT` | Puerto gunicorn |
 
 ### Config de negocio
@@ -531,34 +544,32 @@ npm run qa:e2e
 
 ### Funcionando
 
-Registro, login, paneles, grupos/plazas, invitaciones/referidos/campañas, contactos, negociación, Apoyo con revisión, notificaciones, competencia por score, deploy cloud, **CI pytest en push/PR**, services de dominio con fachadas.
+Registro, login, paneles, grupos/plazas, invitaciones/referidos/campañas, contactos, negociación, Apoyo con revisión, notificaciones, competencia por score, deploy cloud, **16 services + 16 repos**, CI automático pytest (**383 tests** verificados 2026-08-15).
 
 ### Parcial
 
-Hito 2 seguridad; purga; SMTP/Storage según secretos; RLS no efectivo en API; blueprints; **repositorios** (solo score real); docs/E2E de chat; `DBManager` aún grande como fachada.
+Hito 2 seguridad; purga (lógica sin cron verificado); SMTP/Storage según secretos; RLS no efectivo en API; `DBManager` fachada residual; drift SQLite/Postgres; Stripe dependiente de flag; motor evaluación sin automatización periódica verificada.
 
 ### Pendiente
 
-Firebase Auth admin; pasarela de pago; cablear `profiles`/Supabase Auth al login; terminar extracción SQL a repos; alinear E2E con negociación.
+Firebase Auth admin; cablear `profiles`/Supabase Auth al login; sincronización completa migraciones PG; cron purga/motor; retirar o regenerar `ruana.db` commiteado.
 
 ### Riesgos técnicos
 
-1. Transición a medias (services con SQL; repos stub).
-2. `app.py` sigue monolítico (~4.3k LOC, ~170 rutas).
-3. Chat legacy en `chat_service` vs API 410.
-4. Auth por código de aliado; admin puente JSON.
-5. Service role bypasea RLS.
-6. Drift SQLite/Postgres.
-7. Datos de cobro en repo.
-8. E2E/selectores desfasados.
+1. Auth por código de aliado (factor único).
+2. Service role bypasea RLS.
+3. Drift SQLite/Postgres (tablas/columnas no en todas las migraciones).
+4. Datos de cobro en `ruana_reglas_v1.json` versionado.
+5. Revocación de sesión en memoria (multi-instancia).
+6. Admin credenciales JSON puente.
+7. `comision_porcentaje` DDL (0.05) vs runtime (`apoyo_pct/100`).
 
 ### Deuda técnica
 
-- Completar repos reales por dominio.
-- Mover rutas mutables a blueprints.
-- Eliminar o aislar chat libre y actualizar docs/E2E.
+- Completar paridad migraciones Supabase ↔ `schema_service`.
 - Plan Firebase Auth sin implementar.
-- Stubs/legado residuales en orquestador/métricas.
+- Orquestador CLI desconectado del servidor web.
+- Automatizar purga y motor evaluación (decisión operativa pendiente).
 
 ---
 
@@ -566,11 +577,11 @@ Firebase Auth admin; pasarela de pago; cablear `profiles`/Supabase Auth al login
 
 ### Implementado
 
-Registro, perfil, grupos territoriales, plazas/suplentes, aliados, invitaciones/referidos/campañas, solicitudes, contactos, negociación/acuerdos, Apoyo con admin, notificaciones, competencia por score, panel admin, deploy, extracción a **services** con fachadas, CI automático pytest.
+Registro, perfil, grupos territoriales, plazas/suplentes, aliados, invitaciones/referidos/campañas, solicitudes, contactos, negociación/acuerdos, Apoyo con admin, Stripe Connect (opcional), notificaciones, competencia por score, panel admin, deploy, extracción Campamento Base (services + repos), CI automático pytest.
 
 ### En desarrollo
 
-Hito 2 seguridad (parcial); completar Campamento Base (repos + blueprints); consolidación docs/ops.
+Hito 2 seguridad (parcial); paridad migraciones PG; consolidación docs/ops.
 
 ### Planificado
 
@@ -578,7 +589,7 @@ Admin → Firebase Authentication (plan en archive).
 
 ### No verificado
 
-Estado exacto schema/RLS remoto en vivo; Realtime en cliente; purga en operación real; E2E verde tras chat→negociación; rollback operativo cotidiano.
+Estado exacto schema/RLS remoto en vivo; Realtime en cliente; purga en operación real (cron); Stripe activo en producción; rollback operativo cotidiano.
 
 ---
 
@@ -629,8 +640,9 @@ Fuente: [`docs/operaciones/roadmap.md`](docs/operaciones/roadmap.md) (2026-07-28
 | Métodos de pago + Storage | Hecho en código |
 | Impugnación cobros | Hecho en código |
 | Competencia automática | Hecho en main |
+| Stripe Connect (pagos encargo) | Hecho en código; activación por flag |
+| Campamento Base (modularización) | **Avanzado** — 16 services + 16 repos; fachada `DBManager` residual |
 | Admin → Firebase Auth | Preparado, **no implementado** |
-| Campamento Base (modularización) | **En curso en código** (services + fachadas; repos parciales) — no listado como hito formal en el roadmap de julio; ver commits recientes en `main` |
 
 Histórico: `docs/archive/ROADMAP_2026-05.md`.
 
@@ -642,13 +654,14 @@ No se inventan hitos fuera de fuentes del repo + estado verificable del código.
 
 Índice: [`docs/README.md`](docs/README.md).
 
+- [`docs/exports/AUDITORIA_DOCUMENTAL_2026-08-15.md`](docs/exports/AUDITORIA_DOCUMENTAL_2026-08-15.md) — informe de auditoría documental
 - [`docs/flujos/registro-aliados.md`](docs/flujos/registro-aliados.md)
 - [`docs/seguridad/autenticacion-sesiones.md`](docs/seguridad/autenticacion-sesiones.md)
 - [`docs/seguridad/credenciales-admin.md`](docs/seguridad/credenciales-admin.md)
 - [`docs/operaciones/roadmap.md`](docs/operaciones/roadmap.md)
 - Herramienta local: [`dev-tools/code-map/`](dev-tools/code-map/)
 
-`docs/flujos/chat-y-alerta.md` describe el modelo histórico de chat; contrastar con negociación en código.
+`docs/flujos/chat-y-alerta.md` documenta mensajes de contacto y alertas; las rutas globales de chat libre devuelven 410 — el flujo de encargo vigente es negociación guiada.
 
 ---
 
