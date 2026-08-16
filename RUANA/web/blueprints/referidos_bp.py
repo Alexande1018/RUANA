@@ -248,6 +248,7 @@ def aliado_referidos_raiz():
             return jsonify({"status": "error", "message": "Aliado no encontrado"}), 404
         invitador = referido_service.obtener_invitador_de(db, codigo)
         total_desc = referido_service.contar_referidos_por_codigo(db, codigo)
+        nodo['referidos_count'] = total_desc
         return jsonify({
             "status": "success",
             "modo": "raiz",

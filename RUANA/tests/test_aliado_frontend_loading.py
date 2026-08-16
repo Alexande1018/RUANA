@@ -78,26 +78,27 @@ def test_aliado_inicio_module_is_wired():
 
 
 def test_aliado_referidos_module_is_wired():
-    """Módulo PrivatePanel `referidos` (modal linaje); PrivatePanel solo fachada."""
+    """Módulo PrivatePanel `referidos` (árbol genealógico modal); PrivatePanel solo fachada."""
     root = Path(__file__).resolve().parents[1] / "web"
     aliado = (root / "aliado.html").read_text(encoding="utf-8")
     referidos_js = (root / "static" / "js" / "aliado-referidos-module.js").read_text(encoding="utf-8")
     modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
 
     assert 'src="/static/js/aliado-modules.js"' in aliado
+    assert 'src="/static/js/referidos-module.js"' in aliado
     assert 'src="/static/js/aliado-referidos-module.js"' in aliado
+    assert 'href="/static/css/referidos-tree.css"' in aliado
     assert "RuanaAliadoModules" in modules_js
     assert "referidos: null" in modules_js
-    assert "RuanaAliadoModules.referidos" in referidos_js or "modules.referidos" in referidos_js
+    assert "RuanaReferidos" in referidos_js or "RuanaReferidosTree" in referidos_js
     assert "abrirModalLinajeHijos" in referidos_js
     assert "cerrarModalLinajeHijos" in referidos_js
-    assert "/api/aliado/linaje/hijos" in referidos_js
+    assert "referidos-tree-aliado" in referidos_js
     assert "modal-linaje-hijos" in referidos_js
     # Fachadas delgadas en PrivatePanel
     assert "_referidosModule" in aliado
     assert "mod.abrirModalLinajeHijos(this)" in aliado
     assert "mod.cerrarModalLinajeHijos()" in aliado
-    # Markup del modal permanece en aliado.html (sin reescritura masiva)
     assert 'id="modal-linaje-hijos"' in aliado
     assert 'id="metrica-card-referidos"' in aliado
 

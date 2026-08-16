@@ -336,37 +336,16 @@ def backfill_invitado_por_linaje(db) -> Dict[str, int]:
             stats['huerfanos'] += 1
     return stats
 
-def listar_hijos_directos_linaje(db, codigo_invitador: str) -> List[Dict[str, Any]]:
-    """Hijos directos según aliados.invitado_por_codigo."""
-    codigo_invitador = (codigo_invitador or '').strip()
-    if not codigo_invitador:
-        return []
-    db.backfill_invitado_por_linaje()
-    with db._lock:
-        conn = None
-        try:
-            conn = db._connect()
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            result = []
-            for row in _repo.listar_hijos_directos_linaje(cursor, codigo_invitador):
-                item = dict(row)
-                item['zona'] = item.get('codigo_postal') or ''
-                item['especializaciones'] = []
-                try:
-                    item['score'] = float(item.get('score') or 0)
-                except (TypeError, ValueError):
-                    item['score'] = 0.0
-                origen = (item.get('origen') or '').strip()
-                item['origen'] = origen
-                item['origen_label'] = db.etiqueta_origen_referido(origen)
-                result.append(item)
-            return result
-        except Exception:
-            return []
-        finally:
-            if conn:
-                conn.close()
+def listar_hijos_directos_linaje(
+    db, codigo_invitador: str, incluir_pendientes: bool = False
+) -> List[Dict[str, Any]]:
+    """
+    Hijos directos del linaje.
+    Fuente de verdad: invitado_por_codigo, con fallback a referidos (misma lógica que el árbol).
+    """
+    return listar_referidos_directos(
+        db, codigo_invitador, incluir_pendientes=incluir_pendientes
+    )
 
 def _obtener_origen_referido(db, codigo_referido: str) -> str:
     codigo_referido = (codigo_referido or '').strip()
@@ -500,13 +479,14 @@ def aliado_puede_ver_nodo_referidos(db, codigo_sesion: str, codigo_nodo: str) ->
     current = codigo_nodo
     visitados: set = set()
     while current and current not in visitados:
+        visitados.add(current)
         invitador = obtener_invitador_de(db, current)
         if not invitador:
             return False
-        current = (invitador.get('codigo') or '').strip()
-        if current == codigo_sesion:
+        padre = (invitador.get('codigo') or '').strip()
+        if padre == codigo_sesion:
             return True
-        visitados.add(current)
+        current = padre
     return False
 
 def buscar_en_red_referidos(
@@ -716,22 +696,19 @@ def listar_referidos_directos(
                 cursor, codigo_invitador, incluir_pendientes=incluir_pendientes
             )
             result: List[Dict[str, Any]] = []
-            grafo = _cargar_grafo_referidos_red(db, incluir_pendientes)
             for row in rows:
                 item = dict(row)
                 item['zona'] = item.get('codigo_postal') or ''
                 codigo_hijo = (item.get('codigo') or '').strip()
-                item['referidos_count'] = len(
-                    (grafo.get('hijos_por_padre') or {}).get(codigo_hijo, [])
-                )
+                item['referidos_count'] = contar_referidos_por_codigo(db, codigo_hijo)
                 item['especializaciones'] = []
                 try:
                     item['score'] = float(item.get('score') or 0)
                 except (TypeError, ValueError):
                     item['score'] = 0.0
-                origen = (item.get('origen') or '').strip() or (
-                    (grafo.get('origen_por_hijo') or {}).get(codigo_hijo, '')
-                )
+                origen = (item.get('origen') or '').strip()
+                if not origen:
+                    origen = db._obtener_origen_referido(codigo_hijo)
                 item['origen'] = origen
                 item['origen_label'] = db.etiqueta_origen_referido(origen)
                 if (item.get('estado') or '').strip() == 'pendiente_completar':
@@ -786,8 +763,16 @@ def obtener_invitador_de(db, codigo_aliado: str) -> Optional[Dict[str, Any]]:
 
 
 def obtener_nodo_referidos(db, codigo: str) -> Optional[Dict[str, Any]]:
-    """Nodo individual con metadatos para el árbol."""
+    """Nodo individual con metadatos para el árbol (tras sync de linaje)."""
+    codigo = (codigo or '').strip()
+    if not codigo:
+        return None
     db.sincronizar_referidos_completo()
+    grafo = _cargar_grafo_referidos_red(db, incluir_pendientes=False)
+    nodo = _nodo_desde_grafo(db, grafo, codigo)
+    if nodo:
+        nodo['referidos_count'] = contar_referidos_por_codigo(db, codigo)
+        return nodo
     return _nodo_referido_resumen(db, codigo)
 
 

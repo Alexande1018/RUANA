@@ -1,8 +1,7 @@
 /**
  * Módulo PrivatePanel `referidos` (Campamento Base).
- * Modal de hijos directos del linaje (/api/aliado/linaje/hijos).
+ * Árbol genealógico lazy del aliado (/api/aliado/referidos/raiz + hijos).
  * PrivatePanel conserva fachadas delgadas que delegan aquí.
- * El árbol genealógico compartido vive en referidos-module.js (RuanaReferidos).
  */
 (function (global) {
   'use strict';
@@ -16,6 +15,8 @@
     referidos: null,
   };
 
+  var _treeInstance = null;
+
   function getApiBaseSafe() {
     if (typeof global.getApiBase === 'function') return global.getApiBase();
     return '';
@@ -28,83 +29,66 @@
     return extra || {};
   }
 
-  function escapeHtmlSafe(host, str) {
-    if (host && typeof host.escapeHtml === 'function') {
-      return host.escapeHtml(str);
+  function _ensureTree() {
+    if (_treeInstance) return _treeInstance;
+    if (!global.RuanaReferidos || !global.RuanaReferidos.RuanaReferidosTree) {
+      return null;
     }
-    if (global.RuanaReferidos && typeof global.RuanaReferidos.escapeHtml === 'function') {
-      return global.RuanaReferidos.escapeHtml(str);
-    }
-    if (str == null) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+    var treeEl = document.getElementById('referidos-tree-aliado');
+    var detailEl = document.getElementById('referidos-detail-aliado');
+    var metaEl = document.getElementById('modal-linaje-hijos-meta');
+    if (!treeEl || !detailEl) return null;
+    _treeInstance = new global.RuanaReferidos.RuanaReferidosTree({
+      mode: 'aliado',
+      treeContainer: treeEl,
+      detailContainer: detailEl,
+      metaContainer: metaEl,
+      fetchOptions: {
+        credentials: 'same-origin',
+        headers: getAuthHeadersSafe(),
+      },
+      pollIntervalMs: 20000,
+    });
+    return _treeInstance;
   }
 
   /**
-   * Abre el modal de referidos directos y carga /api/aliado/linaje/hijos.
+   * Abre el modal del árbol genealógico y carga la red del aliado autenticado.
    * @param {object} host PrivatePanel (escapeHtml opcional)
    */
   function abrirModalLinajeHijos(host) {
     var modal = document.getElementById('modal-linaje-hijos');
-    var list = document.getElementById('modal-linaje-hijos-list');
-    var meta = document.getElementById('modal-linaje-hijos-meta');
-    if (!modal || !list) return Promise.resolve();
-    list.innerHTML = '<p style="color:#94a3b8;">Cargando…</p>';
-    if (meta) meta.textContent = 'Tus invitaciones directas';
+    if (!modal) return Promise.resolve();
     modal.style.display = 'flex';
-    var apiBase = getApiBaseSafe();
-    return fetch(apiBase + '/api/aliado/linaje/hijos', {
-      credentials: 'same-origin',
-      headers: getAuthHeadersSafe(),
-    })
-      .then(function (resp) {
-        return resp.json().then(function (data) {
-          return { resp: resp, data: data };
-        });
-      })
-      .then(function (result) {
-        var resp = result.resp;
-        var data = result.data;
-        if (!resp.ok || data.status !== 'success') {
-          list.innerHTML = '<p style="color:#f87171;">No se pudieron cargar tus referidos.</p>';
-          return;
-        }
-        var hijos = Array.isArray(data.hijos) ? data.hijos : [];
-        if (meta) {
-          meta.textContent = hijos.length === 0
-            ? 'Aún no has referido aliados a RUANA.'
-            : (hijos.length + ' referido' + (hijos.length === 1 ? '' : 's') + ' directo' + (hijos.length === 1 ? '' : 's'));
-        }
-        if (!hijos.length) {
-          list.innerHTML = '<p style="color:#94a3b8;">Cuando alguien se registre con tu invitación, aparecerá aquí.</p>';
-          return;
-        }
-        list.innerHTML = hijos.map(function (h) {
-          var nombre = escapeHtmlSafe(host, h.nombre || '(sin nombre)');
-          var codigo = escapeHtmlSafe(host, h.codigo || '');
-          var oficio = escapeHtmlSafe(host, h.oficio || '—');
-          var zona = escapeHtmlSafe(host, h.zona || h.codigo_postal || '—');
-          return '<div style="border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:10px 12px; margin-bottom:8px;">' +
-            '<div style="font-weight:600;">' + nombre + '</div>' +
-            '<div style="font-size:0.85rem; color:#94a3b8; margin-top:2px;">' + codigo + ' · ' + oficio + ' · ' + zona + '</div>' +
-            '</div>';
-        }).join('');
-      })
-      .catch(function () {
-        list.innerHTML = '<p style="color:#f87171;">Error de red al cargar referidos.</p>';
-      });
+
+    var tree = _ensureTree();
+    if (!tree) {
+      var list = document.getElementById('modal-linaje-hijos-list');
+      if (list) {
+        list.innerHTML = '<p style="color:#f87171;">No se pudo cargar el árbol genealógico.</p>';
+      }
+      return Promise.resolve();
+    }
+
+    return tree.loadAliado().catch(function () {
+      var treeEl = document.getElementById('referidos-tree-aliado');
+      if (treeEl && !treeEl.querySelector('.referidos-empty-state')) {
+        treeEl.innerHTML = '<div class="referidos-empty-state">No se pudo cargar tu red de referidos.</div>';
+      }
+    });
   }
 
   function cerrarModalLinajeHijos() {
     var modal = document.getElementById('modal-linaje-hijos');
     if (modal) modal.style.display = 'none';
+    if (_treeInstance && typeof _treeInstance.stopPolling === 'function') {
+      _treeInstance.stopPolling();
+    }
   }
 
   modules.referidos = {
     abrirModalLinajeHijos: abrirModalLinajeHijos,
     cerrarModalLinajeHijos: cerrarModalLinajeHijos,
+    getTreeInstance: function () { return _treeInstance; },
   };
 })(typeof window !== 'undefined' ? window : globalThis);

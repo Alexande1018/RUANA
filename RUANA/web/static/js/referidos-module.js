@@ -1,7 +1,7 @@
 /**
  * RUANA — Árbol genealógico de referidos (lazy expand + tarjetas enriquecidas).
  *
- * Cableado en admin.html (#red-view-referidos, scripts ~30-31 y sección ~856-867)
+ * Cableado en admin.html (#red-view-referidos) y aliado.html (modal #modal-linaje-hijos).
  * y en admin-red-explorer-module.js. Exporta `RuanaReferidos` / `RuanaReferidosTree`
  * para bosque admin (loadAdminFull) y árbol aliado (lazy expand + polling).
  * Estilos en referidos-tree.css (tokens ruana-identity.css).

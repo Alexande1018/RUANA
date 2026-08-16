@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="/static/css/encargo-seguimiento.css">
     <link rel="stylesheet" href="/static/css/ruana-score-callout.css">
     <link rel="stylesheet" href="/static/css/ruana-identity.css">
+    <link rel="stylesheet" href="/static/css/referidos-tree.css">
     <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
     <script src="/static/js/ruana-atmosphere.js" defer></script>
     <script src="/static/js/ruana-ui.js" defer></script>
@@ -26,6 +27,7 @@
     <script src="/static/js/aliado-modules.js" defer></script>
     <script src="/static/js/aliado-inicio-module.js" defer></script>
     <script src="/static/js/aliado-perfil-module.js" defer></script>
+    <script src="/static/js/referidos-module.js" defer></script>
     <script src="/static/js/aliado-referidos-module.js" defer></script>
     <script src="/static/js/aliado-directorio-module.js" defer></script>
     <script src="/static/js/aliado-solicitudes-module.js" defer></script>
@@ -490,13 +492,18 @@
         </div>
         </section><!-- /module-perfil -->
 
-        <!-- Modal: hijos directos del linaje -->
+        <!-- Modal: árbol genealógico de referidos -->
         <div class="modal-overlay" id="modal-linaje-hijos" style="display:none; align-items:center; justify-content:center;">
-            <div class="modal-content" style="max-width:520px; width:92%;">
-                <h3 class="modal-title">Aliados referidos por mí</h3>
-                <p class="modal-text" id="modal-linaje-hijos-meta">Tus invitaciones directas</p>
-                <div id="modal-linaje-hijos-list" style="max-height:360px; overflow:auto; margin:12px 0;"></div>
-                <div class="modal-actions">
+            <div class="modal-content" style="max-width:min(960px, 96vw); width:92%; max-height:90vh; overflow:auto;">
+                <h3 class="modal-title">Mi red de referidos</h3>
+                <p class="modal-text" id="modal-linaje-hijos-meta">Tu linaje de invitaciones</p>
+                <div class="referidos-aliado-layout referidos-layout" style="margin:12px 0;">
+                    <div class="referidos-tree-panel" id="referidos-tree-aliado"></div>
+                    <div class="referidos-detail-panel empty" id="referidos-detail-aliado">
+                        <p>Selecciona un aliado en el árbol para ver su ficha.</p>
+                    </div>
+                </div>
+                <div class="modal-actions" style="margin-top:12px;">
                     <button type="button" class="btn-admin-action" id="btn-cerrar-linaje-hijos">Cerrar</button>
                 </div>
             </div>
