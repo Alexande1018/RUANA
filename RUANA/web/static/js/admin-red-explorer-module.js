@@ -76,6 +76,9 @@
         }
         var panel = global._ruanaAdminPanel;
         var TreeCtor = global.RuanaReferidos.RuanaReferidosTree;
+        var authHeaders = typeof AdminAuthenticator !== 'undefined'
+            ? AdminAuthenticator.getAdminAuthHeaders()
+            : {};
         if (!referidosTree) {
             referidosTree = new TreeCtor({
                 treeContainer: document.getElementById('referidos-tree-admin'),
@@ -83,7 +86,8 @@
                 metaContainer: document.getElementById('referidos-meta-admin'),
                 mode: 'admin',
                 fetchOptions: {
-                    headers: typeof AdminAuthenticator !== 'undefined' ? AdminAuthenticator.getAdminAuthHeaders() : {}
+                    credentials: 'same-origin',
+                    headers: authHeaders
                 },
                 onVerDetalleCompleto: function (nodo) {
                     if (panel && panel._aliadosData) {
@@ -99,8 +103,16 @@
                     }
                 }
             });
+        } else {
+            referidosTree.fetchOptions = {
+                credentials: 'same-origin',
+                headers: authHeaders
+            };
         }
-        if (forceReload || !referidosTree._adminLoaded) {
+        var treeEl = document.getElementById('referidos-tree-admin');
+        var needsLoad = forceReload || !referidosTree._adminLoaded ||
+            (treeEl && !treeEl.querySelector('.referidos-node-card') && !treeEl.querySelector('.referidos-loading'));
+        if (needsLoad) {
             referidosTree.loadAdmin().then(function () {
                 referidosTree._adminLoaded = true;
             }).catch(function () {

@@ -521,15 +521,30 @@ def buscar_en_red_referidos(
             resultados.append(nodo)
     return resultados
 
+def _resolver_raices_referidos(
+    db, grafo: Dict[str, Any], incluir_pendientes: bool
+) -> List[str]:
+    """Raíces del bosque: grafo en memoria con fallback SQL (misma lógica que obtener_bosques)."""
+    raices = _listar_raices_desde_grafo(grafo)
+    if not raices:
+        raices = listar_raices_referidos(
+            db, incluir_pendientes=grafo.get('incluir_pendientes', incluir_pendientes)
+        )
+    return raices
+
+
 def listar_nodos_raiz_referidos(db, incluir_pendientes: bool = False) -> List[Dict[str, Any]]:
     """Nodos raíz de la red (invitadores que no fueron referidos)."""
     db.sincronizar_referidos_completo()
     grafo = _cargar_grafo_referidos_red(db, incluir_pendientes)
-    raices = _listar_raices_desde_grafo(grafo)
+    raices = _resolver_raices_referidos(db, grafo, incluir_pendientes)
     nodos: List[Dict[str, Any]] = []
     for codigo in raices:
         nodo = _nodo_desde_grafo(db, grafo, codigo)
+        if not nodo:
+            nodo = _nodo_referido_resumen(db, codigo)
         if nodo:
+            nodo['referidos_count'] = contar_referidos_por_codigo(db, codigo)
             nodos.append(nodo)
     return nodos
 
@@ -788,9 +803,7 @@ def obtener_bosques_referidos(
     db.sincronizar_referidos_completo()
     max_depth = max(1, min(int(max_depth or 8), 50))
     grafo = _cargar_grafo_referidos_red(db, incluir_pendientes)
-    raices = _listar_raices_desde_grafo(grafo)
-    if not raices and (grafo.get('aliados') or {}):
-        raices = listar_raices_referidos(db, incluir_pendientes=grafo.get('incluir_pendientes', False))
+    raices = _resolver_raices_referidos(db, grafo, incluir_pendientes)
     bosques: List[Dict[str, Any]] = []
     for codigo in raices:
         arbol = _construir_arbol_desde_grafo(db, grafo, codigo, max_depth)

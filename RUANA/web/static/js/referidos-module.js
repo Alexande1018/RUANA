@@ -182,8 +182,18 @@
     }
 
     RuanaReferidosTree.prototype._fetchJson = function (url) {
-        return fetch(url, Object.assign({ credentials: 'same-origin' }, this.fetchOptions))
-            .then(function (r) { return r.json(); });
+        var opts = Object.assign({ credentials: 'same-origin' }, this.fetchOptions || {});
+        return fetch(url, opts).then(function (r) {
+            return r.json().then(function (data) {
+                if (!r.ok && data && !data.message) {
+                    data.message = 'Error HTTP ' + r.status;
+                }
+                if (!r.ok && (!data || data.status !== 'success')) {
+                    throw new Error((data && data.message) || ('Error HTTP ' + r.status));
+                }
+                return data;
+            });
+        });
     };
 
     RuanaReferidosTree.prototype._setLoading = function (msg) {
@@ -688,7 +698,38 @@
     };
 
     RuanaReferidosTree.prototype.loadAdmin = function () {
-        return this.loadAdminFull();
+        var self = this;
+        this._setLoading('Cargando raíces del árbol genealógico…');
+        return this._fetchJson(this.apiRaices).then(function (data) {
+            if (data.status !== 'success') throw new Error(data.message || 'Error');
+            self._expanded = {};
+            self._childrenCache = {};
+            self._nodosMap = {};
+            self._invitadoresMap = {};
+            self._knownReferidos = {};
+            self._totalNodos = data.total_nodos || 0;
+            (data.raices || []).forEach(function (n) {
+                indexarNodo(n, self._nodosMap, self._invitadoresMap, null);
+            });
+            self.treeContainer.innerHTML = '<div class="referidos-lazy-tree"></div>';
+            var inner = self.treeContainer.querySelector('.referidos-lazy-tree');
+            if (!data.raices || !data.raices.length) {
+                inner.innerHTML = '<div class="referidos-empty-state">No hay aliados en la red de referidos.</div>';
+                renderDetailPanel(self.detailContainer, null);
+            } else {
+                self._renderSubtree(data.raices, inner, 0);
+                self.selectNode(data.raices[0].codigo);
+            }
+            self._updateMeta(self._adminMetaText(data) + ' · Clic en ▶ para expandir · Se actualiza solo');
+            self.startPolling();
+            self._adminLoaded = true;
+            return data;
+        }).catch(function (err) {
+            self.treeContainer.innerHTML = '<div class="referidos-empty-state">' + escapeHtml(err.message || 'Error de conexión') + '</div>';
+            renderDetailPanel(self.detailContainer, null);
+            self._adminLoaded = false;
+            throw err;
+        });
     };
 
     RuanaReferidosTree.prototype.loadAliado = function () {
