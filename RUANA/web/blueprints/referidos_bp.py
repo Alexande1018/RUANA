@@ -96,7 +96,7 @@ def admin_referidos_arbol():
                 "total_nodos": _contar_nodos_arbol(arbol),
                 "timestamp": datetime.now().isoformat(),
             })
-        bosques = referido_service.obtener_bosques_referidos(
+        bosques = red_arbol_service.obtener_bosque_arbol_admin_completo(
             db, max_depth=profundidad_int, incluir_pendientes=True
         )
         total_nodos = sum(_contar_nodos_arbol(b) for b in bosques)

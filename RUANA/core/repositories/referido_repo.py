@@ -97,12 +97,18 @@ class ReferidoRepo:
     def listar_aliados_grafo_red(self, cursor, incluir_pendientes: bool = False) -> List[Any]:
         """Un solo SELECT con todos los aliados relevantes para el árbol en memoria."""
         vis = self._visible_en_grafo_clause(incluir_pendientes, 'a', cursor=cursor)
+        foto_sql = (
+            ", COALESCE(a.foto_perfil_url, '') AS foto_perfil_url"
+            if self.aliados_tiene_foto_perfil(cursor)
+            else ", '' AS foto_perfil_url"
+        )
         cursor.execute(
             f"""
             SELECT a.codigo, a.nombre, a.oficio, a.codigo_postal, a.marca,
                    a.estado, a.score, a.telefono, a.email, a.creado_en,
                    COALESCE(a.invitado_por_codigo, '') AS invitado_por_codigo,
                    COALESCE(a.invitado_origen, '') AS invitado_origen
+                   {foto_sql}
             FROM aliados a
             WHERE {vis}
             ORDER BY a.creado_en ASC
@@ -141,6 +147,16 @@ class ReferidoRepo:
         try:
             cursor.execute("PRAGMA table_info(aliados)")
             return "invitado_por_codigo" in [row[1] for row in cursor.fetchall()]
+        except Exception:
+            return False
+
+    def aliados_tiene_foto_perfil(self, cursor) -> bool:
+        return self._columna_existe(cursor, "aliados", "foto_perfil_url")
+
+    def _columna_existe(self, cursor, tabla: str, columna: str) -> bool:
+        try:
+            cursor.execute(f"PRAGMA table_info({tabla})")
+            return columna in [row[1] for row in cursor.fetchall()]
         except Exception:
             return False
 
@@ -587,6 +603,49 @@ class ReferidoRepo:
         )
         row = cursor.fetchone()
         return (row[0] if row else 0) or 0
+
+    def listar_aliados_fuera_red(self, cursor, limite: int = 500) -> List[Any]:
+        """Aliados registrados visibles que aún no tienen sitio en el bosque de referidos."""
+        excl = self._estados_excluidos_sql()
+        foto_sql = (
+            ", COALESCE(a.foto_perfil_url, '') AS foto_perfil_url"
+            if self.aliados_tiene_foto_perfil(cursor)
+            else ", '' AS foto_perfil_url"
+        )
+        cursor.execute(
+            f"""
+            SELECT a.codigo, a.nombre, a.oficio, a.codigo_postal, a.marca,
+                   a.estado, a.score, a.telefono, a.email, a.creado_en,
+                   COALESCE(a.invitado_origen, '') AS origen
+                   {foto_sql}
+            FROM aliados a
+            WHERE COALESCE(a.estado, '') = 'pendiente_completar'
+               OR (
+                   COALESCE(a.estado, '') NOT IN ('sistema', 'rechazado', 'expulsado')
+                   AND (
+                       COALESCE(a.invitado_por_codigo, '') = ''
+                       OR NOT EXISTS (
+                           SELECT 1 FROM aliados p
+                           WHERE p.codigo = a.invitado_por_codigo
+                             AND COALESCE(p.estado, '') NOT IN (
+                                 'rechazado', 'expulsado', 'pendiente_completar'
+                             )
+                       )
+                   )
+                   AND NOT (
+                       COALESCE(a.invitado_origen, '') IN ('organico', 'campana', 'sin_atribucion', 'huerfano')
+                   )
+                   AND NOT (
+                       EXISTS (SELECT 1 FROM referidos r WHERE r.codigo_invitador = a.codigo)
+                       AND NOT EXISTS (SELECT 1 FROM referidos r2 WHERE r2.codigo_referido = a.codigo)
+                   )
+               )
+            ORDER BY a.creado_en ASC
+            LIMIT ?
+            """,
+            (max(1, int(limite or 500)),),
+        )
+        return cursor.fetchall()
 
     def contar_aliados_fuera_red(self, cursor) -> int:
         excl = self._estados_excluidos_sql()

@@ -237,3 +237,37 @@ def test_detalle_aliado_panel(client, sqlite_db, monkeypatch):
     aliado = resp.get_json()["aliado"]
     assert aliado["codigo"] == "94001"
     assert "origen_label" in aliado
+
+
+def test_bosque_completo_incluye_organico_sin_hijos(sqlite_db):
+    sqlite_db.obtener_o_crear_invitador_admin("RUANA-ADMIN")
+    _crear_activo(sqlite_db, "95001", "Organico Solo")
+    referido_service.asignar_origen_sin_padre(sqlite_db, "95001", "organico")
+    bosques = red_arbol_service.obtener_bosque_arbol_admin_completo(sqlite_db, max_depth=10)
+    codigos = set()
+    for root in bosques:
+        stack = [root]
+        while stack:
+            n = stack.pop()
+            if n and n.get("codigo"):
+                codigos.add(n["codigo"])
+            stack.extend(n.get("referidos") or [])
+    assert "95001" in codigos
+
+
+def test_admin_arbol_bosque_completo_endpoint(client, sqlite_db, monkeypatch):
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    sqlite_db.obtener_o_crear_invitador_admin("RUANA-ADMIN")
+    _crear_activo(sqlite_db, "96001", "Padre")
+    _crear_activo(sqlite_db, "96002", "Hijo")
+    sqlite_db.asignar_invitado_por("96002", "96001", "ampliar_red")
+    resp = client.get(
+        "/api/admin/referidos/arbol?profundidad=20",
+        headers=_session_headers("RUANA-ADMIN", "admin"),
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["status"] == "success"
+    assert data["modo"] == "bosque"
+    assert len(data["bosques"]) >= 1
+    assert data["total_nodos"] >= 2

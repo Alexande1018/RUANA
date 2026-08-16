@@ -16,6 +16,7 @@ _repo = ReferidoRepo()
 # Identificadores de nodos virtuales (solo presentación; no son aliados reales)
 VIRTUAL_RUANA = "__RUANA__"
 VIRTUAL_SIN_ATRIBUCION = "__SIN_ATRIBUCION__"
+VIRTUAL_PENDIENTE_VINCULO = "__PENDIENTE_VINCULO__"
 VIRTUAL_CAMPANA_PREFIX = "__CAMPANA__:"
 
 ORIGENES_SIN_PADRE_REAL = frozenset({
@@ -30,6 +31,7 @@ def es_nodo_virtual(codigo: str) -> bool:
     return (
         c == VIRTUAL_RUANA
         or c == VIRTUAL_SIN_ATRIBUCION
+        or c == VIRTUAL_PENDIENTE_VINCULO
         or c.startswith(VIRTUAL_CAMPANA_PREFIX)
     )
 
@@ -323,6 +325,17 @@ def listar_hijos_arbol(
                 ),
                 _listar_hijos_sin_atribucion(db),
             )
+        if codigo_padre == VIRTUAL_PENDIENTE_VINCULO:
+            pendientes = _listar_hijos_pendientes_vinculo(db)
+            return (
+                _nodo_virtual(
+                    VIRTUAL_PENDIENTE_VINCULO,
+                    "Pendientes de vincular",
+                    "pendiente_vinculo",
+                    meta={"miembros": len(pendientes)},
+                ),
+                pendientes,
+            )
         codigo_camp = parse_codigo_campana(codigo_padre)
         if codigo_camp:
             camp = db.obtener_campana_invitacion(codigo_camp) or {}
@@ -607,3 +620,191 @@ def migrar_linaje_historico_v2(db) -> Dict[str, int]:
             if conn:
                 conn.close()
     return stats
+
+
+def _foto_perfil_select(cursor, alias: str = "a") -> str:
+    if _repo.aliados_tiene_foto_perfil(cursor):
+        return f", COALESCE({alias}.foto_perfil_url, '') AS foto_perfil_url"
+    return ", '' AS foto_perfil_url"
+
+
+def _enriquecer_arbol_recursivo(
+    db,
+    nodo: Optional[Dict[str, Any]],
+    grafo: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    if not nodo:
+        return None
+    if nodo.get("virtual"):
+        refs = []
+        for hijo in nodo.get("referidos") or []:
+            enriched = _enriquecer_arbol_recursivo(db, hijo, grafo)
+            if enriched:
+                refs.append(enriched)
+        nodo["referidos"] = refs
+        return nodo
+    nodo = _enriquecer_nodo_aliado(db, nodo, grafo)
+    refs = []
+    for hijo in nodo.get("referidos") or []:
+        enriched = _enriquecer_arbol_recursivo(db, hijo, grafo)
+        if enriched:
+            refs.append(enriched)
+    nodo["referidos"] = refs
+    return nodo
+
+
+def _codigos_en_arbol(nodo: Optional[Dict[str, Any]], acc: Optional[set] = None) -> set:
+    acc = acc or set()
+    if not nodo:
+        return acc
+    codigo = (nodo.get("codigo") or "").strip()
+    if codigo:
+        acc.add(codigo)
+    for hijo in nodo.get("referidos") or []:
+        _codigos_en_arbol(hijo, acc)
+    return acc
+
+
+def _construir_subarbol_si_no_incluido(
+    db,
+    grafo: Dict[str, Any],
+    codigo: str,
+    max_depth: int,
+    incluidos: set,
+) -> Optional[Dict[str, Any]]:
+    codigo = (codigo or "").strip()
+    if not codigo or codigo in incluidos:
+        return None
+    arbol = referido_service._construir_arbol_desde_grafo(db, grafo, codigo, max_depth)
+    if arbol:
+        enriched = _enriquecer_arbol_recursivo(db, arbol, grafo)
+        incluidos.update(_codigos_en_arbol(enriched))
+        return enriched
+    nodo = referido_service._nodo_desde_grafo(db, grafo, codigo)
+    if not nodo:
+        nodo = referido_service._nodo_referido_resumen(db, codigo)
+    if not nodo:
+        return None
+    enriched = _enriquecer_nodo_aliado(db, nodo, grafo)
+    enriched["referidos"] = []
+    incluidos.add(codigo)
+    return enriched
+
+
+def _listar_hijos_pendientes_vinculo(db) -> List[Dict[str, Any]]:
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            rows = _repo.listar_aliados_fuera_red(cursor)
+        except Exception:
+            rows = []
+        finally:
+            if conn:
+                conn.close()
+    result = []
+    for row in rows:
+        item = dict(row)
+        item["zona"] = item.get("codigo_postal") or ""
+        origen = (item.get("origen") or "sin_atribucion").strip() or "sin_atribucion"
+        item["origen"] = origen
+        item["origen_label"] = db.etiqueta_origen_referido(origen)
+        item["padre_codigo"] = None
+        item = _enriquecer_nodo_aliado(db, item)
+        result.append(item)
+    return result
+
+
+def obtener_bosque_arbol_admin_completo(
+    db,
+    max_depth: int = 50,
+    incluir_pendientes: bool = True,
+) -> List[Dict[str, Any]]:
+    """Bosque admin con todos los aliados: raíces reales, campañas, sin atribución y pendientes."""
+    referido_service.sincronizar_referidos_completo(db)
+    max_depth = max(1, min(int(max_depth or 50), 50))
+    grafo = referido_service._cargar_grafo_referidos_red(db, incluir_pendientes)
+    incluidos: set = set()
+    bosques: List[Dict[str, Any]] = []
+
+    raices = referido_service._resolver_raices_referidos(db, grafo, incluir_pendientes)
+    for codigo in raices:
+        arbol = _construir_subarbol_si_no_incluido(db, grafo, codigo, max_depth, incluidos)
+        if arbol:
+            bosques.append(arbol)
+
+    for camp in _listar_campanas_con_miembros(db):
+        codigo_c = (camp.get("codigo") or "").strip()
+        hijos_planos = _listar_hijos_campana(db, codigo_c)
+        hijos_arboles: List[Dict[str, Any]] = []
+        for h in hijos_planos:
+            hc = (h.get("codigo") or "").strip()
+            sub = _construir_subarbol_si_no_incluido(db, grafo, hc, max_depth, incluidos)
+            if sub:
+                hijos_arboles.append(sub)
+        if hijos_arboles:
+            bosques.append(
+                _nodo_virtual(
+                    codigo_nodo_campana(codigo_c),
+                    camp.get("nombre") or codigo_c,
+                    "campana",
+                    subtitulo=f"Campaña · {codigo_c}",
+                    meta={
+                        "codigo_campana": codigo_c,
+                        "miembros": len(hijos_arboles),
+                        "origen": "campana",
+                        "origen_label": db.etiqueta_origen_referido("campana"),
+                        "referidos": hijos_arboles,
+                    },
+                )
+            )
+
+    sin_hijos = _listar_hijos_sin_atribucion(db)
+    sin_arboles: List[Dict[str, Any]] = []
+    for h in sin_hijos:
+        hc = (h.get("codigo") or "").strip()
+        sub = _construir_subarbol_si_no_incluido(db, grafo, hc, max_depth, incluidos)
+        if sub:
+            sin_arboles.append(sub)
+    if sin_arboles:
+        bosques.append(
+            _nodo_virtual(
+                VIRTUAL_SIN_ATRIBUCION,
+                "Sin atribución",
+                "sin_atribucion",
+                subtitulo="Registro orgánico o origen desconocido",
+                meta={
+                    "miembros": len(sin_arboles),
+                    "origen": "sin_atribucion",
+                    "origen_label": db.etiqueta_origen_referido("sin_atribucion"),
+                    "referidos": sin_arboles,
+                },
+            )
+        )
+
+    pendientes = _listar_hijos_pendientes_vinculo(db)
+    pend_arboles: List[Dict[str, Any]] = []
+    for h in pendientes:
+        hc = (h.get("codigo") or "").strip()
+        sub = _construir_subarbol_si_no_incluido(db, grafo, hc, max_depth, incluidos)
+        if sub:
+            pend_arboles.append(sub)
+    if pend_arboles:
+        bosques.append(
+            _nodo_virtual(
+                VIRTUAL_PENDIENTE_VINCULO,
+                "Pendientes de vincular",
+                "pendiente_vinculo",
+                subtitulo="Aliados registrados sin linaje completo",
+                meta={
+                    "miembros": len(pend_arboles),
+                    "origen": "sin_atribucion",
+                    "origen_label": "Pendiente de vincular",
+                    "referidos": pend_arboles,
+                },
+            )
+        )
+
+    return bosques

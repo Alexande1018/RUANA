@@ -206,6 +206,7 @@ def _nodo_desde_grafo(db, grafo: Dict[str, Any], codigo: str) -> Optional[Dict[s
         'origen_label': db.etiqueta_origen_referido(origen),
         'invitador_nombre': invitador_nombre,
         'invitador_codigo': invitador_codigo,
+        'foto_perfil_url': (aliado.get('foto_perfil_url') or '').strip(),
     }
     if (aliado.get('estado') or '').strip() == 'pendiente_completar':
         nodo['pendiente_alta'] = True
