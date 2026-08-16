@@ -139,7 +139,8 @@ body::after {
 .filters-section,
 .invite-card,
 .register-card,
-.access-card {
+.access-card,
+.ruana-alert-card--critical {
     position: relative;
     transition:
         transform var(--ruana-transition),
@@ -156,7 +157,8 @@ body::after {
 .ruana-card-premium::before,
 .aliado-card::before,
 .invite-card::before,
-.register-card::before {
+.register-card::before,
+.ruana-alert-card--critical::before {
     content: '';
     position: absolute;
     top: 0;
@@ -182,7 +184,8 @@ body::after {
 .solicitud-card::after,
 .perfil-block::after,
 .ruana-auth-card::after,
-.ruana-card-premium::after {
+.ruana-card-premium::after,
+.ruana-alert-card--critical::after {
     content: '';
     position: absolute;
     inset: 10px;

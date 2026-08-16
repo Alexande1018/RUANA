@@ -253,6 +253,7 @@
     // Alerta automática cuando score < 50
     var alerta = document.getElementById('score-alerta-panel');
     if (alerta) alerta.classList.toggle('visible', score < 50);
+    if (typeof host.renderAlertHub === 'function') host.renderAlertHub();
     if (typeof global.RuanaUI !== 'undefined') global.RuanaUI.initIcons();
     maybeShowScoreChangeNotification(host);
   }

@@ -46,7 +46,10 @@
     const info = (host.aliado && host.aliado.competencia_info) ? host.aliado.competencia_info : null;
     wrap.classList.remove('pendiente', 'retador');
     wrap.style.display = 'none';
-    if (!info || (!info.en_competencia && !info.competencia_pendiente)) return;
+    if (!info || (!info.en_competencia && !info.competencia_pendiente)) {
+        if (typeof host.renderAlertHub === 'function') host.renderAlertHub();
+        return;
+    }
 
     wrap.style.display = 'block';
     const oficio = info.oficio || (host.aliado && host.aliado.oficio) || 'tu oficio';
@@ -57,6 +60,7 @@
         tituloEl.innerHTML = '<strong>Competencia pendiente</strong>';
         textoEl.textContent = info.mensaje || 'Esperando retador para iniciar la competencia por permanencia.';
         metaEl.textContent = 'Cuando haya un profesional disponible del mismo oficio y código postal, comenzará un periodo de 30 días.';
+        if (typeof host.renderAlertHub === 'function') host.renderAlertHub();
         return;
     }
 
@@ -83,6 +87,7 @@
         partes.push('Contrincante: ' + info.contrincante_codigo);
     }
     metaEl.textContent = partes.join(' · ');
+    if (typeof host.renderAlertHub === 'function') host.renderAlertHub();
   }
 
   function renderGrupo(host) {

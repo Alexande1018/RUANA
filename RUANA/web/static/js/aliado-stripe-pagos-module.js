@@ -93,6 +93,7 @@
   }
 
   function renderOnboardingUi(host) {
+    if (typeof host.renderAlertHub === 'function') host.renderAlertHub();
     if (!stripePagosActivos()) return;
     const aliado = (host && host.aliado) || {};
     const conectado = isStripeConectado(aliado);

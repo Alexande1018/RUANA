@@ -40,12 +40,111 @@
     return 'Pendiente de cálculo';
   }
 
+  function buildCompetenciaAlertCopy(info, host) {
+    if (!info) return null;
+    const oficio = info.oficio || (host.aliado && host.aliado.oficio) || 'tu oficio';
+    if (info.competencia_pendiente) {
+      return {
+        title: 'Competencia pendiente',
+        description: info.mensaje || 'Esperando retador para iniciar la competencia por permanencia.',
+        pendiente: true,
+        criticalTone: 'prioritario',
+      };
+    }
+    const rol = info.rol || 'titular';
+    if (rol === 'retador') {
+      return {
+        title: 'Oportunidad de plaza',
+        description: 'Compites por la plaza del grupo principal. Durante 30 días, quien acumule mayor score permanece en la plaza.',
+        pendiente: false,
+        criticalTone: 'competencia',
+      };
+    }
+    return {
+      title: 'En competencia',
+      description: 'Compites por la permanencia en la plaza de ' + oficio + '. Al finalizar el periodo, gana quien tenga mayor score.',
+      pendiente: false,
+      criticalTone: 'competencia',
+    };
+  }
+
+  function buildCompetenciaAlertMeta(info) {
+    if (!info) return '';
+    if (info.competencia_pendiente) {
+      return 'Cuando haya un profesional disponible del mismo oficio y código postal, comenzará un periodo de 30 días.';
+    }
+    const partes = [];
+    const dias = info.dias_restantes != null ? info.dias_restantes : null;
+    if (dias != null) partes.push(dias + ' día' + (dias === 1 ? '' : 's') + ' restante' + (dias === 1 ? '' : 's'));
+    if (info.fecha_fin_prevista) {
+      const fin = new Date(String(info.fecha_fin_prevista).replace(' ', 'T'));
+      if (!isNaN(fin.getTime())) {
+        partes.push('Fin previsto: ' + fin.toLocaleDateString('es-ES'));
+      }
+    }
+    if (info.contrincante_codigo) {
+      partes.push('Contrincante: ' + info.contrincante_codigo);
+    }
+    return partes.join(' · ');
+  }
+
   function buildAlertItems(host) {
     const items = [];
     const contactos = Array.isArray(host.contactosPagoPendiente) ? host.contactosPagoPendiente : [];
     const notifs = (Array.isArray(host.notificaciones) ? host.notificaciones : []).filter(n => n && n.leida === 0);
     const hub = typeof RuanaAlertHub !== 'undefined' ? RuanaAlertHub : null;
     const trunc = hub ? hub.truncate.bind(hub) : (s, n) => String(s || '').slice(0, n);
+
+    if (host.aliado && typeof host.aliado.score === 'number' && host.aliado.score < 50) {
+        items.push({
+            id: 'score-bajo',
+            type: 'info',
+            critical: true,
+            criticalTone: 'riesgo',
+            priority: 300,
+            title: 'Tu Score RUANA necesita atención',
+            description: 'Tu Score RUANA está por debajo de 50. Mejora el cierre de contactos y la coherencia en importes para recuperar posición.',
+            actionLabel: null,
+            hasDetail: false,
+            createdAt: Date.now()
+        });
+    }
+
+    const competenciaInfo = (host.aliado && host.aliado.competencia_info) ? host.aliado.competencia_info : null;
+    if (competenciaInfo && (competenciaInfo.en_competencia || competenciaInfo.competencia_pendiente)) {
+        const compCopy = buildCompetenciaAlertCopy(competenciaInfo, host);
+        if (compCopy) {
+            items.push({
+                id: 'competencia',
+                type: 'action',
+                critical: true,
+                criticalTone: compCopy.criticalTone,
+                priority: 320,
+                title: compCopy.title,
+                description: compCopy.description,
+                actionLabel: 'Ver detalle',
+                hasDetail: true,
+                pendiente: !!competenciaInfo.competencia_pendiente,
+                createdAt: Date.now()
+            });
+        }
+    }
+
+    if (global.RuanaStripePagos && global.RuanaStripePagos.stripePagosActivos() &&
+        host.aliado && !global.RuanaStripePagos.isStripeConectado(host.aliado)) {
+        items.push({
+            id: 'stripe-pendiente',
+            type: 'payment',
+            critical: true,
+            criticalTone: 'prioritario',
+            priority: 310,
+            title: 'Conecta tu cuenta de pago',
+            description: 'Para recibir encargos pagados debes conectar tu cuenta de pago.',
+            actionLabel: 'Conectar ahora',
+            hasDetail: false,
+            createdAt: Date.now()
+        });
+    }
 
     if (contactos.length > 0) {
         const first = contactos[0];
@@ -95,7 +194,8 @@
     if (!hub) return;
     const titles = {
         'apoyo-pago': 'Apoyo RUANA pendiente',
-        'mensajes-ruana': 'Mensajes de RUANA'
+        'mensajes-ruana': 'Mensajes de RUANA',
+        'competencia': 'Estado de competencia'
     };
     const body = hub.renderDetailHeader(detailEl, titles[detailId] || 'Detalle', function () {
         host._alertHubState.expandedDetailId = null;
@@ -144,6 +244,23 @@
         footer.innerHTML = '<button type="button" class="ruana-alert-detail-btn" id="btn-marcar-notificaciones-leidas">Marcar como leídos</button>';
         body.appendChild(footer);
         footer.querySelector('#btn-marcar-notificaciones-leidas')?.addEventListener('click', () => host.marcarTodasNotificacionesLeidas());
+    } else if (detailId === 'competencia') {
+        const info = (host.aliado && host.aliado.competencia_info) ? host.aliado.competencia_info : null;
+        const compCopy = buildCompetenciaAlertCopy(info, host);
+        const meta = buildCompetenciaAlertMeta(info);
+        const div = document.createElement('div');
+        div.className = 'ruana-alert-detail-item';
+        let rolLabel = 'Titular';
+        if (info && info.competencia_pendiente) rolLabel = 'Pendiente de retador';
+        else if (info && info.rol === 'retador') rolLabel = 'Retador';
+        div.innerHTML =
+            '<div class="ruana-alert-detail-item__text">' +
+                (compCopy ? '<strong>' + host.escapeHtml(compCopy.title) + '</strong><br>' : '') +
+                host.escapeHtml((compCopy && compCopy.description) || '') +
+                (meta ? '<br><span style="opacity:0.85">' + host.escapeHtml(meta) + '</span>' : '') +
+                '<br><span style="opacity:0.75">Rol: ' + host.escapeHtml(rolLabel) + '</span>' +
+            '</div>';
+        body.appendChild(div);
     }
   }
 
@@ -161,6 +278,14 @@
 
     RuanaAlertHub.render(hubEl, items, host._alertHubState, {
         onAction: function (item) {
+            if (item.id === 'stripe-pendiente') {
+                if (global.RuanaStripePagos && typeof global.RuanaStripePagos.iniciarOnboardingStripe === 'function') {
+                    global.RuanaStripePagos.iniciarOnboardingStripe().catch(function (e) {
+                        alert(e && e.message ? e.message : String(e));
+                    });
+                }
+                return;
+            }
             if (item.hasDetail) {
                 host._alertHubState.expandedDetailId =
                     host._alertHubState.expandedDetailId === item.id ? null : item.id;
