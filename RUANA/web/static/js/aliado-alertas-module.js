@@ -132,8 +132,10 @@
         }
     }
 
-    if (global.RuanaStripePagos && global.RuanaStripePagos.stripePagosActivos() &&
-        host.aliado && !global.RuanaStripePagos.isStripeConectado(host.aliado)) {
+    if (global.RuanaStripePagos && typeof global.RuanaStripePagos.stripePagosActivos === 'function' &&
+        global.RuanaStripePagos.stripePagosActivos() &&
+        host.aliado && typeof global.RuanaStripePagos.isStripeConectado === 'function' &&
+        !global.RuanaStripePagos.isStripeConectado(host.aliado)) {
         items.push({
             id: 'stripe-pendiente',
             type: 'payment',
@@ -289,6 +291,9 @@
     if (!hubEl || typeof RuanaAlertHub === 'undefined') return;
     const items = host.buildAlertItems();
 
+    if (!host._alertHubState) {
+        host._alertHubState = { showAll: false, expandedDetailId: null };
+    }
     if (items.length === 0) {
         host._alertHubState = { showAll: false, expandedDetailId: null };
     } else if (host._alertHubState.expandedDetailId &&

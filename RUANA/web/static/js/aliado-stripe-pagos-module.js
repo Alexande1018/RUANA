@@ -368,6 +368,7 @@
     htmlBloqueoPrecioNegociacion,
     enlazarBotonesOnboarding,
     isStripeConectado,
+    stripePagosActivos,
     labelEstadoPago,
     MSG_PAGO_NO_DISPONIBLE,
   };
