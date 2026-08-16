@@ -6,11 +6,26 @@ SQL de referidos vía ReferidoRepo.
 from __future__ import annotations
 
 import sqlite3
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.repositories.referido_repo import ReferidoRepo
 
 _repo = ReferidoRepo()
+
+
+def _db_text(val: Any, default: str = '') -> str:
+    """Normaliza valores de BD (str, datetime, date) a texto seguro."""
+    if val is None:
+        return default
+    if isinstance(val, str):
+        return val.strip()
+    if isinstance(val, datetime):
+        return val.isoformat(sep=' ', timespec='seconds')
+    if isinstance(val, date):
+        return val.isoformat()
+    return str(val).strip()
+
 
 # --- Grafo en memoria para árbol/bosque (evita N+1 por nodo) ---
 
@@ -66,8 +81,10 @@ def _cargar_grafo_referidos_red(db, incluir_pendientes: bool = False) -> Dict[st
     aliados: Dict[str, Dict[str, Any]] = {}
     for row in aliados_rows:
         item = dict(row)
-        codigo = (item.get('codigo') or '').strip()
+        codigo = _db_text(item.get('codigo'))
         if codigo:
+            if item.get('creado_en') is not None:
+                item['creado_en'] = _db_text(item.get('creado_en'))
             aliados[codigo] = item
 
     padre_por_hijo: Dict[str, str] = {}
@@ -85,14 +102,15 @@ def _cargar_grafo_referidos_red(db, incluir_pendientes: bool = False) -> Dict[st
                 origen_por_hijo[codigo] = origen
 
     for row in vinculos_rows:
-        hijo = (row['codigo_referido'] or '').strip()
-        padre = (row['codigo_invitador'] or '').strip()
+        item = dict(row) if not isinstance(row, dict) else row
+        hijo = _db_text(item.get('codigo_referido'))
+        padre = _db_text(item.get('codigo_invitador'))
         if not hijo or not padre or hijo not in aliados or padre not in aliados:
             continue
         if hijo not in padre_por_hijo:
             padre_por_hijo[hijo] = padre
-        referido_en[(padre, hijo)] = (row['creado_en'] or '').strip()
-        origen = (row['origen'] or '').strip()
+        referido_en[(padre, hijo)] = _db_text(item.get('creado_en'))
+        origen = _db_text(item.get('origen'))
         if origen and hijo not in origen_por_hijo:
             origen_por_hijo[hijo] = origen
 
@@ -108,7 +126,7 @@ def _cargar_grafo_referidos_red(db, incluir_pendientes: bool = False) -> Dict[st
     for padre, hijos in hijos_set.items():
         hijos_por_padre[padre] = sorted(
             hijos,
-            key=lambda c: (aliados.get(c) or {}).get('creado_en') or '',
+            key=lambda c: _db_text((aliados.get(c) or {}).get('creado_en')),
         )
 
     return {
@@ -178,7 +196,7 @@ def _nodo_desde_grafo(db, grafo: Dict[str, Any], codigo: str) -> Optional[Dict[s
         'email': aliado.get('email') or '',
         'especializaciones': [],
         'referidos_count': len((grafo.get('hijos_por_padre') or {}).get(codigo, [])),
-        'creado_en': aliado.get('creado_en') or '',
+        'creado_en': _db_text(aliado.get('creado_en')),
         'origen': origen,
         'origen_label': db.etiqueta_origen_referido(origen),
         'invitador_nombre': invitador_nombre,
@@ -215,8 +233,8 @@ def _construir_arbol_desde_grafo(
                 ref_en = (grafo.get('referido_en') or {}).get((codigo, hijo_codigo), '')
                 if not ref_en:
                     hijo_aliado = (grafo.get('aliados') or {}).get(hijo_codigo, {})
-                    ref_en = hijo_aliado.get('creado_en') or ''
-                sub['referido_en'] = ref_en
+                    ref_en = _db_text(hijo_aliado.get('creado_en'))
+                sub['referido_en'] = _db_text(ref_en)
                 nodo['referidos'].append(sub)
         return nodo
 
@@ -425,7 +443,7 @@ def _nodo_referido_resumen(db, codigo: str) -> Optional[Dict[str, Any]]:
         'email': aliado.get('email') or '',
         'especializaciones': especializaciones,
         'referidos_count': referidos_count,
-        'creado_en': aliado.get('creado_en') or '',
+        'creado_en': _db_text(aliado.get('creado_en')),
         'origen': origen,
         'origen_label': db.etiqueta_origen_referido(origen),
         'invitador_nombre': (invitador or {}).get('nombre') or '',
