@@ -1,11 +1,11 @@
-/* Negociación guiada RUANA — layout chat */
+/* Negociación guiada RUANA — conversación del encargo */
 .neg-modal-overlay {
     display: none;
     position: fixed;
     inset: 0;
     z-index: 10050;
-    background: rgba(0, 0, 0, 0.72);
-    backdrop-filter: blur(6px);
+    background: rgba(2, 6, 14, 0.55);
+    backdrop-filter: blur(3px);
     align-items: stretch;
     justify-content: center;
     padding: 0;
@@ -14,45 +14,151 @@
     display: flex;
 }
 .neg-modal-content {
-    width: min(920px, 100%);
+    width: 100%;
     height: 100%;
     max-height: 100dvh;
     display: flex;
     flex-direction: column;
-    background: linear-gradient(145deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.98));
+    background: #0c1220;
     border: none;
     border-radius: 0;
     box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
     overflow: hidden;
+    animation: neg-panel-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes neg-panel-in {
+    from { opacity: 0; transform: translateY(12px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
 }
 @media (min-width: 769px) {
     .neg-modal-overlay {
-        align-items: center;
-        padding: 16px;
+        background: transparent;
+        backdrop-filter: none;
+        align-items: flex-end;
+        justify-content: flex-end;
+        padding: 0 18px 18px 18px;
+        pointer-events: none;
     }
     .neg-modal-content {
-        height: auto;
-        max-height: 92vh;
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        border-radius: 16px;
+        pointer-events: auto;
+        width: min(420px, calc(100vw - 36px));
+        height: min(680px, calc(100dvh - 36px));
+        max-height: calc(100dvh - 36px);
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 18px;
+        box-shadow:
+            0 0 0 1px rgba(255, 255, 255, 0.04),
+            0 24px 64px rgba(0, 0, 0, 0.55),
+            0 8px 24px rgba(0, 0, 0, 0.35);
     }
 }
 .neg-modal-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    gap: 8px;
-    padding: 12px 14px;
+    gap: 10px;
+    padding: 14px 14px 12px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     flex-shrink: 0;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     position: relative;
     z-index: 3;
+    background: rgba(12, 18, 32, 0.98);
+}
+.neg-header-persona {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+}
+.neg-header-avatar {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+}
+.neg-header-avatar-inner,
+.neg-header-avatar .neg-header-avatar-inner,
+.neg-header-avatar .ruana-msg-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(51, 65, 85, 0.6);
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #cbd5e1;
+}
+.neg-header-meta {
+    min-width: 0;
+    flex: 1;
 }
 .neg-modal-title {
     margin: 0;
-    font-size: 1rem;
-    color: #f1f5f9;
+    font-size: 0.95rem;
+    font-weight: 650;
+    color: #f8fafc;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.neg-header-subtitle {
+    margin: 2px 0 0;
+    font-size: 0.78rem;
+    color: #94a3b8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.neg-header-servicio {
+    margin: 3px 0 0;
+    font-size: 0.72rem;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.neg-header-estado {
+    display: inline-block;
+    margin-top: 5px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    background: rgba(100, 116, 139, 0.25);
+    color: #94a3b8;
+}
+.neg-header-estado.is-turno {
+    background: rgba(34, 197, 94, 0.18);
+    color: #86efac;
+}
+.neg-btn-cerrar-x {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #94a3b8;
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 150ms ease, color 150ms ease;
+}
+.neg-btn-cerrar-x:hover,
+.neg-btn-cerrar-x:focus-visible {
+    background: rgba(255, 255, 255, 0.12);
+    color: #e2e8f0;
+    outline: none;
 }
 .neg-modal-header-actions {
     display: flex;
@@ -101,13 +207,14 @@
 }
 .neg-timeline {
     flex: 1;
-    padding: 12px 14px;
+    padding: 14px 14px 8px;
     overflow-y: auto;
     min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
     -webkit-overflow-scrolling: touch;
+    background: linear-gradient(180deg, rgba(8, 12, 22, 0.4) 0%, rgba(12, 18, 32, 0) 48px);
 }
 .neg-chat-empty {
     color: #64748b;
@@ -312,15 +419,57 @@ textarea.neg-compose-input {
 .neg-btn-warn { background: rgba(234, 179, 8, 0.85); color: #422006; }
 .neg-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .neg-acuerdo-resumen {
-    padding: 12px 14px;
+    padding: 14px 16px;
     margin: 0;
-    border-bottom: 1px solid rgba(34, 197, 94, 0.25);
-    background: rgba(34, 197, 94, 0.1);
+    border-bottom: 1px solid rgba(34, 197, 94, 0.22);
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.12), rgba(15, 118, 110, 0.08));
+}
+.neg-acuerdo-resumen--destacado {
+    border-left: 3px solid #22c55e;
+}
+.neg-acuerdo-resumen-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.neg-acuerdo-resumen-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(34, 197, 94, 0.25);
+    color: #86efac;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+.neg-acuerdo-resumen-dl {
+    margin: 0;
+    display: grid;
+    gap: 6px;
+}
+.neg-acuerdo-resumen-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 0.82rem;
+}
+.neg-acuerdo-resumen-row dt {
+    color: #94a3b8;
+    margin: 0;
+}
+.neg-acuerdo-resumen-row dd {
+    margin: 0;
+    color: #f1f5f9;
+    font-weight: 600;
+    text-align: right;
 }
 .neg-acuerdo-resumen h3 {
-    margin: 0 0 8px;
+    margin: 0;
     color: #86efac;
-    font-size: 0.95rem;
+    font-size: 0.92rem;
 }
 .neg-acuerdo-hint {
     margin-top: 8px;
@@ -849,4 +998,385 @@ body.neg-modal-abierto .acuerdo-flotante.show {
     color: #86efac;
     font-size: 0.82rem;
     line-height: 1.35;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+    margin: 0 0 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(34, 197, 94, 0.12);
+    border: 1px solid rgba(34, 197, 94, 0.25);
+    color: #86efac;
+    font-size: 0.82rem;
+    line-height: 1.35;
+}
+
+/* ——— Timeline: mensajes, eventos, agrupación ——— */
+.neg-day-sep {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 6px 0;
+    color: #64748b;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.neg-day-sep::before,
+.neg-day-sep::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(148, 163, 184, 0.18);
+}
+.neg-msg-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-width: 92%;
+    animation: neg-msg-in 180ms ease;
+}
+.neg-msg-group--mine {
+    align-self: flex-end;
+    align-items: flex-end;
+}
+.neg-msg-group--theirs {
+    align-self: flex-start;
+    align-items: flex-start;
+}
+.neg-msg-group-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 2px;
+}
+.neg-msg-name {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #94a3b8;
+}
+.neg-msg-avatar,
+.ruana-msg-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(51, 65, 85, 0.7);
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: #cbd5e1;
+}
+.neg-msg-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.neg-msg-bubble {
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-size: 0.88rem;
+    line-height: 1.45;
+    word-break: break-word;
+}
+.neg-msg-group--theirs .neg-msg-bubble {
+    background: rgba(30, 41, 59, 0.9);
+    color: #e2e8f0;
+    border-bottom-left-radius: 4px;
+}
+.neg-msg-group--mine .neg-msg-bubble {
+    background: rgba(20, 83, 45, 0.55);
+    color: #ecfdf5;
+    border: 1px solid rgba(34, 197, 94, 0.2);
+    border-bottom-right-radius: 4px;
+}
+.neg-msg-text {
+    margin: 0;
+    white-space: pre-wrap;
+}
+.neg-msg-time {
+    font-size: 0.65rem;
+    color: #64748b;
+    margin-top: 2px;
+}
+@keyframes neg-msg-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.neg-ruana-event {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    text-align: center;
+}
+.neg-ruana-event--sistema {
+    justify-content: center;
+    flex-wrap: wrap;
+}
+.neg-ruana-event-line {
+    flex: 1;
+    min-width: 24px;
+    height: 1px;
+    background: rgba(148, 163, 184, 0.2);
+}
+.neg-ruana-event-text {
+    flex: 0 1 auto;
+    max-width: 85%;
+    line-height: 1.35;
+}
+.neg-ruana-event--aceptacion {
+    justify-content: center;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: rgba(34, 197, 94, 0.08);
+    border: 1px solid rgba(34, 197, 94, 0.18);
+    color: #86efac;
+}
+.neg-ruana-event-icon {
+    font-weight: 700;
+}
+.neg-ruana-event-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    align-items: center;
+}
+.neg-ruana-event-title {
+    font-weight: 600;
+}
+.neg-ruana-event-valor {
+    font-size: 0.88rem;
+    color: #d1fae5;
+}
+.neg-ruana-event-time {
+    font-size: 0.65rem;
+    opacity: 0.75;
+}
+
+.neg-event-card {
+    align-self: center;
+    width: min(100%, 320px);
+    margin: 6px 0;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    animation: neg-msg-in 200ms ease;
+}
+.neg-event-card--propuesta {
+    border-color: rgba(99, 102, 241, 0.35);
+    box-shadow: inset 0 1px 0 rgba(129, 140, 248, 0.12);
+}
+.neg-event-card--contraoferta {
+    border-color: rgba(234, 179, 8, 0.35);
+    box-shadow: inset 0 1px 0 rgba(250, 204, 21, 0.1);
+}
+.neg-event-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+.neg-event-card-kicker {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #a5b4fc;
+}
+.neg-event-card--contraoferta .neg-event-card-kicker {
+    color: #fde68a;
+}
+.neg-event-card-time {
+    font-size: 0.65rem;
+    color: #64748b;
+}
+.neg-event-card-dl {
+    margin: 0;
+}
+.neg-event-card-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 0.82rem;
+    padding: 4px 0;
+    border-top: 1px solid rgba(148, 163, 184, 0.1);
+}
+.neg-event-card-row:first-child {
+    border-top: none;
+    padding-top: 0;
+}
+.neg-event-card-row dt {
+    color: #94a3b8;
+    margin: 0;
+}
+.neg-event-card-row dd {
+    margin: 0;
+    color: #f1f5f9;
+    font-weight: 600;
+    text-align: right;
+}
+.neg-event-card-msg {
+    margin: 8px 0 0;
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    line-height: 1.4;
+}
+
+.neg-context-card {
+    border-radius: 14px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(15, 23, 42, 0.65);
+    overflow: hidden;
+}
+.neg-context-card-title {
+    margin: 0;
+    padding: 10px 14px 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    line-height: 1.35;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+.neg-context-card-body {
+    padding: 10px 12px 12px;
+}
+.neg-context-card-body .neg-compose-stack {
+    gap: 10px;
+}
+
+.perfil-mensajes-wrap {
+    margin-bottom: 20px;
+}
+.perfil-mensajes-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+.perfil-mensajes-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 650;
+    color: #f1f5f9;
+}
+.perfil-mensajes-subtitle {
+    margin: 0;
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+.perfil-mensajes-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.perfil-mensajes-empty {
+    margin: 0;
+    padding: 16px;
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.45);
+    border: 1px dashed rgba(148, 163, 184, 0.2);
+    color: #94a3b8;
+    font-size: 0.85rem;
+    text-align: center;
+}
+.perfil-mensaje-card {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 10px 12px;
+    align-items: start;
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.55);
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+.perfil-mensaje-card:hover,
+.perfil-mensaje-card:focus-visible {
+    border-color: rgba(162, 255, 0, 0.35);
+    background: rgba(15, 23, 42, 0.75);
+    outline: none;
+    transform: translateY(-1px);
+}
+.perfil-mensaje-card.is-pendiente {
+    border-color: rgba(34, 197, 94, 0.28);
+    box-shadow: inset 3px 0 0 #22c55e;
+}
+.perfil-mensaje-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+}
+.perfil-mensaje-body {
+    min-width: 0;
+}
+.perfil-mensaje-nombre {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 650;
+    color: #f8fafc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.perfil-mensaje-oficio {
+    margin: 2px 0 0;
+    font-size: 0.75rem;
+    color: #94a3b8;
+}
+.perfil-mensaje-preview {
+    margin: 6px 0 0;
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.perfil-mensaje-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+}
+.perfil-mensaje-time {
+    font-size: 0.72rem;
+    color: #64748b;
+    white-space: nowrap;
+}
+.perfil-mensaje-badge {
+    min-width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #f87171;
+}
+.aliado-shell-nav-badge--mensajes {
+    background: rgba(248, 113, 113, 0.22);
+    color: #fecaca;
 }

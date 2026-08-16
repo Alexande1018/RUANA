@@ -222,6 +222,60 @@
     });
   }
 
+  function renderMensajesEncargo(host) {
+    var lista = document.getElementById('perfil-mensajes-lista');
+    var wrap = document.getElementById('perfil-mensajes-wrap');
+    if (!lista) return;
+    var ui = global.RuanaConversacionUI;
+    var contactos = Array.isArray(host.contactosAbiertos) ? host.contactosAbiertos : [];
+    if (ui && typeof ui.sortContactosParaMensajes === 'function') {
+      contactos = ui.sortContactosParaMensajes(contactos);
+    }
+    if (!contactos.length) {
+      lista.innerHTML = '<p class="perfil-mensajes-empty">No tienes conversaciones de encargo activas.</p>';
+      if (wrap) wrap.style.display = '';
+      if (window.AliadoShell && typeof window.AliadoShell.refresh === 'function') {
+        window.AliadoShell.refresh();
+      }
+      return;
+    }
+    lista.innerHTML = contactos.map(function (c) {
+      var contraparte = ui
+        ? ui.resolveContraparte(host, c)
+        : { nombre: 'Aliado', oficio: c.servicio || '', fotoUrl: '' };
+      var preview = ui ? ui.previewFromContacto(host, c) : { texto: c.servicio || '', tiempo: '' };
+      var pendiente = !!c.negociacion_requiere_mi_respuesta;
+      var avatarHtml = ui
+        ? ui.renderAvatarHtml(host, contraparte.fotoUrl, contraparte.nombre, 'perfil-mensaje-avatar')
+        : '';
+      return '<button type="button" class="perfil-mensaje-card' + (pendiente ? ' is-pendiente' : '') + '" role="listitem" data-contacto-id="' + c.id + '" aria-label="Abrir conversación con ' + escapeHtmlSafe(host, contraparte.nombre) + '">' +
+        avatarHtml +
+        '<div class="perfil-mensaje-body">' +
+          '<p class="perfil-mensaje-nombre">' + escapeHtmlSafe(host, contraparte.nombre) + '</p>' +
+          '<p class="perfil-mensaje-oficio">' + escapeHtmlSafe(host, contraparte.oficio) + '</p>' +
+          '<p class="perfil-mensaje-preview">' + escapeHtmlSafe(host, preview.texto) + '</p>' +
+        '</div>' +
+        '<div class="perfil-mensaje-meta">' +
+          (preview.tiempo ? '<span class="perfil-mensaje-time">' + escapeHtmlSafe(host, preview.tiempo) + '</span>' : '') +
+          (pendiente ? '<span class="perfil-mensaje-badge" aria-hidden="true"></span>' : '') +
+        '</div>' +
+      '</button>';
+    }).join('');
+    lista.querySelectorAll('.perfil-mensaje-card').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = parseInt(btn.getAttribute('data-contacto-id') || '0', 10);
+        if (!id) return;
+        if (typeof host.abrirNegociacionContacto === 'function') {
+          host.abrirNegociacionContacto(id, null);
+        }
+      });
+    });
+    if (wrap) wrap.style.display = '';
+    if (window.AliadoShell && typeof window.AliadoShell.refresh === 'function') {
+      window.AliadoShell.refresh();
+    }
+  }
+
   /**
    * Pinta nombre, marca, avatar, detalles y estado; delega catálogo/acuerdos/competencia al host.
    * @param {object} host PrivatePanel
@@ -324,6 +378,7 @@
     if (typeof host.renderCatalogoServicios === 'function') host.renderCatalogoServicios();
     if (typeof host.renderMisAcuerdos === 'function') host.renderMisAcuerdos();
     if (typeof host.renderCompetencia === 'function') host.renderCompetencia();
+    renderMensajesEncargo(host);
   }
 
   function iniciarEditarDescripcion(host) {
@@ -411,6 +466,7 @@
     subirFotoPerfil: subirFotoPerfil,
     quitarFotoPerfil: quitarFotoPerfil,
     renderPerfil: renderPerfil,
+    renderMensajesEncargo: renderMensajesEncargo,
     iniciarEditarDescripcion: iniciarEditarDescripcion,
     cancelarEditarDescripcion: cancelarEditarDescripcion,
     guardarDescripcion: guardarDescripcion,

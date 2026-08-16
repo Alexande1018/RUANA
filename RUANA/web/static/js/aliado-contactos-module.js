@@ -100,6 +100,9 @@
             const stripeSlotOff = document.getElementById('contacto-aviso-stripe-acciones');
             if (stripeSlotOff) stripeSlotOff.innerHTML = '';
             host.renderEncargosActivos();
+            if (typeof host.renderMensajesEncargo === 'function') {
+                host.renderMensajesEncargo();
+            }
             return;
         }
 
@@ -115,7 +118,8 @@
         const accionEl = document.getElementById('contacto-aviso-accion');
         const progresoFill = document.getElementById('contacto-aviso-progreso-fill');
         const progresoTexto = document.getElementById('contacto-aviso-progreso-texto');
-        const btnAbrir = document.getElementById('btn-contacto-abrir-chat');
+        const btnAbrir = document.getElementById('btn-contacto-abrir-negociacion')
+            || document.getElementById('btn-contacto-abrir-chat');
         let progresoConf = ui.progresoConf;
         let progresoTotal = ui.progresoTotal;
         if (estado === 'acuerdo_alcanzado' || host.contactoActual.negociacion_completa) {
@@ -185,6 +189,9 @@
         avisoEl.style.display = 'flex';
         await host.cargarPagosApoyoPendientes();
         host.renderEncargosActivos();
+        if (typeof host.renderMensajesEncargo === 'function') {
+            host.renderMensajesEncargo();
+        }
     } catch (e) {
         console.error('Error cargando contactos pendientes:', e);
     }

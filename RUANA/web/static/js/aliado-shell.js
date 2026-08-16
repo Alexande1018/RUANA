@@ -303,17 +303,47 @@
         });
     }
 
+    function countMensajesPendientes() {
+        const panel = global.PrivatePanel;
+        if (panel && Array.isArray(panel.contactosAbiertos)) {
+            const ui = global.RuanaConversacionUI;
+            if (ui && typeof ui.countMensajesPendientes === 'function') {
+                return ui.countMensajesPendientes(panel.contactosAbiertos);
+            }
+            return panel.contactosAbiertos.filter(function (c) {
+                return c && c.negociacion_requiere_mi_respuesta;
+            }).length;
+        }
+        const list = document.getElementById('perfil-mensajes-lista');
+        if (list) {
+            return list.querySelectorAll('.perfil-mensaje-card.is-pendiente').length;
+        }
+        return countEncargosRequierenRespuesta();
+    }
+
     function updateNavBadges() {
         const entrantes = countListItems('solicitudes-list');
         const encargosTurno = countEncargosRequierenRespuesta();
-        const total = entrantes + encargosTurno;
+        const totalSolicitudes = entrantes + encargosTurno;
         qsa('[data-aliado-badge="solicitudes"]').forEach((badge) => {
-            if (total > 0) {
-                badge.textContent = String(total > 99 ? '99+' : total);
+            if (totalSolicitudes > 0) {
+                badge.textContent = String(totalSolicitudes > 99 ? '99+' : totalSolicitudes);
                 badge.classList.add('is-visible');
             } else {
                 badge.classList.remove('is-visible');
                 badge.textContent = '';
+            }
+        });
+        const mensajesPendientes = countMensajesPendientes();
+        qsa('[data-aliado-badge="mensajes"]').forEach((badge) => {
+            if (mensajesPendientes > 0) {
+                badge.textContent = String(mensajesPendientes > 99 ? '99+' : mensajesPendientes);
+                badge.classList.add('is-visible');
+                badge.setAttribute('aria-label', mensajesPendientes + ' mensajes pendientes');
+            } else {
+                badge.classList.remove('is-visible');
+                badge.textContent = '';
+                badge.setAttribute('aria-label', 'Sin mensajes pendientes');
             }
         });
     }

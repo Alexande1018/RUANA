@@ -41,6 +41,7 @@
     <script src="/static/js/aliado-events-module.js" defer></script>
     <script src="/static/js/aliado-shell.js" defer></script>
     <link rel="stylesheet" href="/static/css/negociacion-guiada.css">
+    <script src="/static/js/ruana-conversacion-ui.js" defer></script>
     <script src="/static/js/negociacion-guiada.js" defer></script>
 </head>
 <body class="panel-loading aliado-app">
@@ -83,6 +84,7 @@
             </button>
             <button type="button" class="aliado-shell-nav-item" data-aliado-nav="perfil" role="tab" aria-selected="false">
                 <i data-lucide="user-round"></i><span>Perfil</span>
+                <span class="aliado-shell-nav-badge aliado-shell-nav-badge--mensajes" data-aliado-badge="mensajes" aria-label="Mensajes pendientes"></span>
             </button>
         </div>
         <div class="aliado-shell-nav-footer">
@@ -114,6 +116,7 @@
         </button>
         <button type="button" class="aliado-shell-bottom-item" data-aliado-nav="perfil">
             <i data-lucide="user-round"></i><span>Perfil</span>
+            <span class="aliado-shell-nav-badge aliado-shell-nav-badge--mensajes" data-aliado-badge="mensajes" aria-label="Mensajes pendientes"></span>
         </button>
     </nav>
 
@@ -167,7 +170,7 @@
             <p class="encargo-seguimiento-accion" id="contacto-aviso-accion"></p>
             <div id="contacto-aviso-stripe-acciones" class="encargo-stripe-acciones"></div>
             <div class="encargo-seguimiento-principal">
-                <button id="btn-contacto-abrir-chat" class="encargo-btn-principal" type="button">Abrir negociación</button>
+                <button id="btn-contacto-abrir-negociacion" class="encargo-btn-principal" type="button">Abrir negociación</button>
             </div>
             <div id="contacto-aviso-subir-prueba" class="contacto-aviso-texto" style="display:none; margin-top:12px; padding:12px; background: rgba(0,0,0,0.2); border-radius:8px;">
                 <strong>Subir comprobante de pago</strong> (solo contratante). Adjunta un documento que acredite el importe.
@@ -294,6 +297,16 @@
                 <h2 class="aliado-module-title">Perfil</h2>
                 <p class="aliado-module-subtitle">Administra tu identidad, descripción y opciones de cuenta.</p>
             </header>
+        <!-- Mensajes de encargos activos -->
+        <section class="perfil-mensajes-wrap ruana-card-premium" id="perfil-mensajes-wrap" aria-labelledby="perfil-mensajes-title">
+            <div class="perfil-mensajes-header">
+                <div>
+                    <h3 class="perfil-mensajes-title" id="perfil-mensajes-title">Mensajes</h3>
+                    <p class="perfil-mensajes-subtitle">Conversaciones de tus encargos activos</p>
+                </div>
+            </div>
+            <div class="perfil-mensajes-lista" id="perfil-mensajes-lista" role="list"></div>
+        </section>
         <!-- BLOQUE 1: Perfil del Aliado -->
         <div class="perfil-block ruana-card-premium">
             <div class="perfil-header">
@@ -662,23 +675,30 @@
         </div>
     </div>
 
-    <!-- Modal negociación guiada RUANA -->
-    <div class="neg-modal-overlay" id="modal-negociacion-guiada">
+    <!-- Panel conversación del encargo (negociación guiada) -->
+    <div class="neg-modal-overlay" id="modal-negociacion-guiada" role="dialog" aria-modal="true" aria-labelledby="neg-modal-title" aria-hidden="true" tabindex="-1">
         <div class="neg-modal-content">
             <div class="neg-modal-header">
-                <div>
-                    <h3 class="neg-modal-title" id="neg-modal-title">Negociación guiada RUANA</h3>
-                    <p class="neg-paso-actual" id="neg-paso-actual"></p>
+                <div class="neg-header-persona">
+                    <div class="neg-header-avatar" id="neg-header-avatar" aria-hidden="true"></div>
+                    <div class="neg-header-meta">
+                        <h3 class="neg-modal-title" id="neg-modal-title">Conversación del encargo</h3>
+                        <p class="neg-header-subtitle" id="neg-header-subtitle"></p>
+                        <p class="neg-header-servicio" id="neg-header-servicio"></p>
+                        <span class="neg-header-estado" id="neg-header-estado">En negociación</span>
+                    </div>
                 </div>
                 <span class="chat-urgente-badge" id="neg-urgente-badge" style="display:none;">URGENTE</span>
                 <div class="neg-modal-header-actions">
                     <button type="button" class="chat-btn-finalizar" id="neg-btn-cerrar-negociacion" aria-label="Cerrar negociación">Cerrar</button>
                     <button type="button" class="chat-btn-volver-panel" id="neg-btn-cerrar" aria-label="Volver al panel">Panel</button>
+                    <button type="button" class="neg-btn-cerrar-x" id="neg-btn-cerrar-x" aria-label="Cerrar conversación">×</button>
                 </div>
             </div>
             <div id="neg-acuerdo-final" style="display:none;"></div>
             <div id="neg-stripe-aviso" class="neg-stripe-aviso" style="display:none;" role="alert" aria-live="polite"></div>
             <div id="neg-estado-bar" class="neg-estado-bar" style="display:none;" aria-live="polite"></div>
+            <p class="neg-paso-actual visually-hidden" id="neg-paso-actual" aria-live="polite"></p>
             <div class="neg-modal-body">
                 <div class="neg-chat-main">
                     <button type="button" class="neg-resumen-toggle" id="neg-resumen-toggle">Ver resumen</button>
@@ -1027,7 +1047,7 @@
                         selector: '.directorio-panel',
                         module: 'directorio',
                         title: 'Directorio del grupo',
-                        copy: 'Busca por nombre, oficio o zona. Con <strong>Contactar</strong> abres un chat privado con el aliado para conversar y gestionar la contratación.',
+                        copy: 'Busca por nombre, oficio o zona. Con <strong>Contactar</strong> inicias la conversación del encargo para cerrar la contratación paso a paso.',
                         placement: 'bottom'
                     },
                     {
@@ -1545,6 +1565,12 @@
                 const mod = this._perfilModule();
                 if (mod && typeof mod.renderPerfil === 'function') {
                     return mod.renderPerfil(this);
+                }
+            }
+            renderMensajesEncargo() {
+                const mod = this._perfilModule();
+                if (mod && typeof mod.renderMensajesEncargo === 'function') {
+                    return mod.renderMensajesEncargo(this);
                 }
             }
             _acuerdosModule() {

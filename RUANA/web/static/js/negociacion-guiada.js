@@ -1,5 +1,5 @@
 /**
- * Negociación guiada RUANA — chat conversacional.
+ * Negociación guiada RUANA — conversación del encargo.
  */
 (function (global) {
     'use strict';
@@ -99,13 +99,18 @@
 
         _bindModal() {
             const cerrar = document.getElementById('neg-btn-cerrar');
+            const cerrarX = document.getElementById('neg-btn-cerrar-x');
             const cerrarNeg = document.getElementById('neg-btn-cerrar-negociacion');
             if (cerrar) cerrar.addEventListener('click', () => this.cerrar());
+            if (cerrarX) cerrarX.addEventListener('click', () => this.cerrar());
             if (cerrarNeg) cerrarNeg.addEventListener('click', () => this.confirmarCerrarNegociacion());
             const overlay = document.getElementById('modal-negociacion-guiada');
             if (overlay) {
                 overlay.addEventListener('click', (e) => {
                     if (e.target === overlay) this.cerrar();
+                });
+                overlay.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') this.cerrar();
                 });
             }
             const toggleResumen = document.getElementById('neg-resumen-toggle');
@@ -127,7 +132,13 @@
             const modal = document.getElementById('modal-negociacion-guiada');
             const title = document.getElementById('neg-modal-title');
             if (title) title.textContent = tituloExtra || 'Negociación guiada RUANA';
-            if (modal) modal.classList.add('show');
+            if (modal) {
+                modal.classList.add('show');
+                modal.setAttribute('aria-hidden', 'false');
+                const focusTarget = document.getElementById('neg-btn-cerrar-x')
+                    || document.getElementById('neg-btn-cerrar');
+                if (focusTarget) focusTarget.focus();
+            }
             document.body.classList.add('neg-modal-abierto');
             if (this.panel && typeof this.panel.ocultarAcuerdoFlotantePorModal === 'function') {
                 this.panel.ocultarAcuerdoFlotantePorModal();
@@ -141,7 +152,10 @@
             const contactoId = this.contactoId;
             this.detenerPolling();
             const modal = document.getElementById('modal-negociacion-guiada');
-            if (modal) modal.classList.remove('show');
+            if (modal) {
+                modal.classList.remove('show');
+                modal.setAttribute('aria-hidden', 'true');
+            }
             this.contactoId = null;
             this.data = null;
             this._drafts = {};
@@ -488,6 +502,7 @@
 
         render() {
             if (!this.data) return;
+            this.renderHeaderContext();
             this.renderStripeAviso();
             this.renderPasoActual();
             this.renderEstadoBar();
@@ -496,6 +511,68 @@
             this.renderAcciones();
             this.renderAcuerdoFinal();
             this.renderBotonesHeader();
+        }
+
+        _contactoAbiertoActual() {
+            if (!this.panel || !this.contactoId) return null;
+            const list = Array.isArray(this.panel.contactosAbiertos) ? this.panel.contactosAbiertos : [];
+            return list.find(c => Number(c.id) === Number(this.contactoId)) || null;
+        }
+
+        _uiConversacion() {
+            return typeof global.RuanaConversacionUI !== 'undefined' ? global.RuanaConversacionUI : null;
+        }
+
+        renderHeaderContext() {
+            const ui = this._uiConversacion();
+            const contacto = this._contactoAbiertoActual();
+            const avatarEl = document.getElementById('neg-header-avatar');
+            const subtitleEl = document.getElementById('neg-header-subtitle');
+            const estadoEl = document.getElementById('neg-header-estado');
+            const servicioEl = document.getElementById('neg-header-servicio');
+            const titleEl = document.getElementById('neg-modal-title');
+
+            let contraparte = { nombre: 'Conversación del encargo', oficio: '', fotoUrl: '', codigo: '' };
+            if (ui && contacto) {
+                contraparte = ui.resolveContraparte(this.panel, contacto);
+            } else if (this.data) {
+                const cod = this.data.rol === 'profesional'
+                    ? this.data.solicitante_codigo
+                    : this.data.profesional_codigo;
+                contraparte.codigo = cod || '';
+                contraparte.nombre = cod ? ('Aliado ' + cod) : contraparte.nombre;
+            }
+
+            if (titleEl) titleEl.textContent = contraparte.nombre;
+            if (subtitleEl) {
+                subtitleEl.textContent = contraparte.oficio
+                    ? contraparte.oficio
+                    : (contacto && contacto.servicio) || 'Encargo RUANA';
+            }
+            if (servicioEl) {
+                const serv = (contacto && contacto.servicio)
+                    || this.data.servicio_contacto
+                    || '';
+                servicioEl.textContent = serv ? ('Encargo: ' + serv) : '';
+                servicioEl.style.display = serv ? '' : 'none';
+            }
+            if (avatarEl && ui) {
+                avatarEl.innerHTML = ui.renderAvatarHtml(
+                    this.panel,
+                    contraparte.fotoUrl,
+                    contraparte.nombre,
+                    'neg-header-avatar-inner'
+                );
+            }
+            if (estadoEl && contacto && this.panel && typeof this.panel._encargoUiLabels === 'function') {
+                const labels = this.panel._encargoUiLabels(contacto);
+                estadoEl.textContent = labels.estadoLabel || 'En negociación';
+                estadoEl.className = 'neg-header-estado' + (labels.requiereRespuesta ? ' is-turno' : '');
+            } else if (estadoEl && this.data && this.data.negociacion_meta) {
+                const meta = this.data.negociacion_meta;
+                estadoEl.textContent = meta.requiere_mi_respuesta ? 'Tu turno' : 'En negociación';
+                estadoEl.className = 'neg-header-estado' + (meta.requiere_mi_respuesta ? ' is-turno' : '');
+            }
         }
 
         renderStripeAviso() {
@@ -592,6 +669,10 @@
         }
 
         _formatValor(campo, valor) {
+            const ui = this._uiConversacion();
+            if (ui && typeof ui.formatValor === 'function') {
+                return ui.formatValor(campo, valor);
+            }
             if (campo === 'fecha' && valor) {
                 try {
                     const d = new Date(valor + 'T12:00:00');
@@ -601,12 +682,33 @@
             return valor;
         }
 
-        renderTimeline() {
-            const el = document.getElementById('neg-timeline');
-            if (!el) return;
+        _wrapComposeCard(titulo, innerHtml) {
+            return `<div class="neg-context-card" role="form" aria-label="${this.escapeHtml(titulo)}">
+                <p class="neg-context-card-title">${this.escapeHtml(titulo)}</p>
+                <div class="neg-context-card-body">${innerHtml}</div>
+            </div>`;
+        }
+
+        _timelineItems() {
+            const ui = this._uiConversacion();
+            const items = [];
             const miCodigo = this._miCodigo();
-            const profNombre = this.data.profesional_codigo ? `Profesional ${this.data.profesional_codigo}` : 'Profesional';
-            const parts = [];
+            const contacto = this._contactoAbiertoActual();
+            let contraparte = { nombre: 'Profesional', fotoUrl: '' };
+            if (ui && contacto) {
+                contraparte = ui.resolveContraparte(this.panel, contacto);
+            }
+            const avatarTheirs = ui
+                ? ui.renderAvatarHtml(this.panel, contraparte.fotoUrl, contraparte.nombre, 'neg-msg-avatar')
+                : '';
+            const avatarMine = ui && this.panel
+                ? ui.renderAvatarHtml(
+                    this.panel,
+                    (this.panel.aliado && (this.panel.aliado.foto_perfil_url || this.panel.aliado.foto_perfil)) || '',
+                    (this.panel.aliado && this.panel.aliado.nombre) || 'Tú',
+                    'neg-msg-avatar'
+                )
+                : '';
 
             const acc = this.data.accion || {};
             if (acc.tipo === 'wizard_contratante') {
@@ -614,12 +716,32 @@
                 const preguntas = this._preguntasWizard(acc);
                 const campos = this._camposWizardActivos(acc);
                 w.historial.forEach(item => {
+                    const date = new Date();
                     if (item.tipo === 'pregunta') {
-                        parts.push(this._bubbleHtml('theirs', item.texto, profNombre));
+                        items.push({
+                            kind: 'message',
+                            side: 'theirs',
+                            name: contraparte.nombre,
+                            avatarHtml: avatarTheirs,
+                            text: item.texto,
+                            time: ui ? ui.formatTimeShort(date) : '',
+                            date: date,
+                        });
                     } else if (item.tipo === 'sistema') {
-                        parts.push(this._bubbleHtml('system', item.texto, ''));
+                        items.push({
+                            kind: 'event',
+                            event: { tipo: 'sistema', mensaje: item.texto, creado_en: date.toISOString() },
+                        });
                     } else {
-                        parts.push(this._bubbleHtml('mine', this._formatValor(item.campo, item.texto), 'Tú'));
+                        items.push({
+                            kind: 'message',
+                            side: 'mine',
+                            name: 'Tú',
+                            avatarHtml: avatarMine,
+                            text: this._formatValor(item.campo, item.texto),
+                            time: ui ? ui.formatTimeShort(date) : '',
+                            date: date,
+                        });
                     }
                 });
                 if (w.pasoIdx < campos.length) {
@@ -627,30 +749,70 @@
                     const pregunta = preguntas[campo] || PREGUNTAS_DEFAULT[campo] || '';
                     const yaMostrada = w.historial.some(h => h.tipo === 'pregunta' && h.campo === campo);
                     if (!yaMostrada && pregunta) {
-                        parts.push(this._bubbleHtml('theirs', pregunta, profNombre));
+                        items.push({
+                            kind: 'message',
+                            side: 'theirs',
+                            name: contraparte.nombre,
+                            avatarHtml: avatarTheirs,
+                            text: pregunta,
+                            time: '',
+                            date: new Date(),
+                        });
                     }
                 } else if (w.pasoIdx >= campos.length && campos.length) {
-                    parts.push(this._bubbleHtml('system', 'Revisa tus respuestas y envía todo al profesional cuando estés listo.'));
+                    items.push({
+                        kind: 'event',
+                        event: {
+                            tipo: 'sistema',
+                            mensaje: 'Revisa tus respuestas y envía todo al profesional cuando estés listo.',
+                            creado_en: new Date().toISOString(),
+                        },
+                    });
                 }
             }
 
             const eventos = Array.isArray(this.data.eventos) ? this.data.eventos : [];
             eventos.forEach(ev => {
-                const fecha = ev.creado_en ? new Date(ev.creado_en).toLocaleString('es-ES', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' }) : '';
-                if (ev.tipo === 'sistema') {
-                    parts.push(this._bubbleHtml('system', ev.mensaje || '', fecha));
+                const fecha = ev.creado_en ? new Date(ev.creado_en) : new Date();
+                const time = ui ? ui.formatTimeShort(fecha) : '';
+                if (ev.tipo === 'sistema' || ev.tipo === 'propuesta' || ev.tipo === 'contraoferta' || ev.tipo === 'aceptacion') {
+                    items.push({ kind: 'event', event: ev });
                     return;
                 }
                 const emisor = String(ev.emisor_codigo || '').trim();
                 const esMio = emisor && emisor === miCodigo;
-                const meta = fecha + (emisor ? ` · ${emisor}` : '');
-                parts.push(this._bubbleHtml(esMio ? 'mine' : 'theirs', ev.mensaje || '', meta));
+                items.push({
+                    kind: 'message',
+                    side: esMio ? 'mine' : 'theirs',
+                    name: esMio ? 'Tú' : contraparte.nombre,
+                    avatarHtml: esMio ? avatarMine : avatarTheirs,
+                    text: ev.mensaje || '',
+                    time: time,
+                    date: fecha,
+                });
             });
+            return items;
+        }
 
-            if (!parts.length) {
-                el.innerHTML = '<p class="neg-chat-empty">La conversación aparecerá aquí.</p>';
+        renderTimeline() {
+            const el = document.getElementById('neg-timeline');
+            if (!el) return;
+            const ui = this._uiConversacion();
+            const items = this._timelineItems();
+            if (!items.length) {
+                el.innerHTML = '<p class="neg-chat-empty">La conversación del encargo aparecerá aquí.</p>';
+                return;
+            }
+            if (ui && typeof ui.buildTimelineHtml === 'function') {
+                el.innerHTML = ui.buildTimelineHtml({
+                    items: items,
+                    escapeHtml: (s) => this.escapeHtml(s),
+                });
             } else {
-                el.innerHTML = parts.join('');
+                el.innerHTML = items.map(i => {
+                    if (i.kind === 'event') return this._bubbleHtml('system', i.event.mensaje || '', '');
+                    return this._bubbleHtml(i.side === 'mine' ? 'mine' : 'theirs', i.text, i.name);
+                }).join('');
             }
             el.scrollTop = el.scrollHeight;
         }
@@ -692,9 +854,14 @@
             } else if (this.data.cierre_aviso) {
                 hint = String(this.data.cierre_aviso);
             }
-            wrap.innerHTML = `<div class="neg-acuerdo-resumen">
-                <h3>Acuerdo alcanzado</h3>
-                ${items.map(i => `<p><strong>${this.escapeHtml(i.label)}:</strong> ${this.escapeHtml(String(i.valor))}</p>`).join('')}
+            wrap.innerHTML = `<div class="neg-acuerdo-resumen neg-acuerdo-resumen--destacado">
+                <div class="neg-acuerdo-resumen-head">
+                    <span class="neg-acuerdo-resumen-icon" aria-hidden="true">✓</span>
+                    <h3>Acuerdo alcanzado</h3>
+                </div>
+                <dl class="neg-acuerdo-resumen-dl">
+                ${items.map(i => `<div class="neg-acuerdo-resumen-row"><dt>${this.escapeHtml(i.label)}</dt><dd>${this.escapeHtml(String(i.valor))}</dd></div>`).join('')}
+                </dl>
                 <p class="neg-acuerdo-hint">${this.escapeHtml(hint)}</p>
             </div>`;
         }
@@ -753,10 +920,10 @@
                 return;
             }
             if (acc.tipo === 'esperar') {
-                el.innerHTML = `<div class="neg-compose-espera">
+                el.innerHTML = this._wrapComposeCard('Esperando respuesta', `<div class="neg-compose-espera">
                     <p>${this.escapeHtml(acc.mensaje || 'Esperando a la otra parte.')}</p>
-                    <span class="neg-esperar-hint">La pantalla se actualiza sola. Te avisaremos cuando sea tu turno.</span>
-                </div>`;
+                    <span class="neg-esperar-hint">La conversación se actualiza sola. Te avisaremos cuando sea tu turno.</span>
+                </div>`);
                 return;
             }
             if (acc.tipo === 'wizard_contratante') {
@@ -786,10 +953,10 @@
                 if (servicioPre && !respuestasFinales.servicio) {
                     respuestasFinales.servicio = servicioPre;
                 }
-                el.innerHTML = `<div class="neg-compose-stack">
+                el.innerHTML = this._wrapComposeCard('Revisar y enviar', `<div class="neg-compose-stack">
                     ${servicioPre ? `<div class="neg-servicio-precargado"><span class="neg-servicio-precargado-label">Servicio</span><span class="neg-servicio-precargado-valor">${this.escapeHtml(servicioPre)}</span></div>` : ''}
                     <button type="button" class="neg-btn neg-btn-primary neg-btn-block" id="neg-btn-proponer-completa">Enviar todo al profesional</button>
-                </div>`;
+                </div>`);
                 document.getElementById('neg-btn-proponer-completa').addEventListener('click', () => this.proponerCompleta(respuestasFinales));
                 return;
             }
@@ -813,14 +980,15 @@
                 ? `<textarea id="neg-input-valor" class="neg-compose-input" placeholder="${otroPlaceholder}" rows="2">${this.escapeHtml(valorInicial)}</textarea>`
                 : `<input id="neg-input-valor" class="neg-compose-input" type="${inputType}" ${campo === 'precio' ? 'step="0.01" min="0"' : ''} placeholder="${otroPlaceholder}" value="${this.escapeHtml(valorInicial)}" />`;
 
-            el.innerHTML = `<div class="neg-compose-stack">
+            const preguntaActual = preguntas[campo] || PREGUNTAS_DEFAULT[campo] || PASO_LABELS[campo] || 'Tu respuesta';
+            el.innerHTML = this._wrapComposeCard(preguntaActual, `<div class="neg-compose-stack">
                 ${servicioBanner}
                 ${catalogoHtml}
                 <div class="neg-compose-row">
                     ${inputHtml}
                     <button type="button" class="neg-btn neg-btn-primary neg-btn-send" id="neg-btn-wizard-enviar" aria-label="Enviar respuesta">➤</button>
                 </div>
-            </div>`;
+            </div>`);
 
             if (campo === 'servicio') {
                 const profCodigo = (this.data.profesional_codigo || '').trim();
@@ -940,12 +1108,15 @@
                     ${inputHtml}
                     <button type="button" class="neg-btn neg-btn-primary neg-btn-send" id="neg-btn-proponer">${btnLabel}</button>
                 </div>`;
-            el.innerHTML = `<div class="neg-compose-stack">
+            el.innerHTML = this._wrapComposeCard(
+                acc.modificar_propia ? 'Actualizar ' + (PASO_LABELS[campo] || campo).toLowerCase() : ('Indica ' + (PASO_LABELS[campo] || campo).toLowerCase()),
+                `<div class="neg-compose-stack">
                 ${avisoHtml}
                 ${catalogoHtml}
                 ${hintCatalogo}
                 ${filaProponerHtml}
-            </div>`;
+            </div>`
+            );
             if (campo === 'servicio') {
                 const profCodigo = (this.data.profesional_codigo || '').trim();
                 this._enlazarCatalogoServicio(campo, profCodigo);
@@ -975,7 +1146,7 @@
                    <button type="button" class="neg-btn neg-btn-secondary neg-btn-block" id="neg-btn-contraoferta-toggle">Sugerir otro valor</button>`
                 : `<button type="button" class="neg-btn neg-btn-primary neg-btn-block" id="neg-btn-aceptar">Confirmar</button>
                    <button type="button" class="neg-btn neg-btn-secondary neg-btn-block" id="neg-btn-contraoferta-toggle">Sugerir otro valor</button>`;
-            el.innerHTML = `<div class="neg-compose-stack">
+            el.innerHTML = this._wrapComposeCard('Confirmar ' + label.toLowerCase(), `<div class="neg-compose-stack">
                 <div class="neg-respuesta-valor">
                     <span class="neg-respuesta-label">${this.escapeHtml(label)}:</span>
                     <strong>${this.escapeHtml(String(valorActual))}</strong>
@@ -988,7 +1159,7 @@
                     ${campo === 'observaciones' ? '<textarea id="neg-input-obs-prof" class="neg-compose-input" placeholder="Tus observaciones (opcional)" rows="2"></textarea>' : ''}
                     <button type="button" class="neg-btn neg-btn-warn neg-btn-block" id="neg-btn-contraoferta">Enviar alternativa</button>
                 </div>
-            </div>`;
+            </div>`);
             this._enlazarGuardadoBorrador(campo);
             const btnAceptar = document.getElementById('neg-btn-aceptar');
             if (btnAceptar) btnAceptar.addEventListener('click', () => this.aceptar(campo));
@@ -1070,7 +1241,7 @@
                     this.panel.renderProfesionales();
                 }
                 if (this.panel && typeof this.panel.refreshAfterAction === 'function') {
-                    await this.panel.refreshAfterAction(['contactos', 'alertas', 'metricas']);
+                    await this.panel.refreshAfterAction(['contactos', 'alertas', 'metricas', 'perfil']);
                 }
                 const cerradoAuto = !!(data.cierre_automatico
                     || data.estado_contacto === 'trabajo_cerrado'

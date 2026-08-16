@@ -30,7 +30,7 @@
 
   /**
    * Códigos del directorio con los que ya hay una conversación activa (contacto abierto).
-   * Mapa codigo -> { contacto } para abrir el chat existente.
+   * Mapa codigo -> { contacto } para abrir la conversación del encargo existente.
    * @param {object} host PrivatePanel
    */
   function codigosConConversacionActiva(host) {
@@ -161,7 +161,7 @@
         (descripcionServicio ? '<div class="profesional-descripcion">' + escapeHtmlSafe(host, descripcionServicio) + '</div>' : '') +
         '<div class="profesional-acciones">' +
           (tieneConversacion
-            ? '<button type="button" class="btn-abrir-chat" data-contacto-id="' + contactoExistente.id + '" data-id="' + (prof.id || 0) + '"><i data-lucide="message-circle" style="width:16px;height:16px;vertical-align:-2px;margin-right:4px"></i>Abrir negociación</button>'
+            ? '<button type="button" class="btn-abrir-negociacion btn-abrir-chat" data-contacto-id="' + contactoExistente.id + '" data-id="' + (prof.id || 0) + '"><i data-lucide="messages-square" style="width:16px;height:16px;vertical-align:-2px;margin-right:4px"></i>Abrir conversación</button>'
             : '<button type="button" class="btn-contactar" data-id="' + (prof.id || 0) + '"><i data-lucide="handshake" style="width:16px;height:16px;vertical-align:-2px;margin-right:4px"></i>Contactar</button>') +
         '</div>';
       listaProfesionales.appendChild(card);
@@ -175,7 +175,7 @@
         else alert('No se pudo iniciar el contacto');
       });
     });
-    document.querySelectorAll('.btn-abrir-chat').forEach(function (btn) {
+    document.querySelectorAll('.btn-abrir-negociacion, .btn-abrir-chat').forEach(function (btn) {
       btn.addEventListener('click', function (e) {
         var contactoId = e.target.dataset.contactoId;
         var proId = e.target.dataset.id;

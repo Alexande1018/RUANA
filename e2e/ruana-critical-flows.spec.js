@@ -103,7 +103,7 @@ async function openNegociacionViaUi(page, scenario, roleLabel = 'Usuario') {
       expected: 'Debe aparecer la accion Abrir negociacion.',
       result: 'El aviso de contacto queda visible.',
     });
-    await clickVisible(page, '#btn-contacto-abrir-chat');
+    await clickVisible(page, '#btn-contacto-abrir-negociacion');
     await expect(page.locator('#modal-negociacion-guiada')).toHaveClass(/show/);
     await pass(page, scenario, {
       step: `${roleLabel} abre negociacion`,

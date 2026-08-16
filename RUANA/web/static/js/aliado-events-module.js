@@ -168,7 +168,8 @@
       }
 
       // Aviso persistente de contactos
-      const btnAbrirChat = document.getElementById('btn-contacto-abrir-chat');
+      const btnAbrirChat = document.getElementById('btn-contacto-abrir-negociacion')
+          || document.getElementById('btn-contacto-abrir-chat');
       const btnSiTrabajo = document.getElementById('btn-contacto-si-trabajo');
       const btnNoConcreto = document.getElementById('btn-contacto-no-concreto');
       const btnSigue = document.getElementById('btn-contacto-sigue');
