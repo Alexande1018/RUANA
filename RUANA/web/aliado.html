@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="/static/css/panel-premium.css">
     <link rel="stylesheet" href="/static/css/auth-premium.css">
     <link rel="stylesheet" href="/static/css/aliado-shell.css">
+    <link rel="stylesheet" href="/static/css/encargo-seguimiento.css">
     <link rel="stylesheet" href="/static/css/ruana-score-callout.css">
     <link rel="stylesheet" href="/static/css/ruana-identity.css">
     <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
@@ -159,14 +160,17 @@
         </div>
 
         <!-- Seguimiento del encargo RUANA (acción pendiente — workflow activo) -->
-        <div id="contacto-aviso-persistente" class="encargo-seguimiento-card" style="display:none;">
-            <div class="encargo-seguimiento-top">
-                <span class="encargo-seguimiento-estado" id="contacto-aviso-estado">Encargo activo</span>
-                <span class="contacto-aviso-badge urgente" id="contacto-aviso-badge-urgente" style="display:none;">Urgente</span>
-            </div>
+        <div id="contacto-aviso-persistente" class="encargo-seguimiento-card ruana-surface" style="display:none;" role="status" aria-live="polite">
+            <header class="encargo-seguimiento-header">
+                <p class="encargo-seguimiento-kicker">Encargo en curso</p>
+                <div class="encargo-seguimiento-top">
+                    <span class="encargo-seguimiento-estado" id="contacto-aviso-estado">Encargo activo</span>
+                    <span class="contacto-aviso-badge urgente" id="contacto-aviso-badge-urgente" style="display:none;">Urgente</span>
+                </div>
+            </header>
             <p class="encargo-seguimiento-contexto" id="contacto-aviso-contexto"></p>
             <p class="encargo-seguimiento-paso" id="contacto-aviso-paso"></p>
-            <div class="encargo-seguimiento-progreso">
+            <div class="encargo-seguimiento-progreso" aria-label="Progreso del encargo">
                 <div class="encargo-seguimiento-progreso-bar" aria-hidden="true">
                     <div class="encargo-seguimiento-progreso-fill" id="contacto-aviso-progreso-fill"></div>
                 </div>
@@ -177,11 +181,14 @@
             <div class="encargo-seguimiento-principal">
                 <button id="btn-contacto-abrir-negociacion" class="encargo-btn-principal" type="button">Abrir negociación</button>
             </div>
-            <div id="contacto-aviso-subir-prueba" class="contacto-aviso-texto" style="display:none; margin-top:12px; padding:12px; background: rgba(0,0,0,0.2); border-radius:8px;">
-                <strong>Subir comprobante de pago</strong> (solo contratante). Adjunta un documento que acredite el importe.
-                <input type="file" id="input-prueba-conflicto" accept=".pdf,.jpg,.jpeg,.png" style="margin-top:8px; display:block;" />
-                <button type="button" id="btn-subir-prueba-conflicto" class="contacto-aviso-btn" style="margin-top:8px; min-width:160px;">Enviar prueba</button>
-                <span id="subir-prueba-resultado" style="margin-left:8px; font-size:0.85rem;"></span>
+            <div id="contacto-aviso-subir-prueba" class="encargo-seguimiento-prueba" style="display:none;">
+                <strong>Subir comprobante de pago</strong>
+                <span class="encargo-seguimiento-prueba-hint">Solo contratante. Adjunta un documento que acredite el importe.</span>
+                <input type="file" id="input-prueba-conflicto" class="encargo-seguimiento-prueba-input" accept=".pdf,.jpg,.jpeg,.png" />
+                <div class="encargo-seguimiento-prueba-actions">
+                    <button type="button" id="btn-subir-prueba-conflicto" class="contacto-aviso-btn sigue">Enviar prueba</button>
+                    <span id="subir-prueba-resultado" class="encargo-seguimiento-prueba-resultado"></span>
+                </div>
             </div>
             <div class="encargo-seguimiento-secundarias contacto-aviso-acciones">
                 <button id="btn-contacto-si-trabajo" class="contacto-aviso-btn si-trabajo" type="button">Sí, hubo trabajo</button>

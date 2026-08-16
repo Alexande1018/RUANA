@@ -141,7 +141,8 @@ body::after {
 .register-card,
 .access-card,
 .ruana-alert-card,
-.ruana-alert-card--critical {
+.ruana-alert-card--critical,
+.encargo-seguimiento-card {
     position: relative;
     transition:
         transform var(--ruana-transition),
@@ -160,7 +161,8 @@ body::after {
 .invite-card::before,
 .register-card::before,
 .ruana-alert-card::before,
-.ruana-alert-card--critical::before {
+.ruana-alert-card--critical::before,
+.encargo-seguimiento-card::before {
     content: '';
     position: absolute;
     top: 0;
@@ -188,7 +190,8 @@ body::after {
 .ruana-auth-card::after,
 .ruana-card-premium::after,
 .ruana-alert-card::after,
-.ruana-alert-card--critical::after {
+.ruana-alert-card--critical::after,
+.encargo-seguimiento-card::after {
     content: '';
     position: absolute;
     inset: 10px;
