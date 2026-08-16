@@ -69,16 +69,103 @@ class ReferidoRepo:
         )
         return cursor.rowcount
 
+    def upsert_referido_vinculo(
+        self, cursor, codigo_referido: str, codigo_invitador: str, origen: str = ''
+    ) -> None:
+        if self.referidos_tiene_origen(cursor):
+            cursor.execute(
+                """
+                INSERT INTO referidos (codigo_referido, codigo_invitador, origen)
+                VALUES (?, ?, ?)
+                ON CONFLICT(codigo_referido) DO UPDATE SET
+                    codigo_invitador = excluded.codigo_invitador,
+                    origen = CASE
+                        WHEN excluded.origen != '' AND (referidos.origen IS NULL OR referidos.origen = '')
+                        THEN excluded.origen
+                        ELSE referidos.origen
+                    END
+                """,
+                (codigo_referido, codigo_invitador, origen or ''),
+            )
+        else:
+            cursor.execute(
+                """
+                INSERT INTO referidos (codigo_referido, codigo_invitador)
+                VALUES (?, ?)
+                ON CONFLICT(codigo_referido) DO UPDATE SET
+                    codigo_invitador = excluded.codigo_invitador
+                """,
+                (codigo_referido, codigo_invitador),
+            )
+
+    def listar_aliados_para_cobertura_red(self, cursor, admin_codigo: str) -> List[Any]:
+        """Aliados que deben participar en el árbol (excluye sistema/rechazados/pendiente_completar)."""
+        cursor.execute(
+            """
+            SELECT a.codigo,
+                   COALESCE(a.invitado_por_codigo, '') AS invitado_por_codigo,
+                   COALESCE(a.invitado_origen, '') AS invitado_origen,
+                   COALESCE(a.estado, '') AS estado
+            FROM aliados a
+            WHERE COALESCE(a.estado, '') NOT IN (
+                'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
+            )
+              AND a.codigo != ?
+            ORDER BY a.creado_en ASC
+            """,
+            (admin_codigo,),
+        )
+        return cursor.fetchall()
+
+    def invitador_valido(self, cursor, codigo_invitador: str) -> bool:
+        if not (codigo_invitador or '').strip():
+            return False
+        cursor.execute(
+            """
+            SELECT 1 FROM aliados
+            WHERE codigo = ?
+              AND COALESCE(estado, '') NOT IN (
+                  'rechazado', 'expulsado', 'pendiente_completar'
+              )
+            LIMIT 1
+            """,
+            (codigo_invitador,),
+        )
+        return cursor.fetchone() is not None
+
+    def es_raiz_invitador(self, cursor, codigo: str) -> bool:
+        """Invitó a otros pero nunca fue referido → puede ser raíz del bosque."""
+        cursor.execute(
+            """
+            SELECT 1 FROM referidos WHERE codigo_invitador = ? LIMIT 1
+            """,
+            (codigo,),
+        )
+        if not cursor.fetchone():
+            return False
+        cursor.execute(
+            """
+            SELECT 1 FROM referidos WHERE codigo_referido = ? LIMIT 1
+            """,
+            (codigo,),
+        )
+        return cursor.fetchone() is None
+
+    def select_invitador_referidos_tabla(self, cursor, codigo_referido: str) -> Optional[Any]:
+        cursor.execute(
+            """
+            SELECT codigo_invitador, COALESCE(origen, '') AS origen
+            FROM referidos
+            WHERE codigo_referido = ?
+            """,
+            (codigo_referido,),
+        )
+        return cursor.fetchone()
+
     def insert_referido_con_origen(
         self, cursor, codigo_referido: str, codigo_invitador: str, origen: str
     ) -> None:
-        cursor.execute(
-            """
-            INSERT OR IGNORE INTO referidos (codigo_referido, codigo_invitador, origen)
-            VALUES (?, ?, ?)
-            """,
-            (codigo_referido, codigo_invitador, origen),
-        )
+        self.upsert_referido_vinculo(cursor, codigo_referido, codigo_invitador, origen)
 
     def update_origen_si_vacio(
         self, cursor, origen: str, codigo_referido: str
@@ -96,13 +183,7 @@ class ReferidoRepo:
     def insert_referido_sin_origen(
         self, cursor, codigo_referido: str, codigo_invitador: str
     ) -> None:
-        cursor.execute(
-            """
-            INSERT OR IGNORE INTO referidos (codigo_referido, codigo_invitador)
-            VALUES (?, ?)
-            """,
-            (codigo_referido, codigo_invitador),
-        )
+        self.upsert_referido_vinculo(cursor, codigo_referido, codigo_invitador, '')
 
     def listar_pendientes_backfill_desde_referidos_con_origen(
         self, cursor
@@ -389,18 +470,39 @@ class ReferidoRepo:
         return (row[0] if row else 0) or 0
 
     def contar_aliados_fuera_red(self, cursor) -> int:
+        excl = self._estados_excluidos_sql()
         cursor.execute(
-            """
+            f"""
             SELECT COUNT(*) FROM aliados a
             WHERE COALESCE(a.estado, '') = 'pendiente_completar'
                OR (
                    COALESCE(a.estado, '') NOT IN ('sistema', 'rechazado', 'expulsado')
-                   AND NOT EXISTS (
-                       SELECT 1 FROM referidos r
-                       WHERE r.codigo_referido = a.codigo
-                          OR r.codigo_invitador = a.codigo
+                   AND (
+                       COALESCE(a.invitado_por_codigo, '') = ''
+                       OR NOT EXISTS (
+                           SELECT 1 FROM aliados p
+                           WHERE p.codigo = a.invitado_por_codigo
+                             AND COALESCE(p.estado, '') NOT IN (
+                                 'rechazado', 'expulsado', 'pendiente_completar'
+                             )
+                       )
+                   )
+                   AND NOT (
+                       EXISTS (SELECT 1 FROM referidos r WHERE r.codigo_invitador = a.codigo)
+                       AND NOT EXISTS (SELECT 1 FROM referidos r2 WHERE r2.codigo_referido = a.codigo)
                    )
                )
+            """
+        )
+        row = cursor.fetchone()
+        return (row[0] if row else 0) or 0
+
+    def contar_aliados_en_red(self, cursor) -> int:
+        excl = self._estados_excluidos_sql()
+        cursor.execute(
+            f"""
+            SELECT COUNT(*) FROM aliados a
+            WHERE COALESCE(a.estado, '') NOT IN ({excl})
             """
         )
         row = cursor.fetchone()

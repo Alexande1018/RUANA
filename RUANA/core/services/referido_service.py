@@ -439,6 +439,7 @@ def obtener_resumen_referidos_red(db) -> Dict[str, int]:
             return {
                 'total_nodos': _repo.contar_nodos_red(cursor),
                 'total_aliados_activos': _repo.contar_aliados_activos_red(cursor),
+                'total_aliados_en_red': _repo.contar_aliados_en_red(cursor),
                 'aliados_fuera_red': _repo.contar_aliados_fuera_red(cursor),
             }
         except Exception:
@@ -710,6 +711,101 @@ def _origen_por_invitador(db, codigo_invitador: str, default: str = 'aliado') ->
     return default
 
 
+def reparar_cobertura_red_referidos(db) -> int:
+    """
+    Garantiza que cada aliado visible tenga linaje coherente (invitado_por + referidos).
+    Los huérfanos sin raíz propia se asignan al admin; el resto se alinea con su invitador.
+    """
+    admin_codigo = db.obtener_codigo_admin_referidos()
+    if not admin_codigo:
+        return 0
+    reparados = 0
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            if not _repo.aliados_tiene_invitado_por(cursor):
+                return 0
+            filas = _repo.listar_aliados_para_cobertura_red(cursor, admin_codigo)
+        except Exception:
+            return 0
+        finally:
+            if conn:
+                conn.close()
+
+    for row in filas:
+        codigo = (row['codigo'] or '').strip()
+        if not codigo:
+            continue
+        invitador = (row['invitado_por_codigo'] or '').strip()
+        origen = (row['invitado_origen'] or '').strip()
+
+        with db._lock:
+            conn = None
+            try:
+                conn = db._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                invitador_valido = _repo.invitador_valido(cursor, invitador) if invitador else False
+                es_raiz = _repo.es_raiz_invitador(cursor, codigo)
+                ref_row = _repo.select_invitador_referidos_tabla(cursor, codigo)
+            except Exception:
+                continue
+            finally:
+                if conn:
+                    conn.close()
+
+        if not invitador_valido:
+            if es_raiz:
+                invitador = ''
+                origen = ''
+            else:
+                if ref_row and (ref_row['codigo_invitador'] or '').strip():
+                    invitador = (ref_row['codigo_invitador'] or '').strip()
+                    if not origen:
+                        origen = (ref_row['origen'] or '').strip() or 'aliado'
+                else:
+                    invitador = admin_codigo
+                    origen = origen or 'huerfano'
+
+        if invitador:
+            if db.asignar_invitado_por(codigo, invitador, origen or 'aliado', overwrite=True):
+                reparados += 1
+            else:
+                with db._lock:
+                    conn = None
+                    try:
+                        conn = db._connect()
+                        cursor = conn.cursor()
+                        _repo.upsert_referido_vinculo(cursor, codigo, invitador, origen or 'aliado')
+                        conn.commit()
+                        reparados += 1
+                    except Exception:
+                        pass
+                    finally:
+                        if conn:
+                            conn.close()
+        elif ref_row and (ref_row['codigo_invitador'] or '').strip():
+            with db._lock:
+                conn = None
+                try:
+                    conn = db._connect()
+                    cursor = conn.cursor()
+                    _repo.upsert_referido_vinculo(
+                        cursor, codigo, ref_row['codigo_invitador'], ref_row['origen'] or ''
+                    )
+                    conn.commit()
+                    reparados += 1
+                except Exception:
+                    pass
+                finally:
+                    if conn:
+                        conn.close()
+    return reparados
+
+
 def sincronizar_referidos_desde_linaje(db) -> int:
     """Asegura filas en referidos para cada vínculo invitado_por_codigo."""
     with db._lock:
@@ -746,6 +842,7 @@ def sincronizar_referidos_completo(db) -> Dict[str, int]:
     huerfanos = db.sincronizar_referidos_huerfanos_admin()
     linaje = db.backfill_invitado_por_linaje()
     desde_linaje = sincronizar_referidos_desde_linaje(db)
+    cobertura = reparar_cobertura_red_referidos(db)
     return {
         'campanas': campanas,
         'invitaciones': invitaciones,
@@ -753,6 +850,7 @@ def sincronizar_referidos_completo(db) -> Dict[str, int]:
         'huerfanos': huerfanos,
         'linaje': linaje,
         'desde_linaje': desde_linaje,
+        'cobertura': cobertura,
     }
 
 

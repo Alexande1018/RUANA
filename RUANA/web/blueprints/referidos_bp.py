@@ -95,12 +95,15 @@ def admin_referidos_arbol():
             })
         bosques = referido_service.obtener_bosques_referidos(db, max_depth=profundidad_int)
         total_nodos = sum(_contar_nodos_arbol(b) for b in bosques)
+        resumen = referido_service.obtener_resumen_referidos_red(db)
         return jsonify({
             "status": "success",
             "modo": "bosque",
             "bosques": bosques,
             "total_nodos": total_nodos,
             "total_raices": len(bosques),
+            "total_aliados_en_red": resumen.get("total_aliados_en_red", 0),
+            "aliados_fuera_red": resumen.get("aliados_fuera_red", 0),
             "timestamp": datetime.now().isoformat(),
         })
     except Exception as e:
@@ -122,6 +125,7 @@ def admin_referidos_raices():
             "total_nodos": resumen.get("total_nodos", 0),
             "total_raices": len(raices),
             "total_aliados_activos": resumen.get("total_aliados_activos", 0),
+            "total_aliados_en_red": resumen.get("total_aliados_en_red", 0),
             "aliados_fuera_red": resumen.get("aliados_fuera_red", 0),
             "timestamp": datetime.now().isoformat(),
         })
@@ -267,6 +271,7 @@ def admin_referidos_cambios():
             "total_nodos": resumen.get("total_nodos", 0),
             "total_raices": len(raices),
             "total_aliados_activos": resumen.get("total_aliados_activos", 0),
+            "total_aliados_en_red": resumen.get("total_aliados_en_red", 0),
             "aliados_fuera_red": resumen.get("aliados_fuera_red", 0),
             "timestamp": datetime.now().isoformat(),
         })

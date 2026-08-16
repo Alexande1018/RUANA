@@ -165,6 +165,45 @@ def test_sync_desde_linaje_crea_referido_cuando_solo_invitado_por(sqlite_db):
     assert any(r.get("nombre") == "Carlos Santiago" for r in resultados)
 
 
+def test_reparar_cobertura_vincula_huerfanos_y_descendientes(sqlite_db):
+    sqlite_db.obtener_o_crear_invitador_admin("RUANA-ADMIN")
+    sqlite_db.crear_aliado(
+        codigo="11111", nombre="Padre", marca="M", oficio="Electricidad",
+        codigo_postal="28001", email="p@example.com", telefono="+34600111111",
+        estado="activo", score=50, especializacion="Averías y reparaciones eléctricas",
+    )
+    sqlite_db.crear_aliado(
+        codigo="22222", nombre="Hijo Sin Vinculo", marca="M", oficio="Electricidad",
+        codigo_postal="28001", email="h@example.com", telefono="+34600222222",
+        estado="activo", score=50, especializacion="Averías y reparaciones eléctricas",
+    )
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE aliados SET invitado_por_codigo = '11111', invitado_origen = 'aliado' WHERE codigo = '22222'"
+    )
+    cur.execute("DELETE FROM referidos WHERE codigo_referido = '22222'")
+    conn.commit()
+    conn.close()
+
+    from core.services import referido_service
+
+    referido_service.sincronizar_referidos_completo()
+    bosques = referido_service.obtener_bosques_referidos(sqlite_db, max_depth=10)
+    codigos = []
+
+    def walk(nodo):
+        codigos.append(nodo.get("codigo"))
+        for h in nodo.get("referidos") or []:
+            walk(h)
+
+    for b in bosques:
+        walk(b)
+    assert "22222" in codigos
+    resumen = sqlite_db.obtener_resumen_referidos_red()
+    assert resumen.get("aliados_fuera_red", 0) == 0
+
+
 def test_all_active_allies_participate_in_network_after_sync(sqlite_db):
     sqlite_db.obtener_o_crear_invitador_admin("RUANA-ADMIN")
     for codigo, nombre in [("33333", "Uno"), ("44444", "Dos")]:

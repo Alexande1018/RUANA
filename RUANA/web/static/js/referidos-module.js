@@ -206,15 +206,93 @@
     RuanaReferidosTree.prototype._adminMetaText = function (data) {
         var raices = data.total_raices || 0;
         var nodos = data.total_nodos || 0;
+        var enRed = data.total_aliados_en_red;
         var fuera = data.aliados_fuera_red;
         var base =
             raices + ' raíz' + (raices !== 1 ? 'es' : '') +
             ' · ' + nodos + ' aliado' + (nodos !== 1 ? 's' : '') + ' en la red';
+        if (enRed != null && enRed > 0) {
+            base += ' · ' + enRed + ' registrado' + (enRed !== 1 ? 's' : '') + ' en total';
+        }
         if (fuera != null && fuera > 0) {
-            base += ' · ' + fuera + ' pendiente' + (fuera !== 1 ? 's' : '') + ' de completar registro';
+            base += ' · ' + fuera + ' pendiente' + (fuera !== 1 ? 's' : '') + ' de vincular';
         }
         base += ' · Todos los aliados registrados aparecen con su origen';
         return base;
+    };
+
+    RuanaReferidosTree.prototype._createNestedRow = function (nodo, depth, invitador) {
+        var self = this;
+        indexarNodo(nodo, this._nodosMap, this._invitadoresMap, invitador);
+        var temp = document.createElement('div');
+        temp.innerHTML = this._buildCardHtml(nodo, { depth: depth, isRoot: depth === 0 });
+        var row = temp.firstElementChild;
+        if (!row) return document.createElement('div');
+        var wrap = row.querySelector('.referidos-children-wrap');
+        var hijos = nodo.referidos || [];
+        if (hijos.length && wrap) {
+            wrap.classList.add('expanded');
+            var list = document.createElement('div');
+            list.className = 'referidos-children-list';
+            hijos.forEach(function (hijo) {
+                list.appendChild(self._createNestedRow(hijo, depth + 1, nodo));
+            });
+            wrap.appendChild(list);
+            this._expanded[nodo.codigo] = true;
+            this._childrenCache[nodo.codigo] = hijos;
+        }
+        return row;
+    };
+
+    RuanaReferidosTree.prototype._renderNestedForest = function (bosques, container) {
+        var self = this;
+        container.innerHTML = '<div class="referidos-lazy-tree referidos-lazy-tree-full"></div>';
+        var inner = container.querySelector('.referidos-lazy-tree-full');
+        (bosques || []).forEach(function (root) {
+            inner.appendChild(self._createNestedRow(root, 0, null));
+        });
+        if (!inner.children.length) {
+            inner.innerHTML = '<div class="referidos-empty-state">No hay aliados en la red de referidos.</div>';
+        }
+        this._bindTreeEvents(container);
+    };
+
+    RuanaReferidosTree.prototype.loadAdminFull = function () {
+        var self = this;
+        this._setLoading('Cargando árbol genealógico completo…');
+        return this._fetchJson('/api/admin/referidos/arbol?profundidad=50').then(function (data) {
+            if (data.status !== 'success') throw new Error(data.message || 'Error');
+            self._expanded = {};
+            self._childrenCache = {};
+            self._nodosMap = {};
+            self._invitadoresMap = {};
+            self._knownReferidos = {};
+            self._totalNodos = data.total_nodos || 0;
+            self.treeContainer.innerHTML = '';
+            var bosques = data.bosques || (data.arbol ? [data.arbol] : []);
+            self._renderNestedForest(bosques, self.treeContainer);
+            var meta = (data.total_nodos || 0) + ' aliado' + ((data.total_nodos || 0) !== 1 ? 's' : '') + ' en vista completa';
+            if (data.total_aliados_en_red) {
+                meta += ' · ' + data.total_aliados_en_red + ' registrados';
+            }
+            if (data.aliados_fuera_red) {
+                meta += ' · ' + data.aliados_fuera_red + ' sin vincular';
+            }
+            meta += ' · Busca por nombre o código arriba';
+            self._updateMeta(meta);
+            if (bosques.length) {
+                self.selectNode(bosques[0].codigo);
+            } else {
+                renderDetailPanel(self.detailContainer, null);
+            }
+            self.startPolling();
+            self._adminLoaded = true;
+            return data;
+        }).catch(function (err) {
+            self.treeContainer.innerHTML = '<div class="referidos-empty-state">' + escapeHtml(err.message || 'Error de conexión') + '</div>';
+            renderDetailPanel(self.detailContainer, null);
+            throw err;
+        });
     };
 
     RuanaReferidosTree.prototype._buildCardHtml = function (nodo, opts) {
@@ -609,33 +687,7 @@
     };
 
     RuanaReferidosTree.prototype.loadAdmin = function () {
-        var self = this;
-        this._setLoading();
-        return this._fetchJson(this.apiRaices).then(function (data) {
-            if (data.status !== 'success') throw new Error(data.message || 'Error');
-            self._expanded = {};
-            self._childrenCache = {};
-            self._nodosMap = {};
-            self._invitadoresMap = {};
-            self._knownReferidos = {};
-            self._totalNodos = data.total_nodos || 0;
-            (data.raices || []).forEach(function (n) { indexarNodo(n, self._nodosMap, self._invitadoresMap, null); });
-            self.treeContainer.innerHTML = '<div class="referidos-lazy-tree"></div>';
-            var inner = self.treeContainer.querySelector('.referidos-lazy-tree');
-            self._renderSubtree(data.raices || [], inner, 0);
-            self._updateMeta(self._adminMetaText(data) + ' · Clic para expandir · Se actualiza solo');
-            if (data.raices && data.raices.length) {
-                self.selectNode(data.raices[0].codigo);
-            } else {
-                renderDetailPanel(self.detailContainer, null);
-            }
-            self.startPolling();
-            return data;
-        }).catch(function (err) {
-            self.treeContainer.innerHTML = '<div class="referidos-empty-state">' + escapeHtml(err.message || 'Error de conexión') + '</div>';
-            renderDetailPanel(self.detailContainer, null);
-            throw err;
-        });
+        return this.loadAdminFull();
     };
 
     RuanaReferidosTree.prototype.loadAliado = function () {
@@ -677,6 +729,10 @@
         var self = this;
         if (this.mode !== 'admin') {
             this.activateNode(codigo, true);
+            return Promise.resolve();
+        }
+        if (this._nodeExistsInDom(codigo)) {
+            this.selectNode(codigo);
             return Promise.resolve();
         }
         return this._fetchJson(this.apiRuta + encodeURIComponent(codigo)).then(function (data) {
