@@ -21,6 +21,69 @@ class ReferidoRepo:
     def _estados_excluidos_sql(self) -> str:
         return ', '.join(f"'{e}'" for e in self.ESTADOS_EXCLUIDOS_RED)
 
+    def _visible_en_arbol_clause(self, incluir_pendientes: bool, alias: str = 'a') -> str:
+        """SQL: aliados visibles en el árbol (opcionalmente pendiente_completar con vínculo)."""
+        a = alias
+        base = (
+            f"COALESCE({a}.estado, '') NOT IN ('sistema', 'rechazado', 'expulsado')"
+        )
+        if not incluir_pendientes:
+            return (
+                f"{base} AND COALESCE({a}.estado, '') NOT IN ('pendiente_completar')"
+            )
+        return f"""{base} AND (
+            COALESCE({a}.estado, '') != 'pendiente_completar'
+            OR COALESCE({a}.invitado_por_codigo, '') != ''
+            OR EXISTS (SELECT 1 FROM referidos r WHERE r.codigo_referido = {a}.codigo)
+            OR EXISTS (SELECT 1 FROM invitaciones i WHERE i.codigo = {a}.codigo)
+            OR EXISTS (
+                SELECT 1 FROM invitaciones_oficio io
+                WHERE io.codigo_referido = {a}.codigo
+            )
+        )"""
+
+    def _visible_en_grafo_clause(self, incluir_pendientes: bool, alias: str = 'a') -> str:
+        """Incluye aliados sistema (raíz admin) además de los visibles en ramas."""
+        a = alias
+        vis = self._visible_en_arbol_clause(incluir_pendientes, a)
+        return f"(({vis}) OR COALESCE({a}.estado, '') = 'sistema')"
+
+    def listar_aliados_grafo_red(self, cursor, incluir_pendientes: bool = False) -> List[Any]:
+        """Un solo SELECT con todos los aliados relevantes para el árbol en memoria."""
+        vis = self._visible_en_grafo_clause(incluir_pendientes, 'a')
+        cursor.execute(
+            f"""
+            SELECT a.codigo, a.nombre, a.oficio, a.codigo_postal, a.marca,
+                   a.estado, a.score, a.telefono, a.email, a.creado_en,
+                   COALESCE(a.invitado_por_codigo, '') AS invitado_por_codigo,
+                   COALESCE(a.invitado_origen, '') AS invitado_origen
+            FROM aliados a
+            WHERE {vis}
+            ORDER BY a.creado_en ASC
+            """
+        )
+        return cursor.fetchall()
+
+    def listar_vinculos_referidos_grafo(self, cursor) -> List[Any]:
+        """Todos los vínculos de referidos (origen + fecha) para construir el grafo."""
+        if self.referidos_tiene_origen(cursor):
+            cursor.execute(
+                """
+                SELECT codigo_referido, codigo_invitador,
+                       COALESCE(origen, '') AS origen, creado_en
+                FROM referidos
+                """
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT codigo_referido, codigo_invitador,
+                       '' AS origen, creado_en
+                FROM referidos
+                """
+            )
+        return cursor.fetchall()
+
     def referidos_tiene_origen(self, cursor) -> bool:
         try:
             cursor.execute("PRAGMA table_info(referidos)")
@@ -243,24 +306,24 @@ class ReferidoRepo:
         )
         return cursor.fetchall()
 
-    def listar_hijos_directos_linaje(self, cursor, codigo_invitador: str) -> List[Any]:
+    def listar_hijos_directos_linaje(
+        self, cursor, codigo_invitador: str, incluir_pendientes: bool = False
+    ) -> List[Any]:
+        vis = self._visible_en_arbol_clause(incluir_pendientes, 'a')
+        vis_h = self._visible_en_arbol_clause(incluir_pendientes, 'h')
         cursor.execute(
-            """
+            f"""
             SELECT a.codigo, a.nombre, a.oficio, a.codigo_postal, a.marca,
                    a.estado, a.score, a.telefono, a.email,
                    a.creado_en, a.invitado_origen AS origen,
                    (
                        SELECT COUNT(*) FROM aliados h
                        WHERE h.invitado_por_codigo = a.codigo
-                         AND COALESCE(h.estado, '') NOT IN (
-                             'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
-                         )
+                         AND {vis_h}
                    ) AS referidos_count
             FROM aliados a
             WHERE a.invitado_por_codigo = ?
-              AND COALESCE(a.estado, '') NOT IN (
-                  'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
-              )
+              AND {vis}
             ORDER BY a.creado_en ASC
             """,
             (codigo_invitador,),
@@ -374,13 +437,15 @@ class ReferidoRepo:
             (codigo_invitacion,),
         )
 
-    def buscar_codigos_en_red(self, cursor, like: str, limite: int) -> List[Any]:
-        excl = self._estados_excluidos_sql()
+    def buscar_codigos_en_red(
+        self, cursor, like: str, limite: int, incluir_pendientes: bool = False
+    ) -> List[Any]:
+        vis = self._visible_en_arbol_clause(incluir_pendientes, 'a')
         cursor.execute(
             f"""
             SELECT DISTINCT a.codigo
             FROM aliados a
-            WHERE COALESCE(a.estado, '') NOT IN ({excl})
+            WHERE {vis}
               AND (
                   a.codigo LIKE ? OR a.nombre LIKE ? OR a.oficio LIKE ?
                   OR a.marca LIKE ? OR a.codigo_postal LIKE ?
@@ -392,10 +457,10 @@ class ReferidoRepo:
         )
         return cursor.fetchall()
 
-    def listar_raices(self, cursor) -> List[Any]:
+    def listar_raices(self, cursor, incluir_pendientes: bool = False) -> List[Any]:
         """Raíces del bosque: prefiere linaje (invitado_por) con fallback a referidos."""
         if self.aliados_tiene_invitado_por(cursor):
-            rows = self.listar_raices_linaje(cursor)
+            rows = self.listar_raices_linaje(cursor, incluir_pendientes=incluir_pendientes)
             if rows:
                 return rows
         cursor.execute(
@@ -529,9 +594,11 @@ class ReferidoRepo:
             )
         return cursor.fetchall()
 
-    def listar_referidos_directos(self, cursor, codigo_invitador: str) -> List[Any]:
+    def listar_referidos_directos(
+        self, cursor, codigo_invitador: str, incluir_pendientes: bool = False
+    ) -> List[Any]:
         """Hijos directos unificando invitado_por_codigo (linaje) y tabla referidos."""
-        excl = self._estados_excluidos_sql()
+        vis = self._visible_en_arbol_clause(incluir_pendientes, 'a')
         cursor.execute(
             f"""
             SELECT a.codigo, a.nombre, a.oficio, a.codigo_postal, a.marca,
@@ -540,7 +607,7 @@ class ReferidoRepo:
                    COALESCE(a.invitado_origen, '') AS origen
             FROM aliados a
             WHERE a.invitado_por_codigo = ?
-              AND COALESCE(a.estado, '') NOT IN ({excl})
+              AND {vis}
             UNION
             SELECT COALESCE(a.codigo, r.codigo_referido) AS codigo,
                    COALESCE(a.nombre, r.codigo_referido) AS nombre,
@@ -564,7 +631,7 @@ class ReferidoRepo:
               )
               AND (
                   a.codigo IS NULL
-                  OR COALESCE(a.estado, '') NOT IN ({excl})
+                  OR {vis}
               )
             ORDER BY creado_en ASC
             """,
@@ -572,20 +639,28 @@ class ReferidoRepo:
         )
         return cursor.fetchall()
 
-    def listar_raices_linaje(self, cursor) -> List[Any]:
+    def listar_raices_linaje(
+        self, cursor, incluir_pendientes: bool = False
+    ) -> List[Any]:
         """Raíces según invitado_por_codigo: sin padre válido y con descendencia o sistema."""
-        excl = self._estados_excluidos_sql()
+        vis_h = self._visible_en_arbol_clause(incluir_pendientes, 'h')
+        estados_raiz = (
+            "'rechazado', 'expulsado'"
+            if incluir_pendientes
+            else "'rechazado', 'expulsado', 'pendiente_completar'"
+        )
+        estados_padre = estados_raiz
         cursor.execute(
             f"""
             SELECT DISTINCT a.codigo
             FROM aliados a
-            WHERE COALESCE(a.estado, '') NOT IN ('rechazado', 'expulsado', 'pendiente_completar')
+            WHERE COALESCE(a.estado, '') NOT IN ({estados_raiz})
               AND (
                   COALESCE(a.invitado_por_codigo, '') = ''
                   OR NOT EXISTS (
                       SELECT 1 FROM aliados p
                       WHERE p.codigo = a.invitado_por_codigo
-                        AND COALESCE(p.estado, '') NOT IN ('rechazado', 'expulsado', 'pendiente_completar')
+                        AND COALESCE(p.estado, '') NOT IN ({estados_padre})
                   )
               )
               AND (
@@ -593,7 +668,7 @@ class ReferidoRepo:
                   OR EXISTS (
                       SELECT 1 FROM aliados h
                       WHERE h.invitado_por_codigo = a.codigo
-                        AND COALESCE(h.estado, '') NOT IN ({excl})
+                        AND {vis_h}
                   )
                   OR EXISTS (
                       SELECT 1 FROM referidos r WHERE r.codigo_invitador = a.codigo

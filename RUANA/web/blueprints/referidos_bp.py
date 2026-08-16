@@ -81,7 +81,9 @@ def admin_referidos_arbol():
             profundidad_int = 8
         db = get_db()
         if codigo:
-            arbol = referido_service.obtener_arbol_referidos(db, codigo, max_depth=profundidad_int)
+            arbol = referido_service.obtener_arbol_referidos(
+                db, codigo, max_depth=profundidad_int, incluir_pendientes=True
+            )
             if not arbol:
                 return jsonify({"status": "error", "message": f"Aliado {codigo} no encontrado"}), 404
             invitador = referido_service.obtener_invitador_de(db, codigo)
@@ -93,7 +95,9 @@ def admin_referidos_arbol():
                 "total_nodos": _contar_nodos_arbol(arbol),
                 "timestamp": datetime.now().isoformat(),
             })
-        bosques = referido_service.obtener_bosques_referidos(db, max_depth=profundidad_int)
+        bosques = referido_service.obtener_bosques_referidos(
+            db, max_depth=profundidad_int, incluir_pendientes=True
+        )
         total_nodos = sum(_contar_nodos_arbol(b) for b in bosques)
         resumen = referido_service.obtener_resumen_referidos_red(db)
         return jsonify({
@@ -116,7 +120,7 @@ def admin_referidos_raices():
     """GET nodos raíz de la red."""
     try:
         db = get_db()
-        raices = referido_service.listar_nodos_raiz_referidos(db)
+        raices = referido_service.listar_nodos_raiz_referidos(db, incluir_pendientes=True)
         resumen = referido_service.obtener_resumen_referidos_red(db)
         return jsonify({
             "status": "success",
@@ -188,7 +192,9 @@ def admin_referidos_buscar():
         if not query:
             return jsonify({"status": "success", "resultados": []})
         db = get_db()
-        resultados = referido_service.buscar_en_red_referidos(db, query, limite=50)
+        resultados = referido_service.buscar_en_red_referidos(
+            db, query, limite=50, incluir_pendientes=True
+        )
         return jsonify({
             "status": "success",
             "resultados": resultados,

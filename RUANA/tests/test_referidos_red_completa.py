@@ -188,7 +188,7 @@ def test_reparar_cobertura_vincula_huerfanos_y_descendientes(sqlite_db):
 
     from core.services import referido_service
 
-    referido_service.sincronizar_referidos_completo()
+    referido_service.sincronizar_referidos_completo(sqlite_db)
     bosques = referido_service.obtener_bosques_referidos(sqlite_db, max_depth=10)
     codigos = []
 
@@ -227,3 +227,70 @@ def test_all_active_allies_participate_in_network_after_sync(sqlite_db):
     assert resumen["total_aliados_activos"] == 2
     assert resumen["aliados_fuera_red"] == 0
     assert resumen["total_nodos"] >= 3
+
+
+def _crear_activo(db, codigo, nombre):
+    result = db.crear_aliado(
+        codigo=codigo,
+        nombre=nombre,
+        marca="Marca",
+        oficio="Electricidad",
+        codigo_postal="28001",
+        email=f"{codigo}@example.com",
+        telefono=f"+34600{codigo}",
+        estado="activo",
+        score=50,
+        especializacion="Averías y reparaciones eléctricas",
+    )
+    assert result["status"] == "success"
+    return result
+
+
+def test_bosque_arbol_no_dispara_n_plus_1_queries(sqlite_db, monkeypatch):
+    """~50 aliados encadenados: construcción del bosque debe usar pocas queries (no N×4 por nodo)."""
+    from core.services import referido_service
+
+    admin_codigo = sqlite_db.obtener_o_crear_invitador_admin("RUANA-ADMIN")
+    assert admin_codigo
+
+    prev = admin_codigo
+    for i in range(50):
+        codigo = f"{10000 + i}"
+        _crear_activo(sqlite_db, codigo, f"Aliado {i}")
+        sqlite_db.asignar_invitado_por(codigo, prev, "aliado")
+        prev = codigo
+
+    sqlite_db.sincronizar_referidos_completo()
+    monkeypatch.setattr(sqlite_db, "sincronizar_referidos_completo", lambda: {})
+
+    query_count = {"n": 0}
+    original_connect = sqlite_db._connect
+
+    def traced_connect():
+        conn = original_connect()
+
+        def _trace(sql: str) -> None:
+            head = (sql or "").lstrip().upper()
+            if head.startswith(("SELECT", "INSERT", "UPDATE", "DELETE")):
+                query_count["n"] += 1
+
+        conn.set_trace_callback(_trace)
+        return conn
+
+    monkeypatch.setattr(sqlite_db, "_connect", traced_connect)
+
+    bosques = referido_service.obtener_bosques_referidos(
+        sqlite_db, max_depth=50, incluir_pendientes=True
+    )
+
+    def _contar_nodos(nodo):
+        total = 1
+        for hijo in nodo.get("referidos") or []:
+            total += _contar_nodos(hijo)
+        return total
+
+    total_nodos = sum(_contar_nodos(b) for b in bosques)
+    assert total_nodos >= 50
+    assert query_count["n"] <= 15, (
+        f"N+1 detectado: {query_count['n']} queries SQL para bosque (máx. 15)"
+    )

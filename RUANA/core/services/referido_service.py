@@ -12,6 +12,197 @@ from core.repositories.referido_repo import ReferidoRepo
 
 _repo = ReferidoRepo()
 
+# --- Grafo en memoria para árbol/bosque (evita N+1 por nodo) ---
+
+def _padre_valido_en_grafo(grafo: Dict[str, Any], codigo_padre: str) -> bool:
+    aliados = grafo.get('aliados') or {}
+    padre = aliados.get((codigo_padre or '').strip())
+    if not padre:
+        return False
+    estado = (padre.get('estado') or '').strip()
+    if estado in ('rechazado', 'expulsado'):
+        return False
+    if estado == 'pendiente_completar' and not grafo.get('incluir_pendientes'):
+        return False
+    return True
+
+
+def _cargar_grafo_referidos_red(db, incluir_pendientes: bool = False) -> Dict[str, Any]:
+    """Carga aliados y vínculos en 2 queries; construye índices en memoria."""
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            aliados_rows = _repo.listar_aliados_grafo_red(cursor, incluir_pendientes)
+            vinculos_rows = _repo.listar_vinculos_referidos_grafo(cursor)
+        except Exception:
+            aliados_rows = []
+            vinculos_rows = []
+        finally:
+            if conn:
+                conn.close()
+
+    aliados: Dict[str, Dict[str, Any]] = {}
+    for row in aliados_rows:
+        item = dict(row)
+        codigo = (item.get('codigo') or '').strip()
+        if codigo:
+            aliados[codigo] = item
+
+    padre_por_hijo: Dict[str, str] = {}
+    referido_en: Dict[Tuple[str, str], str] = {}
+    origen_por_hijo: Dict[str, str] = {}
+
+    for codigo, aliado in aliados.items():
+        padre = (aliado.get('invitado_por_codigo') or '').strip()
+        if padre and padre in aliados and _padre_valido_en_grafo(
+            {'aliados': aliados, 'incluir_pendientes': incluir_pendientes}, padre
+        ):
+            padre_por_hijo[codigo] = padre
+            origen = (aliado.get('invitado_origen') or '').strip()
+            if origen:
+                origen_por_hijo[codigo] = origen
+
+    for row in vinculos_rows:
+        hijo = (row['codigo_referido'] or '').strip()
+        padre = (row['codigo_invitador'] or '').strip()
+        if not hijo or not padre or hijo not in aliados or padre not in aliados:
+            continue
+        if hijo not in padre_por_hijo:
+            padre_por_hijo[hijo] = padre
+        referido_en[(padre, hijo)] = (row['creado_en'] or '').strip()
+        origen = (row['origen'] or '').strip()
+        if origen and hijo not in origen_por_hijo:
+            origen_por_hijo[hijo] = origen
+
+    hijos_por_padre: Dict[str, List[str]] = {}
+    hijos_set: Dict[str, set] = {}
+    for hijo, padre in padre_por_hijo.items():
+        if hijo not in aliados or padre not in aliados:
+            continue
+        if padre not in hijos_set:
+            hijos_set[padre] = set()
+        hijos_set[padre].add(hijo)
+
+    for padre, hijos in hijos_set.items():
+        hijos_por_padre[padre] = sorted(
+            hijos,
+            key=lambda c: (aliados.get(c) or {}).get('creado_en') or '',
+        )
+
+    return {
+        'aliados': aliados,
+        'padre_por_hijo': padre_por_hijo,
+        'hijos_por_padre': hijos_por_padre,
+        'referido_en': referido_en,
+        'origen_por_hijo': origen_por_hijo,
+        'incluir_pendientes': incluir_pendientes,
+    }
+
+
+def _listar_raices_desde_grafo(grafo: Dict[str, Any]) -> List[str]:
+    aliados = grafo.get('aliados') or {}
+    hijos_por_padre = grafo.get('hijos_por_padre') or {}
+    padre_por_hijo = grafo.get('padre_por_hijo') or {}
+    incluir_pendientes = bool(grafo.get('incluir_pendientes'))
+    raices: List[str] = []
+    for codigo, aliado in aliados.items():
+        estado = (aliado.get('estado') or '').strip()
+        if estado in ('rechazado', 'expulsado'):
+            continue
+        if estado == 'pendiente_completar' and not incluir_pendientes:
+            continue
+        padre = (aliado.get('invitado_por_codigo') or '').strip()
+        if padre and _padre_valido_en_grafo(grafo, padre):
+            continue
+        tiene_hijos = bool(hijos_por_padre.get(codigo))
+        es_invitador = any(p == codigo for p in padre_por_hijo.values())
+        if estado == 'sistema' or tiene_hijos or es_invitador:
+            raices.append(codigo)
+    raices.sort()
+    return raices
+
+
+def _nodo_desde_grafo(db, grafo: Dict[str, Any], codigo: str) -> Optional[Dict[str, Any]]:
+    aliado = (grafo.get('aliados') or {}).get((codigo or '').strip())
+    if not aliado:
+        return None
+    codigo = (aliado.get('codigo') or codigo or '').strip()
+    padre_codigo = (grafo.get('padre_por_hijo') or {}).get(codigo, '')
+    invitador_nombre = ''
+    invitador_codigo = ''
+    if padre_codigo:
+        padre = (grafo.get('aliados') or {}).get(padre_codigo)
+        if padre:
+            invitador_nombre = padre.get('nombre') or ''
+            invitador_codigo = padre_codigo
+    origen = (
+        (grafo.get('origen_por_hijo') or {}).get(codigo, '')
+        or (aliado.get('invitado_origen') or '').strip()
+    )
+    try:
+        score_val = float(aliado.get('score') if aliado.get('score') is not None else 0)
+    except (TypeError, ValueError):
+        score_val = 0.0
+    nodo = {
+        'codigo': codigo,
+        'nombre': aliado.get('nombre') or '',
+        'oficio': aliado.get('oficio') or '',
+        'zona': aliado.get('codigo_postal') or '',
+        'codigo_postal': aliado.get('codigo_postal') or '',
+        'marca': aliado.get('marca') or '',
+        'estado': aliado.get('estado') or 'activo',
+        'score': score_val,
+        'telefono': aliado.get('telefono') or '',
+        'email': aliado.get('email') or '',
+        'especializaciones': [],
+        'referidos_count': len((grafo.get('hijos_por_padre') or {}).get(codigo, [])),
+        'creado_en': aliado.get('creado_en') or '',
+        'origen': origen,
+        'origen_label': db.etiqueta_origen_referido(origen),
+        'invitador_nombre': invitador_nombre,
+        'invitador_codigo': invitador_codigo,
+    }
+    if (aliado.get('estado') or '').strip() == 'pendiente_completar':
+        nodo['pendiente_alta'] = True
+    return nodo
+
+
+def _construir_arbol_desde_grafo(
+    db,
+    grafo: Dict[str, Any],
+    codigo_raiz: str,
+    max_depth: int,
+) -> Optional[Dict[str, Any]]:
+    codigo_raiz = (codigo_raiz or '').strip()
+    if not codigo_raiz:
+        return None
+
+    def _build(codigo: str, depth: int) -> Optional[Dict[str, Any]]:
+        nodo = _nodo_desde_grafo(db, grafo, codigo)
+        if not nodo:
+            return None
+        if depth >= max_depth:
+            nodo['referidos'] = []
+            nodo['truncado'] = True
+            return nodo
+        hijos_codigos = (grafo.get('hijos_por_padre') or {}).get(codigo, [])
+        nodo['referidos'] = []
+        for hijo_codigo in hijos_codigos:
+            sub = _build(hijo_codigo, depth + 1)
+            if sub:
+                ref_en = (grafo.get('referido_en') or {}).get((codigo, hijo_codigo), '')
+                if not ref_en:
+                    hijo_aliado = (grafo.get('aliados') or {}).get(hijo_codigo, {})
+                    ref_en = hijo_aliado.get('creado_en') or ''
+                sub['referido_en'] = ref_en
+                nodo['referidos'].append(sub)
+        return nodo
+
+    return _build(codigo_raiz, 0)
+
 # --- Extraído de DBManager (referido) ---
 
 def asignar_invitado_por(db,
@@ -197,10 +388,6 @@ def contar_referidos_por_codigo(db, codigo_aliado: str) -> int:
     codigo_aliado = (codigo_aliado or '').strip()
     if not codigo_aliado:
         return 0
-    try:
-        db.backfill_invitado_por_linaje()
-    except Exception:
-        pass
     with db._lock:
         try:
             conn = db._connect()
@@ -227,7 +414,7 @@ def _nodo_referido_resumen(db, codigo: str) -> Optional[Dict[str, Any]]:
         score_val = float(score) if score is not None else 0.0
     except (TypeError, ValueError):
         score_val = 0.0
-    return {
+    nodo = {
         'codigo': aliado.get('codigo') or codigo,
         'nombre': aliado.get('nombre') or '',
         'oficio': aliado.get('oficio') or '',
@@ -246,6 +433,9 @@ def _nodo_referido_resumen(db, codigo: str) -> Optional[Dict[str, Any]]:
         'invitador_nombre': (invitador or {}).get('nombre') or '',
         'invitador_codigo': (invitador or {}).get('codigo') or '',
     }
+    if (aliado.get('estado') or '').strip() == 'pendiente_completar':
+        nodo['pendiente_alta'] = True
+    return nodo
 
 def asegurar_referido_desde_invitacion(db, codigo_invitacion: str, nuevo_aliado_codigo: str) -> bool:
     """
@@ -300,7 +490,9 @@ def aliado_puede_ver_nodo_referidos(db, codigo_sesion: str, codigo_nodo: str) ->
         visitados.add(current)
     return False
 
-def buscar_en_red_referidos(db, query: str, limite: int = 20) -> List[Dict[str, Any]]:
+def buscar_en_red_referidos(
+    db, query: str, limite: int = 20, incluir_pendientes: bool = False
+) -> List[Dict[str, Any]]:
     """Busca aliados presentes en la red de referidos."""
     query = (query or '').strip()
     if not query:
@@ -313,74 +505,71 @@ def buscar_en_red_referidos(db, query: str, limite: int = 20) -> List[Dict[str, 
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            rows = _repo.buscar_codigos_en_red(cursor, like, limite)
+            rows = _repo.buscar_codigos_en_red(
+                cursor, like, limite, incluir_pendientes=incluir_pendientes
+            )
             codigos = [row['codigo'] for row in rows if row and row['codigo']]
         except Exception:
             return []
         finally:
             if conn:
                 conn.close()
-    return [db._nodo_referido_resumen(c) for c in codigos if db._nodo_referido_resumen(c)]
+    grafo = _cargar_grafo_referidos_red(db, incluir_pendientes)
+    resultados: List[Dict[str, Any]] = []
+    for c in codigos:
+        nodo = _nodo_desde_grafo(db, grafo, c)
+        if nodo:
+            resultados.append(nodo)
+    return resultados
 
-def listar_nodos_raiz_referidos(db) -> List[Dict[str, Any]]:
+def listar_nodos_raiz_referidos(db, incluir_pendientes: bool = False) -> List[Dict[str, Any]]:
     """Nodos raíz de la red (invitadores que no fueron referidos)."""
     db.sincronizar_referidos_completo()
-    raices = db.listar_raices_referidos()
+    grafo = _cargar_grafo_referidos_red(db, incluir_pendientes)
+    raices = _listar_raices_desde_grafo(grafo)
     nodos: List[Dict[str, Any]] = []
     for codigo in raices:
-        nodo = db._nodo_referido_resumen(codigo)
+        nodo = _nodo_desde_grafo(db, grafo, codigo)
         if nodo:
             nodos.append(nodo)
     return nodos
 
-def listar_raices_referidos(db) -> List[str]:
+def listar_raices_referidos(db, incluir_pendientes: bool = False) -> List[str]:
     """Códigos de aliados raíz: invitaron a alguien pero no fueron referidos."""
     with db._lock:
         conn = None
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            return [row[0] for row in _repo.listar_raices(cursor) if row and row[0]]
+            return [
+                row[0] for row in _repo.listar_raices(
+                    cursor, incluir_pendientes=incluir_pendientes
+                ) if row and row[0]
+            ]
         except Exception:
             return []
         finally:
             if conn:
                 conn.close()
 
-def obtener_arbol_referidos(db, codigo_raiz: str, max_depth: int = 8) -> Optional[Dict[str, Any]]:
+def obtener_arbol_referidos(
+    db,
+    codigo_raiz: str,
+    max_depth: int = 8,
+    sincronizar: bool = True,
+    incluir_pendientes: bool = False,
+    grafo: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
     """Construye árbol recursivo de referidos desde codigo_raiz."""
-    db.sincronizar_referidos_completo()
     codigo_raiz = (codigo_raiz or '').strip()
     if not codigo_raiz:
         return None
     max_depth = max(1, min(int(max_depth or 8), 50))
-
-    def _build(codigo: str, depth: int) -> Optional[Dict[str, Any]]:
-        nodo = db._nodo_referido_resumen(codigo)
-        if not nodo:
-            return None
-        if depth >= max_depth:
-            nodo['referidos'] = []
-            nodo['truncado'] = True
-            return nodo
-        hijos = db.listar_referidos_directos(codigo)
-        nodo['referidos'] = []
-        for hijo in hijos:
-            hijo_codigo = hijo.get('codigo')
-            if not hijo_codigo:
-                continue
-            sub = _build(hijo_codigo, depth + 1)
-            if sub:
-                sub['referido_en'] = hijo.get('referido_en') or ''
-                nodo['referidos'].append(sub)
-            else:
-                hoja = dict(hijo)
-                hoja['referidos'] = []
-                hoja['referido_en'] = hijo.get('referido_en') or ''
-                nodo['referidos'].append(hoja)
-        return nodo
-
-    return _build(codigo_raiz, 0)
+    if grafo is None:
+        if sincronizar:
+            db.sincronizar_referidos_completo()
+        grafo = _cargar_grafo_referidos_red(db, incluir_pendientes)
+    return _construir_arbol_desde_grafo(db, grafo, codigo_raiz, max_depth)
 # --- Extraído de DBManager (referido) ---
 
 def sincronizar_referidos_invitaciones_usadas(db) -> int:
@@ -490,7 +679,9 @@ def listar_referidos_desde(db, desde: str) -> List[Dict[str, Any]]:
         })
     return cambios
 
-def listar_referidos_directos(db, codigo_invitador: str) -> List[Dict[str, Any]]:
+def listar_referidos_directos(
+    db, codigo_invitador: str, incluir_pendientes: bool = False
+) -> List[Dict[str, Any]]:
     """Lista aliados referidos directamente por codigo_invitador (linaje + referidos)."""
     codigo_invitador = (codigo_invitador or '').strip()
     if not codigo_invitador:
@@ -502,20 +693,30 @@ def listar_referidos_directos(db, codigo_invitador: str) -> List[Dict[str, Any]]
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            rows = _repo.listar_referidos_directos(cursor, codigo_invitador)
+            rows = _repo.listar_referidos_directos(
+                cursor, codigo_invitador, incluir_pendientes=incluir_pendientes
+            )
             result: List[Dict[str, Any]] = []
+            grafo = _cargar_grafo_referidos_red(db, incluir_pendientes)
             for row in rows:
                 item = dict(row)
                 item['zona'] = item.get('codigo_postal') or ''
-                item['referidos_count'] = db.contar_referidos_por_codigo(item['codigo'])
+                codigo_hijo = (item.get('codigo') or '').strip()
+                item['referidos_count'] = len(
+                    (grafo.get('hijos_por_padre') or {}).get(codigo_hijo, [])
+                )
                 item['especializaciones'] = []
                 try:
                     item['score'] = float(item.get('score') or 0)
                 except (TypeError, ValueError):
                     item['score'] = 0.0
-                origen = (item.get('origen') or '').strip() or db._obtener_origen_referido(item['codigo'])
+                origen = (item.get('origen') or '').strip() or (
+                    (grafo.get('origen_por_hijo') or {}).get(codigo_hijo, '')
+                )
                 item['origen'] = origen
                 item['origen_label'] = db.etiqueta_origen_referido(origen)
+                if (item.get('estado') or '').strip() == 'pendiente_completar':
+                    item['pendiente_alta'] = True
                 result.append(item)
             return result
         except Exception:
@@ -576,14 +777,17 @@ def obtener_ruta_referidos_hacia_arriba(db, codigo: str) -> List[Dict[str, Any]]
     return obtener_ruta_linaje_hacia_arriba(db, codigo)
 
 
-def obtener_bosques_referidos(db, max_depth: int = 5) -> List[Dict[str, Any]]:
+def obtener_bosques_referidos(
+    db, max_depth: int = 5, incluir_pendientes: bool = False
+) -> List[Dict[str, Any]]:
     """Lista árboles raíz de toda la red de referidos."""
     db.sincronizar_referidos_completo()
     max_depth = max(1, min(int(max_depth or 8), 50))
-    raices = listar_raices_referidos(db)
+    grafo = _cargar_grafo_referidos_red(db, incluir_pendientes)
+    raices = _listar_raices_desde_grafo(grafo)
     bosques: List[Dict[str, Any]] = []
     for codigo in raices:
-        arbol = obtener_arbol_referidos(db, codigo, max_depth=max_depth)
+        arbol = _construir_arbol_desde_grafo(db, grafo, codigo, max_depth)
         if arbol:
             bosques.append(arbol)
     return bosques
@@ -829,8 +1033,23 @@ def sincronizar_referidos_desde_linaje(db) -> int:
         if not codigo_referido or not codigo_invitador:
             continue
         origen = (row['origen'] or '').strip() or 'aliado'
-        if db._insert_referido(codigo_referido, codigo_invitador, origen):
-            sincronizados += 1
+        db._insert_referido(codigo_referido, codigo_invitador, origen)
+        with db._lock:
+            conn = None
+            try:
+                conn = db._connect()
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT 1 FROM referidos WHERE codigo_referido = ? LIMIT 1",
+                    (codigo_referido,),
+                )
+                if cursor.fetchone():
+                    sincronizados += 1
+            except Exception:
+                pass
+            finally:
+                if conn:
+                    conn.close()
     return sincronizados
 
 

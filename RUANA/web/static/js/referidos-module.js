@@ -1,17 +1,10 @@
 /**
  * RUANA — Árbol genealógico de referidos (lazy expand + tarjetas enriquecidas).
  *
- * ESTADO (Campamento Base / Misión Maestra): HUÉRFANO — no cableado en HTML.
- * - Exporta `RuanaReferidos` / `RuanaReferidosTree` pensado para bosque admin
- *   y árbol aliado (lazy expand + polling).
- * - Hoy admin.html usa `renderAliadosJerarquia` (CP → grupo → aliados) y declara
- *   `_referidosTree` sin instanciarlo; aliado.html usa `aliado-referidos-module.js`
- *   solo para el modal de linaje directo (`/api/aliado/linaje/hijos`).
- * - `referidos-tree.css` tampoco está linkeado.
- * No borrar: consumidor futuro claro cuando se reactive la vista árbol; hasta
- * entonces no añadir `<script>` sin markup/DOM targets (`#referidos-tree`, etc.).
- * `aliado-referidos-module.js` puede reutilizar `RuanaReferidos.escapeHtml` si
- * este script se carga antes.
+ * Cableado en admin.html (#red-view-referidos, scripts ~30-31 y sección ~856-867)
+ * y en admin-red-explorer-module.js. Exporta `RuanaReferidos` / `RuanaReferidosTree`
+ * para bosque admin (loadAdminFull) y árbol aliado (lazy expand + polling).
+ * Estilos en referidos-tree.css (tokens ruana-identity.css).
  */
 (function (global) {
     'use strict';
@@ -53,20 +46,23 @@
         return map[String(origen || '').toLowerCase()] || '';
     }
 
-    function estadoLabel(estado) {
+    function estadoLabel(estado, pendienteAlta) {
+        if (pendienteAlta) return 'Pendiente de completar alta';
         var e = String(estado || 'activo').toLowerCase();
         if (e === 'sistema') return 'Admin RUANA';
         if (e === 'pendiente_validacion') return 'Pendiente';
+        if (e === 'pendiente_completar') return 'Pendiente de completar alta';
         if (e === 'suspendido_temporal') return 'Pausado';
         if (e === 'expulsado') return 'Expulsado';
         if (e === 'rechazado') return 'Rechazado';
         return 'Activo';
     }
 
-    function estadoClass(estado) {
+    function estadoClass(estado, pendienteAlta) {
+        if (pendienteAlta) return 'pendiente-alta-label';
         var e = String(estado || 'activo').toLowerCase();
         if (e === 'sistema') return 'sistema';
-        if (e === 'pendiente_validacion') return 'pendiente';
+        if (e === 'pendiente_validacion' || e === 'pendiente_completar') return 'pendiente';
         if (e === 'suspendido_temporal' || e === 'expulsado' || e === 'rechazado') return 'riesgo';
         if (e === 'observacion') return 'observacion';
         return 'activo';
@@ -127,7 +123,7 @@
             '<div class="referidos-detail-item"><span class="info-label">Zona</span><span class="info-value">' + escapeHtml(nodo.zona || nodo.codigo_postal || '—') + '</span></div>' +
             '<div class="referidos-detail-item"><span class="info-label">Marca</span><span class="info-value">' + escapeHtml(nodo.marca || '—') + '</span></div>' +
             '<div class="referidos-detail-item"><span class="info-label">Score</span><span class="info-value">' + escapeHtml(String(nodo.score != null ? nodo.score : '—')) + '</span></div>' +
-            '<div class="referidos-detail-item"><span class="info-label">Estado</span><span class="info-value">' + escapeHtml(estadoLabel(nodo.estado)) + '</span></div>' +
+            '<div class="referidos-detail-item"><span class="info-label">Estado</span><span class="info-value">' + escapeHtml(estadoLabel(nodo.estado, nodo.pendiente_alta)) + '</span></div>' +
             '<div class="referidos-detail-item"><span class="info-label">Referidos directos</span><span class="info-value">' + escapeHtml(String(referidosCount)) + '</span></div>' +
             '<div class="referidos-detail-item"><span class="info-label">Registro</span><span class="info-value">' + escapeHtml(formatFecha(nodo.creado_en || nodo.referido_en)) + '</span></div>' +
             (options.mode === 'admin'
@@ -315,9 +311,14 @@
                 ? '<div class="referidos-node-meta referidos-node-origen">Invitado por ' + escapeHtml(nodo.invitador_nombre) + '</div>'
                 : '');
 
+        var pendienteAlta = !!nodo.pendiente_alta;
+        var cardExtraClass = (opts.isRoot ? ' is-root' : '') +
+            (nodo.estado === 'sistema' ? ' is-admin' : '') +
+            (pendienteAlta ? ' pendiente-alta' : '');
+
         return (
             '<div class="referidos-row" data-codigo="' + escapeHtml(nodo.codigo) + '" data-depth="' + depth + '">' +
-            '<div class="referidos-node-card' + (selected ? ' selected' : '') + (opts.isRoot ? ' is-root' : '') + (nodo.estado === 'sistema' ? ' is-admin' : '') + '" role="button" tabindex="0" data-codigo="' + escapeHtml(nodo.codigo) + '">' +
+            '<div class="referidos-node-card' + (selected ? ' selected' : '') + cardExtraClass + '" role="button" tabindex="0" data-codigo="' + escapeHtml(nodo.codigo) + '">' +
             (hasChildren
                 ? '<button type="button" class="referidos-expand-btn' + (expanded ? ' expanded' : '') + (loading ? ' loading' : '') + '" data-codigo="' + escapeHtml(nodo.codigo) + '" aria-label="' + (expanded ? 'Contraer' : 'Expandir') + ' referidos">' +
                   (loading ? '<span class="referidos-expand-spinner"></span>' : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>') +
@@ -327,7 +328,7 @@
             '<div class="referidos-node-body">' +
             '<div class="referidos-node-top">' +
             '<div class="referidos-node-nombre" title="' + escapeHtml(nodo.nombre || '') + '">' + escapeHtml(nodo.nombre || '(sin nombre)') + '</div>' +
-            '<span class="referidos-node-estado ' + estadoClass(nodo.estado) + '">' + escapeHtml(estadoLabel(nodo.estado)) + '</span>' +
+            '<span class="referidos-node-estado ' + estadoClass(nodo.estado, pendienteAlta) + '">' + escapeHtml(estadoLabel(nodo.estado, pendienteAlta)) + '</span>' +
             '</div>' +
             '<div class="referidos-node-meta"><span class="referidos-node-codigo">' + escapeHtml(nodo.codigo || '') + '</span> · ' + escapeHtml(nodo.oficio || '—') + ' · ' + escapeHtml(zona) + '</div>' +
             '<div class="referidos-node-meta">Marca: ' + escapeHtml(nodo.marca || '—') + ' · Score: ' + escapeHtml(String(nodo.score != null ? nodo.score : '—')) + '</div>' +
