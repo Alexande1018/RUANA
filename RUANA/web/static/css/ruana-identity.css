@@ -140,6 +140,7 @@ body::after {
 .invite-card,
 .register-card,
 .access-card,
+.ruana-alert-card,
 .ruana-alert-card--critical {
     position: relative;
     transition:
@@ -158,6 +159,7 @@ body::after {
 .aliado-card::before,
 .invite-card::before,
 .register-card::before,
+.ruana-alert-card::before,
 .ruana-alert-card--critical::before {
     content: '';
     position: absolute;
@@ -185,6 +187,7 @@ body::after {
 .perfil-block::after,
 .ruana-auth-card::after,
 .ruana-card-premium::after,
+.ruana-alert-card::after,
 .ruana-alert-card--critical::after {
     content: '';
     position: absolute;

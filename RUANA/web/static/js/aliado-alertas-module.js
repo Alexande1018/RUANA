@@ -106,6 +106,7 @@
             description: 'Tu Score RUANA está por debajo de 50. Mejora el cierre de contactos y la coherencia en importes para recuperar posición.',
             actionLabel: null,
             hasDetail: false,
+            allowWrap: true,
             createdAt: Date.now()
         });
     }
@@ -125,6 +126,7 @@
                 actionLabel: 'Ver detalle',
                 hasDetail: true,
                 pendiente: !!competenciaInfo.competencia_pendiente,
+                allowWrap: true,
                 createdAt: Date.now()
             });
         }
@@ -142,6 +144,7 @@
             description: 'Para recibir encargos pagados debes conectar tu cuenta de pago.',
             actionLabel: 'Conectar ahora',
             hasDetail: false,
+            allowWrap: true,
             createdAt: Date.now()
         });
     }
@@ -149,40 +152,57 @@
     if (contactos.length > 0) {
         const first = contactos[0];
         const apoyo = host.formatApoyoRuana(first.apoyo_ruana);
+        const apoyoTs = (typeof RuanaAlertHub !== 'undefined' && RuanaAlertHub.parseTimestamp)
+            ? RuanaAlertHub.parseTimestamp(first.cerrado_en || first.updated_at || first.creado_en)
+            : Date.now();
         items.push({
             id: 'apoyo-pago',
             type: 'payment',
-            priority: 100,
+            tone: 'prioritario',
+            priority: 200,
             title: contactos.length === 1 ? 'Apoyo RUANA (12%) pendiente' : contactos.length + ' apoyos RUANA pendientes',
             description: contactos.length === 1
-                ? trunc((first.servicio || 'Contacto') + ' · ' + apoyo, 52)
+                ? ((first.servicio || 'Contacto') + ' · ' + apoyo)
                 : 'Regulariza el 12% de ' + contactos.length + ' encargos cerrados',
             actionLabel: 'Gestionar',
-            hasDetail: true
+            hasDetail: true,
+            allowWrap: true,
+            noDismiss: true,
+            createdAt: apoyoTs || Date.now()
         });
         items.push({
             id: 'pagos-restriccion',
             type: 'info',
-            priority: 70,
+            tone: 'thread',
+            priority: 120,
             title: 'Nuevos trabajos limitados',
-            description: 'Regulariza tus pagos para aceptar encargos',
+            description: 'Regulariza tus pagos de Apoyo RUANA para aceptar nuevos encargos.',
             actionLabel: null,
-            hasDetail: false
+            hasDetail: false,
+            allowWrap: true,
+            createdAt: apoyoTs || Date.now()
         });
     }
 
     if (notifs.length > 0) {
         const firstN = notifs[0];
+        const notifTs = (typeof RuanaAlertHub !== 'undefined' && RuanaAlertHub.parseTimestamp)
+            ? RuanaAlertHub.parseTimestamp(firstN.creado_en)
+            : Date.now();
         items.push({
             id: 'mensajes-ruana',
             type: 'message',
-            priority: 90,
+            tone: 'estable',
+            priority: 180,
             title: notifs.length === 1 ? (firstN.titulo || 'Mensaje de RUANA') : notifs.length + ' mensajes de RUANA',
             description: notifs.length === 1
-                ? trunc(firstN.mensaje || '', 56)
+                ? (firstN.mensaje || 'Comunicación del equipo RUANA sin leer')
                 : 'Comunicaciones sin leer del equipo RUANA',
             actionLabel: 'Ver',
-            hasDetail: true
+            hasDetail: true,
+            allowWrap: true,
+            noDismiss: true,
+            createdAt: notifTs || Date.now()
         });
     }
 

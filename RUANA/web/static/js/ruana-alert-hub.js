@@ -1,10 +1,10 @@
 /**
- * RUANA Alert Hub — tarjetas compactas con priorización, críticas fijas y agrupación
+ * RUANA Alert Hub — tarjetas con identidad RUANA, críticas fijas y avisos operativos
  */
 (function (global) {
     'use strict';
 
-    var MAX_VISIBLE_COLLAPSED = 1;
+    var MAX_VISIBLE_COLLAPSED = 3;
     var hubStateMap = new WeakMap();
 
     var ICONS = {
@@ -17,7 +17,17 @@
 
     var EXIT_TOASTS = {
         'score-bajo': 'Tu Score ya no requiere atención urgente.',
-        'stripe-pendiente': 'Cuenta de pago conectada correctamente.'
+        'stripe-pendiente': 'Cuenta de pago conectada correctamente.',
+        'apoyo-pago': 'Apoyo RUANA regularizado.',
+        'mensajes-ruana': 'No tienes mensajes pendientes de RUANA.',
+        'competencia': 'El estado de competencia se ha actualizado.'
+    };
+
+    var TONE_BY_TYPE = {
+        payment: 'prioritario',
+        message: 'estable',
+        action: 'competencia',
+        info: 'thread'
     };
 
     function prefersReducedMotion() {
@@ -52,10 +62,16 @@
         return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
     }
 
+    function parseTimestamp(value) {
+        if (value == null || value === '') return null;
+        var date = new Date(value);
+        return Number.isNaN(date.getTime()) ? null : date.getTime();
+    }
+
     function getHubRuntime(hubEl) {
         if (!hubStateMap.has(hubEl)) {
             hubStateMap.set(hubEl, {
-                prevCriticalIds: new Set(),
+                prevItemIds: new Set(),
                 timeInterval: null
             });
         }
@@ -79,7 +95,7 @@
     }
 
     function bindSwipeDismiss(card, item, callbacks) {
-        if (!card || item.critical) return;
+        if (!card || item.critical || item.noDismiss) return;
         var startX = 0;
         var startY = 0;
         var startTime = 0;
@@ -112,7 +128,7 @@
             var velocity = Math.abs(dx) / elapsed;
             card.style.transition = 'transform var(--ruana-transition)';
             if (Math.abs(dx) > 80 || velocity > 0.5) {
-                animateCardExit(card, false, function () {
+                animateCardExit(card, !!item.critical, function () {
                     if (typeof callbacks.onDismiss === 'function') callbacks.onDismiss(item);
                 });
             } else {
@@ -150,20 +166,39 @@
         }
     }
 
+    function ensureSectionLabel(container, className, text) {
+        if (!container) return;
+        var existing = container.querySelector('.' + className);
+        if (!text) {
+            if (existing) existing.remove();
+            return;
+        }
+        if (!existing) {
+            existing = document.createElement('p');
+            existing.className = className;
+            container.insertBefore(existing, container.firstChild);
+        }
+        existing.textContent = text;
+    }
+
     function createCard(item, opts) {
         opts = opts || {};
         var card = document.createElement('div');
         var typeClass = 'ruana-alert-card--' + (item.type || 'info');
-        card.className = 'ruana-alert-card ' + typeClass;
+        card.className = 'ruana-alert-card ruana-surface ' + typeClass;
         card.setAttribute('data-alert-id', item.id);
         if (opts.expanded) card.classList.add('is-expanded');
+        if (item.allowWrap) card.classList.add('is-wrap');
+
         if (item.critical) {
-            card.classList.add('ruana-alert-card--critical', 'ruana-surface');
+            card.classList.add('ruana-alert-card--critical');
             if (item.pendiente) card.classList.add('is-pendiente');
-            if (item.criticalTone) card.setAttribute('data-critical-tone', item.criticalTone);
+            if (item.criticalTone) card.setAttribute('data-alert-tone', item.criticalTone);
             if (!prefersReducedMotion()) card.classList.add('is-critical-enter');
-        } else if (!prefersReducedMotion()) {
-            card.classList.add('ruana-alert-enter');
+        } else {
+            var tone = item.tone || TONE_BY_TYPE[item.type] || 'thread';
+            card.setAttribute('data-alert-tone', tone);
+            if (!prefersReducedMotion()) card.classList.add('is-surface-enter');
         }
 
         var iconKey = item.critical ? 'critical' : (item.type || 'info');
@@ -214,13 +249,21 @@
         return card;
     }
 
+    function syncResolvedExits(container, nextIds, runtime) {
+        var prevIds = runtime.prevItemIds || new Set();
+        prevIds.forEach(function (id) {
+            if (nextIds.has(id)) return;
+            showResolvedToast(id);
+        });
+        runtime.prevItemIds = nextIds;
+    }
+
     function syncCriticalCards(pinnedEl, criticalItems, opts, runtime) {
         var nextIds = new Set(criticalItems.map(function (i) { return i.id; }));
 
         Array.from(pinnedEl.querySelectorAll('.ruana-alert-card')).forEach(function (card) {
             var id = card.getAttribute('data-alert-id');
             if (!nextIds.has(id) && !card.classList.contains('is-critical-leaving')) {
-                showResolvedToast(id);
                 animateCardExit(card, true);
             }
         });
@@ -230,17 +273,8 @@
                 pinnedEl.appendChild(createCard(item, opts));
             }
         });
-
-        runtime.prevCriticalIds = nextIds;
     }
 
-    /**
-     * Renderiza el hub de alertas.
-     * @param {HTMLElement} hubEl contenedor #ruana-alert-hub
-     * @param {Array} items alertas ordenadas por prioridad
-     * @param {Object} state { showAll, expandedDetailId }
-     * @param {Object} callbacks { onAction, onShowAll, onCloseDetail, onDismiss, renderDetail }
-     */
     function render(hubEl, items, state, callbacks) {
         if (!hubEl) return;
         callbacks = callbacks || {};
@@ -256,15 +290,13 @@
         if (!pinnedEl) {
             pinnedEl = document.createElement('div');
             pinnedEl.className = 'ruana-alert-hub__pinned';
-            if (cardsEl) {
-                hubEl.insertBefore(pinnedEl, cardsEl);
-            } else {
-                hubEl.appendChild(pinnedEl);
-            }
+            if (cardsEl) hubEl.insertBefore(pinnedEl, cardsEl);
+            else hubEl.appendChild(pinnedEl);
         }
 
         var criticalItems = items.filter(function (i) { return i.critical; });
         var normalItems = items.filter(function (i) { return !i.critical; });
+        var nextAllIds = new Set(items.map(function (i) { return i.id; }));
 
         if (!criticalItems.length && !normalItems.length) {
             hubEl.hidden = true;
@@ -273,10 +305,11 @@
             if (cardsEl) cardsEl.innerHTML = '';
             if (moreEl) moreEl.hidden = true;
             if (detailEl) detailEl.hidden = true;
-            runtime.prevCriticalIds = new Set();
+            runtime.prevItemIds = new Set();
             return;
         }
 
+        syncResolvedExits(hubEl, nextAllIds, runtime);
         hubEl.hidden = false;
         startTimeInterval(hubEl, runtime);
 
@@ -285,6 +318,7 @@
             onDismiss: callbacks.onDismiss
         };
 
+        ensureSectionLabel(pinnedEl, 'ruana-alert-hub__section-label', criticalItems.length ? 'Atención prioritaria' : '');
         syncCriticalCards(pinnedEl, criticalItems, cardOpts, runtime);
 
         var showAll = !!state.showAll;
@@ -293,7 +327,8 @@
 
         if (cardsEl) {
             cardsEl.innerHTML = '';
-            cardsEl.classList.toggle('has-stack-peek', !showAll && normalItems.length > 1);
+            ensureSectionLabel(cardsEl, 'ruana-alert-hub__section-label', normalItems.length ? 'Pagos, mensajes y avisos' : '');
+            cardsEl.classList.toggle('has-stack-peek', !showAll && normalItems.length > MAX_VISIBLE_COLLAPSED);
             visible.forEach(function (item, index) {
                 var card = createCard(item, {
                     expanded: state.expandedDetailId === item.id,
@@ -301,7 +336,7 @@
                     onCardClick: item.hasDetail ? callbacks.onAction : null,
                     onDismiss: callbacks.onDismiss
                 });
-                if (index === 0 && !showAll && normalItems.length > 1) {
+                if (index === 0 && !showAll && normalItems.length > MAX_VISIBLE_COLLAPSED) {
                     card.classList.add('is-stack-peek');
                 }
                 cardsEl.appendChild(card);
@@ -353,13 +388,26 @@
         return detailEl.querySelector('.ruana-alert-hub__detail-body');
     }
 
+    function getVisibleAlertSummaries(hubEl) {
+        if (!hubEl || hubEl.hidden) return [];
+        return Array.from(hubEl.querySelectorAll('.ruana-alert-card')).map(function (card) {
+            var titleEl = card.querySelector('.ruana-alert-card__title');
+            return {
+                id: card.getAttribute('data-alert-id'),
+                title: titleEl ? titleEl.textContent.trim() : ''
+            };
+        });
+    }
+
     global.RuanaAlertHub = {
         render: render,
         createCard: createCard,
         renderDetailHeader: renderDetailHeader,
+        getVisibleAlertSummaries: getVisibleAlertSummaries,
         truncate: truncate,
         escapeHtml: escapeHtml,
         formatRelativeTime: formatRelativeTime,
+        parseTimestamp: parseTimestamp,
         ICONS: ICONS,
         MAX_VISIBLE_COLLAPSED: MAX_VISIBLE_COLLAPSED
     };

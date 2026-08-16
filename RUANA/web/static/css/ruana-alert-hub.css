@@ -1,48 +1,100 @@
 /* ================================================
-   RUANA — Hub de alertas compactas (Apoyo, pagos, mensajes)
+   RUANA — Hub de alertas (identidad v2 Confianza)
    ================================================ */
 
 .ruana-alert-hub {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
     margin-bottom: 16px;
+    padding: 16px;
+    border-radius: 22px;
+    border: 1px solid var(--ruana-border);
+    background: linear-gradient(165deg, rgba(248, 250, 246, 0.05) 0%, rgba(9, 12, 10, 0.72) 100%);
+    box-shadow: var(--ruana-shadow-surface);
 }
 
 .ruana-alert-hub[hidden] {
     display: none !important;
 }
 
-.ruana-alert-hub__pinned {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-bottom: 8px;
+.ruana-alert-hub__header {
+    margin-bottom: 4px;
 }
 
+.ruana-alert-hub__kicker {
+    margin: 0 0 4px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ruana-text-subtle);
+}
+
+.ruana-alert-hub__title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--ruana-text-soft);
+}
+
+.ruana-alert-hub__section-label {
+    margin: 0 0 6px;
+    padding: 0 2px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ruana-text-subtle);
+}
+
+.ruana-alert-hub__pinned,
 .ruana-alert-hub__cards {
     display: flex;
     flex-direction: column;
     gap: 8px;
 }
 
-/* ——— Tarjeta compacta ——— */
+.ruana-alert-hub__pinned {
+    margin-bottom: 2px;
+}
+
+/* ——— Tarjeta ——— */
 .ruana-alert-card {
+    --ruana-alert-tone: var(--ruana-thread);
+    position: relative;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 12px;
-    padding: 12px 14px;
+    padding: 13px 14px 13px 16px;
     border-radius: 16px;
-    border: 1px solid var(--ruana-border-glass);
-    background: linear-gradient(165deg, rgba(255, 255, 255, 0.06) 0%, rgba(10, 12, 20, 0.78) 100%);
-    backdrop-filter: blur(20px) saturate(160%);
-    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    border: 1px solid rgba(210, 218, 208, 0.12);
+    background: linear-gradient(165deg, rgba(248, 250, 246, 0.05) 0%, rgba(9, 12, 10, 0.82) 100%);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    transition: border-color var(--ruana-transition), transform var(--ruana-transition), box-shadow var(--ruana-transition);
+    transition:
+        border-color var(--ruana-transition),
+        transform var(--ruana-transition),
+        box-shadow var(--ruana-transition);
+    overflow: hidden;
+}
+
+.ruana-alert-card::before {
+    transform: scaleX(0);
+    transform-origin: left center;
+}
+
+.ruana-alert-card.is-surface-enter::before {
+    animation: ruana-alert-thread-in 200ms var(--ruana-ease-out) forwards;
+}
+
+.ruana-alert-card.is-surface-enter {
+    animation: ruana-alert-critical-body-in var(--ruana-transition) var(--ruana-ease-out) 70ms both;
 }
 
 .ruana-alert-card:hover {
-    border-color: rgba(255, 255, 255, 0.14);
+    border-color: rgba(184, 232, 106, 0.18);
+    transform: translateY(-1px);
 }
 
 .ruana-alert-card.is-expanded {
@@ -50,12 +102,30 @@
     border-bottom-right-radius: 8px;
 }
 
-@keyframes ruana-alert-enter {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: translateY(0); }
+.ruana-alert-card[data-alert-tone="prioritario"] {
+    --ruana-alert-tone: var(--ruana-estado-prioritario);
 }
 
-/* Icono tipo */
+.ruana-alert-card[data-alert-tone="estable"] {
+    --ruana-alert-tone: var(--ruana-estado-estable);
+}
+
+.ruana-alert-card[data-alert-tone="competencia"] {
+    --ruana-alert-tone: var(--ruana-estado-competencia);
+}
+
+.ruana-alert-card[data-alert-tone="riesgo"] {
+    --ruana-alert-tone: var(--ruana-estado-riesgo);
+}
+
+.ruana-alert-card[data-alert-tone="thread"] {
+    --ruana-alert-tone: var(--ruana-brand-lime);
+}
+
+.ruana-alert-card:not(.ruana-alert-card--critical) {
+    border-left: 3px solid color-mix(in srgb, var(--ruana-alert-tone) 68%, transparent);
+}
+
 .ruana-alert-card__icon {
     flex-shrink: 0;
     width: 36px;
@@ -63,6 +133,8 @@
     border-radius: 11px;
     display: grid;
     place-items: center;
+    background: color-mix(in srgb, var(--ruana-alert-tone) 14%, transparent);
+    color: var(--ruana-alert-tone);
 }
 
 .ruana-alert-card__icon svg {
@@ -87,7 +159,7 @@
     font-weight: 600;
     color: var(--ruana-text);
     letter-spacing: -0.01em;
-    line-height: 1.3;
+    line-height: 1.35;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -107,136 +179,15 @@
 .ruana-alert-card__desc {
     font-size: 0.78rem;
     color: var(--ruana-text-muted);
-    line-height: 1.35;
-    margin-top: 2px;
+    line-height: 1.45;
+    margin-top: 4px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-.ruana-alert-card__action {
-    flex-shrink: 0;
-    min-height: 36px;
-    padding: 7px 14px;
-    border-radius: 11px;
-    border: 1px solid transparent;
-    font-size: 0.8rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 180ms ease, border-color 180ms ease;
-    white-space: nowrap;
-}
-
-/* Variantes por tipo */
-.ruana-alert-card--payment {
-    border-left: 3px solid rgba(212, 168, 106, 0.65);
-}
-
-.ruana-alert-card--payment .ruana-alert-card__icon {
-    background: rgba(212, 168, 106, 0.14);
-    color: #e8c89a;
-}
-
-.ruana-alert-card--payment .ruana-alert-card__action {
-    background: rgba(212, 168, 106, 0.16);
-    border-color: rgba(212, 168, 106, 0.28);
-    color: #e8c89a;
-}
-
-.ruana-alert-card--payment .ruana-alert-card__action:hover {
-    background: rgba(212, 168, 106, 0.26);
-}
-
-.ruana-alert-card--message {
-    border-left: 3px solid rgba(86, 168, 212, 0.6);
-}
-
-.ruana-alert-card--message .ruana-alert-card__icon {
-    background: rgba(86, 168, 212, 0.14);
-    color: #9ccde8;
-}
-
-.ruana-alert-card--message .ruana-alert-card__action {
-    background: rgba(86, 168, 212, 0.14);
-    border-color: rgba(86, 168, 212, 0.28);
-    color: #9ccde8;
-}
-
-.ruana-alert-card--message .ruana-alert-card__action:hover {
-    background: rgba(86, 168, 212, 0.24);
-}
-
-.ruana-alert-card--action {
-    border-left: 3px solid rgba(184, 146, 212, 0.55);
-}
-
-.ruana-alert-card--action .ruana-alert-card__icon {
-    background: rgba(184, 146, 212, 0.14);
-    color: #d4b8e8;
-}
-
-.ruana-alert-card--action .ruana-alert-card__action {
-    background: rgba(184, 146, 212, 0.14);
-    border-color: rgba(184, 146, 212, 0.28);
-    color: #d4b8e8;
-}
-
-.ruana-alert-card--action .ruana-alert-card__action:hover {
-    background: rgba(184, 146, 212, 0.24);
-}
-
-.ruana-alert-card--info {
-    border-left: 3px solid rgba(148, 163, 184, 0.45);
-}
-
-.ruana-alert-card--info .ruana-alert-card__icon {
-    background: rgba(148, 163, 184, 0.12);
-    color: #b0bcc8;
-}
-
-.ruana-alert-card--info .ruana-alert-card__action {
-    background: rgba(148, 163, 184, 0.1);
-    border-color: rgba(148, 163, 184, 0.22);
-    color: #b0bcc8;
-}
-
-/* ——— Tarjetas críticas (fijas, identidad RUANA) ——— */
-.ruana-alert-card--critical {
-    --ruana-alert-tone: var(--ruana-estado-riesgo);
-    position: relative;
-    overflow: hidden;
-    border-left: 3px solid color-mix(in srgb, var(--ruana-alert-tone) 72%, transparent);
-    background: linear-gradient(
-        165deg,
-        color-mix(in srgb, var(--ruana-alert-tone) 10%, transparent) 0%,
-        rgba(10, 12, 20, 0.82) 100%
-    );
-}
-
-.ruana-alert-card--critical[data-critical-tone="competencia"] {
-    --ruana-alert-tone: var(--ruana-estado-competencia);
-}
-
-.ruana-alert-card--critical[data-critical-tone="prioritario"],
-.ruana-alert-card--critical.is-pendiente {
-    --ruana-alert-tone: var(--ruana-estado-prioritario);
-}
-
-.ruana-alert-card--critical[data-critical-tone="riesgo"] {
-    --ruana-alert-tone: var(--ruana-estado-riesgo);
-}
-
-.ruana-alert-card--critical .ruana-alert-card__icon {
-    background: color-mix(in srgb, var(--ruana-alert-tone) 16%, transparent);
-    color: var(--ruana-alert-tone);
-}
-
-.ruana-alert-card--critical .ruana-alert-card__action {
-    background: color-mix(in srgb, var(--ruana-alert-tone) 18%, transparent);
-    border-color: color-mix(in srgb, var(--ruana-alert-tone) 34%, transparent);
-    color: var(--ruana-alert-tone);
-}
-
+.ruana-alert-card.is-wrap .ruana-alert-card__title,
+.ruana-alert-card.is-wrap .ruana-alert-card__desc,
 .ruana-alert-card--critical .ruana-alert-card__title,
 .ruana-alert-card--critical .ruana-alert-card__desc {
     white-space: normal;
@@ -244,9 +195,47 @@
     text-overflow: clip;
 }
 
-.ruana-alert-card--critical::before {
-    transform: scaleX(0);
-    transform-origin: left center;
+.ruana-alert-card__action {
+    flex-shrink: 0;
+    min-height: 36px;
+    padding: 7px 14px;
+    border-radius: 11px;
+    border: 1px solid color-mix(in srgb, var(--ruana-alert-tone) 34%, transparent);
+    background: color-mix(in srgb, var(--ruana-alert-tone) 16%, transparent);
+    color: var(--ruana-alert-tone);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+        background var(--ruana-transition),
+        border-color var(--ruana-transition),
+        transform var(--ruana-transition);
+    white-space: nowrap;
+}
+
+.ruana-alert-card__action:hover {
+    background: color-mix(in srgb, var(--ruana-alert-tone) 24%, transparent);
+    transform: translateY(-1px);
+}
+
+/* ——— Tarjetas críticas ——— */
+.ruana-alert-card--critical {
+    --ruana-alert-tone: var(--ruana-estado-riesgo);
+    border-left: 3px solid color-mix(in srgb, var(--ruana-alert-tone) 72%, transparent);
+    background: linear-gradient(
+        165deg,
+        color-mix(in srgb, var(--ruana-alert-tone) 10%, transparent) 0%,
+        rgba(9, 12, 10, 0.86) 100%
+    );
+}
+
+.ruana-alert-card--critical[data-alert-tone="competencia"] {
+    --ruana-alert-tone: var(--ruana-estado-competencia);
+}
+
+.ruana-alert-card--critical[data-alert-tone="prioritario"],
+.ruana-alert-card--critical.is-pendiente {
+    --ruana-alert-tone: var(--ruana-estado-prioritario);
 }
 
 .ruana-alert-card--critical.is-critical-enter::before {
@@ -265,10 +254,6 @@
 
 .ruana-alert-card--critical.is-critical-leaving {
     animation: ruana-alert-critical-body-out 220ms var(--ruana-ease-out) forwards;
-}
-
-.ruana-alert-card.ruana-alert-enter {
-    animation: ruana-alert-enter 240ms var(--ruana-transition);
 }
 
 .ruana-alert-card.is-leaving {
@@ -295,9 +280,14 @@
     background:
         linear-gradient(135deg, rgba(184, 232, 106, 0.12) 0%, transparent 18%),
         linear-gradient(-45deg, rgba(201, 184, 150, 0.08) 0%, transparent 14%),
-        linear-gradient(165deg, rgba(255, 255, 255, 0.04) 0%, rgba(10, 12, 20, 0.72) 100%);
+        linear-gradient(165deg, rgba(255, 255, 255, 0.04) 0%, rgba(9, 12, 10, 0.72) 100%);
     border: 1px solid rgba(255, 255, 255, 0.06);
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+
+@keyframes ruana-alert-enter {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes ruana-alert-thread-in {
@@ -339,7 +329,7 @@
     to { opacity: 0; transform: translateX(24px) scale(0.97); }
 }
 
-/* Botón agrupar / ver más */
+/* Botón ver más */
 .ruana-alert-hub__more {
     display: flex;
     align-items: center;
@@ -349,18 +339,21 @@
     min-height: 36px;
     padding: 8px 14px;
     border-radius: 12px;
-    border: 1px dashed rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.03);
+    border: 1px dashed rgba(201, 184, 150, 0.22);
+    background: rgba(248, 250, 246, 0.03);
     color: var(--ruana-text-muted);
     font-size: 0.78rem;
     font-weight: 600;
     cursor: pointer;
-    transition: background 180ms ease, border-color 180ms ease, color 180ms ease;
+    transition:
+        background var(--ruana-transition),
+        border-color var(--ruana-transition),
+        color var(--ruana-transition);
 }
 
 .ruana-alert-hub__more:hover {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: rgba(255, 255, 255, 0.18);
+    background: rgba(248, 250, 246, 0.06);
+    border-color: rgba(184, 232, 106, 0.22);
     color: var(--ruana-text-soft);
 }
 
@@ -372,20 +365,22 @@
     height: 20px;
     padding: 0 6px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.1);
+    background: color-mix(in srgb, var(--ruana-brand-lime) 18%, transparent);
+    color: var(--ruana-brand-lime);
     font-size: 0.72rem;
     font-weight: 700;
 }
 
-/* Panel de detalle expandible */
+/* Panel de detalle */
 .ruana-alert-hub__detail {
-    padding: 12px 14px 14px;
+    position: relative;
+    padding: 14px 14px 16px;
     border-radius: 0 0 16px 16px;
-    border: 1px solid var(--ruana-border-glass);
+    border: 1px solid rgba(210, 218, 208, 0.14);
     border-top: none;
-    background: rgba(8, 10, 18, 0.72);
-    backdrop-filter: blur(16px);
-    animation: ruana-alert-enter 200ms ease;
+    background: linear-gradient(165deg, rgba(248, 250, 246, 0.04) 0%, rgba(9, 12, 10, 0.9) 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    animation: ruana-alert-enter 220ms var(--ruana-ease-out);
 }
 
 .ruana-alert-hub__detail[hidden] {
@@ -397,43 +392,47 @@
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--ruana-border);
 }
 
 .ruana-alert-hub__detail-title {
-    font-size: 0.82rem;
-    font-weight: 600;
+    font-size: 0.84rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
     color: var(--ruana-text-soft);
 }
 
 .ruana-alert-hub__detail-close {
     min-height: 32px;
     padding: 4px 10px;
-    border: none;
+    border: 1px solid var(--ruana-border);
     border-radius: 8px;
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(248, 250, 246, 0.04);
     color: var(--ruana-text-muted);
     font-size: 0.75rem;
     font-weight: 600;
     cursor: pointer;
+    transition: background var(--ruana-transition), color var(--ruana-transition);
 }
 
 .ruana-alert-hub__detail-close:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(248, 250, 246, 0.08);
     color: var(--ruana-text);
 }
 
-/* Items dentro del detalle */
 .ruana-alert-detail-item {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 10px;
-    padding: 10px 12px;
+    padding: 12px 14px;
     margin-bottom: 8px;
-    border-radius: 12px;
+    border-radius: 14px;
     border: 1px solid var(--ruana-border);
-    background: rgba(14, 16, 32, 0.5);
+    background: rgba(9, 12, 10, 0.55);
 }
 
 .ruana-alert-detail-item:last-child {
@@ -445,7 +444,7 @@
     min-width: 160px;
     font-size: 0.8rem;
     color: var(--ruana-text-soft);
-    line-height: 1.4;
+    line-height: 1.45;
 }
 
 .ruana-alert-detail-item__text strong {
@@ -464,16 +463,16 @@
     padding: 6px 12px;
     border-radius: 10px;
     border: 1px solid var(--ruana-border-strong);
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(248, 250, 246, 0.04);
     color: var(--ruana-text-soft);
     font-size: 0.76rem;
     font-weight: 600;
     cursor: pointer;
-    transition: background 180ms ease;
+    transition: background var(--ruana-transition);
 }
 
 .ruana-alert-detail-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(248, 250, 246, 0.08);
 }
 
 .ruana-alert-detail-btn--primary {
@@ -486,13 +485,12 @@
     background: rgba(63, 159, 110, 0.26);
 }
 
-/* Notificación en detalle */
 .ruana-alert-notif {
-    padding: 10px 12px;
+    padding: 12px 14px;
     margin-bottom: 8px;
-    border-radius: 12px;
+    border-radius: 14px;
     border: 1px solid var(--ruana-border);
-    background: rgba(14, 16, 32, 0.45);
+    background: rgba(9, 12, 10, 0.5);
 }
 
 .ruana-alert-notif:last-child {
@@ -500,8 +498,8 @@
 }
 
 .ruana-alert-notif.is-unread {
-    border-left: 3px solid rgba(86, 168, 212, 0.55);
-    background: rgba(86, 168, 212, 0.06);
+    border-left: 3px solid var(--ruana-estado-estable);
+    background: color-mix(in srgb, var(--ruana-estado-estable) 8%, transparent);
 }
 
 .ruana-alert-notif__head {
@@ -534,12 +532,16 @@
 .ruana-alert-hub__detail-footer {
     display: flex;
     justify-content: flex-end;
-    margin-top: 10px;
-    padding-top: 10px;
+    margin-top: 12px;
+    padding-top: 12px;
     border-top: 1px solid var(--ruana-border);
 }
 
 @media (max-width: 640px) {
+    .ruana-alert-hub {
+        padding: 14px;
+    }
+
     .ruana-alert-card {
         flex-wrap: wrap;
         padding: 11px 12px;
@@ -563,21 +565,23 @@
 @media (prefers-reduced-motion: reduce) {
     .ruana-alert-card,
     .ruana-alert-hub__detail {
-        animation: none;
+        animation: none !important;
     }
 
-    .ruana-alert-card--critical::before,
+    .ruana-alert-card::before,
+    .ruana-alert-card.is-surface-enter::before,
     .ruana-alert-card--critical.is-critical-enter::before,
     .ruana-alert-card--critical.is-critical-leaving::before {
-        animation: none;
-        transform: none;
+        animation: none !important;
+        transform: none !important;
         opacity: 0.85;
     }
 
+    .ruana-alert-card.is-surface-enter,
     .ruana-alert-card--critical.is-critical-enter,
     .ruana-alert-card--critical.is-critical-leaving,
     .ruana-alert-card.is-leaving {
-        animation: ruana-alert-critical-fade 180ms ease both;
+        animation: ruana-alert-critical-fade 180ms ease both !important;
     }
 
     .ruana-alert-hub__cards.has-stack-peek .ruana-alert-card.is-stack-peek::after {

@@ -222,6 +222,9 @@
 
         const pagosHub = document.getElementById('ruana-alert-hub');
         const hayAlertasHub = pagosHub && !pagosHub.hidden;
+        const hubSummaries = (hayAlertasHub && global.RuanaAlertHub && typeof global.RuanaAlertHub.getVisibleAlertSummaries === 'function')
+            ? global.RuanaAlertHub.getVisibleAlertSummaries(pagosHub)
+            : [];
 
         const contacto = document.getElementById('contacto-aviso-persistente');
         if (contacto && isVisible(contacto)) {
@@ -245,21 +248,33 @@
         }
 
         if (hayAlertasHub) {
-            tasks.push({
-                text: 'Pagos o avisos RUANA pendientes',
-                action: 'inicio',
-                label: 'Ver avisos',
-                scrollAlerts: true
+            const taskById = {
+                'score-bajo': { label: 'Ver score', action: 'inicio', scrollAlerts: true },
+                'apoyo-pago': { label: 'Gestionar pago', action: 'inicio', scrollAlerts: true },
+                'mensajes-ruana': { label: 'Leer mensajes', action: 'inicio', scrollAlerts: true },
+                'stripe-pendiente': { label: 'Conectar pago', action: 'perfil', scrollAlerts: true },
+                'competencia': { label: 'Ver competencia', action: 'perfil', scrollAlerts: true },
+            };
+            const seen = new Set();
+            hubSummaries.forEach(function (entry) {
+                if (!entry || !entry.id || seen.has(entry.id)) return;
+                seen.add(entry.id);
+                const meta = taskById[entry.id];
+                tasks.push({
+                    text: entry.title || 'Aviso RUANA pendiente',
+                    action: meta ? meta.action : 'inicio',
+                    label: meta ? meta.label : 'Ver avisos',
+                    scrollAlerts: true
+                });
             });
-        }
-
-        const scoreAlerta = document.getElementById('score-alerta-panel');
-        if (scoreAlerta && scoreAlerta.classList.contains('visible')) {
-            tasks.push({
-                text: 'Tu Score RUANA necesita atención',
-                action: 'inicio',
-                label: 'Ver score'
-            });
+            if (!hubSummaries.length) {
+                tasks.push({
+                    text: 'Pagos o avisos RUANA pendientes',
+                    action: 'inicio',
+                    label: 'Ver avisos',
+                    scrollAlerts: true
+                });
+            }
         }
 
         const entrantes = countListItems('solicitudes-list');
