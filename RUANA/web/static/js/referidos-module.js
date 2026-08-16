@@ -149,6 +149,11 @@
         });
     }
 
+    function explorerSvgIcon(pathD) {
+        return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">' +
+            pathD + '</svg>';
+    }
+
     function origenLabel(origen, origenLabelField) {
         if (origenLabelField) return origenLabelField;
         var map = {
@@ -321,7 +326,223 @@
         this._lastSyncAt = null;
         this._pollTimer = null;
         this._pollInFlight = false;
+
+        this._explorerReady = false;
+        this._explorerRoot = null;
+        this._panViewport = null;
+        this._panLayer = null;
+        this._detailFloatWrap = null;
+        this._panX = 0;
+        this._panY = 0;
+        this._initExplorerChrome();
     }
+
+    RuanaReferidosTree.prototype._getTreeRenderTarget = function () {
+        return this._panLayer || this.treeContainer;
+    };
+
+    RuanaReferidosTree.prototype._applyPanTransform = function () {
+        if (!this._panLayer) return;
+        this._panLayer.style.transform = 'translate(' + this._panX + 'px, ' + this._panY + 'px)';
+    };
+
+    RuanaReferidosTree.prototype._resetPanView = function () {
+        this._panX = 0;
+        this._panY = 0;
+        this._applyPanTransform();
+    };
+
+    RuanaReferidosTree.prototype._updateDetailFloatVisibility = function () {
+        if (!this._detailFloatWrap) return;
+        var nodo = this._selectedCodigo && this._nodosMap[this._selectedCodigo];
+        var show = !!(nodo && !nodo.virtual);
+        this._detailFloatWrap.classList.toggle('is-visible', show);
+        this._detailFloatWrap.setAttribute('aria-hidden', show ? 'false' : 'true');
+    };
+
+    RuanaReferidosTree.prototype._clearDetailSelection = function () {
+        this._selectedCodigo = null;
+        if (this.treeContainer) {
+            this.treeContainer.querySelectorAll('.referidos-gen-node.selected, .referidos-node-card.selected')
+                .forEach(function (el) { el.classList.remove('selected'); });
+        }
+        renderDetailPanel(this.detailContainer, null);
+        this._updateDetailFloatVisibility();
+    };
+
+    RuanaReferidosTree.prototype._bindPanHandlers = function () {
+        var self = this;
+        var viewport = this._panViewport;
+        if (!viewport || viewport._panBound) return;
+        viewport._panBound = true;
+
+        var dragging = false;
+        var startX = 0;
+        var startY = 0;
+        var origPanX = 0;
+        var origPanY = 0;
+
+        function canPanTarget(target) {
+            return !target.closest('.referidos-gen-node') &&
+                !target.closest('.referidos-explorer-toolbar') &&
+                !target.closest('.referidos-detail-float-wrap');
+        }
+
+        function onPointerDown(e) {
+            if (!canPanTarget(e.target)) return;
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            dragging = true;
+            viewport.classList.add('is-panning');
+            startX = e.clientX;
+            startY = e.clientY;
+            origPanX = self._panX;
+            origPanY = self._panY;
+            if (viewport.setPointerCapture) {
+                try { viewport.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
+            }
+            e.preventDefault();
+        }
+
+        function onPointerMove(e) {
+            if (!dragging) return;
+            self._panX = origPanX + (e.clientX - startX);
+            self._panY = origPanY + (e.clientY - startY);
+            self._applyPanTransform();
+        }
+
+        function onPointerUp(e) {
+            if (!dragging) return;
+            dragging = false;
+            viewport.classList.remove('is-panning');
+            if (viewport.releasePointerCapture) {
+                try { viewport.releasePointerCapture(e.pointerId); } catch (err) { /* noop */ }
+            }
+        }
+
+        viewport.addEventListener('pointerdown', onPointerDown);
+        viewport.addEventListener('pointermove', onPointerMove);
+        viewport.addEventListener('pointerup', onPointerUp);
+        viewport.addEventListener('pointercancel', onPointerUp);
+    };
+
+    RuanaReferidosTree.prototype._toggleFullscreen = function () {
+        var explorer = this._explorerRoot;
+        if (!explorer) return;
+        var goingFull = !explorer.classList.contains('is-fullscreen');
+        explorer.classList.toggle('is-fullscreen', goingFull);
+        var req = explorer.requestFullscreen || explorer.webkitRequestFullscreen || explorer.msRequestFullscreen;
+        if (goingFull && req) {
+            req.call(explorer).catch(function () { /* fallback CSS fullscreen */ });
+        } else if (!goingFull && document.fullscreenElement) {
+            (document.exitFullscreen || document.webkitExitFullscreen || function () {}).call(document);
+        }
+        var btn = explorer.querySelector('[data-action="fullscreen"]');
+        if (btn) btn.setAttribute('aria-pressed', goingFull ? 'true' : 'false');
+    };
+
+    RuanaReferidosTree.prototype._syncFullscreenState = function () {
+        if (!this._explorerRoot) return;
+        var active = !!document.fullscreenElement || this._explorerRoot.classList.contains('is-fullscreen');
+        if (!document.fullscreenElement && this._explorerRoot.classList.contains('is-fullscreen')) {
+            /* CSS-only fullscreen still valid until user exits */
+        }
+        if (!document.fullscreenElement) {
+            /* native exited — keep CSS class unless user clicked exit */
+        }
+        var btn = this._explorerRoot.querySelector('[data-action="fullscreen"]');
+        if (btn) btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    };
+
+    RuanaReferidosTree.prototype._bindExplorerToolbar = function (toolbar) {
+        var self = this;
+        if (!toolbar || toolbar._bound) return;
+        toolbar._bound = true;
+        toolbar.addEventListener('click', function (e) {
+            var btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            var action = btn.getAttribute('data-action');
+            if (action === 'fullscreen') self._toggleFullscreen();
+            if (action === 'pan-reset') self._resetPanView();
+        });
+        document.addEventListener('fullscreenchange', function () {
+            if (!self._explorerRoot) return;
+            if (!document.fullscreenElement) {
+                self._explorerRoot.classList.remove('is-fullscreen');
+            }
+            self._syncFullscreenState();
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && self._explorerRoot && self._explorerRoot.classList.contains('is-fullscreen')) {
+                self._explorerRoot.classList.remove('is-fullscreen');
+                if (document.fullscreenElement) document.exitFullscreen().catch(function () {});
+            }
+        });
+    };
+
+    RuanaReferidosTree.prototype._initExplorerChrome = function () {
+        if (this._explorerReady || !this.treeContainer) return;
+        var layout = this.treeContainer.closest('.referidos-layout');
+        if (!layout) return;
+        var self = this;
+
+        layout.classList.add('referidos-layout-explorer');
+
+        var explorer = document.createElement('div');
+        explorer.className = 'referidos-explorer';
+
+        var toolbar = document.createElement('div');
+        toolbar.className = 'referidos-explorer-toolbar';
+        toolbar.innerHTML =
+            '<div class="referidos-explorer-toolbar-left">' +
+            '<button type="button" class="referidos-explorer-btn" data-action="pan-reset" title="Recentrar vista" aria-label="Recentrar vista">' +
+            explorerSvgIcon('<path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>') +
+            '</button>' +
+            '<span class="referidos-explorer-hint">Arrastra en cualquier dirección para navegar · Clic en un aliado para ver su ficha</span>' +
+            '</div>' +
+            '<button type="button" class="referidos-explorer-btn referidos-explorer-btn-primary" data-action="fullscreen" aria-pressed="false" title="Pantalla completa">' +
+            explorerSvgIcon('<path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>') +
+            '<span>Pantalla completa</span></button>';
+
+        var stage = document.createElement('div');
+        stage.className = 'referidos-explorer-stage';
+
+        this.treeContainer.classList.add('referidos-explorer-viewport');
+        var panViewport = document.createElement('div');
+        panViewport.className = 'referidos-pan-viewport';
+        var panLayer = document.createElement('div');
+        panLayer.className = 'referidos-pan-layer';
+        panViewport.appendChild(panLayer);
+        this.treeContainer.appendChild(panViewport);
+
+        stage.appendChild(this.treeContainer);
+
+        if (this.detailContainer) {
+            var floatWrap = document.createElement('div');
+            floatWrap.className = 'referidos-detail-float-wrap';
+            floatWrap.setAttribute('aria-hidden', 'true');
+            floatWrap.innerHTML = '<button type="button" class="referidos-detail-float-close" aria-label="Cerrar ficha">×</button>';
+            this.detailContainer.classList.add('referidos-detail-float');
+            floatWrap.appendChild(this.detailContainer);
+            stage.appendChild(floatWrap);
+            this._detailFloatWrap = floatWrap;
+            floatWrap.querySelector('.referidos-detail-float-close').addEventListener('click', function () {
+                self._clearDetailSelection();
+            });
+        }
+
+        explorer.appendChild(toolbar);
+        explorer.appendChild(stage);
+
+        while (layout.firstChild) layout.removeChild(layout.firstChild);
+        layout.appendChild(explorer);
+
+        this._explorerRoot = explorer;
+        this._panViewport = panViewport;
+        this._panLayer = panLayer;
+        this._bindPanHandlers();
+        this._bindExplorerToolbar(toolbar);
+        this._explorerReady = true;
+    };
 
     RuanaReferidosTree.prototype._fetchJson = function (url) {
         var opts = Object.assign({ credentials: 'same-origin' }, this.fetchOptions || {});
@@ -339,8 +560,9 @@
     };
 
     RuanaReferidosTree.prototype._setLoading = function (msg) {
-        if (!this.treeContainer) return;
-        this.treeContainer.innerHTML =
+        var target = this._getTreeRenderTarget();
+        if (!target) return;
+        target.innerHTML =
             '<div class="referidos-loading"><div class="referidos-loading-spinner"></div>' +
             escapeHtml(msg || 'Cargando red de referidos…') + '</div>';
     };
@@ -394,8 +616,9 @@
 
     RuanaReferidosTree.prototype._renderGenealogyForest = function (bosques, container) {
         var self = this;
-        container.innerHTML = '<div class="referidos-genealogy-scroll"><div class="referidos-genealogy-forest"></div></div>';
-        var forest = container.querySelector('.referidos-genealogy-forest');
+        var target = this._getTreeRenderTarget();
+        target.innerHTML = '<div class="referidos-genealogy-scroll"><div class="referidos-genealogy-forest"></div></div>';
+        var forest = target.querySelector('.referidos-genealogy-forest');
         if (!bosques || !bosques.length) {
             forest.innerHTML = '<div class="referidos-empty-state">No hay aliados registrados en la red.</div>';
             return;
@@ -440,7 +663,8 @@
         });
 
         forest.style.minWidth = maxForestWidth + 'px';
-        self._bindGenealogyEvents(container);
+        self._bindGenealogyEvents(target);
+        self._resetPanView();
     };
 
     RuanaReferidosTree.prototype._bindGenealogyEvents = function (rootEl) {
@@ -494,12 +718,13 @@
             if (data.aliados_fuera_red) {
                 meta += ' · ' + data.aliados_fuera_red + ' pendientes de vincular';
             }
-            meta += ' · Desplázate horizontalmente si el árbol es ancho';
+            meta += ' · Arrastra para mover · Pantalla completa arriba a la derecha';
             self._updateMeta(meta);
             if (bosques.length) {
                 self.selectNode(bosques[0].codigo);
             } else {
                 renderDetailPanel(self.detailContainer, null);
+                self._updateDetailFloatVisibility();
             }
             self.startPolling();
             self._adminLoaded = true;
@@ -651,6 +876,7 @@
             onPausarAliado: this.onPausarAliado,
             onEliminarAliado: this.onEliminarAliado
         });
+        this._updateDetailFloatVisibility();
 
         if (!nodo.virtual && this.apiDetalle) {
             this._fetchJson(this.apiDetalle + encodeURIComponent(codigo)).then(function (data) {
@@ -665,6 +891,7 @@
                         onPausarAliado: self.onPausarAliado,
                         onEliminarAliado: self.onEliminarAliado
                     });
+                    self._updateDetailFloatVisibility();
                 }
             }).catch(function () {});
         }
