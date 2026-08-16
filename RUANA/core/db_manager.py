@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any, Tuple
 import threading
 
-from core.postgres_compat import connect as pg_compat_connect
+from core.postgres_compat import connect as pg_compat_connect, get_connection_pool
 from core.settings import get_settings
 from core import negociacion_manager as neg_mgr
 from core.db_constants import (
@@ -70,6 +70,9 @@ class DBManager:
         self._lock = threading.RLock()  # Para operaciones thread-safe
         self.settings = get_settings()
         self.backend = "postgres" if self.settings.postgres_configured else "sqlite"
+        self._pg_pool = None
+        if self.backend == "postgres":
+            self._pg_pool = get_connection_pool(self.settings.database_url)
         
         # Inicializar base de datos
         if self.backend == "sqlite":
@@ -80,7 +83,7 @@ class DBManager:
     def _connect(self):
         """Open a database connection for the configured backend."""
         if self.backend == "postgres":
-            return pg_compat_connect(self.settings.database_url)
+            return pg_compat_connect(self.settings.database_url, pool=self._pg_pool)
         return sqlite3.connect(self.db_path)
 
     def _init_postgres_schema(self):

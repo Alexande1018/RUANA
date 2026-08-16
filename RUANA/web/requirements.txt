@@ -1,5 +1,6 @@
 Flask==2.3.3
 Flask-Cors==4.0.0
+Flask-Compress==1.14
 Werkzeug==2.3.7
 PyJWT==2.8.0
 gunicorn>=23.0.0,<24.0.0

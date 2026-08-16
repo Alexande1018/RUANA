@@ -9,11 +9,16 @@ from __future__ import annotations
 
 import re
 import sqlite3
+import threading
 from collections.abc import Mapping
 from typing import Any, Iterable, Optional
 
 import psycopg
 from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
+
+_pools: dict[str, ConnectionPool] = {}
+_pools_lock = threading.Lock()
 
 
 class CompatRow(Mapping):
@@ -262,10 +267,45 @@ class PostgresCompatCursor:
         self.close()
 
 
+def get_connection_pool(
+    database_url: str,
+    *,
+    min_size: int = 1,
+    max_size: int = 10,
+) -> ConnectionPool:
+    """Obtiene (o crea) un pool compartido por URL de conexión."""
+    with _pools_lock:
+        pool = _pools.get(database_url)
+        if pool is None:
+            pool = ConnectionPool(
+                conninfo=database_url,
+                min_size=min_size,
+                max_size=max_size,
+                kwargs={"row_factory": dict_row, "prepare_threshold": None},
+                open=True,
+            )
+            pool.open(wait=True)
+            _pools[database_url] = pool
+        return pool
+
+
 class PostgresCompatConnection:
-    def __init__(self, database_url: str):
-        self._conn = psycopg.connect(database_url, row_factory=dict_row, prepare_threshold=None)
+    def __init__(
+        self,
+        database_url: str | None = None,
+        *,
+        raw_conn: Any = None,
+        pool: ConnectionPool | None = None,
+    ):
+        self._pool = pool
         self.row_factory = None
+        if raw_conn is not None:
+            self._conn = raw_conn
+        elif database_url is not None:
+            self._conn = psycopg.connect(database_url, row_factory=dict_row, prepare_threshold=None)
+            self._pool = None
+        else:
+            raise ValueError("database_url o raw_conn requerido")
 
     def cursor(self):
         return PostgresCompatCursor(self)
@@ -277,7 +317,18 @@ class PostgresCompatConnection:
         self._conn.rollback()
 
     def close(self):
-        self._conn.close()
+        if self._conn is None:
+            return
+        conn = self._conn
+        self._conn = None
+        if self._pool is not None:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            self._pool.putconn(conn)
+        else:
+            conn.close()
 
     def __enter__(self):
         return self
@@ -290,5 +341,10 @@ class PostgresCompatConnection:
         self.close()
 
 
-def connect(database_url: str) -> PostgresCompatConnection:
+def connect(
+    database_url: str,
+    pool: ConnectionPool | None = None,
+) -> PostgresCompatConnection:
+    if pool is not None:
+        return PostgresCompatConnection(raw_conn=pool.getconn(), pool=pool)
     return PostgresCompatConnection(database_url)

@@ -986,21 +986,21 @@ def obtener_movimiento_24h_por_hora(db) -> Dict[str, Dict[str, int]]:
             filtro_24h_sol = f"datetime({col_sol}) >= datetime('now', '-1 day')"
             filtro_24h = "datetime(creado_en) >= datetime('now', '-1 day')"
 
-            _repo.execute(cursor, f"SELECT strftime('%H', {col_sol}) AS hora, COUNT(*) AS total FROM solicitudes WHERE {filtro_24h_sol} GROUP BY strftime('%H', {col_sol})")
+            _repo.execute(cursor, f"""
+                SELECT strftime('%H', {col_sol}) AS hora,
+                       COUNT(*) AS nuevas,
+                       SUM(CASE WHEN estado = ? THEN 1 ELSE 0 END) AS atendidas,
+                       SUM(CASE WHEN estado = 'pendiente' THEN 1 ELSE 0 END) AS sin_respuesta
+                FROM solicitudes
+                WHERE {filtro_24h_sol}
+                GROUP BY strftime('%H', {col_sol})
+            """, (est_sol,))
             for row in cursor.fetchall():
                 h = row[0] if row[0] and len(row[0]) == 2 else (f"0{row[0]}" if row[0] and len(row[0]) == 1 else row[0])
                 if h in resultado:
                     resultado[h]['nuevas'] = row[1]
-            _repo.execute(cursor, f"SELECT strftime('%H', {col_sol}) AS hora, COUNT(*) AS total FROM solicitudes WHERE estado = ? AND {filtro_24h_sol} GROUP BY strftime('%H', {col_sol})", (est_sol,))
-            for row in cursor.fetchall():
-                h = row[0] if row[0] and len(row[0]) == 2 else (f"0{row[0]}" if row[0] and len(row[0]) == 1 else row[0])
-                if h in resultado:
-                    resultado[h]['atendidas'] = row[1]
-            _repo.execute(cursor, f"SELECT strftime('%H', {col_sol}) AS hora, COUNT(*) AS total FROM solicitudes WHERE estado = 'pendiente' AND {filtro_24h_sol} GROUP BY strftime('%H', {col_sol})")
-            for row in cursor.fetchall():
-                h = row[0] if len(row[0]) == 2 else f"0{row[0]}" if row[0] and len(row[0]) == 1 else row[0]
-                if h in resultado:
-                    resultado[h]['sin_respuesta'] = row[1]
+                    resultado[h]['atendidas'] = row[2]
+                    resultado[h]['sin_respuesta'] = row[3]
 
             # Invitaciones generadas por hora
             _repo.execute(cursor, f"""
