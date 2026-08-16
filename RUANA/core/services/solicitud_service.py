@@ -250,7 +250,7 @@ def listar_solicitudes_propias_por_codigo(db, codigo: str) -> List[Dict[str, Any
 
 
 def listar_solicitudes_historial_grupo_por_codigo(db, codigo: str, limite: int = 50) -> List[Dict[str, Any]]:
-    """Historial de solicitudes del grupo (todas: pendiente y atendidas). Ordenado por fecha descendente."""
+    """Historial del grupo: atendidas, candidato pendiente y estados cerrados (sin pendientes activas)."""
     with db._lock:
         try:
             conn = db._connect()

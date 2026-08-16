@@ -185,7 +185,9 @@ def test_aliado_solicitudes_module_is_wired():
     assert 'id="module-solicitudes"' in aliado
     assert 'id="solicitudes-list"' in aliado
     assert 'id="solicitudes-propias-list"' in aliado
-    assert 'id="solicitudes-historial-list"' in aliado
+    assert 'solicitudes-historial-list' in aliado
+    assert 'data-solicitudes-count' in solicitudes_js
+    assert 'solicitudes-group-header' in solicitudes_js
 
 
 def test_aliado_acuerdos_module_is_wired():

@@ -450,7 +450,8 @@
         modules: MODULES.slice(),
         ensureModuleForSelector: ensureModuleForSelector,
         moduleForSelector: moduleForSelector,
-        refresh: refreshInicioSurface
+        refresh: refreshInicioSurface,
+        updateNavBadges: updateNavBadges,
     };
 
     global.AliadoShell = api;

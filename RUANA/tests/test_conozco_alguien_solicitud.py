@@ -80,6 +80,12 @@ def test_conozco_alguien_no_cierra_y_vincula_al_registrar(sqlite_db):
     entrantes_nuevo = sqlite_db.listar_solicitudes_activas_por_codigo("90099")
     assert any(s["id"] == solicitud_id for s in entrantes_nuevo)
 
+    entrantes_proponente = sqlite_db.listar_solicitudes_activas_por_codigo("C0002")
+    assert all(s["id"] != solicitud_id for s in entrantes_proponente)
+
+    historial = sqlite_db.listar_solicitudes_historial_grupo_por_codigo("C0001")
+    assert all(s["estado"] != "pendiente" for s in historial)
+
     conn = sqlite_db._connect()
     conn.row_factory = __import__("sqlite3").Row
     cur = conn.cursor()
