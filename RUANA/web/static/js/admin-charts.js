@@ -42,12 +42,14 @@
         const coords = polylineArea(points, w, h, pad);
         const line = coords.split(' ').slice(0, points.length).join(' ');
         const gradId = 'cc-grad-' + Math.random().toString(36).slice(2, 9);
+        const nav = (opts && opts.nav) ? ' data-cc-chart-nav="' + esc(opts.nav) + '"' : '';
+        const clickable = (opts && opts.nav) ? ' cc-chart-clickable' : '';
         container.innerHTML =
             '<div class="cc-chart-head">' +
             (title ? '<span class="cc-chart-title">' + esc(title) + '</span>' : '') +
             (subtitle ? '<span class="cc-chart-sub">' + esc(subtitle) + '</span>' : '') +
             '</div>' +
-            '<svg class="cc-chart-svg" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" role="img" aria-label="' + esc(title) + '">' +
+            '<svg class="cc-chart-svg cc-chart-interactive' + clickable + '" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" role="img" aria-label="' + esc(title) + '"' + nav + '>' +
             '<defs><linearGradient id="' + gradId + '" x1="0" y1="0" x2="0" y2="1">' +
             '<stop offset="0%" stop-color="' + color + '" stop-opacity="0.35"/>' +
             '<stop offset="100%" stop-color="' + color + '" stop-opacity="0.02"/>' +
@@ -73,12 +75,14 @@
             const bh = (item.value / max) * (h - pad * 2 - 18);
             const x = pad + i * gap + (gap - barW) / 2;
             const y = h - pad - 18 - bh;
-            bars += '<rect x="' + x + '" y="' + y + '" width="' + barW + '" height="' + bh + '" rx="4" fill="' + color + '" opacity="0.85"/>' +
+            const nav = item.nav ? ' data-cc-chart-nav="' + esc(item.nav) + '"' : '';
+            const clickable = item.nav ? ' cc-chart-clickable' : '';
+            bars += '<rect class="' + clickable.trim() + '" x="' + x + '" y="' + y + '" width="' + barW + '" height="' + bh + '" rx="4" fill="' + color + '" opacity="0.85"' + nav + '/>' +
                 '<text x="' + (x + barW / 2) + '" y="' + (h - 4) + '" text-anchor="middle" class="cc-chart-label">' + esc(item.label) + '</text>';
         });
         container.innerHTML =
             '<div class="cc-chart-head"><span class="cc-chart-title">' + esc(title) + '</span></div>' +
-            '<svg class="cc-chart-svg" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + esc(title) + '">' + bars + '</svg>';
+            '<svg class="cc-chart-svg cc-chart-interactive" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + esc(title) + '">' + bars + '</svg>';
     }
 
     function renderDonutChart(container, opts) {
@@ -104,7 +108,11 @@
             paths += '<path d="M ' + cx + ' ' + cy + ' L ' + x1 + ' ' + y1 + ' A ' + r + ' ' + r + ' 0 ' + large + ' 1 ' + x2 + ' ' + y2 + ' Z" fill="' + (seg.color || colors[i % colors.length]) + '" opacity="0.9"/>';
         });
         const legend = segments.map(function (seg, i) {
-            return '<span class="cc-donut-legend-item"><i style="background:' + (seg.color || colors[i % colors.length]) + '"></i>' + esc(seg.label) + ' <strong>' + seg.value + '</strong></span>';
+            const nav = seg.nav ? ' data-cc-chart-nav="' + esc(seg.nav) + '"' : '';
+            const clickable = seg.nav ? ' cc-chart-clickable' : '';
+            return '<button type="button" class="cc-donut-legend-item' + clickable + '"' + nav + '>' +
+                '<i style="background:' + (seg.color || colors[i % colors.length]) + '"></i>' +
+                esc(seg.label) + ' <strong>' + seg.value + '</strong></button>';
         }).join('');
         container.innerHTML =
             '<div class="cc-chart-head"><span class="cc-chart-title">' + esc(title) + '</span></div>' +
@@ -133,7 +141,8 @@
             const cy = pad + row * cellH + cellH / 2;
             const r = 8 + (node.count / max) * 22;
             const opacity = 0.35 + (node.count / max) * 0.55;
-            circles += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="#a2ff00" fill-opacity="' + opacity + '" class="cc-network-node" data-cp="' + esc(node.cp) + '"/>' +
+            const nav = node.nav || '#grupos-cp-wrap';
+            circles += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="#a2ff00" fill-opacity="' + opacity + '" class="cc-network-node cc-chart-clickable" data-cc-cp="' + esc(node.cp) + '" data-cc-chart-nav="' + esc(nav) + '"/>' +
                 '<text x="' + cx + '" y="' + (cy + r + 12) + '" text-anchor="middle" class="cc-network-label">' + esc(node.cp) + '</text>';
         });
         container.innerHTML =

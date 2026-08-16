@@ -62,11 +62,13 @@
         var trabajos = data.trabajos || 0;
         var items = [
             { id: 'aliados', label: 'Aliados activos', value: ind.aliadosActivos, nav: '#control-aliados-wrap' },
-            { id: 'grupos', label: 'Grupos activos', value: ind.gruposActivos, sub: (ind.totalGrupos || 0) + ' total', nav: '#grupos-cp-wrap' },
+            { id: 'grupos', label: 'Grupos activos', value: ind.gruposActivos, sub: (ind.gruposEnCompetencia || 0) + ' en competencia · ' + (ind.totalGrupos || 0) + ' total', nav: '#grupos-cp-wrap' },
+            { id: 'competencia', label: 'En competencia', value: ind.retadores != null ? ind.retadores : '—', sub: (ind.gruposEnCompetencia || 0) + ' grupos', nav: '#competencias-activas-wrap', warn: (ind.retadores || 0) > 0 },
+            { id: 'espera', label: 'Suplentes en espera', value: ind.enEspera != null ? ind.enEspera : '—', nav: '#suplentes-espera-wrap', warn: (ind.enEspera || 0) > 0 },
             { id: 'trabajos', label: 'Trabajos abiertos', value: trabajos, nav: '#conversaciones-ruana-wrap' },
             { id: 'solicitudes', label: 'Solicitudes pendientes', value: ind.solicitudesActivas, nav: '#solicitudes-admin-wrap', warn: (ind.solicitudesActivas || 0) > 0 },
             { id: 'conflictos', label: 'Conflictos', value: conflictos, nav: '#conflictos-pago-wrap', warn: conflictos > 0 },
-            { id: 'salud', label: 'Salud de la red', value: ind.estadoSistema || 'Estable', isText: true }
+            { id: 'riesgo', label: 'En riesgo', value: ind.enRiesgo != null ? ind.enRiesgo : '—', nav: '#scores-evaluaciones-wrap', warn: (ind.enRiesgo || 0) > 0 }
         ];
         return items.map(function (k) {
             var cls = 'cc-kpi' + (k.warn ? ' is-warn' : '');
@@ -125,8 +127,17 @@
         }).join('') || '<li class="cc-aside-empty">Ninguno detectado</li>';
 
         var solList = (data.solicitudes || []).slice(0, 5).map(function (s) {
-            return '<li><span>' + esc(s.oficio || 'Solicitud') + '</span><small>#' + esc(s.id) + '</small></li>';
+            return '<li><button type="button" class="cc-aside-link" data-cc-nav="#solicitudes-admin-wrap">' +
+                '<span>' + esc(s.oficio || 'Solicitud') + '</span><small>#' + esc(s.id) + '</small></button></li>';
         }).join('') || '<li class="cc-aside-empty">Sin pendientes</li>';
+
+        var compList = (data.competencias || []).slice(0, 5).map(function (c) {
+            var titular = (c.titular && c.titular.nombre) ? c.titular.nombre : (c.titular_codigo || '—');
+            var retadorData = c.retador || c.suplente || null;
+            var retador = (retadorData && retadorData.nombre) ? retadorData.nombre : '—';
+            return '<li><button type="button" class="cc-aside-link" data-cc-nav="#competencias-activas-wrap">' +
+                esc(titular) + ' vs ' + esc(retador) + '</button></li>';
+        }).join('') || '<li class="cc-aside-empty">Sin competencias activas</li>';
 
         var incList = (data.incidencias || []).slice(0, 4).map(function (c) {
             return '<li><button type="button" class="cc-aside-link" data-cc-nav="#incidencias-wrap">' +
@@ -141,6 +152,7 @@
                     '</li>';
             }).join('') + '</ul></section>' +
             '<section class="cc-aside-block"><h3>Aliados en riesgo</h3><ul class="cc-aside-list">' + riesgoList + '</ul></section>' +
+            '<section class="cc-aside-block"><h3>Competencias activas</h3><ul class="cc-aside-list">' + compList + '</ul></section>' +
             '<section class="cc-aside-block"><h3>Solicitudes pendientes</h3><ul class="cc-aside-list cc-aside-compact">' + solList + '</ul></section>' +
             '<section class="cc-aside-block"><h3>Incidencias</h3><ul class="cc-aside-list">' + incList + '</ul></section>';
     }
@@ -187,7 +199,9 @@
                 solicitudesActivas: document.getElementById('solicitudes-activas') ? document.getElementById('solicitudes-activas').textContent : 0,
                 enRiesgo: document.getElementById('en-riesgo-count') ? document.getElementById('en-riesgo-count').textContent : 0,
                 pendientesValidacion: document.getElementById('pendientes-validacion-count') ? document.getElementById('pendientes-validacion-count').textContent : 0,
-                gruposEnCompetencia: 0,
+                gruposEnCompetencia: document.getElementById('total-grupos-desglose') ? parseInt((document.getElementById('total-grupos-desglose').textContent.match(/(\d+)\s+en competencia/) || [])[1], 10) || 0 : 0,
+                retadores: document.getElementById('retadores-count') ? document.getElementById('retadores-count').textContent : 0,
+                enEspera: document.getElementById('en-espera-count') ? document.getElementById('en-espera-count').textContent : 0,
                 estadoSistema: document.getElementById('estado-sistema-label') ? document.getElementById('estado-sistema-label').textContent : 'Estable'
             };
         }
@@ -197,6 +211,7 @@
         var solicitudes = payload && payload.solicitudes ? payload.solicitudes : [];
         var eventos = payload && payload.eventos ? payload.eventos : [];
         var incidencias = payload && payload.incidencias ? payload.incidencias : [];
+        var competencias = payload && payload.competencias ? payload.competencias : [];
         var aliadosEnRiesgo = aliados.filter(function (a) {
             return (a.estado_panel === 'riesgo') || Number(a.score_panel || a.score) < 100;
         });
@@ -231,21 +246,23 @@
 
         charts.renderAreaChart(document.getElementById('cc-chart-activity'), {
             title: 'Evolución de actividad',
-            subtitle: 'Últimas 24h',
+            subtitle: 'Últimas 24h · clic para detalle',
             points: activityPoints,
             width: 520,
             height: 140,
-            color: '#a2ff00'
+            color: '#a2ff00',
+            nav: '.movimiento-sistema'
         });
 
         var activos = aliados.filter(function (a) { return (a.estado || '').toLowerCase() === 'activo'; }).length;
         charts.renderBarChart(document.getElementById('cc-chart-allies-jobs'), {
             title: 'Aliados y trabajos',
             items: [
-                { label: 'Activos', value: activos || Number(indicadores.aliadosActivos) || 0 },
-                { label: 'Riesgo', value: Number(indicadores.enRiesgo) || aliadosEnRiesgo.length },
-                { label: 'Trabajos', value: trabajosCount },
-                { label: 'Solic.', value: Number(indicadores.solicitudesActivas) || solicitudes.length }
+                { label: 'Activos', value: activos || Number(indicadores.aliadosActivos) || 0, nav: '#control-aliados-wrap' },
+                { label: 'Riesgo', value: Number(indicadores.enRiesgo) || aliadosEnRiesgo.length, nav: '#scores-evaluaciones-wrap' },
+                { label: 'Compet.', value: Number(indicadores.retadores) || competencias.length, nav: '#competencias-activas-wrap' },
+                { label: 'Trabajos', value: trabajosCount, nav: '#conversaciones-ruana-wrap' },
+                { label: 'Solic.', value: Number(indicadores.solicitudesActivas) || solicitudes.length, nav: '#solicitudes-admin-wrap' }
             ],
             color: '#5ecf9a'
         });
@@ -254,17 +271,17 @@
         charts.renderDonutChart(document.getElementById('cc-chart-scores'), {
             title: 'Distribución de scores',
             segments: [
-                { label: 'Alto (400+)', value: buckets.alto, color: '#a2ff00' },
-                { label: 'Medio', value: buckets.medio, color: '#5ecf9a' },
-                { label: 'Bajo', value: buckets.bajo, color: '#e8c468' },
-                { label: 'Riesgo', value: buckets.riesgo, color: '#d4926e' }
+                { label: 'Alto (400+)', value: buckets.alto, color: '#a2ff00', nav: '#scores-evaluaciones-wrap' },
+                { label: 'Medio', value: buckets.medio, color: '#5ecf9a', nav: '#scores-evaluaciones-wrap' },
+                { label: 'Bajo', value: buckets.bajo, color: '#e8c468', nav: '#scores-evaluaciones-wrap' },
+                { label: 'Riesgo', value: buckets.riesgo, color: '#d4926e', nav: '#scores-evaluaciones-wrap' }
             ]
         });
 
         var cpGroups = groupByCp(aliados).slice(0, 8);
         charts.renderBarChart(document.getElementById('cc-chart-cp-activity'), {
             title: 'Actividad por CP',
-            items: cpGroups.map(function (g) { return { label: g.cp.slice(-4), value: g.count }; }),
+            items: cpGroups.map(function (g) { return { label: g.cp.slice(-4), value: g.count, nav: '#grupos-cp-wrap' }; }),
             color: '#6b8cce'
         });
 
@@ -277,7 +294,8 @@
                 conflictos: conflictos,
                 aliadosEnRiesgo: aliadosEnRiesgo,
                 solicitudes: solicitudes,
-                incidencias: incidencias
+                incidencias: incidencias,
+                competencias: competencias
             });
         }
 
@@ -298,9 +316,28 @@
         if (!root || root._ccBound) return;
         root._ccBound = true;
         root.addEventListener('click', function (e) {
-            var navBtn = e.target.closest('[data-cc-nav]');
+            var navBtn = e.target.closest('[data-cc-nav], [data-cc-chart-nav]');
             if (navBtn && global.AdminShell && typeof global.AdminShell.navigateTo === 'function') {
-                global.AdminShell.navigateTo(navBtn.getAttribute('data-cc-nav'));
+                var target = navBtn.getAttribute('data-cc-nav') || navBtn.getAttribute('data-cc-chart-nav');
+                if (target) {
+                    global.AdminShell.navigateTo(target);
+                    return;
+                }
+            }
+            var cpNode = e.target.closest('[data-cc-cp]');
+            if (cpNode && host) {
+                var cp = cpNode.getAttribute('data-cc-cp');
+                if (cp && global.RuanaAdminModules && global.RuanaAdminModules.redExplorer) {
+                    host.aliadosCPSeleccionado = cp;
+                    host.aliadosGrupoSeleccionado = null;
+                    host.aliadosGrupoNombreSeleccionado = null;
+                    host.aliadosOficioSeleccionado = null;
+                    host.aliadosNivel = 'grupos';
+                    global.AdminShell.showModule('red');
+                    global.RuanaAdminModules.redExplorer.switchRedView('jerarquia');
+                    if (typeof host.renderAliadosJerarquia === 'function') host.renderAliadosJerarquia();
+                    global.AdminShell.navigateTo('#control-aliados-wrap');
+                }
                 return;
             }
             var codigoBtn = e.target.closest('[data-codigo]');

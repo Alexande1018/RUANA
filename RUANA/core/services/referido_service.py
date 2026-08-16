@@ -490,10 +490,11 @@ def listar_referidos_desde(db, desde: str) -> List[Dict[str, Any]]:
     return cambios
 
 def listar_referidos_directos(db, codigo_invitador: str) -> List[Dict[str, Any]]:
-    """Lista aliados referidos directamente por codigo_invitador."""
+    """Lista aliados referidos directamente por codigo_invitador (linaje + referidos)."""
     codigo_invitador = (codigo_invitador or '').strip()
     if not codigo_invitador:
         return []
+    db.sincronizar_referidos_completo()
     with db._lock:
         conn = None
         try:
@@ -524,7 +525,7 @@ def listar_referidos_directos(db, codigo_invitador: str) -> List[Dict[str, Any]]
 
 
 def obtener_invitador_de(db, codigo_aliado: str) -> Optional[Dict[str, Any]]:
-    """Obtiene el aliado invitador de codigo_aliado, si existe en referidos."""
+    """Obtiene el aliado invitador (linaje invitado_por_codigo, con fallback a referidos)."""
     codigo_aliado = (codigo_aliado or '').strip()
     if not codigo_aliado:
         return None
@@ -534,14 +535,18 @@ def obtener_invitador_de(db, codigo_aliado: str) -> Optional[Dict[str, Any]]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT a.codigo, a.nombre, a.oficio, a.codigo_postal, a.marca,
-                       a.estado, a.score, r.creado_en AS referido_en
-                FROM referidos r
-                JOIN aliados a ON a.codigo = r.codigo_invitador
-                WHERE r.codigo_referido = ?
-            """, (codigo_aliado,))
-            row = cursor.fetchone()
+            row = None
+            if _repo.aliados_tiene_invitado_por(cursor):
+                row = _repo.select_invitador_por_linaje(cursor, codigo_aliado)
+            if not row:
+                cursor.execute("""
+                    SELECT a.codigo, a.nombre, a.oficio, a.codigo_postal, a.marca,
+                           a.estado, a.score, r.creado_en AS referido_en
+                    FROM referidos r
+                    JOIN aliados a ON a.codigo = r.codigo_invitador
+                    WHERE r.codigo_referido = ?
+                """, (codigo_aliado,))
+                row = cursor.fetchone()
             if not row:
                 return None
             item = dict(row)
@@ -566,23 +571,8 @@ def obtener_nodo_referidos(db, codigo: str) -> Optional[Dict[str, Any]]:
 
 
 def obtener_ruta_referidos_hacia_arriba(db, codigo: str) -> List[Dict[str, Any]]:
-    """Cadena desde la raíz hasta codigo (inclusive)."""
-    codigo = (codigo or '').strip()
-    if not codigo:
-        return []
-    cadena: List[Dict[str, Any]] = []
-    actual = codigo
-    visitados: set = set()
-    while actual and actual not in visitados:
-        nodo = _nodo_referido_resumen(db, actual)
-        if nodo:
-            cadena.insert(0, nodo)
-        invitador = obtener_invitador_de(db, actual)
-        if not invitador:
-            break
-        actual = (invitador.get('codigo') or '').strip()
-        visitados.add(actual)
-    return cadena
+    """Cadena desde la raíz hasta codigo (inclusive), usando linaje unificado."""
+    return obtener_ruta_linaje_hacia_arriba(db, codigo)
 
 
 def obtener_bosques_referidos(db, max_depth: int = 5) -> List[Dict[str, Any]]:
@@ -720,6 +710,34 @@ def _origen_por_invitador(db, codigo_invitador: str, default: str = 'aliado') ->
     return default
 
 
+def sincronizar_referidos_desde_linaje(db) -> int:
+    """Asegura filas en referidos para cada vínculo invitado_por_codigo."""
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            if not _repo.aliados_tiene_invitado_por(cursor):
+                return 0
+            pendientes = _repo.listar_pendientes_sync_desde_linaje(cursor)
+        except Exception:
+            return 0
+        finally:
+            if conn:
+                conn.close()
+    sincronizados = 0
+    for row in pendientes:
+        codigo_referido = row['codigo_referido']
+        codigo_invitador = row['codigo_invitador']
+        if not codigo_referido or not codigo_invitador:
+            continue
+        origen = (row['origen'] or '').strip() or 'aliado'
+        if db._insert_referido(codigo_referido, codigo_invitador, origen):
+            sincronizados += 1
+    return sincronizados
+
+
 def sincronizar_referidos_completo(db) -> Dict[str, int]:
     """Sincroniza referidos legacy + backfill de linaje en aliados.invitado_por_codigo."""
     campanas = db.sincronizar_referidos_campanas_admin()
@@ -727,12 +745,14 @@ def sincronizar_referidos_completo(db) -> Dict[str, int]:
     oficio = db.sincronizar_referidos_invitaciones_oficio_usadas()
     huerfanos = db.sincronizar_referidos_huerfanos_admin()
     linaje = db.backfill_invitado_por_linaje()
+    desde_linaje = sincronizar_referidos_desde_linaje(db)
     return {
         'campanas': campanas,
         'invitaciones': invitaciones,
         'oficio': oficio,
         'huerfanos': huerfanos,
         'linaje': linaje,
+        'desde_linaje': desde_linaje,
     }
 
 

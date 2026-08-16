@@ -342,6 +342,7 @@
               incidencias: (centroComData && centroComData.status === 'success' && Array.isArray(centroComData.conversaciones))
                   ? centroComData.conversaciones.filter(function (c) { return String(c.tipo || '').toLowerCase() === 'incidencia'; })
                   : [],
+              competencias: (competenciasData && competenciasData.status === 'success' && Array.isArray(competenciasData.competencias)) ? competenciasData.competencias : [],
               trabajos: conversaciones.length
           });
       } catch (e) {

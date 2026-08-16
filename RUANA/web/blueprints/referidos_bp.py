@@ -184,7 +184,7 @@ def admin_referidos_buscar():
         if not query:
             return jsonify({"status": "success", "resultados": []})
         db = get_db()
-        resultados = referido_service.buscar_en_red_referidos(db, query, limite=25)
+        resultados = referido_service.buscar_en_red_referidos(db, query, limite=50)
         return jsonify({
             "status": "success",
             "resultados": resultados,

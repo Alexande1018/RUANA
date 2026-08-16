@@ -854,7 +854,12 @@
                 </div>
             </div>
             <div id="red-view-referidos" class="red-view referidos-section">
-                <p class="admin-subtitle" style="margin-bottom:12px;color:#999;">Linaje de invitaciones: expande ramas y consulta fichas sin salir del panel.</p>
+                <div class="referidos-search-wrap" id="referidos-admin-search-wrap">
+                    <svg class="referidos-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input type="search" class="referidos-search" id="referidos-admin-search" placeholder="Buscar aliado por nombre o código (ej. Carlos Santiago)…" autocomplete="off" />
+                    <button type="button" class="btn-admin-action" id="referidos-admin-search-btn">Buscar en el árbol</button>
+                </div>
+                <p class="admin-subtitle" style="margin-bottom:12px;color:#999;">Linaje de invitaciones: expande ramas o busca por nombre. Todos los aliados registrados aparecen con su descendencia.</p>
                 <div class="referidos-layout">
                     <div class="referidos-tree-panel" id="referidos-tree-admin"></div>
                     <div id="referidos-detail-admin"></div>

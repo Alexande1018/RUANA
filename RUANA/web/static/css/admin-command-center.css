@@ -79,17 +79,40 @@
 
 .cc-kpi-strip {
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 12px;
     margin-bottom: 22px;
 }
 
 @media (max-width: 1100px) {
-    .cc-kpi-strip { grid-template-columns: repeat(3, 1fr); }
+    .cc-kpi-strip { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 600px) {
-    .cc-kpi-strip { grid-template-columns: repeat(2, 1fr); }
+    .cc-kpi-strip { grid-template-columns: 1fr; }
+}
+
+.cc-chart-clickable,
+.cc-chart-interactive.cc-chart-clickable {
+    cursor: pointer;
+}
+
+.cc-donut-legend-item.cc-chart-clickable {
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+}
+
+.cc-network-node.cc-chart-clickable {
+    cursor: pointer;
+}
+
+.cc-chart-interactive .cc-chart-clickable:hover {
+    opacity: 0.85;
 }
 
 .cc-kpi {

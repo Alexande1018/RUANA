@@ -116,6 +116,55 @@ def test_orphan_active_ally_is_assigned_to_admin_on_sync(sqlite_db):
     assert row[1] == "huerfano"
 
 
+def test_sync_desde_linaje_crea_referido_cuando_solo_invitado_por(sqlite_db):
+    """Si invitado_por_codigo existe pero falta fila en referidos, sync la crea."""
+    sqlite_db.obtener_o_crear_invitador_admin("RUANA-ADMIN")
+    sqlite_db.crear_aliado(
+        codigo="11111",
+        nombre="Invitador Test",
+        marca="Marca",
+        oficio="Electricidad",
+        codigo_postal="28001",
+        email="inv@example.com",
+        telefono="+34600111111",
+        estado="activo",
+        score=50,
+        especializacion="Averías y reparaciones eléctricas",
+    )
+    sqlite_db.crear_aliado(
+        codigo="22222",
+        nombre="Carlos Santiago",
+        marca="Marca CS",
+        oficio="Electricidad",
+        codigo_postal="28001",
+        email="carlos@example.com",
+        telefono="+34600222222",
+        estado="activo",
+        score=50,
+        especializacion="Averías y reparaciones eléctricas",
+    )
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE aliados SET invitado_por_codigo = '11111', invitado_origen = 'aliado' WHERE codigo = '22222'"
+    )
+    cur.execute("DELETE FROM referidos WHERE codigo_referido = '22222'")
+    conn.commit()
+    conn.close()
+
+    from core.services import referido_service
+
+    n = referido_service.sincronizar_referidos_desde_linaje(sqlite_db)
+    assert n >= 1
+
+    hijos = referido_service.listar_referidos_directos(sqlite_db, "11111")
+    codigos = [h.get("codigo") for h in hijos]
+    assert "22222" in codigos
+
+    resultados = referido_service.buscar_en_red_referidos(sqlite_db, "Carlos", limite=10)
+    assert any(r.get("nombre") == "Carlos Santiago" for r in resultados)
+
+
 def test_all_active_allies_participate_in_network_after_sync(sqlite_db):
     sqlite_db.obtener_o_crear_invitador_admin("RUANA-ADMIN")
     for codigo, nombre in [("33333", "Uno"), ("44444", "Dos")]:

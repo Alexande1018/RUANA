@@ -48,6 +48,7 @@
 
         if (next === 'referidos') {
             initReferidosTree(true);
+            setupReferidosSearch();
         } else if (!opts.skipRender && global._ruanaAdminPanel && typeof global._ruanaAdminPanel.renderAliadosJerarquia === 'function') {
             global._ruanaAdminPanel.renderAliadosJerarquia();
         }
@@ -246,9 +247,37 @@
         }
     }
 
+    function setupReferidosSearch() {
+        var input = document.getElementById('referidos-admin-search');
+        var btn = document.getElementById('referidos-admin-search-btn');
+        if (!input || input._bound) return;
+        input._bound = true;
+        function runSearch() {
+            var q = (input.value || '').trim();
+            if (!q) return;
+            initReferidosTree(false);
+            if (referidosTree && typeof referidosTree.searchAndFocus === 'function') {
+                referidosTree.searchAndFocus(q).catch(function (err) {
+                    var panel = global._ruanaAdminPanel;
+                    if (panel && typeof panel.showToast === 'function') {
+                        panel.showToast(err && err.message ? err.message : 'No se encontró el aliado en la red.', 'error');
+                    }
+                });
+            }
+        }
+        if (btn) btn.addEventListener('click', runSearch);
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                runSearch();
+            }
+        });
+    }
+
     function setup() {
         ensureSections();
         setupRedTabs();
+        setupReferidosSearch();
     }
 
     global.RuanaAdminModules = global.RuanaAdminModules || {};
