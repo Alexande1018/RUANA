@@ -79,11 +79,19 @@
         var authHeaders = typeof AdminAuthenticator !== 'undefined'
             ? AdminAuthenticator.getAdminAuthHeaders()
             : {};
+        var treeContainer = document.getElementById('referidos-tree-admin');
+        var detailContainer = document.getElementById('referidos-detail-admin');
+        var metaContainer = document.getElementById('referidos-meta-admin');
+        if (!treeContainer || !detailContainer) return;
+
         if (!referidosTree) {
+            if (!detailContainer.classList.contains('referidos-detail-panel')) {
+                detailContainer.classList.add('referidos-detail-panel', 'empty');
+            }
             referidosTree = new TreeCtor({
-                treeContainer: document.getElementById('referidos-tree-admin'),
-                detailContainer: document.getElementById('referidos-detail-admin'),
-                metaContainer: document.getElementById('referidos-meta-admin'),
+                treeContainer: treeContainer,
+                detailContainer: detailContainer,
+                metaContainer: metaContainer,
                 mode: 'admin',
                 fetchOptions: {
                     credentials: 'same-origin',
@@ -94,12 +102,18 @@
                         var aliado = panel._aliadosData.find(function (a) { return a.codigo === nodo.codigo; });
                         if (aliado && typeof panel.abrirModalDetalle === 'function') {
                             panel.abrirModalDetalle(aliado);
+                        } else if (typeof panel.abrirModalDetalle === 'function') {
+                            panel.abrirModalDetalle(nodo);
                         }
                     }
                 },
                 onCentrarArbol: function (codigo) {
                     if (referidosTree && typeof referidosTree.focusOnCodigo === 'function') {
-                        referidosTree.focusOnCodigo(codigo);
+                        referidosTree.focusOnCodigo(codigo).catch(function (err) {
+                            if (panel && typeof panel.showToast === 'function') {
+                                panel.showToast((err && err.message) || 'No se pudo centrar el árbol', 'error');
+                            }
+                        });
                     }
                 }
             });
@@ -109,16 +123,24 @@
                 headers: authHeaders
             };
         }
-        var treeEl = document.getElementById('referidos-tree-admin');
         var needsLoad = forceReload || !referidosTree._adminLoaded ||
-            (treeEl && !treeEl.querySelector('.referidos-node-card') && !treeEl.querySelector('.referidos-loading'));
+            (!treeContainer.querySelector('.referidos-node-card') &&
+                !treeContainer.querySelector('.referidos-loading'));
         if (needsLoad) {
-            referidosTree.loadAdmin().then(function () {
+            referidosTree.load().then(function () {
                 referidosTree._adminLoaded = true;
-            }).catch(function () {
+            }).catch(function (err) {
                 referidosTree._adminLoaded = false;
+                if (panel && typeof panel.showToast === 'function') {
+                    panel.showToast((err && err.message) || 'No se pudo cargar la red de referidos', 'error');
+                }
             });
         }
+    }
+
+    /** Compatibilidad con AdminPanel histórico (proyecto_original / f62952a). */
+    function initReferidosArbol() {
+        initReferidosTree(true);
     }
 
     function renderGruposCp(host) {
@@ -300,6 +322,7 @@
         renderScores: renderScores,
         renderIncidencias: renderIncidencias,
         initReferidosTree: initReferidosTree,
+        initReferidosArbol: initReferidosArbol,
         switchRedView: switchRedView,
         onRedModuleActivated: onRedModuleActivated
     };

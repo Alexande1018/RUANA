@@ -153,6 +153,34 @@ def test_admin_operaciones_module_is_wired():
     assert "cargarDesdeApi" in admin
 
 
+def test_admin_referidos_tree_is_wired():
+    """Árbol genealógico admin: referidos-module + red-explorer tras cargarDesdeApi."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    admin = (root / "admin.html").read_text(encoding="utf-8")
+    red_ex = (root / "static" / "js" / "admin-red-explorer-module.js").read_text(encoding="utf-8")
+    referidos_js = (root / "static" / "js" / "referidos-module.js").read_text(encoding="utf-8")
+    resumen_js = (root / "static" / "js" / "admin-resumen-module.js").read_text(encoding="utf-8")
+
+    assert 'href="/static/css/referidos-tree.css"' in admin
+    assert 'src="/static/js/referidos-module.js"' in admin
+    assert 'src="/static/js/admin-red-explorer-module.js"' in admin
+    assert 'id="red-view-referidos"' in admin
+    assert 'id="referidos-tree-admin"' in admin
+    assert 'id="referidos-detail-admin"' in admin
+    assert 'id="referidos-meta-admin"' in admin
+    assert 'class="referidos-detail-panel empty"' in admin
+    assert "RuanaReferidosTree" in referidos_js
+    assert "loadAdmin" in referidos_js
+    assert "/api/admin/referidos/raices" in referidos_js
+    assert "initReferidosTree" in red_ex
+    assert "initReferidosArbol" in red_ex
+    assert "referidosTree.load()" in red_ex
+    assert "mode: 'admin'" in red_ex
+    assert "redEx.initReferidosTree(true)" in resumen_js
+    assert "_redExplorerModule" in admin
+    assert "mod.initReferidosArbol()" in admin
+
+
 def test_admin_red_module_is_wired():
     """Módulo AdminShell `red` (jerarquía aliados); AdminPanel solo fachada."""
     root = Path(__file__).resolve().parents[1] / "web"

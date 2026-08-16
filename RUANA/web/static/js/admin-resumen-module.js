@@ -372,6 +372,9 @@ async function refreshCommandCenterPanels(host, payload) {
       if (redEx && typeof redEx.refresh === 'function') {
           redEx.refresh(host);
       }
+      if (redEx && typeof redEx.initReferidosTree === 'function') {
+          redEx.initReferidosTree(true);
+      }
 }
 
 async function cargarChatsFallback(host) {

@@ -862,7 +862,9 @@
                 <p class="admin-subtitle" style="margin-bottom:12px;color:#999;">Linaje de invitaciones: expande ramas o busca por nombre. Todos los aliados registrados aparecen con su descendencia.</p>
                 <div class="referidos-layout">
                     <div class="referidos-tree-panel" id="referidos-tree-admin"></div>
-                    <div id="referidos-detail-admin"></div>
+                    <div class="referidos-detail-panel empty" id="referidos-detail-admin">
+                        <p>Selecciona un aliado en el árbol para ver su ficha.</p>
+                    </div>
                 </div>
                 <p class="referidos-section-meta" id="referidos-meta-admin"></p>
             </div>
@@ -1136,6 +1138,11 @@
             /** Fachada Campamento Base → RuanaAdminModules.red */
             _redModule() {
                 return (typeof RuanaAdminModules !== 'undefined' && RuanaAdminModules.red) || null;
+            }
+
+            /** Fachada Campamento Base → RuanaAdminModules.redExplorer (árbol genealógico) */
+            _redExplorerModule() {
+                return (typeof RuanaAdminModules !== 'undefined' && RuanaAdminModules.redExplorer) || null;
             }
 
             /** Fachada Campamento Base → RuanaAdminModules.sistema */
@@ -1722,6 +1729,13 @@
                 const mod = this._redModule();
                 if (mod && typeof mod.renderAliadosJerarquia === 'function') {
                     return mod.renderAliadosJerarquia(this);
+                }
+            }
+
+            initReferidosArbol() {
+                const mod = this._redExplorerModule();
+                if (mod && typeof mod.initReferidosArbol === 'function') {
+                    return mod.initReferidosArbol();
                 }
             }
 
