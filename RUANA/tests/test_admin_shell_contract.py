@@ -54,6 +54,9 @@ def test_admin_html_acciones_wrap_id():
     admin_html = Path(__file__).resolve().parents[1] / "web" / "admin.html"
     text = admin_html.read_text(encoding="utf-8")
     assert 'id="acciones-admin-wrap"' in text
+    assert 'id="invitaciones-admin-wrap"' in text
+    assert 'id="red-view-referidos"' in text
+    assert 'data-action="crear-campana-invitacion"' in text
     assert "Panel de administración" in text
 
 
@@ -73,6 +76,14 @@ def test_admin_shell_resumen_module_aligned_with_module_defs():
     assert "estado-sistema-label" in resumen_js
     assert "mov-sol-nuevas" in resumen_js
     assert "metrica-retencion" in resumen_js
+
+
+def test_admin_shell_js_has_invitaciones_target():
+    shell_js = Path(__file__).resolve().parents[1] / "web" / "static" / "js" / "admin-shell.js"
+    text = shell_js.read_text(encoding="utf-8")
+    assert "#invitaciones-admin-wrap" in text
+    assert "onModuleActivated" in text
+    assert "handleSpecialNavigation" in text
 
 
 def test_admin_shell_operaciones_module_aligned_with_module_defs():

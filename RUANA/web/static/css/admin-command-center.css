@@ -2,9 +2,8 @@
    RUANA Command Center + Intelligence
    ================================================ */
 
-.command-center-enabled .estado-global,
-.command-center-enabled .movimiento-sistema,
-.command-center-enabled .metricas-salud {
+/* Solo ocultar KPIs legacy duplicados en Command Center (resumen); el resto sigue accesible */
+.command-center-enabled .admin-module[data-admin-module="resumen"] .estado-global {
     display: none !important;
 }
 
@@ -488,6 +487,13 @@
     border-radius: 14px;
     border: 1px solid var(--admin-border, rgba(255, 255, 255, 0.08));
     background: rgba(12, 13, 18, 0.72);
+    cursor: pointer;
+    transition: border-color 140ms ease, transform 140ms ease;
+}
+
+.grupos-cp-card:hover {
+    border-color: rgba(162, 255, 0, 0.3);
+    transform: translateY(-1px);
 }
 
 .grupos-cp-card h4 {

@@ -4,6 +4,9 @@
 (function (global) {
     'use strict';
 
+    var currentRedView = 'jerarquia';
+    var referidosTree = null;
+
     function esc(s) {
         var d = document.createElement('div');
         d.textContent = s == null ? '' : String(s);
@@ -11,6 +14,9 @@
     }
 
     function ensureSections() {
+        var controlWrap = document.getElementById('control-aliados-wrap');
+        if (!controlWrap) return;
+
         if (!document.getElementById('red-explorer-tabs')) {
             var tabs = document.createElement('div');
             tabs.id = 'red-explorer-tabs';
@@ -18,17 +24,34 @@
             tabs.innerHTML =
                 '<button type="button" class="red-tab is-active" data-red-view="jerarquia">Jerarquía CP → Grupo → Oficio</button>' +
                 '<button type="button" class="red-tab" data-red-view="referidos">Árbol genealógico</button>';
-            var controlWrap = document.getElementById('control-aliados-wrap');
-            if (controlWrap) {
-                var titulo = controlWrap.querySelector('.seccion-titulo');
-                if (titulo) titulo.parentNode.insertBefore(tabs, titulo.nextSibling);
-            }
+            var titulo = controlWrap.querySelector('.seccion-titulo');
+            if (titulo) titulo.parentNode.insertBefore(tabs, titulo.nextSibling);
         }
-        var referidos = document.getElementById('referidos-red-wrap');
-        if (referidos) referidos.style.display = 'none';
     }
 
-    var referidosTree = null;
+    function switchRedView(view, options) {
+        var opts = options || {};
+        var next = view === 'referidos' ? 'referidos' : 'jerarquia';
+        currentRedView = next;
+
+        var jerarquia = document.getElementById('red-view-jerarquia');
+        var referidos = document.getElementById('red-view-referidos');
+        if (jerarquia) jerarquia.classList.toggle('is-active', next === 'jerarquia');
+        if (referidos) referidos.classList.toggle('is-active', next === 'referidos');
+
+        var tabs = document.getElementById('red-explorer-tabs');
+        if (tabs) {
+            tabs.querySelectorAll('.red-tab').forEach(function (btn) {
+                btn.classList.toggle('is-active', btn.getAttribute('data-red-view') === next);
+            });
+        }
+
+        if (next === 'referidos') {
+            initReferidosTree(true);
+        } else if (!opts.skipRender && global._ruanaAdminPanel && typeof global._ruanaAdminPanel.renderAliadosJerarquia === 'function') {
+            global._ruanaAdminPanel.renderAliadosJerarquia();
+        }
+    }
 
     function setupRedTabs() {
         var tabs = document.getElementById('red-explorer-tabs');
@@ -37,53 +60,52 @@
         tabs.addEventListener('click', function (e) {
             var btn = e.target.closest('[data-red-view]');
             if (!btn) return;
-            var view = btn.getAttribute('data-red-view');
-            tabs.querySelectorAll('.red-tab').forEach(function (b) {
-                b.classList.toggle('is-active', b === btn);
-            });
-            var control = document.getElementById('control-aliados-wrap');
-            var referidos = document.getElementById('referidos-red-wrap');
-            if (view === 'referidos') {
-                if (control) control.style.display = 'none';
-                if (referidos) referidos.style.display = 'block';
-                initReferidosTree();
-            } else {
-                if (control) control.style.display = 'block';
-                if (referidos) referidos.style.display = 'none';
-            }
+            switchRedView(btn.getAttribute('data-red-view'));
         });
-        var referidos = document.getElementById('referidos-red-wrap');
-        if (referidos) referidos.style.display = 'none';
+        switchRedView(currentRedView, { skipRender: true });
     }
 
-    function initReferidosTree() {
-        if (!global.RuanaReferidos || !global.RuanaReferidos.RuanaReferidosTree) return;
-        if (referidosTree) return;
+    function initReferidosTree(forceReload) {
+        if (!global.RuanaReferidos || !global.RuanaReferidos.RuanaReferidosTree) {
+            var treeEl = document.getElementById('referidos-tree-admin');
+            if (treeEl) {
+                treeEl.innerHTML = '<p style="color:#94a3b8;padding:16px;">No se pudo cargar el módulo de referidos. Recarga la página.</p>';
+            }
+            return;
+        }
         var panel = global._ruanaAdminPanel;
         var TreeCtor = global.RuanaReferidos.RuanaReferidosTree;
-        referidosTree = new TreeCtor({
-            treeContainer: document.getElementById('referidos-tree-admin'),
-            detailContainer: document.getElementById('referidos-detail-admin'),
-            metaContainer: document.getElementById('referidos-meta-admin'),
-            mode: 'admin',
-            fetchOptions: {
-                headers: typeof AdminAuthenticator !== 'undefined' ? AdminAuthenticator.getAdminAuthHeaders() : {}
-            },
-            onVerDetalleCompleto: function (nodo) {
-                if (panel && panel._aliadosData) {
-                    var aliado = panel._aliadosData.find(function (a) { return a.codigo === nodo.codigo; });
-                    if (aliado && typeof panel.abrirModalDetalle === 'function') {
-                        panel.abrirModalDetalle(aliado);
+        if (!referidosTree) {
+            referidosTree = new TreeCtor({
+                treeContainer: document.getElementById('referidos-tree-admin'),
+                detailContainer: document.getElementById('referidos-detail-admin'),
+                metaContainer: document.getElementById('referidos-meta-admin'),
+                mode: 'admin',
+                fetchOptions: {
+                    headers: typeof AdminAuthenticator !== 'undefined' ? AdminAuthenticator.getAdminAuthHeaders() : {}
+                },
+                onVerDetalleCompleto: function (nodo) {
+                    if (panel && panel._aliadosData) {
+                        var aliado = panel._aliadosData.find(function (a) { return a.codigo === nodo.codigo; });
+                        if (aliado && typeof panel.abrirModalDetalle === 'function') {
+                            panel.abrirModalDetalle(aliado);
+                        }
+                    }
+                },
+                onCentrarArbol: function (codigo) {
+                    if (referidosTree && typeof referidosTree.focusOnCodigo === 'function') {
+                        referidosTree.focusOnCodigo(codigo);
                     }
                 }
-            },
-            onCentrarArbol: function (codigo) {
-                if (referidosTree && typeof referidosTree.focusOnCodigo === 'function') {
-                    referidosTree.focusOnCodigo(codigo);
-                }
-            }
-        });
-        referidosTree.loadAdmin();
+            });
+        }
+        if (forceReload || !referidosTree._adminLoaded) {
+            referidosTree.loadAdmin().then(function () {
+                referidosTree._adminLoaded = true;
+            }).catch(function () {
+                referidosTree._adminLoaded = false;
+            });
+        }
     }
 
     function renderGruposCp(host) {
@@ -104,7 +126,7 @@
         });
         var cps = Object.keys(byCp).sort();
         if (!cps.length) {
-            overview.innerHTML = '<p style="color:#94a3b8;">Sin datos de grupos.</p>';
+            overview.innerHTML = '<p style="color:#94a3b8;">Sin datos de grupos. Carga el panel o revisa la conexión.</p>';
             return;
         }
         overview.innerHTML = cps.map(function (cp) {
@@ -120,15 +142,26 @@
                 '<div class="grupos-cp-meta" style="margin-top:8px;">' + gruposHtml + '</div></div>';
         }).join('');
         overview.querySelectorAll('.grupos-cp-card').forEach(function (card) {
-            card.addEventListener('click', function () {
+            function openCp() {
                 var cp = card.getAttribute('data-cp');
-                if (host && cp) {
-                    host.aliadosCPSeleccionado = cp;
-                    host.aliadosGrupoSeleccionado = null;
-                    host.aliadosOficioSeleccionado = null;
-                    host.aliadosNivel = 'grupos';
-                    if (global.AdminShell) global.AdminShell.navigateTo('#control-aliados-wrap');
-                    if (typeof host.renderAliadosJerarquia === 'function') host.renderAliadosJerarquia();
+                if (!host || !cp) return;
+                host.aliadosCPSeleccionado = cp;
+                host.aliadosGrupoSeleccionado = null;
+                host.aliadosGrupoNombreSeleccionado = null;
+                host.aliadosOficioSeleccionado = null;
+                host.aliadosNivel = 'grupos';
+                if (global.AdminShell) {
+                    global.AdminShell.showModule('red', { skipScroll: false });
+                    global.AdminShell.navigateTo('#control-aliados-wrap');
+                }
+                switchRedView('jerarquia');
+                if (typeof host.renderAliadosJerarquia === 'function') host.renderAliadosJerarquia();
+            }
+            card.addEventListener('click', openCp);
+            card.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    openCp();
                 }
             });
         });
@@ -204,6 +237,15 @@
         renderIncidencias(host);
     }
 
+    function onRedModuleActivated() {
+        ensureSections();
+        if (currentRedView === 'referidos') {
+            initReferidosTree(false);
+        } else if (global._ruanaAdminPanel && typeof global._ruanaAdminPanel.renderAliadosJerarquia === 'function') {
+            global._ruanaAdminPanel.renderAliadosJerarquia();
+        }
+    }
+
     function setup() {
         ensureSections();
         setupRedTabs();
@@ -216,6 +258,8 @@
         renderGruposCp: renderGruposCp,
         renderScores: renderScores,
         renderIncidencias: renderIncidencias,
-        initReferidosTree: initReferidosTree
+        initReferidosTree: initReferidosTree,
+        switchRedView: switchRedView,
+        onRedModuleActivated: onRedModuleActivated
     };
 })(typeof window !== 'undefined' ? window : globalThis);

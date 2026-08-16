@@ -20,7 +20,7 @@
             kicker: 'Network',
             subtitle: 'Explora la red jerárquica y el árbol genealógico de aliados.',
             icon: 'network',
-            targets: ['#control-aliados-wrap', '#referidos-red-wrap', '#aliados-eliminados-wrap']
+            targets: ['#control-aliados-wrap', '#aliados-eliminados-wrap']
         },
         {
             id: 'grupos-cp',
@@ -98,9 +98,9 @@
             id: 'sistema',
             label: 'Configuración',
             kicker: 'Sistema',
-            subtitle: 'Trazabilidad, métodos de pago y acciones administrativas.',
+            subtitle: 'Trazabilidad, invitaciones multiuso, métodos de pago y acciones administrativas.',
             icon: 'settings',
-            targets: ['.eventos-trazabilidad', '#metodos-pago-admin-wrap', '#acciones-admin-wrap']
+            targets: ['#invitaciones-admin-wrap', '.eventos-trazabilidad', '#metodos-pago-admin-wrap', '#acciones-admin-wrap']
         }
     ];
 
@@ -117,7 +117,7 @@
         { id: 'comunicaciones', label: 'Comunicaciones', module: 'comunicaciones', target: '#centro-comunicacion-admin-wrap', icon: 'message' },
         { id: 'incidencias', label: 'Incidencias', module: 'incidencias', target: '#incidencias-wrap', icon: 'alert' },
         { id: 'intelligence', label: 'Métricas / Intelligence', module: 'intelligence', target: '#intelligence-wrap', icon: 'activity' },
-        { id: 'config', label: 'Configuración', module: 'sistema', target: '#acciones-admin-wrap', icon: 'settings' }
+        { id: 'config', label: 'Configuración', module: 'sistema', target: '#invitaciones-admin-wrap', icon: 'settings' }
     ];
 
     /** Subsecciones (búsqueda y scroll spy). */
@@ -126,7 +126,7 @@
         { id: 'estado-global', label: 'Estado global (detalle)', group: 'Inicio', module: 'resumen', target: '.estado-global', icon: 'grid' },
         { id: 'movimiento', label: 'Movimiento 24h', group: 'Inicio', module: 'resumen', target: '.movimiento-sistema', icon: 'activity' },
         { id: 'aliados', label: 'Jerarquía CP → Grupo', module: 'red', group: 'Red', target: '#control-aliados-wrap', icon: 'network' },
-        { id: 'referidos', label: 'Árbol genealógico', group: 'Red', module: 'red', target: '#referidos-red-wrap', icon: 'network' },
+        { id: 'referidos', label: 'Árbol genealógico', group: 'Red', module: 'red', target: '#red-view-referidos', icon: 'network' },
         { id: 'aliados-eliminados', label: 'Aliados eliminados', group: 'Red', module: 'red', target: '#aliados-eliminados-wrap', icon: 'trash' },
         { id: 'grupos-overview', label: 'Grupos por CP', group: 'Territorio', module: 'grupos-cp', target: '#grupos-cp-wrap', icon: 'map' },
         { id: 'pendientes', label: 'Pendientes validación', group: 'Solicitudes', module: 'solicitudes', target: '#pendientes-validacion-wrap', icon: 'user-check', badge: '#pendientes-validacion-count' },
@@ -142,6 +142,7 @@
         { id: 'intel', label: 'Panel Intelligence', group: 'Intelligence', module: 'intelligence', target: '#intelligence-wrap', icon: 'activity' },
         { id: 'salud', label: 'Métricas de salud', group: 'Intelligence', module: 'intelligence', target: '.metricas-salud', icon: 'heart' },
         { id: 'trazabilidad', label: 'Trazabilidad', group: 'Configuración', module: 'sistema', target: '.eventos-trazabilidad', icon: 'list' },
+        { id: 'invitaciones-multiuso', label: 'Códigos multiuso', group: 'Configuración', module: 'sistema', target: '#invitaciones-admin-wrap', icon: 'inbox' },
         { id: 'metodos-pago', label: 'Métodos de pago', group: 'Configuración', module: 'sistema', target: '#metodos-pago-admin-wrap', icon: 'wallet' },
         { id: 'acciones', label: 'Acciones admin', group: 'Configuración', module: 'sistema', target: '#acciones-admin-wrap', icon: 'settings' }
     ];
@@ -226,7 +227,7 @@
         { wrapId: 'pagos-apoyo-wrap', tbodyId: 'tbody-pagos-apoyo', deletable: true },
         { wrapId: 'pagos-en-revision-wrap', tbodyId: 'tbody-pagos-en-revision', deletable: true },
         { wrapId: 'solicitudes-admin-wrap', tbodyId: 'tbody-solicitudes-admin', deletable: true },
-        { wrapId: 'admin-campanas-invitacion-panel', tbodyId: 'admin-campanas-invitacion-tbody', deletable: true },
+        { wrapId: 'invitaciones-admin-wrap', tbodyId: 'admin-campanas-invitacion-tbody', deletable: true },
         { wrapId: 'competencias-activas-wrap', tbodyId: 'tbody-competencias-activas', deletable: false, note: 'Solo lectura' },
         { wrapId: 'competencias-pendientes-wrap', tbodyId: 'tbody-competencias-pendientes', deletable: false, note: 'Solo lectura' },
         { wrapId: 'competencias-historial-wrap', tbodyId: 'tbody-competencias-historial', deletable: false, note: 'Auditoría — solo lectura' },
@@ -691,6 +692,7 @@
         }
 
         setupScrollSpy();
+        onModuleActivated(target);
         return target;
     }
 
@@ -699,6 +701,11 @@
         if (section && section.module) {
             showModule(section.module, { skipScroll: true, instant: true });
             return section.module;
+        }
+        const navItem = NAV_ITEMS.find((s) => s.target === selector);
+        if (navItem && navItem.module) {
+            showModule(navItem.module, { skipScroll: true, instant: true });
+            return navItem.module;
         }
         const el = document.querySelector(selector);
         if (!el) return null;
@@ -711,17 +718,53 @@
         return null;
     }
 
+    function handleSpecialNavigation(selector) {
+        if (selector === '#red-view-referidos') {
+            if (window.RuanaAdminModules?.redExplorer?.switchRedView) {
+                window.RuanaAdminModules.redExplorer.switchRedView('referidos');
+            }
+            return true;
+        }
+        if (selector === '#red-view-jerarquia') {
+            if (window.RuanaAdminModules?.redExplorer?.switchRedView) {
+                window.RuanaAdminModules.redExplorer.switchRedView('jerarquia');
+            }
+            return true;
+        }
+        return false;
+    }
+
+    function onModuleActivated(moduleId) {
+        const panel = getPanel();
+        if (moduleId === 'red') {
+            if (window.RuanaAdminModules?.redExplorer?.onRedModuleActivated) {
+                window.RuanaAdminModules.redExplorer.onRedModuleActivated();
+            } else if (panel && typeof panel.renderAliadosJerarquia === 'function') {
+                panel.renderAliadosJerarquia();
+            }
+        }
+        if (moduleId === 'grupos-cp' && window.RuanaAdminModules?.redExplorer?.renderGruposCp && panel) {
+            window.RuanaAdminModules.redExplorer.renderGruposCp(panel);
+        }
+    }
+
     function navigateTo(selector) {
         ensureModuleForTarget(selector);
-        const target = document.querySelector(selector);
+        handleSpecialNavigation(selector);
+        const target = document.querySelector(selector === '#red-view-referidos' || selector === '#red-view-jerarquia'
+            ? '#control-aliados-wrap'
+            : selector);
         if (!target) return;
         requestAnimationFrame(() => {
             target.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
         const nav = document.getElementById('adminSidebarNav');
         if (nav) {
+            const activeTarget = (selector === '#red-view-referidos' || selector === '#red-view-jerarquia')
+                ? '#control-aliados-wrap'
+                : selector;
             nav.querySelectorAll('.admin-nav-item').forEach((b) => {
-                b.classList.toggle('is-active', b.getAttribute('data-nav-target') === selector);
+                b.classList.toggle('is-active', b.getAttribute('data-nav-target') === activeTarget);
             });
         }
         document.getElementById('adminSidebar')?.classList.remove('is-mobile-open');

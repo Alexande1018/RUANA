@@ -287,22 +287,6 @@
                     </div>
                 </div>
 
-                <div class="movimiento-card" id="admin-campanas-invitacion-panel" style="grid-column: 1 / -1;">
-                    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px;">
-                        <h4 style="margin-bottom:0;">Códigos de invitación multiuso</h4>
-                        <button type="button" class="btn-admin-action" data-action="crear-campana-invitacion">Crear Invitacion Multiuso</button>
-                    </div>
-                    <div class="movimiento-24h-tabla-scroll" style="max-height: 240px;">
-                        <table class="movimiento-24h-tabla">
-                            <thead>
-                                <tr><th>Código</th><th>Zona</th><th>Usos</th><th>Estado</th><th>Acción</th></tr>
-                            </thead>
-                            <tbody id="admin-campanas-invitacion-tbody"></tbody>
-                        </table>
-                    </div>
-                    <div id="admin-campana-invitacion-result" style="display:none; margin-top:14px; padding:14px; border:1px solid rgba(34,197,94,0.35); background:rgba(34,197,94,0.08); color:#d1fae5; border-radius:8px;"></div>
-                </div>
-
                 <div class="movimiento-card">
                     <h4>Top Invitadores (24h)</h4>
                     <div class="stat-row">
@@ -841,43 +825,42 @@
             <p class="admin-subtitle" id="incidencias-empty" style="margin-top:8px;color:#666;">No hay incidencias abiertas.</p>
         </div>
 
-        <!-- CAPA 4: Control de Aliados (navegación jerárquica: CP → Grupo → Oficio → Tarjetas) -->
+        <!-- CAPA 4: Control de Aliados (navegación jerárquica: CP → Grupo → Oficio → Tarjetas + árbol genealógico) -->
         <div class="control-aliados" id="control-aliados-wrap">
             <h2 class="seccion-titulo">Control de Aliados</h2>
-            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Explora por código postal y, dentro de cada zona, por grupo de la red.</p>
-            <div class="aliados-jerarquia-nav" id="aliados-jerarquia-nav" style="display: none;">
-                <button type="button" class="btn-volver-nivel" id="aliados-btn-volver-cps">← Volver a códigos postales</button>
-                <button type="button" class="btn-volver-nivel" id="aliados-btn-volver-grupos" style="display: none;">← Volver a grupos del CP</button>
-                <button type="button" class="btn-volver-nivel" id="aliados-btn-volver-oficios" style="display: none;">← Volver a oficios</button>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Explora por código postal, grupo y oficio, o consulta el árbol genealógico de invitaciones.</p>
+            <div id="red-view-jerarquia" class="red-view is-active">
+                <div class="aliados-jerarquia-nav" id="aliados-jerarquia-nav" style="display: none;">
+                    <button type="button" class="btn-volver-nivel" id="aliados-btn-volver-cps">← Volver a códigos postales</button>
+                    <button type="button" class="btn-volver-nivel" id="aliados-btn-volver-grupos" style="display: none;">← Volver a grupos del CP</button>
+                    <button type="button" class="btn-volver-nivel" id="aliados-btn-volver-oficios" style="display: none;">← Volver a oficios</button>
+                </div>
+                <p class="aliados-jerarquia-breadcrumb" id="aliados-breadcrumb"></p>
+                <!-- Nivel 1: Listado de códigos postales -->
+                <div class="aliados-nivel aliados-nivel-cps" id="aliados-nivel-cps">
+                    <div class="cps-list" id="aliados-cps-list"></div>
+                </div>
+                <!-- Nivel 2: Grupos de red dentro del CP -->
+                <div class="aliados-nivel aliados-nivel-grupos" id="aliados-nivel-grupos" style="display: none;">
+                    <div class="grupos-list" id="aliados-grupos-list"></div>
+                </div>
+                <!-- Nivel 3: Oficios dentro del grupo -->
+                <div class="aliados-nivel aliados-nivel-oficios" id="aliados-nivel-oficios" style="display: none;">
+                    <div class="oficios-list" id="aliados-oficios-list"></div>
+                </div>
+                <!-- Nivel 4: Tarjetas de aliados del oficio seleccionado -->
+                <div class="aliados-nivel aliados-nivel-tarjetas" id="aliados-nivel-tarjetas" style="display: none;">
+                    <div class="aliados-list" id="aliados-admin-list"></div>
+                </div>
             </div>
-            <p class="aliados-jerarquia-breadcrumb" id="aliados-breadcrumb"></p>
-            <!-- Nivel 1: Listado de códigos postales -->
-            <div class="aliados-nivel aliados-nivel-cps" id="aliados-nivel-cps">
-                <div class="cps-list" id="aliados-cps-list"></div>
+            <div id="red-view-referidos" class="red-view referidos-section">
+                <p class="admin-subtitle" style="margin-bottom:12px;color:#999;">Linaje de invitaciones: expande ramas y consulta fichas sin salir del panel.</p>
+                <div class="referidos-layout">
+                    <div class="referidos-tree-panel" id="referidos-tree-admin"></div>
+                    <div id="referidos-detail-admin"></div>
+                </div>
+                <p class="referidos-section-meta" id="referidos-meta-admin"></p>
             </div>
-            <!-- Nivel 2: Grupos de red dentro del CP -->
-            <div class="aliados-nivel aliados-nivel-grupos" id="aliados-nivel-grupos" style="display: none;">
-                <div class="grupos-list" id="aliados-grupos-list"></div>
-            </div>
-            <!-- Nivel 3: Oficios dentro del grupo -->
-            <div class="aliados-nivel aliados-nivel-oficios" id="aliados-nivel-oficios" style="display: none;">
-                <div class="oficios-list" id="aliados-oficios-list"></div>
-            </div>
-            <!-- Nivel 4: Tarjetas de aliados del oficio seleccionado -->
-            <div class="aliados-nivel aliados-nivel-tarjetas" id="aliados-nivel-tarjetas" style="display: none;">
-                <div class="aliados-list" id="aliados-admin-list"></div>
-            </div>
-        </div>
-
-        <!-- Árbol genealógico de referidos -->
-        <div class="control-aliados referidos-section" id="referidos-red-wrap">
-            <h2 class="seccion-titulo">Árbol genealógico de aliados</h2>
-            <p class="admin-subtitle" style="margin-bottom:12px;color:#999;">Linaje de invitaciones: expande ramas y consulta fichas sin salir del panel.</p>
-            <div class="referidos-layout">
-                <div class="referidos-tree-panel" id="referidos-tree-admin"></div>
-                <div id="referidos-detail-admin"></div>
-            </div>
-            <p class="referidos-section-meta" id="referidos-meta-admin"></p>
         </div>
 
         <!-- Linaje drawer (Control de Aliados) -->
@@ -902,6 +885,27 @@
 
         <!-- Intelligence (métricas analíticas) -->
         <div id="intelligence-wrap" class="intelligence-section" aria-live="polite"></div>
+
+        <!-- Códigos de invitación multiuso (Configuración) -->
+        <div class="control-aliados" id="invitaciones-admin-wrap">
+            <h2 class="seccion-titulo">Códigos de invitación multiuso</h2>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Crea y gestiona códigos reutilizables para registrar nuevos aliados.</p>
+            <div class="movimiento-card" id="admin-campanas-invitacion-panel">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px;">
+                    <h4 style="margin-bottom:0;">Campañas activas</h4>
+                    <button type="button" class="btn-admin-action" data-action="crear-campana-invitacion">Crear Invitacion Multiuso</button>
+                </div>
+                <div class="movimiento-24h-tabla-scroll" style="max-height: 320px;">
+                    <table class="movimiento-24h-tabla">
+                        <thead>
+                            <tr><th>Código</th><th>Zona</th><th>Usos</th><th>Estado</th><th>Acción</th></tr>
+                        </thead>
+                        <tbody id="admin-campanas-invitacion-tbody"></tbody>
+                    </table>
+                </div>
+                <div id="admin-campana-invitacion-result" style="display:none; margin-top:14px; padding:14px; border:1px solid rgba(34,197,94,0.35); background:rgba(34,197,94,0.08); color:#d1fae5; border-radius:8px;"></div>
+            </div>
+        </div>
 
         <!-- CAPA 5: Eventos y Trazabilidad -->
         <div class="eventos-trazabilidad">
