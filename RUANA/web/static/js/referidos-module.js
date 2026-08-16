@@ -90,7 +90,7 @@
     }
 
     function buildGenealogyNodeHtml(nodo, selectedCodigo) {
-        var isVirtual = !!(nodo.virtual || nodo.tipo_nodo === 'campana' || nodo.tipo_nodo === 'sin_atribucion' || nodo.tipo_nodo === 'pendiente_vinculo');
+        var isVirtual = isVirtualNodo(nodo);
         var selected = selectedCodigo === nodo.codigo;
         var fecha = formatFecha(nodo.creado_en || nodo.referido_en);
         var nombre = nodo.nombre || (isVirtual ? 'Categoría' : '(sin nombre)');
@@ -147,6 +147,39 @@
         (nodo.referidos || []).forEach(function (hijo) {
             indexGenealogyNodes(hijo, map, invitadoresMap, nodo);
         });
+    }
+
+    function isVirtualNodo(nodo) {
+        if (!nodo) return false;
+        var codigo = String(nodo.codigo || '');
+        return !!(
+            nodo.virtual === true ||
+            nodo.estado === 'virtual' ||
+            nodo.tipo_nodo === 'campana' ||
+            nodo.tipo_nodo === 'sin_atribucion' ||
+            nodo.tipo_nodo === 'pendiente_vinculo' ||
+            codigo.indexOf('__') === 0
+        );
+    }
+
+    function applyDetailPanelClass(container, mode) {
+        if (!container) return;
+        var isFloat = !!(container.closest && container.closest('.referidos-detail-float-wrap'));
+        if (mode === 'empty') {
+            container.className = 'referidos-detail-panel empty' + (isFloat ? ' referidos-detail-float' : '');
+            return;
+        }
+        container.className = 'referidos-detail-panel' + (isFloat ? ' referidos-detail-float' : '');
+    }
+
+    function findFirstSelectableCodigo(bosques) {
+        var queue = (bosques || []).slice();
+        while (queue.length) {
+            var n = queue.shift();
+            if (n && n.codigo && !isVirtualNodo(n)) return n.codigo;
+            (n.referidos || []).forEach(function (h) { queue.push(h); });
+        }
+        return bosques && bosques[0] ? bosques[0].codigo : null;
     }
 
     function explorerSvgIcon(pathD) {
@@ -206,11 +239,11 @@
         options = options || {};
         if (!container) return;
         if (!nodo) {
-            container.className = 'referidos-detail-panel empty';
+            applyDetailPanelClass(container, 'empty');
             container.innerHTML = '<p>Selecciona un aliado en el árbol para ver su ficha.</p>';
             return;
         }
-        container.className = 'referidos-detail-panel';
+        applyDetailPanelClass(container, 'content');
         var esp = Array.isArray(nodo.especializaciones) ? nodo.especializaciones.join(', ') : '—';
         var contacto = (nodo.telefono || '') + (nodo.email ? (nodo.telefono ? ' • ' : '') + nodo.email : '');
         if (!contacto) contacto = '—';
@@ -232,7 +265,7 @@
             : '';
 
         var adminActions = '';
-        if (options.mode === 'admin' && !nodo.virtual) {
+        if (options.mode === 'admin' && !isVirtualNodo(nodo)) {
             adminActions =
                 '<div class="referidos-detail-actions">' +
                 '<button type="button" class="btn-accion referidos-btn-ver-detalle">Ver detalle completo</button>' +
@@ -385,12 +418,23 @@
         this._applyPanTransform();
     };
 
+    RuanaReferidosTree.prototype._resolveDetailFloatWrap = function () {
+        if (this._detailFloatWrap && document.body.contains(this._detailFloatWrap)) {
+            return this._detailFloatWrap;
+        }
+        if (this.detailContainer) {
+            this._detailFloatWrap = this.detailContainer.closest('.referidos-detail-float-wrap');
+        }
+        return this._detailFloatWrap || null;
+    };
+
     RuanaReferidosTree.prototype._updateDetailFloatVisibility = function () {
-        if (!this._detailFloatWrap) return;
+        var wrap = this._resolveDetailFloatWrap();
+        if (!wrap) return;
         var nodo = this._selectedCodigo && this._nodosMap[this._selectedCodigo];
-        var show = !!(nodo && !nodo.virtual);
-        this._detailFloatWrap.classList.toggle('is-visible', show);
-        this._detailFloatWrap.setAttribute('aria-hidden', show ? 'false' : 'true');
+        var show = !!(nodo && !isVirtualNodo(nodo));
+        wrap.classList.toggle('is-visible', show);
+        wrap.setAttribute('aria-hidden', show ? 'false' : 'true');
     };
 
     RuanaReferidosTree.prototype._clearDetailSelection = function () {
@@ -694,17 +738,29 @@
     RuanaReferidosTree.prototype._bindGenealogyEvents = function (rootEl) {
         var self = this;
         if (!rootEl) return;
-        rootEl.querySelectorAll('.referidos-gen-node').forEach(function (nodeEl) {
-            nodeEl.addEventListener('click', function (e) {
+        if (rootEl._genealogyBound) return;
+        rootEl._genealogyBound = true;
+
+        rootEl.addEventListener('pointerdown', function (e) {
+            if (e.target.closest('.referidos-gen-node')) {
                 e.stopPropagation();
+            }
+        }, true);
+
+        rootEl.addEventListener('click', function (e) {
+            var nodeEl = e.target.closest('.referidos-gen-node');
+            if (!nodeEl || !nodeEl.dataset.codigo) return;
+            e.stopPropagation();
+            self.selectNode(nodeEl.dataset.codigo);
+        });
+
+        rootEl.addEventListener('keydown', function (e) {
+            var nodeEl = e.target.closest('.referidos-gen-node');
+            if (!nodeEl || !nodeEl.dataset.codigo) return;
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
                 self.selectNode(nodeEl.dataset.codigo);
-            });
-            nodeEl.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    self.selectNode(nodeEl.dataset.codigo);
-                }
-            });
+            }
         });
     };
 
@@ -745,7 +801,9 @@
             meta += ' · Arrastra para mover · Pantalla completa arriba a la derecha';
             self._updateMeta(meta);
             if (bosques.length) {
-                self.selectNode(bosques[0].codigo);
+                var firstCodigo = findFirstSelectableCodigo(bosques);
+                if (firstCodigo) self.selectNode(firstCodigo);
+                else self._clearDetailSelection();
             } else {
                 renderDetailPanel(self.detailContainer, null);
                 self._updateDetailFloatVisibility();

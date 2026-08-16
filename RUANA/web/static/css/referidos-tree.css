@@ -306,9 +306,15 @@
     z-index: 1;
 }
 
+.referidos-genealogy-nodes {
+    position: relative;
+    z-index: 2;
+}
+
 .referidos-gen-node-wrap {
     position: absolute;
     width: 108px;
+    z-index: 1;
 }
 
 .referidos-gen-node {
@@ -320,6 +326,9 @@
     padding: 4px;
     border-radius: 12px;
     transition: transform 0.15s, box-shadow 0.15s;
+    pointer-events: auto;
+    position: relative;
+    z-index: 2;
 }
 
 .referidos-gen-node:hover {
