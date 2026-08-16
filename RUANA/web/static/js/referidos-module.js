@@ -34,6 +34,121 @@
         }
     }
 
+    var GEN_NODE_W = 108;
+    var GEN_NODE_H = 128;
+    var GEN_H_GAP = 28;
+    var GEN_V_GAP = 72;
+    var GEN_FOREST_GAP = 48;
+
+    function buildAvatarHtml(nodo, className) {
+        className = className || 'referidos-gen-avatar';
+        var foto = (nodo.foto_perfil_url || nodo.foto_perfil || '').trim();
+        var iniciales = getIniciales(nodo.nombre);
+        if (foto) {
+            return '<div class="' + className + ' referidos-gen-avatar-photo">' +
+                '<img src="' + escapeHtml(foto) + '" alt="" loading="lazy">' +
+                '</div>';
+        }
+        return '<div class="' + className + '" aria-hidden="true">' + escapeHtml(iniciales) + '</div>';
+    }
+
+    function measureGenealogyTree(nodo) {
+        var children = (nodo && nodo.referidos) ? nodo.referidos.filter(Boolean) : [];
+        if (!children.length) {
+            return { width: GEN_NODE_W, nodo: nodo, children: [] };
+        }
+        var childLayouts = children.map(measureGenealogyTree);
+        var totalW = childLayouts.reduce(function (sum, cl) { return sum + cl.width; }, 0);
+        totalW += GEN_H_GAP * Math.max(0, childLayouts.length - 1);
+        return {
+            width: Math.max(GEN_NODE_W, totalW),
+            nodo: nodo,
+            children: childLayouts
+        };
+    }
+
+    function layoutGenealogyTree(layout, x, y, depth, positions, connectors) {
+        if (!layout) return;
+        var nodeX = x + layout.width / 2;
+        positions.push({ nodo: layout.nodo, x: nodeX, y: y, depth: depth });
+        if (!layout.children.length) return;
+
+        var childY = y + GEN_NODE_H + GEN_V_GAP;
+        var cx = x;
+        var childCenters = [];
+        layout.children.forEach(function (cl) {
+            layoutGenealogyTree(cl, cx, childY, depth + 1, positions, connectors);
+            childCenters.push(cx + cl.width / 2);
+            cx += cl.width + GEN_H_GAP;
+        });
+        connectors.push({
+            fromX: nodeX,
+            fromY: y + 52,
+            childCenters: childCenters,
+            childY: childY
+        });
+    }
+
+    function buildGenealogyNodeHtml(nodo, selectedCodigo) {
+        var isVirtual = !!(nodo.virtual || nodo.tipo_nodo === 'campana' || nodo.tipo_nodo === 'sin_atribucion' || nodo.tipo_nodo === 'pendiente_vinculo');
+        var selected = selectedCodigo === nodo.codigo;
+        var fecha = formatFecha(nodo.creado_en || nodo.referido_en);
+        var nombre = nodo.nombre || (isVirtual ? 'Categoría' : '(sin nombre)');
+        var subtitulo = isVirtual
+            ? (nodo.oficio || 'Agrupación')
+            : (nodo.oficio || '—');
+        var extraClass = (selected ? ' selected' : '') +
+            (isVirtual ? ' is-virtual' : '') +
+            (nodo.estado === 'sistema' ? ' is-admin' : '') +
+            (nodo.perfil_eliminado ? ' is-eliminado' : '') +
+            (nodo.perfil_pausado ? ' is-pausado' : '') +
+            (nodo.pendiente_alta ? ' pendiente-alta' : '');
+
+        var avatarHtml = isVirtual
+            ? '<div class="referidos-gen-avatar is-virtual-icon" aria-hidden="true">◉</div>'
+            : buildAvatarHtml(nodo, 'referidos-gen-avatar');
+
+        return (
+            '<div class="referidos-gen-node' + extraClass + '" role="button" tabindex="0" data-codigo="' + escapeHtml(nodo.codigo) + '">' +
+            avatarHtml +
+            '<div class="referidos-gen-nombre" title="' + escapeHtml(nombre) + '">' + escapeHtml(nombre) + '</div>' +
+            '<div class="referidos-gen-fecha">' + escapeHtml(isVirtual ? subtitulo : fecha) + '</div>' +
+            (!isVirtual ? '<div class="referidos-gen-oficio">' + escapeHtml(subtitulo) + '</div>' : '') +
+            '</div>'
+        );
+    }
+
+    function renderGenealogySvg(connectors, width, height) {
+        var paths = '';
+        connectors.forEach(function (c) {
+            if (!c.childCenters.length) return;
+            var midY = c.fromY + (c.childY - c.fromY) * 0.45;
+            paths += '<path class="referidos-gen-line" d="M' + c.fromX + ' ' + c.fromY + ' V' + midY + '"/>';
+            if (c.childCenters.length === 1) {
+                paths += '<path class="referidos-gen-line" d="M' + c.fromX + ' ' + midY + ' V' + c.childY + '"/>';
+            } else {
+                var minX = Math.min.apply(null, c.childCenters);
+                var maxX = Math.max.apply(null, c.childCenters);
+                paths += '<path class="referidos-gen-line" d="M' + minX + ' ' + midY + ' H' + maxX + '"/>';
+                c.childCenters.forEach(function (cx) {
+                    paths += '<path class="referidos-gen-line" d="M' + cx + ' ' + midY + ' V' + c.childY + '"/>';
+                });
+            }
+        });
+        return '<svg class="referidos-genealogy-svg" width="' + width + '" height="' + height + '" aria-hidden="true">' + paths + '</svg>';
+    }
+
+    function indexGenealogyNodes(nodo, map, invitadoresMap, invitador) {
+        if (!nodo || !nodo.codigo) return;
+        map[nodo.codigo] = nodo;
+        if (invitador && invitador.codigo) {
+            invitadoresMap[nodo.codigo] = invitador;
+        }
+        (nodo.referidos || []).forEach(function (hijo) {
+            indexGenealogyNodes(hijo, map, invitadoresMap, nodo);
+        });
+    }
+
     function origenLabel(origen, origenLabelField) {
         if (origenLabelField) return origenLabelField;
         var map = {
@@ -277,6 +392,74 @@
         return row;
     };
 
+    RuanaReferidosTree.prototype._renderGenealogyForest = function (bosques, container) {
+        var self = this;
+        container.innerHTML = '<div class="referidos-genealogy-scroll"><div class="referidos-genealogy-forest"></div></div>';
+        var forest = container.querySelector('.referidos-genealogy-forest');
+        if (!bosques || !bosques.length) {
+            forest.innerHTML = '<div class="referidos-empty-state">No hay aliados registrados en la red.</div>';
+            return;
+        }
+
+        self._nodosMap = {};
+        self._invitadoresMap = {};
+        bosques.forEach(function (root) {
+            indexGenealogyNodes(root, self._nodosMap, self._invitadoresMap, null);
+        });
+
+        var offsetY = 0;
+        var maxForestWidth = 0;
+        bosques.forEach(function (root, idx) {
+            var layout = measureGenealogyTree(root);
+            var positions = [];
+            var connectors = [];
+            layoutGenealogyTree(layout, 0, 24, 0, positions, connectors);
+            var treeWidth = Math.max(layout.width + 48, 320);
+            var treeHeight = 24 + GEN_NODE_H;
+            positions.forEach(function (p) {
+                treeHeight = Math.max(treeHeight, p.y + GEN_NODE_H + 24);
+            });
+
+            var treeWrap = document.createElement('div');
+            treeWrap.className = 'referidos-genealogy-tree';
+            treeWrap.style.width = treeWidth + 'px';
+            treeWrap.style.height = treeHeight + 'px';
+            treeWrap.style.marginTop = (idx > 0 ? GEN_FOREST_GAP : 0) + 'px';
+
+            var nodesHtml = positions.map(function (p) {
+                return '<div class="referidos-gen-node-wrap" style="left:' + (p.x - GEN_NODE_W / 2) + 'px;top:' + p.y + 'px;">' +
+                    buildGenealogyNodeHtml(p.nodo, self._selectedCodigo) +
+                    '</div>';
+            }).join('');
+
+            treeWrap.innerHTML = renderGenealogySvg(connectors, treeWidth, treeHeight) +
+                '<div class="referidos-genealogy-nodes">' + nodesHtml + '</div>';
+            forest.appendChild(treeWrap);
+            maxForestWidth = Math.max(maxForestWidth, treeWidth);
+            offsetY += treeHeight + GEN_FOREST_GAP;
+        });
+
+        forest.style.minWidth = maxForestWidth + 'px';
+        self._bindGenealogyEvents(container);
+    };
+
+    RuanaReferidosTree.prototype._bindGenealogyEvents = function (rootEl) {
+        var self = this;
+        if (!rootEl) return;
+        rootEl.querySelectorAll('.referidos-gen-node').forEach(function (nodeEl) {
+            nodeEl.addEventListener('click', function (e) {
+                e.stopPropagation();
+                self.selectNode(nodeEl.dataset.codigo);
+            });
+            nodeEl.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    self.selectNode(nodeEl.dataset.codigo);
+                }
+            });
+        });
+    };
+
     RuanaReferidosTree.prototype._renderNestedForest = function (bosques, container) {
         var self = this;
         container.innerHTML = '<div class="referidos-lazy-tree referidos-lazy-tree-full"></div>';
@@ -303,15 +486,15 @@
             self._totalNodos = data.total_nodos || 0;
             self.treeContainer.innerHTML = '';
             var bosques = data.bosques || (data.arbol ? [data.arbol] : []);
-            self._renderNestedForest(bosques, self.treeContainer);
-            var meta = (data.total_nodos || 0) + ' aliado' + ((data.total_nodos || 0) !== 1 ? 's' : '') + ' en vista completa';
+            self._renderGenealogyForest(bosques, self.treeContainer);
+            var meta = (data.total_nodos || 0) + ' aliado' + ((data.total_nodos || 0) !== 1 ? 's' : '') + ' en vista genealógica';
             if (data.total_aliados_en_red) {
                 meta += ' · ' + data.total_aliados_en_red + ' registrados';
             }
             if (data.aliados_fuera_red) {
-                meta += ' · ' + data.aliados_fuera_red + ' sin vincular';
+                meta += ' · ' + data.aliados_fuera_red + ' pendientes de vincular';
             }
-            meta += ' · Busca por nombre o código arriba';
+            meta += ' · Desplázate horizontalmente si el árbol es ancho';
             self._updateMeta(meta);
             if (bosques.length) {
                 self.selectNode(bosques[0].codigo);
@@ -454,7 +637,7 @@
         var invitador = invitadorOverride != null ? invitadorOverride : this._invitadoresMap[codigo] || null;
 
         if (this.treeContainer) {
-            this.treeContainer.querySelectorAll('.referidos-node-card').forEach(function (el) {
+            this.treeContainer.querySelectorAll('.referidos-node-card, .referidos-gen-node').forEach(function (el) {
                 el.classList.toggle('selected', el.dataset.codigo === codigo);
             });
         }
@@ -486,14 +669,21 @@
             }).catch(function () {});
         }
 
-        var nodeEl = this.treeContainer && this.treeContainer.querySelector('.referidos-node-card[data-codigo="' + codigo + '"]');
+        var nodeEl = this.treeContainer && (
+            this.treeContainer.querySelector('.referidos-node-card[data-codigo="' + codigo + '"]') ||
+            this.treeContainer.querySelector('.referidos-gen-node[data-codigo="' + codigo + '"]')
+        );
         if (nodeEl && nodeEl.scrollIntoView) {
             nodeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
     };
 
     RuanaReferidosTree.prototype._nodeExistsInDom = function (codigo) {
-        return !!(this.treeContainer && this.treeContainer.querySelector('.referidos-row[data-codigo="' + codigo + '"]'));
+        if (!this.treeContainer) return false;
+        return !!(
+            this.treeContainer.querySelector('.referidos-row[data-codigo="' + codigo + '"]') ||
+            this.treeContainer.querySelector('.referidos-gen-node[data-codigo="' + codigo + '"]')
+        );
     };
 
     RuanaReferidosTree.prototype._updateNodeBadge = function (codigo, referidosCount) {
@@ -746,6 +936,10 @@
     };
 
     RuanaReferidosTree.prototype.loadAdmin = function () {
+        return this.loadAdminFull();
+    };
+
+    RuanaReferidosTree.prototype.loadAdminLazy = function () {
         var self = this;
         this._setLoading('Cargando raíces del árbol genealógico…');
         return this._fetchJson(this.apiRaices).then(function (data) {
@@ -781,6 +975,38 @@
     };
 
     RuanaReferidosTree.prototype.loadAliado = function () {
+        var self = this;
+        this._setLoading('Cargando tu árbol genealógico…');
+        return this._fetchJson('/api/aliado/referidos?profundidad=50').then(function (data) {
+            if (data.status !== 'success') throw new Error(data.message || 'Error');
+            self._expanded = {};
+            self._childrenCache = {};
+            self._nodosMap = {};
+            self._invitadoresMap = {};
+            self._knownReferidos = {};
+            var arbol = data.arbol;
+            if (data.invitador && data.invitador.codigo) {
+                self._invitadoresMap[arbol.codigo] = data.invitador;
+            }
+            self.treeContainer.innerHTML = '';
+            self._renderGenealogyForest([arbol], self.treeContainer);
+            var total = (arbol.referidos_count || 0);
+            self._updateMeta(
+                total + ' referido' + (total !== 1 ? 's' : '') +
+                ' directo' + (total !== 1 ? 's' : '') +
+                ' · Vista genealógica · Se actualiza solo'
+            );
+            self.selectNode(arbol.codigo, data.invitador);
+            self.startPolling();
+            return data;
+        }).catch(function (err) {
+            self.treeContainer.innerHTML = '<div class="referidos-empty-state">' + escapeHtml(err.message || 'Error de conexión') + '</div>';
+            renderDetailPanel(self.detailContainer, null);
+            throw err;
+        });
+    };
+
+    RuanaReferidosTree.prototype.loadAliadoLazy = function () {
         var self = this;
         this._setLoading();
         return this._fetchJson(this.apiRaiz).then(function (data) {
@@ -821,43 +1047,18 @@
             this.activateNode(codigo, true);
             return Promise.resolve();
         }
-        if (this._nodeExistsInDom(codigo)) {
+        if (this._nodosMap[codigo]) {
             this.selectNode(codigo);
             return Promise.resolve();
         }
-        return this._fetchJson(this.apiRuta + encodeURIComponent(codigo)).then(function (data) {
-            if (data.status !== 'success') throw new Error(data.message || 'No encontrado');
-            var ruta = data.ruta || [];
-            if (!ruta.length) throw new Error('Sin ruta');
-            self._expanded = {};
-            self._childrenCache = {};
-            self._nodosMap = {};
-            self._invitadoresMap = {};
-            ruta.forEach(function (n, i) {
-                indexarNodo(n, self._nodosMap, self._invitadoresMap, i > 0 ? ruta[i - 1] : null);
-            });
-            self.treeContainer.innerHTML = '<div class="referidos-lazy-tree referidos-lazy-tree-path"></div>';
-            var inner = self.treeContainer.querySelector('.referidos-lazy-tree');
-            self._renderSubtree([ruta[0]], inner, 0);
-            var chain = Promise.resolve();
-            for (var i = 0; i < ruta.length; i++) {
-                (function (c, idx) {
-                    chain = chain.then(function () {
-                        self._expanded[c] = true;
-                        return self.toggleExpand(c, true);
-                    });
-                })(ruta[i].codigo, i);
-            }
-            return chain.then(function () {
-                self.selectNode(codigo);
-                self.startPolling();
-            });
+        return this.loadAdminFull().then(function () {
+            self.selectNode(codigo);
         });
     };
 
     RuanaReferidosTree.prototype.searchAndFocus = function (query) {
         var self = this;
-        if (!query) return this.loadAdmin();
+        if (!query) return this.loadAdminFull();
         return this._fetchJson(this.apiBuscar + '?q=' + encodeURIComponent(query)).then(function (data) {
             if (data.status !== 'success') throw new Error(data.message || 'Error');
             var resultados = data.resultados || [];

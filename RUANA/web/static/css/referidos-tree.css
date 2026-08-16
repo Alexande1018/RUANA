@@ -44,6 +44,143 @@
     overflow: auto;
 }
 
+/* ——— Árbol genealógico clásico (generaciones + líneas SVG) ——— */
+.referidos-genealogy-scroll {
+    overflow: auto;
+    min-height: 280px;
+    padding: 8px 4px 16px;
+}
+
+.referidos-genealogy-forest {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: min-content;
+}
+
+.referidos-genealogy-tree {
+    position: relative;
+    margin: 0 auto;
+}
+
+.referidos-genealogy-svg {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: visible;
+}
+
+.referidos-gen-line {
+    fill: none;
+    stroke: color-mix(in srgb, var(--ruana-estado-estable, #5ecf9a) 55%, #64748b);
+    stroke-width: 2;
+    stroke-linecap: round;
+}
+
+.referidos-genealogy-nodes {
+    position: relative;
+    z-index: 1;
+}
+
+.referidos-gen-node-wrap {
+    position: absolute;
+    width: 108px;
+}
+
+.referidos-gen-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 12px;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.referidos-gen-node:hover {
+    transform: translateY(-2px);
+}
+
+.referidos-gen-node.selected {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--ruana-estado-estable, #5ecf9a) 45%, transparent);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.referidos-gen-avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, #1e3a5f 0%, #0f172a 100%);
+    border: 3px solid color-mix(in srgb, var(--ruana-estado-estable, #5ecf9a) 70%, #1e40af);
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: #e2e8f0;
+    margin-bottom: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.referidos-gen-avatar-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.referidos-gen-avatar.is-virtual-icon {
+    border-style: dashed;
+    border-color: #818cf8;
+    color: #818cf8;
+    font-size: 1.4rem;
+}
+
+.referidos-gen-node.is-admin .referidos-gen-avatar {
+    border-color: color-mix(in srgb, var(--ruana-estado-competencia, #b86a8a) 70%, #1e40af);
+}
+
+.referidos-gen-node.is-virtual .referidos-gen-nombre {
+    color: #a5b4fc;
+}
+
+.referidos-gen-nombre {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ruana-text, #f1f5f9);
+    line-height: 1.25;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.referidos-gen-fecha {
+    font-size: 0.65rem;
+    color: #64748b;
+    margin-top: 2px;
+}
+
+.referidos-gen-oficio {
+    font-size: 0.62rem;
+    color: var(--ruana-text-muted, #94a3b8);
+    margin-top: 2px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.referidos-gen-node.is-eliminado .referidos-gen-nombre {
+    text-decoration: line-through;
+    opacity: 0.75;
+}
+
 .referidos-lazy-tree { display: flex; flex-direction: column; gap: 10px; }
 
 .referidos-row { position: relative; }
