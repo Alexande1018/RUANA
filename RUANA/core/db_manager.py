@@ -284,11 +284,15 @@ class DBManager:
 
     ORIGEN_REFERIDO_LABELS: Dict[str, str] = {
         'aliado': 'Invitación de aliado',
+        'ampliar_red': 'Ampliar mi red',
+        'yo_conozco_a_alguien': 'Conozco a alguien',
         'oficio': 'Invitación por oficio',
         'campana': 'Campaña del administrador',
         'admin_invitacion': 'Código del administrador',
         'admin': 'Código del administrador',
-        'huerfano': 'Registro directo · asignado al admin',
+        'organico': 'Registro orgánico',
+        'huerfano': 'Registro directo · sin atribución',
+        'sin_atribucion': 'Sin atribución',
     }
 
     def etiqueta_origen_referido(self, origen: str) -> str:

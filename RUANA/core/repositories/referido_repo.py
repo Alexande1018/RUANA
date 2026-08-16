@@ -13,7 +13,7 @@ from typing import Any, List, Optional, Sequence, Tuple
 class ReferidoRepo:
     """Operaciones de persistencia del dominio referido."""
 
-    # Estados excluidos del árbol genealógico visible
+    # Estados excluidos del árbol genealógico visible (eliminado sí aparece con marca)
     ESTADOS_EXCLUIDOS_RED = (
         'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
     )
@@ -343,10 +343,19 @@ class ReferidoRepo:
             SELECT a.codigo
             FROM aliados a
             WHERE COALESCE(a.estado, '') NOT IN (
-                'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
+                'pendiente_completar', 'sistema', 'rechazado', 'expulsado', 'eliminado'
             )
               AND a.codigo != ?
               AND (a.invitado_por_codigo IS NULL OR TRIM(COALESCE(a.invitado_por_codigo, '')) = '')
+              AND COALESCE(a.invitado_origen, '') NOT IN ('campana', 'organico', 'sin_atribucion')
+              AND NOT EXISTS (
+                  SELECT 1 FROM invitacion_campana_usos u WHERE u.codigo_aliado = a.codigo
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM aliados h
+                  WHERE h.invitado_por_codigo = a.codigo
+                    AND COALESCE(h.estado, '') NOT IN ('rechazado', 'expulsado')
+              )
             """,
             (admin_codigo,),
         )
@@ -556,13 +565,12 @@ class ReferidoRepo:
         return cursor.fetchall()
 
     def contar_nodos_red(self, cursor) -> int:
+        vis = self._visible_en_grafo_clause(False, 'a', cursor=cursor)
         cursor.execute(
-            """
-            SELECT COUNT(DISTINCT codigo) FROM (
-                SELECT codigo_referido AS codigo FROM referidos
-                UNION
-                SELECT codigo_invitador AS codigo FROM referidos
-            )
+            f"""
+            SELECT COUNT(*) FROM aliados a
+            WHERE {vis}
+              AND COALESCE(a.estado, '') != 'sistema'
             """
         )
         row = cursor.fetchone()
@@ -597,6 +605,9 @@ class ReferidoRepo:
                                  'rechazado', 'expulsado', 'pendiente_completar'
                              )
                        )
+                   )
+                   AND NOT (
+                       COALESCE(a.invitado_origen, '') IN ('organico', 'campana', 'sin_atribucion', 'huerfano')
                    )
                    AND NOT (
                        EXISTS (SELECT 1 FROM referidos r WHERE r.codigo_invitador = a.codigo)

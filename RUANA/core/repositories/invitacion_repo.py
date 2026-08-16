@@ -143,7 +143,7 @@ class InvitacionRepo:
         cursor.execute(
             """
             SELECT i.usado, i.invitador_aliado_id, inv.codigo AS codigo_invitador,
-                   inv.estado AS invitador_estado
+                   inv.estado AS invitador_estado, i.solicitud_id
             FROM invitaciones i
             JOIN aliados inv ON inv.id = i.invitador_aliado_id
             WHERE i.codigo = ?

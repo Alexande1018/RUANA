@@ -88,14 +88,16 @@ def test_admin_campaign_code_validates_and_is_consumed_on_registration(
     assert cursor.fetchone()[0] == 1
     conn.close()
 
-    cursor = sqlite_db._connect().cursor()
+    conn = sqlite_db._connect()
+    cursor = conn.cursor()
     cursor.execute(
-        "SELECT codigo_invitador FROM referidos WHERE codigo_referido = ?",
+        "SELECT invitado_por_codigo, invitado_origen FROM aliados WHERE codigo = ?",
         ("54321",),
     )
-    referido_row = cursor.fetchone()
-    assert referido_row is not None
-    assert referido_row[0] == "ADMIN001"
+    linaje_row = cursor.fetchone()
+    assert linaje_row is not None
+    assert linaje_row[0] is None or str(linaje_row[0]).strip() == ""
+    assert linaje_row[1] == "campana"
     conn.close()
 
     second_validation = client.get("/api/validar-invitacion?codigo=RUANA-TEST")

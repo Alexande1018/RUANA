@@ -410,8 +410,11 @@ def obtener_aliado_por_codigo(db, codigo: str) -> Optional[Dict[str, Any]]:
             
             if not row:
                 return None
-            
-            return dict(row)
+
+            item = dict(row)
+            if (item.get('estado') or '').strip().lower() == 'eliminado':
+                return None
+            return item
             
         except Exception as e:
             print(f"Error obteniendo aliado: {e}")
@@ -888,7 +891,7 @@ def eliminar_perfil_aliado_admin(db,
                 estado_actual, motivo_txt, admin_codigo,
             )
 
-            if _repo.delete_por_codigo(cursor, codigo) <= 0:
+            if _repo.soft_delete_por_codigo(cursor, codigo) <= 0:
                 return {'status': 'error', 'message': f'No se pudo eliminar el perfil de {codigo}'}
 
             try:
@@ -914,7 +917,7 @@ def eliminar_perfil_aliado_admin(db,
                 'message': f'Perfil de {codigo} eliminado definitivamente',
                 'codigo_aliado': codigo,
                 'accion': 'eliminado',
-                'nuevo_estado': None,
+                'nuevo_estado': 'eliminado',
             }
         except Exception as e:
             try:

@@ -115,6 +115,17 @@
                             }
                         });
                     }
+                },
+                onPausarAliado: function (nodo) {
+                    if (panel && typeof panel.confirmarPausa === 'function') {
+                        panel.confirmarPausa(panel, nodo);
+                    }
+                },
+                onEliminarAliado: function (nodo) {
+                    if (panel && typeof panel.confirmarEliminarPerfil === 'function') {
+                        panel._aliadoDetalleActual = nodo;
+                        panel.confirmarEliminarPerfil(panel);
+                    }
                 }
             });
         } else {

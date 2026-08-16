@@ -247,7 +247,12 @@ def consumir_invitacion_y_recompensar(db, codigo_invitacion: str, nuevo_aliado_c
                 return False
             usado = int(row['usado'] or 0)
             codigo_invitador = row['codigo_invitador']
-            origen = 'admin_invitacion' if (row['invitador_estado'] or '').strip() == 'sistema' else 'aliado'
+            if (row['invitador_estado'] or '').strip() == 'sistema':
+                origen = 'admin_invitacion'
+            elif row['solicitud_id']:
+                origen = 'yo_conozco_a_alguien'
+            else:
+                origen = 'ampliar_red'
             ya_registrado = False
             row_aliado = _repo.select_invitado_por_codigo(cursor, nuevo_aliado_codigo)
             if row_aliado and (row_aliado[0] or '').strip():

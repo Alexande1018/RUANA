@@ -8,7 +8,12 @@ def test_admin_aliados_jerarquia_usa_grupo_red():
     assert "getClaveGrupoRed" in text
     assert "getNombreGrupoRed" in text
     assert "aliadosGrupoNombreSeleccionado" in text
-    assert "CP → Grupo de red → Tarjetas" in text or "grupos de red dentro del CP" in text.lower() or "Grupo de red" in text
+    lower = text.lower()
+    assert (
+        "cp → grupo → tarjetas" in lower
+        or "cp → grupo → oficio" in lower
+        or "grupo de red" in lower
+    )
     # No debe clasificar el nivel 2 por buckets de estado
     assert "ordenGrupos = ['activos'" not in text
     assert "getGrupoAliado" not in text
