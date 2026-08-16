@@ -8,68 +8,142 @@
     const MODULE_DEFS = [
         {
             id: 'resumen',
-            label: 'Resumen',
-            kicker: 'Vista general',
-            subtitle: 'Estado del sistema, movimiento reciente y métricas clave.',
+            label: 'Command Center',
+            kicker: 'Centro de mando',
+            subtitle: 'Panorama operativo de RUANA en un vistazo.',
             icon: 'grid',
-            targets: ['.estado-global', '.movimiento-sistema', '.metricas-salud']
-        },
-        {
-            id: 'operaciones',
-            label: 'Operaciones',
-            kicker: 'Bandeja de trabajo',
-            subtitle: 'Validaciones, pagos, solicitudes, competencias y comunicación.',
-            icon: 'inbox',
-            targets: [
-                '#pendientes-validacion-wrap',
-                '#conflictos-pago-wrap',
-                '#pagos-apoyo-wrap',
-                '#pagos-en-revision-wrap',
-                '#solicitudes-admin-wrap',
-                '#competencias-activas-wrap',
-                '#competencias-pendientes-wrap',
-                '#competencias-historial-wrap',
-                '#suplentes-espera-wrap',
-                '#conversaciones-ruana-wrap',
-                '#centro-comunicacion-admin-wrap'
-            ]
+            targets: ['#command-center-wrap', '.estado-global', '.movimiento-sistema']
         },
         {
             id: 'red',
-            label: 'Red',
-            kicker: 'Aliados',
-            subtitle: 'Explora y gestiona la red de aliados por CP y grupo.',
+            label: 'Red de aliados',
+            kicker: 'Network',
+            subtitle: 'Explora la red jerárquica y el árbol genealógico de aliados.',
             icon: 'network',
-            targets: ['#control-aliados-wrap']
+            targets: ['#control-aliados-wrap', '#referidos-red-wrap', '#aliados-eliminados-wrap']
+        },
+        {
+            id: 'grupos-cp',
+            label: 'Grupos y CP',
+            kicker: 'Territorio',
+            subtitle: 'Vista por código postal y grupos de la red.',
+            icon: 'map',
+            targets: ['#grupos-cp-wrap']
+        },
+        {
+            id: 'solicitudes',
+            label: 'Solicitudes',
+            kicker: 'Demanda',
+            subtitle: 'Solicitudes de conexión y atención.',
+            icon: 'inbox',
+            targets: ['#solicitudes-admin-wrap', '#pendientes-validacion-wrap']
+        },
+        {
+            id: 'trabajos',
+            label: 'Trabajos',
+            kicker: 'Encargos',
+            subtitle: 'Negociaciones guiadas y trabajos en curso.',
+            icon: 'briefcase',
+            targets: ['#conversaciones-ruana-wrap']
+        },
+        {
+            id: 'pagos',
+            label: 'Pagos y conflictos',
+            kicker: 'Finanzas',
+            subtitle: 'Conflictos, pagos Apoyo y revisiones.',
+            icon: 'credit',
+            targets: ['#conflictos-pago-wrap', '#pagos-apoyo-wrap', '#pagos-en-revision-wrap']
+        },
+        {
+            id: 'scores',
+            label: 'Scores y evaluaciones',
+            kicker: 'Rendimiento',
+            subtitle: 'Scores, evaluaciones y aliados en riesgo.',
+            icon: 'chart',
+            targets: ['#scores-evaluaciones-wrap']
+        },
+        {
+            id: 'competencia',
+            label: 'Competencia / suplentes',
+            kicker: 'Plazas',
+            subtitle: 'Competencias activas, pendientes y suplentes en espera.',
+            icon: 'zap',
+            targets: ['#competencias-activas-wrap', '#competencias-pendientes-wrap', '#competencias-historial-wrap', '#suplentes-espera-wrap']
+        },
+        {
+            id: 'comunicaciones',
+            label: 'Comunicaciones',
+            kicker: 'Soporte',
+            subtitle: 'Centro de comunicación con aliados.',
+            icon: 'message',
+            targets: ['#centro-comunicacion-admin-wrap']
+        },
+        {
+            id: 'incidencias',
+            label: 'Incidencias',
+            kicker: 'Atención',
+            subtitle: 'Incidencias reportadas que requieren acción.',
+            icon: 'alert',
+            targets: ['#incidencias-wrap']
+        },
+        {
+            id: 'intelligence',
+            label: 'Intelligence',
+            kicker: 'Análisis',
+            subtitle: 'Métricas, tendencias y alertas para decidir.',
+            icon: 'activity',
+            targets: ['#intelligence-wrap', '.metricas-salud']
         },
         {
             id: 'sistema',
-            label: 'Sistema',
-            kicker: 'Configuración',
+            label: 'Configuración',
+            kicker: 'Sistema',
             subtitle: 'Trazabilidad, métodos de pago y acciones administrativas.',
             icon: 'settings',
             targets: ['.eventos-trazabilidad', '#metodos-pago-admin-wrap', '#acciones-admin-wrap']
         }
     ];
 
+    /** Navegación principal del Command Center (sidebar fijo). */
+    const NAV_ITEMS = [
+        { id: 'command-center', label: 'Inicio', module: 'resumen', target: '#command-center-wrap', icon: 'grid' },
+        { id: 'red', label: 'Red de aliados', module: 'red', target: '#control-aliados-wrap', icon: 'network' },
+        { id: 'grupos-cp', label: 'Grupos y CP', module: 'grupos-cp', target: '#grupos-cp-wrap', icon: 'map' },
+        { id: 'solicitudes', label: 'Solicitudes', module: 'solicitudes', target: '#solicitudes-admin-wrap', icon: 'inbox', badge: '#solicitudes-activas' },
+        { id: 'trabajos', label: 'Trabajos', module: 'trabajos', target: '#conversaciones-ruana-wrap', icon: 'briefcase' },
+        { id: 'pagos', label: 'Pagos y conflictos', module: 'pagos', target: '#conflictos-pago-wrap', icon: 'credit' },
+        { id: 'scores', label: 'Scores y evaluaciones', module: 'scores', target: '#scores-evaluaciones-wrap', icon: 'chart' },
+        { id: 'competencia', label: 'Competencia / suplentes', module: 'competencia', target: '#competencias-activas-wrap', icon: 'zap' },
+        { id: 'comunicaciones', label: 'Comunicaciones', module: 'comunicaciones', target: '#centro-comunicacion-admin-wrap', icon: 'message' },
+        { id: 'incidencias', label: 'Incidencias', module: 'incidencias', target: '#incidencias-wrap', icon: 'alert' },
+        { id: 'intelligence', label: 'Métricas / Intelligence', module: 'intelligence', target: '#intelligence-wrap', icon: 'activity' },
+        { id: 'config', label: 'Configuración', module: 'sistema', target: '#acciones-admin-wrap', icon: 'settings' }
+    ];
+
+    /** Subsecciones (búsqueda y scroll spy). */
     const NAV_SECTIONS = [
-        { id: 'overview', label: 'Estado global', group: 'Resumen', module: 'resumen', target: '.estado-global', icon: 'grid' },
-        { id: 'movimiento', label: 'Movimiento 24h', group: 'Resumen', module: 'resumen', target: '.movimiento-sistema', icon: 'activity' },
-        { id: 'salud', label: 'Métricas de salud', group: 'Resumen', module: 'resumen', target: '.metricas-salud', icon: 'heart' },
-        { id: 'pendientes', label: 'Pendientes validación', group: 'Operaciones', module: 'operaciones', target: '#pendientes-validacion-wrap', icon: 'user-check', badge: '#pendientes-validacion-count' },
-        { id: 'conflictos', label: 'Conflictos de pago', group: 'Operaciones', module: 'operaciones', target: '#conflictos-pago-wrap', icon: 'alert' },
-        { id: 'pagos-apoyo', label: 'Pagos Apoyo', group: 'Operaciones', module: 'operaciones', target: '#pagos-apoyo-wrap', icon: 'credit' },
-        { id: 'pagos-revision', label: 'Pagos en revisión', group: 'Operaciones', module: 'operaciones', target: '#pagos-en-revision-wrap', icon: 'clock' },
-        { id: 'solicitudes', label: 'Solicitudes', group: 'Operaciones', module: 'operaciones', target: '#solicitudes-admin-wrap', icon: 'inbox' },
-        { id: 'competencias', label: 'Competencias', group: 'Operaciones', module: 'operaciones', target: '#competencias-activas-wrap', icon: 'zap' },
-        { id: 'suplentes', label: 'Suplentes en espera', group: 'Operaciones', module: 'operaciones', target: '#suplentes-espera-wrap', icon: 'users' },
-        { id: 'chats', label: 'Negociaciones guiadas', group: 'Operaciones', module: 'operaciones', target: '#conversaciones-ruana-wrap', icon: 'message' },
-        { id: 'centro-comunicacion', label: 'Centro de comunicación', group: 'Operaciones', module: 'operaciones', target: '#centro-comunicacion-admin-wrap', icon: 'message' },
-        { id: 'aliados', label: 'Control de aliados', group: 'Red', module: 'red', target: '#control-aliados-wrap', icon: 'network' },
+        { id: 'overview', label: 'Command Center', group: 'Inicio', module: 'resumen', target: '#command-center-wrap', icon: 'grid' },
+        { id: 'estado-global', label: 'Estado global (detalle)', group: 'Inicio', module: 'resumen', target: '.estado-global', icon: 'grid' },
+        { id: 'movimiento', label: 'Movimiento 24h', group: 'Inicio', module: 'resumen', target: '.movimiento-sistema', icon: 'activity' },
+        { id: 'aliados', label: 'Jerarquía CP → Grupo', module: 'red', group: 'Red', target: '#control-aliados-wrap', icon: 'network' },
+        { id: 'referidos', label: 'Árbol genealógico', group: 'Red', module: 'red', target: '#referidos-red-wrap', icon: 'network' },
         { id: 'aliados-eliminados', label: 'Aliados eliminados', group: 'Red', module: 'red', target: '#aliados-eliminados-wrap', icon: 'trash' },
-        { id: 'trazabilidad', label: 'Trazabilidad', group: 'Sistema', module: 'sistema', target: '.eventos-trazabilidad', icon: 'list' },
-        { id: 'metodos-pago', label: 'Métodos de pago', group: 'Sistema', module: 'sistema', target: '#metodos-pago-admin-wrap', icon: 'wallet' },
-        { id: 'acciones', label: 'Acciones admin', group: 'Sistema', module: 'sistema', target: '#acciones-admin-wrap', icon: 'settings' }
+        { id: 'grupos-overview', label: 'Grupos por CP', group: 'Territorio', module: 'grupos-cp', target: '#grupos-cp-wrap', icon: 'map' },
+        { id: 'pendientes', label: 'Pendientes validación', group: 'Solicitudes', module: 'solicitudes', target: '#pendientes-validacion-wrap', icon: 'user-check', badge: '#pendientes-validacion-count' },
+        { id: 'solicitudes-list', label: 'Lista solicitudes', group: 'Solicitudes', module: 'solicitudes', target: '#solicitudes-admin-wrap', icon: 'inbox' },
+        { id: 'conflictos', label: 'Conflictos de pago', group: 'Pagos', module: 'pagos', target: '#conflictos-pago-wrap', icon: 'alert' },
+        { id: 'pagos-apoyo', label: 'Pagos Apoyo', group: 'Pagos', module: 'pagos', target: '#pagos-apoyo-wrap', icon: 'credit' },
+        { id: 'pagos-revision', label: 'Pagos en revisión', group: 'Pagos', module: 'pagos', target: '#pagos-en-revision-wrap', icon: 'clock' },
+        { id: 'chats', label: 'Negociaciones / trabajos', group: 'Trabajos', module: 'trabajos', target: '#conversaciones-ruana-wrap', icon: 'briefcase' },
+        { id: 'competencias', label: 'Competencias activas', group: 'Competencia', module: 'competencia', target: '#competencias-activas-wrap', icon: 'zap' },
+        { id: 'suplentes', label: 'Suplentes en espera', group: 'Competencia', module: 'competencia', target: '#suplentes-espera-wrap', icon: 'users' },
+        { id: 'centro-comunicacion', label: 'Centro de comunicación', group: 'Comunicaciones', module: 'comunicaciones', target: '#centro-comunicacion-admin-wrap', icon: 'message' },
+        { id: 'incidencias-list', label: 'Incidencias abiertas', group: 'Incidencias', module: 'incidencias', target: '#incidencias-wrap', icon: 'alert' },
+        { id: 'intel', label: 'Panel Intelligence', group: 'Intelligence', module: 'intelligence', target: '#intelligence-wrap', icon: 'activity' },
+        { id: 'salud', label: 'Métricas de salud', group: 'Intelligence', module: 'intelligence', target: '.metricas-salud', icon: 'heart' },
+        { id: 'trazabilidad', label: 'Trazabilidad', group: 'Configuración', module: 'sistema', target: '.eventos-trazabilidad', icon: 'list' },
+        { id: 'metodos-pago', label: 'Métodos de pago', group: 'Configuración', module: 'sistema', target: '#metodos-pago-admin-wrap', icon: 'wallet' },
+        { id: 'acciones', label: 'Acciones admin', group: 'Configuración', module: 'sistema', target: '#acciones-admin-wrap', icon: 'settings' }
     ];
 
     let currentModule = 'resumen';
@@ -500,7 +574,11 @@
         network: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="3"/><circle cx="5" cy="19" r="3"/><circle cx="19" cy="19" r="3"/><line x1="12" y1="8" x2="5" y2="16"/><line x1="12" y1="8" x2="19" y2="16"/></svg>',
         list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
         wallet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg>',
-        settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'
+        settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+        map: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>',
+        briefcase: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>',
+        chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
+        trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>'
     };
 
     const auditLog = [];
@@ -682,14 +760,20 @@
 
     function buildBottomNav() {
         if (document.getElementById('adminBottomNav')) return;
+        const mobileItems = [
+            MODULE_DEFS.find((m) => m.id === 'resumen'),
+            MODULE_DEFS.find((m) => m.id === 'red'),
+            MODULE_DEFS.find((m) => m.id === 'solicitudes'),
+            MODULE_DEFS.find((m) => m.id === 'sistema')
+        ].filter(Boolean);
         const nav = document.createElement('nav');
         nav.className = 'admin-shell-bottom';
         nav.id = 'adminBottomNav';
         nav.setAttribute('aria-label', 'Navegación de módulos');
-        nav.innerHTML = MODULE_DEFS.map((mod) => `
+        nav.innerHTML = mobileItems.map((mod) => `
             <button type="button" class="admin-shell-bottom-item${mod.id === 'resumen' ? ' is-active' : ''}" data-admin-module-nav="${mod.id}">
                 ${ICONS[mod.icon] || ''}
-                <span>${escapeHtml(mod.label)}</span>
+                <span>${escapeHtml(mod.label.split(' ')[0])}</span>
             </button>
         `).join('');
         document.body.appendChild(nav);
@@ -714,8 +798,11 @@
         sidebar.id = 'adminSidebar';
         sidebar.innerHTML = `
             <div class="admin-sidebar-brand">
-                <span class="admin-sidebar-brand-name">RUANA</span>
-                <span class="admin-sidebar-brand-sub">Administración</span>
+                <div class="admin-sidebar-brand-mark">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="28" height="28" aria-hidden="true"><g fill="none" stroke="#A2FF00" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 24v7.5"/><path d="M32 31.5H18v7.5"/><path d="M32 31.5H46v7.5"/></g><rect x="22" y="8" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="8" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="36" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/></svg>
+                    <span class="admin-sidebar-brand-name">RUANA</span>
+                </div>
+                <span class="admin-sidebar-brand-sub">Command Center</span>
             </div>
             <div class="admin-module-switcher" id="adminModuleSwitcher"></div>
             <div class="admin-sidebar-search">
@@ -791,38 +878,45 @@
         const nav = document.getElementById('adminSidebarNav');
         if (!nav) return;
         const q = (filter || '').trim().toLowerCase();
-        const groups = {};
-        NAV_SECTIONS.forEach((s) => {
-            // When not searching, only show sections of the active module
-            if (!q && s.module !== currentModule) return;
-            if (q && !s.label.toLowerCase().includes(q) && !s.group.toLowerCase().includes(q)) return;
-            if (!groups[s.group]) groups[s.group] = [];
-            groups[s.group].push(s);
-        });
-        const groupKeys = Object.keys(groups);
-        if (!groupKeys.length) {
-            nav.innerHTML = '<p class="admin-nav-empty">Sin resultados</p>';
-            return;
-        }
-        nav.innerHTML = groupKeys.map((group) => {
-            const items = groups[group].map((s) => {
-                const badgeEl = s.badge ? document.querySelector(s.badge) : null;
-                const badgeVal = badgeEl ? badgeEl.textContent.trim() : '';
-                const hasBadge = badgeVal && badgeVal !== '—' && badgeVal !== '0';
-                return `<button type="button" class="admin-nav-item" data-nav-target="${s.target}" data-nav-module="${s.module}">
-                    ${ICONS[s.icon] || ''}
-                    <span>${escapeHtml(s.label)}</span>
-                    ${hasBadge ? `<span class="admin-nav-badge has-items">${escapeHtml(badgeVal)}</span>` : ''}
-                </button>`;
+
+        if (q) {
+            const groups = {};
+            NAV_SECTIONS.forEach((s) => {
+                if (!s.label.toLowerCase().includes(q) && !(s.group || '').toLowerCase().includes(q)) return;
+                const g = s.group || 'Secciones';
+                if (!groups[g]) groups[g] = [];
+                groups[g].push(s);
+            });
+            const groupKeys = Object.keys(groups);
+            if (!groupKeys.length) {
+                nav.innerHTML = '<p class="admin-nav-empty">Sin resultados</p>';
+                return;
+            }
+            nav.innerHTML = groupKeys.map((group) => {
+                const items = groups[group].map((s) => renderNavItemButton(s)).join('');
+                return `<div class="admin-nav-group-label">${escapeHtml(group)}</div>${items}`;
             }).join('');
-            return `<div class="admin-nav-group-label">${escapeHtml(group)}</div>${items}`;
-        }).join('');
+        } else {
+            nav.innerHTML = NAV_ITEMS.map((s) => renderNavItemButton(s)).join('');
+        }
 
         nav.querySelectorAll('.admin-nav-item').forEach((btn) => {
             btn.addEventListener('click', () => {
                 navigateTo(btn.getAttribute('data-nav-target'));
             });
         });
+    }
+
+    function renderNavItemButton(s) {
+        const badgeEl = s.badge ? document.querySelector(s.badge) : null;
+        const badgeVal = badgeEl ? badgeEl.textContent.trim() : '';
+        const hasBadge = badgeVal && badgeVal !== '—' && badgeVal !== '0';
+        const isActive = s.module === currentModule && !document.getElementById('adminNavSearch')?.value;
+        return `<button type="button" class="admin-nav-item${isActive ? ' is-active' : ''}" data-nav-target="${s.target}" data-nav-module="${s.module}">
+            ${ICONS[s.icon] || ''}
+            <span>${escapeHtml(s.label)}</span>
+            ${hasBadge ? `<span class="admin-nav-badge has-items">${escapeHtml(badgeVal)}</span>` : ''}
+        </button>`;
     }
 
     function setupNavSearch() {
@@ -1288,6 +1382,16 @@
         buildAuditDrawer();
         setupTopbarExtras();
         observeMutations();
+
+        if (window.RuanaAdminModules && window.RuanaAdminModules.commandCenter) {
+            window.RuanaAdminModules.commandCenter.setup();
+        }
+        if (window.RuanaAdminModules && window.RuanaAdminModules.intelligence) {
+            window.RuanaAdminModules.intelligence.ensureMarkup();
+        }
+        if (window.RuanaAdminModules && window.RuanaAdminModules.redExplorer) {
+            window.RuanaAdminModules.redExplorer.setup();
+        }
 
         const tryPatch = () => {
             const panel = getPanel();

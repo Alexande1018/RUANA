@@ -331,6 +331,19 @@
           if (conversaciones.length === 0) {
               host.cargarChatsFallback();
           }
+
+          refreshCommandCenterPanels(host, {
+              indicadores: indicadores,
+              conflictos: (conflictosData && conflictosData.status === 'success' && Array.isArray(conflictosData.conflictos)) ? conflictosData.conflictos.length : 0,
+              solicitudes: Array.isArray(solicitudesData) ? solicitudesData : (solicitudesData && Array.isArray(solicitudesData.solicitudes) ? solicitudesData.solicitudes : []),
+              eventos: (eventosData && eventosData.status === 'success' && Array.isArray(eventosData.eventos)) ? eventosData.eventos.map(function (ev) {
+                  return { fecha: ev.fecha || ev.creado_en, descripcion: ev.descripcion, tipo: ev.tipo };
+              }) : [],
+              incidencias: (centroComData && centroComData.status === 'success' && Array.isArray(centroComData.conversaciones))
+                  ? centroComData.conversaciones.filter(function (c) { return String(c.tipo || '').toLowerCase() === 'incidencia'; })
+                  : [],
+              trabajos: conversaciones.length
+          });
       } catch (e) {
           host.showToast('Error de conexión. Comprueba la red.', 'error');
           host._conversacionesList = [];
@@ -342,6 +355,21 @@
       } finally {
           if (loader) loader.style.display = 'none';
           document.body.classList.remove('admin-is-loading');
+      }
+}
+
+async function refreshCommandCenterPanels(host, payload) {
+      var cc = global.RuanaAdminModules && global.RuanaAdminModules.commandCenter;
+      if (cc && typeof cc.refresh === 'function') {
+          cc.refresh(host, payload || {});
+      }
+      var intel = global.RuanaAdminModules && global.RuanaAdminModules.intelligence;
+      if (intel && typeof intel.refresh === 'function') {
+          intel.refresh(host);
+      }
+      var redEx = global.RuanaAdminModules && global.RuanaAdminModules.redExplorer;
+      if (redEx && typeof redEx.refresh === 'function') {
+          redEx.refresh(host);
       }
 }
 
@@ -401,8 +429,10 @@ function setupEventListeners(host) {
       // Navegación jerárquica aliados: Volver a CPs / Volver a grupos
       const btnVolverCPs = document.getElementById('aliados-btn-volver-cps');
       const btnVolverGrupos = document.getElementById('aliados-btn-volver-grupos');
-      if (btnVolverCPs) btnVolverCPs.addEventListener('click', () => { host.aliadosNivel = 'cps'; host.aliadosCPSeleccionado = null; host.aliadosGrupoSeleccionado = null; host.aliadosGrupoNombreSeleccionado = null; host.renderAliadosJerarquia(); });
-      if (btnVolverGrupos) btnVolverGrupos.addEventListener('click', () => { host.aliadosNivel = 'grupos'; host.aliadosGrupoSeleccionado = null; host.aliadosGrupoNombreSeleccionado = null; host.renderAliadosJerarquia(); });
+      if (btnVolverCPs) btnVolverCPs.addEventListener('click', () => { host.aliadosNivel = 'cps'; host.aliadosCPSeleccionado = null; host.aliadosGrupoSeleccionado = null; host.aliadosGrupoNombreSeleccionado = null; host.aliadosOficioSeleccionado = null; host.renderAliadosJerarquia(); });
+      if (btnVolverGrupos) btnVolverGrupos.addEventListener('click', () => { host.aliadosNivel = 'grupos'; host.aliadosGrupoSeleccionado = null; host.aliadosGrupoNombreSeleccionado = null; host.aliadosOficioSeleccionado = null; host.renderAliadosJerarquia(); });
+      const btnVolverOficios = document.getElementById('aliados-btn-volver-oficios');
+      if (btnVolverOficios) btnVolverOficios.addEventListener('click', () => { host.aliadosNivel = 'oficios'; host.aliadosOficioSeleccionado = null; host.renderAliadosJerarquia(); });
 
 
       document.addEventListener('click', function ruanaConversacionesClick(e) {

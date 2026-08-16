@@ -59,25 +59,36 @@
     const breadcrumb = document.getElementById('aliados-breadcrumb');
     const nivelCps = document.getElementById('aliados-nivel-cps');
     const nivelGrupos = document.getElementById('aliados-nivel-grupos');
+    const nivelOficios = document.getElementById('aliados-nivel-oficios');
     const nivelTarjetas = document.getElementById('aliados-nivel-tarjetas');
+    const btnVolverCps = document.getElementById('aliados-btn-volver-cps');
     const btnVolverGrupos = document.getElementById('aliados-btn-volver-grupos');
+    const btnVolverOficios = document.getElementById('aliados-btn-volver-oficios');
     if (nav) nav.style.display = host.aliadosNivel !== 'cps' ? 'flex' : 'none';
-    if (btnVolverGrupos) btnVolverGrupos.style.display = host.aliadosNivel === 'tarjetas' ? 'inline-block' : 'none';
+    if (btnVolverCps) btnVolverCps.style.display = host.aliadosNivel !== 'cps' ? 'inline-block' : 'none';
+    if (btnVolverGrupos) btnVolverGrupos.style.display = ['oficios', 'tarjetas'].includes(host.aliadosNivel) ? 'inline-block' : 'none';
+    if (btnVolverOficios) btnVolverOficios.style.display = host.aliadosNivel === 'tarjetas' ? 'inline-block' : 'none';
     if (nivelCps) nivelCps.style.display = host.aliadosNivel === 'cps' ? 'block' : 'none';
     if (nivelGrupos) nivelGrupos.style.display = host.aliadosNivel === 'grupos' ? 'block' : 'none';
+    if (nivelOficios) nivelOficios.style.display = host.aliadosNivel === 'oficios' ? 'block' : 'none';
     if (nivelTarjetas) nivelTarjetas.style.display = host.aliadosNivel === 'tarjetas' ? 'block' : 'none';
     if (breadcrumb) {
         if (host.aliadosNivel === 'grupos' && host.aliadosCPSeleccionado) {
             breadcrumb.textContent = 'CP ' + host.aliadosCPSeleccionado + ' — Elige un grupo';
+        } else if (host.aliadosNivel === 'oficios' && host.aliadosCPSeleccionado && host.aliadosGrupoSeleccionado != null) {
+            const grupoLabel = host.aliadosGrupoNombreSeleccionado || host.aliadosGrupoSeleccionado;
+            breadcrumb.textContent = 'CP ' + host.aliadosCPSeleccionado + ' → ' + grupoLabel + ' — Elige un oficio';
         } else if (host.aliadosNivel === 'tarjetas' && host.aliadosCPSeleccionado && host.aliadosGrupoSeleccionado != null) {
             const grupoLabel = host.aliadosGrupoNombreSeleccionado || host.aliadosGrupoSeleccionado;
-            breadcrumb.textContent = 'CP ' + host.aliadosCPSeleccionado + ' → ' + grupoLabel;
+            const oficioLabel = host.aliadosOficioSeleccionado || 'Todos';
+            breadcrumb.textContent = 'CP ' + host.aliadosCPSeleccionado + ' → ' + grupoLabel + ' → ' + oficioLabel;
         } else {
             breadcrumb.textContent = '';
         }
     }
     if (host.aliadosNivel === 'cps') host.renderAliadosNivel1();
     else if (host.aliadosNivel === 'grupos') host.renderAliadosNivel2();
+    else if (host.aliadosNivel === 'oficios') host.renderAliadosNivelOficios();
     else if (host.aliadosNivel === 'tarjetas') host.renderAliadosNivel3();
   }
 
@@ -172,6 +183,44 @@
         card.addEventListener('click', () => {
             host.aliadosGrupoSeleccionado = g.key;
             host.aliadosGrupoNombreSeleccionado = g.nombre;
+            host.aliadosOficioSeleccionado = null;
+            host.aliadosNivel = 'oficios';
+            host.renderAliadosJerarquia();
+        });
+        list.appendChild(card);
+    });
+  }
+
+  function renderAliadosNivelOficios(host) {
+    const list = document.getElementById('aliados-oficios-list');
+    if (!list) return;
+    list.innerHTML = '';
+    const cp = host.aliadosCPSeleccionado;
+    const grupo = host.aliadosGrupoSeleccionado;
+    if (!cp || grupo == null) return host.renderAliadosNivel2();
+    const data = (host._aliadosData || []).filter(a => {
+        if (host.esAliadoPlaceholder(a)) return false;
+        if (host.normalizarCpAliado(a) !== cp) return false;
+        return host.getClaveGrupoRed(a) === grupo;
+    });
+    const byOficio = new Map();
+    data.forEach(a => {
+        const oficio = (a.oficio || 'Sin oficio').trim() || 'Sin oficio';
+        byOficio.set(oficio, (byOficio.get(oficio) || 0) + 1);
+    });
+    const oficios = Array.from(byOficio.entries()).sort((a, b) => String(a[0]).localeCompare(String(b[0]), 'es', { sensitivity: 'base' }));
+    if (!oficios.length) {
+        list.innerHTML = '<p style="color:#94a3b8; padding:20px;">Ningún oficio con aliados en este grupo.</p>';
+        return;
+    }
+    oficios.forEach(([oficio, count]) => {
+        const card = document.createElement('div');
+        card.className = 'oficio-card';
+        card.innerHTML =
+            '<div class="oficio-nombre">' + host.escapeHtml(oficio) + '</div>' +
+            '<div class="oficio-count">' + count + ' aliado' + (count !== 1 ? 's' : '') + '</div>';
+        card.addEventListener('click', () => {
+            host.aliadosOficioSeleccionado = oficio;
             host.aliadosNivel = 'tarjetas';
             host.renderAliadosJerarquia();
         });
@@ -182,11 +231,17 @@
   function renderAliadosNivel3(host) {
     const cp = host.aliadosCPSeleccionado;
     const grupo = host.aliadosGrupoSeleccionado;
+    const oficio = host.aliadosOficioSeleccionado;
     if (!cp || grupo == null) return;
     const data = (host._aliadosData || []).filter(a => {
         if (host.esAliadoPlaceholder(a)) return false;
         if (host.normalizarCpAliado(a) !== cp) return false;
-        return host.getClaveGrupoRed(a) === grupo;
+        if (host.getClaveGrupoRed(a) !== grupo) return false;
+        if (oficio) {
+            const aOficio = (a.oficio || 'Sin oficio').trim() || 'Sin oficio';
+            return aOficio === oficio;
+        }
+        return true;
     });
     host.renderAliados(data);
   }
@@ -496,6 +551,26 @@
         });
   }
 
+  function setupFichaTabs() {
+    var tabs = document.getElementById('aliado-ficha-tabs');
+    if (!tabs || tabs._bound) return;
+    tabs._bound = true;
+    tabs.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-ficha-tab]');
+      if (!btn) return;
+      activateFichaTab(btn.getAttribute('data-ficha-tab'));
+    });
+  }
+
+  function activateFichaTab(tabId) {
+    document.querySelectorAll('.aliado-ficha-tab').forEach(function (btn) {
+      btn.classList.toggle('is-active', btn.getAttribute('data-ficha-tab') === tabId);
+    });
+    document.querySelectorAll('.aliado-ficha-pane').forEach(function (pane) {
+      pane.classList.toggle('is-active', pane.getAttribute('data-ficha-pane') === tabId);
+    });
+  }
+
   function abrirLinajeDrawer(host, aliado) {
     if (!aliado || !aliado.codigo) return;
     const overlay = document.getElementById('linaje-drawer-overlay');
@@ -581,9 +656,15 @@
     set('det-especialidades', esp.length ? esp.join(', ') : '—');
     set('det-score', aliado.score_panel != null ? aliado.score_panel : (aliado.score || 0));
     set('det-estado', aliado.estado_panel || aliado.estado || 'activos');
+    set('det-grupo', host.getGrupoTerritorialLabel ? host.getGrupoTerritorialLabel(aliado) : (aliado.grupo_nombre || '—'));
 
     set('det-total-contactos', aliado.total_contactos != null ? aliado.total_contactos : '—');
     set('det-contactos-30d', aliado.contactos_30d != null ? aliado.contactos_30d : '—');
+    set('det-actividad-contactos', (aliado.total_contactos != null ? aliado.total_contactos : '—') + ' total · ' + (aliado.contactos_30d != null ? aliado.contactos_30d : '—') + ' en 30d');
+    set('det-actividad-invitaciones', (aliado.hijos_directos_count != null ? aliado.hijos_directos_count : 0) + ' invitados directos');
+
+    setupFichaTabs();
+    activateFichaTab('datos');
 
     set('det-intencion', '—');
     set('det-tasa-respuesta', '—');
@@ -604,6 +685,13 @@
     }
 
     modal.classList.remove('hidden');
+
+    var linajeBtn = document.getElementById('aliadoDetalleLinaje');
+    if (linajeBtn) linajeBtn.onclick = function () { host.abrirLinajeDrawer(aliado); };
+    var catBtn = document.getElementById('aliadoDetalleCatalogo');
+    if (catBtn) catBtn.onclick = function () { host.abrirCatalogoServiciosModal(aliado); };
+    var pausarBtn = document.getElementById('aliadoDetallePausar');
+    if (pausarBtn) pausarBtn.onclick = function () { host.confirmarPausa(aliado); };
 
     // Cargar detalles de evaluación e histórico (endpoint admin: calcula si no hay fila en BD)
     if (aliado.codigo) {
@@ -865,6 +953,7 @@ modules.red = {
     renderAliadosJerarquia: renderAliadosJerarquia,
     renderAliadosNivel1: renderAliadosNivel1,
     renderAliadosNivel2: renderAliadosNivel2,
+    renderAliadosNivelOficios: renderAliadosNivelOficios,
     renderAliadosNivel3: renderAliadosNivel3,
     renderAliados: renderAliados,
     renderPendientesValidacion: renderPendientesValidacion,

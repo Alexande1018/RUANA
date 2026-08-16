@@ -5,7 +5,9 @@ def test_admin_shell_assets_linked():
     admin_html = Path(__file__).resolve().parents[1] / "web" / "admin.html"
     text = admin_html.read_text(encoding="utf-8")
     assert 'href="/static/css/admin-shell.css"' in text
+    assert 'href="/static/css/admin-command-center.css"' in text
     assert 'src="/static/js/admin-shell.js"' in text
+    assert 'src="/static/js/admin-command-center-module.js"' in text
 
 
 def test_admin_shell_js_exports_api():
@@ -63,9 +65,9 @@ def test_admin_shell_resumen_module_aligned_with_module_defs():
     admin = (root / "admin.html").read_text(encoding="utf-8")
 
     assert "id: 'resumen'" in shell_js
+    assert "#command-center-wrap" in shell_js
     assert ".estado-global" in shell_js
     assert ".movimiento-sistema" in shell_js
-    assert ".metricas-salud" in shell_js
     assert 'src="/static/js/admin-resumen-module.js"' in admin
     assert "renderEstadoGlobal" in resumen_js
     assert "estado-sistema-label" in resumen_js
@@ -74,13 +76,13 @@ def test_admin_shell_resumen_module_aligned_with_module_defs():
 
 
 def test_admin_shell_operaciones_module_aligned_with_module_defs():
-    """admin-operaciones-module.js cubre targets de pagos/conflictos en MODULE_DEFS.operaciones."""
+    """admin-operaciones-module.js cubre targets de pagos/conflictos en MODULE_DEFS.pagos."""
     root = Path(__file__).resolve().parents[1] / "web"
     shell_js = (root / "static" / "js" / "admin-shell.js").read_text(encoding="utf-8")
     ops_js = (root / "static" / "js" / "admin-operaciones-module.js").read_text(encoding="utf-8")
     admin = (root / "admin.html").read_text(encoding="utf-8")
 
-    assert "module: 'operaciones'" in shell_js
+    assert "id: 'pagos'" in shell_js
     assert "#conflictos-pago-wrap" in shell_js
     assert "#pagos-apoyo-wrap" in shell_js
     assert "#pagos-en-revision-wrap" in shell_js

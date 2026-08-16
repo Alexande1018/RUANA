@@ -13,6 +13,8 @@
     <link rel="stylesheet" href="/static/css/admin-panel.css">
     <link rel="stylesheet" href="/static/css/admin-premium.css">
     <link rel="stylesheet" href="/static/css/admin-shell.css">
+    <link rel="stylesheet" href="/static/css/admin-command-center.css">
+    <link rel="stylesheet" href="/static/css/referidos-tree.css">
     <link rel="stylesheet" href="/static/css/ruana-identity.css">
     <script src="/static/js/ruana-atmosphere.js" defer></script>
     <script src="/static/js/ruana-ui.js" defer></script>
@@ -22,6 +24,11 @@
     <script src="/static/js/admin-operaciones-module.js" defer></script>
     <script src="/static/js/admin-red-module.js" defer></script>
     <script src="/static/js/admin-sistema-module.js" defer></script>
+    <script src="/static/js/admin-charts.js" defer></script>
+    <script src="/static/js/admin-command-center-module.js" defer></script>
+    <script src="/static/js/admin-intelligence-module.js" defer></script>
+    <script src="/static/js/referidos-module.js" defer></script>
+    <script src="/static/js/admin-red-explorer-module.js" defer></script>
     <script src="/static/js/admin-shell.js" defer></script>
 </head>
 <body class="admin-is-loading">
@@ -30,27 +37,60 @@
         <div class="admin-login-card aliado-detalle-card">
             <h2 id="det-nombre"></h2>
             <p class="subtitle"><span id="det-codigo"></span> • <span id="det-oficio"></span> • <span id="det-zona"></span></p>
-            <div class="aliado-detalle-grid">
-                <div class="aliado-detalle-col">
-                    <div><strong>Marca:</strong> <span id="det-marca"></span></div>
-                    <div><strong>Especialidades:</strong> <span id="det-especialidades"></span></div>
-                    <div><strong>Contacto:</strong> <span id="det-contacto"></span></div>
-                    <div><strong>Score:</strong> <span id="det-score"></span></div>
-                    <div><strong>Estado:</strong> <span id="det-estado"></span></div>
-                </div>
-                <div class="aliado-detalle-col">
-                    <div><strong>Intención:</strong> <span id="det-intencion"></span></div>
-                    <div><strong>Tasa respuesta:</strong> <span id="det-tasa-respuesta"></span></div>
-                    <div><strong>Tasa confirmación:</strong> <span id="det-tasa-confirmacion"></span></div>
-                    <div><strong>Meses sin trabajo:</strong> <span id="det-meses-sin-trabajo"></span></div>
-                    <div><strong>Severidad:</strong> <span id="det-severidad"></span></div>
-                    <div><strong>Última evaluación:</strong> <span id="det-evaluado-en"></span></div>
-                    <div><strong>Razones:</strong> <span id="det-razones"></span></div>
+            <nav class="aliado-ficha-tabs" id="aliado-ficha-tabs" aria-label="Secciones del aliado">
+                <button type="button" class="aliado-ficha-tab is-active" data-ficha-tab="datos">Datos</button>
+                <button type="button" class="aliado-ficha-tab" data-ficha-tab="score">Score</button>
+                <button type="button" class="aliado-ficha-tab" data-ficha-tab="actividad">Actividad</button>
+                <button type="button" class="aliado-ficha-tab" data-ficha-tab="historial">Historial</button>
+                <button type="button" class="aliado-ficha-tab" data-ficha-tab="acciones">Acciones</button>
+            </nav>
+            <div class="aliado-ficha-pane is-active" data-ficha-pane="datos">
+                <div class="aliado-detalle-grid">
+                    <div class="aliado-detalle-col">
+                        <div><strong>Marca:</strong> <span id="det-marca"></span></div>
+                        <div><strong>Especialidades:</strong> <span id="det-especialidades"></span></div>
+                        <div><strong>Contacto:</strong> <span id="det-contacto"></span></div>
+                        <div><strong>Estado:</strong> <span id="det-estado"></span></div>
+                        <div><strong>Grupo:</strong> <span id="det-grupo"></span></div>
+                    </div>
+                    <div class="aliado-detalle-col">
+                        <div><strong>Score actual:</strong> <span id="det-score"></span></div>
+                        <div><strong>Contactos totales:</strong> <span id="det-total-contactos">—</span></div>
+                        <div><strong>Contactos 30d:</strong> <span id="det-contactos-30d">—</span></div>
+                    </div>
                 </div>
             </div>
-            <div class="aliado-detalle-historico">
+            <div class="aliado-ficha-pane" data-ficha-pane="score">
+                <div class="aliado-detalle-grid">
+                    <div class="aliado-detalle-col">
+                        <div><strong>Intención:</strong> <span id="det-intencion"></span></div>
+                        <div><strong>Tasa respuesta:</strong> <span id="det-tasa-respuesta"></span></div>
+                        <div><strong>Tasa confirmación:</strong> <span id="det-tasa-confirmacion"></span></div>
+                        <div><strong>Meses sin trabajo:</strong> <span id="det-meses-sin-trabajo"></span></div>
+                    </div>
+                    <div class="aliado-detalle-col">
+                        <div><strong>Severidad:</strong> <span id="det-severidad"></span></div>
+                        <div><strong>Última evaluación:</strong> <span id="det-evaluado-en"></span></div>
+                        <div><strong>Razones:</strong> <span id="det-razones"></span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="aliado-ficha-pane" data-ficha-pane="actividad">
+                <p class="admin-subtitle" style="margin-bottom:8px;">Resumen de actividad reciente del aliado en la red.</p>
+                <div><strong>Trabajos / contactos:</strong> <span id="det-actividad-contactos">—</span></div>
+                <div><strong>Invitaciones directas:</strong> <span id="det-actividad-invitaciones">—</span></div>
+            </div>
+            <div class="aliado-ficha-pane" data-ficha-pane="historial">
                 <h3>Histórico de evaluaciones</h3>
                 <div id="det-historico"></div>
+            </div>
+            <div class="aliado-ficha-pane" data-ficha-pane="acciones">
+                <p class="admin-subtitle" style="margin-bottom:12px;">Acciones administrativas sobre este aliado.</p>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                    <button type="button" class="btn-accion" id="aliadoDetalleLinaje">Ver linaje</button>
+                    <button type="button" class="btn-accion" id="aliadoDetalleCatalogo">Ver catálogo</button>
+                    <button type="button" class="btn-accion danger" id="aliadoDetallePausar">Pausar aliado</button>
+                </div>
             </div>
             <div class="aliado-detalle-footer">
                 <button type="button" class="admin-login-btn is-danger-outline" id="aliadoDetalleEliminar">Eliminar perfil</button>
@@ -137,13 +177,15 @@
             <div class="ruana-loader-title">Cargando datos...</div>
         </div>
         <div class="admin-data-content">
+        <!-- Command Center (renderizado por admin-command-center-module.js) -->
+        <div id="command-center-wrap" class="command-center" aria-live="polite"></div>
         <!-- Header -->
         <div class="admin-header">
             <div class="ruana-brand ruana-brand-topbar" aria-hidden="true">
                 <svg class="ruana-brand-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="28" height="28" aria-hidden="true" focusable="false"><g fill="none" stroke="#A2FF00" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 24v7.5"/><path d="M32 31.5H18v7.5"/><path d="M32 31.5H46v7.5"/></g><rect x="22" y="8" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="8" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="36" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/></svg>
                 <span class="ruana-brand-word">RUANA</span>
             </div>
-            <p class="admin-subtitle">Panel de Administrador • Sala de Control</p>
+            <p class="admin-subtitle">Panel de Administrador • Command Center</p>
         </div>
 
         <!-- CAPA 1: Estado Global -->
@@ -769,13 +811,44 @@
             </div>
         </div>
 
-        <!-- CAPA 4: Control de Aliados (navegación jerárquica: CP → Grupo de red → Tarjetas) -->
+        <!-- Grupos y CP (Command Center) -->
+        <div class="control-aliados" id="grupos-cp-wrap">
+            <h2 class="seccion-titulo">Grupos y códigos postales</h2>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Vista territorial de la red RUANA por CP y grupos.</p>
+            <div class="grupos-cp-overview" id="grupos-cp-overview"></div>
+        </div>
+
+        <!-- Scores y evaluaciones -->
+        <div class="control-aliados" id="scores-evaluaciones-wrap">
+            <h2 class="seccion-titulo">Scores y evaluaciones</h2>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Distribución de scores y estados de evaluación del motor RUANA.</p>
+            <div class="scores-eval-grid" id="scores-eval-grid"></div>
+            <div class="cc-card" id="scores-eval-chart"></div>
+        </div>
+
+        <!-- Incidencias -->
+        <div class="control-aliados" id="incidencias-wrap">
+            <h2 class="seccion-titulo">Incidencias <span class="incidencias-badge" id="incidencias-count-badge">0</span></h2>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Incidencias reportadas que requieren atención.</p>
+            <div class="movimiento-24h-tabla-wrap">
+                <div class="movimiento-24h-tabla-scroll">
+                    <table class="movimiento-24h-tabla">
+                        <thead><tr><th>ID</th><th>Aliado</th><th>Asunto</th><th>Estado</th><th>Fecha</th><th></th></tr></thead>
+                        <tbody id="tbody-incidencias-admin"></tbody>
+                    </table>
+                </div>
+            </div>
+            <p class="admin-subtitle" id="incidencias-empty" style="margin-top:8px;color:#666;">No hay incidencias abiertas.</p>
+        </div>
+
+        <!-- CAPA 4: Control de Aliados (navegación jerárquica: CP → Grupo → Oficio → Tarjetas) -->
         <div class="control-aliados" id="control-aliados-wrap">
             <h2 class="seccion-titulo">Control de Aliados</h2>
             <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Explora por código postal y, dentro de cada zona, por grupo de la red.</p>
             <div class="aliados-jerarquia-nav" id="aliados-jerarquia-nav" style="display: none;">
                 <button type="button" class="btn-volver-nivel" id="aliados-btn-volver-cps">← Volver a códigos postales</button>
                 <button type="button" class="btn-volver-nivel" id="aliados-btn-volver-grupos" style="display: none;">← Volver a grupos del CP</button>
+                <button type="button" class="btn-volver-nivel" id="aliados-btn-volver-oficios" style="display: none;">← Volver a oficios</button>
             </div>
             <p class="aliados-jerarquia-breadcrumb" id="aliados-breadcrumb"></p>
             <!-- Nivel 1: Listado de códigos postales -->
@@ -786,10 +859,25 @@
             <div class="aliados-nivel aliados-nivel-grupos" id="aliados-nivel-grupos" style="display: none;">
                 <div class="grupos-list" id="aliados-grupos-list"></div>
             </div>
-            <!-- Nivel 3: Tarjetas de aliados del grupo seleccionado -->
+            <!-- Nivel 3: Oficios dentro del grupo -->
+            <div class="aliados-nivel aliados-nivel-oficios" id="aliados-nivel-oficios" style="display: none;">
+                <div class="oficios-list" id="aliados-oficios-list"></div>
+            </div>
+            <!-- Nivel 4: Tarjetas de aliados del oficio seleccionado -->
             <div class="aliados-nivel aliados-nivel-tarjetas" id="aliados-nivel-tarjetas" style="display: none;">
                 <div class="aliados-list" id="aliados-admin-list"></div>
             </div>
+        </div>
+
+        <!-- Árbol genealógico de referidos -->
+        <div class="control-aliados referidos-section" id="referidos-red-wrap">
+            <h2 class="seccion-titulo">Árbol genealógico de aliados</h2>
+            <p class="admin-subtitle" style="margin-bottom:12px;color:#999;">Linaje de invitaciones: expande ramas y consulta fichas sin salir del panel.</p>
+            <div class="referidos-layout">
+                <div class="referidos-tree-panel" id="referidos-tree-admin"></div>
+                <div id="referidos-detail-admin"></div>
+            </div>
+            <p class="referidos-section-meta" id="referidos-meta-admin"></p>
         </div>
 
         <!-- Linaje drawer (Control de Aliados) -->
@@ -812,6 +900,8 @@
             </div>
         </div>
 
+        <!-- Intelligence (métricas analíticas) -->
+        <div id="intelligence-wrap" class="intelligence-section" aria-live="polite"></div>
 
         <!-- CAPA 5: Eventos y Trazabilidad -->
         <div class="eventos-trazabilidad">
@@ -967,6 +1057,7 @@
                 this.aliadosCPSeleccionado = null;
                 this.aliadosGrupoSeleccionado = null;
                 this.aliadosGrupoNombreSeleccionado = null;
+                this.aliadosOficioSeleccionado = null;
                 this._conversacionesList = [];
                 this._conversacionesHasMore = false;
                 this._conversacionesOffset = 0;
@@ -1636,6 +1727,13 @@
                 const mod = this._redModule();
                 if (mod && typeof mod.renderAliadosNivel2 === 'function') {
                     return mod.renderAliadosNivel2(this);
+                }
+            }
+
+            renderAliadosNivelOficios() {
+                const mod = this._redModule();
+                if (mod && typeof mod.renderAliadosNivelOficios === 'function') {
+                    return mod.renderAliadosNivelOficios(this);
                 }
             }
 
