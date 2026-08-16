@@ -38,10 +38,14 @@
         if (origenLabelField) return origenLabelField;
         var map = {
             aliado: 'Invitación de aliado',
+            ampliar_red: 'Ampliar mi red',
+            yo_conozco_a_alguien: 'Conozco a alguien',
             oficio: 'Invitación por oficio',
             campana: 'Campaña del administrador',
             admin_invitacion: 'Código del administrador',
-            huerfano: 'Registro directo · asignado al admin'
+            organico: 'Registro orgánico',
+            huerfano: 'Sin atribución',
+            sin_atribucion: 'Sin atribución'
         };
         return map[String(origen || '').toLowerCase()] || '';
     }
@@ -53,6 +57,8 @@
         if (e === 'pendiente_validacion') return 'Pendiente';
         if (e === 'pendiente_completar') return 'Pendiente de completar alta';
         if (e === 'suspendido_temporal') return 'Pausado';
+        if (e === 'eliminado') return 'Perfil eliminado';
+        if (e === 'virtual') return 'Categoría';
         if (e === 'expulsado') return 'Expulsado';
         if (e === 'rechazado') return 'Rechazado';
         return 'Activo';
@@ -106,7 +112,15 @@
             : '';
 
         var adminActions = '';
-        if (options.mode === 'admin' && typeof options.onVerDetalleCompleto === 'function') {
+        if (options.mode === 'admin' && !nodo.virtual) {
+            adminActions =
+                '<div class="referidos-detail-actions">' +
+                '<button type="button" class="btn-accion referidos-btn-ver-detalle">Ver detalle completo</button>' +
+                '<button type="button" class="btn-accion referidos-btn-centrar">Centrar árbol aquí</button>' +
+                '<button type="button" class="btn-accion referidos-btn-pausar">Pausar aliado</button>' +
+                '<button type="button" class="btn-accion danger referidos-btn-eliminar">Eliminar perfil</button>' +
+                '</div>';
+        } else if (options.mode === 'admin' && typeof options.onVerDetalleCompleto === 'function') {
             adminActions =
                 '<div class="referidos-detail-actions">' +
                 '<button type="button" class="btn-accion referidos-btn-ver-detalle">Ver detalle completo</button>' +
@@ -149,6 +163,14 @@
         if (centrar && options.onCentrarArbol) {
             centrar.addEventListener('click', function () { options.onCentrarArbol(nodo.codigo); });
         }
+        var pausarBtn = container.querySelector('.referidos-btn-pausar');
+        if (pausarBtn && typeof options.onPausarAliado === 'function') {
+            pausarBtn.addEventListener('click', function () { options.onPausarAliado(nodo); });
+        }
+        var eliminarBtn = container.querySelector('.referidos-btn-eliminar');
+        if (eliminarBtn && typeof options.onEliminarAliado === 'function') {
+            eliminarBtn.addEventListener('click', function () { options.onEliminarAliado(nodo); });
+        }
     }
 
     function RuanaReferidosTree(config) {
@@ -167,6 +189,11 @@
         this.apiCambios = config.apiCambios || (this.mode === 'admin'
             ? '/api/admin/referidos/cambios'
             : '/api/aliado/referidos/cambios');
+        this.apiDetalle = config.apiDetalle || (this.mode === 'admin'
+            ? '/api/admin/referidos/aliado/'
+            : '/api/aliado/referidos/aliado/');
+        this.onPausarAliado = config.onPausarAliado || null;
+        this.onEliminarAliado = config.onEliminarAliado || null;
         this.pollIntervalMs = config.pollIntervalMs || 15000;
 
         this._nodosMap = {};
@@ -306,25 +333,27 @@
         var depth = opts.depth || 0;
         var selected = this._selectedCodigo === nodo.codigo;
         var expanded = !!this._expanded[nodo.codigo];
-        var referidosCount = nodo.referidos_count != null ? nodo.referidos_count : 0;
-        var hasChildren = referidosCount > 0;
+        var referidosCount = nodo.referidos_count != null ? nodo.referidos_count : (nodo.hijos_directos || 0);
+        var hasChildren = nodo.tiene_hijos || referidosCount > 0 || nodo.virtual;
+        var isVirtual = !!nodo.virtual || nodo.tipo_nodo === 'campana' || nodo.tipo_nodo === 'sin_atribucion';
         var loading = !!opts.loading;
-        var zona = nodo.zona || nodo.codigo_postal || '—';
+        var zona = nodo.zona || nodo.codigo_postal || (isVirtual ? 'RUANA' : '—');
         var badgeCount = referidosCount > 0
-            ? referidosCount + ' referido' + (referidosCount !== 1 ? 's' : '')
-            : 'Sin referidos';
-
+            ? referidosCount + ' aliado' + (referidosCount !== 1 ? 's' : '')
+            : (isVirtual ? 'Vacío' : 'Sin referidos');
         var origenTexto = origenLabel(nodo.origen, nodo.origen_label);
         var origenLine = origenTexto
             ? '<div class="referidos-node-meta referidos-node-origen">' + escapeHtml(origenTexto) + '</div>'
             : (nodo.invitador_nombre
-                ? '<div class="referidos-node-meta referidos-node-origen">Invitado por ' + escapeHtml(nodo.invitador_nombre) + '</div>'
-                : '');
-
+                ? '<div class="referidos-node-meta referidos-node-origen">Incorporado por ' + escapeHtml(nodo.invitador_nombre) + '</div>'
+                : (isVirtual ? '<div class="referidos-node-meta referidos-node-origen">Nodo de agrupación</div>' : ''));
         var pendienteAlta = !!nodo.pendiente_alta;
         var cardExtraClass = (opts.isRoot ? ' is-root' : '') +
             (nodo.estado === 'sistema' ? ' is-admin' : '') +
-            (pendienteAlta ? ' pendiente-alta' : '');
+            (pendienteAlta ? ' pendiente-alta' : '') +
+            (nodo.perfil_eliminado ? ' is-eliminado' : '') +
+            (nodo.perfil_pausado ? ' is-pausado' : '') +
+            (isVirtual ? ' is-virtual' : '');
 
         return (
             '<div class="referidos-row" data-codigo="' + escapeHtml(nodo.codigo) + '" data-depth="' + depth + '">' +
@@ -435,8 +464,27 @@
             mode: this.mode,
             onSelectCodigo: function (c, inv) { self.focusOnCodigo(c); },
             onVerDetalleCompleto: this.onVerDetalleCompleto,
-            onCentrarArbol: this.onCentrarArbol
+            onCentrarArbol: this.onCentrarArbol,
+            onPausarAliado: this.onPausarAliado,
+            onEliminarAliado: this.onEliminarAliado
         });
+
+        if (!nodo.virtual && this.apiDetalle) {
+            this._fetchJson(this.apiDetalle + encodeURIComponent(codigo)).then(function (data) {
+                if (data.status === 'success' && data.aliado) {
+                    var merged = Object.assign({}, nodo, data.aliado);
+                    indexarNodo(merged, self._nodosMap, self._invitadoresMap, invitador);
+                    renderDetailPanel(self.detailContainer, merged, invitador, {
+                        mode: self.mode,
+                        onSelectCodigo: function (c) { self.focusOnCodigo(c); },
+                        onVerDetalleCompleto: self.onVerDetalleCompleto,
+                        onCentrarArbol: self.onCentrarArbol,
+                        onPausarAliado: self.onPausarAliado,
+                        onEliminarAliado: self.onEliminarAliado
+                    });
+                }
+            }).catch(function () {});
+        }
 
         var nodeEl = this.treeContainer && this.treeContainer.querySelector('.referidos-node-card[data-codigo="' + codigo + '"]');
         if (nodeEl && nodeEl.scrollIntoView) {

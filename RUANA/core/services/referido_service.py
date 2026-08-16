@@ -152,9 +152,14 @@ def _listar_raices_desde_grafo(grafo: Dict[str, Any]) -> List[str]:
         if estado == 'pendiente_completar' and not incluir_pendientes:
             continue
         padre = (aliado.get('invitado_por_codigo') or '').strip()
+        origen = (aliado.get('invitado_origen') or '').strip()
+        tiene_hijos = bool(hijos_por_padre.get(codigo))
+        es_invitador = any(p == codigo for p in padre_por_hijo.values())
         if padre and _padre_valido_en_grafo(grafo, padre):
             continue
-        tiene_hijos = bool(hijos_por_padre.get(codigo))
+        if origen in ('organico', 'campana', 'sin_atribucion', 'huerfano') and not padre:
+            if not tiene_hijos and not es_invitador:
+                continue
         es_invitador = any(p == codigo for p in padre_por_hijo.values())
         if estado == 'sistema' or tiene_hijos or es_invitador:
             raices.append(codigo)
@@ -204,6 +209,13 @@ def _nodo_desde_grafo(db, grafo: Dict[str, Any], codigo: str) -> Optional[Dict[s
     }
     if (aliado.get('estado') or '').strip() == 'pendiente_completar':
         nodo['pendiente_alta'] = True
+    if (aliado.get('estado') or '').strip() == 'eliminado':
+        nodo['perfil_eliminado'] = True
+        nodo['nombre'] = nodo.get('nombre') or '[Perfil eliminado]'
+    if (aliado.get('estado') or '').strip() == 'suspendido_temporal':
+        nodo['perfil_pausado'] = True
+    nodo['tipo_nodo'] = 'aliado'
+    nodo['virtual'] = False
     return nodo
 
 
@@ -241,6 +253,47 @@ def _construir_arbol_desde_grafo(
     return _build(codigo_raiz, 0)
 
 # --- Extraído de DBManager (referido) ---
+
+def asignar_origen_sin_padre(db, codigo_aliado: str, origen: str) -> bool:
+    """
+    Marca origen de incorporación sin padre aliado (campaña, orgánico, sin atribución).
+    No escribe referidos con invitador ficticio.
+    """
+    codigo_aliado = (codigo_aliado or "").strip()
+    origen = (origen or "").strip()
+    if not codigo_aliado or not origen:
+        return False
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            if not _repo.aliados_tiene_invitado_por(cursor):
+                return False
+            cursor.execute(
+                """
+                UPDATE aliados
+                SET invitado_por_codigo = NULL,
+                    invitado_origen = CASE
+                        WHEN COALESCE(invitado_origen, '') = '' THEN ?
+                        WHEN invitado_origen IN ('huerfano', 'campana') THEN ?
+                        ELSE invitado_origen
+                    END,
+                    actualizado_en = CURRENT_TIMESTAMP
+                WHERE codigo = ?
+                  AND (invitado_por_codigo IS NULL OR TRIM(COALESCE(invitado_por_codigo, '')) = ''
+                       OR invitado_origen IN ('huerfano', 'campana', 'organico', 'sin_atribucion'))
+                """,
+                (origen, origen, codigo_aliado),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+        except Exception:
+            return False
+        finally:
+            if conn:
+                conn.close()
+
 
 def asignar_invitado_por(db,
     codigo_referido: str,
@@ -332,7 +385,12 @@ def backfill_invitado_por_linaje(db) -> Dict[str, int]:
             if conn:
                 conn.close()
     for row in pendientes:
-        origen = 'admin_invitacion' if (row['invitador_estado'] or '').strip() == 'sistema' else 'aliado'
+        if (row['invitador_estado'] or '').strip() == 'sistema':
+            origen = 'admin_invitacion'
+        elif row['solicitud_id'] if 'solicitud_id' in row.keys() else None:
+            origen = 'yo_conozco_a_alguien'
+        else:
+            origen = 'ampliar_red'
         if db.asignar_invitado_por(row['codigo_referido'], row['codigo_invitador'], origen):
             stats['desde_invitaciones'] += 1
 
@@ -350,7 +408,7 @@ def backfill_invitado_por_linaje(db) -> Dict[str, int]:
             if conn:
                 conn.close()
     for codigo in huerfanos:
-        if db.asignar_invitado_por(codigo, admin_codigo, 'huerfano'):
+        if asignar_origen_sin_padre(db, codigo, 'organico'):
             stats['huerfanos'] += 1
     return stats
 
@@ -471,7 +529,10 @@ def asegurar_referido_desde_invitacion(db, codigo_invitacion: str, nuevo_aliado_
             row = _repo.select_invitacion_con_invitador(cursor, codigo_invitacion)
             if not row:
                 return False
-            origen = 'admin_invitacion' if (row['invitador_estado'] or '').strip() == 'sistema' else 'aliado'
+            sid = row['solicitud_id'] if 'solicitud_id' in row.keys() else None
+            origen = 'admin_invitacion' if (row['invitador_estado'] or '').strip() == 'sistema' else (
+                'yo_conozco_a_alguien' if sid else 'ampliar_red'
+            )
             registrado = db._insert_referido(
                 nuevo_aliado_codigo,
                 row['codigo_invitador'],
@@ -624,7 +685,12 @@ def sincronizar_referidos_invitaciones_usadas(db) -> int:
         codigo_invitador = row['codigo_invitador']
         if not codigo_referido or not codigo_invitador:
             continue
-        origen = 'admin_invitacion' if (row['invitador_estado'] or '').strip() == 'sistema' else 'aliado'
+        if (row['invitador_estado'] or '').strip() == 'sistema':
+            origen = 'admin_invitacion'
+        elif row['solicitud_id'] if 'solicitud_id' in row.keys() else None:
+            origen = 'yo_conozco_a_alguien'
+        else:
+            origen = 'ampliar_red'
         if db._insert_referido(codigo_referido, codigo_invitador, origen):
             sincronizados += 1
     return sincronizados
@@ -1008,8 +1074,10 @@ def reparar_cobertura_red_referidos(db) -> int:
                     if not origen:
                         origen = (ref_row['origen'] or '').strip() or 'aliado'
                 else:
-                    invitador = admin_codigo
-                    origen = origen or 'huerfano'
+                    if not origen or origen in ('huerfano', ''):
+                        if db.asignar_origen_sin_padre(codigo, 'organico'):
+                            reparados += 1
+                    continue
 
         if invitador:
             if db.asignar_invitado_por(codigo, invitador, origen or 'aliado', overwrite=True):
@@ -1112,29 +1180,38 @@ def sincronizar_referidos_completo(db) -> Dict[str, int]:
 
 def sincronizar_referidos_huerfanos_admin(db) -> int:
     """
-    Asigna al administrador como invitador a aliados registrados sin vínculo previo.
-    Garantiza que todos los aliados activos aparezcan en el árbol genealógico.
+    Marca aliados sin vínculo como orgánicos (sin padre inventado).
+    Garantiza visibilidad en categoría «Sin atribución» del árbol global.
     """
     admin_codigo = db.obtener_codigo_admin_referidos()
-    if not admin_codigo:
-        return 0
     with db._lock:
         conn = None
         try:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT a.codigo
                 FROM aliados a
                 WHERE COALESCE(a.estado, '') NOT IN (
-                    'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
+                    'pendiente_completar', 'sistema', 'rechazado', 'expulsado', 'eliminado'
                 )
-                  AND a.codigo != ?
+                  AND (a.invitado_por_codigo IS NULL OR TRIM(COALESCE(a.invitado_por_codigo, '')) = '')
+                  AND COALESCE(a.invitado_origen, '') IN ('', 'huerfano')
                   AND NOT EXISTS (
                       SELECT 1 FROM referidos r WHERE r.codigo_referido = a.codigo
                   )
-            """, (admin_codigo,))
+                  AND NOT EXISTS (
+                      SELECT 1 FROM invitacion_campana_usos u WHERE u.codigo_aliado = a.codigo
+                  )
+                  AND NOT EXISTS (
+                      SELECT 1 FROM aliados h
+                      WHERE h.invitado_por_codigo = a.codigo
+                        AND COALESCE(h.estado, '') NOT IN ('rechazado', 'expulsado')
+                  )
+                """
+            )
             huerfanos = [row['codigo'] for row in cursor.fetchall() if row and row['codigo']]
         except Exception:
             return 0
@@ -1143,7 +1220,7 @@ def sincronizar_referidos_huerfanos_admin(db) -> int:
                 conn.close()
     sincronizados = 0
     for codigo in huerfanos:
-        if db._insert_referido(codigo, admin_codigo, 'huerfano'):
+        if asignar_origen_sin_padre(db, codigo, 'organico'):
             sincronizados += 1
     return sincronizados
 
@@ -1154,7 +1231,7 @@ def contar_total_nodos_referidos_red(db) -> int:
 
 
 def _registrar_referido_campana_admin(db, codigo_campana: str, codigo_aliado: str) -> bool:
-    """Registra en referidos un aliado registrado por campaña admin."""
+    """Registra linaje de campaña: origen campana, sin padre aliado inventado."""
     codigo_campana = (codigo_campana or "").strip().upper()
     codigo_aliado = (codigo_aliado or "").strip()
     if not codigo_campana or not codigo_aliado:
@@ -1162,11 +1239,7 @@ def _registrar_referido_campana_admin(db, codigo_campana: str, codigo_aliado: st
     campana = db.obtener_campana_invitacion(codigo_campana)
     if not campana:
         return False
-    admin_codigo = (campana.get('creado_por_admin_codigo') or "").strip() or "RUANA-ADMIN"
-    invitador = db.obtener_o_crear_invitador_admin(admin_codigo)
-    if not invitador:
-        return False
-    return db._insert_referido(codigo_aliado, invitador, 'campana')
+    return asignar_origen_sin_padre(db, codigo_aliado, 'campana')
 
 
 def sincronizar_referidos_campanas_admin(db) -> int:
@@ -1195,12 +1268,8 @@ def sincronizar_referidos_campanas_admin(db) -> int:
                 conn.close()
     sincronizados = 0
     for row in pendientes:
-        admin_codigo = (row['creado_por_admin_codigo'] or "").strip() or "RUANA-ADMIN"
-        invitador = db.obtener_o_crear_invitador_admin(admin_codigo)
-        if not invitador:
-            continue
         codigo_aliado = row['codigo_aliado']
-        if db._insert_referido(codigo_aliado, invitador, 'campana'):
+        if asignar_origen_sin_padre(db, codigo_aliado, 'campana'):
             sincronizados += 1
     return sincronizados
 

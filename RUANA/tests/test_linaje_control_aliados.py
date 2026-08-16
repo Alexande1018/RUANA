@@ -62,7 +62,7 @@ def test_asignar_invitado_por_escribe_en_aliados(sqlite_db):
     assert row[1] == "aliado"
 
 
-def test_backfill_huerfanos_bajo_admin(sqlite_db):
+def test_backfill_huerfanos_organico_sin_admin(sqlite_db):
     sqlite_db.obtener_o_crear_invitador_admin("RUANA-ADMIN")
     _crear_activo(sqlite_db, "33333", "Huerfano")
 
@@ -74,8 +74,8 @@ def test_backfill_huerfanos_bajo_admin(sqlite_db):
     cur.execute("SELECT invitado_por_codigo, invitado_origen FROM aliados WHERE codigo = ?", ("33333",))
     row = cur.fetchone()
     conn.close()
-    assert row[0] == "RUANA-ADMIN"
-    assert row[1] == "huerfano"
+    assert row[0] is None or str(row[0]).strip() == ""
+    assert row[1] == "organico"
 
 
 def test_listar_hijos_y_linaje_api(client, sqlite_db, monkeypatch):
@@ -149,4 +149,4 @@ def test_invitation_flow_sets_invitado_por(client, sqlite_db, monkeypatch):
     conn.close()
     assert row is not None
     assert row[0] == "11111"
-    assert row[1] in ("aliado", "admin_invitacion", "")
+    assert row[1] in ("aliado", "ampliar_red", "admin_invitacion", "")

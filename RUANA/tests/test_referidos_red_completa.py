@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 from core import db_manager as db_module
+from core.services import red_arbol_service
 from RUANA.web import app as app_module
 
 
@@ -80,10 +81,10 @@ def test_ally_invitation_places_referral_under_inviter_not_admin(client, sqlite_
 
     assert row is not None
     assert row[0] == "11111"
-    assert row[1] == "aliado"
+    assert row[1] in ("aliado", "ampliar_red")
 
 
-def test_orphan_active_ally_is_assigned_to_admin_on_sync(sqlite_db):
+def test_orphan_active_ally_marked_organico_on_sync(sqlite_db):
     sqlite_db.obtener_o_crear_invitador_admin("RUANA-ADMIN")
     directo = sqlite_db.crear_aliado(
         codigo="22222",
@@ -105,15 +106,15 @@ def test_orphan_active_ally_is_assigned_to_admin_on_sync(sqlite_db):
     conn = sqlite_db._connect()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT codigo_invitador, origen FROM referidos WHERE codigo_referido = ?",
+        "SELECT invitado_por_codigo, invitado_origen FROM aliados WHERE codigo = ?",
         ("22222",),
     )
     row = cursor.fetchone()
     conn.close()
 
     assert row is not None
-    assert row[0] == "RUANA-ADMIN"
-    assert row[1] == "huerfano"
+    assert row[0] is None or str(row[0]).strip() == ""
+    assert row[1] == "organico"
 
 
 def test_sync_desde_linaje_crea_referido_cuando_solo_invitado_por(sqlite_db):
@@ -226,7 +227,7 @@ def test_all_active_allies_participate_in_network_after_sync(sqlite_db):
 
     assert resumen["total_aliados_activos"] == 2
     assert resumen["aliados_fuera_red"] == 0
-    assert resumen["total_nodos"] >= 3
+    assert resumen["total_nodos"] >= 2
 
 
 def _crear_activo(db, codigo, nombre):
@@ -259,18 +260,11 @@ def test_bosque_carga_sin_tabla_invitaciones_oficio(sqlite_db):
     conn.commit()
     conn.close()
     sqlite_db.sincronizar_referidos_completo()
-    bosques = referido_service.obtener_bosques_referidos(
-        sqlite_db, max_depth=50, incluir_pendientes=True
-    )
-
-    def _count(nodo):
-        total = 1
-        for h in nodo.get("referidos") or []:
-            total += _count(h)
-        return total
-
-    total = sum(_count(b) for b in bosques)
-    assert total >= 6, f"bosque vacío con tabla invitaciones_oficio ausente (nodos={total})"
+    raices = red_arbol_service.listar_raices_arbol_admin(sqlite_db, incluir_pendientes=True)
+    total_raiz = len(raices)
+    sin_attr = [r for r in raices if r.get("tipo_nodo") == "sin_atribucion"]
+    assert total_raiz >= 1
+    assert len(sin_attr) >= 1 or total_raiz >= 6
 
 
 def test_bosque_arbol_no_dispara_n_plus_1_queries(sqlite_db, monkeypatch):

@@ -443,22 +443,15 @@ class CompetenciaRepo:
         cursor.execute("DELETE FROM aliado_accesos_dia WHERE codigo_aliado = ?", (codigo,))
         cursor.execute("DELETE FROM invitacion_campana_usos WHERE codigo_aliado = ?", (codigo,))
         cursor.execute(
-            "DELETE FROM referidos WHERE codigo_referido = ? OR codigo_invitador = ?",
-            (codigo, codigo),
+            "DELETE FROM referidos WHERE codigo_referido = ?",
+            (codigo,),
         )
+        # Preservar linaje: no borrar referidos donde es invitador; no anular hijos
         cursor.execute(
             "DELETE FROM invitaciones WHERE codigo = ? OR invitador_aliado_id = ?",
             (codigo, aliado_id),
         )
         cursor.execute("DELETE FROM invitaciones_oficio WHERE aliado_id = ?", (aliado_id,))
-        cursor.execute(
-            """
-            UPDATE aliados
-            SET invitado_por_codigo = NULL, invitado_origen = NULL
-            WHERE invitado_por_codigo = ?
-            """,
-            (codigo,),
-        )
         if backend == "postgres":
             try:
                 cursor.execute("DELETE FROM profiles WHERE aliado_codigo = ?", (codigo,))

@@ -11,6 +11,7 @@ from flask import Blueprint, jsonify, request
 
 from core import db_manager as db_manager_mod
 from core.services import referido_service
+from core.services import red_arbol_service
 from web.auth_decorators import _aliado_codigo, require_admin, require_aliado
 
 referidos_bp = Blueprint("referidos", __name__)
@@ -117,10 +118,10 @@ def admin_referidos_arbol():
 @referidos_bp.route("/api/admin/referidos/raices", methods=["GET"])
 @require_admin
 def admin_referidos_raices():
-    """GET nodos raíz de la red."""
+    """GET nodos raíz de la red (aliados reales + virtuales campaña/sin atribución)."""
     try:
         db = get_db()
-        raices = referido_service.listar_nodos_raiz_referidos(db, incluir_pendientes=True)
+        raices = red_arbol_service.listar_raices_arbol_admin(db, incluir_pendientes=True)
         resumen = referido_service.obtener_resumen_referidos_red(db)
         return jsonify({
             "status": "success",
@@ -140,17 +141,18 @@ def admin_referidos_raices():
 @referidos_bp.route("/api/admin/referidos/hijos/<codigo>", methods=["GET"])
 @require_admin
 def admin_referidos_hijos(codigo):
-    """GET referidos directos de un aliado."""
+    """GET hijos directos de un nodo (aliado o virtual)."""
     try:
         codigo = (codigo or "").strip()
         if not codigo:
             return jsonify({"status": "error", "message": "Código requerido"}), 400
         db = get_db()
-        nodo = referido_service.obtener_nodo_referidos(db, codigo)
+        nodo, hijos = red_arbol_service.listar_hijos_arbol(
+            db, codigo, incluir_pendientes=True, modo_admin=True
+        )
         if not nodo:
-            return jsonify({"status": "error", "message": "Aliado no encontrado"}), 404
-        hijos = referido_service.listar_referidos_directos(db, codigo)
-        invitador = referido_service.obtener_invitador_de(db, codigo)
+            return jsonify({"status": "error", "message": "Nodo no encontrado"}), 404
+        invitador = None if red_arbol_service.es_nodo_virtual(codigo) else referido_service.obtener_invitador_de(db, codigo)
         return jsonify({
             "status": "success",
             "nodo": nodo,
@@ -218,10 +220,11 @@ def aliado_referidos_hijos(codigo):
         db = get_db()
         if not referido_service.aliado_puede_ver_nodo_referidos(db, codigo_sesion, codigo):
             return jsonify({"status": "error", "message": "No autorizado"}), 403
-        nodo = referido_service.obtener_nodo_referidos(db, codigo)
+        nodo, hijos = red_arbol_service.listar_hijos_arbol(
+            db, codigo, codigo_sesion=codigo_sesion, modo_admin=False
+        )
         if not nodo:
             return jsonify({"status": "error", "message": "Aliado no encontrado"}), 404
-        hijos = referido_service.listar_referidos_directos(db, codigo)
         invitador = referido_service.obtener_invitador_de(db, codigo)
         return jsonify({
             "status": "success",
@@ -348,6 +351,87 @@ def aliado_linaje_hijos():
             "codigo": codigo,
             "hijos": hijos,
             "total": len(hijos),
+            "timestamp": datetime.now().isoformat(),
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@referidos_bp.route("/api/admin/referidos/diagnostico", methods=["GET"])
+@require_admin
+def admin_referidos_diagnostico():
+    """GET diagnóstico de linaje histórico (categorías A–G)."""
+    try:
+        db = get_db()
+        diag = red_arbol_service.diagnostico_linaje(db)
+        return jsonify({
+            "status": "success",
+            "diagnostico": diag,
+            "timestamp": datetime.now().isoformat(),
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@referidos_bp.route("/api/admin/referidos/migrar-linaje", methods=["POST"])
+@require_admin
+def admin_referidos_migrar_linaje():
+    """POST backfill seguro del modelo de linaje v2."""
+    try:
+        db = get_db()
+        stats = red_arbol_service.migrar_linaje_historico_v2(db)
+        return jsonify({
+            "status": "success",
+            "migracion": stats,
+            "timestamp": datetime.now().isoformat(),
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@referidos_bp.route("/api/admin/referidos/aliado/<codigo>", methods=["GET"])
+@require_admin
+def admin_referidos_detalle_aliado(codigo):
+    """GET detalle enriquecido para panel lateral del árbol."""
+    try:
+        codigo = (codigo or "").strip()
+        if not codigo or red_arbol_service.es_nodo_virtual(codigo):
+            return jsonify({"status": "error", "message": "Código no válido"}), 400
+        db = get_db()
+        detalle = red_arbol_service.obtener_detalle_aliado_red(db, codigo, modo_admin=True)
+        if not detalle:
+            return jsonify({"status": "error", "message": "Aliado no encontrado"}), 404
+        return jsonify({
+            "status": "success",
+            "aliado": detalle,
+            "timestamp": datetime.now().isoformat(),
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@referidos_bp.route("/api/aliado/referidos/aliado/<codigo>", methods=["GET"])
+@require_aliado
+def aliado_referidos_detalle(codigo):
+    """GET detalle de aliado visible en la rama del aliado autenticado."""
+    try:
+        codigo_sesion = _aliado_codigo()
+        codigo = (codigo or "").strip()
+        if not codigo_sesion:
+            return jsonify({"status": "error", "message": "Sesión no válida"}), 401
+        if not codigo or red_arbol_service.es_nodo_virtual(codigo):
+            return jsonify({"status": "error", "message": "Código no válido"}), 400
+        db = get_db()
+        if not referido_service.aliado_puede_ver_nodo_referidos(db, codigo_sesion, codigo):
+            return jsonify({"status": "error", "message": "No autorizado"}), 403
+        detalle = red_arbol_service.obtener_detalle_aliado_red(
+            db, codigo, codigo_sesion=codigo_sesion, modo_admin=False
+        )
+        if not detalle:
+            return jsonify({"status": "error", "message": "Aliado no encontrado"}), 404
+        return jsonify({
+            "status": "success",
+            "aliado": detalle,
             "timestamp": datetime.now().isoformat(),
         })
     except Exception as e:

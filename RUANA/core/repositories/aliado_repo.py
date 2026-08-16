@@ -371,6 +371,23 @@ class AliadoRepo:
         cursor.execute("DELETE FROM aliados WHERE codigo = ?", (codigo,))
         return cursor.rowcount
 
+    def soft_delete_por_codigo(self, cursor, codigo: str) -> int:
+        """Marca perfil eliminado conservando código y linaje para el árbol."""
+        cursor.execute(
+            """
+            UPDATE aliados
+            SET estado = 'eliminado',
+                nombre = '[Perfil eliminado]',
+                email = NULL,
+                telefono = NULL,
+                actualizado_en = CURRENT_TIMESTAMP
+            WHERE codigo = ?
+              AND COALESCE(estado, '') != 'sistema'
+            """,
+            (codigo,),
+        )
+        return cursor.rowcount
+
     def insertar_acceso_dia(self, cursor, codigo_aliado: str, dia_val: str) -> None:
         cursor.execute(
             """
