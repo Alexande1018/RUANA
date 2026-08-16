@@ -164,10 +164,16 @@ class SolicitudRepo:
             FROM solicitudes
             WHERE estado = 'pendiente'
               AND solicitante_codigo != ?
-              AND (grupo_id = ? OR asignada_a_codigo = ?)
+              AND (
+                asignada_a_codigo = ?
+                OR (
+                  COALESCE(asignada_a_codigo, '') = ''
+                  AND grupo_id = ?
+                )
+              )
             ORDER BY created_at DESC
             """,
-            (codigo, grupo_id, codigo),
+            (codigo, codigo, grupo_id),
         )
         return [dict(r) for r in cursor.fetchall()]
 
@@ -224,6 +230,7 @@ class SolicitudRepo:
                    atendido_por_codigo, atendido_por_nombre, atendido_at{extra_cols}
             FROM solicitudes
             WHERE grupo_id = ?
+              AND estado IN ('atendida', 'candidato_pendiente', 'contestada')
             ORDER BY created_at DESC
             LIMIT ?
             """,

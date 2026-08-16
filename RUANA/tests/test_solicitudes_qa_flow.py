@@ -69,13 +69,13 @@ def test_qa_solicitudes_crear_entrantes_propias_e_historial(
     assert [s["id"] for s in vista_a["propias"]] == [solicitud_id]
     assert vista_a["propias"][0]["estado"] == "pendiente"
     assert vista_a["propias"][0]["oficio"] == "Carpinteria"
-    assert [s["id"] for s in vista_a["historial"]] == [solicitud_id]
+    assert vista_a["historial"] == []
 
     vista_b = _get_solicitudes(client, headers_b)
     assert [s["id"] for s in vista_b["entrantes"]] == [solicitud_id]
     assert vista_b["entrantes"][0]["solicitante_codigo"] == "QA001"
     assert vista_b["propias"] == []
-    assert [s["id"] for s in vista_b["historial"]] == [solicitud_id]
+    assert vista_b["historial"] == []
 
     atender_response = client.post(
         f"/api/solicitudes/{solicitud_id}/atender",

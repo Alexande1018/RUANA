@@ -16,6 +16,13 @@
     referidos: null,
   };
 
+  var ESTADO_ORDEN = {
+    pendiente: 0,
+    candidato_pendiente: 1,
+    atendida: 2,
+    contestada: 2,
+  };
+
   function escapeHtmlSafe(host, str) {
     if (host && typeof host.escapeHtml === 'function') {
       return host.escapeHtml(str);
@@ -26,6 +33,63 @@
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
+  }
+
+  function normalizarEstadoSolicitud(solicitud) {
+    var estado = (solicitud && solicitud.estado ? solicitud.estado : 'pendiente').toLowerCase();
+    if (estado === 'contestada') return 'atendida';
+    return estado;
+  }
+
+  function ordenarPorEstadoYFecha(a, b) {
+    var ea = normalizarEstadoSolicitud(a);
+    var eb = normalizarEstadoSolicitud(b);
+    var pa = ESTADO_ORDEN[ea] != null ? ESTADO_ORDEN[ea] : 9;
+    var pb = ESTADO_ORDEN[eb] != null ? ESTADO_ORDEN[eb] : 9;
+    if (pa !== pb) return pa - pb;
+    var fa = new Date(a.creado_en || a.fecha || a.created_at || 0).getTime();
+    var fb = new Date(b.creado_en || b.fecha || b.created_at || 0).getTime();
+    return fb - fa;
+  }
+
+  function formatoFechaCorta(valor) {
+    if (!valor) return '';
+    var fecha = new Date(valor);
+    if (Number.isNaN(fecha.getTime())) return '';
+    return fecha.toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' });
+  }
+
+  function etiquetaEstado(estado) {
+    if (estado === 'atendida') {
+      return { label: 'Atendida', badgeClass: 'ruana-badge atendida' };
+    }
+    if (estado === 'candidato_pendiente') {
+      return { label: 'Candidato pendiente', badgeClass: 'ruana-badge warning' };
+    }
+    return { label: 'Pendiente', badgeClass: 'ruana-badge pendiente' };
+  }
+
+  function actualizarContadorSubseccion(wrapId, count) {
+    var wrap = document.getElementById(wrapId);
+    if (!wrap) return;
+    var badge = wrap.querySelector('[data-solicitudes-count]');
+    if (!badge) return;
+    if (count > 0) {
+      badge.textContent = String(count);
+      badge.hidden = false;
+    } else {
+      badge.textContent = '';
+      badge.hidden = true;
+    }
+  }
+
+  function appendGrupoHeader(container, titulo, count) {
+    var header = document.createElement('div');
+    header.className = 'solicitudes-group-header';
+    header.innerHTML =
+      '<span class="solicitudes-group-title">' + escapeHtmlSafe(null, titulo) + '</span>' +
+      (count > 0 ? '<span class="solicitudes-group-count">' + count + '</span>' : '');
+    container.appendChild(header);
   }
 
   /**
@@ -41,22 +105,14 @@
     var texto = solicitud.descripcion || solicitud.texto || '(sin descripción)';
     var por = solicitud.solicitante_nombre || solicitud.por || '(sin autor)';
     var zona = solicitud.oficio || solicitud.zona || '(sin oficio)';
-    var estado = (solicitud.estado || 'pendiente').toLowerCase();
+    var estado = normalizarEstadoSolicitud(solicitud);
     card.className = 'solicitud-card estado-' + estado;
-    var estadoLabel = 'Pendiente';
-    var badgeClass = 'ruana-badge pendiente';
-    if (estado === 'atendida') {
-      estadoLabel = 'Atendida';
-      badgeClass = 'ruana-badge atendida';
-    } else if (estado === 'candidato_pendiente') {
-      estadoLabel = 'Candidato pendiente';
-      badgeClass = 'ruana-badge warning';
-    }
-    var fechaRaw = solicitud.creado_en || solicitud.fecha || solicitud.created_at || '';
-    var fechaFmt = fechaRaw ? new Date(fechaRaw).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' }) : '';
+    var estadoInfo = etiquetaEstado(estado);
+    var fechaFmt = formatoFechaCorta(solicitud.creado_en || solicitud.fecha || solicitud.created_at || '');
     var atendidoPor = solicitud.atendido_por_nombre || solicitud.atendido_por_codigo || '';
-    var atendidoAt = solicitud.atendido_at ? new Date(solicitud.atendido_at).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '';
+    var atendidoAt = formatoFechaCorta(solicitud.atendido_at || '');
     var candidatoPor = solicitud.candidato_por_nombre || solicitud.candidato_por_codigo || '';
+    var candidatoAt = formatoFechaCorta(solicitud.candidato_at || '');
     var asignadaA = solicitud.asignada_a_nombre || solicitud.asignada_a_codigo || '';
     var metaExtraParts = [];
     if (estado === 'atendida' && (atendidoPor || atendidoAt)) {
@@ -68,7 +124,7 @@
     if (estado === 'candidato_pendiente' && candidatoPor) {
       metaExtraParts.push(
         '<div class="meta-item"><span class="meta-label">Candidato propuesto por</span><span class="meta-value">' +
-        escapeHtmlSafe(host, candidatoPor) + '</span></div>'
+        escapeHtmlSafe(host, candidatoPor) + (candidatoAt ? ' · ' + candidatoAt : '') + '</span></div>'
       );
     }
     if (asignadaA) {
@@ -82,7 +138,7 @@
     card.innerHTML =
       '<div class="solicitud-card-header">' +
         '<div class="solicitud-texto">' + escapeHtmlSafe(host, texto) + '</div>' +
-        '<span class="solicitud-estado-badge ' + badgeClass + '"><span class="ruana-badge-dot"></span>' + estadoLabel + '</span>' +
+        '<span class="solicitud-estado-badge ' + estadoInfo.badgeClass + '"><span class="ruana-badge-dot"></span>' + estadoInfo.label + '</span>' +
       '</div>' +
       '<div class="solicitud-meta">' +
         '<div class="meta-item">' +
@@ -102,14 +158,58 @@
     container.appendChild(card);
   }
 
+  function renderListaPropias(host, propias) {
+    if (!host.solicitudesPropiasList) return;
+    host.solicitudesPropiasList.innerHTML = '';
+    if (propias.length === 0) {
+      host.solicitudesPropiasList.innerHTML = '<p class="solicitudes-empty">Aún no has enviado ninguna solicitud. Usa Conexiones para crear una.</p>';
+      return;
+    }
+    var enCurso = propias.filter(function (s) {
+      var e = normalizarEstadoSolicitud(s);
+      return e === 'pendiente' || e === 'candidato_pendiente';
+    });
+    var atendidas = propias.filter(function (s) {
+      return normalizarEstadoSolicitud(s) === 'atendida';
+    });
+    if (enCurso.length) {
+      appendGrupoHeader(host.solicitudesPropiasList, 'En curso', enCurso.length);
+      enCurso.forEach(function (solicitud) {
+        appendSolicitudCard(host, host.solicitudesPropiasList, solicitud, false);
+      });
+    }
+    if (atendidas.length) {
+      appendGrupoHeader(host.solicitudesPropiasList, 'Atendidas', atendidas.length);
+      atendidas.forEach(function (solicitud) {
+        appendSolicitudCard(host, host.solicitudesPropiasList, solicitud, false);
+      });
+    }
+  }
+
+  function renderListaHistorial(host, historial) {
+    if (!host.solicitudesHistorialList) return;
+    host.solicitudesHistorialList.innerHTML = '';
+    if (historial.length === 0) {
+      host.solicitudesHistorialList.innerHTML = '<p class="solicitudes-empty">Aún no hay solicitudes cerradas o con candidato en el grupo</p>';
+      return;
+    }
+    historial.forEach(function (solicitud) {
+      appendSolicitudCard(host, host.solicitudesHistorialList, solicitud, false);
+    });
+  }
+
   /**
    * Renderizar solicitudes del grupo: entrantes, propias e historial.
    * @param {object} host PrivatePanel
    */
   function renderSolicitudes(host) {
-    var entrantes = Array.isArray(host.solicitudesEntrantes) ? host.solicitudesEntrantes : [];
-    var propias = Array.isArray(host.solicitudesPropias) ? host.solicitudesPropias : [];
-    var historial = Array.isArray(host.solicitudesHistorial) ? host.solicitudesHistorial : [];
+    var entrantes = Array.isArray(host.solicitudesEntrantes) ? host.solicitudesEntrantes.slice() : [];
+    var propias = Array.isArray(host.solicitudesPropias) ? host.solicitudesPropias.slice() : [];
+    var historial = Array.isArray(host.solicitudesHistorial) ? host.solicitudesHistorial.slice() : [];
+
+    entrantes.sort(ordenarPorEstadoYFecha);
+    propias.sort(ordenarPorEstadoYFecha);
+    historial.sort(ordenarPorEstadoYFecha);
 
     if (host.solicitudesList) {
       host.solicitudesList.innerHTML = '';
@@ -128,28 +228,22 @@
       });
     }
 
-    if (host.solicitudesPropiasList) {
-      host.solicitudesPropiasList.innerHTML = '';
-      if (propias.length === 0) {
-        host.solicitudesPropiasList.innerHTML = '<p class="solicitudes-empty">Aún no has enviado ninguna solicitud. Usa el formulario de abajo.</p>';
-      } else {
-        propias.forEach(function (solicitud) {
-          appendSolicitudCard(host, host.solicitudesPropiasList, solicitud, false);
-        });
-      }
+    renderListaPropias(host, propias);
+    renderListaHistorial(host, historial);
+
+    actualizarContadorSubseccion('solicitudes-entrantes-wrap', entrantes.length);
+    actualizarContadorSubseccion('solicitudes-propias-wrap', propias.length);
+    actualizarContadorSubseccion('solicitudes-historial-wrap', historial.length);
+
+    var contactosMod = global.RuanaAliadoModules && global.RuanaAliadoModules.contactos;
+    if (contactosMod && typeof contactosMod.renderEncargosActivos === 'function') {
+      contactosMod.renderEncargosActivos(host);
     }
 
-    if (host.solicitudesHistorialList) {
-      host.solicitudesHistorialList.innerHTML = '';
-      if (historial.length === 0) {
-        host.solicitudesHistorialList.innerHTML = '<p class="solicitudes-empty">No hay historial de solicitudes en el grupo</p>';
-      } else {
-        historial.forEach(function (solicitud) {
-          appendSolicitudCard(host, host.solicitudesHistorialList, solicitud, false);
-        });
-      }
-    }
     if (typeof global.RuanaUI !== 'undefined') global.RuanaUI.initIcons(document.querySelector('.solicitudes-zone'));
+    if (global.AliadoShell && typeof global.AliadoShell.updateNavBadges === 'function') {
+      global.AliadoShell.updateNavBadges();
+    }
   }
 
   function render(host) {
