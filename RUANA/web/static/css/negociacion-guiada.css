@@ -79,7 +79,9 @@
 }
 .neg-header-avatar-inner,
 .neg-header-avatar .neg-header-avatar-inner,
-.neg-header-avatar .ruana-msg-avatar {
+.neg-header-avatar .ruana-msg-avatar,
+.neg-header-avatar .neg-msg-avatar {
+    position: relative;
     width: 40px;
     height: 40px;
     border-radius: 12px;
@@ -91,6 +93,18 @@
     font-size: 0.78rem;
     font-weight: 700;
     color: #cbd5e1;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+.neg-header-avatar-inner .ruana-avatar-photo,
+.neg-header-avatar-inner .ruana-avatar-iniciales,
+.neg-header-avatar .ruana-avatar-photo,
+.neg-header-avatar .ruana-avatar-iniciales {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
 }
 .neg-header-meta {
     min-width: 0;
@@ -1069,6 +1083,7 @@ body.neg-modal-abierto .acuerdo-flotante.show {
 }
 .neg-msg-avatar,
 .ruana-msg-avatar {
+    position: relative;
     width: 26px;
     height: 26px;
     border-radius: 8px;
@@ -1081,6 +1096,24 @@ body.neg-modal-abierto .acuerdo-flotante.show {
     font-size: 0.62rem;
     font-weight: 700;
     color: #cbd5e1;
+    box-sizing: border-box;
+}
+.neg-msg-avatar .ruana-avatar-photo,
+.ruana-msg-avatar .ruana-avatar-photo,
+.neg-msg-avatar .ruana-avatar-iniciales,
+.ruana-msg-avatar .ruana-avatar-iniciales {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    border-radius: inherit;
+    object-fit: cover;
+}
+.neg-msg-avatar.avatar-has-photo .ruana-avatar-iniciales,
+.ruana-msg-avatar.avatar-has-photo .ruana-avatar-iniciales {
+    display: none;
 }
 .neg-msg-stack {
     display: flex;
@@ -1327,9 +1360,25 @@ body.neg-modal-abierto .acuerdo-flotante.show {
     box-shadow: inset 3px 0 0 #22c55e;
 }
 .perfil-mensaje-avatar {
+    position: relative;
     width: 42px;
     height: 42px;
     border-radius: 12px;
+    overflow: hidden;
+    flex-shrink: 0;
+    box-sizing: border-box;
+}
+.perfil-mensaje-avatar .ruana-avatar-photo,
+.perfil-mensaje-avatar .ruana-avatar-iniciales {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    object-fit: cover;
+}
+.perfil-mensaje-avatar.avatar-has-photo .ruana-avatar-iniciales {
+    display: none;
 }
 .perfil-mensaje-body {
     min-width: 0;
