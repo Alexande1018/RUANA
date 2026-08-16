@@ -246,6 +246,33 @@ def _crear_activo(db, codigo, nombre):
     return result
 
 
+def test_bosque_carga_sin_tabla_invitaciones_oficio(sqlite_db):
+    """Admin con incluir_pendientes no debe dejar el grafo vacío si falta invitaciones_oficio."""
+    from core.services import referido_service
+
+    sqlite_db.obtener_o_crear_invitador_admin("RUANA-ADMIN")
+    for i in range(5):
+        _crear_activo(sqlite_db, f"{30000 + i}", f"Aliado {i}")
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute("DROP TABLE IF EXISTS invitaciones_oficio")
+    conn.commit()
+    conn.close()
+    sqlite_db.sincronizar_referidos_completo()
+    bosques = referido_service.obtener_bosques_referidos(
+        sqlite_db, max_depth=50, incluir_pendientes=True
+    )
+
+    def _count(nodo):
+        total = 1
+        for h in nodo.get("referidos") or []:
+            total += _count(h)
+        return total
+
+    total = sum(_count(b) for b in bosques)
+    assert total >= 6, f"bosque vacío con tabla invitaciones_oficio ausente (nodos={total})"
+
+
 def test_bosque_arbol_no_dispara_n_plus_1_queries(sqlite_db, monkeypatch):
     """~50 aliados encadenados: construcción del bosque debe usar pocas queries (no N×4 por nodo)."""
     from core.services import referido_service

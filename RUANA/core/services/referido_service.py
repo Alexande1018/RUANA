@@ -29,6 +29,8 @@ def _padre_valido_en_grafo(grafo: Dict[str, Any], codigo_padre: str) -> bool:
 
 def _cargar_grafo_referidos_red(db, incluir_pendientes: bool = False) -> Dict[str, Any]:
     """Carga aliados y vínculos en 2 queries; construye índices en memoria."""
+    aliados_rows: List[Any] = []
+    vinculos_rows: List[Any] = []
     with db._lock:
         conn = None
         try:
@@ -43,6 +45,23 @@ def _cargar_grafo_referidos_red(db, incluir_pendientes: bool = False) -> Dict[st
         finally:
             if conn:
                 conn.close()
+
+    if incluir_pendientes and not aliados_rows:
+        with db._lock:
+            conn = None
+            try:
+                conn = db._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                aliados_rows = _repo.listar_aliados_grafo_red(cursor, False)
+                vinculos_rows = _repo.listar_vinculos_referidos_grafo(cursor)
+                incluir_pendientes = False
+            except Exception:
+                aliados_rows = []
+                vinculos_rows = []
+            finally:
+                if conn:
+                    conn.close()
 
     aliados: Dict[str, Dict[str, Any]] = {}
     for row in aliados_rows:
@@ -785,6 +804,8 @@ def obtener_bosques_referidos(
     max_depth = max(1, min(int(max_depth or 8), 50))
     grafo = _cargar_grafo_referidos_red(db, incluir_pendientes)
     raices = _listar_raices_desde_grafo(grafo)
+    if not raices and (grafo.get('aliados') or {}):
+        raices = listar_raices_referidos(db, incluir_pendientes=grafo.get('incluir_pendientes', False))
     bosques: List[Dict[str, Any]] = []
     for codigo in raices:
         arbol = _construir_arbol_desde_grafo(db, grafo, codigo, max_depth)

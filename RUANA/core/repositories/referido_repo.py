@@ -21,7 +21,39 @@ class ReferidoRepo:
     def _estados_excluidos_sql(self) -> str:
         return ', '.join(f"'{e}'" for e in self.ESTADOS_EXCLUIDOS_RED)
 
-    def _visible_en_arbol_clause(self, incluir_pendientes: bool, alias: str = 'a') -> str:
+    def _tabla_existe(self, cursor, nombre: str) -> bool:
+        """Comprueba si una tabla existe (SQLite o PostgreSQL)."""
+        nombre = (nombre or '').strip()
+        if not nombre:
+            return False
+        try:
+            cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                (nombre,),
+            )
+            if cursor.fetchone():
+                return True
+        except Exception:
+            pass
+        try:
+            cursor.execute(
+                """
+                SELECT 1 FROM information_schema.tables
+                WHERE table_schema = 'public' AND table_name = ?
+                LIMIT 1
+                """,
+                (nombre.lower(),),
+            )
+            return cursor.fetchone() is not None
+        except Exception:
+            return False
+
+    def _visible_en_arbol_clause(
+        self,
+        incluir_pendientes: bool,
+        alias: str = 'a',
+        cursor=None,
+    ) -> str:
         """SQL: aliados visibles en el árbol (opcionalmente pendiente_completar con vínculo)."""
         a = alias
         base = (
@@ -31,26 +63,40 @@ class ReferidoRepo:
             return (
                 f"{base} AND COALESCE({a}.estado, '') NOT IN ('pendiente_completar')"
             )
+        vinculos = [f"COALESCE({a}.invitado_por_codigo, '') != ''"]
+        if cursor is None or self._tabla_existe(cursor, 'referidos'):
+            vinculos.append(
+                f"EXISTS (SELECT 1 FROM referidos r WHERE r.codigo_referido = {a}.codigo)"
+            )
+        if cursor is None or self._tabla_existe(cursor, 'invitaciones'):
+            vinculos.append(
+                f"EXISTS (SELECT 1 FROM invitaciones i WHERE i.codigo = {a}.codigo)"
+            )
+        if cursor is None or self._tabla_existe(cursor, 'invitaciones_oficio'):
+            vinculos.append(
+                f"EXISTS (SELECT 1 FROM invitaciones_oficio io "
+                f"WHERE io.codigo_referido = {a}.codigo)"
+            )
+        vinculo_sql = ' OR '.join(vinculos)
         return f"""{base} AND (
             COALESCE({a}.estado, '') != 'pendiente_completar'
-            OR COALESCE({a}.invitado_por_codigo, '') != ''
-            OR EXISTS (SELECT 1 FROM referidos r WHERE r.codigo_referido = {a}.codigo)
-            OR EXISTS (SELECT 1 FROM invitaciones i WHERE i.codigo = {a}.codigo)
-            OR EXISTS (
-                SELECT 1 FROM invitaciones_oficio io
-                WHERE io.codigo_referido = {a}.codigo
-            )
+            OR ({vinculo_sql})
         )"""
 
-    def _visible_en_grafo_clause(self, incluir_pendientes: bool, alias: str = 'a') -> str:
+    def _visible_en_grafo_clause(
+        self,
+        incluir_pendientes: bool,
+        alias: str = 'a',
+        cursor=None,
+    ) -> str:
         """Incluye aliados sistema (raíz admin) además de los visibles en ramas."""
         a = alias
-        vis = self._visible_en_arbol_clause(incluir_pendientes, a)
+        vis = self._visible_en_arbol_clause(incluir_pendientes, a, cursor=cursor)
         return f"(({vis}) OR COALESCE({a}.estado, '') = 'sistema')"
 
     def listar_aliados_grafo_red(self, cursor, incluir_pendientes: bool = False) -> List[Any]:
         """Un solo SELECT con todos los aliados relevantes para el árbol en memoria."""
-        vis = self._visible_en_grafo_clause(incluir_pendientes, 'a')
+        vis = self._visible_en_grafo_clause(incluir_pendientes, 'a', cursor=cursor)
         cursor.execute(
             f"""
             SELECT a.codigo, a.nombre, a.oficio, a.codigo_postal, a.marca,
@@ -309,8 +355,8 @@ class ReferidoRepo:
     def listar_hijos_directos_linaje(
         self, cursor, codigo_invitador: str, incluir_pendientes: bool = False
     ) -> List[Any]:
-        vis = self._visible_en_arbol_clause(incluir_pendientes, 'a')
-        vis_h = self._visible_en_arbol_clause(incluir_pendientes, 'h')
+        vis = self._visible_en_arbol_clause(incluir_pendientes, 'a', cursor=cursor)
+        vis_h = self._visible_en_arbol_clause(incluir_pendientes, 'h', cursor=cursor)
         cursor.execute(
             f"""
             SELECT a.codigo, a.nombre, a.oficio, a.codigo_postal, a.marca,
@@ -440,7 +486,7 @@ class ReferidoRepo:
     def buscar_codigos_en_red(
         self, cursor, like: str, limite: int, incluir_pendientes: bool = False
     ) -> List[Any]:
-        vis = self._visible_en_arbol_clause(incluir_pendientes, 'a')
+        vis = self._visible_en_arbol_clause(incluir_pendientes, 'a', cursor=cursor)
         cursor.execute(
             f"""
             SELECT DISTINCT a.codigo
@@ -598,7 +644,7 @@ class ReferidoRepo:
         self, cursor, codigo_invitador: str, incluir_pendientes: bool = False
     ) -> List[Any]:
         """Hijos directos unificando invitado_por_codigo (linaje) y tabla referidos."""
-        vis = self._visible_en_arbol_clause(incluir_pendientes, 'a')
+        vis = self._visible_en_arbol_clause(incluir_pendientes, 'a', cursor=cursor)
         cursor.execute(
             f"""
             SELECT a.codigo, a.nombre, a.oficio, a.codigo_postal, a.marca,
@@ -643,13 +689,18 @@ class ReferidoRepo:
         self, cursor, incluir_pendientes: bool = False
     ) -> List[Any]:
         """Raíces según invitado_por_codigo: sin padre válido y con descendencia o sistema."""
-        vis_h = self._visible_en_arbol_clause(incluir_pendientes, 'h')
+        vis_h = self._visible_en_arbol_clause(incluir_pendientes, 'h', cursor=cursor)
         estados_raiz = (
             "'rechazado', 'expulsado'"
             if incluir_pendientes
             else "'rechazado', 'expulsado', 'pendiente_completar'"
         )
         estados_padre = estados_raiz
+        ref_inv_clause = ''
+        if self._tabla_existe(cursor, 'referidos'):
+            ref_inv_clause = (
+                "OR EXISTS (SELECT 1 FROM referidos r WHERE r.codigo_invitador = a.codigo)"
+            )
         cursor.execute(
             f"""
             SELECT DISTINCT a.codigo
@@ -670,9 +721,7 @@ class ReferidoRepo:
                       WHERE h.invitado_por_codigo = a.codigo
                         AND {vis_h}
                   )
-                  OR EXISTS (
-                      SELECT 1 FROM referidos r WHERE r.codigo_invitador = a.codigo
-                  )
+                  {ref_inv_clause}
               )
             ORDER BY a.codigo
             """
