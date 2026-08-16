@@ -255,7 +255,17 @@
 .referidos-tree-panel.referidos-explorer-viewport {
     padding: 0;
     overflow: hidden;
+    min-height: 420px;
+    height: min(72vh, 760px);
     max-height: min(72vh, 760px);
+    display: flex;
+    flex-direction: column;
+}
+
+.referidos-tree-panel.referidos-explorer-viewport .referidos-pan-viewport {
+    flex: 1;
+    min-height: 0;
+    height: auto;
 }
 
 /* ——— Árbol genealógico clásico (generaciones + líneas SVG) ——— */

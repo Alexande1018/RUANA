@@ -338,7 +338,40 @@
     }
 
     RuanaReferidosTree.prototype._getTreeRenderTarget = function () {
-        return this._panLayer || this.treeContainer;
+        return this._ensurePanShell() || this.treeContainer;
+    };
+
+    RuanaReferidosTree.prototype._ensurePanShell = function () {
+        if (!this.treeContainer) return null;
+        if (this._panLayer && this.treeContainer.contains(this._panLayer)) {
+            return this._panLayer;
+        }
+        this.treeContainer.classList.add('referidos-explorer-viewport');
+        var panViewport = document.createElement('div');
+        panViewport.className = 'referidos-pan-viewport';
+        var panLayer = document.createElement('div');
+        panLayer.className = 'referidos-pan-layer';
+        panViewport.appendChild(panLayer);
+        this.treeContainer.innerHTML = '';
+        this.treeContainer.appendChild(panViewport);
+        this._panViewport = panViewport;
+        this._panLayer = panLayer;
+        this._panX = 0;
+        this._panY = 0;
+        this._bindPanHandlers();
+        return panLayer;
+    };
+
+    RuanaReferidosTree.prototype._clearTreeRenderTarget = function () {
+        var target = this._getTreeRenderTarget();
+        if (target) target.innerHTML = '';
+    };
+
+    RuanaReferidosTree.prototype._showTreeError = function (msg) {
+        var target = this._getTreeRenderTarget();
+        if (target) {
+            target.innerHTML = '<div class="referidos-empty-state">' + escapeHtml(msg || 'Error de conexión') + '</div>';
+        }
     };
 
     RuanaReferidosTree.prototype._applyPanTransform = function () {
@@ -507,13 +540,6 @@
         stage.className = 'referidos-explorer-stage';
 
         this.treeContainer.classList.add('referidos-explorer-viewport');
-        var panViewport = document.createElement('div');
-        panViewport.className = 'referidos-pan-viewport';
-        var panLayer = document.createElement('div');
-        panLayer.className = 'referidos-pan-layer';
-        panViewport.appendChild(panLayer);
-        this.treeContainer.appendChild(panViewport);
-
         stage.appendChild(this.treeContainer);
 
         if (this.detailContainer) {
@@ -537,9 +563,7 @@
         layout.appendChild(explorer);
 
         this._explorerRoot = explorer;
-        this._panViewport = panViewport;
-        this._panLayer = panLayer;
-        this._bindPanHandlers();
+        this._ensurePanShell();
         this._bindExplorerToolbar(toolbar);
         this._explorerReady = true;
     };
@@ -708,7 +732,7 @@
             self._invitadoresMap = {};
             self._knownReferidos = {};
             self._totalNodos = data.total_nodos || 0;
-            self.treeContainer.innerHTML = '';
+            self._clearTreeRenderTarget();
             var bosques = data.bosques || (data.arbol ? [data.arbol] : []);
             self._renderGenealogyForest(bosques, self.treeContainer);
             var meta = (data.total_nodos || 0) + ' aliado' + ((data.total_nodos || 0) !== 1 ? 's' : '') + ' en vista genealógica';
@@ -730,7 +754,7 @@
             self._adminLoaded = true;
             return data;
         }).catch(function (err) {
-            self.treeContainer.innerHTML = '<div class="referidos-empty-state">' + escapeHtml(err.message || 'Error de conexión') + '</div>';
+            self._showTreeError(err.message || 'Error de conexión');
             renderDetailPanel(self.detailContainer, null);
             throw err;
         });
@@ -1180,8 +1204,9 @@
             (data.raices || []).forEach(function (n) {
                 indexarNodo(n, self._nodosMap, self._invitadoresMap, null);
             });
-            self.treeContainer.innerHTML = '<div class="referidos-lazy-tree"></div>';
-            var inner = self.treeContainer.querySelector('.referidos-lazy-tree');
+            var target = self._getTreeRenderTarget();
+            target.innerHTML = '<div class="referidos-lazy-tree"></div>';
+            var inner = target.querySelector('.referidos-lazy-tree');
             if (!data.raices || !data.raices.length) {
                 inner.innerHTML = '<div class="referidos-empty-state">No hay aliados en la red de referidos.</div>';
                 renderDetailPanel(self.detailContainer, null);
@@ -1194,7 +1219,7 @@
             self._adminLoaded = true;
             return data;
         }).catch(function (err) {
-            self.treeContainer.innerHTML = '<div class="referidos-empty-state">' + escapeHtml(err.message || 'Error de conexión') + '</div>';
+            self._showTreeError(err.message || 'Error de conexión');
             renderDetailPanel(self.detailContainer, null);
             self._adminLoaded = false;
             throw err;
@@ -1215,7 +1240,7 @@
             if (data.invitador && data.invitador.codigo) {
                 self._invitadoresMap[arbol.codigo] = data.invitador;
             }
-            self.treeContainer.innerHTML = '';
+            self._clearTreeRenderTarget();
             self._renderGenealogyForest([arbol], self.treeContainer);
             var total = (arbol.referidos_count || 0);
             self._updateMeta(
@@ -1227,7 +1252,7 @@
             self.startPolling();
             return data;
         }).catch(function (err) {
-            self.treeContainer.innerHTML = '<div class="referidos-empty-state">' + escapeHtml(err.message || 'Error de conexión') + '</div>';
+            self._showTreeError(err.message || 'Error de conexión');
             renderDetailPanel(self.detailContainer, null);
             throw err;
         });
@@ -1245,8 +1270,9 @@
             self._knownReferidos = {};
             var nodo = data.nodo;
             indexarNodo(nodo, self._nodosMap, self._invitadoresMap, data.invitador);
-            self.treeContainer.innerHTML = '<div class="referidos-lazy-tree"></div>';
-            var inner = self.treeContainer.querySelector('.referidos-lazy-tree');
+            var target = self._getTreeRenderTarget();
+            target.innerHTML = '<div class="referidos-lazy-tree"></div>';
+            var inner = target.querySelector('.referidos-lazy-tree');
             self._renderSubtree([nodo], inner, 0);
             self._updateMeta(
                 (nodo.referidos_count || 0) + ' referido' + ((nodo.referidos_count || 0) !== 1 ? 's' : '') +
