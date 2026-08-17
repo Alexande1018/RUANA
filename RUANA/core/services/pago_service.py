@@ -1324,3 +1324,137 @@ def estado_pago_stripe_contacto(db, contacto_id: int, codigo_aliado: str) -> Dic
         finally:
             conn.close()
 
+
+def _stripe_onboarding_estado(aliado: Dict[str, Any]) -> str:
+    account = (aliado.get("stripe_account_id") or "").strip()
+    if not account:
+        return "sin_cuenta"
+    if int(aliado.get("stripe_charges_enabled") or 0) == 1:
+        return "listo"
+    if int(aliado.get("stripe_onboarding_completo") or 0) == 1:
+        return "onboarding_pendiente"
+    return "onboarding_pendiente"
+
+
+def resumen_stripe_admin(db) -> Dict[str, Any]:
+    """Resumen admin: onboarding Stripe por aliado y pipeline de transferencias."""
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            aliados_raw = _repo.listar_aliados_stripe_onboarding(cursor)
+            contactos_raw = _repo.listar_contactos_stripe_pipeline(cursor)
+            aliados = []
+            for row in aliados_raw:
+                item = dict(row)
+                item["onboarding_estado"] = _stripe_onboarding_estado(item)
+                aliados.append(item)
+            transferencias = []
+            en_transito = 0.0
+            pendientes = 0
+            completadas = 0
+            for row in contactos_raw:
+                item = dict(row)
+                estado_pago = (item.get("estado_pago") or "").strip()
+                transfer_id = (item.get("stripe_transfer_id") or "").strip()
+                neto = float(item.get("importe_neto_profesional") or 0)
+                if estado_pago == "transferido" or transfer_id:
+                    item["transferencia_estado"] = "completada"
+                    completadas += 1
+                elif estado_pago == "cobro_confirmado":
+                    item["transferencia_estado"] = "pendiente"
+                    pendientes += 1
+                    en_transito += neto
+                elif estado_pago in ("esperando_cobro_cliente", "checkout_activo"):
+                    item["transferencia_estado"] = "esperando_cobro"
+                elif estado_pago == "revision_admin":
+                    item["transferencia_estado"] = "revision"
+                else:
+                    item["transferencia_estado"] = estado_pago or "otro"
+                transferencias.append(item)
+            return {
+                "status": "success",
+                "stripe_habilitado": stripe_habilitado_global(),
+                "aliados": aliados,
+                "transferencias": transferencias,
+                "totales": {
+                    "importe_en_transito": round(en_transito, 2),
+                    "transferencias_pendientes": pendientes,
+                    "transferencias_completadas": completadas,
+                },
+            }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+        finally:
+            if conn:
+                conn.close()
+
+
+def _stripe_onboarding_estado(aliado: Dict[str, Any]) -> str:
+    account = (aliado.get("stripe_account_id") or "").strip()
+    if not account:
+        return "sin_cuenta"
+    if int(aliado.get("stripe_charges_enabled") or 0) == 1:
+        return "listo"
+    if int(aliado.get("stripe_onboarding_completo") or 0) == 1:
+        return "onboarding_pendiente"
+    return "onboarding_pendiente"
+
+
+def resumen_stripe_admin(db) -> Dict[str, Any]:
+    """Resumen admin: onboarding Stripe por aliado y pipeline de transferencias."""
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            aliados_raw = _repo.listar_aliados_stripe_onboarding(cursor)
+            contactos_raw = _repo.listar_contactos_stripe_pipeline(cursor)
+            aliados = []
+            for row in aliados_raw:
+                item = dict(row)
+                item["onboarding_estado"] = _stripe_onboarding_estado(item)
+                aliados.append(item)
+            transferencias = []
+            en_transito = 0.0
+            pendientes = 0
+            completadas = 0
+            for row in contactos_raw:
+                item = dict(row)
+                estado_pago = (item.get("estado_pago") or "").strip()
+                transfer_id = (item.get("stripe_transfer_id") or "").strip()
+                neto = float(item.get("importe_neto_profesional") or 0)
+                if estado_pago == "transferido" or transfer_id:
+                    item["transferencia_estado"] = "completada"
+                    completadas += 1
+                elif estado_pago == "cobro_confirmado":
+                    item["transferencia_estado"] = "pendiente"
+                    pendientes += 1
+                    en_transito += neto
+                elif estado_pago in ("esperando_cobro_cliente", "checkout_activo"):
+                    item["transferencia_estado"] = "esperando_cobro"
+                elif estado_pago == "revision_admin":
+                    item["transferencia_estado"] = "revision"
+                else:
+                    item["transferencia_estado"] = estado_pago or "otro"
+                transferencias.append(item)
+            return {
+                "status": "success",
+                "stripe_habilitado": stripe_habilitado_global(),
+                "aliados": aliados,
+                "transferencias": transferencias,
+                "totales": {
+                    "importe_en_transito": round(en_transito, 2),
+                    "transferencias_pendientes": pendientes,
+                    "transferencias_completadas": completadas,
+                },
+            }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+        finally:
+            if conn:
+                conn.close()
+

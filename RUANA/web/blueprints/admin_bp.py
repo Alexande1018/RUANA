@@ -594,6 +594,22 @@ def admin_pagos_en_revision():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+@admin_bp.route('/api/admin/stripe/resumen', methods=['GET'])
+@require_admin
+def admin_stripe_resumen():
+    """
+    GET /api/admin/stripe/resumen
+    Onboarding Stripe por aliado, transferencias y importe neto en tránsito.
+    """
+    try:
+        db = get_db()
+        result = pago_service.resumen_stripe_admin(db)
+        status_code = 200 if result.get('status') == 'success' else 500
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
 # ---------- Mutaciones admin (control de aliados / plazas / reglas) ----------
 
 

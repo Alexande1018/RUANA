@@ -189,6 +189,7 @@
               fetch('/api/admin/payment-conflicts', fetchOpts),
               fetch('/api/admin/pagos-apoyo', fetchOpts),
               fetch('/api/admin/pagos-en-revision', fetchOpts),
+              fetch('/api/admin/stripe/resumen', fetchOpts),
               fetch('/api/admin/solicitudes', fetchOpts),
               fetch('/api/admin/chats?limite=10&offset=0', fetchOpts),
               fetch('/api/admin/competencias-activas', fetchOpts),
@@ -217,8 +218,8 @@
               if (!r.ok) return null;
               return r.json().catch(() => null);
           }
-          const idx14 = responses[14];
-          const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, solicitudesData, chatsData, competenciasData, competenciasPendientesData, competenciasHistorialData, stats24hData, invitacionesRecData, campanasData, metodosPagoData, suplentesEsperaData, centroComData, eliminadosData] = await Promise.all([
+          const idx15 = responses[15];
+          const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, stripeResumenData, solicitudesData, chatsData, competenciasData, competenciasPendientesData, competenciasHistorialData, stats24hData, invitacionesRecData, campanasData, metodosPagoData, suplentesEsperaData, centroComData, eliminadosData] = await Promise.all([
               parseResponse(responses[0], false),
               parseResponse(responses[1], false),
               parseResponse(responses[2], false),
@@ -233,13 +234,14 @@
               parseResponse(responses[11], false),
               parseResponse(responses[12], false),
               parseResponse(responses[13], false),
-              Promise.resolve(idx14),
-              parseResponse(responses[15], false),
+              parseResponse(responses[14], false),
+              Promise.resolve(idx15),
               parseResponse(responses[16], false),
               parseResponse(responses[17], false),
               parseResponse(responses[18], false),
               parseResponse(responses[19], false),
-              parseResponse(responses[20], false)
+              parseResponse(responses[20], false),
+              parseResponse(responses[21], false)
           ]);
 
           // Pendientes de validación (unir API + lista por código)
@@ -312,6 +314,7 @@
           host.renderConflictosPago((conflictosData && conflictosData.status === 'success' && Array.isArray(conflictosData.conflictos)) ? conflictosData.conflictos : []);
           host.renderPagosApoyo((pagosApoyoData && pagosApoyoData.status === 'success' && Array.isArray(pagosApoyoData.pagos)) ? pagosApoyoData.pagos : []);
           host.renderPagosEnRevision((pagosEnRevisionData && pagosEnRevisionData.status === 'success' && Array.isArray(pagosEnRevisionData.pagos)) ? pagosEnRevisionData.pagos : []);
+          host.renderStripeResumen(stripeResumenData && stripeResumenData.status === 'success' ? stripeResumenData : null);
           host.renderSolicitudesAdmin(Array.isArray(solicitudesData) ? solicitudesData : (solicitudesData && Array.isArray(solicitudesData.solicitudes) ? solicitudesData.solicitudes : []));
           host.renderInvitacionesRecientes(invitacionesRecData && invitacionesRecData.status === 'success' && Array.isArray(invitacionesRecData.invitaciones) ? invitacionesRecData.invitaciones : []);
           host.renderCampanasInvitacion(campanasData && campanasData.status === 'success' && Array.isArray(campanasData.campanas) ? campanasData.campanas : []);

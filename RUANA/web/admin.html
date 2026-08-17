@@ -24,6 +24,7 @@
     <script src="/static/js/admin-operaciones-module.js" defer></script>
     <script src="/static/js/admin-red-module.js" defer></script>
     <script src="/static/js/admin-sistema-module.js" defer></script>
+    <script src="/static/js/admin-stripe-module.js" defer></script>
     <script src="/static/js/admin-charts.js" defer></script>
     <script src="/static/js/admin-command-center-module.js" defer></script>
     <script src="/static/js/admin-intelligence-module.js" defer></script>
@@ -493,6 +494,53 @@
                 </div>
             </div>
             <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="pagos-en-revision-empty">No hay pagos en revisión.</p>
+        </div>
+
+        <!-- CAPA 3.656: Stripe Connect (admin) -->
+        <div class="stripe-admin-wrap" id="stripe-admin-wrap">
+            <h2 class="seccion-titulo">Stripe Connect</h2>
+            <p class="admin-subtitle" style="margin-bottom: 8px; color: #999;">
+                Onboarding de cuentas de pago, transferencias y neto pendiente de envío al profesional.
+            </p>
+            <p class="admin-subtitle" style="margin-bottom: 12px;" id="stripe-admin-habilitado">—</p>
+            <div class="indicadores-grid" id="stripe-admin-totales" style="margin-bottom: 16px;"></div>
+            <h3 class="seccion-titulo" style="font-size: 1rem; margin-top: 0;">Onboarding aliados</h3>
+            <div class="movimiento-24h-tabla-wrap">
+                <div class="movimiento-24h-tabla-scroll">
+                    <table class="movimiento-24h-tabla" id="tabla-stripe-onboarding">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Nombre</th>
+                                <th>Estado onboarding</th>
+                                <th>Cuenta Stripe</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-stripe-onboarding"></tbody>
+                    </table>
+                </div>
+            </div>
+            <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="stripe-onboarding-empty">No hay aliados con actividad Stripe registrada.</p>
+            <h3 class="seccion-titulo" style="font-size: 1rem; margin-top: 20px;">Encargos Stripe</h3>
+            <div class="movimiento-24h-tabla-wrap">
+                <div class="movimiento-24h-tabla-scroll">
+                    <table class="movimiento-24h-tabla" id="tabla-stripe-transferencias">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Profesional</th>
+                                <th>Contratante</th>
+                                <th>Importe</th>
+                                <th>Neto pro</th>
+                                <th>Transferencia</th>
+                                <th>Estado pago</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-stripe-transferencias"></tbody>
+                    </table>
+                </div>
+            </div>
+            <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="stripe-transferencias-empty">No hay encargos con modo pago Stripe.</p>
         </div>
 
         <!-- Modal rechazar comprobante de pago (motivo obligatorio, notifica al profesional) -->
@@ -1135,6 +1183,11 @@
                 return (typeof RuanaAdminModules !== 'undefined' && RuanaAdminModules.operaciones) || null;
             }
 
+            /** Fachada Campamento Base → RuanaAdminModules.stripe */
+            _stripeModule() {
+                return (typeof RuanaAdminModules !== 'undefined' && RuanaAdminModules.stripe) || null;
+            }
+
             /** Fachada Campamento Base → RuanaAdminModules.red */
             _redModule() {
                 return (typeof RuanaAdminModules !== 'undefined' && RuanaAdminModules.red) || null;
@@ -1589,6 +1642,13 @@
                 const mod = this._operacionesModule();
                 if (mod && typeof mod.renderPagosEnRevision === 'function') {
                     return mod.renderPagosEnRevision(this, pagos);
+                }
+            }
+
+            renderStripeResumen(data) {
+                const mod = this._stripeModule();
+                if (mod && typeof mod.renderStripeResumen === 'function') {
+                    return mod.renderStripeResumen(this, data);
                 }
             }
 

@@ -766,3 +766,34 @@ class PagoRepo:
             """,
             (aliado_codigo, titulo, mensaje, meta),
         )
+
+    def listar_aliados_stripe_onboarding(self, cursor) -> List[Any]:
+        cursor.execute(
+            """
+            SELECT codigo, nombre, email, stripe_account_id,
+                   stripe_charges_enabled, stripe_payouts_enabled,
+                   stripe_onboarding_completo
+            FROM aliados
+            WHERE TRIM(COALESCE(stripe_account_id, '')) != ''
+               OR COALESCE(stripe_onboarding_completo, 0) = 1
+               OR COALESCE(stripe_charges_enabled, 0) = 1
+            ORDER BY codigo
+            """
+        )
+        return cursor.fetchall()
+
+    def listar_contactos_stripe_pipeline(self, cursor, limite: int = 200) -> List[Any]:
+        cursor.execute(
+            """
+            SELECT id, solicitante_codigo, profesional_codigo, servicio,
+                   estado, estado_pago, importe_final, importe_neto_profesional,
+                   stripe_transfer_id, stripe_cobro_estado,
+                   fecha_cobro_confirmado, fecha_transferencia
+            FROM contactos_ruana
+            WHERE modo_pago = 'stripe'
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (int(limite),),
+        )
+        return cursor.fetchall()
