@@ -21,6 +21,7 @@ from core.auth_session import (
 )
 from core.db_manager import RUANA_CODIGO_INVITACION_REGEX
 from web.auth_decorators import _aliado_codigo, _aliado_session_valid
+from web.limiter import limiter
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -46,6 +47,8 @@ def auth_bp_health():
 
 
 @auth_bp.route("/api/aliado/login", methods=["POST"], strict_slashes=False)
+@limiter.limit("30 per hour")
+@limiter.limit("10 per minute")
 def aliado_login():
     """
     POST /api/aliado/login  body: { codigo: "XXXXX" }
