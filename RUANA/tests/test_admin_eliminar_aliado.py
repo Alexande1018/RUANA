@@ -52,11 +52,27 @@ def test_eliminar_perfil_activo_borra_definitivamente(sqlite_db):
 
     assert sqlite_db.obtener_aliado_por_codigo("90001") is None
 
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute("SELECT nombre FROM aliados WHERE codigo = ?", ("90001",))
+    nombre_bd = cur.fetchone()[0]
+    conn.close()
+    assert "Aliado Activo" in nombre_bd and "eliminado" in nombre_bd.lower()
+
     eliminados = sqlite_db.listar_aliados_eliminados()
     assert len(eliminados) == 1
     assert eliminados[0]["codigo"] == "90001"
     assert eliminados[0]["estado_anterior"] == "activo"
     assert eliminados[0]["motivo"] == "Prueba admin"
+
+
+def test_listar_aliados_excluye_eliminados(sqlite_db):
+    _crear_activo(sqlite_db, "90010", "Visible")
+    _crear_activo(sqlite_db, "90011", "A Borrar")
+    sqlite_db.eliminar_perfil_aliado_admin("90011")
+    codigos = {a["codigo"] for a in sqlite_db.listar_aliados()}
+    assert "90010" in codigos
+    assert "90011" not in codigos
 
 
 def test_eliminar_perfil_libera_email_y_telefono(sqlite_db):

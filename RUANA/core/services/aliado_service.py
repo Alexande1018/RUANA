@@ -6,7 +6,7 @@ SQL de aliados vía AliadoRepo.
 from __future__ import annotations
 
 from core.db_constants import ALIADO_FOTO_PERFIL_COLUMN, MAX_GRUPOS_POR_CP, _email_liberado_aliado, _telefono_liberado_aliado
-from core.repositories.aliado_repo import AliadoRepo
+from core.repositories.aliado_repo import AliadoRepo, _format_nombre_aliado_eliminado
 
 
 from datetime import datetime, timedelta, timezone
@@ -891,7 +891,7 @@ def eliminar_perfil_aliado_admin(db,
                 estado_actual, motivo_txt, admin_codigo,
             )
 
-            if _repo.soft_delete_por_codigo(cursor, codigo) <= 0:
+            if _repo.soft_delete_por_codigo(cursor, codigo, nombre) <= 0:
                 return {'status': 'error', 'message': f'No se pudo eliminar el perfil de {codigo}'}
 
             try:

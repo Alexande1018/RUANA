@@ -29,7 +29,7 @@
   function esAliadoPlaceholder(host, a) {
     if (!a) return false;
     const est = (a.estado || '').toLowerCase();
-    return est === 'pendiente_completar';
+    return est === 'pendiente_completar' || est === 'eliminado';
   }
 
   function getClaveGrupoRed(host, a) {
@@ -677,7 +677,7 @@
     const eliminarBtn = document.getElementById('aliadoDetalleEliminar');
     if (eliminarBtn) {
         const estadoBd = (aliado.estado || '').toLowerCase();
-        const yaEliminado = estadoBd === 'expulsado' || estadoBd === 'rechazado' || estadoBd === 'sistema';
+        const yaEliminado = estadoBd === 'expulsado' || estadoBd === 'rechazado' || estadoBd === 'sistema' || estadoBd === 'eliminado';
         eliminarBtn.disabled = yaEliminado;
         eliminarBtn.title = yaEliminado
             ? 'Este perfil ya está eliminado o no se puede borrar'
@@ -754,6 +754,7 @@
             consequences: [
                 'Se eliminarán todos los datos del aliado (perfil, contactos, notificaciones, etc.).',
                 'El correo, teléfono y código quedarán liberados para un nuevo registro.',
+                'En el árbol genealógico el nodo seguirá visible como «Usuario eliminado» para no romper el linaje.',
                 'Solo quedará un registro de auditoría en «Aliados eliminados».',
                 'Esta acción no se puede deshacer.'
             ],

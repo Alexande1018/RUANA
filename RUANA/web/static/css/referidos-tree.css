@@ -699,6 +699,12 @@
     color: var(--ruana-estado-riesgo, #d4926e);
 }
 
+.referidos-node-estado.eliminado {
+    background: color-mix(in srgb, var(--ruana-estado-riesgo) 12%, transparent);
+    color: var(--ruana-estado-riesgo, #d4926e);
+    font-style: italic;
+}
+
 .referidos-node-estado.sistema {
     background: color-mix(in srgb, var(--ruana-estado-competencia) 18%, transparent);
     color: var(--ruana-estado-competencia, #b86a8a);

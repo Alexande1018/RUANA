@@ -212,7 +212,7 @@ def _nodo_desde_grafo(db, grafo: Dict[str, Any], codigo: str) -> Optional[Dict[s
         nodo['pendiente_alta'] = True
     if (aliado.get('estado') or '').strip() == 'eliminado':
         nodo['perfil_eliminado'] = True
-        nodo['nombre'] = nodo.get('nombre') or '[Perfil eliminado]'
+        nodo['nombre'] = aliado.get('nombre') or 'Usuario eliminado'
     if (aliado.get('estado') or '').strip() == 'suspendido_temporal':
         nodo['perfil_pausado'] = True
     nodo['tipo_nodo'] = 'aliado'

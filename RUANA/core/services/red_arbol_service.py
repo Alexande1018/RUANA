@@ -9,6 +9,7 @@ import sqlite3
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.repositories.referido_repo import ReferidoRepo
+from core.repositories.aliado_repo import _format_nombre_aliado_eliminado
 from core.services import referido_service
 
 _repo = ReferidoRepo()
@@ -406,7 +407,7 @@ def obtener_detalle_aliado_red(
             if (e.get("codigo") or "").strip() == codigo:
                 aliado = {
                     "codigo": codigo,
-                    "nombre": e.get("nombre") or "[Perfil eliminado]",
+                    "nombre": _format_nombre_aliado_eliminado(e.get("nombre") or ""),
                     "estado": "eliminado",
                     "oficio": e.get("oficio") or "",
                     "codigo_postal": e.get("codigo_postal") or "",
