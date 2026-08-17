@@ -176,13 +176,21 @@
         sidebar.classList.toggle('is-open', shouldOpen);
         sidebar.classList.toggle('is-mobile-open', shouldOpen);
         sidebar.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
-        if ('inert' in sidebar) sidebar.inert = !shouldOpen;
+        if ('inert' in sidebar) {
+            if (shouldOpen) {
+                sidebar.inert = false;
+                sidebar.removeAttribute('inert');
+            } else {
+                sidebar.inert = true;
+            }
+        }
 
         document.documentElement.classList.toggle('admin-sidebar-open', shouldOpen);
 
         if (backdrop) {
             const showBackdrop = shouldOpen && isMobileShell();
             backdrop.hidden = !showBackdrop;
+            backdrop.classList.toggle('is-visible', showBackdrop);
             backdrop.setAttribute('aria-hidden', showBackdrop ? 'false' : 'true');
         }
 

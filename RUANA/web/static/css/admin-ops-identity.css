@@ -130,20 +130,67 @@ html.admin-shell-enabled .admin-sidebar-toggle {
     background: var(--ops-bg) !important;
     border: 1px solid var(--ops-border) !important;
     color: var(--ops-text-secondary) !important;
+    border-radius: 12px !important;
+    min-width: 42px !important;
+    height: 42px !important;
+    box-shadow: var(--ops-shadow-sm) !important;
+}
+
+html.admin-shell-enabled .admin-sidebar-toggle:hover {
+    background: var(--ops-surface) !important;
+    border-color: var(--ops-border-strong) !important;
+    color: var(--ops-text) !important;
 }
 
 html.admin-shell-enabled .admin-sidebar-toggle.is-open {
     background: var(--ops-lime-soft) !important;
     border-color: rgba(63, 159, 110, 0.35) !important;
     color: var(--ops-accent-bright) !important;
+    box-shadow: 0 0 0 3px rgba(63, 159, 110, 0.12) !important;
+}
+
+html.admin-shell-enabled .admin-sidebar-toggle-label {
+    font-weight: 700 !important;
+    letter-spacing: 0.02em !important;
 }
 
 /* ——— Sidebar oscuro (centro de operaciones) ——— */
+html.admin-shell-enabled .admin-app {
+    z-index: auto !important;
+}
+
+html.admin-shell-enabled.admin-sidebar-open .admin-app {
+    position: relative;
+    z-index: 100 !important;
+}
+
 html.admin-shell-enabled .admin-sidebar {
     background: linear-gradient(180deg, #0e1419 0%, var(--ops-sidebar-bg) 100%) !important;
     border-right: 1px solid var(--ops-sidebar-border) !important;
     backdrop-filter: none !important;
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15) !important;
+    z-index: 140 !important;
+    pointer-events: auto !important;
+}
+
+html.admin-shell-enabled .admin-sidebar.is-open,
+html.admin-shell-enabled .admin-sidebar.is-mobile-open {
+    pointer-events: auto !important;
+}
+
+html.admin-shell-enabled .admin-sidebar-nav,
+html.admin-shell-enabled .admin-sidebar-footer,
+html.admin-shell-enabled .admin-module-switcher {
+    position: relative;
+    z-index: 2;
+    pointer-events: auto !important;
+}
+
+html.admin-shell-enabled .admin-nav-item,
+html.admin-shell-enabled .admin-module-chip,
+html.admin-shell-enabled .admin-sidebar-footer button {
+    pointer-events: auto !important;
+    cursor: pointer !important;
 }
 
 html.admin-shell-enabled .admin-sidebar-brand {
@@ -164,26 +211,110 @@ html.admin-shell-enabled .admin-sidebar-search input {
     background: rgba(255, 255, 255, 0.06) !important;
     border: 1px solid rgba(255, 255, 255, 0.1) !important;
     color: #f1f5f9 !important;
+    border-radius: 11px !important;
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+}
+
+html.admin-shell-enabled .admin-sidebar-search input:focus {
+    border-color: rgba(184, 232, 106, 0.35) !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    box-shadow: 0 0 0 3px rgba(63, 159, 110, 0.12) !important;
+    outline: none !important;
 }
 
 html.admin-shell-enabled .admin-nav-group-label {
     color: rgba(255, 255, 255, 0.35) !important;
     letter-spacing: 0.14em !important;
+    font-size: 0.62rem !important;
+    font-weight: 800 !important;
+    padding-top: 16px !important;
+}
+
+html.admin-shell-enabled .admin-module-switcher {
+    padding: 12px 12px 6px !important;
+    gap: 8px !important;
+}
+
+html.admin-shell-enabled .admin-module-chip {
+    padding: 10px 12px !important;
+    border-radius: 11px !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    background: rgba(255, 255, 255, 0.04) !important;
+    color: rgba(255, 255, 255, 0.62) !important;
+    font-size: 0.7rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.01em !important;
+    transition: background 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease !important;
+}
+
+html.admin-shell-enabled .admin-module-chip:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #f8fafc !important;
+    border-color: rgba(255, 255, 255, 0.12) !important;
+    transform: translateY(-1px) !important;
+}
+
+html.admin-shell-enabled .admin-module-chip.is-active {
+    background: rgba(63, 159, 110, 0.2) !important;
+    border-color: rgba(184, 232, 106, 0.35) !important;
+    color: #b8e86a !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+}
+
+html.admin-shell-enabled .admin-module-chip svg {
+    opacity: 1 !important;
+    color: currentColor !important;
 }
 
 html.admin-shell-enabled .admin-nav-item {
-    color: rgba(255, 255, 255, 0.62) !important;
-    border-radius: 10px !important;
+    color: rgba(255, 255, 255, 0.68) !important;
+    border-radius: 12px !important;
+    border: 1px solid transparent !important;
     font-weight: 600 !important;
+    font-size: 0.84rem !important;
+    padding: 11px 14px !important;
+    margin-bottom: 4px !important;
+    gap: 12px !important;
+    transition: background 140ms ease, color 140ms ease, border-color 140ms ease, padding-left 140ms ease !important;
+}
+
+html.admin-shell-enabled .admin-nav-item::before {
+    background: #b8e86a !important;
+    pointer-events: none !important;
+}
+
+html.admin-shell-enabled .admin-nav-item svg {
+    width: 18px !important;
+    height: 18px !important;
+    padding: 6px !important;
+    box-sizing: content-box !important;
+    border-radius: 8px !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    opacity: 1 !important;
+    flex-shrink: 0 !important;
 }
 
 html.admin-shell-enabled .admin-nav-item:hover {
-    background: rgba(255, 255, 255, 0.06) !important;
+    background: rgba(255, 255, 255, 0.07) !important;
     color: #f8fafc !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html.admin-shell-enabled .admin-nav-item:hover svg {
+    background: rgba(255, 255, 255, 0.1) !important;
 }
 
 html.admin-shell-enabled .admin-nav-item.is-active {
-    background: rgba(63, 159, 110, 0.18) !important;
+    background: linear-gradient(90deg, rgba(63, 159, 110, 0.22) 0%, rgba(63, 159, 110, 0.08) 100%) !important;
+    color: #b8e86a !important;
+    border-color: rgba(184, 232, 106, 0.22) !important;
+    padding-left: 18px !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+}
+
+html.admin-shell-enabled .admin-nav-item.is-active svg {
+    background: rgba(184, 232, 106, 0.15) !important;
     color: #b8e86a !important;
 }
 
@@ -193,18 +324,49 @@ html.admin-shell-enabled .admin-nav-item.is-active::before {
 
 html.admin-shell-enabled .admin-nav-badge {
     background: rgba(255, 255, 255, 0.1) !important;
-    color: rgba(255, 255, 255, 0.7) !important;
+    color: rgba(255, 255, 255, 0.75) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    font-variant-numeric: tabular-nums !important;
+    min-width: 22px !important;
+    padding: 3px 8px !important;
 }
 
 html.admin-shell-enabled .admin-nav-badge.has-items {
-    background: rgba(239, 68, 68, 0.25) !important;
+    background: rgba(239, 68, 68, 0.22) !important;
     color: #fecaca !important;
+    border-color: rgba(248, 113, 113, 0.3) !important;
+}
+
+html.admin-shell-enabled .admin-sidebar-search input {
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: #f1f5f9 !important;
+    border-radius: 11px !important;
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+}
+
+html.admin-shell-enabled .admin-sidebar-search input:focus {
+    border-color: rgba(184, 232, 106, 0.35) !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    box-shadow: 0 0 0 3px rgba(63, 159, 110, 0.12) !important;
 }
 
 html.admin-shell-enabled .admin-sidebar-footer button {
-    background: rgba(255, 255, 255, 0.04) !important;
-    border-color: rgba(255, 255, 255, 0.1) !important;
-    color: rgba(255, 255, 255, 0.55) !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: rgba(255, 255, 255, 0.65) !important;
+    border-radius: 11px !important;
+    padding: 10px 12px !important;
+    font-weight: 600 !important;
+    font-size: 0.78rem !important;
+    transition: background 140ms ease, border-color 140ms ease, color 140ms ease !important;
+}
+
+html.admin-shell-enabled .admin-sidebar-footer button:hover {
+    background: rgba(255, 255, 255, 0.09) !important;
+    color: #f8fafc !important;
+    border-color: rgba(255, 255, 255, 0.14) !important;
 }
 
 /* ——— Área principal clara ——— */
@@ -907,7 +1069,12 @@ html.admin-shell-enabled .admin-shell-bottom-item.is-active {
 }
 
 html.admin-shell-enabled .admin-sidebar-backdrop {
-    background: rgba(15, 23, 42, 0.4) !important;
+    background: rgba(15, 23, 42, 0.45) !important;
+    z-index: 125 !important;
+}
+
+html.admin-shell-enabled .admin-sidebar-backdrop.is-visible {
+    pointer-events: auto !important;
 }
 
 /* ——— Pagos: seriedad ——— */

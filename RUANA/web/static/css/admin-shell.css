@@ -66,6 +66,7 @@ html.admin-shell-enabled body {
     transform: translateX(0);
     visibility: visible;
     pointer-events: auto;
+    z-index: 140;
     transition: transform 220ms ease, visibility 0s linear 0s;
 }
 
@@ -76,16 +77,23 @@ html.admin-shell-enabled body {
     right: 0;
     bottom: 0;
     left: 0;
-    z-index: 99;
+    z-index: 125;
     border: none;
     padding: 0;
     margin: 0;
     background: rgba(4, 5, 8, 0.45);
     cursor: pointer;
+    pointer-events: auto;
 }
 
-html.admin-sidebar-open .admin-sidebar-backdrop {
+html.admin-sidebar-open .admin-sidebar-backdrop.is-visible {
     display: block;
+}
+
+@media (min-width: 961px) {
+    .admin-sidebar-backdrop {
+        display: none !important;
+    }
 }
 
 .admin-sidebar-brand {
@@ -122,9 +130,9 @@ html.admin-sidebar-open .admin-sidebar-backdrop {
 .admin-module-chip {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 8px 10px;
-    border-radius: 10px;
+    gap: 8px;
+    padding: 9px 11px;
+    border-radius: 11px;
     border: 1px solid var(--admin-border);
     background: rgba(255, 255, 255, 0.03);
     color: var(--admin-text-muted);
@@ -132,7 +140,7 @@ html.admin-sidebar-open .admin-sidebar-backdrop {
     font-size: 0.72rem;
     font-weight: 600;
     cursor: pointer;
-    transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+    transition: background 140ms ease, color 140ms ease, border-color 140ms ease, transform 140ms ease;
 }
 
 .admin-module-chip svg {
@@ -214,29 +222,51 @@ html.admin-sidebar-open .admin-sidebar-backdrop {
 .admin-nav-item {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     width: 100%;
-    padding: 9px 12px;
-    margin-bottom: 2px;
-    border: none;
-    border-radius: 10px;
+    padding: 11px 14px;
+    margin-bottom: 4px;
+    border: 1px solid transparent;
+    border-radius: 12px;
     background: transparent;
     color: var(--admin-text-muted);
-    font-size: 0.84rem;
-    font-weight: 500;
+    font-size: 0.86rem;
+    font-weight: 600;
     text-align: left;
     cursor: pointer;
-    transition: background 140ms ease, color 140ms ease;
+    position: relative;
+    transition: background 140ms ease, color 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+.admin-nav-item::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%) scaleY(0);
+    width: 3px;
+    height: 58%;
+    border-radius: 0 3px 3px 0;
+    background: var(--admin-accent);
+    pointer-events: none;
+    transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .admin-nav-item:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.06);
     color: var(--admin-text);
+    border-color: rgba(255, 255, 255, 0.06);
 }
 
 .admin-nav-item.is-active {
     background: var(--admin-accent-soft);
     color: var(--admin-accent);
+    border-color: rgba(162, 255, 0, 0.2);
+    padding-left: 18px;
+}
+
+.admin-nav-item.is-active::before {
+    transform: translateY(-50%) scaleY(1);
 }
 
 .admin-nav-item svg {
@@ -777,18 +807,20 @@ html.admin-shell-enabled table tbody tr {
     justify-content: center;
     gap: 8px;
     width: auto;
-    min-width: 38px;
-    height: 38px;
-    padding: 0 12px;
-    border-radius: 10px;
+    min-width: 42px;
+    height: 42px;
+    padding: 0 14px;
+    border-radius: 12px;
     border: 1px solid var(--admin-border);
     background: rgba(255, 255, 255, 0.04);
     color: var(--admin-text);
     font-family: inherit;
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
     flex-shrink: 0;
+    pointer-events: auto;
+    transition: background 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
 }
 
 .admin-sidebar-toggle:hover {
