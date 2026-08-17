@@ -1,659 +1,645 @@
 /* ================================================
-   RUANA Admin — Identidad Operativa
-   Cargar como <link> DESPUÉS de ruana-identity.css (sin @layer).
-   Usa !important donde admin-premium compite en cascada.
+   RUANA Admin — Centro de Mando (identidad operativa)
+   Tema claro profesional inspirado en sala de control.
+   Cargar como <link> final, fuera de @layer.
+   Solo estética — no altera lógica ni estructura.
    ================================================ */
 
-/* ——— Tokens por módulo (acento de identidad) ——— */
-:root {
-    --admin-ops-font: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    --admin-ops-header-pad: 22px 24px 20px 28px;
-    --admin-ops-header-radius: 18px;
+html.admin-shell-enabled {
+    --ops-bg: #eef1f6;
+    --ops-bg-soft: #e4e9f0;
+    --ops-surface: #ffffff;
+    --ops-surface-raised: #f8fafc;
+    --ops-text: #0f172a;
+    --ops-text-secondary: #334155;
+    --ops-text-muted: #64748b;
+    --ops-text-faint: #94a3b8;
+    --ops-border: #e2e8f0;
+    --ops-border-strong: #cbd5e1;
+    --ops-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+    --ops-shadow-md: 0 4px 16px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.04);
+    --ops-shadow-lg: 0 12px 40px rgba(15, 23, 42, 0.1);
+    --ops-radius: 14px;
+    --ops-radius-lg: 18px;
+    --ops-sidebar-bg: #0c1218;
+    --ops-sidebar-border: rgba(255, 255, 255, 0.06);
+    --ops-accent: #2f7d56;
+    --ops-accent-bright: #3f9f6e;
+    --ops-lime: #5a9e2f;
+    --ops-lime-soft: rgba(63, 159, 110, 0.12);
+    --ops-success: #15803d;
+    --ops-warn: #b45309;
+    --ops-danger: #b91c1c;
+    --admin-sidebar-w: 260px;
+    --admin-topbar-h: 60px;
 
-    --mod-resumen-accent: #a2ff00;
-    --mod-resumen-glow: rgba(162, 255, 0, 0.14);
-    --mod-red-accent: #5ecf9a;
-    --mod-red-glow: rgba(94, 207, 154, 0.14);
-    --mod-territorio-accent: #c9b896;
-    --mod-territorio-glow: rgba(201, 184, 150, 0.12);
-    --mod-demanda-accent: #e8c468;
-    --mod-demanda-glow: rgba(232, 196, 104, 0.12);
-    --mod-ops-accent: #8baee8;
-    --mod-ops-glow: rgba(139, 174, 232, 0.12);
-    --mod-finanzas-accent: #d4c4a8;
-    --mod-finanzas-glow: rgba(212, 196, 168, 0.12);
-    --mod-rendimiento-accent: #b8e86a;
-    --mod-rendimiento-glow: rgba(184, 232, 106, 0.12);
-    --mod-cobertura-accent: #b86a8a;
-    --mod-cobertura-glow: rgba(184, 106, 138, 0.12);
-    --mod-comunicacion-accent: #7eb8d4;
-    --mod-comunicacion-glow: rgba(126, 184, 212, 0.12);
-    --mod-atencion-accent: #d4926e;
-    --mod-atencion-glow: rgba(212, 146, 110, 0.14);
-    --mod-analisis-accent: #9b8fd4;
-    --mod-analisis-glow: rgba(155, 143, 212, 0.12);
-    --mod-sistema-accent: #94a3b8;
-    --mod-sistema-glow: rgba(148, 163, 184, 0.1);
+    /* Acentos por módulo */
+    --mod-resumen-accent: #3f9f6e;
+    --mod-resumen-glow: rgba(63, 159, 110, 0.12);
+    --mod-red-accent: #0d9488;
+    --mod-red-glow: rgba(13, 148, 136, 0.1);
+    --mod-territorio-accent: #92764a;
+    --mod-territorio-glow: rgba(146, 118, 74, 0.1);
+    --mod-demanda-accent: #b45309;
+    --mod-demanda-glow: rgba(180, 83, 9, 0.1);
+    --mod-ops-accent: #2563eb;
+    --mod-ops-glow: rgba(37, 99, 235, 0.1);
+    --mod-finanzas-accent: #6b5b4a;
+    --mod-finanzas-glow: rgba(107, 91, 74, 0.1);
+    --mod-rendimiento-accent: #4d7c0f;
+    --mod-rendimiento-glow: rgba(77, 124, 15, 0.1);
+    --mod-cobertura-accent: #9d174d;
+    --mod-cobertura-glow: rgba(157, 23, 77, 0.08);
+    --mod-comunicacion-accent: #0369a1;
+    --mod-comunicacion-glow: rgba(3, 105, 161, 0.1);
+    --mod-atencion-accent: #c2410c;
+    --mod-atencion-glow: rgba(194, 65, 12, 0.1);
+    --mod-analisis-accent: #5b21b6;
+    --mod-analisis-glow: rgba(91, 33, 182, 0.08);
+    --mod-sistema-accent: #475569;
+    --mod-sistema-glow: rgba(71, 85, 105, 0.1);
 }
 
-/* ——— Base: centro de operaciones RUANA ——— */
+/* ——— Reset atmósfera oscura en admin ——— */
 html.admin-shell-enabled,
 html.admin-shell-enabled body {
-    font-family: var(--admin-ops-font);
+    background: var(--ops-bg) !important;
+    background-image: none !important;
+    color: var(--ops-text) !important;
+    font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
 }
 
+html.admin-shell-enabled body::before,
+html.admin-shell-enabled body::after {
+    display: none !important;
+    content: none !important;
+}
+
+html.admin-shell-enabled .ruana-atmosphere {
+    display: none !important;
+}
+
+/* ——— Topbar claro ——— */
 html.admin-shell-enabled .admin-topbar {
-    background: linear-gradient(
-        180deg,
-        rgba(9, 12, 10, 0.96) 0%,
-        rgba(7, 9, 8, 0.92) 100%
-    ) !important;
-    border-bottom: 1px solid rgba(201, 184, 150, 0.12) !important;
-    box-shadow:
-        0 1px 0 rgba(162, 255, 0, 0.06),
-        0 12px 40px rgba(0, 0, 0, 0.35) !important;
+    min-height: var(--admin-topbar-h) !important;
+    padding: 0 24px !important;
+    background: var(--ops-surface) !important;
+    border-bottom: 1px solid var(--ops-border) !important;
+    box-shadow: var(--ops-shadow-sm) !important;
+    backdrop-filter: none !important;
 }
 
 html.admin-shell-enabled .admin-topbar-subtitle {
-    color: rgba(201, 184, 150, 0.75);
-    font-size: 0.78rem;
-    letter-spacing: 0.04em;
+    color: var(--ops-text-muted) !important;
+    font-size: 0.8rem !important;
+}
+
+html.admin-shell-enabled .ruana-brand-word {
+    color: var(--ops-text) !important;
 }
 
 html.admin-shell-enabled .ruana-brand-suffix {
-    color: var(--ruana-brand-lime-bright, #a2ff00);
-    font-weight: 700;
-    letter-spacing: 0.06em;
+    color: var(--ops-accent-bright) !important;
+    font-weight: 700 !important;
 }
 
-/* ——— Sidebar: navegación de centro de operaciones ——— */
-html.admin-shell-enabled .admin-sidebar {
-    background: linear-gradient(
-        180deg,
-        rgba(10, 13, 11, 0.97) 0%,
-        rgba(7, 9, 8, 0.98) 100%
-    );
-    border-right: 1px solid rgba(201, 184, 150, 0.1);
-    box-shadow: 4px 0 32px rgba(0, 0, 0, 0.25);
+html.admin-shell-enabled .admin-topbar-link {
+    background: var(--ops-bg) !important;
+    border: 1px solid var(--ops-border) !important;
+    color: var(--ops-text-secondary) !important;
+    border-radius: 10px !important;
 }
 
-html.admin-shell-enabled .admin-sidebar-brand {
-    background: linear-gradient(
-        135deg,
-        rgba(162, 255, 0, 0.06) 0%,
-        transparent 60%
-    );
+html.admin-shell-enabled .admin-topbar-link:hover {
+    background: var(--ops-bg-soft) !important;
+    color: var(--ops-text) !important;
 }
 
-html.admin-shell-enabled .admin-sidebar-brand-name {
-    font-size: 0.95rem;
-    letter-spacing: 0.14em;
+html.admin-shell-enabled .btn-admin-password {
+    background: var(--ops-bg) !important;
+    border: 1px solid var(--ops-border) !important;
+    color: var(--ops-text-secondary) !important;
+    border-radius: 10px !important;
 }
 
-html.admin-shell-enabled .admin-sidebar-brand-sub {
-    color: rgba(201, 184, 150, 0.55);
-    letter-spacing: 0.12em;
+html.admin-shell-enabled .btn-admin-logout {
+    border-radius: 10px !important;
 }
 
-html.admin-shell-enabled .admin-nav-group-label {
-    color: rgba(201, 184, 150, 0.45);
-    letter-spacing: 0.14em;
-    padding-top: 18px;
-    position: relative;
-}
-
-html.admin-shell-enabled .admin-nav-group-label::after {
-    content: "";
-    position: absolute;
-    left: 10px;
-    right: 10px;
-    bottom: 0;
-    height: 1px;
-    background: linear-gradient(
-        90deg,
-        transparent,
-        rgba(255, 255, 255, 0.06) 20%,
-        rgba(255, 255, 255, 0.06) 80%,
-        transparent
-    );
-}
-
-html.admin-shell-enabled .admin-nav-item {
-    position: relative;
-    border-radius: 11px;
-    padding: 10px 12px 10px 14px;
-    font-weight: 600;
-    letter-spacing: 0.01em;
-    transition:
-        background 160ms ease,
-        color 160ms ease,
-        padding-left 160ms ease;
-}
-
-html.admin-shell-enabled .admin-nav-item::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%) scaleY(0);
-    width: 3px;
-    height: 60%;
-    border-radius: 0 3px 3px 0;
-    background: var(--admin-accent, #a2ff00);
-    transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-html.admin-shell-enabled .admin-nav-item:hover {
-    background: rgba(255, 255, 255, 0.04);
-}
-
-html.admin-shell-enabled .admin-nav-item.is-active {
-    background: linear-gradient(
-        90deg,
-        rgba(162, 255, 0, 0.12) 0%,
-        rgba(162, 255, 0, 0.04) 100%
-    );
-    color: var(--admin-accent, #a2ff00);
-    padding-left: 18px;
-}
-
-html.admin-shell-enabled .admin-nav-item.is-active::before {
-    transform: translateY(-50%) scaleY(1);
-}
-
-html.admin-shell-enabled .admin-nav-badge {
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    font-variant-numeric: tabular-nums;
-}
-
-html.admin-shell-enabled .admin-nav-badge.has-items {
-    border-color: rgba(248, 113, 113, 0.25);
-    animation: admin-ops-badge-pulse 2.4s ease-in-out infinite;
-}
-
-@keyframes admin-ops-badge-pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0); }
-    50% { box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.12); }
+html.admin-shell-enabled .admin-sidebar-toggle {
+    background: var(--ops-bg) !important;
+    border: 1px solid var(--ops-border) !important;
+    color: var(--ops-text-secondary) !important;
 }
 
 html.admin-shell-enabled .admin-sidebar-toggle.is-open {
-    box-shadow: 0 0 0 1px rgba(162, 255, 0, 0.2);
+    background: var(--ops-lime-soft) !important;
+    border-color: rgba(63, 159, 110, 0.35) !important;
+    color: var(--ops-accent-bright) !important;
 }
 
-/* ——— Cabeceras de módulo: jerarquía visual fuerte ——— */
+/* ——— Sidebar oscuro (centro de operaciones) ——— */
+html.admin-shell-enabled .admin-sidebar {
+    background: linear-gradient(180deg, #0e1419 0%, var(--ops-sidebar-bg) 100%) !important;
+    border-right: 1px solid var(--ops-sidebar-border) !important;
+    backdrop-filter: none !important;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15) !important;
+}
+
+html.admin-shell-enabled .admin-sidebar-brand {
+    border-bottom: 1px solid var(--ops-sidebar-border) !important;
+    background: rgba(63, 159, 110, 0.06) !important;
+}
+
+html.admin-shell-enabled .admin-sidebar-brand-name {
+    color: #b8e86a !important;
+    letter-spacing: 0.12em !important;
+}
+
+html.admin-shell-enabled .admin-sidebar-brand-sub {
+    color: rgba(255, 255, 255, 0.45) !important;
+}
+
+html.admin-shell-enabled .admin-sidebar-search input {
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: #f1f5f9 !important;
+}
+
+html.admin-shell-enabled .admin-nav-group-label {
+    color: rgba(255, 255, 255, 0.35) !important;
+    letter-spacing: 0.14em !important;
+}
+
+html.admin-shell-enabled .admin-nav-item {
+    color: rgba(255, 255, 255, 0.62) !important;
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+}
+
+html.admin-shell-enabled .admin-nav-item:hover {
+    background: rgba(255, 255, 255, 0.06) !important;
+    color: #f8fafc !important;
+}
+
+html.admin-shell-enabled .admin-nav-item.is-active {
+    background: rgba(63, 159, 110, 0.18) !important;
+    color: #b8e86a !important;
+}
+
+html.admin-shell-enabled .admin-nav-item.is-active::before {
+    background: #b8e86a !important;
+}
+
+html.admin-shell-enabled .admin-nav-badge {
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+
+html.admin-shell-enabled .admin-nav-badge.has-items {
+    background: rgba(239, 68, 68, 0.25) !important;
+    color: #fecaca !important;
+}
+
+html.admin-shell-enabled .admin-sidebar-footer button {
+    background: rgba(255, 255, 255, 0.04) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    color: rgba(255, 255, 255, 0.55) !important;
+}
+
+/* ——— Área principal clara ——— */
+html.admin-shell-enabled .admin-main {
+    background: var(--ops-bg) !important;
+}
+
+html.admin-shell-enabled .admin-container {
+    max-width: 1320px !important;
+    padding: 24px 28px 56px !important;
+    background: transparent !important;
+}
+
+html.admin-shell-enabled .admin-is-loading #admin-loader {
+    background: var(--ops-bg) !important;
+    backdrop-filter: none !important;
+}
+
+html.admin-shell-enabled .ruana-loader-title {
+    color: var(--ops-text-muted) !important;
+}
+
+/* ——— Cabeceras de módulo (hero) ——— */
 html.admin-shell-enabled .admin-module-header {
-    position: relative;
-    margin-bottom: 28px !important;
-    padding: var(--admin-ops-header-pad) !important;
-    border-radius: var(--admin-ops-header-radius) !important;
-    border: 1px solid rgba(255, 255, 255, 0.08) !important;
-    background: linear-gradient(
-        155deg,
-        rgba(255, 255, 255, 0.05) 0%,
-        rgba(255, 255, 255, 0.015) 55%,
-        rgba(0, 0, 0, 0.12) 100%
-    ) !important;
-    overflow: hidden;
+    position: relative !important;
+    margin-bottom: 24px !important;
+    padding: 24px 28px 22px 32px !important;
+    border-radius: var(--ops-radius-lg) !important;
+    border: 1px solid var(--ops-border) !important;
+    background: var(--ops-surface) !important;
+    box-shadow: var(--ops-shadow-md) !important;
+    overflow: hidden !important;
 }
 
 html.admin-shell-enabled .admin-module-header::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 4px;
-    background: var(--mod-accent, var(--admin-accent, #a2ff00));
-    border-radius: 4px 0 0 4px;
+    content: "" !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    width: 4px !important;
+    background: var(--mod-accent, var(--ops-accent-bright)) !important;
+    border-radius: 4px 0 0 4px !important;
 }
 
 html.admin-shell-enabled .admin-module-header::after {
-    content: "";
-    position: absolute;
-    top: -40%;
-    right: -5%;
-    width: 220px;
-    height: 220px;
-    border-radius: 50%;
-    background: radial-gradient(
-        circle,
-        var(--mod-glow, rgba(162, 255, 0, 0.1)) 0%,
-        transparent 70%
-    );
-    pointer-events: none;
+    content: "" !important;
+    position: absolute !important;
+    top: -30% !important;
+    right: -2% !important;
+    width: 200px !important;
+    height: 200px !important;
+    border-radius: 50% !important;
+    background: radial-gradient(circle, var(--mod-glow, var(--ops-lime-soft)) 0%, transparent 70%) !important;
+    pointer-events: none !important;
 }
 
 html.admin-shell-enabled .admin-module-kicker {
     display: inline-flex !important;
-    align-items: center;
-    gap: 8px;
+    align-items: center !important;
     margin: 0 0 10px !important;
     padding: 4px 10px !important;
     border-radius: 6px !important;
-    font-size: 0.68rem !important;
+    font-size: 0.65rem !important;
     font-weight: 800 !important;
-    letter-spacing: 0.16em !important;
+    letter-spacing: 0.14em !important;
     text-transform: uppercase !important;
-    color: var(--mod-accent, rgba(162, 255, 0, 0.9)) !important;
-    background: var(--mod-glow, rgba(162, 255, 0, 0.1)) !important;
-    border: 1px solid color-mix(in srgb, var(--mod-accent, #a2ff00) 25%, transparent) !important;
-    width: fit-content;
+    color: var(--mod-accent, var(--ops-accent-bright)) !important;
+    background: var(--mod-glow, var(--ops-lime-soft)) !important;
+    border: 1px solid color-mix(in srgb, var(--mod-accent, #3f9f6e) 20%, transparent) !important;
 }
 
 html.admin-shell-enabled .admin-module-title {
-    position: relative;
-    z-index: 1;
-    font-size: clamp(1.75rem, 3vw, 2.35rem) !important;
+    position: relative !important;
+    z-index: 1 !important;
+    margin: 0 !important;
+    font-size: clamp(1.65rem, 2.8vw, 2.1rem) !important;
     font-weight: 800 !important;
-    letter-spacing: -0.035em !important;
-    line-height: 1.1 !important;
-    color: #f8faf6 !important;
+    letter-spacing: -0.03em !important;
+    line-height: 1.15 !important;
+    color: var(--ops-text) !important;
 }
 
 html.admin-shell-enabled .admin-module-subtitle {
-    position: relative;
-    z-index: 1;
-    margin-top: 10px;
-    font-size: 0.94rem;
-    line-height: 1.55;
-    color: rgba(201, 184, 150, 0.75);
-    max-width: 60ch;
+    position: relative !important;
+    z-index: 1 !important;
+    margin: 8px 0 0 !important;
+    font-size: 0.92rem !important;
+    line-height: 1.5 !important;
+    color: var(--ops-text-muted) !important;
 }
 
 /* Identidad por módulo */
-html.admin-shell-enabled .admin-module[data-admin-module="resumen"] {
-    --mod-accent: var(--mod-resumen-accent);
-    --mod-glow: var(--mod-resumen-glow);
-}
+html.admin-shell-enabled .admin-module[data-admin-module="resumen"] { --mod-accent: var(--mod-resumen-accent); --mod-glow: var(--mod-resumen-glow); }
+html.admin-shell-enabled .admin-module[data-admin-module="red"] { --mod-accent: var(--mod-red-accent); --mod-glow: var(--mod-red-glow); }
+html.admin-shell-enabled .admin-module[data-admin-module="grupos-cp"] { --mod-accent: var(--mod-territorio-accent); --mod-glow: var(--mod-territorio-glow); }
+html.admin-shell-enabled .admin-module[data-admin-module="solicitudes"] { --mod-accent: var(--mod-demanda-accent); --mod-glow: var(--mod-demanda-glow); }
+html.admin-shell-enabled .admin-module[data-admin-module="trabajos"] { --mod-accent: var(--mod-ops-accent); --mod-glow: var(--mod-ops-glow); }
+html.admin-shell-enabled .admin-module[data-admin-module="pagos"] { --mod-accent: var(--mod-finanzas-accent); --mod-glow: var(--mod-finanzas-glow); }
+html.admin-shell-enabled .admin-module[data-admin-module="scores"] { --mod-accent: var(--mod-rendimiento-accent); --mod-glow: var(--mod-rendimiento-glow); }
+html.admin-shell-enabled .admin-module[data-admin-module="competencia"] { --mod-accent: var(--mod-cobertura-accent); --mod-glow: var(--mod-cobertura-glow); }
+html.admin-shell-enabled .admin-module[data-admin-module="comunicaciones"] { --mod-accent: var(--mod-comunicacion-accent); --mod-glow: var(--mod-comunicacion-glow); }
+html.admin-shell-enabled .admin-module[data-admin-module="incidencias"] { --mod-accent: var(--mod-atencion-accent); --mod-glow: var(--mod-atencion-glow); }
+html.admin-shell-enabled .admin-module[data-admin-module="intelligence"] { --mod-accent: var(--mod-analisis-accent); --mod-glow: var(--mod-analisis-glow); }
+html.admin-shell-enabled .admin-module[data-admin-module="sistema"] { --mod-accent: var(--mod-sistema-accent); --mod-glow: var(--mod-sistema-glow); }
 
-html.admin-shell-enabled .admin-module[data-admin-module="red"] {
-    --mod-accent: var(--mod-red-accent);
-    --mod-glow: var(--mod-red-glow);
-}
-
-html.admin-shell-enabled .admin-module[data-admin-module="grupos-cp"] {
-    --mod-accent: var(--mod-territorio-accent);
-    --mod-glow: var(--mod-territorio-glow);
-}
-
-html.admin-shell-enabled .admin-module[data-admin-module="solicitudes"] {
-    --mod-accent: var(--mod-demanda-accent);
-    --mod-glow: var(--mod-demanda-glow);
-}
-
-html.admin-shell-enabled .admin-module[data-admin-module="trabajos"] {
-    --mod-accent: var(--mod-ops-accent);
-    --mod-glow: var(--mod-ops-glow);
-}
-
-html.admin-shell-enabled .admin-module[data-admin-module="pagos"] {
-    --mod-accent: var(--mod-finanzas-accent);
-    --mod-glow: var(--mod-finanzas-glow);
-}
-
-html.admin-shell-enabled .admin-module[data-admin-module="scores"] {
-    --mod-accent: var(--mod-rendimiento-accent);
-    --mod-glow: var(--mod-rendimiento-glow);
-}
-
-html.admin-shell-enabled .admin-module[data-admin-module="competencia"] {
-    --mod-accent: var(--mod-cobertura-accent);
-    --mod-glow: var(--mod-cobertura-glow);
-}
-
-html.admin-shell-enabled .admin-module[data-admin-module="comunicaciones"] {
-    --mod-accent: var(--mod-comunicacion-accent);
-    --mod-glow: var(--mod-comunicacion-glow);
-}
-
-html.admin-shell-enabled .admin-module[data-admin-module="incidencias"] {
-    --mod-accent: var(--mod-atencion-accent);
-    --mod-glow: var(--mod-atencion-glow);
-}
-
-html.admin-shell-enabled .admin-module[data-admin-module="intelligence"] {
-    --mod-accent: var(--mod-analisis-accent);
-    --mod-glow: var(--mod-analisis-glow);
-}
-
-html.admin-shell-enabled .admin-module[data-admin-module="sistema"] {
-    --mod-accent: var(--mod-sistema-accent);
-    --mod-glow: var(--mod-sistema-glow);
-}
-
-/* ——— Subsecciones dentro de módulos ——— */
-html.admin-shell-enabled .admin-section-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-    flex-wrap: wrap;
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-html.admin-shell-enabled .admin-section-header .seccion-titulo {
-    font-size: 1.12rem !important;
-    font-weight: 700 !important;
-    letter-spacing: -0.02em !important;
-    color: #f0f2ee !important;
-}
-
-html.admin-shell-enabled .seccion-titulo:not(.admin-section-header .seccion-titulo) {
-    font-size: 0.78rem !important;
-    font-weight: 700 !important;
-    letter-spacing: 0.12em !important;
-    text-transform: uppercase !important;
-    color: rgba(201, 184, 150, 0.7) !important;
-    margin-bottom: 14px !important;
-    padding-left: 12px;
-    border-left: 2px solid rgba(162, 255, 0, 0.35);
-}
-
-/* ——— Command Center: centro de control ——— */
+/* ——— Command Center ——— */
 html.admin-shell-enabled .command-center {
-    margin-bottom: 8px;
+    margin-bottom: 20px !important;
 }
 
 html.admin-shell-enabled .cc-header {
-    padding: 4px 0 8px;
+    padding: 20px 24px !important;
+    margin-bottom: 20px !important;
+    border-radius: var(--ops-radius-lg) !important;
+    border: 1px solid var(--ops-border) !important;
+    background: var(--ops-surface) !important;
+    box-shadow: var(--ops-shadow-md) !important;
 }
 
 html.admin-shell-enabled .cc-kicker {
-    display: inline-flex;
-    padding: 4px 10px;
-    border-radius: 6px;
-    background: rgba(162, 255, 0, 0.1);
-    border: 1px solid rgba(162, 255, 0, 0.2);
-    color: #a2ff00;
-    letter-spacing: 0.16em;
+    display: inline-flex !important;
+    padding: 4px 10px !important;
+    margin-bottom: 8px !important;
+    border-radius: 6px !important;
+    background: var(--ops-lime-soft) !important;
+    border: 1px solid rgba(63, 159, 110, 0.2) !important;
+    color: var(--ops-accent-bright) !important;
+    font-size: 0.65rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.14em !important;
 }
 
 html.admin-shell-enabled .cc-title {
-    font-size: clamp(1.8rem, 3.2vw, 2.4rem);
-    background: linear-gradient(180deg, #f8faf6 0%, #d4e8c8 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    font-size: clamp(1.6rem, 2.8vw, 2rem) !important;
+    font-weight: 800 !important;
+    color: var(--ops-text) !important;
+    letter-spacing: -0.03em !important;
+    background: none !important;
+    -webkit-text-fill-color: unset !important;
+}
+
+html.admin-shell-enabled .cc-lead {
+    color: var(--ops-text-muted) !important;
+    font-size: 0.9rem !important;
 }
 
 html.admin-shell-enabled .cc-health-pill {
-    font-weight: 700;
-    letter-spacing: 0.03em;
-    box-shadow: 0 0 20px rgba(94, 207, 154, 0.15);
+    background: rgba(21, 128, 61, 0.08) !important;
+    border: 1px solid rgba(21, 128, 61, 0.25) !important;
+    color: var(--ops-success) !important;
+    font-weight: 700 !important;
+    box-shadow: none !important;
+}
+
+html.admin-shell-enabled .cc-health-pill.is-warn {
+    background: rgba(180, 83, 9, 0.08) !important;
+    border-color: rgba(180, 83, 9, 0.25) !important;
+    color: var(--ops-warn) !important;
+}
+
+html.admin-shell-enabled .cc-health-pill.is-critical {
+    background: rgba(185, 28, 28, 0.08) !important;
+    border-color: rgba(185, 28, 28, 0.25) !important;
+    color: var(--ops-danger) !important;
+}
+
+html.admin-shell-enabled .cc-kpi-strip {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)) !important;
+    gap: 12px !important;
+    margin-bottom: 20px !important;
 }
 
 html.admin-shell-enabled .cc-kpi {
-    border-radius: 16px;
-    background: linear-gradient(
-        165deg,
-        rgba(16, 20, 17, 0.95) 0%,
-        rgba(9, 12, 10, 0.88) 100%
-    );
-    position: relative;
-    overflow: hidden;
+    padding: 16px 18px !important;
+    border-radius: var(--ops-radius) !important;
+    border: 1px solid var(--ops-border) !important;
+    background: var(--ops-surface) !important;
+    box-shadow: var(--ops-shadow-sm) !important;
+    cursor: pointer !important;
+    transition: box-shadow 160ms ease, border-color 160ms ease, transform 160ms ease !important;
 }
 
-html.admin-shell-enabled .cc-kpi::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(
-        90deg,
-        transparent,
-        rgba(162, 255, 0, 0.2) 50%,
-        transparent
-    );
+html.admin-shell-enabled .cc-kpi:hover {
+    border-color: rgba(63, 159, 110, 0.35) !important;
+    box-shadow: var(--ops-shadow-md) !important;
+    transform: translateY(-1px) !important;
+}
+
+html.admin-shell-enabled .cc-kpi.is-warn {
+    border-color: rgba(180, 83, 9, 0.3) !important;
+    background: #fffbeb !important;
 }
 
 html.admin-shell-enabled .cc-kpi-value {
-    font-size: 1.6rem;
-    font-variant-numeric: tabular-nums;
+    font-size: 1.55rem !important;
+    font-weight: 800 !important;
+    color: var(--ops-text) !important;
+    font-variant-numeric: tabular-nums !important;
+}
+
+html.admin-shell-enabled .cc-kpi-label {
+    color: var(--ops-text-muted) !important;
+    font-size: 0.72rem !important;
+    font-weight: 600 !important;
+}
+
+html.admin-shell-enabled .cc-kpi-sub {
+    color: var(--ops-text-faint) !important;
 }
 
 html.admin-shell-enabled .cc-card,
 html.admin-shell-enabled .cc-aside-block {
-    border-radius: 16px;
-    background: linear-gradient(
-        165deg,
-        rgba(14, 17, 15, 0.9) 0%,
-        rgba(9, 11, 10, 0.85) 100%
-    );
+    border-radius: var(--ops-radius) !important;
+    border: 1px solid var(--ops-border) !important;
+    background: var(--ops-surface) !important;
+    box-shadow: var(--ops-shadow-sm) !important;
+    backdrop-filter: none !important;
+}
+
+html.admin-shell-enabled .cc-card h3,
+html.admin-shell-enabled .cc-chart-title {
+    color: var(--ops-text) !important;
+}
+
+html.admin-shell-enabled .cc-chart-sub,
+html.admin-shell-enabled .cc-chart-label {
+    color: var(--ops-text-faint) !important;
+    fill: var(--ops-text-faint) !important;
+}
+
+html.admin-shell-enabled .cc-donut-center {
+    fill: var(--ops-text) !important;
+}
+
+html.admin-shell-enabled .cc-aside-block h3 {
+    color: var(--ops-text-muted) !important;
+}
+
+html.admin-shell-enabled .cc-alert-warn { background: #fffbeb !important; color: #92400e !important; }
+html.admin-shell-enabled .cc-alert-danger { background: #fef2f2 !important; color: #991b1b !important; }
+html.admin-shell-enabled .cc-alert-info { background: #eff6ff !important; color: #1e40af !important; }
+html.admin-shell-enabled .cc-alert-ok { background: #f0fdf4 !important; color: #166534 !important; }
+
+html.admin-shell-enabled .cc-aside-list li {
+    color: var(--ops-text-muted) !important;
+}
+
+html.admin-shell-enabled .cc-aside-link:hover {
+    color: var(--ops-accent-bright) !important;
 }
 
 html.admin-shell-enabled .cc-feed-item {
-    padding: 10px 0;
-    transition: padding-left 140ms ease;
+    border-bottom-color: var(--ops-border) !important;
+    color: var(--ops-text-muted) !important;
 }
 
-html.admin-shell-enabled .cc-feed-item:hover {
-    padding-left: 4px;
+html.admin-shell-enabled .cc-feed-tag {
+    color: var(--ops-accent-bright) !important;
 }
 
-/* ——— Estado global y movimiento ——— */
+/* ——— Estado global (legacy, si visible) ——— */
 html.admin-shell-enabled .estado-global {
-    border-radius: 20px !important;
-    border: 1px solid rgba(201, 184, 150, 0.1) !important;
-    background: linear-gradient(
-        165deg,
-        rgba(14, 18, 15, 0.92) 0%,
-        rgba(9, 12, 10, 0.85) 100%
-    ) !important;
+    border-radius: var(--ops-radius-lg) !important;
+    border: 1px solid var(--ops-border) !important;
+    background: var(--ops-surface) !important;
+    box-shadow: var(--ops-shadow-md) !important;
     padding: 24px !important;
     backdrop-filter: none !important;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28) !important;
 }
 
 html.admin-shell-enabled .estado-titulo {
+    color: var(--ops-text-muted) !important;
     font-size: 0.72rem !important;
-    letter-spacing: 0.14em !important;
+    letter-spacing: 0.12em !important;
     text-transform: uppercase !important;
-    color: rgba(201, 184, 150, 0.65) !important;
-    font-weight: 700 !important;
-}
-
-html.admin-shell-enabled .estado-sistema {
-    font-size: 0.82rem !important;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
 html.admin-shell-enabled .estado-sistema.estable {
-    background: rgba(94, 207, 154, 0.12) !important;
-    color: #5ecf9a !important;
-    border-color: rgba(94, 207, 154, 0.35) !important;
+    background: #f0fdf4 !important;
+    color: var(--ops-success) !important;
+    border: 1px solid rgba(21, 128, 61, 0.25) !important;
 }
 
 html.admin-shell-enabled .estado-sistema.alerta {
-    background: rgba(232, 196, 104, 0.12) !important;
-    color: #e8c468 !important;
-    border-color: rgba(232, 196, 104, 0.35) !important;
+    background: #fffbeb !important;
+    color: var(--ops-warn) !important;
+    border: 1px solid rgba(180, 83, 9, 0.25) !important;
 }
 
 html.admin-shell-enabled .estado-sistema.crítico {
-    background: rgba(212, 146, 110, 0.14) !important;
-    color: #d4926e !important;
-    border-color: rgba(212, 146, 110, 0.4) !important;
+    background: #fef2f2 !important;
+    color: var(--ops-danger) !important;
+    border: 1px solid rgba(185, 28, 28, 0.25) !important;
+}
+
+html.admin-shell-enabled .indicadores-grid {
+    gap: 12px !important;
 }
 
 html.admin-shell-enabled .indicador-card {
-    border-radius: 16px !important;
-    background: linear-gradient(
-        165deg,
-        rgba(255, 255, 255, 0.06) 0%,
-        rgba(255, 255, 255, 0.02) 100%
-    ) !important;
+    border-radius: var(--ops-radius) !important;
+    border: 1px solid var(--ops-border) !important;
+    background: var(--ops-surface-raised) !important;
+    box-shadow: var(--ops-shadow-sm) !important;
     backdrop-filter: none !important;
 }
 
-html.admin-shell-enabled .indicador-numero {
-    font-variant-numeric: tabular-nums;
+html.admin-shell-enabled .indicador-card:hover {
+    border-color: rgba(63, 159, 110, 0.3) !important;
+    transform: translateY(-2px) !important;
 }
 
+html.admin-shell-enabled .indicador-numero {
+    color: var(--ops-accent-bright) !important;
+    background: none !important;
+    -webkit-text-fill-color: unset !important;
+    font-variant-numeric: tabular-nums !important;
+}
+
+html.admin-shell-enabled .indicador-label {
+    color: var(--ops-text-muted) !important;
+}
+
+html.admin-shell-enabled .indicador-desglose {
+    color: var(--ops-text-faint) !important;
+}
+
+html.admin-shell-enabled .indicador-card.tiene-pendientes {
+    border-color: rgba(180, 83, 9, 0.35) !important;
+    background: #fffbeb !important;
+}
+
+html.admin-shell-enabled .indicador-card.tiene-pendientes .indicador-numero {
+    color: var(--ops-warn) !important;
+}
+
+/* ——— Movimiento y secciones ——— */
 html.admin-shell-enabled .movimiento-sistema {
-    border-radius: 20px;
-    padding: 24px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    background: rgba(10, 13, 11, 0.5);
+    border-radius: var(--ops-radius-lg) !important;
+    border: 1px solid var(--ops-border) !important;
+    background: var(--ops-surface) !important;
+    box-shadow: var(--ops-shadow-sm) !important;
+    padding: 24px !important;
 }
 
 html.admin-shell-enabled .movimiento-card {
-    border-radius: 14px !important;
-    background: rgba(255, 255, 255, 0.03) !important;
-    border: 1px solid rgba(255, 255, 255, 0.07) !important;
+    border-radius: var(--ops-radius) !important;
+    border: 1px solid var(--ops-border) !important;
+    background: var(--ops-surface-raised) !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
 }
 
 html.admin-shell-enabled .movimiento-card h4 {
-    color: rgba(201, 184, 150, 0.8) !important;
+    color: var(--ops-text-muted) !important;
     font-size: 0.72rem !important;
     letter-spacing: 0.1em !important;
 }
 
+html.admin-shell-enabled .stat-label {
+    color: var(--ops-text-muted) !important;
+}
+
 html.admin-shell-enabled .stat-value {
-    font-variant-numeric: tabular-nums;
-    color: #5ecf9a !important;
+    color: var(--ops-success) !important;
+    font-variant-numeric: tabular-nums !important;
 }
 
-/* ——— Red de aliados ——— */
-html.admin-shell-enabled .admin-module[data-admin-module="red"] .red-explorer-tabs {
-    padding: 6px;
-    border-radius: 14px;
-    background: rgba(0, 0, 0, 0.2);
-    border: 1px solid rgba(94, 207, 154, 0.12);
+html.admin-shell-enabled .stat-value.warning { color: var(--ops-warn) !important; }
+html.admin-shell-enabled .stat-value.danger { color: var(--ops-danger) !important; }
+
+html.admin-shell-enabled .seccion-titulo {
+    color: var(--ops-text) !important;
+    font-size: 0.78rem !important;
+    letter-spacing: 0.1em !important;
+    border-left: 3px solid var(--ops-accent-bright) !important;
+    padding-left: 12px !important;
 }
 
-html.admin-shell-enabled .admin-module[data-admin-module="red"] .red-tab.is-active {
-    background: rgba(94, 207, 154, 0.14);
-    border-color: rgba(94, 207, 154, 0.35);
-    color: #5ecf9a;
-    box-shadow: 0 2px 12px rgba(94, 207, 154, 0.1);
+html.admin-shell-enabled .admin-section-header {
+    border-bottom: 1px solid var(--ops-border) !important;
+    margin-bottom: 16px !important;
+    padding-bottom: 12px !important;
 }
 
-html.admin-shell-enabled .admin-module[data-admin-module="red"] .aliados-jerarquia-nav {
-    border-color: rgba(94, 207, 154, 0.15) !important;
+html.admin-shell-enabled .admin-section-header .seccion-titulo {
+    font-size: 1.1rem !important;
+    letter-spacing: -0.02em !important;
+    text-transform: none !important;
+    border-left: none !important;
+    padding-left: 0 !important;
+    color: var(--ops-text) !important;
 }
 
-html.admin-shell-enabled .admin-module[data-admin-module="red"] .referidos-tree-panel,
-html.admin-shell-enabled .admin-module[data-admin-module="red"] .referidos-explorer-toolbar {
-    border-color: rgba(94, 207, 154, 0.12);
+html.admin-shell-enabled .admin-subtitle {
+    color: var(--ops-text-muted) !important;
 }
 
-html.admin-shell-enabled .admin-module[data-admin-module="red"] .referidos-explorer-stage {
-    border-radius: 16px;
-    border: 1px solid rgba(94, 207, 154, 0.1);
-    background: rgba(7, 11, 10, 0.4);
-}
-
-/* ——— Finanzas / pagos: estética seria ——— */
-html.admin-shell-enabled .admin-module[data-admin-module="pagos"] .admin-module-header {
-    background: linear-gradient(
-        155deg,
-        rgba(30, 26, 20, 0.6) 0%,
-        rgba(12, 11, 10, 0.85) 100%
-    );
-    border-color: rgba(212, 196, 168, 0.15);
-}
-
-html.admin-shell-enabled .admin-module[data-admin-module="pagos"] #conflictos-pago-wrap,
-html.admin-shell-enabled .admin-module[data-admin-module="pagos"] #pagos-en-revision-wrap {
-    border-left: 3px solid rgba(212, 146, 110, 0.5);
-    padding-left: 16px;
-    margin-left: 2px;
-}
-
-html.admin-shell-enabled .admin-module[data-admin-module="pagos"] .estado-pago-badge {
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    font-size: 0.68rem !important;
-}
-
-html.admin-shell-enabled .admin-module[data-admin-module="pagos"] .conflicto-card,
-html.admin-shell-enabled .admin-module[data-admin-module="pagos"] .pago-card {
-    border-color: rgba(212, 196, 168, 0.12) !important;
-}
-
-/* ——— Scores y rendimiento ——— */
-html.admin-shell-enabled .admin-module[data-admin-module="scores"] .score-stat-card {
-    padding: 18px 16px;
-    border-radius: 14px;
-    background: linear-gradient(
-        165deg,
-        rgba(255, 255, 255, 0.05) 0%,
-        rgba(255, 255, 255, 0.015) 100%
-    );
-    transition: transform 160ms ease, border-color 160ms ease;
-}
-
-html.admin-shell-enabled .admin-module[data-admin-module="scores"] .score-stat-card:hover {
-    transform: translateY(-2px);
-    border-color: rgba(184, 232, 106, 0.3);
-}
-
-html.admin-shell-enabled .admin-module[data-admin-module="scores"] .score-stat-card strong {
-    font-size: 1.65rem;
-    font-variant-numeric: tabular-nums;
-    background: linear-gradient(180deg, #e8f5d0 0%, #b8e86a 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
-
-html.admin-shell-enabled .aliado-estado-badge {
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    font-size: 0.65rem !important;
-    padding: 5px 10px !important;
-    border-radius: 999px !important;
-}
-
-html.admin-shell-enabled .aliado-estado-badge.observacion,
-html.admin-shell-enabled .aliado-estado-badge.pendientes {
-    background: rgba(232, 196, 104, 0.16) !important;
-    color: #e8c468 !important;
-    border-color: rgba(232, 196, 104, 0.3) !important;
-}
-
-html.admin-shell-enabled .aliado-estado-badge.riesgo {
-    background: rgba(212, 146, 110, 0.18) !important;
-    color: #d4926e !important;
-    border-color: rgba(212, 146, 110, 0.35) !important;
-    box-shadow: 0 0 12px rgba(212, 146, 110, 0.15);
-}
-
-html.admin-shell-enabled .aliado-estado-badge:not(.observacion):not(.pendientes):not(.riesgo) {
-    background: rgba(94, 207, 154, 0.14) !important;
-    color: #5ecf9a !important;
-    border-color: rgba(94, 207, 154, 0.3) !important;
-}
-
-/* ——— Tablas y datos ——— */
+/* ——— Tablas ——— */
 html.admin-shell-enabled .movimiento-24h-tabla-scroll,
 html.admin-shell-enabled .tabla-scroll,
-html.admin-shell-enabled .admin-tabla-wrap {
-    border-radius: 16px !important;
-    border: 1px solid rgba(201, 184, 150, 0.1) !important;
-    background: rgba(7, 9, 8, 0.55) !important;
+html.admin-shell-enabled .admin-tabla-wrap,
+html.admin-shell-enabled .aliados-tabla-wrap {
+    border-radius: var(--ops-radius) !important;
+    border: 1px solid var(--ops-border) !important;
+    background: var(--ops-surface) !important;
+    backdrop-filter: none !important;
 }
 
 html.admin-shell-enabled table th {
+    background: var(--ops-bg) !important;
+    color: var(--ops-text-muted) !important;
     font-size: 0.68rem !important;
-    letter-spacing: 0.1em !important;
-    color: rgba(201, 184, 150, 0.65) !important;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+    letter-spacing: 0.08em !important;
+    border-bottom: 1px solid var(--ops-border) !important;
 }
 
-html.admin-shell-enabled table tbody tr {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+html.admin-shell-enabled table td {
+    color: var(--ops-text-secondary) !important;
+    border-bottom: 1px solid var(--ops-border) !important;
 }
 
 html.admin-shell-enabled table tbody tr:hover {
-    background: rgba(162, 255, 0, 0.04) !important;
+    background: rgba(63, 159, 110, 0.04) !important;
+}
+
+html.admin-shell-enabled table tbody tr.is-selected {
+    background: rgba(63, 159, 110, 0.08) !important;
+}
+
+html.admin-shell-enabled .movimiento-24h-tabla-scroll table thead th,
+html.admin-shell-enabled .tabla-scroll table thead th {
+    background: var(--ops-bg) !important;
 }
 
 /* ——— Tarjetas de entidades ——— */
@@ -661,126 +647,308 @@ html.admin-shell-enabled .aliado-admin-card,
 html.admin-shell-enabled .cp-card,
 html.admin-shell-enabled .grupo-card,
 html.admin-shell-enabled .pendiente-card,
+html.admin-shell-enabled .conflicto-card,
+html.admin-shell-enabled .pago-card,
 html.admin-shell-enabled .solicitud-admin-card,
 html.admin-shell-enabled .competencia-card,
-html.admin-shell-enabled .conversacion-card {
-    border-radius: 16px !important;
+html.admin-shell-enabled .suplente-card,
+html.admin-shell-enabled .conversacion-card,
+html.admin-shell-enabled .grupos-cp-card,
+html.admin-shell-enabled .oficio-card {
+    border-radius: var(--ops-radius) !important;
+    border: 1px solid var(--ops-border) !important;
+    background: var(--ops-surface) !important;
+    box-shadow: var(--ops-shadow-sm) !important;
+    backdrop-filter: none !important;
 }
 
-html.admin-shell-enabled .aliado-admin-card .aliado-nombre-admin {
-    font-weight: 700;
-    letter-spacing: -0.01em;
+html.admin-shell-enabled .aliado-admin-card:hover,
+html.admin-shell-enabled .cp-card:hover,
+html.admin-shell-enabled .grupo-card:hover,
+html.admin-shell-enabled .pendiente-card:hover,
+html.admin-shell-enabled .grupos-cp-card:hover {
+    border-color: rgba(63, 159, 110, 0.35) !important;
+    box-shadow: var(--ops-shadow-md) !important;
+    transform: translateY(-2px) !important;
 }
 
-/* ——— Intelligence ——— */
-html.admin-shell-enabled .admin-module[data-admin-module="intelligence"] .intel-grid .cc-card {
-    border-color: rgba(155, 143, 212, 0.15);
+html.admin-shell-enabled .aliado-nombre-admin,
+html.admin-shell-enabled .grupos-cp-card h4 {
+    color: var(--ops-text) !important;
 }
 
-html.admin-shell-enabled .metricas-salud {
-    border-radius: 20px !important;
-    border: 1px solid rgba(155, 143, 212, 0.12) !important;
+html.admin-shell-enabled .grupos-cp-card h4 {
+    color: var(--ops-accent-bright) !important;
+}
+
+html.admin-shell-enabled .grupos-cp-meta,
+html.admin-shell-enabled .info-label {
+    color: var(--ops-text-muted) !important;
+}
+
+html.admin-shell-enabled .info-value {
+    color: var(--ops-text-secondary) !important;
+}
+
+/* ——— Badges de estado RUANA ——— */
+html.admin-shell-enabled .aliado-estado-badge {
+    border-radius: 999px !important;
+    font-size: 0.62rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.06em !important;
+    text-transform: uppercase !important;
+    padding: 4px 10px !important;
+}
+
+html.admin-shell-enabled .aliado-estado-badge:not(.observacion):not(.pendientes):not(.riesgo) {
+    background: #f0fdf4 !important;
+    color: #166534 !important;
+    border: 1px solid rgba(21, 128, 61, 0.2) !important;
+}
+
+html.admin-shell-enabled .aliado-estado-badge.observacion,
+html.admin-shell-enabled .aliado-estado-badge.pendientes {
+    background: #fffbeb !important;
+    color: #92400e !important;
+    border: 1px solid rgba(180, 83, 9, 0.2) !important;
+}
+
+html.admin-shell-enabled .aliado-estado-badge.riesgo {
+    background: #fef2f2 !important;
+    color: #991b1b !important;
+    border: 1px solid rgba(185, 28, 28, 0.2) !important;
+}
+
+html.admin-shell-enabled .estado-pago-badge {
+    font-weight: 700 !important;
+    font-size: 0.68rem !important;
+    letter-spacing: 0.04em !important;
+    text-transform: uppercase !important;
+    border-radius: 6px !important;
+}
+
+/* ——— Scores ——— */
+html.admin-shell-enabled .admin-module[data-admin-module="scores"] .score-stat-card {
+    border-radius: var(--ops-radius) !important;
+    border: 1px solid var(--ops-border) !important;
+    background: var(--ops-surface) !important;
+    box-shadow: var(--ops-shadow-sm) !important;
+    padding: 18px !important;
+}
+
+html.admin-shell-enabled .admin-module[data-admin-module="scores"] .score-stat-card strong {
+    font-size: 1.6rem !important;
+    color: var(--ops-text) !important;
+    background: none !important;
+    -webkit-text-fill-color: unset !important;
+}
+
+html.admin-shell-enabled .admin-module[data-admin-module="scores"] .score-stat-card span {
+    color: var(--ops-text-muted) !important;
+}
+
+/* ——— Red / árbol (panel oscuro embebido) ——— */
+html.admin-shell-enabled .admin-module[data-admin-module="red"] .red-explorer-tabs {
+    padding: 6px !important;
+    border-radius: 12px !important;
+    background: var(--ops-bg) !important;
+    border: 1px solid var(--ops-border) !important;
+}
+
+html.admin-shell-enabled .admin-module[data-admin-module="red"] .red-tab {
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    color: var(--ops-text-muted) !important;
+}
+
+html.admin-shell-enabled .admin-module[data-admin-module="red"] .red-tab.is-active {
+    background: var(--ops-surface) !important;
+    border-color: var(--ops-border) !important;
+    color: var(--ops-accent-bright) !important;
+    box-shadow: var(--ops-shadow-sm) !important;
+}
+
+html.admin-shell-enabled .admin-module[data-admin-module="red"] .referidos-explorer-stage,
+html.admin-shell-enabled .admin-module[data-admin-module="red"] .referidos-tree-panel,
+html.admin-shell-enabled .admin-module[data-admin-module="red"] .aliados-jerarquia-nav {
+    background: #0f1419 !important;
+    border-color: #1e293b !important;
+    border-radius: var(--ops-radius) !important;
+}
+
+html.admin-shell-enabled .admin-module[data-admin-module="red"] .referidos-explorer-toolbar {
+    background: #141c24 !important;
+    border-color: #1e293b !important;
+}
+
+html.admin-shell-enabled .admin-module[data-admin-module="red"] .referidos-explorer-hint {
+    color: #94a3b8 !important;
+}
+
+/* ——— Formularios y filtros ——— */
+html.admin-shell-enabled input,
+html.admin-shell-enabled select,
+html.admin-shell-enabled textarea,
+html.admin-shell-enabled .admin-filter-row input,
+html.admin-shell-enabled .admin-filter-row select,
+html.admin-shell-enabled .filtros-aliados input,
+html.admin-shell-enabled .filtros-aliados select {
+    background: var(--ops-surface) !important;
+    border: 1px solid var(--ops-border) !important;
+    color: var(--ops-text) !important;
+    border-radius: 10px !important;
+}
+
+html.admin-shell-enabled input:focus,
+html.admin-shell-enabled select:focus,
+html.admin-shell-enabled textarea:focus {
+    border-color: rgba(63, 159, 110, 0.5) !important;
+    box-shadow: 0 0 0 3px rgba(63, 159, 110, 0.12) !important;
+    outline: none !important;
+}
+
+html.admin-shell-enabled .btn-filtro {
+    background: var(--ops-surface) !important;
+    border: 1px solid var(--ops-border) !important;
+    color: var(--ops-text-muted) !important;
+    border-radius: 10px !important;
+}
+
+html.admin-shell-enabled .btn-filtro.active {
+    background: var(--ops-lime-soft) !important;
+    border-color: rgba(63, 159, 110, 0.35) !important;
+    color: var(--ops-accent-bright) !important;
+}
+
+html.admin-shell-enabled .btn-accion,
+html.admin-shell-enabled .btn-admin-action,
+html.admin-shell-enabled .admin-section-btn {
+    border-radius: 10px !important;
+    background: var(--ops-surface) !important;
+    border: 1px solid var(--ops-border) !important;
+    color: var(--ops-text-secondary) !important;
+}
+
+html.admin-shell-enabled .btn-accion:hover,
+html.admin-shell-enabled .btn-admin-action:hover {
+    background: var(--ops-bg) !important;
+    border-color: var(--ops-border-strong) !important;
+    color: var(--ops-text) !important;
+}
+
+html.admin-shell-enabled .btn-accion.danger,
+html.admin-shell-enabled .btn-admin-action.danger,
+html.admin-shell-enabled .admin-section-btn.is-danger {
+    background: #fef2f2 !important;
+    border-color: rgba(185, 28, 28, 0.25) !important;
+    color: var(--ops-danger) !important;
+}
+
+/* ——— Métricas e intelligence ——— */
+html.admin-shell-enabled .metricas-salud,
+html.admin-shell-enabled .acciones-admin,
+html.admin-shell-enabled .eventos-trazabilidad {
+    border-radius: var(--ops-radius-lg) !important;
+    border: 1px solid var(--ops-border) !important;
+    background: var(--ops-surface) !important;
+    box-shadow: var(--ops-shadow-sm) !important;
+    backdrop-filter: none !important;
 }
 
 html.admin-shell-enabled .metrica-item {
-    border-radius: 14px !important;
-}
-
-/* ——— Configuración / sistema ——— */
-html.admin-shell-enabled .admin-module[data-admin-module="sistema"] .eventos-trazabilidad,
-html.admin-shell-enabled .admin-module[data-admin-module="sistema"] .acciones-admin {
-    border-radius: 18px !important;
+    border-radius: var(--ops-radius) !important;
+    border: 1px solid var(--ops-border) !important;
+    background: var(--ops-surface-raised) !important;
 }
 
 html.admin-shell-enabled .evento-item {
-    border-left-width: 3px !important;
-    border-left-color: rgba(162, 255, 0, 0.45) !important;
+    background: var(--ops-surface-raised) !important;
+    border: 1px solid var(--ops-border) !important;
+    border-left: 3px solid var(--ops-accent-bright) !important;
+    color: var(--ops-text-secondary) !important;
 }
 
-/* ——— Modales y login ——— */
-html.admin-shell-enabled .admin-login-card {
-    border-color: rgba(201, 184, 150, 0.15) !important;
+html.admin-shell-enabled .intel-metric-label {
+    color: var(--ops-text-faint) !important;
 }
 
-html.admin-shell-enabled .admin-login-btn.ruana-button {
-    background: linear-gradient(
-        180deg,
-        rgba(162, 255, 0, 0.95) 0%,
-        rgba(127, 204, 0, 0.95) 100%
-    ) !important;
-    color: #0a0c0a !important;
-    font-weight: 700 !important;
-    letter-spacing: 0.02em;
+/* ——— Bulk toolbar ——— */
+html.admin-shell-enabled .admin-bulk-toolbar {
+    border-radius: 12px !important;
+    border: 1px solid rgba(63, 159, 110, 0.25) !important;
+    background: var(--ops-lime-soft) !important;
+}
+
+html.admin-shell-enabled .admin-bulk-count {
+    color: var(--ops-accent-bright) !important;
+}
+
+/* ——— Modales (mantener oscuro para contraste) ——— */
+html.admin-shell-enabled .admin-login-modal:not(.hidden) {
+    background: rgba(15, 23, 42, 0.55) !important;
+    backdrop-filter: blur(8px) !important;
 }
 
 /* ——— Bottom nav móvil ——— */
 html.admin-shell-enabled .admin-shell-bottom {
-    background: linear-gradient(
-        180deg,
-        rgba(10, 13, 11, 0.98) 0%,
-        rgba(7, 9, 8, 1) 100%
-    );
-    border-top: 1px solid rgba(201, 184, 150, 0.1);
-    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.3);
+    background: var(--ops-surface) !important;
+    border-top: 1px solid var(--ops-border) !important;
+    box-shadow: 0 -4px 20px rgba(15, 23, 42, 0.08) !important;
+    backdrop-filter: none !important;
+}
+
+html.admin-shell-enabled .admin-shell-bottom-item {
+    color: var(--ops-text-faint) !important;
 }
 
 html.admin-shell-enabled .admin-shell-bottom-item.is-active {
-    background: rgba(162, 255, 0, 0.1);
-    border-radius: 12px;
+    color: var(--ops-accent-bright) !important;
+    background: var(--ops-lime-soft) !important;
 }
 
-/* ——— Bulk toolbar y acciones ——— */
-html.admin-shell-enabled .admin-bulk-toolbar {
-    border-radius: 12px;
-    border-color: rgba(162, 255, 0, 0.25);
-    background: linear-gradient(
-        90deg,
-        rgba(162, 255, 0, 0.08) 0%,
-        rgba(162, 255, 0, 0.03) 100%
-    );
+html.admin-shell-enabled .admin-sidebar-backdrop {
+    background: rgba(15, 23, 42, 0.4) !important;
 }
 
-html.admin-shell-enabled .admin-section-btn {
-    border-radius: 10px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
+/* ——— Pagos: seriedad ——— */
+html.admin-shell-enabled .admin-module[data-admin-module="pagos"] .admin-module-header {
+    background: linear-gradient(135deg, #faf8f5 0%, #ffffff 100%) !important;
 }
 
-/* ——— Loader ——— */
-html.admin-shell-enabled.admin-is-loading #admin-loader,
-html.admin-is-loading #admin-loader {
-    background: rgba(9, 12, 10, 0.94) !important;
+html.admin-shell-enabled .admin-module[data-admin-module="pagos"] #conflictos-pago-wrap {
+    border-left: 3px solid #dc2626 !important;
+    padding-left: 16px !important;
 }
 
 /* ——— Responsive ——— */
 @media (max-width: 960px) {
-    html.admin-shell-enabled .admin-module-header {
-        padding: 18px 18px 16px 22px;
+    html.admin-shell-enabled .admin-container {
+        padding: 16px 16px calc(64px + 32px) !important;
     }
 
-    html.admin-shell-enabled .admin-module-title {
-        font-size: 1.55rem;
+    html.admin-shell-enabled .cc-kpi-strip {
+        grid-template-columns: repeat(2, 1fr) !important;
     }
 }
 
 @media (max-width: 640px) {
-    html.admin-shell-enabled .admin-module-kicker {
-        font-size: 0.62rem;
-        letter-spacing: 0.12em;
+    html.admin-shell-enabled {
+        --admin-topbar-h: 72px;
+    }
+
+    html.admin-shell-enabled .admin-module-header {
+        padding: 18px 18px 16px 24px !important;
     }
 
     html.admin-shell-enabled .cc-kpi-strip {
-        gap: 10px;
+        grid-template-columns: 1fr !important;
     }
 }
 
-/* ——— Accesibilidad: sin animaciones pesadas ——— */
 @media (prefers-reduced-motion: reduce) {
-    html.admin-shell-enabled .admin-nav-badge.has-items {
-        animation: none;
-    }
-
-    html.admin-shell-enabled .admin-module.is-active {
-        animation: none;
+    html.admin-shell-enabled .cc-kpi:hover,
+    html.admin-shell-enabled .indicador-card:hover,
+    html.admin-shell-enabled .aliado-admin-card:hover {
+        transform: none !important;
     }
 }
