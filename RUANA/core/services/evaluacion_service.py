@@ -206,3 +206,49 @@ def obtener_estadisticas_evaluaciones(db) -> Dict[str, Any]:
             return {}
         finally:
             conn.close()
+
+
+def ejecutar_motor_periodico(db) -> Dict[str, Any]:
+    """Evalúa todos los aliados activos con MotorEvaluacion v0.2 y persiste resultados."""
+    from engines.motor_evaluacion import MotorEvaluacion
+    from core.services import admin_service
+
+    with db._lock:
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT TRIM(CAST(codigo AS TEXT)) FROM aliados WHERE estado = 'activo'"
+            )
+            rows = cursor.fetchall()
+        finally:
+            conn.close()
+
+    codigos: List[str] = []
+    for row in rows:
+        if isinstance(row, dict):
+            cod = row.get("codigo")
+        elif hasattr(row, "keys"):
+            cod = row["codigo"]
+        else:
+            cod = row[0]
+        if cod:
+            codigos.append(str(cod).strip())
+
+    metricas: Dict[str, Dict[str, Any]] = {}
+    for codigo in codigos:
+        metricas[codigo] = admin_service.obtener_metricas_motor_por_aliado(db, codigo)
+
+    motor = MotorEvaluacion()
+    decisiones = motor.evaluate_all(metricas)
+    resumen = {"verde": 0, "amarillo": 0, "rojo": 0}
+    for decision in decisiones:
+        estado = (decision.get("estado") or "").lower()
+        if estado in resumen:
+            resumen[estado] += 1
+
+    return {
+        "status": "success",
+        "evaluados": len(decisiones),
+        "resumen_estados": resumen,
+    }

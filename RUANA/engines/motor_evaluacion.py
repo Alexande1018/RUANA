@@ -5,11 +5,25 @@ Evalúa aliados contra criterios y mantiene memoria institucional en SQLite
 
 from datetime import datetime
 from pathlib import Path
+import json
 import sys
 
 # Importar gestor de base de datos
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.db_manager import get_db
+
+RUANA_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_REGlas_PATH = RUANA_ROOT / "config" / "ruana_reglas_v1.json"
+
+
+def _load_reglas_config() -> dict:
+    try:
+        if DEFAULT_REGlas_PATH.exists():
+            with open(DEFAULT_REGlas_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
 
 
 class MotorEvaluacion:
@@ -17,7 +31,7 @@ class MotorEvaluacion:
     
     def __init__(self, config=None, logger=None, event_bus=None):
         """Inicializa motor"""
-        self.config = config or {}
+        self.config = config if config is not None else _load_reglas_config()
         self.logger = logger
         self.event_bus = event_bus  # EventBus opcional para registrar eventos
         self.db = get_db()  # Instancia de base de datos
@@ -103,10 +117,10 @@ class MotorEvaluacion:
         """
         Evalúa un aliado individual contra los 3 filtros
         
-        FILTROS (orden fijo):
-        1. tasa_respuesta >= 0.70
-        2. tasa_confirmacion >= 0.80
-        3. meses_sin_trabajo <= 6
+        FILTROS (orden fijo, umbrales en config/ruana_reglas_v1.json):
+        1. tasa_respuesta >= motor_umbral_tasa_respuesta (default 0.70)
+        2. tasa_confirmacion >= motor_umbral_tasa_confirmacion (default 0.80)
+        3. meses_sin_trabajo <= motor_umbral_meses_sin_trabajo (default 6)
         
         DECISIÓN:
         - 3 filtros OK → "verde", "mantener"
@@ -115,29 +129,33 @@ class MotorEvaluacion:
         """
         razones = []
         filtros_ok = 0
+        cfg = self.config or {}
+        umbral_resp = float(cfg.get("motor_umbral_tasa_respuesta", 0.70))
+        umbral_conf = float(cfg.get("motor_umbral_tasa_confirmacion", 0.80))
+        umbral_meses = int(cfg.get("motor_umbral_meses_sin_trabajo", 6))
         
         # Extraer métricas con valores por defecto
         tasa_respuesta = metrics.get("tasa_respuesta", 0.0)
         tasa_confirmacion = metrics.get("tasa_confirmacion", 0.0)
         meses_sin_trabajo = metrics.get("meses_sin_trabajo", 999)
         
-        # FILTRO 1: tasa_respuesta >= 0.70
-        if tasa_respuesta >= 0.70:
+        # FILTRO 1: tasa_respuesta
+        if tasa_respuesta >= umbral_resp:
             filtros_ok += 1
         else:
-            razones.append(f"Respuesta {tasa_respuesta*100:.0f}% < 70%")
+            razones.append(f"Respuesta {tasa_respuesta*100:.0f}% < {umbral_resp*100:.0f}%")
         
-        # FILTRO 2: tasa_confirmacion >= 0.80
-        if tasa_confirmacion >= 0.80:
+        # FILTRO 2: tasa_confirmacion
+        if tasa_confirmacion >= umbral_conf:
             filtros_ok += 1
         else:
-            razones.append(f"Confirmación {tasa_confirmacion*100:.0f}% < 80%")
+            razones.append(f"Confirmación {tasa_confirmacion*100:.0f}% < {umbral_conf*100:.0f}%")
         
-        # FILTRO 3: meses_sin_trabajo <= 6
-        if meses_sin_trabajo <= 6:
+        # FILTRO 3: meses_sin_trabajo
+        if meses_sin_trabajo <= umbral_meses:
             filtros_ok += 1
         else:
-            razones.append(f"Meses sin trabajo {meses_sin_trabajo} > 6")
+            razones.append(f"Meses sin trabajo {meses_sin_trabajo} > {umbral_meses}")
         
         # Calcular score normalizado sobre 500
         score = (filtros_ok / 3.0) * 500.0

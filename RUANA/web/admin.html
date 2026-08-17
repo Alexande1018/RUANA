@@ -10,10 +10,14 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="icon" href="/static/images/ruana-logo.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/static/css/admin-panel.css">
-    <link rel="stylesheet" href="/static/css/admin-premium.css">
-    <link rel="stylesheet" href="/static/css/admin-shell.css">
-    <link rel="stylesheet" href="/static/css/admin-command-center.css">
+    <style>
+      /* Orden de cascada admin: panel → premium → shell → command-center */
+      @layer ruana-admin-panel, ruana-admin-premium, ruana-admin-shell, ruana-admin-command-center;
+      @import url("/static/css/admin-panel.css") layer(ruana-admin-panel);
+      @import url("/static/css/admin-premium.css") layer(ruana-admin-premium);
+      @import url("/static/css/admin-shell.css") layer(ruana-admin-shell);
+      @import url("/static/css/admin-command-center.css") layer(ruana-admin-command-center);
+    </style>
     <link rel="stylesheet" href="/static/css/referidos-tree.css">
     <link rel="stylesheet" href="/static/css/ruana-identity.css">
     <script src="/static/js/ruana-atmosphere.js" defer></script>
@@ -24,6 +28,7 @@
     <script src="/static/js/admin-operaciones-module.js" defer></script>
     <script src="/static/js/admin-red-module.js" defer></script>
     <script src="/static/js/admin-sistema-module.js" defer></script>
+    <script src="/static/js/admin-stripe-module.js" defer></script>
     <script src="/static/js/admin-charts.js" defer></script>
     <script src="/static/js/admin-command-center-module.js" defer></script>
     <script src="/static/js/admin-intelligence-module.js" defer></script>
@@ -495,6 +500,53 @@
             <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="pagos-en-revision-empty">No hay pagos en revisión.</p>
         </div>
 
+        <!-- CAPA 3.656: Stripe Connect (admin) -->
+        <div class="stripe-admin-wrap" id="stripe-admin-wrap">
+            <h2 class="seccion-titulo">Stripe Connect</h2>
+            <p class="admin-subtitle" style="margin-bottom: 8px; color: #999;">
+                Onboarding de cuentas de pago, transferencias y neto pendiente de envío al profesional.
+            </p>
+            <p class="admin-subtitle" style="margin-bottom: 12px;" id="stripe-admin-habilitado">—</p>
+            <div class="indicadores-grid" id="stripe-admin-totales" style="margin-bottom: 16px;"></div>
+            <h3 class="seccion-titulo" style="font-size: 1rem; margin-top: 0;">Onboarding aliados</h3>
+            <div class="movimiento-24h-tabla-wrap">
+                <div class="movimiento-24h-tabla-scroll">
+                    <table class="movimiento-24h-tabla" id="tabla-stripe-onboarding">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Nombre</th>
+                                <th>Estado onboarding</th>
+                                <th>Cuenta Stripe</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-stripe-onboarding"></tbody>
+                    </table>
+                </div>
+            </div>
+            <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="stripe-onboarding-empty">No hay aliados con actividad Stripe registrada.</p>
+            <h3 class="seccion-titulo" style="font-size: 1rem; margin-top: 20px;">Encargos Stripe</h3>
+            <div class="movimiento-24h-tabla-wrap">
+                <div class="movimiento-24h-tabla-scroll">
+                    <table class="movimiento-24h-tabla" id="tabla-stripe-transferencias">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Profesional</th>
+                                <th>Contratante</th>
+                                <th>Importe</th>
+                                <th>Neto pro</th>
+                                <th>Transferencia</th>
+                                <th>Estado pago</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-stripe-transferencias"></tbody>
+                    </table>
+                </div>
+            </div>
+            <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="stripe-transferencias-empty">No hay encargos con modo pago Stripe.</p>
+        </div>
+
         <!-- Modal rechazar comprobante de pago (motivo obligatorio, notifica al profesional) -->
         <div class="modal-overlay admin-modal" id="modal-rechazar-pago" style="display: none; align-items: center; justify-content: center;">
             <div class="modal-content" style="max-width: 480px;">
@@ -683,6 +735,32 @@
                 <button type="button" class="btn-admin-action" id="btn-conversaciones-mostrar-menos" style="display: none;">Mostrar menos</button>
             </div>
             <p class="admin-subtitle" id="conversaciones-no-mas" style="margin-top: 8px; color: #666; display: none;">No hay más registros</p>
+        </div>
+
+        <!-- CAPA 3.71: Contactos con chat (GET /api/admin/conversations) -->
+        <div class="conversaciones-ruana-wrap" id="contactos-chat-admin-wrap">
+            <h2 class="seccion-titulo">Contactos con conversación de chat</h2>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Encargos con mensajes en el chat del contacto (no negociación guiada).</p>
+            <div class="movimiento-24h-tabla-wrap">
+                <div class="movimiento-24h-tabla-scroll">
+                    <table class="movimiento-24h-tabla" id="tabla-contactos-chat">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Solicitante</th>
+                                <th>Profesional</th>
+                                <th>Servicio</th>
+                                <th>Estado</th>
+                                <th>Importe</th>
+                                <th>Mensajes</th>
+                                <th>Último mensaje</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-contactos-chat"></tbody>
+                    </table>
+                </div>
+            </div>
+            <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="contactos-chat-empty">Sin contactos con chat.</p>
         </div>
 
         <div class="conversaciones-ruana-wrap" id="centro-comunicacion-admin-wrap">
@@ -950,6 +1028,8 @@
                 <button type="button" class="btn-admin-action" data-action="abrir-plaza">Abrir Plaza</button>
                 <button type="button" class="btn-admin-action" data-action="generar-reporte">Generar Reporte</button>
                 <button type="button" class="btn-admin-action" data-action="editar-metodos-pago">Editar Metodos de Pago</button>
+                <button type="button" class="btn-admin-action danger" data-action="finalizar-competencias-vencidas">Finalizar competencias vencidas</button>
+                <button type="button" class="btn-admin-action danger" data-action="purga-mensual">Purgar aliados inactivos</button>
                 <button type="button" class="btn-admin-action danger" data-action="cambiar-reglas">Cambiar Reglas</button>
             </div>
             <div id="admin-codigo-aliado-result" style="display:none; margin-top:14px; padding:14px; border:1px solid rgba(34,197,94,0.35); background:rgba(34,197,94,0.08); color:#d1fae5; border-radius:8px;"></div>
@@ -1135,6 +1215,11 @@
                 return (typeof RuanaAdminModules !== 'undefined' && RuanaAdminModules.operaciones) || null;
             }
 
+            /** Fachada Campamento Base → RuanaAdminModules.stripe */
+            _stripeModule() {
+                return (typeof RuanaAdminModules !== 'undefined' && RuanaAdminModules.stripe) || null;
+            }
+
             /** Fachada Campamento Base → RuanaAdminModules.red */
             _redModule() {
                 return (typeof RuanaAdminModules !== 'undefined' && RuanaAdminModules.red) || null;
@@ -1281,6 +1366,8 @@
                         else if (action === 'abrir-plaza') self.accionAbrirPlaza();
                         else if (action === 'generar-reporte') self.accionGenerarReporte();
                         else if (action === 'editar-metodos-pago') self.accionEditarMetodosPago();
+                        else if (action === 'finalizar-competencias-vencidas') self.accionFinalizarCompetenciasVencidas();
+                        else if (action === 'purga-mensual') self.accionPurgaMensual();
                         else if (action === 'cambiar-reglas') self.accionCambiarReglas();
                     });
                 });
@@ -1431,6 +1518,20 @@
                 const mod = this._sistemaModule();
                 if (mod && typeof mod.accionCambiarReglas === 'function') {
                     return mod.accionCambiarReglas(this);
+                }
+            }
+
+            accionPurgaMensual() {
+                const mod = this._sistemaModule();
+                if (mod && typeof mod.accionPurgaMensual === 'function') {
+                    return mod.accionPurgaMensual(this);
+                }
+            }
+
+            accionFinalizarCompetenciasVencidas() {
+                const mod = this._sistemaModule();
+                if (mod && typeof mod.accionFinalizarCompetenciasVencidas === 'function') {
+                    return mod.accionFinalizarCompetenciasVencidas(this);
                 }
             }
 
@@ -1589,6 +1690,13 @@
                 const mod = this._operacionesModule();
                 if (mod && typeof mod.renderPagosEnRevision === 'function') {
                     return mod.renderPagosEnRevision(this, pagos);
+                }
+            }
+
+            renderStripeResumen(data) {
+                const mod = this._stripeModule();
+                if (mod && typeof mod.renderStripeResumen === 'function') {
+                    return mod.renderStripeResumen(this, data);
                 }
             }
 
@@ -1857,6 +1965,13 @@
                 const mod = this._resumenModule();
                 if (mod && typeof mod.renderConversaciones === 'function') {
                     return mod.renderConversaciones(this, conversaciones);
+                }
+            }
+
+            renderContactosChat(contactos) {
+                const mod = this._resumenModule();
+                if (mod && typeof mod.renderContactosChat === 'function') {
+                    return mod.renderContactosChat(this, contactos);
                 }
             }
 

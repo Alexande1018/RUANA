@@ -72,6 +72,7 @@ from web.auth_decorators import (
     _aliado_codigo,
     _forbidden_unless_admin_or_aliado_self,
 )
+from web.limiter import init_limiter
 
 # Obtener ruta absoluta de la carpeta web
 web_dir = Path(__file__).parent.absolute()
@@ -104,6 +105,8 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 if CORS is not None:
     CORS(app)
+
+init_limiter(app)
 
 ADMIN_SESSION_EXPIRES_SECONDS = int(os.environ.get('RUANA_ADMIN_SESSION_EXPIRES', 3600))
 ALIADO_SESSION_EXPIRES_SECONDS = int(os.environ.get('RUANA_ALIADO_SESSION_EXPIRES', 3600))
@@ -432,6 +435,15 @@ def server_error(error):
         'status': 'error',
         'message': 'Error interno del servidor'
     }), 500
+
+
+@app.errorhandler(429)
+def ratelimit_error(error):
+    """Demasiados intentos (Flask-Limiter)."""
+    return jsonify({
+        'status': 'error',
+        'message': 'Demasiados intentos. Inténtalo más tarde.',
+    }), 429
 
 
 # ================================================

@@ -44,7 +44,7 @@
             kicker: 'Encargos',
             subtitle: 'Negociaciones guiadas y trabajos en curso.',
             icon: 'briefcase',
-            targets: ['#conversaciones-ruana-wrap']
+            targets: ['#conversaciones-ruana-wrap', '#contactos-chat-admin-wrap']
         },
         {
             id: 'pagos',
@@ -52,7 +52,7 @@
             kicker: 'Finanzas',
             subtitle: 'Conflictos, pagos Apoyo y revisiones.',
             icon: 'credit',
-            targets: ['#conflictos-pago-wrap', '#pagos-apoyo-wrap', '#pagos-en-revision-wrap']
+            targets: ['#conflictos-pago-wrap', '#pagos-apoyo-wrap', '#pagos-en-revision-wrap', '#stripe-admin-wrap']
         },
         {
             id: 'scores',
@@ -134,7 +134,9 @@
         { id: 'conflictos', label: 'Conflictos de pago', group: 'Pagos', module: 'pagos', target: '#conflictos-pago-wrap', icon: 'alert' },
         { id: 'pagos-apoyo', label: 'Pagos Apoyo', group: 'Pagos', module: 'pagos', target: '#pagos-apoyo-wrap', icon: 'credit' },
         { id: 'pagos-revision', label: 'Pagos en revisión', group: 'Pagos', module: 'pagos', target: '#pagos-en-revision-wrap', icon: 'clock' },
+        { id: 'stripe-admin', label: 'Stripe Connect', group: 'Pagos', module: 'pagos', target: '#stripe-admin-wrap', icon: 'credit' },
         { id: 'chats', label: 'Negociaciones / trabajos', group: 'Trabajos', module: 'trabajos', target: '#conversaciones-ruana-wrap', icon: 'briefcase' },
+        { id: 'contactos-chat', label: 'Contactos con chat', group: 'Trabajos', module: 'trabajos', target: '#contactos-chat-admin-wrap', icon: 'message' },
         { id: 'competencias', label: 'Competencias activas', group: 'Competencia', module: 'competencia', target: '#competencias-activas-wrap', icon: 'zap' },
         { id: 'suplentes', label: 'Suplentes en espera', group: 'Competencia', module: 'competencia', target: '#suplentes-espera-wrap', icon: 'users' },
         { id: 'centro-comunicacion', label: 'Centro de comunicación', group: 'Comunicaciones', module: 'comunicaciones', target: '#centro-comunicacion-admin-wrap', icon: 'message' },

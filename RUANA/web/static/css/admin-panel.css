@@ -1,3 +1,5 @@
+/* admin-panel.css — Responsabilidad: layout legacy del panel, tablas, modales y grids de datos.
+   No define el shell lateral (admin-shell) ni el command center (admin-command-center). */
         /* Panel de administrador */
         .admin-container {
             max-width: 1400px;

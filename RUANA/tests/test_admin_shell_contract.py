@@ -4,8 +4,8 @@ from pathlib import Path
 def test_admin_shell_assets_linked():
     admin_html = Path(__file__).resolve().parents[1] / "web" / "admin.html"
     text = admin_html.read_text(encoding="utf-8")
-    assert 'href="/static/css/admin-shell.css"' in text
-    assert 'href="/static/css/admin-command-center.css"' in text
+    assert 'url("/static/css/admin-shell.css")' in text
+    assert 'url("/static/css/admin-command-center.css")' in text
     assert 'src="/static/js/admin-shell.js"' in text
     assert 'src="/static/js/admin-command-center-module.js"' in text
 

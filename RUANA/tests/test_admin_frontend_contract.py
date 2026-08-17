@@ -13,7 +13,7 @@ def test_admin_fetch_response_destructuring_matches_fetch_order():
 
     assert "fetch('/api/admin/pagos-en-revision', fetchOpts)" in text
     assert (
-        "conflictosData, pagosApoyoData, pagosEnRevisionData, solicitudesData"
+        "conflictosData, pagosApoyoData, pagosEnRevisionData, stripeResumenData, solicitudesData"
         in text
     )
 

@@ -66,6 +66,46 @@ def _admin_codigo():
     return (payload.get("admin_codigo") or "") if payload else ""
 
 
+def _cron_secret_valid() -> bool:
+    import os
+    expected = os.environ.get("RUANA_CRON_SECRET", "").strip()
+    if not expected:
+        return False
+    got = (request.headers.get("X-Ruana-Cron-Secret") or "").strip()
+    return bool(got) and got == expected
+
+
+def require_admin_escritura_or_cron(f):
+    """Admin con escritura o llamada scheduler con X-Ruana-Cron-Secret."""
+    @wraps(f)
+    def wrapped(*args, **kwargs):
+        if _cron_secret_valid():
+            return f(*args, **kwargs)
+        if not _admin_session_valid() and not (
+            _admin_jwt_payload() and _admin_jwt_payload().get("admin_codigo")
+        ):
+            return jsonify({"status": "error", "message": "Sesi?n admin expirada o no autorizado"}), 401
+        if not _admin_puede_escribir():
+            return jsonify({"status": "error", "message": "Sin permiso de escritura (solo lectura)"}), 403
+        return f(*args, **kwargs)
+    return wrapped
+
+
+def require_admin_or_cron(f):
+    """Sesión admin/JWT o llamada scheduler con X-Ruana-Cron-Secret."""
+    @wraps(f)
+    def wrapped(*args, **kwargs):
+        if _cron_secret_valid():
+            return f(*args, **kwargs)
+        if _admin_session_valid():
+            return f(*args, **kwargs)
+        payload = _admin_jwt_payload()
+        if payload and payload.get("admin_codigo"):
+            return f(*args, **kwargs)
+        return jsonify({"status": "error", "message": "Sesi?n admin expirada o no autorizado"}), 401
+    return wrapped
+
+
 def require_admin(f):
     """Decorator: exige sesión admin o JWT válido. Devuelve 401 si no."""
     @wraps(f)
