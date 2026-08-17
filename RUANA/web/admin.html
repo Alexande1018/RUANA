@@ -11,12 +11,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="icon" href="/static/images/ruana-logo.svg" type="image/svg+xml">
     <style>
-      /* Orden de cascada admin: panel → premium → shell → command-center */
-      @layer ruana-admin-panel, ruana-admin-premium, ruana-admin-shell, ruana-admin-command-center;
+      /* Orden de cascada admin: panel → premium → shell → command-center → ops-identity */
+      @layer ruana-admin-panel, ruana-admin-premium, ruana-admin-shell, ruana-admin-command-center, ruana-admin-ops-identity;
       @import url("/static/css/admin-panel.css") layer(ruana-admin-panel);
       @import url("/static/css/admin-premium.css") layer(ruana-admin-premium);
       @import url("/static/css/admin-shell.css") layer(ruana-admin-shell);
       @import url("/static/css/admin-command-center.css") layer(ruana-admin-command-center);
+      @import url("/static/css/admin-ops-identity.css") layer(ruana-admin-ops-identity);
     </style>
     <link rel="stylesheet" href="/static/css/referidos-tree.css">
     <link rel="stylesheet" href="/static/css/ruana-identity.css">

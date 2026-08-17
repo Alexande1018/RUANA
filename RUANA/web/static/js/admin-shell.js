@@ -9,7 +9,7 @@
         {
             id: 'resumen',
             label: 'Command Center',
-            kicker: 'Centro de mando',
+            kicker: 'COMMAND CENTER',
             subtitle: 'Panorama operativo de RUANA en un vistazo.',
             icon: 'grid',
             targets: ['#command-center-wrap', '.estado-global', '.movimiento-sistema']
@@ -17,7 +17,7 @@
         {
             id: 'red',
             label: 'Red de aliados',
-            kicker: 'Network',
+            kicker: 'RED',
             subtitle: 'Explora la red jerárquica y el árbol genealógico de aliados.',
             icon: 'network',
             targets: ['#control-aliados-wrap', '#aliados-eliminados-wrap']
@@ -41,7 +41,7 @@
         {
             id: 'trabajos',
             label: 'Trabajos',
-            kicker: 'Encargos',
+            kicker: 'Operaciones',
             subtitle: 'Negociaciones guiadas y trabajos en curso.',
             icon: 'briefcase',
             targets: ['#conversaciones-ruana-wrap', '#contactos-chat-admin-wrap']
@@ -65,7 +65,7 @@
         {
             id: 'competencia',
             label: 'Competencia / suplentes',
-            kicker: 'Plazas',
+            kicker: 'Cobertura',
             subtitle: 'Competencias activas, pendientes y suplentes en espera.',
             icon: 'zap',
             targets: ['#competencias-activas-wrap', '#competencias-pendientes-wrap', '#competencias-historial-wrap', '#suplentes-espera-wrap']
@@ -73,7 +73,7 @@
         {
             id: 'comunicaciones',
             label: 'Comunicaciones',
-            kicker: 'Soporte',
+            kicker: 'Comunicación',
             subtitle: 'Centro de comunicación con aliados.',
             icon: 'message',
             targets: ['#centro-comunicacion-admin-wrap']
