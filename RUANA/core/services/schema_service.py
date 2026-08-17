@@ -114,7 +114,7 @@ def _init_db(db):
                     -- Resultado consolidado
                     importe_final REAL,
                     comision REAL,
-                    comision_porcentaje REAL DEFAULT 0.05,
+                    comision_porcentaje REAL DEFAULT 0.12, -- sincronizar con apoyo_pct en config/ruana_reglas_v1.json (12% → 0.12); inserts vía pago_service usan _get_apoyo_pct()
                     estado_pago TEXT DEFAULT 'no_generado',
                     pendiente_pago INTEGER DEFAULT 0,
                     -- Flags antifraude

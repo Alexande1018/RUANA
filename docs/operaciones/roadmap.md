@@ -27,8 +27,8 @@ Infra base (Hito 1) desplegable: Docker → Cloud Run, Firebase Hosting rewrite,
 | Campamento Base (modularización) | Avanzado | 16 services + 16 repos; fachada `DBManager` residual (~1.835 LOC) |
 | 13 blueprints HTTP | Hecho en main | Rutas API extraídas de monolito `app.py` |
 | Admin → Firebase Auth | Preparado, no implementado | Plan 2026-07-27 en archive |
-| Purga mensual automatizada | Lógica + endpoint | **Cron operativo no verificado** |
-| Motor evaluación periódico | Motor v0.2 existe | **Sin job/cron verificado**; consulta admin on-demand |
+| Purga mensual automatizada | Lógica + endpoint + auth cron | **Listo para Cloud Scheduler** — ver `docs/operaciones/cloud_scheduler_jobs.md` |
+| Motor evaluación periódico | Motor v0.2 + `POST /api/admin/motor/evaluar-periodico` | **Listo para Cloud Scheduler** — ver `docs/operaciones/cloud_scheduler_jobs.md` |
 
 ## Método
 

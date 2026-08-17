@@ -1,3 +1,5 @@
+/* admin-shell.css — Responsabilidad exclusiva: sidebar, topbar shell, módulos por display y UX de navegación.
+   No redefine tablas de datos (admin-panel) ni widgets del command center (admin-command-center). */
 /* ================================================
    RUANA Admin Shell — Stripe × Linear × Vercel
    Capa de layout y UX. No sustituye admin-premium.

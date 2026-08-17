@@ -38,6 +38,7 @@ from web.auth_decorators import (
     _admin_permisos,
     require_admin,
     require_admin_escritura,
+    require_admin_escritura_or_cron,
 )
 
 admin_bp = Blueprint("admin", __name__)
@@ -999,7 +1000,7 @@ def get_eventos_recientes():
 
 
 @admin_bp.route('/api/competencia/finalizar-vencidas', methods=['POST'])
-@require_admin_escritura
+@require_admin_escritura_or_cron
 def finalizar_competencia_vencidas():
     """
     POST /api/competencia/finalizar-vencidas
@@ -1020,7 +1021,7 @@ def finalizar_competencia_vencidas():
 
 
 @admin_bp.route('/api/purga/mensual', methods=['POST'])
-@require_admin_escritura
+@require_admin_escritura_or_cron
 def purga_mensual():
     """
     POST /api/purga/mensual
@@ -1036,6 +1037,23 @@ def purga_mensual():
             **resultado,
             'timestamp': datetime.now().isoformat()
         })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/admin/motor/evaluar-periodico', methods=['POST'])
+@require_admin_escritura_or_cron
+def admin_motor_evaluar_periodico():
+    """
+    POST /api/admin/motor/evaluar-periodico
+    Ejecuta el motor de evaluación v0.2 para todos los aliados activos.
+    Pensado para Cloud Scheduler (X-Ruana-Cron-Secret) o admin con escritura.
+    """
+    try:
+        db = get_db()
+        resultado = evaluacion_service.ejecutar_motor_periodico(db)
+        status_code = 200 if resultado.get('status') == 'success' else 500
+        return jsonify({**resultado, 'timestamp': datetime.now().isoformat()}), status_code
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
