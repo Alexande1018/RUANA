@@ -159,23 +159,21 @@ html.admin-shell-enabled .admin-app {
     z-index: auto !important;
 }
 
-html.admin-shell-enabled.admin-sidebar-open .admin-app {
-    position: relative;
-    z-index: 100 !important;
-}
-
 html.admin-shell-enabled .admin-sidebar {
     background: linear-gradient(180deg, #0e1419 0%, var(--ops-sidebar-bg) 100%) !important;
     border-right: 1px solid var(--ops-sidebar-border) !important;
     backdrop-filter: none !important;
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15) !important;
     z-index: 140 !important;
-    pointer-events: auto !important;
 }
 
 html.admin-shell-enabled .admin-sidebar.is-open,
 html.admin-shell-enabled .admin-sidebar.is-mobile-open {
     pointer-events: auto !important;
+}
+
+html.admin-shell-enabled .admin-sidebar:not(.is-open):not(.is-mobile-open) {
+    pointer-events: none !important;
 }
 
 html.admin-shell-enabled .admin-sidebar-nav,
@@ -1070,7 +1068,13 @@ html.admin-shell-enabled .admin-shell-bottom-item.is-active {
 
 html.admin-shell-enabled .admin-sidebar-backdrop {
     background: rgba(15, 23, 42, 0.45) !important;
-    z-index: 125 !important;
+    z-index: 120 !important;
+}
+
+@media (max-width: 960px) {
+    html.admin-shell-enabled.admin-sidebar-open .admin-sidebar-backdrop.is-visible {
+        left: var(--admin-sidebar-w) !important;
+    }
 }
 
 html.admin-shell-enabled .admin-sidebar-backdrop.is-visible {
