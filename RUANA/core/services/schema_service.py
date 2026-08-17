@@ -72,6 +72,7 @@ def _init_db(db):
             """)
             db._migrar_grupos_si_procede(conn, cursor)
             db._migrar_grupos_multi_cp_si_procede(conn, cursor)
+            db._migrar_grupos_nombre_unique_si_procede(conn, cursor)
             db._migrar_aliados_grupo_id(conn, cursor)
             db._migrar_aliados_derrotas_competencia(conn, cursor)
             db._migrar_aliados_especializaciones(conn, cursor)
@@ -476,6 +477,36 @@ def _migrar_grupos_multi_cp_si_procede(db, conn, cursor) -> None:
         _repo.registrar_migracion(cursor, 'grupos_multi_cp')
     finally:
         _repo.foreign_keys_on(cursor)
+
+def _migrar_grupos_nombre_unique_si_procede(db, conn, cursor) -> None:
+    """
+    Garantiza unicidad global de grupos.nombre: corrige duplicados legacy y crea índice UNIQUE.
+    Los nombres de grupos disueltos no se reutilizan (comparación sobre toda la tabla).
+    """
+    if _repo.migracion_aplicada(cursor, 'grupos_nombre_unique_v1'):
+        return
+    cursor.execute(
+        "SELECT TRIM(nombre) AS n, COUNT(*) AS c FROM grupos "
+        "WHERE nombre IS NOT NULL AND TRIM(nombre) != '' GROUP BY TRIM(nombre) COLLATE NOCASE HAVING c > 1"
+    )
+    for row in cursor.fetchall():
+        dup_name = row[0]
+        cursor.execute(
+            "SELECT id FROM grupos WHERE TRIM(nombre) = ? COLLATE NOCASE ORDER BY id",
+            (dup_name,),
+        )
+        ids = [r[0] for r in cursor.fetchall()]
+        for gid in ids[1:]:
+            nuevo = db._generar_nombre_grupo(cursor)
+            _repo.execute(cursor, "UPDATE grupos SET nombre = ? WHERE id = ?", (nuevo, gid))
+    try:
+        _repo.execute(
+            cursor,
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_grupos_nombre_unique ON grupos(nombre COLLATE NOCASE)",
+        )
+    except Exception as ex:
+        print(f"[RUANA][DB] Aviso al crear índice único grupos.nombre: {ex}")
+    _repo.registrar_migracion(cursor, 'grupos_nombre_unique_v1')
 
 def _migrar_aliados_grupo_id(db, conn, cursor) -> None:
     """Añade grupo_id a aliados si falta y rellena con el primer grupo activo del CP."""
@@ -1004,12 +1035,10 @@ def _migrar_datos_plaza_oficio(db, conn, cursor) -> None:
                 )
                 n_grupos = cursor.fetchone()[0] or 0
                 if n_grupos < MAX_GRUPOS_POR_CP:
-                    nombre = db._generar_nombre_grupo(cursor)
-                    _repo.execute(cursor, 
-                        "INSERT INTO grupos (nombre, codigo_postal, estado, fecha_creacion) VALUES (?, ?, 'activo', CURRENT_TIMESTAMP)",
-                        (nombre, codigo_postal)
+                    from core.services import grupo_service
+                    new_grupo_id = grupo_service._insertar_grupo_nombre_unico(
+                        db, cursor, codigo_postal
                     )
-                    new_grupo_id = cursor.lastrowid
                     _repo.execute(cursor, "UPDATE aliados SET grupo_id = ? WHERE id = ?", (new_grupo_id, aliado_id))
                 else:
                     _repo.execute(cursor, 
