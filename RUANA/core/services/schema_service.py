@@ -415,6 +415,7 @@ def _init_db(db):
             db._migrar_competencia_permanencia(conn, cursor)
             db._migrar_aliados_eliminados(conn, cursor)
             db._migrar_stripe_pagos(conn, cursor)
+            db._migrar_estado_financiero(conn, cursor)
 
             conn.commit()
             print(f"[RUANA][DB] Base de datos inicializada en: {db.db_path}")
@@ -841,6 +842,66 @@ def _migrar_stripe_pagos(db, conn, cursor) -> None:
     """)
     _repo.execute(cursor, "CREATE INDEX IF NOT EXISTS idx_stripe_webhook_contacto ON stripe_webhook_events(contacto_id)")
 
+
+def _migrar_estado_financiero(db, conn, cursor) -> None:
+    """Columnas y backfill para máquina de estados financiera (FASE 01)."""
+    from core.financial.mapeo_legacy import inferir_estado_financiero_desde_legacy
+    from core.financial.state_machine import FinancialStateMachine
+
+    columnas_contacto = _repo.columnas_tabla(cursor, "contactos_ruana")
+    nuevas_columnas = [
+        ("estado_financiero", "TEXT"),
+        ("estado_transferencia", "TEXT DEFAULT 'NO_APLICA'"),
+    ]
+    for nombre, sqlite_def in nuevas_columnas:
+        if nombre not in columnas_contacto:
+            _repo.execute(cursor, f"ALTER TABLE contactos_ruana ADD COLUMN {nombre} {sqlite_def}")
+
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS financial_idempotency_keys (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            clave TEXT NOT NULL UNIQUE,
+            contacto_id INTEGER NOT NULL,
+            operacion TEXT NOT NULL,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (contacto_id) REFERENCES contactos_ruana(id)
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_financial_idempotency_contacto
+        ON financial_idempotency_keys(contacto_id)
+    """)
+
+    sm = FinancialStateMachine()
+    cursor.execute(
+        """
+        SELECT id, modo_pago, estado, estado_pago, stripe_transfer_id,
+               stripe_payment_intent_id, fecha_confirmacion_trabajo
+        FROM contactos_ruana
+        WHERE estado_financiero IS NULL OR estado_financiero = ''
+        """
+    )
+    for row in cursor.fetchall():
+        contacto = {
+            "id": row[0],
+            "modo_pago": row[1],
+            "estado": row[2],
+            "estado_pago": row[3],
+            "stripe_transfer_id": row[4],
+            "stripe_payment_intent_id": row[5],
+            "fecha_confirmacion_trabajo": row[6],
+        }
+        inferido = inferir_estado_financiero_desde_legacy(contacto)
+        estado_transferencia = sm.estado_transferencia_para(inferido).value
+        cursor.execute(
+            """
+            UPDATE contactos_ruana
+            SET estado_financiero = ?, estado_transferencia = ?
+            WHERE id = ? AND (estado_financiero IS NULL OR estado_financiero = '')
+            """,
+            (inferido.value, estado_transferencia, contacto["id"]),
+        )
+
 def _migrar_contactos_validacion_pago(db, conn, cursor) -> None:
     """Añade fecha_validacion_pago, admin_validacion_codigo y motivo_rechazo_pago a contactos_ruana."""
     columnas = _repo.columnas_tabla(cursor, "contactos_ruana")
@@ -1185,6 +1246,7 @@ def _init_postgres_schema(db):
         db._migrar_centro_comunicacion_ruana(conn, cursor)
         db._migrar_aliados_eliminados(conn, cursor)
         db._migrar_stripe_pagos(conn, cursor)
+        db._migrar_estado_financiero(conn, cursor)
         conn.commit()
         print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil + linaje + urgente + negociación guiada + accesos día + retador + aliados eliminados)")
     except Exception as e:

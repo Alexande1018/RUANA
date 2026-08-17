@@ -9,6 +9,8 @@ from core.db_constants import RUANA_ROOT
 from core.repositories.pago_repo import PagoRepo
 from core import stripe_client
 from core.settings import get_settings
+from core.financial.estados import EstadoFinanciero
+from core.services import financial_transaction_service as fts
 
 import json
 import os
@@ -834,6 +836,7 @@ def activar_pago_stripe_tras_acuerdo(
                 f"importe={importe_val} apoyo={apoyo} neto={neto}",
             )
             conn.commit()
+            fts.sincronizar_tras_activacion_stripe(db, contacto_id, solicitante_codigo or "")
             return {
                 "status": "success",
                 "contacto_id": contacto_id,
@@ -988,6 +991,20 @@ def confirmar_trabajo_y_transferir(
             neto_val = round(float(neto), 2)
             if neto_val <= 0:
                 return {"status": "error", "message": "Importe neto del profesional no válido"}
+            fin_lib = fts._transicionar_en_cursor(
+                db,
+                cursor,
+                contacto_id,
+                EstadoFinanciero.LIBERACION_AUTORIZADA,
+                actor_tipo="aliado",
+                actor_codigo=codigo,
+                motivo="contratante confirmó trabajo",
+            )
+            if fin_lib.get("status") != "success":
+                return {
+                    "status": "error",
+                    "message": fin_lib.get("message", "No se pudo autorizar la liberación"),
+                }
             _repo.marcar_confirmacion_trabajo_contratante(cursor, contacto_id)
             transfer = stripe_client.create_transfer(
                 amount_cents=_importe_centimos(neto_val),
@@ -1000,6 +1017,15 @@ def confirmar_trabajo_y_transferir(
             if not transfer_id:
                 conn.rollback()
                 return {"status": "error", "message": "Stripe no devolvió transferencia"}
+            fin_cycle = fts.completar_ciclo_transferencia(
+                db, contacto_id, transfer_id, codigo, cursor=cursor
+            )
+            if fin_cycle.get("status") != "success":
+                conn.rollback()
+                return {
+                    "status": "error",
+                    "message": fin_cycle.get("message", "Error en ciclo financiero de transferencia"),
+                }
             updated = _repo.marcar_transfer_stripe_completado(cursor, contacto_id, transfer_id)
             if updated != 1:
                 conn.rollback()
@@ -1106,6 +1132,7 @@ def _procesar_pago_confirmado(
                 "sistema", "", f"pi={payment_intent_id} importe={importe_val}",
             )
             conn.commit()
+            fts.sincronizar_tras_cobro_confirmado(db, contacto_id, payment_intent_id)
             return {"status": "success", "contacto_id": contacto_id}
         except Exception as e:
             if conn:
