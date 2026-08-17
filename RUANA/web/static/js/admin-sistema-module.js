@@ -746,6 +746,62 @@ async function cargarSolicitudesAdminConFiltros(host) {
       }
 }
 
+function accionFinalizarCompetenciasVencidas(host) {
+    host._abrirModalAccionAdmin({
+        title: 'Finalizar competencias vencidas',
+        bodyHtml: '<p class="admin-subtitle" style="color:#fca5a5;">Cierra competencias cuya fecha de fin ya pasó. El aliado con mayor score permanece; el otro sale del grupo. <strong>Esta acción no se puede deshacer.</strong></p>',
+        getPayload: () => ({}),
+        validate: () => null,
+        getConfirmSummary: () => 'Se ejecutará <strong>finalizar competencias vencidas</strong> sobre todas las competencias activas fuera de plazo. Los cambios en plazas y estados de aliados son permanentes.',
+        execute: async () => {
+            const r = await fetch('/api/competencia/finalizar-vencidas', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: host.getAuthHeaders(),
+                body: '{}',
+            });
+            if (r.status === 401) { host._adminSessionExpired(); return; }
+            if (r.status === 403) { host.showToast('Sin permiso de escritura (solo lectura).', 'error'); return; }
+            const data = await r.json().catch(() => ({}));
+            if (r.ok && data.status === 'success') {
+                const n = data.finalizadas != null ? data.finalizadas : 0;
+                host.showToast('Competencias finalizadas: ' + n, 'success');
+                await host.cargarDesdeApi();
+            } else {
+                host.showToast(data.message || 'Error al finalizar competencias.', 'error');
+            }
+        },
+    });
+}
+
+function accionPurgaMensual(host) {
+    host._abrirModalAccionAdmin({
+        title: 'Purgar aliados inactivos (purga mensual)',
+        bodyHtml: '<p class="admin-subtitle" style="color:#fca5a5;">Ejecuta la purga de calidad: finaliza competencias vencidas y puede <strong>suspender temporalmente</strong> aliados en pool según reglas de score y meses sin ganar. <strong>No es reversible.</strong></p>',
+        getPayload: () => ({}),
+        validate: () => null,
+        getConfirmSummary: () => 'Vas a ejecutar la <strong>purga mensual</strong>. Aliados suspendidos requieren acción admin para recuperar acceso. Confirma solo en el ciclo operativo correcto.',
+        execute: async () => {
+            const r = await fetch('/api/purga/mensual', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: host.getAuthHeaders(),
+                body: '{}',
+            });
+            if (r.status === 401) { host._adminSessionExpired(); return; }
+            if (r.status === 403) { host.showToast('Sin permiso de escritura (solo lectura).', 'error'); return; }
+            const data = await r.json().catch(() => ({}));
+            if (r.ok && (data.status === 'success' || data.expulsados_temporal != null)) {
+                const exp = Array.isArray(data.expulsados_temporal) ? data.expulsados_temporal.length : 0;
+                host.showToast('Purga completada. Suspendidos: ' + exp, 'success');
+                await host.cargarDesdeApi();
+            } else {
+                host.showToast(data.message || 'Error en purga mensual.', 'error');
+            }
+        },
+    });
+}
+
 async function marcarSolicitudAtendidaAdmin(host, solicitudId, tr) {
       const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
       try {
@@ -790,6 +846,8 @@ modules.sistema = {
     verDetalleCampanaInvitacion: verDetalleCampanaInvitacion,
     desactivarCampanaInvitacion: desactivarCampanaInvitacion,
     accionGenerarReporte: accionGenerarReporte,
+    accionPurgaMensual: accionPurgaMensual,
+    accionFinalizarCompetenciasVencidas: accionFinalizarCompetenciasVencidas,
     cargarSolicitudesAdminConFiltros: cargarSolicitudesAdminConFiltros,
     marcarSolicitudAtendidaAdmin: marcarSolicitudAtendidaAdmin,
 };

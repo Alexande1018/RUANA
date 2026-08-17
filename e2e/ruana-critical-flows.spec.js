@@ -514,6 +514,24 @@ test.describe('RUANA QA critica con video human-readable', () => {
     });
   });
 
+  test('admin: modal de confirmacion purga mensual sin ejecutar', async ({ page }) => {
+    const scenario = 'Confirmacion purga mensual admin';
+    await loginAdminAsUser(page, scenario);
+    await goAdminSection(page, '#acciones-admin-wrap');
+    await clickVisible(page, 'button[data-action="purga-mensual"]');
+    await expect(page.locator('#modal-accion-admin')).toBeVisible();
+    await expect(page.locator('#modal-accion-body')).toContainText('No es reversible');
+    await clickVisible(page, '#modal-accion-confirmar');
+    await expect(page.locator('#modal-accion-body')).toContainText('purga mensual');
+    await clickVisible(page, '#modal-accion-cancelar');
+    await expect(page.locator('#modal-accion-admin')).not.toBeVisible();
+    await pass(page, scenario, {
+      step: 'Modal purga validado',
+      action: 'El admin abre purga mensual y cancela en el segundo paso.',
+      result: 'El flujo de confirmacion aparece sin ejecutar la purga real.',
+    });
+  });
+
   test('QA-08 QA-09 aliado crea solicitud y otro aliado la atiende con invitacion visible', async ({
     page,
     request,

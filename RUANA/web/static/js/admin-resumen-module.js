@@ -192,6 +192,7 @@
               fetch('/api/admin/stripe/resumen', fetchOpts),
               fetch('/api/admin/solicitudes', fetchOpts),
               fetch('/api/admin/chats?limite=10&offset=0', fetchOpts),
+              fetch('/api/admin/conversations?limite=100', fetchOpts),
               fetch('/api/admin/competencias-activas', fetchOpts),
               fetch('/api/admin/competencias-pendientes', fetchOpts),
               fetch('/api/admin/competencias-historial?limite=30', fetchOpts),
@@ -218,8 +219,8 @@
               if (!r.ok) return null;
               return r.json().catch(() => null);
           }
-          const idx15 = responses[15];
-          const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, stripeResumenData, solicitudesData, chatsData, competenciasData, competenciasPendientesData, competenciasHistorialData, stats24hData, invitacionesRecData, campanasData, metodosPagoData, suplentesEsperaData, centroComData, eliminadosData] = await Promise.all([
+          const idx16 = responses[16];
+          const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, stripeResumenData, solicitudesData, chatsData, contactosChatData, competenciasData, competenciasPendientesData, competenciasHistorialData, stats24hData, invitacionesRecData, campanasData, metodosPagoData, suplentesEsperaData, centroComData, eliminadosData] = await Promise.all([
               parseResponse(responses[0], false),
               parseResponse(responses[1], false),
               parseResponse(responses[2], false),
@@ -235,13 +236,14 @@
               parseResponse(responses[12], false),
               parseResponse(responses[13], false),
               parseResponse(responses[14], false),
-              Promise.resolve(idx15),
-              parseResponse(responses[16], false),
+              parseResponse(responses[15], false),
+              Promise.resolve(idx16),
               parseResponse(responses[17], false),
               parseResponse(responses[18], false),
               parseResponse(responses[19], false),
               parseResponse(responses[20], false),
-              parseResponse(responses[21], false)
+              parseResponse(responses[21], false),
+              parseResponse(responses[22], false)
           ]);
 
           // Pendientes de validación (unir API + lista por código)
@@ -331,6 +333,7 @@
           host._conversacionesHasMore = conversaciones.length >= 10;
           host.renderConversaciones(conversaciones);
           host.updateConversacionesPaginationUI();
+          host.renderContactosChat((contactosChatData && contactosChatData.status === 'success' && Array.isArray(contactosChatData.contactos)) ? contactosChatData.contactos : []);
           if (conversaciones.length === 0) {
               host.cargarChatsFallback();
           }
@@ -596,6 +599,30 @@ function setupEventListeners(host) {
       }
 }
 
+function renderContactosChat(host, contactos) {
+    const tbody = document.getElementById('tbody-contactos-chat');
+    const emptyEl = document.getElementById('contactos-chat-empty');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    const lista = Array.isArray(contactos) ? contactos : [];
+    if (emptyEl) emptyEl.style.display = lista.length ? 'none' : 'block';
+    lista.forEach((c) => {
+        const tr = document.createElement('tr');
+        const ultimo = c.ultimo_mensaje ? host.formatearHora(c.ultimo_mensaje) : '—';
+        tr.innerHTML = `
+            <td>${host.escapeHtml(String(c.id != null ? c.id : '—'))}</td>
+            <td>${host.escapeHtml(c.solicitante || c.solicitante_codigo || '')}</td>
+            <td>${host.escapeHtml(c.profesional || c.profesional_codigo || '')}</td>
+            <td>${host.escapeHtml(c.servicio || '—')}</td>
+            <td>${host.escapeHtml(c.estado || '—')}</td>
+            <td>${host.escapeHtml(String(c.importe != null ? c.importe : (c.importe_final != null ? c.importe_final : '—')))}</td>
+            <td>${host.escapeHtml(String(c.total_mensajes != null ? c.total_mensajes : (c.num_mensajes != null ? c.num_mensajes : 0)))}</td>
+            <td>${ultimo}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
 function renderConversaciones(host, conversaciones) {
       const tbody = document.getElementById('tbody-conversaciones');
       const emptyEl = document.getElementById('conversaciones-empty');
@@ -722,6 +749,7 @@ modules.resumen = {
     toggleDesglosePorHora: toggleDesglosePorHora,
     setupEventListeners: setupEventListeners,
     renderConversaciones: renderConversaciones,
+    renderContactosChat: renderContactosChat,
     appendConversacionRow: appendConversacionRow,
     updateConversacionesPaginationUI: updateConversacionesPaginationUI,
     loadMoreConversaciones: loadMoreConversaciones,
