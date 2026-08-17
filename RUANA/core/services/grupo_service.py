@@ -650,3 +650,127 @@ def _obtener_grupo_activacion_pendiente(db, cursor, aliado: Dict[str, Any]) -> O
         return int(cursor.lastrowid)
     return None
 
+
+def listar_grupos_admin(db) -> List[Dict[str, Any]]:
+    """Lista todos los grupos con conteo de aliados activos, para el panel admin."""
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT g.id, g.nombre, g.codigo_postal, g.ciudad, g.provincia,
+                       g.estado, g.fecha_creacion,
+                       (SELECT COUNT(*) FROM aliados a WHERE a.grupo_id = g.id AND a.estado = 'activo') AS aliados_activos,
+                       (SELECT COUNT(*) FROM aliados a WHERE a.grupo_id = g.id) AS aliados_total
+                FROM grupos g
+                ORDER BY g.codigo_postal, g.id
+            """)
+            return [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"Error listando grupos admin: {e}")
+            return []
+        finally:
+            if conn:
+                conn.close()
+
+
+def listar_aliados_sin_grupo(db) -> List[Dict[str, Any]]:
+    """Aliados activos sin grupo asignado (varados desde activación manual)."""
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT codigo, nombre, oficio, codigo_postal, invitado_por_codigo, creado_en
+                FROM aliados
+                WHERE estado = 'activo' AND grupo_id IS NULL
+                ORDER BY creado_en
+            """)
+            return [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"Error listando aliados sin grupo: {e}")
+            return []
+        finally:
+            if conn:
+                conn.close()
+
+
+def intentar_reasignar_grupo_varado(db, codigo_aliado: str) -> Dict[str, Any]:
+    """
+    Intenta reasignar un aliado con grupo_id=NULL siguiendo 2 pasos, en orden:
+      1. Plaza libre en el grupo de quien lo invitó.
+      2. Plaza libre en cualquier grupo activo del mismo CP.
+    Si ninguno aplica, no se toca al aliado (sigue varado). No crea grupo nuevo.
+    """
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT codigo, oficio, codigo_postal, invitado_por_codigo, grupo_id "
+                "FROM aliados WHERE codigo = ? AND estado = 'activo'",
+                (codigo_aliado,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return {'codigo': codigo_aliado, 'status': 'no_encontrado'}
+            aliado = dict(row)
+            if aliado.get('grupo_id'):
+                return {'codigo': codigo_aliado, 'status': 'ya_tiene_grupo'}
+
+            oficio = (aliado.get('oficio') or '').strip()
+            codigo_postal = (aliado.get('codigo_postal') or '').strip()
+            invitador_codigo = (aliado.get('invitado_por_codigo') or '').strip()
+            if not oficio or not codigo_postal:
+                return {'codigo': codigo_aliado, 'status': 'sin_oficio_o_cp'}
+
+            grupo_destino = None
+
+            if invitador_codigo:
+                cursor.execute(
+                    "SELECT grupo_id FROM aliados WHERE codigo = ?",
+                    (invitador_codigo,),
+                )
+                inv_row = cursor.fetchone()
+                if inv_row and inv_row['grupo_id']:
+                    grupo_id_inv = int(inv_row['grupo_id'])
+                    cursor.execute("SELECT estado FROM grupos WHERE id = ?", (grupo_id_inv,))
+                    g_row = cursor.fetchone()
+                    if g_row and (g_row['estado'] or '').strip().lower() == 'activo':
+                        if not db._grupo_tiene_oficio(cursor, grupo_id_inv, oficio):
+                            grupo_destino = grupo_id_inv
+
+            if not grupo_destino:
+                cursor.execute(
+                    """SELECT id FROM grupos
+                       WHERE codigo_postal = ? AND estado = 'activo'
+                       ORDER BY id""",
+                    (codigo_postal,),
+                )
+                for g_row in cursor.fetchall():
+                    grupo_id = int(g_row[0])
+                    if not db._grupo_tiene_oficio(cursor, grupo_id, oficio):
+                        grupo_destino = grupo_id
+                        break
+
+            if not grupo_destino:
+                return {'codigo': codigo_aliado, 'status': 'sin_plaza_disponible'}
+
+            cursor.execute(
+                "UPDATE aliados SET grupo_id = ? WHERE codigo = ?",
+                (grupo_destino, codigo_aliado),
+            )
+            conn.commit()
+            return {'codigo': codigo_aliado, 'status': 'reasignado', 'grupo_id': grupo_destino}
+        except Exception as e:
+            return {'codigo': codigo_aliado, 'status': 'error', 'message': str(e)}
+        finally:
+            if conn:
+                conn.close()
+

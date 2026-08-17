@@ -154,6 +154,207 @@
         initReferidosTree(true);
     }
 
+    function authHeaders(extra) {
+        var base = typeof AdminAuthenticator !== 'undefined'
+            ? AdminAuthenticator.getAdminAuthHeaders(extra)
+            : {};
+        if (extra) {
+            Object.keys(extra).forEach(function (k) {
+                if (k !== '_skipContentType') base[k] = extra[k];
+            });
+        }
+        return base;
+    }
+
+    function renderGruposTabla(grupos) {
+        var tbody = document.getElementById('tbody-grupos-admin');
+        if (!tbody) return;
+        if (!grupos || !grupos.length) {
+            tbody.innerHTML = '<tr><td colspan="7" style="color:#94a3b8;">Sin grupos en la base de datos.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = grupos.map(function (g) {
+            var estado = (g.estado || '').toString();
+            var activos = Number(g.aliados_activos) || 0;
+            var alertCls = (estado.toLowerCase() !== 'activo' || activos <= 1) ? 'grupo-admin-row--alert' : '';
+            var creado = (g.fecha_creacion || '').toString().slice(0, 16);
+            return '<tr class="' + alertCls + '">' +
+                '<td>' + esc(g.id) + '</td>' +
+                '<td>' + esc(g.nombre) + '</td>' +
+                '<td>' + esc(g.codigo_postal) + '</td>' +
+                '<td>' + esc(estado) + '</td>' +
+                '<td>' + esc(activos) + '</td>' +
+                '<td>' + esc(g.aliados_total) + '</td>' +
+                '<td>' + esc(creado) + '</td></tr>';
+        }).join('');
+    }
+
+    function loadGruposTabla() {
+        var tbody = document.getElementById('tbody-grupos-admin');
+        if (!tbody) return Promise.resolve();
+        return fetch('/api/admin/grupos', {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: authHeaders()
+        }).then(function (r) {
+            if (!r.ok) throw new Error('No se pudo cargar la tabla de grupos');
+            return r.json();
+        }).then(function (data) {
+            if (data.status !== 'success') throw new Error(data.message || 'Error al cargar grupos');
+            renderGruposTabla(data.grupos || []);
+        }).catch(function (err) {
+            tbody.innerHTML = '<tr><td colspan="7" style="color:var(--ruana-estado-riesgo,#d4926e);">' +
+                esc((err && err.message) || 'Error al cargar grupos') + '</td></tr>';
+        });
+    }
+
+    function statusClassForReasign(status) {
+        if (status === 'reasignado') return 'reasign-status--ok';
+        if (status === 'sin_plaza_disponible' || status === 'sin_oficio_o_cp') return 'reasign-status--warn';
+        return 'reasign-status--error';
+    }
+
+    function renderAliadosSinGrupo(aliados, resultadosMap) {
+        var tbody = document.getElementById('tbody-aliados-sin-grupo');
+        var countEl = document.getElementById('aliados-sin-grupo-count');
+        if (!tbody) return;
+        var list = aliados || [];
+        if (countEl) countEl.textContent = list.length ? '(' + list.length + ')' : '';
+        if (!list.length) {
+            tbody.innerHTML = '<tr><td colspan="7" style="color:#94a3b8;">No hay aliados activos sin grupo.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = list.map(function (a) {
+            var codigo = a.codigo || '';
+            var res = resultadosMap && resultadosMap[codigo];
+            var resHtml = res
+                ? '<span class="' + statusClassForReasign(res.status) + '">' + esc(res.status) + '</span>'
+                : '—';
+            var desde = (a.creado_en || a.fecha_registro || '').toString().slice(0, 16);
+            var rowCls = res && res.status === 'reasignado' ? 'aliado-sin-grupo--done' : '';
+            return '<tr data-codigo="' + esc(codigo) + '" class="' + rowCls + '">' +
+                '<td>' + esc(codigo) + '</td>' +
+                '<td>' + esc(a.nombre) + '</td>' +
+                '<td>' + esc(a.oficio) + '</td>' +
+                '<td>' + esc(a.codigo_postal) + '</td>' +
+                '<td>' + esc(a.invitado_por_codigo || '—') + '</td>' +
+                '<td>' + esc(desde) + '</td>' +
+                '<td class="reasign-result-cell">' + resHtml + '</td></tr>';
+        }).join('');
+    }
+
+    function loadAliadosSinGrupo() {
+        return fetch('/api/admin/aliados-sin-grupo', {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: authHeaders()
+        }).then(function (r) {
+            if (!r.ok) throw new Error('No se pudo cargar aliados sin grupo');
+            return r.json();
+        }).then(function (data) {
+            if (data.status !== 'success') throw new Error(data.message || 'Error');
+            renderAliadosSinGrupo(data.aliados || [], null);
+        }).catch(function (err) {
+            var tbody = document.getElementById('tbody-aliados-sin-grupo');
+            if (tbody) {
+                tbody.innerHTML = '<tr><td colspan="7" style="color:var(--ruana-estado-riesgo,#d4926e);">' +
+                    esc((err && err.message) || 'Error') + '</td></tr>';
+            }
+        });
+    }
+
+    function summarizeProcesarNoViables(resultados) {
+        var fusionados = 0;
+        var disueltos = 0;
+        (resultados || []).forEach(function (r) {
+            var accion = (r.accion || r.resultado || '').toString().toLowerCase();
+            if (accion.indexOf('fusion') >= 0 || accion.indexOf('absorb') >= 0) fusionados++;
+            else if (accion.indexOf('disuel') >= 0) disueltos++;
+        });
+        if (!resultados || !resultados.length) {
+            return 'No se procesaron grupos (ninguno no viable en este momento).';
+        }
+        return fusionados + ' fusionado(s), ' + disueltos + ' disuelto(s), ' + resultados.length + ' procesado(s) en total.';
+    }
+
+    function setupGruposAdminActions(host) {
+        var btnProcesar = document.getElementById('btn-procesar-grupos-no-viables');
+        if (btnProcesar && !btnProcesar._bound) {
+            btnProcesar._bound = true;
+            btnProcesar.addEventListener('click', function () {
+                if (!confirm('¿Procesar grupos no viables? Se fusionarán o disolverán grupos activos con un solo aliado activo.')) return;
+                btnProcesar.disabled = true;
+                fetch('/api/admin/grupos/procesar-no-viables', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: authHeaders({ 'Content-Type': 'application/json' })
+                }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                    .then(function (res) {
+                        if (!res.ok || res.data.status !== 'success') {
+                            throw new Error((res.data && res.data.message) || 'Error al procesar');
+                        }
+                        var msg = summarizeProcesarNoViables(res.data.resultados);
+                        if (host && typeof host.showToast === 'function') host.showToast(msg, 'success');
+                        loadGruposTabla();
+                    })
+                    .catch(function (err) {
+                        if (host && typeof host.showToast === 'function') {
+                            host.showToast((err && err.message) || 'Error al procesar grupos', 'error');
+                        }
+                    })
+                    .finally(function () { btnProcesar.disabled = false; });
+            });
+        }
+
+        var btnReasignar = document.getElementById('btn-reasignar-aliados-sin-grupo');
+        if (btnReasignar && !btnReasignar._bound) {
+            btnReasignar._bound = true;
+            btnReasignar.addEventListener('click', function () {
+                if (!confirm('¿Reasignar todos los aliados sin grupo? Solo se asignará plaza existente; sin plaza quedan varados.')) return;
+                btnReasignar.disabled = true;
+                fetch('/api/admin/aliados-sin-grupo/reasignar', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: authHeaders({ 'Content-Type': 'application/json' })
+                }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                    .then(function (res) {
+                        if (!res.ok || res.data.status !== 'success') {
+                            throw new Error((res.data && res.data.message) || 'Error al reasignar');
+                        }
+                        var map = {};
+                        (res.data.resultados || []).forEach(function (r) {
+                            if (r.codigo) map[r.codigo] = r;
+                        });
+                        var tbody = document.getElementById('tbody-aliados-sin-grupo');
+                        if (tbody) {
+                            tbody.querySelectorAll('tr[data-codigo]').forEach(function (tr) {
+                                var cod = tr.getAttribute('data-codigo');
+                                var item = map[cod];
+                                if (!item) return;
+                                var cell = tr.querySelector('.reasign-result-cell');
+                                if (cell) {
+                                    cell.innerHTML = '<span class="' + statusClassForReasign(item.status) + '">' + esc(item.status) + '</span>';
+                                }
+                                if (item.status === 'reasignado') {
+                                    tr.classList.add('aliado-sin-grupo--done');
+                                    setTimeout(function () { tr.remove(); }, 2500);
+                                }
+                            });
+                        }
+                        var msg = res.data.reasignados + ' de ' + res.data.total + ' reasignado(s)';
+                        if (host && typeof host.showToast === 'function') host.showToast(msg, 'success');
+                        setTimeout(loadAliadosSinGrupo, 2600);
+                    })
+                    .catch(function (err) {
+                        if (host && typeof host.showToast === 'function') {
+                            host.showToast((err && err.message) || 'Error al reasignar', 'error');
+                        }
+                    })
+                    .finally(function () { btnReasignar.disabled = false; });
+            });
+        }
+    }
+
     function renderGruposCp(host) {
         var overview = document.getElementById('grupos-cp-overview');
         if (!overview) return;
@@ -279,6 +480,8 @@
 
     function refresh(host) {
         renderGruposCp(host);
+        loadGruposTabla();
+        loadAliadosSinGrupo();
         renderScores(host);
         renderIncidencias(host);
     }
@@ -323,6 +526,7 @@
         ensureSections();
         setupRedTabs();
         setupReferidosSearch();
+        setupGruposAdminActions(global._ruanaAdminPanel);
     }
 
     global.RuanaAdminModules = global.RuanaAdminModules || {};
@@ -330,6 +534,8 @@
         setup: setup,
         refresh: refresh,
         renderGruposCp: renderGruposCp,
+        loadGruposTabla: loadGruposTabla,
+        loadAliadosSinGrupo: loadAliadosSinGrupo,
         renderScores: renderScores,
         renderIncidencias: renderIncidencias,
         initReferidosTree: initReferidosTree,

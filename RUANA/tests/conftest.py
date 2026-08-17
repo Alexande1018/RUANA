@@ -1,5 +1,6 @@
 import os
 import time
+import threading
 from pathlib import Path
 
 import pytest
@@ -9,10 +10,36 @@ from RUANA.web import app as app_module
 _QA_ADMIN_CREDENTIALS = Path(__file__).resolve().parents[1] / "config" / "admin_credentials.qa.json"
 
 
+class _Hito2AFakeConn:
+    def __init__(self, db):
+        self._db = db
+
+    def cursor(self):
+        return _Hito2AFakeCursor(self._db)
+
+    def commit(self):
+        pass
+
+    def close(self):
+        pass
+
+
+class _Hito2AFakeCursor:
+    def __init__(self, db):
+        self._db = db
+
+
 class Hito2AFakeDB:
     def __init__(self):
         self.calls = []
         self.aliado_estado = "activo"
+        self._lock = threading.Lock()
+
+    def _connect(self):
+        return _Hito2AFakeConn(self)
+
+    def _insert_evento_sistema(self, cursor, tipo, descripcion, actor_tipo=None, actor_codigo=None, metadata=None):
+        self.calls.append(("registrar_evento_sistema", tipo, descripcion, actor_tipo, actor_codigo, metadata))
 
     def codigo_existe(self, codigo):
         self.calls.append(("codigo_existe", codigo))

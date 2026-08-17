@@ -539,6 +539,81 @@
     line-height: 1.5;
 }
 
+.ruana-btn-primario {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    margin-bottom: 8px;
+    border-radius: 10px;
+    border: 1px solid rgba(63, 159, 110, 0.45);
+    background: rgba(63, 159, 110, 0.16);
+    color: var(--ruana-estado-estable, #5ecf9a);
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color var(--ruana-transition, 240ms ease), background var(--ruana-transition, 240ms ease);
+}
+
+.ruana-btn-primario:hover {
+    border-color: rgba(63, 159, 110, 0.65);
+    background: rgba(63, 159, 110, 0.24);
+}
+
+.grupo-admin-row--alert td {
+    background: rgba(212, 146, 110, 0.08);
+}
+
+.aliados-sin-grupo-count {
+    color: var(--ruana-estado-riesgo, #d4926e);
+}
+
+.reasign-status--ok {
+    color: var(--ruana-estado-estable, #5ecf9a);
+}
+
+.reasign-status--warn {
+    color: var(--ruana-estado-riesgo, #d4926e);
+}
+
+.reasign-status--error {
+    color: var(--ruana-estado-competencia, #b86a8a);
+}
+
+.cron-status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+    margin: 16px 0 24px;
+}
+
+.cron-status-card {
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid var(--ruana-border, rgba(210, 218, 208, 0.1));
+    background: var(--ruana-surface, rgba(248, 250, 246, 0.04));
+}
+
+.cron-status-card.cron-status--alert {
+    border-color: rgba(212, 146, 110, 0.45);
+    background: rgba(212, 146, 110, 0.08);
+}
+
+.cron-status-label {
+    font-size: 0.78rem;
+    color: var(--admin-text-muted, #a1a1aa);
+    margin-bottom: 6px;
+}
+
+.cron-status-value {
+    font-size: 0.92rem;
+    color: var(--ruana-estado-estable, #5ecf9a);
+}
+
+.cron-status-card.cron-status--alert .cron-status-value {
+    color: var(--ruana-estado-riesgo, #d4926e);
+}
+
 .scores-eval-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
