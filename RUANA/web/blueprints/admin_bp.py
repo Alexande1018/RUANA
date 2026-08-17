@@ -36,6 +36,7 @@ from core.services import (
 from web.auth_decorators import (
     _admin_codigo,
     _admin_permisos,
+    _cron_secret_valid,
     require_admin,
     require_admin_escritura,
     require_admin_escritura_or_cron,
@@ -304,6 +305,124 @@ def admin_listar_aliados_eliminados():
         db = get_db()
         aliados = aliado_service.listar_aliados_eliminados(db)
         return jsonify({'status': 'success', 'aliados': aliados}), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/admin/grupos', methods=['GET'])
+@require_admin
+def admin_listar_grupos():
+    """
+    GET /api/admin/grupos
+    Todos los grupos con conteo de aliados activos/total, para visibilidad
+    directa de la tabla grupos (id, CP, estado, fecha).
+    """
+    try:
+        db = get_db()
+        grupos = grupo_service.listar_grupos_admin(db)
+        return jsonify({'status': 'success', 'grupos': grupos, 'total': len(grupos)})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/admin/grupos/procesar-no-viables', methods=['POST'])
+@require_admin_escritura
+def admin_procesar_grupos_no_viables():
+    """
+    POST /api/admin/grupos/procesar-no-viables
+    Ejecuta grupo_service.procesar_grupos_no_viables(): para cada grupo activo
+    con exactamente 1 aliado activo, intenta fusión con otro grupo compatible
+    del mismo CP o disuelve y reubica al aliado.
+    """
+    try:
+        db = get_db()
+        resultados = grupo_service.procesar_grupos_no_viables(db)
+        admin_service.registrar_evento_sistema(
+            db,
+            tipo='grupos_procesar_no_viables',
+            descripcion=f'Procesados {len(resultados)} grupo(s) no viables',
+            actor_tipo='admin',
+            actor_codigo=_admin_codigo() or None,
+            metadata={'resultados': resultados},
+        )
+        return jsonify({'status': 'success', 'procesados': len(resultados), 'resultados': resultados})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/admin/aliados-sin-grupo', methods=['GET'])
+@require_admin
+def admin_aliados_sin_grupo():
+    """
+    GET /api/admin/aliados-sin-grupo
+    Aliados activos con grupo_id = NULL.
+    """
+    try:
+        db = get_db()
+        aliados = grupo_service.listar_aliados_sin_grupo(db)
+        return jsonify({'status': 'success', 'aliados': aliados, 'total': len(aliados)})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/admin/aliados-sin-grupo/reasignar', methods=['POST'])
+@require_admin_escritura
+def admin_reasignar_aliados_sin_grupo():
+    """
+    POST /api/admin/aliados-sin-grupo/reasignar
+    Body opcional: { "codigo": "12345" } para reasignar solo uno.
+    Sin body, procesa todos los aliados sin grupo con el criterio de 2 pasos
+    (plaza en grupo del invitador → plaza en grupo del mismo CP). No crea
+    grupos nuevos; los que no encuentren plaza quedan sin tocar.
+    """
+    try:
+        db = get_db()
+        data = request.get_json(silent=True) or {}
+        codigo_unico = (data.get('codigo') or '').strip()
+
+        if codigo_unico:
+            codigos = [codigo_unico]
+        else:
+            codigos = [a['codigo'] for a in grupo_service.listar_aliados_sin_grupo(db)]
+
+        resultados = [grupo_service.intentar_reasignar_grupo_varado(db, c) for c in codigos]
+        reasignados = [r for r in resultados if r.get('status') == 'reasignado']
+
+        admin_service.registrar_evento_sistema(
+            db,
+            tipo='aliados_reasignar_sin_grupo',
+            descripcion=f'{len(reasignados)} de {len(resultados)} aliado(s) varado(s) reasignados',
+            actor_tipo='admin',
+            actor_codigo=_admin_codigo() or None,
+            metadata={'resultados': resultados},
+        )
+        return jsonify({
+            'status': 'success',
+            'total': len(resultados),
+            'reasignados': len(reasignados),
+            'resultados': resultados,
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/admin/cron-status', methods=['GET'])
+@require_admin
+def admin_cron_status():
+    """
+    GET /api/admin/cron-status
+    Última ejecución registrada de los procesos que dependen de un scheduler
+    externo (finalizar-vencidas, motor/evaluar-periodico).
+    """
+    try:
+        db = get_db()
+        eventos = admin_service.obtener_eventos_recientes(db, limite=200)
+        tipos = ('cron_finalizar_vencidas', 'cron_motor_evaluar_periodico')
+        ultimos = {}
+        for tipo in tipos:
+            match = next((e for e in eventos if e.get('tipo') == tipo), None)
+            ultimos[tipo] = match
+        return jsonify({'status': 'success', 'ultimos': ultimos})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
@@ -1010,6 +1129,13 @@ def finalizar_competencia_vencidas():
     try:
         db = get_db()
         resultados = competencia_service.finalizar_competencia_activas_vencidas(db)
+        admin_service.registrar_evento_sistema(
+            db,
+            tipo='cron_finalizar_vencidas',
+            descripcion=f'{len(resultados)} competencia(s) finalizada(s)',
+            actor_tipo='cron' if _cron_secret_valid() else 'admin',
+            metadata={'total': len(resultados)},
+        )
         return jsonify({
             'status': 'success',
             'finalizadas': len(resultados),
@@ -1052,6 +1178,14 @@ def admin_motor_evaluar_periodico():
     try:
         db = get_db()
         resultado = evaluacion_service.ejecutar_motor_periodico(db)
+        if resultado.get('status') == 'success':
+            admin_service.registrar_evento_sistema(
+                db,
+                tipo='cron_motor_evaluar_periodico',
+                descripcion=f"{resultado.get('evaluados', 0)} aliado(s) evaluados",
+                actor_tipo='cron' if _cron_secret_valid() else 'admin',
+                metadata=resultado.get('resumen_estados', {}),
+            )
         status_code = 200 if resultado.get('status') == 'success' else 500
         return jsonify({**resultado, 'timestamp': datetime.now().isoformat()}), status_code
     except Exception as e:

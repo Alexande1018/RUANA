@@ -157,6 +157,56 @@
     }
   }
 
+  function formatCronAge(creadoEn) {
+    if (!creadoEn) return { text: 'Sin registro', alert: true };
+    var fecha = new Date(creadoEn);
+    if (isNaN(fecha.getTime())) return { text: 'Sin registro', alert: true };
+    var diffMs = Date.now() - fecha.getTime();
+    var diffH = diffMs / (1000 * 60 * 60);
+    var text;
+    if (diffH < 1) text = 'Hace ' + Math.max(1, Math.floor(diffMs / 60000)) + ' min';
+    else if (diffH < 48) text = 'Hace ' + Math.floor(diffH) + ' h';
+    else text = 'Hace ' + Math.floor(diffH / 24) + ' días';
+    return { text: text, alert: diffH > 48 };
+  }
+
+  function renderCronStatus(data) {
+    var ultimos = (data && data.ultimos) || {};
+    var fin = ultimos.cron_finalizar_vencidas;
+    var motor = ultimos.cron_motor_evaluar_periodico;
+    var finCard = document.getElementById('cron-status-finalizar-vencidas');
+    var motorCard = document.getElementById('cron-status-motor-periodico');
+    var finText = document.getElementById('cron-finalizar-vencidas-text');
+    var motorText = document.getElementById('cron-motor-periodico-text');
+    if (finText) {
+      var finAge = formatCronAge(fin && (fin.creado_en || fin.fecha));
+      finText.textContent = fin
+        ? finAge.text + (fin.descripcion ? ' — ' + fin.descripcion : '')
+        : finAge.text;
+      if (finCard) finCard.classList.toggle('cron-status--alert', finAge.alert);
+    }
+    if (motorText) {
+      var motorAge = formatCronAge(motor && (motor.creado_en || motor.fecha));
+      motorText.textContent = motor
+        ? motorAge.text + (motor.descripcion ? ' — ' + motor.descripcion : '')
+        : motorAge.text;
+      if (motorCard) motorCard.classList.toggle('cron-status--alert', motorAge.alert);
+    }
+  }
+
+  async function loadCronStatus() {
+    try {
+      const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+      const r = await fetch('/api/admin/cron-status', {
+        method: 'GET',
+        credentials: 'same-origin',
+        headers: authHeaders
+      });
+      const data = await (r.ok ? r.json().catch(() => null) : null);
+      if (data && data.status === 'success') renderCronStatus(data);
+    } catch (e) { /* ignorar */ }
+  }
+
   async function cargarDesdeApi(host) {
       const loader = document.getElementById('admin-loader');
       document.body.classList.add('admin-is-loading');
@@ -381,6 +431,7 @@ async function refreshCommandCenterPanels(host, payload) {
       if (redEx && typeof redEx.initReferidosTree === 'function') {
           redEx.initReferidosTree(true);
       }
+      loadCronStatus();
 }
 
 async function cargarChatsFallback(host) {
@@ -743,6 +794,8 @@ modules.resumen = {
     renderMovimiento: renderMovimiento,
     renderMovimientoError: renderMovimientoError,
     renderMetricas: renderMetricas,
+    renderCronStatus: renderCronStatus,
+    loadCronStatus: loadCronStatus,
   
     cargarDesdeApi: cargarDesdeApi,
     cargarChatsFallback: cargarChatsFallback,

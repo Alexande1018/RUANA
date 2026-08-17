@@ -245,6 +245,18 @@
             </div>
         </div>
 
+        <!-- Estado de crons externos (scheduler X-Ruana-Cron-Secret) -->
+        <div class="cron-status-grid" id="cron-status-wrap" aria-live="polite">
+            <div class="cron-status-card" id="cron-status-finalizar-vencidas">
+                <div class="cron-status-label">Última finalización de competencias vencidas</div>
+                <div class="cron-status-value" id="cron-finalizar-vencidas-text">Sin registro</div>
+            </div>
+            <div class="cron-status-card" id="cron-status-motor-periodico">
+                <div class="cron-status-label">Última evaluación periódica del motor</div>
+                <div class="cron-status-value" id="cron-motor-periodico-text">Sin registro</div>
+            </div>
+        </div>
+
         <!-- CAPA 2: Movimiento del Sistema -->
         <div class="movimiento-sistema">
             <h2 class="seccion-titulo">Movimiento del Sistema (24h)</h2>
@@ -880,6 +892,52 @@
             <h2 class="seccion-titulo">Grupos y códigos postales</h2>
             <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Vista territorial de la red RUANA por CP y grupos.</p>
             <div class="grupos-cp-overview" id="grupos-cp-overview"></div>
+            <div class="control-aliados" id="grupos-tabla-wrap" style="margin-top: 20px;">
+                <h3 class="seccion-titulo" style="font-size: 1rem;">Tabla de grupos (fuente real)</h3>
+                <button type="button" id="btn-procesar-grupos-no-viables" class="ruana-btn-primario">
+                    Procesar grupos no viables
+                </button>
+                <p class="admin-subtitle" style="margin-top:6px;">
+                    Fusiona o disuelve grupos activos con 1 solo aliado activo. No afecta a
+                    aliados sin grupo asignado (ver tabla "Aliados sin grupo" más abajo).
+                </p>
+                <div class="movimiento-24h-tabla-wrap">
+                    <div class="movimiento-24h-tabla-scroll">
+                        <table class="movimiento-24h-tabla">
+                            <thead>
+                                <tr><th>ID</th><th>Nombre</th><th>CP</th><th>Estado</th>
+                                    <th>Activos</th><th>Total</th><th>Creado</th></tr>
+                            </thead>
+                            <tbody id="tbody-grupos-admin"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="control-aliados" id="aliados-sin-grupo-wrap" style="margin-top: 20px;">
+                <h3 class="seccion-titulo" style="font-size: 1rem;">
+                    Aliados sin grupo <span id="aliados-sin-grupo-count" class="aliados-sin-grupo-count"></span>
+                </h3>
+                <p class="admin-subtitle">
+                    Activados con oficio fuera de catálogo o límite de grupos por CP alcanzado.
+                    "Reasignar" busca plaza primero en el grupo de quien invitó, luego en
+                    cualquier grupo del mismo CP. Si no encuentra plaza, el aliado queda
+                    igual — no se crea grupo nuevo automáticamente.
+                </p>
+                <button type="button" id="btn-reasignar-aliados-sin-grupo" class="ruana-btn-primario">
+                    Reasignar todos
+                </button>
+                <div class="movimiento-24h-tabla-wrap">
+                    <div class="movimiento-24h-tabla-scroll">
+                        <table class="movimiento-24h-tabla">
+                            <thead>
+                                <tr><th>Código</th><th>Nombre</th><th>Oficio</th><th>CP</th>
+                                    <th>Invitado por</th><th>Desde</th><th>Resultado</th></tr>
+                            </thead>
+                            <tbody id="tbody-aliados-sin-grupo"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Scores y evaluaciones -->
