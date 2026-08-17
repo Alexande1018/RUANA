@@ -605,5 +605,5 @@ html.admin-shell-enabled .admin-module-switcher {
 }
 
 html.admin-shell-enabled .admin-sidebar {
-    width: 252px;
+    width: var(--admin-sidebar-w, 252px);
 }

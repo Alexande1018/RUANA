@@ -6,7 +6,7 @@
    ================================================ */
 
 :root {
-    --admin-sidebar-w: 248px;
+    --admin-sidebar-w: 252px;
     --admin-topbar-h: 64px;
     --admin-bg: #06070b;
     --admin-bg-elevated: #0c0d12;
@@ -31,6 +31,7 @@ html.admin-shell-enabled body {
     background: var(--admin-bg);
     color: var(--admin-text);
     font-family: var(--admin-font);
+    overflow-x: hidden;
 }
 
 .admin-app {
@@ -39,7 +40,7 @@ html.admin-shell-enabled body {
     padding-top: var(--admin-topbar-h);
 }
 
-/* Sidebar */
+/* Sidebar — plegado por defecto: no ocupa espacio ni cubre el contenido */
 .admin-sidebar {
     position: fixed;
     top: var(--admin-topbar-h);
@@ -54,6 +55,37 @@ html.admin-shell-enabled body {
     flex-direction: column;
     z-index: 100;
     overflow: hidden;
+    transform: translateX(-100%);
+    visibility: hidden;
+    pointer-events: none;
+    transition: transform 220ms ease, visibility 0s linear 220ms;
+}
+
+.admin-sidebar.is-open,
+.admin-sidebar.is-mobile-open {
+    transform: translateX(0);
+    visibility: visible;
+    pointer-events: auto;
+    transition: transform 220ms ease, visibility 0s linear 0s;
+}
+
+.admin-sidebar-backdrop {
+    display: none;
+    position: fixed;
+    top: var(--admin-topbar-h);
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 99;
+    border: none;
+    padding: 0;
+    margin: 0;
+    background: rgba(4, 5, 8, 0.45);
+    cursor: pointer;
+}
+
+html.admin-sidebar-open .admin-sidebar-backdrop {
+    display: block;
 }
 
 .admin-sidebar-brand {
@@ -252,11 +284,16 @@ html.admin-shell-enabled body {
     color: var(--admin-text);
 }
 
-/* Main area */
+/* Main area — el margen solo se reserva cuando el menú está desplegado en escritorio */
 .admin-main {
     flex: 1;
-    margin-left: var(--admin-sidebar-w);
+    margin-left: 0;
     min-width: 0;
+    transition: margin-left 220ms ease;
+}
+
+html.admin-sidebar-open .admin-main {
+    margin-left: var(--admin-sidebar-w);
 }
 
 html.admin-shell-enabled .admin-header {
@@ -271,6 +308,7 @@ html.admin-shell-enabled .admin-container {
 html.admin-shell-enabled .admin-topbar {
     left: 0;
     right: 0;
+    z-index: 130 !important;
     background: rgba(6, 7, 11, 0.88) !important;
     border-bottom: 1px solid var(--admin-border) !important;
     backdrop-filter: blur(20px) saturate(180%) !important;
@@ -733,25 +771,68 @@ html.admin-shell-enabled table tbody tr {
     color: var(--admin-text-faint);
 }
 
-/* Mobile */
+.admin-sidebar-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: auto;
+    min-width: 38px;
+    height: 38px;
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 1px solid var(--admin-border);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--admin-text);
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.admin-sidebar-toggle:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--admin-text);
+}
+
+.admin-sidebar-toggle.is-open {
+    border-color: rgba(162, 255, 0, 0.35);
+    background: var(--admin-accent-soft);
+    color: var(--admin-accent);
+}
+
+.admin-sidebar-toggle svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.admin-sidebar-toggle-icon-close {
+    display: none;
+}
+
+.admin-sidebar-toggle.is-open .admin-sidebar-toggle-icon-open {
+    display: none;
+}
+
+.admin-sidebar-toggle.is-open .admin-sidebar-toggle-icon-close {
+    display: block;
+}
+
+/* Mobile — overlay: el contenido no se comprime; el fondo cierra el menú */
 @media (max-width: 960px) {
     .admin-sidebar {
-        transform: translateX(-100%);
-        transition: transform 220ms ease;
         box-shadow: var(--admin-shadow);
         bottom: 64px;
     }
 
-    .admin-sidebar.is-mobile-open {
-        transform: translateX(0);
-    }
-
-    .admin-main {
+    html.admin-sidebar-open .admin-main {
         margin-left: 0;
     }
 
-    .admin-sidebar-toggle {
-        display: inline-flex !important;
+    html.admin-sidebar-open .admin-sidebar-backdrop {
+        bottom: 64px;
     }
 
     .admin-shell-bottom {
@@ -765,19 +846,27 @@ html.admin-shell-enabled table tbody tr {
     .admin-module-switcher {
         display: none;
     }
+
+    .admin-sidebar-toggle-label {
+        display: none;
+    }
+
+    .admin-sidebar-toggle {
+        width: 38px;
+        padding: 0;
+    }
 }
 
-.admin-sidebar-toggle {
-    display: none;
-    align-items: center;
-    justify-content: center;
-    width: 38px;
-    height: 38px;
-    border-radius: 10px;
-    border: 1px solid var(--admin-border);
-    background: rgba(255, 255, 255, 0.04);
-    color: var(--admin-text);
-    cursor: pointer;
+@media (max-width: 640px) {
+    html.admin-shell-enabled {
+        --admin-topbar-h: 88px;
+    }
+}
+
+@media (min-width: 961px) {
+    html.admin-sidebar-open .admin-sidebar-backdrop {
+        display: none;
+    }
 }
 
 /* Sticky table headers for scale */
