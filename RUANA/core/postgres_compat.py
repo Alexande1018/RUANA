@@ -7,13 +7,52 @@ raw SQL with explicit Postgres queries.
 
 from __future__ import annotations
 
+import os
 import re
 import sqlite3
+import threading
 from collections.abc import Mapping
 from typing import Any, Iterable, Optional
 
 import psycopg
 from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
+
+_pool: Optional[ConnectionPool] = None
+_pool_lock = threading.Lock()
+
+
+def _pool_min_size() -> int:
+    return max(1, int(os.environ.get("RUANA_DB_POOL_MIN", "1")))
+
+
+def _pool_max_size() -> int:
+    return max(1, int(os.environ.get("RUANA_DB_POOL_MAX", "5")))
+
+
+def _get_pool(database_url: str) -> ConnectionPool:
+    """Lazy module-level pool; no connection until first Postgres use."""
+    global _pool
+    if _pool is None:
+        with _pool_lock:
+            if _pool is None:
+                _pool = ConnectionPool(
+                    database_url,
+                    min_size=_pool_min_size(),
+                    max_size=_pool_max_size(),
+                    kwargs={"row_factory": dict_row, "prepare_threshold": None},
+                    open=True,
+                )
+    return _pool
+
+
+def close_pool() -> None:
+    """Devuelve conexiones al pool y cierra el pool (tests / apagado ordenado)."""
+    global _pool
+    with _pool_lock:
+        if _pool is not None:
+            _pool.close()
+            _pool = None
 
 
 class CompatRow(Mapping):
@@ -264,7 +303,8 @@ class PostgresCompatCursor:
 
 class PostgresCompatConnection:
     def __init__(self, database_url: str):
-        self._conn = psycopg.connect(database_url, row_factory=dict_row, prepare_threshold=None)
+        self._pool = _get_pool(database_url)
+        self._conn = self._pool.getconn()
         self.row_factory = None
 
     def cursor(self):
@@ -277,7 +317,9 @@ class PostgresCompatConnection:
         self._conn.rollback()
 
     def close(self):
-        self._conn.close()
+        if self._conn is not None:
+            self._pool.putconn(self._conn)
+            self._conn = None
 
     def __enter__(self):
         return self
