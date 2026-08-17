@@ -15,7 +15,13 @@ class GrupoRepo:
     """Operaciones de persistencia del dominio grupo."""
 
     def existe_nombre(self, cursor, nombre: str) -> bool:
-        cursor.execute("SELECT 1 FROM grupos WHERE nombre = ?", (nombre,))
+        nombre_s = (nombre or "").strip()
+        if not nombre_s:
+            return False
+        cursor.execute(
+            "SELECT 1 FROM grupos WHERE TRIM(nombre) = ? COLLATE NOCASE LIMIT 1",
+            (nombre_s,),
+        )
         return cursor.fetchone() is not None
 
     def listar_activos_por_cp(self, cursor, codigo_postal: str) -> List[Any]:
@@ -63,12 +69,17 @@ class GrupoRepo:
         ciudad: Optional[str],
         provincia: Optional[str],
     ) -> Any:
+        nombre_s = (nombre or "").strip()
+        if not nombre_s:
+            raise ValueError("Nombre de grupo requerido")
+        if self.existe_nombre(cursor, nombre_s):
+            raise ValueError(f"Ya existe un grupo con el nombre «{nombre_s}»")
         cursor.execute(
             """
             INSERT INTO grupos (nombre, codigo_postal, ciudad, provincia, estado, fecha_creacion)
             VALUES (?, ?, ?, ?, 'activo', CURRENT_TIMESTAMP)
             """,
-            (nombre, codigo_postal, ciudad or None, provincia or None),
+            (nombre_s, codigo_postal, ciudad or None, provincia or None),
         )
         return cursor.lastrowid
 

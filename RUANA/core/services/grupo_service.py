@@ -26,7 +26,8 @@ def _generar_id_unico_grupo(db) -> str:
 def _generar_nombre_grupo(db, cursor) -> str:
     """
     Genera nombre único en BD con formato RUANA-<ID_UNICO>-<SUFIJO>.
-    Valida unicidad en base de datos; reintenta si hay colisión.
+    Valida unicidad global (incluye grupos disueltos; nombres retirados no se reutilizan).
+    Reintenta si hay colisión.
     """
     intentos_max = 50
     for _ in range(intentos_max):
@@ -36,6 +37,29 @@ def _generar_nombre_grupo(db, cursor) -> str:
         if not _repo.existe_nombre(cursor, nombre):
             return nombre
     raise RuntimeError("No se pudo generar nombre único para el grupo tras varios intentos")
+
+
+def _insertar_grupo_nombre_unico(
+    db,
+    cursor,
+    codigo_postal: str,
+    ciudad: str = "",
+    provincia: str = "",
+) -> int:
+    """
+    Inserta un grupo con nombre autogenerado. Nunca reutiliza un nombre ya existente
+    (activo, disuelto o en competencia). Reintenta ante colisión o UNIQUE en BD.
+    """
+    intentos_max = 50
+    for _ in range(intentos_max):
+        nombre = db._generar_nombre_grupo(cursor)
+        try:
+            return int(
+                _repo.insertar_grupo(cursor, nombre, codigo_postal, ciudad, provincia)
+            )
+        except (ValueError, sqlite3.IntegrityError):
+            continue
+    raise RuntimeError("No se pudo insertar grupo con nombre único tras varios intentos")
 
 def obtener_grupos_activos_por_cp(db, codigo_postal: str) -> List[Dict[str, Any]]:
     """Lista grupos activos en el código postal (datos desde BD, sin listas abstractas)."""
@@ -137,8 +161,7 @@ def crear_grupo_en_cp(db, codigo_postal: str, ciudad: str = "", provincia: str =
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            nombre = db._generar_nombre_grupo(cursor)
-            gid = _repo.insertar_grupo(cursor, nombre, codigo_postal, ciudad, provincia)
+            gid = _insertar_grupo_nombre_unico(db, cursor, codigo_postal, ciudad, provincia)
             conn.commit()
             return dict(_repo.select_grupo_por_id(cursor, gid))
         except Exception as e:
@@ -447,12 +470,7 @@ def obtener_o_crear_grupo(db, codigo_postal: str, ciudad: str = "", provincia: s
             row = cursor.fetchone()
             if row:
                 return dict(row)
-            nombre = db._generar_nombre_grupo(cursor)
-            cursor.execute("""
-                INSERT INTO grupos (nombre, codigo_postal, ciudad, provincia, estado, fecha_creacion)
-                VALUES (?, ?, ?, ?, 'activo', CURRENT_TIMESTAMP)
-            """, (nombre, codigo_postal, ciudad or None, provincia or None))
-            gid = cursor.lastrowid
+            gid = _insertar_grupo_nombre_unico(db, cursor, codigo_postal, ciudad, provincia)
             conn.commit()
             cursor.execute(
                 "SELECT id, nombre, codigo_postal, ciudad, provincia, estado, fecha_creacion FROM grupos WHERE id = ?",
@@ -641,13 +659,8 @@ def _obtener_grupo_activacion_pendiente(db, cursor, aliado: Dict[str, Any]) -> O
     )
     n_grupos = cursor.fetchone()[0] or 0
     if n_grupos < MAX_GRUPOS_POR_CP:
-        nombre = db._generar_nombre_grupo(cursor)
-        cursor.execute(
-            """INSERT INTO grupos (nombre, codigo_postal, estado, fecha_creacion)
-               VALUES (?, ?, 'activo', CURRENT_TIMESTAMP)""",
-            (nombre, codigo_postal),
-        )
-        return int(cursor.lastrowid)
+        gid = _insertar_grupo_nombre_unico(db, cursor, codigo_postal)
+        return gid
     return None
 
 

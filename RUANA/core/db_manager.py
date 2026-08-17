@@ -110,6 +110,10 @@ class DBManager:
         """Fachada Campamento Base → schema_service._migrar_grupos_multi_cp_si_procede."""
         return schema_service._migrar_grupos_multi_cp_si_procede(self, conn, cursor)
 
+    def _migrar_grupos_nombre_unique_si_procede(self, conn, cursor) -> None:
+        """Fachada Campamento Base → schema_service._migrar_grupos_nombre_unique_si_procede."""
+        return schema_service._migrar_grupos_nombre_unique_si_procede(self, conn, cursor)
+
     def _migrar_aliados_grupo_id(self, conn, cursor) -> None:
         """Fachada Campamento Base → schema_service._migrar_aliados_grupo_id."""
         return schema_service._migrar_aliados_grupo_id(self, conn, cursor)
