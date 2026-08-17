@@ -73,6 +73,7 @@ from web.auth_decorators import (
     _forbidden_unless_admin_or_aliado_self,
 )
 from web.limiter import init_limiter
+from web.limiter import limiter
 
 # Obtener ruta absoluta de la carpeta web
 web_dir = Path(__file__).parent.absolute()
@@ -281,6 +282,8 @@ def static_files(path):
 # ================================================
 
 @app.route('/api/admin/validar', methods=['POST'])
+@limiter.limit("10 per hour")
+@limiter.limit("5 per minute")
 def validar_admin():
     """
     POST /api/admin/validar
@@ -362,6 +365,8 @@ def logout_admin():
 
 
 @app.route('/api/admin/cambiar-contraseña', methods=['POST'])
+@limiter.limit("10 per hour")
+@limiter.limit("5 per minute")
 @require_admin
 def admin_cambiar_contraseña():
     """
