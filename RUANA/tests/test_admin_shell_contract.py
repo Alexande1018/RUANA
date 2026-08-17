@@ -142,3 +142,16 @@ def test_admin_shell_sidebar_is_collapsible():
     assert 'id="adminSidebarToggle"' in js or "adminSidebarToggle" in js
     assert "Mostrar menú" in js
     assert "Ocultar menú" in js
+
+
+def test_admin_shell_sidebar_nav_not_blocked_by_backdrop():
+    """El backdrop móvil no debe cubrir el sidebar ni atraparlo bajo un stacking context."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    shell_css = (root / "static" / "css" / "admin-shell.css").read_text(encoding="utf-8")
+    ops_css = (root / "static" / "css" / "admin-ops-identity.css").read_text(encoding="utf-8")
+
+    assert "admin-sidebar-backdrop.is-visible" in shell_css
+    assert "left: var(--admin-sidebar-w)" in shell_css
+
+    assert "admin-sidebar-open .admin-app" not in ops_css
+    assert ops_css.index(".admin-sidebar {") < ops_css.index("z-index: 140")

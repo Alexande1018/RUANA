@@ -863,7 +863,8 @@ html.admin-shell-enabled table tbody tr {
         margin-left: 0;
     }
 
-    html.admin-sidebar-open .admin-sidebar-backdrop {
+    html.admin-sidebar-open .admin-sidebar-backdrop.is-visible {
+        left: var(--admin-sidebar-w);
         bottom: 64px;
     }
 
