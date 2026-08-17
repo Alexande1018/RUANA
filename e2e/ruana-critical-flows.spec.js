@@ -86,7 +86,7 @@ async function loginAdminAsUser(page, scenario, code = ADMIN_CODE, label = 'admi
     await clickVisible(page, '#adminLoginBtn');
     await expect(page.locator('#adminLoginModal')).toHaveClass(/hidden/, { timeout: 15000 });
     await expect(page.locator('body')).not.toHaveClass(/admin-is-loading/, { timeout: 30000 });
-    await expect(page.locator('.estado-global')).toBeVisible({ timeout: 15000 });
+    await goAdminSection(page, '#command-center-wrap');
     await pass(page, scenario, {
       step: 'Acceso admin concedido',
       action: 'El panel principal queda visible y termina de cargar.',
