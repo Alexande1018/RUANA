@@ -104,7 +104,7 @@
         }
     ];
 
-    /** Navegación principal del Command Center (sidebar fijo). */
+    /** Navegación principal del Command Center (sidebar plegable). */
     const NAV_ITEMS = [
         { id: 'command-center', label: 'Inicio', module: 'resumen', target: '#command-center-wrap', icon: 'grid' },
         { id: 'red', label: 'Red de aliados', module: 'red', target: '#control-aliados-wrap', icon: 'network' },
@@ -153,6 +153,69 @@
     let scrollSpyObserver = null;
 
     const ADMIN_DELETE_MOTIVO = 'Gestionado desde panel de administración.';
+    const SIDEBAR_MOBILE_MQ = '(max-width: 960px)';
+    const TOGGLE_ICON_OPEN = '<svg class="admin-sidebar-toggle-icon-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>';
+    const TOGGLE_ICON_CLOSE = '<svg class="admin-sidebar-toggle-icon-close" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+
+    function isMobileShell() {
+        return typeof window.matchMedia === 'function' && window.matchMedia(SIDEBAR_MOBILE_MQ).matches;
+    }
+
+    function isSidebarOpen() {
+        const sidebar = document.getElementById('adminSidebar');
+        return !!(sidebar && (sidebar.classList.contains('is-open') || sidebar.classList.contains('is-mobile-open')));
+    }
+
+    function setSidebarOpen(open) {
+        const sidebar = document.getElementById('adminSidebar');
+        const toggle = document.getElementById('adminSidebarToggle');
+        const backdrop = document.getElementById('adminSidebarBackdrop');
+        const shouldOpen = !!open;
+        if (!sidebar) return;
+
+        sidebar.classList.toggle('is-open', shouldOpen);
+        sidebar.classList.toggle('is-mobile-open', shouldOpen);
+        sidebar.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+        if ('inert' in sidebar) sidebar.inert = !shouldOpen;
+
+        document.documentElement.classList.toggle('admin-sidebar-open', shouldOpen);
+
+        if (backdrop) {
+            const showBackdrop = shouldOpen && isMobileShell();
+            backdrop.hidden = !showBackdrop;
+            backdrop.setAttribute('aria-hidden', showBackdrop ? 'false' : 'true');
+        }
+
+        if (toggle) {
+            toggle.classList.toggle('is-open', shouldOpen);
+            toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+            const labelText = shouldOpen ? 'Ocultar menú' : 'Mostrar menú';
+            toggle.setAttribute('aria-label', labelText);
+            toggle.setAttribute('title', labelText);
+            const label = toggle.querySelector('.admin-sidebar-toggle-label');
+            if (label) label.textContent = shouldOpen ? 'Cerrar' : 'Menú';
+        }
+
+        if (!shouldOpen && toggle && sidebar.contains(document.activeElement)) {
+            toggle.focus();
+        }
+    }
+
+    function toggleSidebar() {
+        setSidebarOpen(!isSidebarOpen());
+    }
+
+    function closeSidebarIfOverlay() {
+        if (isMobileShell()) setSidebarOpen(false);
+    }
+
+    function syncSidebarForViewport() {
+        if (!isSidebarOpen()) {
+            setSidebarOpen(false);
+            return;
+        }
+        setSidebarOpen(true);
+    }
 
     async function apiRechazarAliado(panel, codigo) {
         const r = await fetch('/api/admin/rechazar-aliado', {
@@ -695,6 +758,7 @@
 
         setupScrollSpy();
         onModuleActivated(target);
+        closeSidebarIfOverlay();
         return target;
     }
 
@@ -769,7 +833,7 @@
                 b.classList.toggle('is-active', b.getAttribute('data-nav-target') === activeTarget);
             });
         }
-        document.getElementById('adminSidebar')?.classList.remove('is-mobile-open');
+        closeSidebarIfOverlay();
     }
 
     function setupScrollSpy() {
@@ -841,6 +905,9 @@
         const sidebar = document.createElement('aside');
         sidebar.className = 'admin-sidebar';
         sidebar.id = 'adminSidebar';
+        sidebar.setAttribute('aria-label', 'Menú de navegación');
+        sidebar.setAttribute('aria-hidden', 'true');
+        if ('inert' in sidebar) sidebar.inert = true;
         sidebar.innerHTML = `
             <div class="admin-sidebar-brand">
                 <div class="admin-sidebar-brand-mark">
@@ -878,6 +945,7 @@
         renderNavItems();
         setupNavSearch();
         buildBottomNav();
+        buildSidebarBackdrop();
 
         const hash = (location.hash || '').replace(/^#/, '');
         if (MODULE_DEFS.some((m) => m.id === hash)) {
@@ -1386,19 +1454,44 @@
         scheduleEnhance();
     }
 
+    function buildSidebarBackdrop() {
+        if (document.getElementById('adminSidebarBackdrop')) return;
+        const backdrop = document.createElement('button');
+        backdrop.type = 'button';
+        backdrop.className = 'admin-sidebar-backdrop';
+        backdrop.id = 'adminSidebarBackdrop';
+        backdrop.hidden = true;
+        backdrop.setAttribute('aria-label', 'Cerrar menú');
+        backdrop.setAttribute('aria-hidden', 'true');
+        backdrop.addEventListener('click', () => setSidebarOpen(false));
+        const app = document.getElementById('adminApp');
+        if (app && app.parentNode) {
+            app.parentNode.insertBefore(backdrop, app.nextSibling);
+        } else {
+            document.body.appendChild(backdrop);
+        }
+    }
+
     function setupTopbarExtras() {
         const actions = document.querySelector('.admin-topbar-actions');
-        if (!actions || document.getElementById('adminSidebarToggle')) return;
+        const brand = document.querySelector('.admin-topbar-brand');
+        if (document.getElementById('adminSidebarToggle')) return;
+        if (!actions && !brand) return;
         const toggle = document.createElement('button');
         toggle.type = 'button';
         toggle.className = 'admin-sidebar-toggle';
         toggle.id = 'adminSidebarToggle';
-        toggle.setAttribute('aria-label', 'Abrir menú');
-        toggle.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>';
-        actions.insertBefore(toggle, actions.firstChild);
-        toggle.addEventListener('click', () => {
-            document.getElementById('adminSidebar')?.classList.toggle('is-mobile-open');
-        });
+        toggle.setAttribute('aria-label', 'Mostrar menú');
+        toggle.setAttribute('title', 'Mostrar menú');
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.setAttribute('aria-controls', 'adminSidebar');
+        toggle.innerHTML = TOGGLE_ICON_OPEN + TOGGLE_ICON_CLOSE + '<span class="admin-sidebar-toggle-label">Menú</span>';
+        if (brand) {
+            brand.insertBefore(toggle, brand.firstChild);
+        } else {
+            actions.insertBefore(toggle, actions.firstChild);
+        }
+        toggle.addEventListener('click', toggleSidebar);
 
         document.addEventListener('keydown', (e) => {
             if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'a') {
@@ -1408,8 +1501,11 @@
             if (e.key === 'Escape') {
                 closeDangerModal();
                 toggleAudit(false);
+                setSidebarOpen(false);
             }
         });
+
+        window.addEventListener('resize', syncSidebarForViewport);
     }
 
     function observeMutations() {
@@ -1463,7 +1559,9 @@
         logAudit,
         confirmDanger,
         showModule,
-        navigateTo
+        navigateTo,
+        toggleSidebar,
+        setSidebarOpen
     };
 
     if (document.readyState === 'loading') {
