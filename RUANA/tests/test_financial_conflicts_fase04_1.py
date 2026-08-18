@@ -472,8 +472,9 @@ def test_18_endpoint_listar_con_permiso_view(client, sqlite_db, session_headers)
     cid, _ = _seed(sqlite_db)
     _abrir(sqlite_db, cid)
     headers = _headers_view(session_headers)
-    resp = client.get("/api/admin/financial-conflicts", headers=headers)
-    assert resp.status_code == 200
-    data = resp.get_json()
-    assert data["status"] == "success"
-    assert data["total"] >= 1
+    for path in ("/api/admin/financial-conflicts", "/api/admin/conflictos-financieros"):
+        resp = client.get(path, headers=headers)
+        assert resp.status_code == 200, path
+        data = resp.get_json()
+        assert data["status"] == "success"
+        assert data["total"] >= 1
