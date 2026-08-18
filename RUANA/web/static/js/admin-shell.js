@@ -1558,6 +1558,10 @@
         if (window.RuanaAdminModules && window.RuanaAdminModules.financial) {
             window.RuanaAdminModules.financial.setup();
         }
+        if (!window._ruanaAdminShellAuthListener) {
+            window._ruanaAdminShellAuthListener = true;
+            document.addEventListener('ruana:admin-auth-ready', onAdminAuthReady);
+        }
 
         const tryPatch = () => {
             const panel = getPanel();
@@ -1578,6 +1582,18 @@
         scheduleEnhance();
     }
 
+    function getCurrentModule() {
+        return currentModule;
+    }
+
+    function refreshActiveModule() {
+        onModuleActivated(currentModule);
+    }
+
+    function onAdminAuthReady() {
+        refreshActiveModule();
+    }
+
     window.AdminShell = {
         init,
         enhanceAll,
@@ -1586,7 +1602,9 @@
         showModule,
         navigateTo,
         toggleSidebar,
-        setSidebarOpen
+        setSidebarOpen,
+        getCurrentModule,
+        refreshActiveModule
     };
 
     if (document.readyState === 'loading') {

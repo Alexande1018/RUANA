@@ -30,11 +30,17 @@
     return d.innerHTML;
   }
 
-  function authHeaders() {
+  function authHeaders(extra) {
     if (global.AdminAuthenticator && global.AdminAuthenticator.getAdminAuthHeaders) {
-      return global.AdminAuthenticator.getAdminAuthHeaders();
+      return global.AdminAuthenticator.getAdminAuthHeaders(extra);
     }
-    return {};
+    if (global.getRuanaAuthHeaders) {
+      return global.getRuanaAuthHeaders(extra);
+    }
+    if (global.RuanaApiClient && global.RuanaApiClient.getRuanaAuthHeaders) {
+      return global.RuanaApiClient.getRuanaAuthHeaders(extra);
+    }
+    return extra || {};
   }
 
   function fetchJson(url, opts) {
@@ -300,13 +306,30 @@
     showSection(currentSection);
   }
 
+  function onAdminAuthReady() {
+    var wrap = document.getElementById('financial-admin-wrap');
+    if (!wrap || wrap.hidden) return;
+    var activeModule = global.AdminShell && global.AdminShell.getCurrentModule
+      ? global.AdminShell.getCurrentModule()
+      : null;
+    if (activeModule && activeModule !== 'finanzas') return;
+    showSection(currentSection);
+  }
+
   modules.financial = {
     setup: function () {
+      if (!global._ruanaFinancialAuthListener) {
+        global._ruanaFinancialAuthListener = true;
+        document.addEventListener('ruana:admin-auth-ready', onAdminAuthReady);
+      }
       fetchJson('/api/admin/me').then(function (res) {
-        if (res.data && res.data.permisos) permisosEfectivos = res.data.permisos;
+        if (res.status === 200 && res.data && res.data.permisos) {
+          permisosEfectivos = res.data.permisos;
+        }
       });
     },
     onModuleActivated: onFinanzasActivated,
+    onAuthReady: onAdminAuthReady,
     showSection: showSection,
     loadOperation: loadOperation
   };

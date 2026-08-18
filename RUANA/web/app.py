@@ -263,6 +263,12 @@ def admin_panel():
     return send_from_directory(str(web_dir), 'admin.html')
 
 
+@app.route('/admin/finanzas')
+def admin_finanzas_panel():
+    """Deep link al módulo financiero del panel admin (misma sesión que /admin)."""
+    return redirect('/admin#finanzas')
+
+
 @app.route('/aliado')
 @app.route('/aliado.html')
 def aliado_panel():
