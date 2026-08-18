@@ -237,3 +237,120 @@ input[type="radio"] {
         width: 100%;
     }
 }
+
+/* Centro de ayuda (pantalla de acceso) — mismo look que panel aliado */
+.ruana-help-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1300;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    padding: 18px;
+    background: rgba(5, 9, 18, 0.42);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 240ms ease;
+}
+
+.ruana-help-overlay.is-open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.ruana-help-center {
+    width: min(520px, 100%);
+    max-height: min(86vh, 720px);
+    overflow: auto;
+    margin: 0;
+    padding: 20px;
+    border-radius: 18px;
+    background: linear-gradient(160deg, rgba(16, 24, 40, 0.97), rgba(7, 12, 24, 0.96));
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    box-shadow: 0 24px 56px rgba(0, 0, 0, 0.4);
+    transform: translateY(28px) scale(0.98);
+    opacity: 0;
+    transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1), opacity 240ms ease;
+}
+
+.ruana-help-overlay.is-open .ruana-help-center {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+}
+
+.ruana-help-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.ruana-help-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #e2e8f0;
+    margin: 0;
+}
+
+.ruana-help-sub {
+    color: #94a3b8;
+    margin: 0 0 14px;
+    font-size: 0.86rem;
+    line-height: 1.5;
+}
+
+.ruana-help-header-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ruana-help-close {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    background: rgba(255, 255, 255, 0.04);
+    color: #cbd5e1;
+    cursor: pointer;
+}
+
+.ruana-help-card {
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 12px;
+    padding: 12px;
+}
+
+.ruana-help-form-row {
+    display: grid;
+    gap: 8px;
+}
+
+.ruana-help-input,
+.ruana-help-textarea,
+.ruana-help-select {
+    width: 100%;
+    border-radius: 8px;
+    padding: 9px 10px;
+    background: rgba(2, 6, 23, 0.7);
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    color: #e2e8f0;
+    font-family: inherit;
+    font-size: 0.95rem;
+}
+
+.ruana-help-textarea {
+    resize: vertical;
+    min-height: 96px;
+}
+
+@media (max-width: 640px) {
+    .ruana-help-overlay {
+        padding: 10px;
+        align-items: flex-end;
+    }
+}

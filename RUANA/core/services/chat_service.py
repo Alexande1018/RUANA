@@ -462,3 +462,62 @@ def _chat_estado_cerrado(db) -> Dict[str, Any]:
         'chat_max_mensajes': db.CHAT_MAX_MENSAJES_TOTAL,
     }
 
+
+def crear_soporte_contacto_acceso_publico(
+    db,
+    *,
+    email: str = "",
+    codigo: str = "",
+    asunto: str = "",
+    mensaje: str = "",
+    categoria: str = "ayuda",
+) -> Dict[str, Any]:
+    """Crea un hilo de soporte desde la pantalla de acceso (sin sesión aliado)."""
+    from core.repositories.aliado_repo import AliadoRepo
+
+    email_norm = (email or "").strip().lower()
+    codigo_str = (codigo or "").strip()
+    asunto_txt = (asunto or "").strip() or "Ayuda con acceso a mi cuenta"
+    mensaje_txt = (mensaje or "").strip()
+    if not mensaje_txt:
+        return {"status": "error", "message": "Escribe tu mensaje para el equipo RUANA."}
+    if not email_norm and not codigo_str:
+        return {
+            "status": "error",
+            "message": "Introduce el email o el código de aliado asociado a tu cuenta.",
+        }
+
+    aliado = db.obtener_aliado_por_codigo(codigo_str) if codigo_str else None
+    if not aliado and email_norm:
+        repo = AliadoRepo()
+        with db._lock:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            try:
+                row = repo.select_aliado_por_email_ocupado(cursor, email_norm)
+                aliado = dict(row) if row else None
+            finally:
+                conn.close()
+
+    if not aliado:
+        return {
+            "status": "error",
+            "message": "No encontramos una cuenta con esos datos. Revisa el email o código e inténtalo de nuevo.",
+        }
+
+    cuerpo = mensaje_txt
+    if email_norm:
+        cuerpo = f"Email de contacto: {email_norm}\n\n{mensaje_txt}"
+    prefijo = "[Acceso sin email] "
+    if not asunto_txt.startswith(prefijo):
+        asunto_txt = prefijo + asunto_txt
+
+    return crear_conversacion_soporte_aliado(
+        db,
+        aliado.get("codigo") or codigo_str,
+        asunto_txt,
+        cuerpo,
+        categoria or "ayuda",
+    )
+

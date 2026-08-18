@@ -163,6 +163,42 @@
             text-align: left;
         }
 
+        .auth-help-toggle {
+            background: none;
+            border: none;
+            color: #86efac;
+            font-size: 0.88rem;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 4px 0;
+            text-align: left;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .auth-help-toggle-icon {
+            display: inline-block;
+            transition: transform 0.2s ease;
+            font-size: 0.7rem;
+        }
+
+        .auth-help-toggle[aria-expanded="true"] .auth-help-toggle-icon {
+            transform: rotate(90deg);
+        }
+
+        .auth-help-menu {
+            display: none;
+            flex-direction: column;
+            gap: 6px;
+            padding-left: 4px;
+            margin-top: 2px;
+        }
+
+        .auth-help-menu.is-open {
+            display: flex;
+        }
+
         .auth-link {
             background: none;
             border: none;
@@ -179,17 +215,6 @@
             color: #9ca3af;
             font-size: 0.8rem;
             text-decoration: none;
-        }
-
-        .auth-support-box {
-            margin-top: 12px;
-            padding: 14px;
-            border-radius: 10px;
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.08);
-            font-size: 0.85rem;
-            color: #bbb;
-            line-height: 1.5;
         }
 
         .ruana-auth-card.is-success-pulse {
@@ -235,10 +260,16 @@
                     <div class="invite-error" id="login-error"></div>
                 </form>
                 <div class="auth-links">
-                    <button type="button" class="auth-link" data-goto="recovery-pin">¿Has olvidado tu PIN?</button>
-                    <button type="button" class="auth-link" data-goto="recovery-codigo">¿Has olvidado tu código?</button>
-                    <button type="button" class="auth-link" data-goto="recovery-ambos">¿Has olvidado código y PIN?</button>
-                    <button type="button" class="auth-link auth-link-muted" data-goto="support">Sin acceso al email asociado</button>
+                    <button type="button" class="auth-help-toggle" id="auth-help-toggle" aria-expanded="false" aria-controls="auth-help-menu">
+                        <span class="auth-help-toggle-icon" aria-hidden="true">▸</span>
+                        Ayuda
+                    </button>
+                    <div class="auth-help-menu" id="auth-help-menu" hidden>
+                        <button type="button" class="auth-link" data-goto="recovery-pin">¿Has olvidado tu PIN?</button>
+                        <button type="button" class="auth-link" data-goto="recovery-codigo">¿Has olvidado tu código?</button>
+                        <button type="button" class="auth-link" data-goto="recovery-ambos">¿Has olvidado código y PIN?</button>
+                        <button type="button" class="auth-link auth-link-muted" data-action="open-help">Sin acceso al email asociado</button>
+                    </div>
                 </div>
             </div>
 
@@ -326,21 +357,34 @@
                 </form>
             </div>
 
-            <!-- Vista: soporte -->
-            <div class="auth-view" id="view-support" data-view="support">
-                <div class="auth-support-box">
-                    Si no tienes acceso al email asociado a tu cuenta, contacta con el equipo de soporte de RUANA desde el panel de administración o a través de tu administrador de zona.
-                    <br><br>
-                    Por seguridad, no es posible recuperar una cuenta solo con el código de 5 dígitos.
-                </div>
-                <button type="button" class="auth-link auth-link-muted" data-goto="login">Volver al login</button>
-            </div>
-
-            <p class="invite-helper" id="auth-helper">
-                • <strong>Código de ingreso</strong>: ya eres aliado y quieres entrar a tu panel (ej: 85776, ALFA01).<br>
-                • <strong>Código de invitación</strong>: te lo pasó otro aliado para registrarte por primera vez.
-            </p>
         </div>
+    </div>
+
+    <div class="ruana-help-overlay" id="ruana-help-overlay" aria-hidden="true">
+        <section class="ruana-help-center ruana-help-center--guest" id="ruana-help-center" role="dialog" aria-modal="true" aria-labelledby="ruana-help-title">
+            <div class="ruana-help-header">
+                <h2 class="ruana-help-title" id="ruana-help-title">Habla con el equipo de RUANA</h2>
+                <div class="ruana-help-header-actions">
+                    <button type="button" class="ruana-help-close" id="ruana-help-close" aria-label="Cerrar">✕</button>
+                </div>
+            </div>
+            <p class="ruana-help-sub">Cuéntanos tu situación. Si no tienes acceso al email de tu cuenta, indícanos el email o código que recuerdes.</p>
+            <div class="ruana-help-card">
+                <div class="ruana-help-form-row">
+                    <input id="ruana-help-email" class="ruana-help-input" type="email" maxlength="120" placeholder="Email de tu cuenta (si lo recuerdas)" />
+                    <input id="ruana-help-codigo" class="ruana-help-input" maxlength="20" placeholder="Código de aliado (opcional)" />
+                    <input id="ruana-help-subject" class="ruana-help-input" maxlength="160" placeholder="Asunto" value="Sin acceso al email — recuperación de cuenta" />
+                    <select id="ruana-help-category" class="ruana-help-select">
+                        <option value="ayuda" selected>Ayuda</option>
+                        <option value="consulta">Consulta</option>
+                        <option value="incidencia">Incidencia</option>
+                    </select>
+                    <textarea id="ruana-help-message" class="ruana-help-textarea" rows="4" maxlength="3000" placeholder="Explica tu situación y cómo podemos ayudarte"></textarea>
+                    <button type="button" class="invite-btn ruana-button" id="ruana-help-send-btn">Enviar al equipo RUANA</button>
+                    <div class="invite-error" id="ruana-help-error"></div>
+                </div>
+            </div>
+        </section>
     </div>
 
     <script>
@@ -349,7 +393,8 @@
                 this.authCard = document.getElementById('auth-card');
                 this.subtitle = document.getElementById('auth-subtitle');
                 this.modeSwitch = document.getElementById('access-mode-switch');
-                this.helper = document.getElementById('auth-helper');
+                this.helpMenu = document.getElementById('auth-help-menu');
+                this.helpToggle = document.getElementById('auth-help-toggle');
                 this.mode = 'ingreso';
                 this.view = 'login';
                 this.setupToken = sessionStorage.getItem('ruana_pin_setup_token') || '';
@@ -376,8 +421,101 @@
                 document.getElementById('btn-recovery-to-login').addEventListener('click', () => this.showView('login'));
 
                 document.querySelectorAll('[data-goto]').forEach((btn) => {
-                    btn.addEventListener('click', () => this.showView(btn.getAttribute('data-goto')));
+                    btn.addEventListener('click', () => {
+                        this.closeHelpMenu();
+                        this.showView(btn.getAttribute('data-goto'));
+                    });
                 });
+
+                if (this.helpToggle && this.helpMenu) {
+                    this.helpToggle.addEventListener('click', () => this.toggleHelpMenu());
+                }
+
+                document.querySelectorAll('[data-action="open-help"]').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        this.closeHelpMenu();
+                        this.openHelpOverlay();
+                    });
+                });
+
+                const helpClose = document.getElementById('ruana-help-close');
+                const helpOverlay = document.getElementById('ruana-help-overlay');
+                if (helpClose) helpClose.addEventListener('click', () => this.closeHelpOverlay());
+                if (helpOverlay) {
+                    helpOverlay.addEventListener('click', (e) => {
+                        if (e.target === helpOverlay) this.closeHelpOverlay();
+                    });
+                }
+                const helpSend = document.getElementById('ruana-help-send-btn');
+                if (helpSend) helpSend.addEventListener('click', () => this.sendHelpMessage());
+            }
+
+            toggleHelpMenu() {
+                if (!this.helpMenu || !this.helpToggle) return;
+                const open = !this.helpMenu.classList.contains('is-open');
+                this.helpMenu.classList.toggle('is-open', open);
+                this.helpMenu.hidden = !open;
+                this.helpToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            }
+
+            closeHelpMenu() {
+                if (!this.helpMenu || !this.helpToggle) return;
+                this.helpMenu.classList.remove('is-open');
+                this.helpMenu.hidden = true;
+                this.helpToggle.setAttribute('aria-expanded', 'false');
+            }
+
+            openHelpOverlay() {
+                const overlay = document.getElementById('ruana-help-overlay');
+                if (!overlay) return;
+                const loginCodigo = document.getElementById('login-codigo');
+                const helpCodigo = document.getElementById('ruana-help-codigo');
+                if (loginCodigo && helpCodigo && loginCodigo.value.trim()) {
+                    helpCodigo.value = loginCodigo.value.trim();
+                }
+                overlay.classList.add('is-open');
+                overlay.setAttribute('aria-hidden', 'false');
+                const msg = document.getElementById('ruana-help-message');
+                if (msg) setTimeout(() => msg.focus(), 180);
+            }
+
+            closeHelpOverlay() {
+                const overlay = document.getElementById('ruana-help-overlay');
+                if (!overlay) return;
+                overlay.classList.remove('is-open');
+                overlay.setAttribute('aria-hidden', 'true');
+            }
+
+            async sendHelpMessage() {
+                const email = (document.getElementById('ruana-help-email') || {}).value || '';
+                const codigo = (document.getElementById('ruana-help-codigo') || {}).value || '';
+                const asunto = (document.getElementById('ruana-help-subject') || {}).value || '';
+                const mensaje = (document.getElementById('ruana-help-message') || {}).value || '';
+                const categoria = (document.getElementById('ruana-help-category') || {}).value || 'ayuda';
+                const btn = document.getElementById('ruana-help-send-btn');
+                if (btn) btn.disabled = true;
+                try {
+                    const response = await fetch('/api/soporte/contacto-acceso', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email, codigo, asunto, mensaje, categoria })
+                    });
+                    const result = await response.json();
+                    if (response.ok && result.status === 'success') {
+                        if (window.RuanaUI && typeof window.RuanaUI.toast === 'function') {
+                            window.RuanaUI.toast('Tu mensaje fue enviado al equipo RUANA.', 'success');
+                        }
+                        const msgEl = document.getElementById('ruana-help-message');
+                        if (msgEl) msgEl.value = '';
+                        this.closeHelpOverlay();
+                        return;
+                    }
+                    this.showError('ruana-help-error', result.message || 'No se pudo enviar el mensaje.');
+                } catch (_) {
+                    this.showError('ruana-help-error', 'Error de conexión. Intenta de nuevo.');
+                } finally {
+                    if (btn) btn.disabled = false;
+                }
             }
 
             bootstrapFromSession() {
@@ -410,7 +548,7 @@
                 });
                 const showSwitch = view === 'login' || view === 'invitacion';
                 this.modeSwitch.style.display = showSwitch ? '' : 'none';
-                this.helper.style.display = showSwitch ? '' : 'none';
+                if (view !== 'login') this.closeHelpMenu();
 
                 const subtitles = {
                     login: 'Introduce tu código de aliado y tu PIN personal.',
@@ -421,8 +559,7 @@
                     'recovery-ambos': 'Recuperación de acceso completo',
                     'recovery-verify': 'Verificación por email',
                     'recovery-show-codigo': 'Tu código de aliado',
-                    'recovery-new-pin': 'Crea tu nuevo PIN',
-                    support: 'Contactar con soporte'
+                    'recovery-new-pin': 'Crea tu nuevo PIN'
                 };
                 this.subtitle.textContent = subtitles[view] || 'RUANA';
                 this.clearErrors();
