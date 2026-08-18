@@ -1144,90 +1144,9 @@ def _procesar_pago_confirmado(
 
 
 def procesar_webhook_stripe(db, payload: bytes, sig_header: str) -> Dict[str, Any]:
-    """Verifica firma e idempotencia; procesa eventos Stripe relevantes."""
-    try:
-        event = stripe_client.construct_webhook_event(payload, sig_header)
-    except Exception as e:
-        return {"status": "error", "message": f"firma webhook inválida: {e}"}
-    event_id = getattr(event, "id", None) or (event.get("id") if isinstance(event, dict) else None)
-    event_type = getattr(event, "type", None) or (event.get("type") if isinstance(event, dict) else None)
-    data_obj = getattr(event, "data", None) or (event.get("data") if isinstance(event, dict) else {})
-    obj = getattr(data_obj, "object", None) if data_obj is not None else None
-    if obj is None and isinstance(data_obj, dict):
-        obj = data_obj.get("object")
-    if not event_id or not event_type:
-        return {"status": "error", "message": "evento incompleto"}
-    contacto_id: Optional[int] = None
-    resultado = "ignorado"
-    try:
-        with db._lock:
-            conn = db._connect()
-            cursor = conn.cursor()
-            if _repo.webhook_evento_existe(cursor, event_id):
-                conn.close()
-                return {"status": "success", "message": "evento ya procesado", "duplicate": True}
-            conn.close()
-        if event_type == "checkout.session.completed":
-            payment_status = getattr(obj, "payment_status", None) or obj.get("payment_status")
-            if payment_status != "paid":
-                resultado = "ignored_unpaid"
-            else:
-                metadata = getattr(obj, "metadata", None) or obj.get("metadata") or {}
-                contacto_id = int(metadata.get("contacto_id") or 0) or None
-                payment_intent_id = getattr(obj, "payment_intent", None) or obj.get("payment_intent")
-                if contacto_id and payment_intent_id:
-                    res = _procesar_pago_confirmado(db, contacto_id, str(payment_intent_id))
-                    resultado = res.get("status", "error")
-        elif event_type == "payment_intent.succeeded":
-            metadata = getattr(obj, "metadata", None) or obj.get("metadata") or {}
-            if metadata.get("tipo") == "encargo_ruana":
-                contacto_id = int(metadata.get("contacto_id") or 0) or None
-                payment_intent_id = getattr(obj, "id", None) or obj.get("id")
-                if contacto_id and payment_intent_id:
-                    res = _procesar_pago_confirmado(db, contacto_id, str(payment_intent_id))
-                    resultado = res.get("status", "error")
-        elif event_type == "checkout.session.expired":
-            metadata = getattr(obj, "metadata", None) or obj.get("metadata") or {}
-            contacto_id = int(metadata.get("contacto_id") or 0) or None
-            if contacto_id:
-                with db._lock:
-                    conn = db._connect()
-                    cursor = conn.cursor()
-                    _repo.reset_checkout_expirado(cursor, contacto_id)
-                    conn.commit()
-                    conn.close()
-                resultado = "ok"
-        elif event_type == "account.updated":
-            account_id = getattr(obj, "id", None) or obj.get("id")
-            charges = getattr(obj, "charges_enabled", False) or obj.get("charges_enabled", False)
-            payouts = getattr(obj, "payouts_enabled", False) or obj.get("payouts_enabled", False)
-            details = getattr(obj, "details_submitted", False) or obj.get("details_submitted", False)
-            if account_id:
-                with db._lock:
-                    conn = db._connect()
-                    cursor = conn.cursor()
-                    cursor.execute(
-                        """
-                        UPDATE aliados
-                        SET stripe_charges_enabled = ?, stripe_payouts_enabled = ?,
-                            stripe_onboarding_completo = ?,
-                            actualizado_en = CURRENT_TIMESTAMP
-                        WHERE stripe_account_id = ?
-                        """,
-                        (1 if charges else 0, 1 if payouts else 0, 1 if details else 0, account_id),
-                    )
-                    conn.commit()
-                    conn.close()
-                resultado = "ok"
-        with db._lock:
-            conn = db._connect()
-            cursor = conn.cursor()
-            _repo.insertar_webhook_evento(cursor, event_id, event_type, contacto_id, resultado)
-            conn.commit()
-            conn.close()
-        return {"status": "success", "event_type": event_type, "resultado": resultado}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    """Verifica firma e idempotencia; procesa eventos Stripe (FASE 02 → stripe_webhook_service)."""
+    from core.services import stripe_webhook_service
+    return stripe_webhook_service.procesar_webhook(db, payload, sig_header)
 
 
 def procesar_timeouts_sin_confirmacion_stripe(db) -> int:

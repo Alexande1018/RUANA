@@ -134,6 +134,22 @@ class FinancialTransactionRepo:
         )
         return cursor.fetchall()
 
+    def actualizar_solo_estado_transferencia(
+        self, cursor, contacto_id: int, estado_transferencia: str
+    ) -> int:
+        columnas = self.columnas_contacto(cursor)
+        if "estado_transferencia" not in columnas:
+            return 0
+        cursor.execute(
+            """
+            UPDATE contactos_ruana
+            SET estado_transferencia = ?, actualizado_en = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (estado_transferencia, contacto_id),
+        )
+        return cursor.rowcount
+
     def contacto_dict(self, row) -> Dict[str, Any]:
         if row is None:
             return {}

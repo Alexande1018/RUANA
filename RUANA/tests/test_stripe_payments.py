@@ -148,7 +148,7 @@ def test_webhook_idempotente(sqlite_db):
         "payment_intent": "pi_idem",
         "metadata": {"contacto_id": str(contacto_id)},
     }
-    with patch("core.services.pago_service.stripe_client.construct_webhook_event", return_value=event):
+    with patch("core.stripe_client.construct_webhook_event", return_value=event):
         r1 = pago_service.procesar_webhook_stripe(sqlite_db, b"{}", "sig")
         r2 = pago_service.procesar_webhook_stripe(sqlite_db, b"{}", "sig")
     assert r1["status"] == "success"

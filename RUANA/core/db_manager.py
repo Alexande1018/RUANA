@@ -214,6 +214,10 @@ class DBManager:
         """Fachada Campamento Base → schema_service._migrar_estado_financiero."""
         return schema_service._migrar_estado_financiero(self, conn, cursor)
 
+    def _migrar_financial_fase02(self, conn, cursor) -> None:
+        """Fachada Campamento Base → schema_service._migrar_financial_fase02."""
+        return schema_service._migrar_financial_fase02(self, conn, cursor)
+
     def _migrar_contactos_validacion_pago(self, conn, cursor) -> None:
         """Fachada Campamento Base → schema_service._migrar_contactos_validacion_pago."""
         return schema_service._migrar_contactos_validacion_pago(self, conn, cursor)

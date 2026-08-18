@@ -417,6 +417,7 @@ def _init_db(db):
             db._migrar_aliados_eliminados(conn, cursor)
             db._migrar_stripe_pagos(conn, cursor)
             db._migrar_estado_financiero(conn, cursor)
+            db._migrar_financial_fase02(conn, cursor)
 
             conn.commit()
             print(f"[RUANA][DB] Base de datos inicializada en: {db.db_path}")
@@ -933,6 +934,101 @@ def _migrar_estado_financiero(db, conn, cursor) -> None:
             (inferido.value, estado_transferencia, contacto["id"]),
         )
 
+
+def _migrar_financial_fase02(db, conn, cursor) -> None:
+    """FASE 02: webhooks robustos, refunds/disputes, reconciliación."""
+    columnas_wh = _repo.columnas_tabla(cursor, "stripe_webhook_events")
+    for nombre, sqlite_def in [
+        ("object_id", "TEXT"),
+        ("estado_anterior", "TEXT"),
+        ("estado_nuevo", "TEXT"),
+        ("error_message", "TEXT"),
+        ("estado_procesamiento", "TEXT DEFAULT 'completed'"),
+    ]:
+        if columnas_wh and nombre not in columnas_wh:
+            _repo.execute(cursor, f"ALTER TABLE stripe_webhook_events ADD COLUMN {nombre} {sqlite_def}")
+
+    columnas_contacto = _repo.columnas_tabla(cursor, "contactos_ruana")
+    for nombre, sqlite_def in [
+        ("stripe_charge_id", "TEXT"),
+        ("stripe_refund_id", "TEXT"),
+        ("stripe_refund_amount", "REAL DEFAULT 0"),
+        ("stripe_dispute_id", "TEXT"),
+        ("stripe_dispute_amount", "REAL"),
+        ("stripe_dispute_reason", "TEXT"),
+        ("stripe_dispute_status", "TEXT"),
+        ("stripe_dispute_evidence_due", "TIMESTAMP"),
+        ("reembolsos_acumulados", "REAL DEFAULT 0"),
+    ]:
+        if nombre not in columnas_contacto:
+            _repo.execute(cursor, f"ALTER TABLE contactos_ruana ADD COLUMN {nombre} {sqlite_def}")
+
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS stripe_refunds (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            contacto_id INTEGER NOT NULL,
+            stripe_refund_id TEXT NOT NULL UNIQUE,
+            stripe_charge_id TEXT,
+            amount REAL NOT NULL,
+            currency TEXT DEFAULT 'eur',
+            stripe_event_id TEXT,
+            es_total INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (contacto_id) REFERENCES contactos_ruana(id)
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_stripe_refunds_contacto ON stripe_refunds(contacto_id)
+    """)
+
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS stripe_disputes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            contacto_id INTEGER NOT NULL,
+            stripe_dispute_id TEXT NOT NULL UNIQUE,
+            stripe_charge_id TEXT,
+            amount REAL,
+            currency TEXT DEFAULT 'eur',
+            reason TEXT,
+            status TEXT,
+            evidence_due_by TIMESTAMP,
+            stripe_event_id TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (contacto_id) REFERENCES contactos_ruana(id)
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_stripe_disputes_contacto ON stripe_disputes(contacto_id)
+    """)
+
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS financial_reconciliation (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            contacto_id INTEGER NOT NULL,
+            stripe_payment_intent_id TEXT,
+            stripe_transfer_id TEXT,
+            ruana_estado TEXT,
+            stripe_estado TEXT,
+            tipo_discrepancia TEXT NOT NULL,
+            importe_ruana REAL,
+            importe_stripe REAL,
+            estado_reconciliacion TEXT DEFAULT 'open',
+            detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            resolved_at TIMESTAMP,
+            resolution TEXT,
+            metadata TEXT,
+            FOREIGN KEY (contacto_id) REFERENCES contactos_ruana(id)
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_fin_recon_contacto ON financial_reconciliation(contacto_id)
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_fin_recon_abierta
+        ON financial_reconciliation(contacto_id, tipo_discrepancia, estado_reconciliacion)
+    """)
+
+
 def _migrar_contactos_validacion_pago(db, conn, cursor) -> None:
     """Añade fecha_validacion_pago, admin_validacion_codigo y motivo_rechazo_pago a contactos_ruana."""
     columnas = _repo.columnas_tabla(cursor, "contactos_ruana")
@@ -1276,6 +1372,7 @@ def _init_postgres_schema(db):
         db._migrar_aliados_eliminados(conn, cursor)
         db._migrar_stripe_pagos(conn, cursor)
         db._migrar_estado_financiero(conn, cursor)
+        db._migrar_financial_fase02(conn, cursor)
         conn.commit()
         print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil + linaje + urgente + negociación guiada + accesos día + retador + aliados eliminados)")
     except Exception as e:
