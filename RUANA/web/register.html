@@ -1243,7 +1243,7 @@
                         window.location.href = '/';
                         return;
                     }
-                    const codigoAliadoStored = sessionStorage.getItem('ruana_codigo_aliado');
+                    const codigoAliadoStored = sessionStorage.getItem('ruana_codigo_aliado') || codigo;
                     if (codigoAliadoStored) {
                         try {
                             const r = await fetch('/api/aliado/login', {
@@ -1253,18 +1253,20 @@
                                 body: JSON.stringify({ codigo: codigoAliadoStored })
                             });
                             const data = await r.json().catch(() => ({}));
+                            if (r.ok && data.pin_setup_required && data.setup_token) {
+                                sessionStorage.setItem('ruana_pin_setup_token', data.setup_token);
+                                sessionStorage.setItem('ruana_pin_setup_pending', '1');
+                                window.location.href = '/';
+                                return;
+                            }
                             if (r.ok && data.status === 'success' && data.session_id) {
                                 sessionStorage.setItem('ruana_session_id', data.session_id);
                                 window.location.href = '/aliado';
                                 return;
                             }
-                            if (r.ok) {
-                                window.location.href = '/aliado';
-                                return;
-                            }
                         } catch (_) {}
                     }
-                    setTimeout(() => { window.location.href = '/aliado'; }, 300);
+                    window.location.href = '/';
                 });
 
                 modal.appendChild(titulo);

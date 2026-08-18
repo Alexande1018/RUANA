@@ -584,3 +584,106 @@ class AliadoRepo:
             """
         )
         return cursor.fetchall()
+
+    # --- PIN personal y recuperación de acceso ---
+
+    def update_pin_hash(self, cursor, codigo: str, pin_hash: str) -> None:
+        cursor.execute(
+            "UPDATE aliados SET pin_hash = ?, actualizado_en = CURRENT_TIMESTAMP WHERE codigo = ?",
+            (pin_hash, codigo),
+        )
+
+    def reset_pin_intentos(self, cursor, codigo: str) -> None:
+        cursor.execute(
+            "UPDATE aliados SET pin_intentos_fallidos = 0, pin_bloqueado_hasta = NULL WHERE codigo = ?",
+            (codigo,),
+        )
+
+    def increment_pin_intentos(self, cursor, codigo: str) -> int:
+        cursor.execute(
+            """
+            UPDATE aliados
+            SET pin_intentos_fallidos = COALESCE(pin_intentos_fallidos, 0) + 1
+            WHERE codigo = ?
+            """,
+            (codigo,),
+        )
+        cursor.execute(
+            "SELECT COALESCE(pin_intentos_fallidos, 0) FROM aliados WHERE codigo = ?",
+            (codigo,),
+        )
+        row = cursor.fetchone()
+        return int(row[0]) if row else 0
+
+    def set_pin_bloqueado_hasta(self, cursor, codigo: str, bloqueado_hasta: str) -> None:
+        cursor.execute(
+            "UPDATE aliados SET pin_bloqueado_hasta = ? WHERE codigo = ?",
+            (bloqueado_hasta, codigo),
+        )
+
+    def select_aliado_por_email_ocupado(self, cursor, email: str) -> Optional[Any]:
+        cursor.execute(
+            f"""
+            SELECT * FROM aliados
+            WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))
+              AND {SQL_ESTADO_CONTACTO_OCUPADO}
+            LIMIT 1
+            """,
+            (email,),
+        )
+        return cursor.fetchone()
+
+    def insert_recuperacion(
+        self,
+        cursor,
+        *,
+        email: str,
+        codigo_aliado: str,
+        tipo: str,
+        otp_hash: str,
+        otp_salt: str,
+        expira_en: str,
+    ) -> int:
+        cursor.execute(
+            """
+            INSERT INTO aliado_recuperacion_acceso
+                (email, codigo_aliado, tipo, otp_hash, otp_salt, expira_en)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (email, codigo_aliado, tipo, otp_hash, otp_salt, expira_en),
+        )
+        return int(cursor.lastrowid)
+
+    def select_recuperacion_por_id(self, cursor, token_id: int) -> Optional[Any]:
+        cursor.execute(
+            """
+            SELECT id, email, codigo_aliado, tipo, otp_hash, otp_salt, expira_en,
+                   usado_en, intentos_fallidos, verificado, creado_en
+            FROM aliado_recuperacion_acceso
+            WHERE id = ?
+            """,
+            (token_id,),
+        )
+        return cursor.fetchone()
+
+    def marcar_recuperacion_verificada(self, cursor, token_id: int) -> None:
+        cursor.execute(
+            "UPDATE aliado_recuperacion_acceso SET verificado = 1 WHERE id = ?",
+            (token_id,),
+        )
+
+    def marcar_recuperacion_usada(self, cursor, token_id: int) -> None:
+        cursor.execute(
+            "UPDATE aliado_recuperacion_acceso SET usado_en = CURRENT_TIMESTAMP WHERE id = ?",
+            (token_id,),
+        )
+
+    def increment_recuperacion_intentos(self, cursor, token_id: int) -> None:
+        cursor.execute(
+            """
+            UPDATE aliado_recuperacion_acceso
+            SET intentos_fallidos = COALESCE(intentos_fallidos, 0) + 1
+            WHERE id = ?
+            """,
+            (token_id,),
+        )

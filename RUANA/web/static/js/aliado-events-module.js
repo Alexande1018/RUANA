@@ -350,6 +350,13 @@
       if (btnEditarDesc) btnEditarDesc.addEventListener('click', () => host.iniciarEditarDescripcion());
       if (btnGuardarDesc) btnGuardarDesc.addEventListener('click', () => host.guardarDescripcion());
       if (btnCancelarDesc) btnCancelarDesc.addEventListener('click', () => host.cancelarEditarDescripcion());
+      const formCambiarPin = document.getElementById('form-cambiar-pin');
+      if (formCambiarPin) {
+          formCambiarPin.addEventListener('submit', (e) => {
+              e.preventDefault();
+              host.guardarPin();
+          });
+      }
       const catalogoGrid = document.getElementById('catalogo-servicios-grid');
       if (catalogoGrid) {
           catalogoGrid.addEventListener('click', (e) => {

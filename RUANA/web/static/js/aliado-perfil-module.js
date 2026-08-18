@@ -457,6 +457,55 @@
     });
   }
 
+  function guardarPin(host) {
+    var pinActual = (document.getElementById('pin-actual') || {}).value || '';
+    var pinNuevo = (document.getElementById('pin-nuevo') || {}).value || '';
+    var pinConfirm = (document.getElementById('pin-nuevo-confirm') || {}).value || '';
+    var statusEl = document.getElementById('perfil-pin-status');
+    var btn = document.getElementById('btn-guardar-pin');
+    if (!pinActual || !pinNuevo || !pinConfirm) {
+      if (statusEl) {
+        statusEl.hidden = false;
+        statusEl.textContent = 'Completa todos los campos.';
+        statusEl.style.color = '#fca5a5';
+      }
+      return Promise.resolve();
+    }
+    if (btn) btn.disabled = true;
+    return fetch('/api/aliado/pin/cambiar', {
+      method: 'POST',
+      headers: getAuthHeadersSafe({ 'Content-Type': 'application/json' }),
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        pin_actual: pinActual,
+        pin_nuevo: pinNuevo,
+        pin_confirmacion: pinConfirm
+      })
+    })
+      .then(function (resp) { return resp.json(); })
+      .then(function (data) {
+        if (statusEl) {
+          statusEl.hidden = false;
+          statusEl.textContent = data.message || (data.status === 'success' ? 'PIN actualizado.' : 'No se pudo cambiar el PIN.');
+          statusEl.style.color = data.status === 'success' ? '#86efac' : '#fca5a5';
+        }
+        if (data.status === 'success') {
+          var form = document.getElementById('form-cambiar-pin');
+          if (form) form.reset();
+        }
+      })
+      .catch(function () {
+        if (statusEl) {
+          statusEl.hidden = false;
+          statusEl.textContent = 'Error de conexión.';
+          statusEl.style.color = '#fca5a5';
+        }
+      })
+      .then(function () {
+        if (btn) btn.disabled = false;
+      });
+  }
+
   modules.perfil = {
     getIniciales: getIniciales,
     mapEtiquetaAvatarStatus: mapEtiquetaAvatarStatus,
@@ -470,5 +519,6 @@
     iniciarEditarDescripcion: iniciarEditarDescripcion,
     cancelarEditarDescripcion: cancelarEditarDescripcion,
     guardarDescripcion: guardarDescripcion,
+    guardarPin: guardarPin,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

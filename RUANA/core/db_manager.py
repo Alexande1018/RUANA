@@ -337,6 +337,10 @@ class DBManager:
         """Fachada Campamento Base → schema_service._migrar_aliados_invitado_por."""
         return schema_service._migrar_aliados_invitado_por(self, conn, cursor)
 
+    def _migrar_aliados_pin_personal(self, conn, cursor) -> None:
+        """Fachada Campamento Base → schema_service._migrar_aliados_pin_personal."""
+        return schema_service._migrar_aliados_pin_personal(self, conn, cursor)
+
     def _migrar_invitaciones_solicitud_id(self, conn, cursor) -> None:
         """Fachada Campamento Base → schema_service._migrar_invitaciones_solicitud_id."""
         return schema_service._migrar_invitaciones_solicitud_id(self, conn, cursor)
