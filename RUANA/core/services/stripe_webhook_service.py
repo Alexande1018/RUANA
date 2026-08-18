@@ -362,96 +362,73 @@ def _resolver_contacto_transfer(db, obj) -> Optional[int]:
 def _handle_transfer_created(
     db, obj, event_id: str
 ) -> Tuple[Optional[int], str, str, str]:
+    from core.services import stripe_transfer_events as te
+
     contacto_id = _resolver_contacto_transfer(db, obj)
     transfer_id = _object_id(obj)
     if not contacto_id:
         return None, "contacto_no_encontrado", "", ""
 
-    estado = fts.obtener_estado_financiero(db, contacto_id)
-    ant_val = estado.value if estado else ""
-
-    with db._lock:
-        conn = db._connect()
-        cursor = conn.cursor()
-        _wh_repo.actualizar_stripe_transfer_id(cursor, contacto_id, transfer_id)
-        conn.commit()
-        conn.close()
-
-    if estado == EstadoFinanciero.TRANSFERIDO:
-        _actualizar_estado_transferencia(db, contacto_id, EstadoTransferencia.COMPLETADA)
-        return contacto_id, "idempotent", ant_val, ant_val
-
-    if estado in _ESTADOS_TERMINALES_TRANSFER:
-        return contacto_id, "idempotent", ant_val, ant_val
-
-    nuevo_val = ant_val
-    resultado = "ok"
-
-    if estado in (
-        EstadoFinanciero.LIBERACION_AUTORIZADA,
-        EstadoFinanciero.TRANSFERENCIA_PENDIENTE,
-        None,
-    ):
-        if estado == EstadoFinanciero.LIBERACION_AUTORIZADA:
-            _, nuevo_val, resultado = _transicion_si_valida(
-                db, contacto_id, EstadoFinanciero.TRANSFERENCIA_PENDIENTE,
-                motivo="transfer.created", stripe_ref=transfer_id,
-            )
-        if fts.obtener_estado_financiero(db, contacto_id) in (
-            EstadoFinanciero.TRANSFERENCIA_PENDIENTE,
-            EstadoFinanciero.LIBERACION_AUTORIZADA,
-            None,
-        ):
-            _, nuevo_val, resultado = _transicion_si_valida(
-                db, contacto_id, EstadoFinanciero.TRANSFERENCIA_ENVIADA,
-                motivo="transfer.created", stripe_ref=transfer_id,
-            )
-
-    _actualizar_estado_transferencia(db, contacto_id, EstadoTransferencia.ENVIADA)
-    estado_final = fts.obtener_estado_financiero(db, contacto_id)
-    return contacto_id, resultado, ant_val, estado_final.value if estado_final else nuevo_val
+    resultado, ant_val, nuevo_val = te.confirmar_transfer_desde_webhook(
+        db, contacto_id, transfer_id, obj, event_type="transfer.created", event_id=event_id,
+    )
+    return contacto_id, resultado, ant_val, nuevo_val
 
 
 def _handle_transfer_paid(
     db, obj, event_id: str
 ) -> Tuple[Optional[int], str, str, str]:
-    """transfer.paid — confirma transferencia completada en Stripe."""
-    from core.services import financial_transfer_service as transfer_svc
+    """transfer.paid — alias legacy; en API moderna usar transfer.created."""
+    from core.services import stripe_transfer_events as te
 
     contacto_id = _resolver_contacto_transfer(db, obj)
     transfer_id = _object_id(obj)
     if not contacto_id:
         return None, "contacto_no_encontrado", "", ""
 
-    estado = fts.obtener_estado_financiero(db, contacto_id)
-    ant_val = estado.value if estado else ""
-
-    if estado == EstadoFinanciero.TRANSFERIDO:
-        _actualizar_estado_transferencia(db, contacto_id, EstadoTransferencia.COMPLETADA)
-        return contacto_id, "idempotent", ant_val, ant_val
-
-    with db._lock:
-        conn = db._connect()
-        cursor = conn.cursor()
-        _wh_repo.actualizar_stripe_transfer_id(cursor, contacto_id, transfer_id)
-        conn.commit()
-        conn.close()
-
-    fin = transfer_svc.finalizar_transferencia_completada(
-        db, contacto_id, transfer_id, origen="stripe_webhook"
+    resultado, ant_val, nuevo_val = te.confirmar_transfer_desde_webhook(
+        db, contacto_id, transfer_id, obj, event_type="transfer.paid", event_id=event_id,
     )
-    if fin.get("status") == "success":
-        nuevo = fin.get("estado_financiero", EstadoFinanciero.TRANSFERIDO.value)
-        return contacto_id, "ok" if not fin.get("idempotent") else "idempotent", ant_val, nuevo
+    return contacto_id, resultado, ant_val, nuevo_val
 
-    est_final = fts.obtener_estado_financiero(db, contacto_id)
-    nuevo_val = est_final.value if est_final else ant_val
-    return contacto_id, fin.get("message", "transition_skipped"), ant_val, nuevo_val
+
+def _handle_transfer_updated(
+    db, obj, event_id: str
+) -> Tuple[Optional[int], str, str, str]:
+    from core.services import stripe_transfer_events as te
+
+    contacto_id = _resolver_contacto_transfer(db, obj)
+    transfer_id = _object_id(obj)
+    if not contacto_id:
+        return None, "contacto_no_encontrado", "", ""
+
+    resultado, ant_val, nuevo_val = te.sincronizar_transfer_actualizada(
+        db, contacto_id, transfer_id, obj, event_id=event_id,
+    )
+    return contacto_id, resultado, ant_val, nuevo_val
+
+
+def _handle_transfer_reversed(
+    db, obj, event_id: str
+) -> Tuple[Optional[int], str, str, str]:
+    from core.services import stripe_transfer_events as te
+
+    contacto_id = _resolver_contacto_transfer(db, obj)
+    transfer_id = _object_id(obj)
+    if not contacto_id:
+        return None, "contacto_no_encontrado", "", ""
+
+    resultado, ant_val, nuevo_val = te.manejar_reversion_transfer(
+        db, contacto_id, transfer_id, obj, event_id=event_id, event_type="transfer.reversed",
+    )
+    return contacto_id, resultado, ant_val, nuevo_val
 
 
 def _handle_transfer_failed(
     db, obj, event_id: str
 ) -> Tuple[Optional[int], str, str, str]:
+    from core.services import stripe_transfer_events as te
+
     contacto_id = _resolver_contacto_transfer(db, obj)
     transfer_id = _object_id(obj)
     if not contacto_id:
@@ -460,28 +437,13 @@ def _handle_transfer_failed(
     estado = fts.obtener_estado_financiero(db, contacto_id)
     ant_val = estado.value if estado else ""
 
-    if estado in _ESTADOS_TERMINALES_TRANSFER:
-        reconciliation.registrar_discrepancia(
-            db, contacto_id, TipoDiscrepancia.STATUS_MISMATCH,
-            stripe_transfer_id=transfer_id,
-            ruana_estado=ant_val,
-            stripe_estado="failed",
-            metadata={"event_id": event_id, "nota": "transfer.failed tras estado terminal"},
-        )
-        return contacto_id, "discrepancia_registrada", ant_val, ant_val
-
-    _actualizar_estado_transferencia(db, contacto_id, EstadoTransferencia.FALLIDA)
-    _, nuevo_val, res = _transicion_si_valida(
-        db, contacto_id, EstadoFinanciero.TRANSFERENCIA_FALLIDA,
-        motivo="transfer.failed", stripe_ref=transfer_id,
+    resultado, ant_val, nuevo_val = te.manejar_transfer_failed_legacy(
+        db, contacto_id, transfer_id,
+        event_id=event_id,
+        estado_terminal=estado in _ESTADOS_TERMINALES_TRANSFER if estado else False,
+        ant_val=ant_val,
     )
-    db.registrar_evento_sistema(
-        "stripe_transfer_fallida",
-        f"Transferencia Stripe fallida en contacto #{contacto_id}",
-        actor_tipo="sistema",
-        metadata={"contacto_id": contacto_id, "transfer_id": transfer_id, "event_id": event_id},
-    )
-    return contacto_id, res, ant_val, nuevo_val
+    return contacto_id, resultado, ant_val, nuevo_val
 
 
 def _handle_charge_refunded(
@@ -622,6 +584,8 @@ _HANDLERS = {
     "account.updated": _handle_account_updated,
     "transfer.created": _handle_transfer_created,
     "transfer.paid": _handle_transfer_paid,
+    "transfer.updated": _handle_transfer_updated,
+    "transfer.reversed": _handle_transfer_reversed,
     "transfer.failed": _handle_transfer_failed,
     "charge.refunded": _handle_charge_refunded,
     "charge.dispute.created": _handle_charge_dispute_created,

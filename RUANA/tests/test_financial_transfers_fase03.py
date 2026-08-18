@@ -102,11 +102,8 @@ def test_01_flujo_normal_hasta_transferido(mock_transfer, sqlite_db):
 
     _webhook(
         sqlite_db, "evt_tr_c", "transfer.created",
-        {"id": "tr_normal", "metadata": {"contacto_id": str(cid)}},
-    )
-    _webhook(
-        sqlite_db, "evt_tr_p", "transfer.paid",
-        {"id": "tr_normal", "metadata": {"contacto_id": str(cid)}},
+        {"id": "tr_normal", "amount": 44000, "currency": "eur", "destination": "acct_test",
+         "metadata": {"contacto_id": str(cid)}},
     )
     assert fts.obtener_estado_financiero(sqlite_db, cid) == EstadoFinanciero.TRANSFERIDO
     conn = sqlite_db._connect()

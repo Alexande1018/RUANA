@@ -126,21 +126,11 @@ def ejecutar_liberacion_y_transferencia(
                 if existente:
                     conn.commit()
                     return existente
-
-            stripe_transfer_id = (transfer_row or {}).get("stripe_transfer_id")
-            if stripe_transfer_id:
-                resultado = _sincronizar_transferencia_registrada(
-                    db, cursor, contacto_id, codigo, stripe_transfer_id, neto_val, prof_codigo
-                )
-                conn.commit()
-                return resultado
-
-            puede_ejecutar = claim == "claimed"
-            if not puede_ejecutar:
                 _transfer_repo.intentar_reintentar_stripe(cursor, contacto_id)
                 puede_ejecutar = _transfer_repo.intentar_ejecutar_stripe(cursor, contacto_id)
             else:
                 puede_ejecutar = _transfer_repo.intentar_ejecutar_stripe(cursor, contacto_id)
+
             if not puede_ejecutar:
                 conn.commit()
                 return {
@@ -151,6 +141,14 @@ def ejecutar_liberacion_y_transferencia(
                     "idempotent": True,
                     "message": "Transferencia ya en curso",
                 }
+
+            stripe_transfer_id = (transfer_row or {}).get("stripe_transfer_id")
+            if stripe_transfer_id:
+                resultado = _sincronizar_transferencia_registrada(
+                    db, cursor, contacto_id, codigo, stripe_transfer_id, neto_val, prof_codigo
+                )
+                conn.commit()
+                return resultado
 
             res_pendiente = fts.registrar_transferencia_pendiente(
                 db, contacto_id, codigo, cursor=cursor

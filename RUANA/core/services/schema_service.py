@@ -419,6 +419,7 @@ def _init_db(db):
             db._migrar_estado_financiero(conn, cursor)
             db._migrar_financial_fase02(conn, cursor)
             db._migrar_financial_fase03(conn, cursor)
+            db._migrar_financial_fase03_1(conn, cursor)
 
             conn.commit()
             print(f"[RUANA][DB] Base de datos inicializada en: {db.db_path}")
@@ -1078,6 +1079,19 @@ def _migrar_financial_fase03(db, conn, cursor) -> None:
     """)
 
 
+def _migrar_financial_fase03_1(db, conn, cursor) -> None:
+    """FASE 03.1: referencias Stripe Connect en financial_transfers."""
+    columnas = _repo.columnas_tabla(cursor, "financial_transfers")
+    if not columnas:
+        return
+    for nombre, sqlite_def in [
+        ("stripe_balance_transaction_id", "TEXT"),
+        ("stripe_destination_payment_id", "TEXT"),
+    ]:
+        if nombre not in columnas:
+            _repo.execute(cursor, f"ALTER TABLE financial_transfers ADD COLUMN {nombre} {sqlite_def}")
+
+
 def _migrar_contactos_validacion_pago(db, conn, cursor) -> None:
     """Añade fecha_validacion_pago, admin_validacion_codigo y motivo_rechazo_pago a contactos_ruana."""
     columnas = _repo.columnas_tabla(cursor, "contactos_ruana")
@@ -1423,6 +1437,7 @@ def _init_postgres_schema(db):
         db._migrar_estado_financiero(conn, cursor)
         db._migrar_financial_fase02(conn, cursor)
         db._migrar_financial_fase03(conn, cursor)
+        db._migrar_financial_fase03_1(conn, cursor)
         conn.commit()
         print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil + linaje + urgente + negociación guiada + accesos día + retador + aliados eliminados)")
     except Exception as e:

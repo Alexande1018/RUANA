@@ -136,6 +136,35 @@ class FinancialTransferRepo:
         )
         return cursor.rowcount
 
+    def actualizar_referencias_stripe(
+        self,
+        cursor,
+        contacto_id: int,
+        transfer_id: str,
+        *,
+        balance_transaction_id: str = "",
+        destination_payment_id: str = "",
+    ) -> int:
+        columnas = self._columnas_financial_transfers(cursor)
+        sets = ["stripe_transfer_id = COALESCE(stripe_transfer_id, ?)", "actualizado_en = CURRENT_TIMESTAMP"]
+        params = [transfer_id]
+        if balance_transaction_id and "stripe_balance_transaction_id" in columnas:
+            sets.append("stripe_balance_transaction_id = COALESCE(stripe_balance_transaction_id, ?)")
+            params.append(balance_transaction_id)
+        if destination_payment_id and "stripe_destination_payment_id" in columnas:
+            sets.append("stripe_destination_payment_id = COALESCE(stripe_destination_payment_id, ?)")
+            params.append(destination_payment_id)
+        params.append(contacto_id)
+        cursor.execute(
+            f"UPDATE financial_transfers SET {', '.join(sets)} WHERE contacto_id = ?",
+            params,
+        )
+        return cursor.rowcount
+
+    def _columnas_financial_transfers(self, cursor) -> set:
+        cursor.execute("PRAGMA table_info(financial_transfers)")
+        return {row[1] for row in cursor.fetchall()}
+
     def marcar_fallida(self, cursor, contacto_id: int, error_message: str) -> int:
         cursor.execute(
             """

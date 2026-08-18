@@ -19,14 +19,12 @@ Stripe Transfer.create (idempotency_key=transfer-contacto-{id})
         ↓
 TRANSFERENCIA_ENVIADA + stripe_transfer_id registrado
         ↓
-Webhook transfer.created (refuerzo idempotente)
-        ↓
-Webhook transfer.paid
+Webhook transfer.created (confirmación real Connect)
         ↓
 TRANSFERIDO + estado_pago=transferido + notificación + score
 ```
 
-**Importante:** `TRANSFERIDO` solo se alcanza tras `transfer.paid`, no al crear la transferencia en Stripe.
+**Importante:** En Stripe Connect (API >= 2017-04-06), `transfer.created` confirma la transferencia exitosa. `transfer.paid` es legacy y no se emite en API moderna.
 
 ## Estados
 
@@ -67,17 +65,20 @@ Si Stripe crea la transferencia pero RUANA pierde la respuesta:
 | `aliados.stripe_account_id` | Transfer.destination |
 | `importe_neto_profesional` | Transfer.amount (céntimos) |
 
-## Webhooks
+## Webhooks (eventos reales Stripe Connect — FASE 03.1)
 
-| Evento | Acción |
-|--------|--------|
-| `transfer.created` | Registra `transfer_id`, `TRANSFERENCIA_ENVIADA` |
-| `transfer.paid` | `TRANSFERIDO`, legacy, notificación, score |
-| `transfer.failed` | `TRANSFERENCIA_FALLIDA` o discrepancia si terminal |
+| Evento | Acción | Notas |
+|--------|--------|-------|
+| `transfer.created` | **Confirma TRANSFERIDO** | Evento real en API moderna |
+| `transfer.updated` | Sincroniza referencias; detecta `reversed` | |
+| `transfer.reversed` | `TRANSFERENCIA_REVERTIDA` | |
+| `transfer.paid` | Alias legacy → misma lógica que `created` | No se emite en API >= 2017-04-06 |
+| `transfer.failed` | Handler legacy | Fallos reales son síncronos en `Transfer.create` |
 
 ### Eventos fuera de orden
 
-- `transfer.paid` antes de `transfer.created`: se recupera la cadena de estados y se marca `TRANSFERIDO`.
+- `transfer.created` puede llegar tras la API: confirma `TRANSFERIDO`.
+- `transfer.paid` (legacy): alias idempotente de confirmación.
 - `transfer.paid` + `transfer.failed` posterior: discrepancia, sin retroceder desde `TRANSFERIDO`.
 
 ## Bloqueos
@@ -99,8 +100,10 @@ Tabla `financial_transfer_attempts`: cada intento, bloqueo, transición y refere
 - `core/services/financial_transfer_service.py` — orquestación
 - `core/repositories/financial_transfer_repo.py` — persistencia atómica
 - `core/services/stripe_webhook_service.py` — handlers transfer.*
+- `core/services/stripe_transfer_events.py` — eventos reales Connect (FASE 03.1)
 - `supabase/migrations/20260818000200_financial_fase03.sql` — PostgreSQL
+- `supabase/migrations/20260818000300_financial_fase03_1.sql` — referencias Connect
 
 ## Migración SQLite
 
-`schema_service._migrar_financial_fase03`
+`schema_service._migrar_financial_fase03` + `_migrar_financial_fase03_1`
