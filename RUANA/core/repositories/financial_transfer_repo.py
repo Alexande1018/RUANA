@@ -60,17 +60,33 @@ class FinancialTransferRepo:
         return "existing", self._row_dict(row)
 
     def intentar_reintentar_stripe(self, cursor, contacto_id: int) -> bool:
-        """Permite reintentar tras fallo transitorio (timeout) sin duplicar registro."""
+        """Permite reintentar solo tras FALLIDA explícita (p. ej. timeout Stripe).
+
+        No resetea STRIPE_EN_PROCESO: otro hilo puede estar ejecutando Transfer.create.
+        """
         cursor.execute(
             """
             UPDATE financial_transfers
             SET estado = 'RECLAMADA', error_message = NULL, actualizado_en = CURRENT_TIMESTAMP
             WHERE contacto_id = ? AND stripe_transfer_id IS NULL
-              AND estado IN ('FALLIDA', 'STRIPE_EN_PROCESO')
+              AND estado = 'FALLIDA'
             """,
             (contacto_id,),
         )
         return cursor.rowcount == 1
+
+    def esta_ejecucion_stripe_en_curso(self, cursor, contacto_id: int) -> bool:
+        """True si otro proceso ya reclamó y está llamando a Stripe."""
+        cursor.execute(
+            """
+            SELECT 1 FROM financial_transfers
+            WHERE contacto_id = ? AND stripe_transfer_id IS NULL
+              AND estado = 'STRIPE_EN_PROCESO'
+            LIMIT 1
+            """,
+            (contacto_id,),
+        )
+        return cursor.fetchone() is not None
 
     def intentar_ejecutar_stripe(self, cursor, contacto_id: int) -> bool:
         """Solo un proceso puede pasar de RECLAMADA a STRIPE_EN_PROCESO."""

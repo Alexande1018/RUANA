@@ -84,7 +84,7 @@ class DBManager:
         """Open a database connection for the configured backend."""
         if self.backend == "postgres":
             return pg_compat_connect(self.settings.database_url, pool=self._pg_pool)
-        return sqlite3.connect(self.db_path)
+        return sqlite3.connect(self.db_path, timeout=30.0)
 
     def _init_postgres_schema(self):
         """Fachada Campamento Base → schema_service._init_postgres_schema."""

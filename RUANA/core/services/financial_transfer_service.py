@@ -126,6 +126,9 @@ def ejecutar_liberacion_y_transferencia(
                 if existente:
                     conn.commit()
                     return existente
+                if _transfer_repo.esta_ejecucion_stripe_en_curso(cursor, contacto_id):
+                    conn.commit()
+                    return _respuesta_transferencia_en_proceso(contacto_id, estado_actual)
                 _transfer_repo.intentar_reintentar_stripe(cursor, contacto_id)
                 puede_ejecutar = _transfer_repo.intentar_ejecutar_stripe(cursor, contacto_id)
             else:
@@ -133,14 +136,7 @@ def ejecutar_liberacion_y_transferencia(
 
             if not puede_ejecutar:
                 conn.commit()
-                return {
-                    "status": "success",
-                    "contacto_id": contacto_id,
-                    "estado": "transferencia_en_proceso",
-                    "estado_financiero": estado_actual.value,
-                    "idempotent": True,
-                    "message": "Transferencia ya en curso",
-                }
+                return _respuesta_transferencia_en_proceso(contacto_id, estado_actual)
 
             stripe_transfer_id = (transfer_row or {}).get("stripe_transfer_id")
             if stripe_transfer_id:
@@ -621,6 +617,19 @@ def _sincronizar_transferencia_registrada(
         transferido=estado == EstadoFinanciero.TRANSFERIDO,
         transfer_id=transfer_id,
     )
+
+
+def _respuesta_transferencia_en_proceso(
+    contacto_id: int, estado_actual: EstadoFinanciero,
+) -> Dict[str, Any]:
+    return {
+        "status": "success",
+        "contacto_id": contacto_id,
+        "estado": "transferencia_en_proceso",
+        "estado_financiero": estado_actual.value,
+        "idempotent": True,
+        "message": "Transferencia ya en curso",
+    }
 
 
 def _build_idempotent_success(

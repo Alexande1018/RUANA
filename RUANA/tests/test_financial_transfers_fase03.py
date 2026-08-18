@@ -134,24 +134,68 @@ def test_02_doble_clic_una_transferencia(mock_transfer, sqlite_db):
 
 @patch("core.services.financial_transfer_service.stripe_client.create_transfer")
 def test_03_concurrencia_una_transferencia(mock_transfer, sqlite_db):
+    """Dos hilos simultáneos: exactamente una llamada Stripe y una fila financial_transfers."""
     cid = _seed_listo_transferir(sqlite_db)
-    mock_transfer.return_value = {"id": "tr_conc"}
+    start_barrier = threading.Barrier(2, timeout=10)
+    stripe_lock = threading.Lock()
+    idempotency_keys_seen = []
+    thread_errors = []
+
+    def slow_create_transfer(**kwargs):
+        with stripe_lock:
+            idempotency_keys_seen.append(kwargs.get("idempotency_key"))
+        import time
+        time.sleep(0.1)
+        return {"id": "tr_conc"}
+
+    mock_transfer.side_effect = slow_create_transfer
+
     results = []
-    barrier = threading.Barrier(2)
 
     def run():
-        barrier.wait()
-        results.append(pago_service.confirmar_trabajo_y_transferir(sqlite_db, cid, "SOL"))
+        try:
+            start_barrier.wait(timeout=10)
+            results.append(pago_service.confirmar_trabajo_y_transferir(sqlite_db, cid, "SOL"))
+        except Exception as exc:
+            thread_errors.append(exc)
 
-    t1 = threading.Thread(target=run)
-    t2 = threading.Thread(target=run)
+    t1 = threading.Thread(target=run, name="concurrencia-t1")
+    t2 = threading.Thread(target=run, name="concurrencia-t2")
     t1.start()
     t2.start()
-    t1.join()
-    t2.join()
-    assert all(r["status"] == "success" for r in results)
-    assert mock_transfer.call_count == 1
+    t1.join(timeout=30)
+    t2.join(timeout=30)
+    if t1.is_alive():
+        pytest.fail("Hilo concurrencia-t1 bloqueado (>30s)")
+    if t2.is_alive():
+        pytest.fail("Hilo concurrencia-t2 bloqueado (>30s)")
+
+    assert not thread_errors, f"Excepciones en hilos: {thread_errors}"
+    assert len(results) == 2, f"Resultados incompletos: {results}"
+    assert all(r["status"] == "success" for r in results), results
+
+    en_proceso = [r for r in results if r.get("estado") == "transferencia_en_proceso"]
+    enviada = [r for r in results if r.get("estado") == "transferencia_enviada"]
+    assert len(en_proceso) == 1, f"Un hilo debe recibir transferencia_en_proceso: {results}"
+    assert len(enviada) == 1, f"Un hilo debe completar transferencia_enviada: {results}"
+    assert en_proceso[0].get("idempotent") is True
+
+    assert mock_transfer.call_count == 1, (
+        f"Stripe create_transfer llamado {mock_transfer.call_count} veces; keys={idempotency_keys_seen}"
+    )
+    assert idempotency_keys_seen == [f"transfer-contacto-{cid}"]
     assert _count_transfers(sqlite_db, cid) == 1
+
+    conn = sqlite_db._connect()
+    ft = conn.execute(
+        "SELECT estado, stripe_transfer_id, idempotency_key FROM financial_transfers WHERE contacto_id=?",
+        (cid,),
+    ).fetchone()
+    conn.close()
+    assert ft[0] == "STRIPE_CREADA"
+    assert ft[1] == "tr_conc"
+    assert ft[2] == f"transfer-contacto-{cid}"
+    assert fts.obtener_estado_financiero(sqlite_db, cid) == EstadoFinanciero.TRANSFERENCIA_ENVIADA
 
 
 @patch("core.services.financial_transfer_service.stripe_client.create_transfer")
