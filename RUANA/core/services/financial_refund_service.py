@@ -64,10 +64,19 @@ def _resolver_causa_desde_conflicto(conflicto: Dict[str, Any], causa_explicita: 
 
 
 def calcular_importe_disponible_refund_cents(db, contacto_id: int) -> Dict[str, Any]:
+    from core.services import financial_dispute_service as fds
+
     with db._lock:
         conn = db._connect()
         try:
             cursor = conn.cursor()
+            if fds.tiene_disputa_bloqueante(db, contacto_id, cursor=cursor):
+                return {
+                    "status": "error",
+                    "message": "Disputa Stripe abierta",
+                    "bloqueo": "disputa_stripe",
+                    "importe_disponible_refund_cents": 0,
+                }
             row = _pago_repo.select_contacto_stripe_por_id(cursor, contacto_id)
             if not row:
                 return {"status": "error", "message": "Contacto no encontrado"}

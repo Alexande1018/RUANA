@@ -415,6 +415,14 @@ def _validar_precondiciones(
             "bloqueo": "conflicto",
         }
 
+    from core.services import financial_dispute_service as fds
+    if fds.tiene_disputa_bloqueante(db, contacto_id, cursor=cursor):
+        return {
+            "status": "error",
+            "message": "Disputa Stripe abierta bloquea transferencia",
+            "bloqueo": "disputa_stripe",
+        }
+
     ft_row = _transfer_repo.select_por_contacto(cursor, contacto_id)
     if ft_row:
         ft = _transfer_repo._row_dict(ft_row)

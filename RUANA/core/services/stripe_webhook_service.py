@@ -630,61 +630,48 @@ def _handle_refund_updated(
 def _handle_charge_dispute_created(
     db, obj, event_id: str
 ) -> Tuple[Optional[int], str, str, str]:
-    dispute_id = _object_id(obj)
-    charge_id = str(_get(obj, "charge") or "")
-    amount = _get(obj, "amount") or 0
-    currency = str(_get(obj, "currency") or "eur").lower()
-    reason = str(_get(obj, "reason") or "")
-    status = str(_get(obj, "status") or "needs_response")
-    evidence = _get(obj, "evidence_details") or {}
-    due_by = None
-    if isinstance(evidence, dict):
-        due_by = evidence.get("due_by")
-    elif hasattr(evidence, "due_by"):
-        due_by = evidence.due_by
+    from core.services import financial_dispute_service as fds
 
-    payment_intent_id = str(_get(obj, "payment_intent") or "")
-    contacto_id = None
-    with db._lock:
-        conn = db._connect()
-        cursor = conn.cursor()
-        if payment_intent_id:
-            row = _wh_repo.select_contacto_por_payment_intent(cursor, payment_intent_id)
-            if row:
-                contacto_id = int(row[0] if not hasattr(row, "keys") else row["id"])
-        conn.close()
-
+    result = fds.procesar_webhook_dispute(
+        db, obj, event_type="charge.dispute.created", event_id=event_id,
+    )
+    contacto_id = result.get("contacto_id")
     if not contacto_id:
-        return None, "contacto_no_encontrado", "", ""
-
-    amount_eur = round(float(amount) / 100.0, 2)
-    with db._lock:
-        conn = db._connect()
-        cursor = conn.cursor()
-        inserted = _wh_repo.insertar_disputa(
-            cursor, contacto_id, dispute_id, charge_id,
-            amount_eur, currency, reason, status,
-            str(due_by) if due_by else None, event_id,
-        )
-        _wh_repo.actualizar_contacto_disputa(
-            cursor, contacto_id, dispute_id, charge_id, amount_eur, reason, status,
-        )
-        conn.commit()
-        conn.close()
-
+        return None, result.get("message", "error"), "", ""
     estado = fts.obtener_estado_financiero(db, contacto_id)
-    ant_val = estado.value if estado else ""
-    _, nuevo_val, res = _transicion_si_valida(
-        db, contacto_id, EstadoFinanciero.DISPUTA_STRIPE,
-        motivo=f"charge.dispute.created reason={reason}", stripe_ref=dispute_id,
+    nuevo = estado.value if estado else ""
+    res = "idempotent" if result.get("idempotent") else "registrado"
+    if result.get("historico_preservado"):
+        res = "registrado_historico_preservado"
+    return contacto_id, res, "", nuevo
+
+
+def _handle_charge_dispute_updated(
+    db, obj, event_id: str
+) -> Tuple[Optional[int], str, str, str]:
+    from core.services import financial_dispute_service as fds
+
+    result = fds.procesar_webhook_dispute(
+        db, obj, event_type="charge.dispute.updated", event_id=event_id,
     )
-    db.registrar_evento_sistema(
-        "stripe_disputa_creada",
-        f"Disputa Stripe en contacto #{contacto_id}",
-        actor_tipo="sistema",
-        metadata={"contacto_id": contacto_id, "dispute_id": dispute_id, "event_id": event_id},
+    contacto_id = result.get("contacto_id")
+    if not contacto_id:
+        return None, result.get("message", "error"), "", ""
+    return contacto_id, result.get("status", "ok"), "", ""
+
+
+def _handle_charge_dispute_closed(
+    db, obj, event_id: str
+) -> Tuple[Optional[int], str, str, str]:
+    from core.services import financial_dispute_service as fds
+
+    result = fds.procesar_webhook_dispute(
+        db, obj, event_type="charge.dispute.closed", event_id=event_id,
     )
-    return contacto_id, res if inserted else "idempotent", ant_val, nuevo_val
+    contacto_id = result.get("contacto_id")
+    if not contacto_id:
+        return None, result.get("message", "error"), "", ""
+    return contacto_id, result.get("estado_final", result.get("status", "ok")), "", ""
 
 
 def _handle_desconocido(
@@ -708,6 +695,8 @@ _HANDLERS = {
     # refund.updated es el evento unificado recomendado por Stripe (charge.refund.updated está deprecado).
     "refund.updated": _handle_refund_updated,
     "charge.dispute.created": _handle_charge_dispute_created,
+    "charge.dispute.updated": _handle_charge_dispute_updated,
+    "charge.dispute.closed": _handle_charge_dispute_closed,
 }
 
 
