@@ -159,6 +159,239 @@ def abrir_conflicto(
                 conn.close()
 
 
+def _error_version() -> Dict[str, Any]:
+    return {
+        "status": "error",
+        "code": "version_conflict",
+        "message": "Conflicto modificado por otro proceso",
+    }
+
+
+def _validar_version_fila(row: Dict[str, Any], version_esperada: Optional[int]) -> Optional[Dict[str, Any]]:
+    if version_esperada is None:
+        return None
+    actual = int(row.get("version") or 1)
+    if int(version_esperada) != actual:
+        return _error_version()
+    return None
+
+
+def listar_conflictos(
+    db,
+    *,
+    estado: str = "",
+    limite: int = 100,
+    offset: int = 0,
+) -> Dict[str, Any]:
+    with db._lock:
+        conn = db._connect()
+        try:
+            cursor = conn.cursor()
+            items = _repo.listar_conflictos(cursor, estado=estado, limite=limite, offset=offset)
+            return {"status": "success", "conflictos": items, "total": len(items)}
+        finally:
+            conn.close()
+
+
+def obtener_detalle(db, conflict_id: int) -> Dict[str, Any]:
+    with db._lock:
+        conn = db._connect()
+        try:
+            cursor = conn.cursor()
+            detalle = _repo.obtener_detalle_completo(cursor, conflict_id)
+            if not detalle:
+                return {"status": "error", "message": "Conflicto no encontrado"}
+            return {"status": "success", "conflicto": detalle}
+        finally:
+            conn.close()
+
+
+def listar_auditoria(db, conflict_id: int) -> Dict[str, Any]:
+    with db._lock:
+        conn = db._connect()
+        try:
+            cursor = conn.cursor()
+            if not _repo.select_por_id(cursor, conflict_id):
+                return {"status": "error", "message": "Conflicto no encontrado"}
+            items = _repo.listar_auditoria(cursor, conflict_id)
+            return {"status": "success", "auditoria": items, "total": len(items)}
+        finally:
+            conn.close()
+
+
+def listar_acciones_financieras_pendientes(db, conflict_id: int) -> Dict[str, Any]:
+    with db._lock:
+        conn = db._connect()
+        try:
+            cursor = conn.cursor()
+            if not _repo.select_por_id(cursor, conflict_id):
+                return {"status": "error", "message": "Conflicto no encontrado"}
+            items = _repo.listar_acciones_pendientes(cursor, conflict_id)
+            return {"status": "success", "acciones": items, "total": len(items)}
+        finally:
+            conn.close()
+
+
+def asignar_responsable(
+    db,
+    conflict_id: int,
+    *,
+    responsable_codigo: str,
+    actor: str,
+    idempotency_key: str = "",
+    version_esperada: Optional[int] = None,
+    permiso_usado: str = "",
+) -> Dict[str, Any]:
+    responsable = (responsable_codigo or "").strip()
+    if not responsable:
+        return {"status": "error", "message": "responsable_codigo obligatorio"}
+    key = idempotency_key or f"asignar-{conflict_id}-{responsable}"
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            row = _repo.select_por_id(cursor, conflict_id)
+            if not row:
+                return {"status": "error", "message": "Conflicto no encontrado"}
+            verr = _validar_version_fila(row, version_esperada)
+            if verr:
+                return verr
+            claim, action_id = _repo.reclamar_accion(cursor, conflict_id, "asignar", key, actor)
+            if claim == "duplicate":
+                return {"status": "success", "idempotent": True, "conflict_id": conflict_id}
+            actual = normalizar_estado_conflicto(row.get("estado_conflicto"), row.get("estado"))
+            if not actual:
+                return {"status": "error", "message": "Estado de conflicto inválido"}
+            version = int(row.get("version") or 1)
+            ok = _repo.asignar_responsable_cas(
+                cursor, conflict_id,
+                responsable_codigo=responsable,
+                estado_esperado=actual.value,
+                version_esperada=version,
+            )
+            if not ok:
+                _repo.finalizar_accion(cursor, action_id, "conflicto_version", {})
+                conn.commit()
+                return _error_version()
+            _repo.registrar_auditoria(
+                cursor, conflict_id, accion="asignar_responsable", actor=actor,
+                estado_anterior=actual.value, estado_nuevo=actual.value,
+                metadata={
+                    "responsable_codigo": responsable,
+                    "permiso_usado": permiso_usado,
+                },
+            )
+            _repo.finalizar_accion(cursor, action_id, "ok", {"responsable": responsable})
+            conn.commit()
+            return {
+                "status": "success",
+                "conflict_id": conflict_id,
+                "responsable_codigo": responsable,
+                "version": version + 1,
+            }
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            return {"status": "error", "message": str(e)}
+        finally:
+            if conn:
+                conn.close()
+
+
+def solicitar_evidencia(
+    db,
+    conflict_id: int,
+    *,
+    actor: str,
+    idempotency_key: str = "",
+    version_esperada: Optional[int] = None,
+    permiso_usado: str = "",
+    motivo: str = "",
+) -> Dict[str, Any]:
+    row_pre = None
+    with db._lock:
+        conn = db._connect()
+        try:
+            cursor = conn.cursor()
+            row_pre = _repo.select_por_id(cursor, conflict_id)
+        finally:
+            conn.close()
+    if not row_pre:
+        return {"status": "error", "message": "Conflicto no encontrado"}
+    verr = _validar_version_fila(row_pre, version_esperada)
+    if verr:
+        return verr
+    result = transicionar_conflicto(
+        db, conflict_id, EstadoConflicto.PENDIENTE_DE_EVIDENCIA,
+        actor=actor, idempotency_key=idempotency_key or f"solicitar-evidencia-{conflict_id}",
+    )
+    if result.get("status") == "success":
+        with db._lock:
+            conn = db._connect()
+            try:
+                cursor = conn.cursor()
+                _repo.registrar_auditoria(
+                    cursor, conflict_id, accion="solicitar_evidencia", actor=actor,
+                    estado_anterior=row_pre.get("estado_conflicto", ""),
+                    estado_nuevo=EstadoConflicto.PENDIENTE_DE_EVIDENCIA.value,
+                    metadata={"permiso_usado": permiso_usado, "motivo": (motivo or "")[:500]},
+                )
+                conn.commit()
+            finally:
+                conn.close()
+    return result
+
+
+def escalar_conflicto(
+    db,
+    conflict_id: int,
+    *,
+    actor: str,
+    responsable_codigo: str,
+    comentario: str,
+    idempotency_key: str = "",
+    version_esperada: Optional[int] = None,
+    permiso_usado: str = "",
+) -> Dict[str, Any]:
+    row_pre = None
+    with db._lock:
+        conn = db._connect()
+        try:
+            cursor = conn.cursor()
+            row_pre = _repo.select_por_id(cursor, conflict_id)
+        finally:
+            conn.close()
+    if not row_pre:
+        return {"status": "error", "message": "Conflicto no encontrado"}
+    verr = _validar_version_fila(row_pre, version_esperada)
+    if verr:
+        return verr
+    result = resolver_conflicto(
+        db, conflict_id, ResolucionConflicto.ESCALAR_ADMIN,
+        actor=actor,
+        responsable_codigo=responsable_codigo,
+        comentario=comentario,
+        motivo=comentario,
+        idempotency_key=idempotency_key or f"escalar-{conflict_id}",
+    )
+    if result.get("status") == "success":
+        with db._lock:
+            conn = db._connect()
+            try:
+                cursor = conn.cursor()
+                _repo.registrar_auditoria(
+                    cursor, conflict_id, accion="escalar", actor=actor,
+                    estado_anterior=row_pre.get("estado_conflicto", ""),
+                    estado_nuevo=EstadoConflicto.ESCALADO.value,
+                    metadata={"permiso_usado": permiso_usado, "responsable_codigo": responsable_codigo},
+                )
+                conn.commit()
+            finally:
+                conn.close()
+    return result
+
+
 def transicionar_conflicto(
     db,
     conflict_id: int,
@@ -166,6 +399,7 @@ def transicionar_conflicto(
     *,
     actor: str,
     idempotency_key: str = "",
+    version_esperada: Optional[int] = None,
 ) -> Dict[str, Any]:
     key = idempotency_key or f"trans-{conflict_id}-{nuevo_estado.value}"
     with db._lock:
@@ -176,6 +410,9 @@ def transicionar_conflicto(
             row = _repo.select_por_id(cursor, conflict_id)
             if not row:
                 return {"status": "error", "message": "Conflicto no encontrado"}
+            verr = _validar_version_fila(row, version_esperada)
+            if verr:
+                return verr
             actual = normalizar_estado_conflicto(row.get("estado_conflicto"), row.get("estado"))
             if not actual:
                 return {"status": "error", "message": "Estado de conflicto inválido"}
@@ -197,7 +434,7 @@ def transicionar_conflicto(
             if not ok:
                 _repo.finalizar_accion(cursor, action_id, "conflicto_version", {})
                 conn.commit()
-                return {"status": "error", "message": "Conflicto modificado por otro proceso"}
+                return _error_version()
             _repo.registrar_auditoria(
                 cursor, conflict_id, accion="transicion", actor=actor,
                 estado_anterior=actual.value, estado_nuevo=nuevo_estado.value,
@@ -228,6 +465,8 @@ def resolver_conflicto(
     motivo: str = "",
     responsable_codigo: str = "",
     comentario: str = "",
+    version_esperada: Optional[int] = None,
+    permiso_usado: str = "",
 ) -> Dict[str, Any]:
     key = idempotency_key or f"resolver-{conflict_id}-{resolucion.value}"
     validacion = _validar_resolucion(
@@ -252,14 +491,9 @@ def resolver_conflicto(
             row = _repo.select_por_id(cursor, conflict_id)
             if not row:
                 return {"status": "error", "message": "Conflicto no encontrado"}
-            actual = normalizar_estado_conflicto(row.get("estado_conflicto"), row.get("estado"))
-            if not actual or actual in (EstadoConflicto.CERRADO, EstadoConflicto.RESUELTO):
-                return {"status": "error", "message": "Conflicto ya resuelto o cerrado"}
-            if actual not in (
-                EstadoConflicto.ABIERTO, EstadoConflicto.EN_INVESTIGACION,
-                EstadoConflicto.PENDIENTE_DE_EVIDENCIA, EstadoConflicto.ESCALADO,
-            ):
-                return {"status": "error", "message": "Estado no permite resolución"}
+            verr = _validar_version_fila(row, version_esperada)
+            if verr:
+                return verr
 
             claim, action_id = _repo.reclamar_accion(cursor, conflict_id, "resolver", key, actor)
             if claim == "duplicate":
@@ -273,6 +507,19 @@ def resolver_conflicto(
                         "conflict_id": conflict_id, "estado_conflicto": ec.value,
                     }
                 return {"status": "success", "idempotent": True, "conflict_id": conflict_id}
+
+            actual = normalizar_estado_conflicto(row.get("estado_conflicto"), row.get("estado"))
+            if not actual or actual in (EstadoConflicto.CERRADO, EstadoConflicto.RESUELTO):
+                _repo.finalizar_accion(cursor, action_id, "rechazado", {"error": "ya resuelto"})
+                conn.commit()
+                return {"status": "error", "message": "Conflicto ya resuelto o cerrado"}
+            if actual not in (
+                EstadoConflicto.ABIERTO, EstadoConflicto.EN_INVESTIGACION,
+                EstadoConflicto.PENDIENTE_DE_EVIDENCIA, EstadoConflicto.ESCALADO,
+            ):
+                _repo.finalizar_accion(cursor, action_id, "rechazado", {"error": "estado invalido"})
+                conn.commit()
+                return {"status": "error", "message": "Estado no permite resolución"}
 
             contacto_id = int(row["trabajo_id"])
             val_importe = _validar_importes_resolucion(
@@ -302,7 +549,7 @@ def resolver_conflicto(
             if not ok:
                 _repo.finalizar_accion(cursor, action_id, "conflicto_version", {})
                 conn.commit()
-                return {"status": "error", "message": "Conflicto modificado por otro proceso"}
+                return _error_version()
 
             if resolucion == ResolucionConflicto.ESCALAR_ADMIN and responsable_codigo:
                 _repo.transicionar_estado_cas(
@@ -320,6 +567,8 @@ def resolver_conflicto(
                     "importe_liberar_cents": importe_liberar_cents,
                     "importe_reembolsar_cents": importe_reembolsar_cents,
                     "orden_financiera_pendiente": True,
+                    "permiso_usado": permiso_usado,
+                    "motivo": (motivo or comentario or "")[:500],
                 },
             )
             _repo.finalizar_accion(cursor, action_id, "ok", {"resolucion": resolucion.value})
@@ -342,6 +591,7 @@ def resolver_conflicto(
 
 def cerrar_conflicto(
     db, conflict_id: int, *, actor: str, idempotency_key: str = "",
+    version_esperada: Optional[int] = None, permiso_usado: str = "",
 ) -> Dict[str, Any]:
     key = idempotency_key or f"cerrar-{conflict_id}"
     with db._lock:
@@ -352,6 +602,9 @@ def cerrar_conflicto(
             row = _repo.select_por_id(cursor, conflict_id)
             if not row:
                 return {"status": "error", "message": "Conflicto no encontrado"}
+            verr = _validar_version_fila(row, version_esperada)
+            if verr:
+                return verr
             actual = normalizar_estado_conflicto(row.get("estado_conflicto"), row.get("estado"))
             if actual == EstadoConflicto.CERRADO:
                 return {"status": "success", "idempotent": True, "conflict_id": conflict_id}
@@ -368,11 +621,12 @@ def cerrar_conflicto(
             ok = _repo.cerrar_conflicto_cas(cursor, conflict_id, EstadoConflicto.RESUELTO.value, version)
             if not ok:
                 conn.commit()
-                return {"status": "error", "message": "No se pudo cerrar (concurrencia)"}
+                return _error_version()
             _repo.registrar_auditoria(
                 cursor, conflict_id, accion="cerrar", actor=actor,
                 estado_anterior=EstadoConflicto.RESUELTO.value,
                 estado_nuevo=EstadoConflicto.CERRADO.value,
+                metadata={"permiso_usado": permiso_usado},
             )
             _repo.finalizar_accion(cursor, action_id, "ok", {})
             conn.commit()
@@ -388,7 +642,7 @@ def cerrar_conflicto(
 
 def agregar_evidencia(
     db, conflict_id: int, *, tipo: str, nombre: str, referencia: str,
-    subido_por: str, hash_val: str = "",
+    subido_por: str, hash_val: str = "", permiso_usado: str = "",
 ) -> Dict[str, Any]:
     with db._lock:
         conn = db._connect()
@@ -405,7 +659,7 @@ def agregar_evidencia(
                 cursor, conflict_id, accion="evidencia", actor=subido_por,
                 estado_anterior=row.get("estado_conflicto", ""),
                 estado_nuevo=row.get("estado_conflicto", ""),
-                metadata={"evidence_id": eid, "tipo": tipo},
+                metadata={"evidence_id": eid, "tipo": tipo, "permiso_usado": permiso_usado},
             )
             conn.commit()
             return {"status": "success", "evidence_id": eid}
@@ -416,6 +670,7 @@ def agregar_evidencia(
 def agregar_comentario(
     db, conflict_id: int, *, autor: str, texto: str,
     visible_contratante: bool = True, visible_profesional: bool = True,
+    permiso_usado: str = "",
 ) -> Dict[str, Any]:
     texto = (texto or "").strip()
     if not texto:
@@ -424,11 +679,18 @@ def agregar_comentario(
         conn = db._connect()
         try:
             cursor = conn.cursor()
-            if not _repo.select_por_id(cursor, conflict_id):
+            row = _repo.select_por_id(cursor, conflict_id)
+            if not row:
                 return {"status": "error", "message": "Conflicto no encontrado"}
             cid = _repo.insertar_comentario(
                 cursor, conflict_id, autor=autor, texto=texto,
                 visible_contratante=visible_contratante, visible_profesional=visible_profesional,
+            )
+            _repo.registrar_auditoria(
+                cursor, conflict_id, accion="comentario", actor=autor,
+                estado_anterior=row.get("estado_conflicto", ""),
+                estado_nuevo=row.get("estado_conflicto", ""),
+                metadata={"comment_id": cid, "permiso_usado": permiso_usado},
             )
             conn.commit()
             return {"status": "success", "comment_id": cid}
@@ -439,6 +701,9 @@ def agregar_comentario(
 def _validar_resolucion(
     resolucion: ResolucionConflicto, **kwargs,
 ) -> Optional[Dict[str, Any]]:
+    texto_motivo = (kwargs.get("motivo") or kwargs.get("comentario") or "").strip()
+    if resolucion != ResolucionConflicto.MANTENER_RETENIDO and not texto_motivo:
+        return {"status": "error", "message": "motivo obligatorio"}
     if resolucion == ResolucionConflicto.ESCALAR_ADMIN:
         if not (kwargs.get("responsable_codigo") or "").strip():
             return {"status": "error", "message": "responsable_codigo obligatorio para ESCALAR_ADMIN"}

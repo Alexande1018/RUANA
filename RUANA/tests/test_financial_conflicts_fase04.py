@@ -184,7 +184,7 @@ def test_08_liberar_profesional_valida_importe(sqlite_db):
     r = _abrir(sqlite_db, cid)
     ok = fcs.resolver_conflicto(
         sqlite_db, r["conflict_id"], ResolucionConflicto.LIBERAR_PROFESIONAL,
-        actor="admin", importe_liberar_cents=neto,
+        actor="admin", importe_liberar_cents=neto, motivo="liberar ok",
     )
     assert ok["status"] == "success"
     bad = fcs.resolver_conflicto(
@@ -199,7 +199,7 @@ def test_09_reembolsar_total_pendiente_sin_stripe(sqlite_db):
     r = _abrir(sqlite_db, cid)
     res = fcs.resolver_conflicto(
         sqlite_db, r["conflict_id"], ResolucionConflicto.REEMBOLSAR_TOTAL,
-        actor="admin", importe_reembolsar_cents=neto,
+        actor="admin", importe_reembolsar_cents=neto, motivo="reembolso total",
     )
     assert res["status"] == "success"
     assert res.get("orden_financiera_pendiente") is True
@@ -233,7 +233,7 @@ def test_11_dividir_importe_valida_suma(sqlite_db):
     ok = fcs.resolver_conflicto(
         sqlite_db, r["conflict_id"], ResolucionConflicto.DIVIDIR_IMPORTE,
         actor="admin", importe_profesional_cents=neto // 2,
-        importe_contratante_cents=neto // 2,
+        importe_contratante_cents=neto // 2, motivo="dividir ok",
     )
     assert ok["status"] == "success"
     bad = fcs.resolver_conflicto(
@@ -317,7 +317,7 @@ def test_16_dos_admins_no_resuelven_dos_veces(sqlite_db):
         results.append(
             fcs.resolver_conflicto(
                 sqlite_db, cf, ResolucionConflicto.REEMBOLSAR_TOTAL,
-                actor="admin", importe_reembolsar_cents=neto,
+                actor="admin", importe_reembolsar_cents=neto, motivo="concurrente",
                 idempotency_key="misma-resolucion",
             )
         )
@@ -354,7 +354,7 @@ def test_18_cerrado_no_reabre(sqlite_db):
     cf = r["conflict_id"]
     fcs.resolver_conflicto(
         sqlite_db, cf, ResolucionConflicto.REEMBOLSAR_TOTAL,
-        actor="admin", importe_reembolsar_cents=neto,
+        actor="admin", importe_reembolsar_cents=neto, motivo="cerrar flujo",
     )
     cerr = fcs.cerrar_conflicto(sqlite_db, cf, actor="admin")
     assert cerr["status"] == "success"

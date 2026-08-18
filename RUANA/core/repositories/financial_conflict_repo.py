@@ -448,6 +448,135 @@ class FinancialConflictRepo:
         )
         return [self._row_dict(r) for r in cursor.fetchall()]
 
+    def listar_auditoria(self, cursor, conflict_id: int) -> List[Dict[str, Any]]:
+        cursor.execute(
+            """
+            SELECT id, conflicto_id, accion, actor_codigo, estado_anterior, estado_nuevo,
+                   metadata_json, creado_en
+            FROM payment_conflict_audit
+            WHERE conflicto_id = ?
+            ORDER BY id DESC
+            """,
+            (conflict_id,),
+        )
+        return [self._row_dict(r) for r in cursor.fetchall()]
+
+    def listar_conflictos(
+        self,
+        cursor,
+        *,
+        estado: str = "",
+        limite: int = 100,
+        offset: int = 0,
+    ) -> List[Dict[str, Any]]:
+        if not self.tabla_existe(cursor):
+            return []
+        where = ""
+        params: list = []
+        if estado:
+            where = "WHERE pc.estado_conflicto = ?"
+            params.append(estado.strip().upper())
+        params.extend([limite, offset])
+        cursor.execute(
+            f"""
+            SELECT pc.*,
+                   ac.nombre AS contratante_nombre,
+                   ap.nombre AS profesional_nombre,
+                   ac.codigo AS contratante_codigo,
+                   ap.codigo AS profesional_codigo
+            FROM payment_conflicts pc
+            LEFT JOIN aliados ac ON ac.id = pc.contratante_id
+            LEFT JOIN aliados ap ON ap.id = pc.profesional_id
+            {where}
+            ORDER BY pc.created_at DESC, pc.id DESC
+            LIMIT ? OFFSET ?
+            """,
+            params,
+        )
+        rows = []
+        for r in cursor.fetchall():
+            d = self._fetch_dict(cursor, r)
+            rows.append(d)
+        return rows
+
+    def obtener_detalle_completo(self, cursor, conflict_id: int) -> Optional[Dict[str, Any]]:
+        base = self.select_por_id(cursor, conflict_id)
+        if not base:
+            return None
+        cursor.execute(
+            """
+            SELECT ac.nombre AS contratante_nombre, ap.nombre AS profesional_nombre,
+                   ac.codigo AS contratante_codigo, ap.codigo AS profesional_codigo
+            FROM payment_conflicts pc
+            LEFT JOIN aliados ac ON ac.id = pc.contratante_id
+            LEFT JOIN aliados ap ON ap.id = pc.profesional_id
+            WHERE pc.id = ?
+            """,
+            (conflict_id,),
+        )
+        row = cursor.fetchone()
+        if row:
+            if hasattr(row, "keys"):
+                base.update({k: row[k] for k in row.keys()})
+            else:
+                names = [c[0] for c in cursor.description]
+                base.update({names[i]: row[i] for i in range(len(row))})
+        base["evidencias"] = self.listar_evidencias(cursor, conflict_id)
+        base["comentarios"] = self.listar_comentarios(cursor, conflict_id)
+        return base
+
+    def asignar_responsable_cas(
+        self,
+        cursor,
+        conflict_id: int,
+        *,
+        responsable_codigo: str,
+        estado_esperado: str,
+        version_esperada: int,
+    ) -> bool:
+        columnas = self._columnas(cursor)
+        if "responsable_codigo" not in columnas:
+            return False
+        sets = [
+            "responsable_codigo = ?",
+            "fecha_asignacion = CURRENT_TIMESTAMP",
+            "updated_at = CURRENT_TIMESTAMP",
+        ]
+        params: list = [responsable_codigo]
+        if "version" in columnas:
+            sets.append("version = version + 1")
+        params.extend([conflict_id, estado_esperado, version_esperada])
+        where = "id = ? AND estado_conflicto = ? AND version = ?"
+        cursor.execute(
+            f"UPDATE payment_conflicts SET {', '.join(sets)} WHERE {where}",
+            params,
+        )
+        return cursor.rowcount == 1
+
+    def listar_acciones_pendientes(self, cursor, conflict_id: int) -> List[Dict[str, Any]]:
+        row = self.select_por_id(cursor, conflict_id)
+        if not row:
+            return []
+        resolucion = (row.get("resolucion") or "").strip()
+        if not resolucion:
+            return []
+        if resolucion in ("MANTENER_RETENIDO", "ESCALAR_ADMIN"):
+            return []
+        ec = normalizar_estado_conflicto(row.get("estado_conflicto"), row.get("estado"))
+        if not ec or ec not in (EstadoConflicto.RESUELTO, EstadoConflicto.CERRADO):
+            return []
+        return [{
+            "conflicto_id": conflict_id,
+            "tipo": resolucion,
+            "importe_liberar_cents": int(row.get("importe_liberar_cents") or 0),
+            "importe_reembolsar_cents": int(row.get("importe_reembolsar_cents") or 0),
+            "importe_profesional_cents": int(row.get("importe_profesional_cents") or 0),
+            "importe_contratante_cents": int(row.get("importe_contratante_cents") or 0),
+            "moneda": (row.get("moneda") or "eur").lower(),
+            "estado": "pendiente_ejecucion",
+            "orden_financiera_pendiente": True,
+        }]
+
     def registrar_auditoria(
         self,
         cursor,
