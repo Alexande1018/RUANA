@@ -180,8 +180,8 @@ def test_08_transfer_created(sqlite_db):
     et = conn.execute("SELECT estado_transferencia FROM contactos_ruana WHERE id=?", (cid,)).fetchone()[0]
     conn.close()
     assert tr == "tr_08"
-    assert et == "COMPLETADA"
-    assert fts.obtener_estado_financiero(sqlite_db, cid) == EstadoFinanciero.TRANSFERIDO
+    assert et == "ENVIADA"
+    assert fts.obtener_estado_financiero(sqlite_db, cid) == EstadoFinanciero.TRANSFERENCIA_ENVIADA
 
 
 def test_09_transfer_paid(sqlite_db):

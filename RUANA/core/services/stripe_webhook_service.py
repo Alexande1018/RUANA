@@ -369,7 +369,7 @@ def _handle_transfer_created(
     if not contacto_id:
         return None, "contacto_no_encontrado", "", ""
 
-    resultado, ant_val, nuevo_val = te.confirmar_transfer_desde_webhook(
+    resultado, ant_val, nuevo_val = te.procesar_transfer_created(
         db, contacto_id, transfer_id, obj, event_type="transfer.created", event_id=event_id,
     )
     return contacto_id, resultado, ant_val, nuevo_val
@@ -386,8 +386,8 @@ def _handle_transfer_paid(
     if not contacto_id:
         return None, "contacto_no_encontrado", "", ""
 
-    resultado, ant_val, nuevo_val = te.confirmar_transfer_desde_webhook(
-        db, contacto_id, transfer_id, obj, event_type="transfer.paid", event_id=event_id,
+    resultado, ant_val, nuevo_val = te.procesar_transfer_paid_legacy(
+        db, contacto_id, transfer_id, obj, event_id=event_id,
     )
     return contacto_id, resultado, ant_val, nuevo_val
 

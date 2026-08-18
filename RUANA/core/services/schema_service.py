@@ -420,6 +420,7 @@ def _init_db(db):
             db._migrar_financial_fase02(conn, cursor)
             db._migrar_financial_fase03(conn, cursor)
             db._migrar_financial_fase03_1(conn, cursor)
+            db._migrar_financial_fase03_2(conn, cursor)
 
             conn.commit()
             print(f"[RUANA][DB] Base de datos inicializada en: {db.db_path}")
@@ -1092,6 +1093,37 @@ def _migrar_financial_fase03_1(db, conn, cursor) -> None:
             _repo.execute(cursor, f"ALTER TABLE financial_transfers ADD COLUMN {nombre} {sqlite_def}")
 
 
+def _migrar_financial_fase03_2(db, conn, cursor) -> None:
+    """FASE 03.2: reconciliación explícita y snapshots de transferencias."""
+    columnas = _repo.columnas_tabla(cursor, "financial_transfers")
+    if columnas:
+        for nombre, sqlite_def in [
+            ("reconciliacion_estado", "TEXT"),
+            ("stripe_snapshot_json", "TEXT"),
+            ("efectos_post_transfer_aplicados", "INTEGER DEFAULT 0"),
+            ("bloqueada", "INTEGER DEFAULT 0"),
+        ]:
+            if nombre not in columnas:
+                _repo.execute(cursor, f"ALTER TABLE financial_transfers ADD COLUMN {nombre} {sqlite_def}")
+
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS financial_transfer_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            contacto_id INTEGER NOT NULL,
+            stripe_transfer_id TEXT,
+            stripe_event_id TEXT,
+            event_type TEXT NOT NULL,
+            snapshot_json TEXT NOT NULL,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (contacto_id) REFERENCES contactos_ruana(id)
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_fin_transfer_snapshots_contacto
+        ON financial_transfer_snapshots(contacto_id, creado_en DESC)
+    """)
+
+
 def _migrar_contactos_validacion_pago(db, conn, cursor) -> None:
     """Añade fecha_validacion_pago, admin_validacion_codigo y motivo_rechazo_pago a contactos_ruana."""
     columnas = _repo.columnas_tabla(cursor, "contactos_ruana")
@@ -1438,6 +1470,7 @@ def _init_postgres_schema(db):
         db._migrar_financial_fase02(conn, cursor)
         db._migrar_financial_fase03(conn, cursor)
         db._migrar_financial_fase03_1(conn, cursor)
+        db._migrar_financial_fase03_2(conn, cursor)
         conn.commit()
         print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil + linaje + urgente + negociación guiada + accesos día + retador + aliados eliminados)")
     except Exception as e:

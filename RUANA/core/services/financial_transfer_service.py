@@ -419,6 +419,24 @@ def _validar_precondiciones(
             "bloqueo": "conflicto",
         }
 
+    ft_row = _transfer_repo.select_por_contacto(cursor, contacto_id)
+    if ft_row:
+        ft = _transfer_repo._row_dict(ft_row)
+        if ft and ft.get("bloqueada"):
+            return {
+                "status": "error",
+                "message": "Operación bloqueada tras reversión de transferencia",
+                "bloqueo": "reversion",
+            }
+
+    estado_actual = _resolver_estado(contacto)
+    if estado_actual == EstadoFinanciero.TRANSFERENCIA_REVERTIDA:
+        return {
+            "status": "error",
+            "message": "Transferencia revertida: liberación bloqueada",
+            "bloqueo": "reversion",
+        }
+
     estado_servicio = (contacto.get("estado") or "").strip().lower()
     if estado_servicio in ("cancelado", "no_concretado", "cerrado_no_concretado", "trabajo_cerrado"):
         return {
@@ -467,7 +485,6 @@ def _validar_precondiciones(
     if amount_cents <= 0:
         return {"status": "error", "message": "Importe en céntimos no válido", "bloqueo": "importe"}
 
-    estado_actual = _resolver_estado(contacto)
     if estado_actual in (
         EstadoFinanciero.PAGO_CANCELADO,
         EstadoFinanciero.CANCELADO,

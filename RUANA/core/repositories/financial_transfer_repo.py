@@ -85,12 +85,22 @@ class FinancialTransferRepo:
         return cursor.rowcount == 1
 
     def select_por_contacto(self, cursor, contacto_id: int) -> Optional[Any]:
+        columnas = self._columnas_financial_transfers(cursor)
+        extras = []
+        for col in (
+            "stripe_balance_transaction_id", "stripe_destination_payment_id",
+            "reconciliacion_estado", "stripe_snapshot_json",
+            "efectos_post_transfer_aplicados", "bloqueada",
+        ):
+            if col in columnas:
+                extras.append(col)
+        extra_sql = (", " + ", ".join(extras)) if extras else ""
         cursor.execute(
-            """
+            f"""
             SELECT id, contacto_id, idempotency_key, stripe_transfer_id,
                    amount_cents, currency, destination_account_id, professional_codigo,
                    stripe_payment_intent_id, estado, actor_codigo, error_message,
-                   creado_en, actualizado_en
+                   creado_en, actualizado_en{extra_sql}
             FROM financial_transfers
             WHERE contacto_id = ?
             """,
@@ -165,6 +175,95 @@ class FinancialTransferRepo:
         cursor.execute("PRAGMA table_info(financial_transfers)")
         return {row[1] for row in cursor.fetchall()}
 
+    def marcar_reconciliacion(self, cursor, contacto_id: int, estado_recon: str) -> int:
+        columnas = self._columnas_financial_transfers(cursor)
+        if "reconciliacion_estado" not in columnas:
+            return 0
+        cursor.execute(
+            """
+            UPDATE financial_transfers
+            SET reconciliacion_estado = ?, actualizado_en = CURRENT_TIMESTAMP
+            WHERE contacto_id = ?
+            """,
+            (estado_recon, contacto_id),
+        )
+        return cursor.rowcount
+
+    def marcar_efectos_aplicados(self, cursor, contacto_id: int) -> int:
+        columnas = self._columnas_financial_transfers(cursor)
+        if "efectos_post_transfer_aplicados" not in columnas:
+            return 0
+        cursor.execute(
+            """
+            UPDATE financial_transfers
+            SET efectos_post_transfer_aplicados = 1, actualizado_en = CURRENT_TIMESTAMP
+            WHERE contacto_id = ?
+            """,
+            (contacto_id,),
+        )
+        return cursor.rowcount
+
+    def marcar_bloqueada(self, cursor, contacto_id: int) -> int:
+        columnas = self._columnas_financial_transfers(cursor)
+        if "bloqueada" not in columnas:
+            return 0
+        cursor.execute(
+            """
+            UPDATE financial_transfers
+            SET bloqueada = 1, actualizado_en = CURRENT_TIMESTAMP
+            WHERE contacto_id = ?
+            """,
+            (contacto_id,),
+        )
+        return cursor.rowcount
+
+    def guardar_snapshot(
+        self,
+        cursor,
+        contacto_id: int,
+        transfer_id: str,
+        snapshot: Dict[str, Any],
+        event_id: str,
+        event_type: str,
+    ) -> None:
+        snap_json = json.dumps(snapshot, ensure_ascii=False)
+        columnas = self._columnas_financial_transfers(cursor)
+        if "stripe_snapshot_json" in columnas:
+            cursor.execute(
+                """
+                UPDATE financial_transfers
+                SET stripe_snapshot_json = ?, actualizado_en = CURRENT_TIMESTAMP
+                WHERE contacto_id = ?
+                """,
+                (snap_json, contacto_id),
+            )
+        cursor.execute(
+            """
+            INSERT INTO financial_transfer_snapshots (
+                contacto_id, stripe_transfer_id, stripe_event_id, event_type, snapshot_json
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (contacto_id, transfer_id, event_id, event_type, snap_json),
+        )
+
+    def ultimo_snapshot(self, cursor, contacto_id: int) -> Optional[Dict[str, Any]]:
+        cursor.execute(
+            """
+            SELECT snapshot_json FROM financial_transfer_snapshots
+            WHERE contacto_id = ?
+            ORDER BY id DESC LIMIT 1
+            """,
+            (contacto_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        raw = row[0] if not hasattr(row, "keys") else row["snapshot_json"]
+        try:
+            return json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return None
+
     def marcar_fallida(self, cursor, contacto_id: int, error_message: str) -> int:
         cursor.execute(
             """
@@ -219,22 +318,18 @@ class FinancialTransferRepo:
         row = cursor.fetchone()
         return int(row[0] if row else 0)
 
-    def _row_dict(self, row) -> Optional[Dict[str, Any]]:
+    def _row_dict(self, row, columnas: Optional[list] = None) -> Optional[Dict[str, Any]]:
         if row is None:
             return None
         if hasattr(row, "keys"):
             return dict(row)
-        return {
-            "id": row[0],
-            "contacto_id": row[1],
-            "idempotency_key": row[2],
-            "stripe_transfer_id": row[3],
-            "amount_cents": row[4],
-            "currency": row[5],
-            "destination_account_id": row[6],
-            "professional_codigo": row[7],
-            "stripe_payment_intent_id": row[8],
-            "estado": row[9],
-            "actor_codigo": row[10],
-            "error_message": row[11] if len(row) > 11 else None,
-        }
+        nombres = columnas or [
+            "id", "contacto_id", "idempotency_key", "stripe_transfer_id",
+            "amount_cents", "currency", "destination_account_id", "professional_codigo",
+            "stripe_payment_intent_id", "estado", "actor_codigo", "error_message",
+            "creado_en", "actualizado_en",
+            "stripe_balance_transaction_id", "stripe_destination_payment_id",
+            "reconciliacion_estado", "stripe_snapshot_json",
+            "efectos_post_transfer_aplicados", "bloqueada",
+        ]
+        return {nombres[i]: row[i] for i in range(min(len(row), len(nombres)))}
