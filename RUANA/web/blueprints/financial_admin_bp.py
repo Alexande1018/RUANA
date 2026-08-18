@@ -51,6 +51,22 @@ def financial_admin_bp_health():
     return jsonify({"status": "ok", "dominio": "financial_admin"})
 
 
+@financial_admin_bp.route(f"{_BASE}/schema-health", methods=["GET"])
+@financial_admin_bp.route(f"{_BASE_ES}/schema-health", methods=["GET"])
+def schema_health():
+    from core.financial_schema_health import verificar_esquema_financiero
+
+    db = get_db()
+    with db._lock:
+        conn = db._connect()
+        try:
+            result = verificar_esquema_financiero(conn.cursor())
+        finally:
+            conn.close()
+    code = 200 if result.get("ok") else 503
+    return jsonify(result), code
+
+
 @financial_admin_bp.route(f"{_BASE}/dashboard", methods=["GET"])
 @financial_admin_bp.route(f"{_BASE_ES}/panel", methods=["GET"])
 @require_financial_admin_permission(DASHBOARD_VIEW)

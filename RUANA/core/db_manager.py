@@ -265,6 +265,10 @@ class DBManager:
         """Fachada Campamento Base → schema_service._migrar_financial_fase11_automation."""
         return schema_service._migrar_financial_fase11_automation(self, conn, cursor)
 
+    def _migrar_financial_fase13_p0_ledger_immutability(self, conn, cursor) -> None:
+        """Fachada Campamento Base → schema_service._migrar_financial_fase13_p0_ledger_immutability."""
+        return schema_service._migrar_financial_fase13_p0_ledger_immutability(self, conn, cursor)
+
     def _migrar_contactos_validacion_pago(self, conn, cursor) -> None:
         """Fachada Campamento Base → schema_service._migrar_contactos_validacion_pago."""
         return schema_service._migrar_contactos_validacion_pago(self, conn, cursor)

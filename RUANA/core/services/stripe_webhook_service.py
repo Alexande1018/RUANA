@@ -53,6 +53,23 @@ def procesar_webhook(db, payload: bytes, sig_header: str) -> Dict[str, Any]:
     if not event_id or not event_type:
         return {"status": "error", "message": "evento incompleto"}
 
+    from core.stripe_mode_guard import registrar_alerta_livemode, validate_event_livemode
+
+    mode_check = validate_event_livemode(event)
+    if mode_check.get("status") == "error":
+        registrar_alerta_livemode(
+            db,
+            event_id=mode_check.get("event_id") or event_id,
+            expected_mode=mode_check.get("expected_mode") or "",
+            event_livemode=bool(mode_check.get("event_livemode")),
+        )
+        return {
+            "status": "error",
+            "code": mode_check.get("code"),
+            "message": mode_check.get("message"),
+            "retry": False,
+        }
+
     with db._lock:
         conn = None
         try:

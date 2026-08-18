@@ -90,14 +90,15 @@ def test_02_legacy_resolver_sin_permiso_403(client, sqlite_db, monkeypatch, sess
     assert resp.get_json().get("permiso_requerido") == CONFLICT_RESOLVE
 
 
-def test_03_legacy_resolver_con_configurar_no_403(client, sqlite_db, monkeypatch, session_headers):
+def test_03_legacy_resolver_con_configurar_retorna_410(client, sqlite_db, monkeypatch, session_headers):
     monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
     resp = client.post(
         "/api/admin/payment-conflicts/999/resolver",
         json={"decision": "contratante", "comentario": "test comentario"},
         headers=_headers(session_headers, permisos=["configurar"]),
     )
-    assert resp.status_code != 403
+    assert resp.status_code == 410
+    assert resp.get_json().get("code") == "legacy_endpoint_removed"
 
 
 def test_04_idor_contacto_inexistente(client, sqlite_db, monkeypatch, session_headers):

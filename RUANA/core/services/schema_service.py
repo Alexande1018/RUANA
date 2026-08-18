@@ -429,6 +429,7 @@ def _init_db(db):
             db._migrar_financial_fase09_admin_panel(conn, cursor)
             db._migrar_financial_fase10_security(conn, cursor)
             db._migrar_financial_fase11_automation(conn, cursor)
+            db._migrar_financial_fase13_p0_ledger_immutability(conn, cursor)
 
             conn.commit()
             print(f"[RUANA][DB] Base de datos inicializada en: {db.db_path}")
@@ -1767,6 +1768,178 @@ def _migrar_financial_fase11_automation(db, conn, cursor) -> None:
     """)
 
 
+def _migrar_financial_fase13_p0_ledger_immutability(db, conn, cursor) -> None:
+    """FASE 13A P0-4: triggers idempotentes — ledger POSTED inmutable en BD."""
+    if getattr(db, "backend", None) == "postgres":
+        cursor.execute(
+            """
+            CREATE OR REPLACE FUNCTION ruana_ledger_guard_tx_update()
+            RETURNS TRIGGER AS $$
+            BEGIN
+              IF OLD.estado = 'POSTED' THEN
+                IF NEW.estado = 'VOIDED' THEN
+                  RETURN NEW;
+                END IF;
+                RAISE EXCEPTION 'ledger_transactions POSTED es inmutable (solo POSTED→VOIDED)';
+              END IF;
+              IF OLD.estado = 'VOIDED' THEN
+                RAISE EXCEPTION 'ledger_transactions VOIDED es inmutable';
+              END IF;
+              RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql
+            """
+        )
+        cursor.execute("DROP TRIGGER IF EXISTS trg_ledger_tx_immutable ON ledger_transactions")
+        cursor.execute(
+            """
+            CREATE TRIGGER trg_ledger_tx_immutable
+              BEFORE UPDATE ON ledger_transactions
+              FOR EACH ROW
+              EXECUTE FUNCTION ruana_ledger_guard_tx_update()
+            """
+        )
+        cursor.execute(
+            """
+            CREATE OR REPLACE FUNCTION ruana_ledger_guard_tx_delete()
+            RETURNS TRIGGER AS $$
+            BEGIN
+              IF OLD.estado IN ('POSTED', 'VOIDED') THEN
+                RAISE EXCEPTION 'No se puede eliminar ledger_transactions POSTED/VOIDED';
+              END IF;
+              RETURN OLD;
+            END;
+            $$ LANGUAGE plpgsql
+            """
+        )
+        cursor.execute("DROP TRIGGER IF EXISTS trg_ledger_tx_no_delete ON ledger_transactions")
+        cursor.execute(
+            """
+            CREATE TRIGGER trg_ledger_tx_no_delete
+              BEFORE DELETE ON ledger_transactions
+              FOR EACH ROW
+              EXECUTE FUNCTION ruana_ledger_guard_tx_delete()
+            """
+        )
+        cursor.execute(
+            """
+            CREATE OR REPLACE FUNCTION ruana_ledger_guard_entry_mutate()
+            RETURNS TRIGGER AS $$
+            DECLARE
+              tx_estado TEXT;
+              tx_id INTEGER;
+            BEGIN
+              IF TG_OP = 'DELETE' THEN
+                tx_id := OLD.ledger_transaction_id;
+              ELSE
+                tx_id := NEW.ledger_transaction_id;
+              END IF;
+              SELECT estado INTO tx_estado FROM ledger_transactions WHERE id = tx_id;
+              IF tx_estado IN ('POSTED', 'VOIDED') THEN
+                RAISE EXCEPTION 'ledger_entries de transacciones POSTED/VOIDED son inmutables';
+              END IF;
+              IF TG_OP = 'DELETE' THEN
+                RETURN OLD;
+              END IF;
+              RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql
+            """
+        )
+        cursor.execute("DROP TRIGGER IF EXISTS trg_ledger_entry_no_update ON ledger_entries")
+        cursor.execute(
+            """
+            CREATE TRIGGER trg_ledger_entry_no_update
+              BEFORE UPDATE ON ledger_entries
+              FOR EACH ROW
+              EXECUTE FUNCTION ruana_ledger_guard_entry_mutate()
+            """
+        )
+        cursor.execute("DROP TRIGGER IF EXISTS trg_ledger_entry_no_delete ON ledger_entries")
+        cursor.execute(
+            """
+            CREATE TRIGGER trg_ledger_entry_no_delete
+              BEFORE DELETE ON ledger_entries
+              FOR EACH ROW
+              EXECUTE FUNCTION ruana_ledger_guard_entry_mutate()
+            """
+        )
+        return
+
+    _repo.execute(
+        cursor,
+        """
+        CREATE TRIGGER IF NOT EXISTS trg_ruana_ledger_tx_guard_update
+        BEFORE UPDATE ON ledger_transactions
+        FOR EACH ROW
+        WHEN OLD.estado = 'POSTED' AND NEW.estado != 'VOIDED'
+        BEGIN
+            SELECT RAISE(ABORT, 'ledger_transactions POSTED inmutables');
+        END
+        """,
+    )
+    _repo.execute(
+        cursor,
+        """
+        CREATE TRIGGER IF NOT EXISTS trg_ruana_ledger_tx_guard_downgrade
+        BEFORE UPDATE ON ledger_transactions
+        FOR EACH ROW
+        WHEN OLD.estado = 'POSTED' AND NEW.estado = 'DRAFT'
+        BEGIN
+            SELECT RAISE(ABORT, 'no downgrade POSTED a DRAFT');
+        END
+        """,
+    )
+    _repo.execute(
+        cursor,
+        """
+        CREATE TRIGGER IF NOT EXISTS trg_ruana_ledger_tx_guard_delete
+        BEFORE DELETE ON ledger_transactions
+        FOR EACH ROW
+        WHEN OLD.estado = 'POSTED'
+        BEGIN
+            SELECT RAISE(ABORT, 'ledger_transactions POSTED no se pueden eliminar');
+        END
+        """,
+    )
+    _repo.execute(
+        cursor,
+        """
+        CREATE TRIGGER IF NOT EXISTS trg_ruana_ledger_tx_guard_voided
+        BEFORE UPDATE ON ledger_transactions
+        FOR EACH ROW
+        WHEN OLD.estado = 'VOIDED'
+        BEGIN
+            SELECT RAISE(ABORT, 'ledger_transactions VOIDED inmutables');
+        END
+        """,
+    )
+    _repo.execute(
+        cursor,
+        """
+        CREATE TRIGGER IF NOT EXISTS trg_ruana_ledger_entry_guard_update
+        BEFORE UPDATE ON ledger_entries
+        FOR EACH ROW
+        WHEN (SELECT estado FROM ledger_transactions WHERE id = OLD.ledger_transaction_id) IN ('POSTED', 'VOIDED')
+        BEGIN
+            SELECT RAISE(ABORT, 'ledger_entries inmutables si tx POSTED/VOIDED');
+        END
+        """,
+    )
+    _repo.execute(
+        cursor,
+        """
+        CREATE TRIGGER IF NOT EXISTS trg_ruana_ledger_entry_guard_delete
+        BEFORE DELETE ON ledger_entries
+        FOR EACH ROW
+        WHEN (SELECT estado FROM ledger_transactions WHERE id = OLD.ledger_transaction_id) = 'POSTED'
+        BEGIN
+            SELECT RAISE(ABORT, 'ledger_entries de POSTED no se pueden eliminar');
+        END
+        """,
+    )
+
+
 def _migrar_contactos_validacion_pago(db, conn, cursor) -> None:
     """Añade fecha_validacion_pago, admin_validacion_codigo y motivo_rechazo_pago a contactos_ruana."""
     columnas = _repo.columnas_tabla(cursor, "contactos_ruana")
@@ -2114,8 +2287,19 @@ def _init_postgres_schema(db):
         db._migrar_financial_fase03(conn, cursor)
         db._migrar_financial_fase03_1(conn, cursor)
         db._migrar_financial_fase03_2(conn, cursor)
+        db._migrar_financial_fase04_conflicts(conn, cursor)
+        db._migrar_financial_fase05_refunds(conn, cursor)
+        db._migrar_financial_fase06_disputes(conn, cursor)
+        db._migrar_financial_fase07_reconciliation(conn, cursor)
+        db._migrar_financial_fase08_ledger(conn, cursor)
+        db._migrar_financial_fase09_admin_panel(conn, cursor)
+        db._migrar_financial_fase10_security(conn, cursor)
+        db._migrar_financial_fase11_automation(conn, cursor)
+        db._migrar_financial_fase13_p0_ledger_immutability(conn, cursor)
+        from core.financial_schema_health import assert_esquema_financiero_completo
+        assert_esquema_financiero_completo(cursor)
         conn.commit()
-        print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil + linaje + urgente + negociación guiada + accesos día + retador + aliados eliminados)")
+        print("[RUANA][DB] Esquema Postgres verificado (fases 04–11 + inmutabilidad ledger FASE 13A)")
     except Exception as e:
         print(f"[RUANA][DB] Error inicializando esquema Postgres: {e}")
     finally:

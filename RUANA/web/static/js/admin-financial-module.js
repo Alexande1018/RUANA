@@ -143,17 +143,16 @@
             '<div class="fin-kpi-label">' + esc(k.id) + '</div>' +
             '<div class="fin-meta">Fuente: ' + esc(k.fuente) + '</div></article>';
         }).join('') + '</div>';
-      host.insertAdjacentHTML('beforeend', html);
       if (d.automation && d.automation.automation_disponible) {
         var au = d.automation;
         var ult = au.ultima_ejecucion || {};
         var al = au.alertas_abiertas || {};
-        var autoHtml = '<section class="fin-automation-summary"><h3>Automatización financiera</h3>' +
+        html += '<section class="fin-automation-summary"><h3>Automatización financiera</h3>' +
           '<p>Última ejecución: ' + esc(ult.estado || '—') + ' · ' + esc(ult.run_id || '—') + '</p>' +
           '<p>Alertas abiertas: críticas ' + esc(al.critical || 0) + ', altas ' + esc(al.high || 0) +
           ', total ' + esc(al.total || 0) + '</p></section>';
-        host.insertAdjacentHTML('beforeend', autoHtml);
       }
+      host.innerHTML = html;
       loadAlerts(document.getElementById('finanzas-acciones'));
     }).catch(function () { renderError(host, 'Error de red'); });
   }

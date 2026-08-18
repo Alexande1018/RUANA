@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import sqlite3
 
 from core import db_manager as db_module
 from core.financial.ledger_accounts import CuentaLedger
@@ -133,11 +134,10 @@ def test_10_posted_no_borrable(sqlite_db):
     )
     tx_id = r["transaction_id"]
     conn = sqlite_db._connect()
-    conn.execute("DELETE FROM ledger_entries WHERE ledger_transaction_id=?", (tx_id,))
-    conn.commit()
-    n = conn.execute("SELECT COUNT(*) FROM ledger_entries WHERE ledger_transaction_id=?", (tx_id,)).fetchone()[0]
+    with pytest.raises(sqlite3.IntegrityError, match="eliminar"):
+        conn.execute("DELETE FROM ledger_entries WHERE ledger_transaction_id=?", (tx_id,))
+        conn.commit()
     conn.close()
-    assert n == 0
 
 
 def test_11_voided_requiere_transaccion_inversa(sqlite_db):
@@ -227,16 +227,14 @@ def test_19_reconciliacion_detecta_desequilibrio(sqlite_db):
         lineas=_balanced_lines(), actor_origen="test",
     )
     conn = sqlite_db._connect()
-    conn.execute(
-        "UPDATE ledger_entries SET credit_cents = 1 WHERE ledger_transaction_id = "
-        "(SELECT id FROM ledger_transactions WHERE idempotency_key='t19') "
-        "AND credit_cents > 0 LIMIT 1"
-    )
-    conn.commit()
+    with pytest.raises(sqlite3.IntegrityError, match="inmutables"):
+        conn.execute(
+            "UPDATE ledger_entries SET credit_cents = 1 WHERE ledger_transaction_id = "
+            "(SELECT id FROM ledger_transactions WHERE idempotency_key='t19') "
+            "AND credit_cents > 0 LIMIT 1"
+        )
+        conn.commit()
     conn.close()
-    r = flrs.comprobar_equilibrio(sqlite_db)
-    assert r["ok"] is False
-    assert r["desequilibrados"]
 
 
 def test_20_reconciliacion_detecta_huerfanos(sqlite_db):

@@ -125,30 +125,41 @@ def admin_subir_qr_revolut():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+_LEGACY_CONFLICT_RESOLVER_BODY = (
+    "Endpoint legacy retirado (FASE 13A). "
+    "Use POST /api/admin/financial-conflicts/<id>/resolver con permiso financial.conflict.resolve, "
+    "idempotency key y version."
+)
+
+
 @pagos_bp.route("/api/admin/payment-conflicts/<int:conflict_id>/resolver", methods=["POST"])
 @require_conflict_permission(CONFLICT_RESOLVE)
 @limit_financial_mutation
 def admin_resolver_payment_conflict(conflict_id):
     """
-    POST /api/admin/payment-conflicts/<id>/resolver
-    DEPRECADO: delega en financial_conflict_service con permiso granular FASE 10.
-    Body legacy: { "decision": "contratante" | "profesional" | "rechazado", "comentario": "..." }
+    POST /api/admin/payment-conflicts/<id>/resolver — 410 Gone (FASE 13A P0-6).
     """
-    try:
-        data = request.get_json() or {}
-        decision = data.get("decision")
-        comentario = data.get("comentario")
-        if not decision:
-            return jsonify({"status": "error", "message": "Falta decision"}), 400
-        if not (comentario or "").strip():
-            return jsonify({"status": "error", "message": "El comentario es obligatorio"}), 400
-        admin_codigo = _admin_codigo() or ""
-        db = get_db()
-        result = pago_service.resolver_payment_conflict_admin(db, conflict_id, decision, comentario, admin_codigo)
-        status_code = 200 if result.get("status") == "success" else 400
-        return jsonify(result), status_code
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+    return jsonify({
+        "status": "error",
+        "code": "legacy_endpoint_removed",
+        "message": _LEGACY_CONFLICT_RESOLVER_BODY,
+        "canonical_path": f"/api/admin/financial-conflicts/{conflict_id}/resolver",
+    }), 410
+
+
+@pagos_bp.route("/api/admin/conflictos-pago/<int:contacto_id>/resolver", methods=["POST"])
+@limit_financial_mutation
+def admin_resolver_conflicto_pago(contacto_id):
+    """
+    POST /api/admin/conflictos-pago/<id>/resolver — 410 Gone (FASE 13A P0-6).
+    """
+    return jsonify({
+        "status": "error",
+        "code": "legacy_endpoint_removed",
+        "message": _LEGACY_CONFLICT_RESOLVER_BODY,
+        "canonical_path": "/api/admin/financial-conflicts",
+        "note": "Resuelva el conflicto vía payment_conflicts.id, no contacto_id.",
+    }), 410
 
 
 @pagos_bp.route("/api/conflictos/por-trabajo/<int:trabajo_id>", methods=["GET"])
@@ -211,29 +222,6 @@ def subir_prueba_conflicto(conflict_id):
         return jsonify(result), 200
     except ValueError as e:
         return jsonify({"status": "error", "message": str(e)}), 400
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@pagos_bp.route("/api/admin/conflictos-pago/<int:contacto_id>/resolver", methods=["POST"])
-@require_admin_escritura
-def admin_resolver_conflicto_pago(contacto_id):
-    """
-    PATCH /api/admin/payment/<id>/resolve  o  POST /api/admin/conflictos-pago/<id>/resolver
-    Body: { "importe_valido": float }
-        Admin define importe valido, se calcula apoyo_pct, se cierra contacto (Apoyo pendiente).
-        El score +2 se aplica al confirmar el pago Apoyo como pagado (Regla 2).
-    """
-    try:
-        data = request.get_json() or {}
-        importe_valido = data.get("importe_valido")
-        if importe_valido is None:
-            return jsonify({"status": "error", "message": "Falta importe_valido"}), 400
-        admin_codigo = _admin_codigo() or ""
-        db = get_db()
-        result = pago_service.resolver_conflicto_pago(db, contacto_id, float(importe_valido), admin_codigo)
-        status_code = 200 if result.get("status") == "success" else 400
-        return jsonify(result), status_code
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
