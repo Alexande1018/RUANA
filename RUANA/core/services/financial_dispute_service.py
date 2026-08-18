@@ -227,6 +227,15 @@ def _procesar_created(
         finally:
             conn.close()
 
+    from core.services.financial_ledger_hooks import on_disputa_creada
+    on_disputa_creada(
+        db,
+        contacto_id=contacto_id,
+        dispute_id=stripe_dispute_id,
+        importe_cents=amount_cents,
+        event_id=event_id,
+    )
+
     alerta_transfer = estado_fin in (
         EstadoFinanciero.TRANSFERENCIA_ENVIADA,
         EstadoFinanciero.TRANSFERIDO,
@@ -369,6 +378,17 @@ def _procesar_closed(
             conn.commit()
         finally:
             conn.close()
+
+    from core.services.financial_ledger_hooks import on_disputa_cerrada
+    on_disputa_cerrada(
+        db,
+        contacto_id=contacto_id,
+        dispute_id=stripe_dispute_id,
+        status=status,
+        importe_perdido_cents=withdrawn if status == "lost" else 0,
+        importe_reinstated_cents=reinstated if status == "won" else 0,
+        event_id=event_id,
+    )
 
     if status == "lost":
         _alerta_critica(

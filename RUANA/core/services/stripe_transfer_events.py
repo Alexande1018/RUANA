@@ -178,6 +178,27 @@ def manejar_reversion_transfer(
                 )
                 conn.commit()
                 conn.close()
+            amount_cents = int(snapshot.get("amount") or 0)
+            if amount_cents <= 0:
+                with db._lock:
+                    conn = db._connect()
+                    try:
+                        row = conn.execute(
+                            "SELECT importe_neto_profesional FROM contactos_ruana WHERE id=?",
+                            (contacto_id,),
+                        ).fetchone()
+                        if row:
+                            amount_cents = int(round(float(row[0] or 0) * 100))
+                    finally:
+                        conn.close()
+            from core.services.financial_ledger_hooks import on_transfer_revertida
+            on_transfer_revertida(
+                db,
+                contacto_id=contacto_id,
+                transfer_id=transfer_id,
+                importe_cents=amount_cents,
+                event_id=event_id,
+            )
             return "ok", ant_val, EstadoFinanciero.TRANSFERENCIA_REVERTIDA.value
 
     reconciliation.registrar_discrepancia(

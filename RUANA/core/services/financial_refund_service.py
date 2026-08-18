@@ -426,6 +426,16 @@ def _ejecutar_reembolso_locked(
                     except Exception:
                         pass
             conn.commit()
+            if stripe_status == "succeeded":
+                from core.services.financial_ledger_hooks import on_refund_succeeded
+                on_refund_succeeded(
+                    db,
+                    contacto_id=contacto_id,
+                    refund_id=stripe_refund_id,
+                    importe_cents=amount_conf,
+                    comision_devuelta_cents=int(impacto.comision_devuelta_cents or 0),
+                    idempotency_key=stripe_idem,
+                )
             return {
                 "status": "success",
                 "refund_id": refund_id,

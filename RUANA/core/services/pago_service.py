@@ -1028,6 +1028,13 @@ def _procesar_pago_confirmado(
             )
             conn.commit()
             fts.sincronizar_tras_cobro_confirmado(db, contacto_id, payment_intent_id)
+            from core.services.financial_ledger_hooks import on_pago_confirmado
+            on_pago_confirmado(
+                db,
+                contacto_id=contacto_id,
+                payment_intent_id=payment_intent_id,
+                importe_bruto_cents=int(round(importe_val * 100)),
+            )
             return {"status": "success", "contacto_id": contacto_id}
         except Exception as e:
             if conn:
