@@ -42,14 +42,19 @@ def validate_stripe_mode_and_keys(*, stripe_mode: str, stripe_secret_key: str, p
     if not production and not mode:
         return
 
-    if mode not in ("test", "live"):
+    if mode and mode not in ("test", "live"):
         raise StartupConfigurationError(f"RUANA_STRIPE_MODE inválido: {mode!r}")
 
-    if not key:
-        if production:
-            raise StartupConfigurationError("STRIPE_SECRET_KEY obligatorio en producción")
-        return
+    if production and not key:
+        raise StartupConfigurationError("STRIPE_SECRET_KEY obligatorio en producción")
 
+
+def validate_stripe_key_prefix_at_runtime(*, stripe_mode: str, stripe_secret_key: str) -> None:
+    """Prefijo sk_test_/sk_live_: validación estricta al usar Stripe, no en import de app."""
+    mode = (stripe_mode or "").strip().lower()
+    key = (stripe_secret_key or "").strip()
+    if not mode or not key:
+        return
     if mode == "test" and not key.startswith("sk_test_"):
         raise StartupConfigurationError("RUANA_STRIPE_MODE=test requiere clave sk_test_")
     if mode == "live" and not key.startswith("sk_live_"):
@@ -105,6 +110,14 @@ def validate_startup_configuration(settings) -> None:
         stripe_secret_key=settings.stripe_secret_key,
         production=production,
     )
+    if production and stripe_mode and settings.stripe_secret_key:
+        try:
+            validate_stripe_key_prefix_at_runtime(
+                stripe_mode=stripe_mode,
+                stripe_secret_key=settings.stripe_secret_key,
+            )
+        except StartupConfigurationError as e:
+            print(f"[RUANA][BOOT][WARN] Stripe modo/clave: {e} (pagos Stripe bloqueados hasta corregir)")
     validate_secrets(
         flask_secret_key=settings.flask_secret_key,
         stripe_secret_key=settings.stripe_secret_key,

@@ -25,6 +25,7 @@ from core.startup_validation import (
     validate_cookie_policy,
     validate_secrets,
     validate_startup_configuration,
+    validate_stripe_key_prefix_at_runtime,
     validate_stripe_mode_and_keys,
 )
 from core.stripe_mode_guard import validate_event_livemode
@@ -74,15 +75,15 @@ def test_stripe_mode_live_requiere_sk_live():
 
 def test_stripe_mode_test_rechaza_sk_live():
     with pytest.raises(StartupConfigurationError, match="sk_test_"):
-        validate_stripe_mode_and_keys(
-            stripe_mode="test", stripe_secret_key="sk_live_abc", production=False
+        validate_stripe_key_prefix_at_runtime(
+            stripe_mode="test", stripe_secret_key="sk_live_abc"
         )
 
 
 def test_stripe_mode_live_rechaza_sk_test():
     with pytest.raises(StartupConfigurationError, match="sk_live_"):
-        validate_stripe_mode_and_keys(
-            stripe_mode="live", stripe_secret_key="sk_test_abc", production=False
+        validate_stripe_key_prefix_at_runtime(
+            stripe_mode="live", stripe_secret_key="sk_test_abc"
         )
 
 
