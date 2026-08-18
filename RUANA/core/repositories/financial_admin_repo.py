@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List, Optional, Tuple
 
+from core.financial_schema_health import tabla_existe as _tabla_existe
+
 
 class FinancialAdminRepo:
     MAX_LIMIT = 200
@@ -15,11 +17,7 @@ class FinancialAdminRepo:
         return lim, off
 
     def tabla_existe(self, cursor, nombre: str) -> bool:
-        cursor.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
-            (nombre,),
-        )
-        return cursor.fetchone() is not None
+        return _tabla_existe(cursor, nombre)
 
     def count_query(self, cursor, sql: str, params: tuple = ()) -> int:
         cursor.execute(sql, params)

@@ -224,6 +224,27 @@ class PostgresCompatCursor:
             self.description = [("name",)]
             return self
 
+        sqlite_exists_match = re.match(
+            r"\s*SELECT\s+1\s+FROM\s+sqlite_master\s+WHERE\s+type='table'\s+AND\s+name=\?",
+            sql,
+            flags=re.IGNORECASE,
+        )
+        if sqlite_exists_match:
+            table = params[0] if params else None
+            self._cursor.execute(
+                """
+                select 1 as exists_flag
+                from information_schema.tables
+                where table_schema='public' and table_name=%s
+                limit 1
+                """,
+                (table,),
+            )
+            row = self._cursor.fetchone()
+            self._synthetic_rows = [(1,)] if row else []
+            self.description = [("exists_flag",)]
+            return self
+
         translated = _translate_sql(sql)
         try:
             self._cursor.execute(translated, params)
