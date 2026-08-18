@@ -7,7 +7,7 @@ Rutas de negocio viven en blueprints (web/blueprints/*).
 Aquí: setup Flask, middleware, páginas HTML, auth admin frágil.
 """
 
-from flask import Flask, jsonify, send_from_directory, request, redirect, url_for
+from flask import Flask, jsonify, send_from_directory, request, redirect, url_for, make_response
 from pathlib import Path
 import sys
 import os
@@ -18,6 +18,11 @@ try:
     from flask_cors import CORS
 except ImportError:
     CORS = None
+
+try:
+    from flask_compress import Compress
+except ImportError:
+    Compress = None
 
 # Agregar parent directory al path para imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -86,6 +91,8 @@ app = Flask(__name__,
 
 app.secret_key = settings.flask_secret_key
 configure_session_secret(app.secret_key)
+if Compress is not None:
+    Compress(app)
 app.register_blueprint(catalogo_bp)
 app.register_blueprint(negociacion_bp)
 app.register_blueprint(referidos_bp)
@@ -273,8 +280,13 @@ def alert_hub_preview():
 
 @app.route('/static/<path:path>')
 def static_files(path):
-    """Sirve archivos est?ticos (CSS, JS, etc)"""
-    return send_from_directory(str(web_dir / 'static'), path)
+    """Sirve archivos estáticos (CSS, JS, etc) con cache-control conservador."""
+    response = make_response(send_from_directory(str(web_dir / 'static'), path))
+    if path.endswith(('.js', '.css', '.woff', '.woff2', '.png', '.jpg', '.jpeg', '.webp', '.svg', '.ico')):
+        response.cache_control.public = True
+        response.cache_control.max_age = 3600
+        response.cache_control.must_revalidate = True
+    return response
 
 
 # ================================================

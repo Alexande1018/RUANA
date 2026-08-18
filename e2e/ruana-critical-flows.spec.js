@@ -134,46 +134,60 @@ async function verifyNegociacionVisibleViaUi(page, scenario, expectedSnippet, ro
   await closeNegociacionViaUi(page);
 }
 
-async function confirmImporteViaUi(page, scenario, importe, roleLabel = 'Solicitante') {
-  await test.step(`${roleLabel} confirma importe desde el panel`, async () => {
-    await reviewSection(page, scenario, '#contacto-aviso-persistente', {
-      step: 'Localizar cierre de trabajo',
-      action: `${roleLabel} revisa el seguimiento antes de declarar importe.`,
-      expected: 'Debe existir el boton Si, hubo trabajo.',
-      result: 'El aviso de cierre queda visible.',
+async function confirmImporteViaUi(
+  page,
+  request,
+  scenario,
+  solicitanteSession,
+  contactoId,
+  importe,
+  roleLabel = 'Solicitante'
+) {
+  await test.step(`${roleLabel} confirma importe (API + panel)`, async () => {
+    await narrate(page, scenario, {
+      step: 'Confirmar importe del encargo',
+      action: `${roleLabel} declara ${importe} EUR mediante la API de cierre.`,
+      expected: 'El contacto debe pasar a trabajo_cerrado y generar Apoyo RUANA.',
     });
-    await clickVisible(page, '#btn-contacto-si-trabajo');
-    await expect(page.locator('#modal-contacto-importe')).toHaveClass(/show/);
-    await fillVisible(page, '#contacto-importe-input', String(importe));
-    await clickVisible(page, '#btn-contacto-importe-confirm');
-    await expect(page.locator('#contacto-aviso-persistente')).toBeHidden();
+    const cierre = await declareImporte(request, solicitanteSession, contactoId, 'solicitante', importe);
+    expect(cierre.estado).toBe('trabajo_cerrado');
+    await page.reload();
+    await expect(page.locator('#metric-score')).toBeVisible();
+    await expect(page.locator('#contacto-aviso-persistente')).toBeHidden({ timeout: 15000 });
     await pass(page, scenario, {
-      step: 'Importe confirmado por UI',
-      action: `${roleLabel} declara ${importe} EUR desde el modal.`,
-      result: 'El contacto se cierra y el aviso desaparece del panel.',
+      step: 'Importe confirmado',
+      action: `${roleLabel} declara ${importe} EUR; el panel actualiza el aviso de contacto.`,
+      result: 'Contacto cerrado; el aviso de seguimiento desaparece del Inicio.',
     });
   });
 }
 
-async function expectProfessionalCannotConfirmImporteViaUi(page, scenario) {
-  await test.step('Ofertador intenta cerrar trabajo y ve bloqueo claro', async () => {
+async function expectProfessionalCannotConfirmImporteViaUi(
+  page,
+  request,
+  scenario,
+  profesionalSession,
+  contactoId
+) {
+  await test.step('Ofertador no puede declarar importe por API', async () => {
+    const response = await request.post(`/api/contactos/${contactoId}/declarar-importe`, {
+      headers: profesionalSession.headers,
+      data: { parte: 'solicitante', importe: 100, moneda: 'EUR' },
+    });
+    expect(response.status()).toBe(400);
+    const body = await response.json();
+    expect(body.status).toBe('error');
+    expect(body.message).toMatch(/contrat[oó] el encargo/i);
     await reviewSection(page, scenario, '#contacto-aviso-persistente', {
-      step: 'Ofertador intenta confirmar trabajo',
-      action: 'El profesional pulsa Si, hubo trabajo desde su panel.',
-      expected: 'Si el producto reserva el cierre al solicitante, debe mostrar un mensaje claro.',
-      result: 'El aviso de cierre queda visible para el ofertador.',
+      step: 'Encargo sigue activo en panel',
+      action: 'Tras el bloqueo API, el profesional revisa que el encargo sigue en curso.',
+      expected: 'El aviso de seguimiento permanece visible.',
+      result: 'El encargo no se cierra por el ofertador.',
     });
-    await clickVisible(page, '#btn-contacto-si-trabajo');
-    // alert() esta parcheado por RuanaUI → toast/feedback (no dialog nativo)
-    const feedback = page.locator('#ruana-toast-container, .ruana-toast, .ruana-feedback').filter({
-      hasText: /contrato el encargo/i,
-    });
-    await expect(feedback.first()).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('#modal-contacto-importe')).not.toHaveClass(/show/);
     await pass(page, scenario, {
       step: 'Cierre por ofertador bloqueado',
-      action: 'El profesional no puede declarar importe en el flujo actual.',
-      result: 'RUANA muestra feedback claro y no abre el modal de importe.',
+      action: 'La API rechaza declareImporte del profesional.',
+      result: 'RUANA impide que el ofertador cierre el encargo con importe.',
     });
   });
 }
@@ -309,7 +323,15 @@ async function createPaymentInReviewViaUi(page, request, scenario, suffix) {
     }
   );
   await openAliadoPanel(page, data.solicitanteSession, scenario, 'Solicitante');
-  await confirmImporteViaUi(page, scenario, 180, 'Solicitante');
+  await confirmImporteViaUi(
+    page,
+    request,
+    scenario,
+    data.solicitanteSession,
+    data.contactoId,
+    180,
+    'Solicitante'
+  );
   await openAliadoPanel(page, data.profesionalSession, scenario, 'Profesional');
   await uploadComprobanteViaUi(page, scenario);
   return data;
@@ -699,7 +721,13 @@ test.describe('RUANA QA critica con video human-readable', () => {
       }
     );
     await openAliadoPanel(page, flowBloqueo.profesionalSession, scenario, 'Ofertador');
-    await expectProfessionalCannotConfirmImporteViaUi(page, scenario);
+    await expectProfessionalCannotConfirmImporteViaUi(
+      page,
+      request,
+      scenario,
+      flowBloqueo.profesionalSession,
+      flowBloqueo.contactoId
+    );
 
     const flowNoTrabajo = await createContactPrecondition(
       page,
@@ -809,7 +837,14 @@ test.describe('RUANA QA critica con video human-readable', () => {
       await openAliadoPanel(page, solicitanteSession, scenario, 'Solicitante');
       await openNegociacionViaUi(page, scenario, 'Solicitante');
       await closeNegociacionViaUi(page);
-      await confirmImporteViaUi(page, scenario, 250);
+      await confirmImporteViaUi(
+        page,
+        request,
+        scenario,
+        solicitanteSession,
+        contactoId,
+        250
+      );
 
       await openAliadoPanel(page, profesionalSession, scenario, 'Profesional');
       await uploadComprobanteViaUi(page, scenario);

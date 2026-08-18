@@ -17,6 +17,9 @@ from core.repositories.catalogo_repo import CatalogoRepo
 
 _repo = CatalogoRepo()
 
+_catalogo_oficios_cache: tuple[float, List[str]] | None = None
+_catalogo_jerarquico_cache: tuple[float, List[Dict[str, Any]]] | None = None
+
 # --- Extraído de DBManager (catalogo) ---
 
 def _normalizar_texto_catalogo(texto: str) -> str:
@@ -63,9 +66,13 @@ def obtener_oficios_grupo(db, grupo_id: int) -> set:
 
 def get_catalogo_oficios_ruana(db) -> List[str]:
     """Devuelve el catálogo de oficios RUANA (nombres de oficio principal). Compatible con formato jerárquico o lista plana."""
+    global _catalogo_oficios_cache
     try:
         config_path = RUANA_ROOT / 'config' / 'oficios_ruana.json'
         if config_path.exists():
+            mtime = config_path.stat().st_mtime
+            if _catalogo_oficios_cache and _catalogo_oficios_cache[0] == mtime:
+                return list(_catalogo_oficios_cache[1])
             with open(config_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             oficios = data.get('oficios', [])
@@ -77,7 +84,8 @@ def get_catalogo_oficios_ruana(db) -> List[str]:
                     elif isinstance(o, str) and o.strip():
                         out.append(str(o).strip())
                 if out:
-                    return out
+                    _catalogo_oficios_cache = (mtime, out)
+                    return list(out)
     except Exception:
         pass
     with db._lock:
@@ -93,9 +101,13 @@ def get_catalogo_oficios_ruana(db) -> List[str]:
 
 def get_catalogo_oficios_jerarquico(db) -> List[Dict[str, Any]]:
     """Devuelve el catálogo jerárquico: lista de { nombre, especializaciones: [] }. Compatible con lista plana (una esp = nombre)."""
+    global _catalogo_jerarquico_cache
     try:
         config_path = RUANA_ROOT / 'config' / 'oficios_ruana.json'
         if config_path.exists():
+            mtime = config_path.stat().st_mtime
+            if _catalogo_jerarquico_cache and _catalogo_jerarquico_cache[0] == mtime:
+                return list(_catalogo_jerarquico_cache[1])
             with open(config_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             oficios = data.get('oficios', [])
@@ -113,7 +125,8 @@ def get_catalogo_oficios_jerarquico(db) -> List[Dict[str, Any]]:
                         n = str(o).strip()
                         out.append({'nombre': n, 'especializaciones': [n]})
                 if out:
-                    return out
+                    _catalogo_jerarquico_cache = (mtime, out)
+                    return list(out)
     except Exception:
         pass
     # Fallback: desde BD solo tenemos nombres

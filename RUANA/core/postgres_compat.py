@@ -18,8 +18,8 @@ import psycopg
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
-_pool: Optional[ConnectionPool] = None
-_pool_lock = threading.Lock()
+_pools: dict[str, ConnectionPool] = {}
+_pools_lock = threading.Lock()
 
 
 def _pool_min_size() -> int:
@@ -27,32 +27,19 @@ def _pool_min_size() -> int:
 
 
 def _pool_max_size() -> int:
-    return max(1, int(os.environ.get("RUANA_DB_POOL_MAX", "5")))
-
-
-def _get_pool(database_url: str) -> ConnectionPool:
-    """Lazy module-level pool; no connection until first Postgres use."""
-    global _pool
-    if _pool is None:
-        with _pool_lock:
-            if _pool is None:
-                _pool = ConnectionPool(
-                    database_url,
-                    min_size=_pool_min_size(),
-                    max_size=_pool_max_size(),
-                    kwargs={"row_factory": dict_row, "prepare_threshold": None},
-                    open=True,
-                )
-    return _pool
+    return max(1, int(os.environ.get("RUANA_DB_POOL_MAX", "10")))
 
 
 def close_pool() -> None:
-    """Devuelve conexiones al pool y cierra el pool (tests / apagado ordenado)."""
-    global _pool
-    with _pool_lock:
-        if _pool is not None:
-            _pool.close()
-            _pool = None
+    """Cierra todos los pools (tests / apagado ordenado)."""
+    global _pools
+    with _pools_lock:
+        for pool in _pools.values():
+            try:
+                pool.close()
+            except Exception:
+                pass
+        _pools.clear()
 
 
 class CompatRow(Mapping):
@@ -301,11 +288,47 @@ class PostgresCompatCursor:
         self.close()
 
 
+def get_connection_pool(
+    database_url: str,
+    *,
+    min_size: int | None = None,
+    max_size: int | None = None,
+) -> ConnectionPool:
+    """Obtiene (o crea) un pool compartido por URL de conexión."""
+    min_size = min_size if min_size is not None else _pool_min_size()
+    max_size = max_size if max_size is not None else _pool_max_size()
+    with _pools_lock:
+        pool = _pools.get(database_url)
+        if pool is None:
+            pool = ConnectionPool(
+                conninfo=database_url,
+                min_size=min_size,
+                max_size=max_size,
+                kwargs={"row_factory": dict_row, "prepare_threshold": None},
+                open=True,
+            )
+            pool.open(wait=True)
+            _pools[database_url] = pool
+        return pool
+
+
 class PostgresCompatConnection:
-    def __init__(self, database_url: str):
-        self._pool = _get_pool(database_url)
-        self._conn = self._pool.getconn()
+    def __init__(
+        self,
+        database_url: str | None = None,
+        *,
+        raw_conn: Any = None,
+        pool: ConnectionPool | None = None,
+    ):
+        self._pool = pool
         self.row_factory = None
+        if raw_conn is not None:
+            self._conn = raw_conn
+        elif database_url is not None:
+            self._conn = psycopg.connect(database_url, row_factory=dict_row, prepare_threshold=None)
+            self._pool = None
+        else:
+            raise ValueError("database_url o raw_conn requerido")
 
     def cursor(self):
         return PostgresCompatCursor(self)
@@ -317,9 +340,18 @@ class PostgresCompatConnection:
         self._conn.rollback()
 
     def close(self):
-        if self._conn is not None:
-            self._pool.putconn(self._conn)
-            self._conn = None
+        if self._conn is None:
+            return
+        conn = self._conn
+        self._conn = None
+        if self._pool is not None:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            self._pool.putconn(conn)
+        else:
+            conn.close()
 
     def __enter__(self):
         return self
@@ -332,5 +364,10 @@ class PostgresCompatConnection:
         self.close()
 
 
-def connect(database_url: str) -> PostgresCompatConnection:
+def connect(
+    database_url: str,
+    pool: ConnectionPool | None = None,
+) -> PostgresCompatConnection:
+    if pool is not None:
+        return PostgresCompatConnection(raw_conn=pool.getconn(), pool=pool)
     return PostgresCompatConnection(database_url)
