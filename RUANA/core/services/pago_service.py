@@ -555,6 +555,13 @@ def impugnar_apoyo_ruana(db, contacto_id: int, profesional_codigo: str,
                     _repo.insertar_conflict_impugnacion(
                         cursor, contacto_id, r_sol[0], r_prof[0], importe_final, comentario_pc
                     )
+                from core.repositories.financial_conflict_repo import FinancialConflictRepo
+                from core.financial.conflict_estados import TipoConflicto
+                FinancialConflictRepo()._formalizar_existente(
+                    cursor, contacto_id, TipoConflicto.IMPORTE_DISPUTADO,
+                    (motivo or "importe impugnado")[:2000], prof_norm,
+                    int(round(importe_final * 100)), "eur",
+                )
 
             db._audit_log(cursor, 'contacto', contacto_id, 'apoyo_impugnado',
                             'aliado', prof_norm, (motivo or 'importe impugnado')[:500])

@@ -421,6 +421,7 @@ def _init_db(db):
             db._migrar_financial_fase03(conn, cursor)
             db._migrar_financial_fase03_1(conn, cursor)
             db._migrar_financial_fase03_2(conn, cursor)
+            db._migrar_financial_fase04_conflicts(conn, cursor)
 
             conn.commit()
             print(f"[RUANA][DB] Base de datos inicializada en: {db.db_path}")
@@ -1121,6 +1122,143 @@ def _migrar_financial_fase03_2(db, conn, cursor) -> None:
     _repo.execute(cursor, """
         CREATE INDEX IF NOT EXISTS idx_fin_transfer_snapshots_contacto
         ON financial_transfer_snapshots(contacto_id, creado_en DESC)
+    """)
+
+
+def _migrar_financial_fase04_conflicts(db, conn, cursor) -> None:
+    """FASE 04: conflictos financieros formales."""
+    if not _repo.tabla_existe(cursor, "payment_conflicts"):
+        return
+
+    columnas = _repo.columnas_tabla(cursor, "payment_conflicts")
+    nuevas = [
+        ("estado_conflicto", "TEXT"),
+        ("tipo_conflicto", "TEXT"),
+        ("motivo", "TEXT"),
+        ("importe_reclamado_cents", "INTEGER"),
+        ("moneda", "TEXT DEFAULT 'eur'"),
+        ("abierto_por", "TEXT"),
+        ("responsable_codigo", "TEXT"),
+        ("prioridad", "TEXT DEFAULT 'normal'"),
+        ("fecha_apertura", "TIMESTAMP"),
+        ("fecha_asignacion", "TIMESTAMP"),
+        ("fecha_resolucion", "TIMESTAMP"),
+        ("resolucion", "TEXT"),
+        ("importe_liberar_cents", "INTEGER"),
+        ("importe_reembolsar_cents", "INTEGER"),
+        ("importe_profesional_cents", "INTEGER"),
+        ("importe_contratante_cents", "INTEGER"),
+        ("bloqueo_financiero", "INTEGER DEFAULT 1"),
+        ("version", "INTEGER DEFAULT 1"),
+        ("idempotency_key_apertura", "TEXT"),
+    ]
+    for nombre, sqlite_def in nuevas:
+        if nombre not in columnas:
+            _repo.execute(cursor, f"ALTER TABLE payment_conflicts ADD COLUMN {nombre} {sqlite_def}")
+
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS payment_conflict_evidence (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            conflicto_id INTEGER NOT NULL,
+            tipo TEXT NOT NULL,
+            nombre TEXT NOT NULL,
+            referencia_segura TEXT NOT NULL,
+            hash_sha256 TEXT,
+            subido_por TEXT NOT NULL,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            metadata_json TEXT,
+            eliminado_en TIMESTAMP,
+            FOREIGN KEY (conflicto_id) REFERENCES payment_conflicts(id)
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_pce_conflicto
+        ON payment_conflict_evidence(conflicto_id, creado_en)
+    """)
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS payment_conflict_comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            conflicto_id INTEGER NOT NULL,
+            autor_codigo TEXT NOT NULL,
+            texto TEXT NOT NULL,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            visible_para_contratante INTEGER DEFAULT 1,
+            visible_para_profesional INTEGER DEFAULT 1,
+            FOREIGN KEY (conflicto_id) REFERENCES payment_conflicts(id)
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_pcc_conflicto
+        ON payment_conflict_comments(conflicto_id, creado_en)
+    """)
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS payment_conflict_actions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            conflicto_id INTEGER NOT NULL,
+            operacion TEXT NOT NULL,
+            idempotency_key TEXT NOT NULL,
+            actor_codigo TEXT NOT NULL,
+            resultado TEXT NOT NULL DEFAULT 'en_proceso',
+            metadata_json TEXT,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(conflicto_id, operacion, idempotency_key),
+            FOREIGN KEY (conflicto_id) REFERENCES payment_conflicts(id)
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS payment_conflict_audit (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            conflicto_id INTEGER NOT NULL,
+            accion TEXT NOT NULL,
+            actor_codigo TEXT NOT NULL,
+            estado_anterior TEXT,
+            estado_nuevo TEXT,
+            metadata_json TEXT,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (conflicto_id) REFERENCES payment_conflicts(id)
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_pca_conflicto
+        ON payment_conflict_audit(conflicto_id, creado_en DESC)
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_pc_estado_conflicto
+        ON payment_conflicts(estado_conflicto)
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_pc_bloqueo ON payment_conflicts(bloqueo_financiero)
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_pc_responsable ON payment_conflicts(responsable_codigo)
+    """)
+
+    _repo.execute(cursor, """
+        UPDATE payment_conflicts SET estado_conflicto = 'ABIERTO'
+        WHERE estado_conflicto IS NULL AND estado = 'PENDIENTE_PRUEBA'
+    """)
+    _repo.execute(cursor, """
+        UPDATE payment_conflicts SET estado_conflicto = 'EN_INVESTIGACION'
+        WHERE estado_conflicto IS NULL AND estado = 'EN_REVISION'
+    """)
+    _repo.execute(cursor, """
+        UPDATE payment_conflicts SET estado_conflicto = 'CERRADO', bloqueo_financiero = 0
+        WHERE estado_conflicto IS NULL AND estado IN ('RESUELTO', 'RECHAZADO')
+    """)
+    _repo.execute(cursor, """
+        UPDATE payment_conflicts SET tipo_conflicto = 'IMPORTE_DISPUTADO'
+        WHERE tipo_conflicto IS NULL AND tipo = 'importe_discrepante'
+    """)
+    _repo.execute(cursor, """
+        UPDATE payment_conflicts SET tipo_conflicto = 'PLAZO_DISPUTADO'
+        WHERE tipo_conflicto IS NULL AND tipo = 'sin_confirmacion_trabajo'
+    """)
+    _repo.execute(cursor, """
+        UPDATE payment_conflicts SET bloqueo_financiero = 1
+        WHERE bloqueo_financiero IS NULL AND estado_conflicto IN (
+            'ABIERTO', 'EN_INVESTIGACION', 'PENDIENTE_DE_EVIDENCIA', 'ESCALADO'
+        )
     """)
 
 

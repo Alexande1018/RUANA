@@ -34,25 +34,8 @@ class FinancialTransactionRepo:
         return cursor.fetchone()
 
     def tiene_conflicto_abierto(self, cursor, contacto_id: int) -> bool:
-        cursor.execute(
-            """
-            SELECT 1 FROM payment_conflicts
-            WHERE trabajo_id = ? AND estado IN ('PENDIENTE_PRUEBA', 'EN_REVISION')
-            LIMIT 1
-            """,
-            (contacto_id,),
-        )
-        if cursor.fetchone():
-            return True
-        cursor.execute(
-            "SELECT estado FROM contactos_ruana WHERE id = ?",
-            (contacto_id,),
-        )
-        row = cursor.fetchone()
-        if not row:
-            return False
-        estado = row[0] if not hasattr(row, "keys") else row["estado"]
-        return (estado or "").strip().lower() == "importe_en_disputa"
+        from core.repositories.financial_conflict_repo import FinancialConflictRepo
+        return FinancialConflictRepo().tiene_conflicto_bloqueante(cursor, contacto_id)
 
     def actualizar_estado_financiero_atomico(
         self,
