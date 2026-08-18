@@ -112,7 +112,7 @@ def test_procesar_pago_confirmado_webhook(sqlite_db):
     assert ingreso == 1
 
 
-@patch("core.services.pago_service.stripe_client.create_transfer")
+@patch("core.services.financial_transfer_service.stripe_client.create_transfer")
 def test_confirmar_trabajo_solo_contratante_transfiere(mock_transfer, sqlite_db):
     contacto_id = _seed_stripe_contacto(sqlite_db, 500.0)
     pago_service.activar_pago_stripe_tras_acuerdo(sqlite_db, contacto_id, "SOL", 500.0)
@@ -120,13 +120,14 @@ def test_confirmar_trabajo_solo_contratante_transfiere(mock_transfer, sqlite_db)
     mock_transfer.return_value = {"id": "tr_test_789"}
     res = pago_service.confirmar_trabajo_y_transferir(sqlite_db, contacto_id, "SOL")
     assert res["status"] == "success"
-    assert res["estado_pago"] == "transferido"
+    assert res["estado_pago"] == "cobro_confirmado"
+    assert res["estado_financiero"] == "TRANSFERENCIA_ENVIADA"
     mock_transfer.assert_called_once()
     assert mock_transfer.call_args.kwargs["amount_cents"] == 44000
     assert mock_transfer.call_args.kwargs["destination_account_id"] == "acct_test123"
 
 
-@patch("core.services.pago_service.stripe_client.create_transfer")
+@patch("core.services.financial_transfer_service.stripe_client.create_transfer")
 def test_confirmar_trabajo_rechaza_profesional(mock_transfer, sqlite_db):
     contacto_id = _seed_stripe_contacto(sqlite_db, 500.0)
     pago_service.activar_pago_stripe_tras_acuerdo(sqlite_db, contacto_id, "SOL", 500.0)

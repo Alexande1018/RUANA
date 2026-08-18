@@ -418,6 +418,7 @@ def _init_db(db):
             db._migrar_stripe_pagos(conn, cursor)
             db._migrar_estado_financiero(conn, cursor)
             db._migrar_financial_fase02(conn, cursor)
+            db._migrar_financial_fase03(conn, cursor)
 
             conn.commit()
             print(f"[RUANA][DB] Base de datos inicializada en: {db.db_path}")
@@ -1029,6 +1030,54 @@ def _migrar_financial_fase02(db, conn, cursor) -> None:
     """)
 
 
+def _migrar_financial_fase03(db, conn, cursor) -> None:
+    """FASE 03: transferencias blindadas — una operación → una transferencia Stripe."""
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS financial_transfers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            contacto_id INTEGER NOT NULL UNIQUE,
+            idempotency_key TEXT NOT NULL UNIQUE,
+            stripe_transfer_id TEXT UNIQUE,
+            amount_cents INTEGER NOT NULL,
+            currency TEXT NOT NULL DEFAULT 'eur',
+            destination_account_id TEXT NOT NULL,
+            professional_codigo TEXT NOT NULL,
+            stripe_payment_intent_id TEXT,
+            estado TEXT NOT NULL DEFAULT 'RECLAMADA',
+            actor_codigo TEXT,
+            error_message TEXT,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (contacto_id) REFERENCES contactos_ruana(id)
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_fin_transfers_stripe_id
+        ON financial_transfers(stripe_transfer_id)
+    """)
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS financial_transfer_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            contacto_id INTEGER NOT NULL,
+            financial_transfer_id INTEGER,
+            actor_codigo TEXT,
+            resultado TEXT NOT NULL,
+            motivo_bloqueo TEXT,
+            estado_anterior TEXT,
+            estado_nuevo TEXT,
+            stripe_transfer_id TEXT,
+            metadata TEXT,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (contacto_id) REFERENCES contactos_ruana(id),
+            FOREIGN KEY (financial_transfer_id) REFERENCES financial_transfers(id)
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_fin_transfer_attempts_contacto
+        ON financial_transfer_attempts(contacto_id)
+    """)
+
+
 def _migrar_contactos_validacion_pago(db, conn, cursor) -> None:
     """Añade fecha_validacion_pago, admin_validacion_codigo y motivo_rechazo_pago a contactos_ruana."""
     columnas = _repo.columnas_tabla(cursor, "contactos_ruana")
@@ -1373,6 +1422,7 @@ def _init_postgres_schema(db):
         db._migrar_stripe_pagos(conn, cursor)
         db._migrar_estado_financiero(conn, cursor)
         db._migrar_financial_fase02(conn, cursor)
+        db._migrar_financial_fase03(conn, cursor)
         conn.commit()
         print("[RUANA][DB] Esquema Postgres verificado (incl. foto de perfil + linaje + urgente + negociación guiada + accesos día + retador + aliados eliminados)")
     except Exception as e:

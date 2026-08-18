@@ -944,125 +944,13 @@ def confirmar_trabajo_y_transferir(
 ) -> Dict[str, Any]:
     """
     El aliado contratante confirma que el trabajo se realizó y RUANA transfiere al profesional.
+
+    FASE 03: delega en financial_transfer_service (idempotencia + concurrencia BD).
+    TRANSFERIDO solo se alcanza vía webhook transfer.paid.
     """
-    codigo = (contratante_codigo or "").strip()
-    if not codigo:
-        return {"status": "error", "message": "Código de aliado obligatorio"}
-    with db._lock:
-        conn = None
-        try:
-            conn = db._connect()
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            row = _repo.select_contacto_stripe_por_id(cursor, contacto_id)
-            if not row:
-                return {"status": "error", "message": "Contacto no encontrado"}
-            contacto = dict(row)
-            if str(contacto.get("solicitante_codigo") or "").strip() != codigo:
-                return {
-                    "status": "error",
-                    "message": "Solo el aliado que contrató el encargo puede confirmar que el trabajo se realizó",
-                }
-            if contacto.get("modo_pago") != "stripe":
-                return {"status": "error", "message": "Este contacto no usa pago Stripe"}
-            if (contacto.get("estado_pago") or "") != "cobro_confirmado":
-                return {
-                    "status": "error",
-                    "message": "El pago del cliente aún no está confirmado o ya se transfirió al profesional",
-                }
-            if contacto.get("stripe_transfer_id"):
-                return {"status": "error", "message": "La transferencia al profesional ya se realizó"}
-            prof_codigo = str(contacto.get("profesional_codigo") or "").strip()
-            aliado_row = _repo.select_aliado_stripe(cursor, prof_codigo)
-            if not aliado_row:
-                return {"status": "error", "message": "Profesional no encontrado"}
-            aliado = dict(aliado_row) if hasattr(aliado_row, "keys") else {
-                "stripe_account_id": aliado_row[3],
-            }
-            account_id = (aliado.get("stripe_account_id") or "").strip()
-            if not account_id:
-                return {"status": "error", "message": "El profesional no tiene cuenta Stripe Connect activa"}
-            neto = contacto.get("importe_neto_profesional")
-            if neto is None:
-                _, _, neto, _ = _calcular_importes_stripe(
-                    float(contacto.get("importe_final") or contacto.get("importe_acordado") or 0),
-                    db,
-                )
-            neto_val = round(float(neto), 2)
-            if neto_val <= 0:
-                return {"status": "error", "message": "Importe neto del profesional no válido"}
-            fin_lib = fts._transicionar_en_cursor(
-                db,
-                cursor,
-                contacto_id,
-                EstadoFinanciero.LIBERACION_AUTORIZADA,
-                actor_tipo="aliado",
-                actor_codigo=codigo,
-                motivo="contratante confirmó trabajo",
-            )
-            if fin_lib.get("status") != "success":
-                return {
-                    "status": "error",
-                    "message": fin_lib.get("message", "No se pudo autorizar la liberación"),
-                }
-            _repo.marcar_confirmacion_trabajo_contratante(cursor, contacto_id)
-            transfer = stripe_client.create_transfer(
-                amount_cents=_importe_centimos(neto_val),
-                currency="eur",
-                destination_account_id=account_id,
-                contacto_id=contacto_id,
-                idempotency_key=f"transfer-contacto-{contacto_id}",
-            )
-            transfer_id = transfer.get("id")
-            if not transfer_id:
-                conn.rollback()
-                return {"status": "error", "message": "Stripe no devolvió transferencia"}
-            fin_cycle = fts.completar_ciclo_transferencia(
-                db, contacto_id, transfer_id, codigo, cursor=cursor
-            )
-            if fin_cycle.get("status") != "success":
-                conn.rollback()
-                return {
-                    "status": "error",
-                    "message": fin_cycle.get("message", "Error en ciclo financiero de transferencia"),
-                }
-            updated = _repo.marcar_transfer_stripe_completado(cursor, contacto_id, transfer_id)
-            if updated != 1:
-                conn.rollback()
-                return {"status": "error", "message": "No se pudo cerrar el contacto tras la transferencia"}
-            db._audit_log(
-                cursor, "contacto", contacto_id, "stripe_transfer_completado",
-                "aliado", codigo, f"transfer={transfer_id} neto={neto_val}",
-            )
-            mensaje_prof = (
-                f"El contratante confirmó el trabajo del encargo #{contacto_id}. "
-                f"RUANA ha transferido {neto_val:g} € a tu cuenta."
-            )
-            meta = json.dumps(
-                {"contacto_id": contacto_id, "importe_neto": neto_val, "transfer_id": transfer_id},
-                ensure_ascii=False,
-            )
-            _repo.insertar_notif_pago_stripe(
-                cursor, prof_codigo, "Pago transferido", mensaje_prof, meta
-            )
-            conn.commit()
-            solicitante = codigo
-            _aplicar_score_tras_transfer(db, contacto_id, solicitante, prof_codigo)
-            return {
-                "status": "success",
-                "contacto_id": contacto_id,
-                "estado": "trabajo_cerrado",
-                "estado_pago": "transferido",
-                "stripe_transfer_id": transfer_id,
-                "importe_neto_profesional": neto_val,
-            }
-        except Exception as e:
-            if conn:
-                conn.rollback()
-            return {"status": "error", "message": str(e)}
-        finally:
-            if conn:
-                conn.close()
+    from core.services import financial_transfer_service as transfer_svc
+
+    return transfer_svc.ejecutar_liberacion_y_transferencia(db, contacto_id, contratante_codigo)
 
 
 def _procesar_pago_confirmado(

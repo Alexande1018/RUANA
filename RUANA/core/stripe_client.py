@@ -166,6 +166,40 @@ def construct_webhook_event(payload: bytes, sig_header: str) -> Any:
     )
 
 
+def retrieve_transfer(transfer_id: str) -> Dict[str, Any]:
+    stripe = configure_stripe()
+    if stripe is None:
+        raise RuntimeError("Stripe no configurado (falta STRIPE_SECRET_KEY)")
+    return dict(stripe.Transfer.retrieve(transfer_id))
+
+
+def retrieve_transfer_by_idempotency_metadata(
+    *,
+    contacto_id: int,
+    idempotency_key: str,
+    amount_cents: Optional[int] = None,
+    currency: str = "eur",
+    destination_account_id: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """
+    Recupera transferencia tras timeout reintentando create con la misma idempotency key.
+
+    Stripe devuelve el mismo objeto si la transferencia ya fue creada.
+    """
+    if not idempotency_key or destination_account_id is None or amount_cents is None:
+        return None
+    try:
+        return create_transfer(
+            amount_cents=amount_cents,
+            currency=currency,
+            destination_account_id=destination_account_id,
+            contacto_id=contacto_id,
+            idempotency_key=idempotency_key,
+        )
+    except Exception:
+        return None
+
+
 def retrieve_account(account_id: str) -> Dict[str, Any]:
     stripe = configure_stripe()
     if stripe is None:

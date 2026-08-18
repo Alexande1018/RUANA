@@ -416,6 +416,8 @@ def _handle_transfer_paid(
     db, obj, event_id: str
 ) -> Tuple[Optional[int], str, str, str]:
     """transfer.paid — confirma transferencia completada en Stripe."""
+    from core.services import financial_transfer_service as transfer_svc
+
     contacto_id = _resolver_contacto_transfer(db, obj)
     transfer_id = _object_id(obj)
     if not contacto_id:
@@ -435,44 +437,16 @@ def _handle_transfer_paid(
         conn.commit()
         conn.close()
 
-    # Evento fuera de orden: transfer.paid antes de transfer.created
-    est_actual = fts.obtener_estado_financiero(db, contacto_id)
-    if est_actual in (
-        EstadoFinanciero.ESPERANDO_CONFIRMACION,
-        EstadoFinanciero.LIBERACION_AUTORIZADA,
-        EstadoFinanciero.TRANSFERENCIA_PENDIENTE,
-        EstadoFinanciero.TRANSFERENCIA_ENVIADA,
-        None,
-    ):
-        for objetivo in (
-            EstadoFinanciero.LIBERACION_AUTORIZADA,
-            EstadoFinanciero.TRANSFERENCIA_PENDIENTE,
-            EstadoFinanciero.TRANSFERENCIA_ENVIADA,
-            EstadoFinanciero.TRANSFERIDO,
-        ):
-            est = fts.obtener_estado_financiero(db, contacto_id)
-            if est == objetivo:
-                continue
-            if _sm.puede_transicionar(est or EstadoFinanciero.MIGRACION_PENDIENTE, objetivo):
-                fts.transicionar(
-                    db, contacto_id, objetivo,
-                    actor_tipo="stripe_webhook",
-                    motivo="transfer.paid (orden recuperado)",
-                    stripe_ref=transfer_id,
-                )
+    fin = transfer_svc.finalizar_transferencia_completada(
+        db, contacto_id, transfer_id, origen="stripe_webhook"
+    )
+    if fin.get("status") == "success":
+        nuevo = fin.get("estado_financiero", EstadoFinanciero.TRANSFERIDO.value)
+        return contacto_id, "ok" if not fin.get("idempotent") else "idempotent", ant_val, nuevo
 
-    _actualizar_estado_transferencia(db, contacto_id, EstadoTransferencia.COMPLETADA)
     est_final = fts.obtener_estado_financiero(db, contacto_id)
-    nuevo_val = est_final.value if est_final else EstadoFinanciero.TRANSFERIDO.value
-
-    if est_final != EstadoFinanciero.TRANSFERIDO:
-        _, nuevo_val, res = _transicion_si_valida(
-            db, contacto_id, EstadoFinanciero.TRANSFERIDO,
-            motivo="transfer.paid", stripe_ref=transfer_id,
-        )
-        return contacto_id, res, ant_val, nuevo_val
-
-    return contacto_id, "ok", ant_val, nuevo_val
+    nuevo_val = est_final.value if est_final else ant_val
+    return contacto_id, fin.get("message", "transition_skipped"), ant_val, nuevo_val
 
 
 def _handle_transfer_failed(

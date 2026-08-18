@@ -233,6 +233,95 @@ def intentar_autorizar_liberacion(
                 conn.close()
 
 
+def registrar_transferencia_pendiente(
+    db,
+    contacto_id: int,
+    actor_codigo: str = "",
+    cursor=None,
+) -> Dict[str, Any]:
+    """LIBERACION_AUTORIZADA → TRANSFERENCIA_PENDIENTE (FASE 03)."""
+    estado_objetivo = EstadoFinanciero.TRANSFERENCIA_PENDIENTE
+    if cursor is not None:
+        return _transicionar_en_cursor(
+            db, cursor, contacto_id, estado_objetivo,
+            actor_tipo="sistema", actor_codigo=actor_codigo,
+            motivo="inicio transferencia Stripe",
+        )
+    return transicionar(
+        db, contacto_id, estado_objetivo,
+        actor_tipo="sistema", actor_codigo=actor_codigo,
+        motivo="inicio transferencia Stripe",
+    )
+
+
+def registrar_transferencia_enviada(
+    db,
+    contacto_id: int,
+    stripe_transfer_id: str,
+    actor_codigo: str = "",
+    cursor=None,
+) -> Dict[str, Any]:
+    """
+    Avanza hasta TRANSFERENCIA_ENVIADA sin marcar TRANSFERIDO (FASE 03).
+
+    TRANSFERIDO solo vía webhook transfer.paid.
+    """
+    resultados: List[Dict[str, Any]] = []
+    if cursor is not None:
+        row = _repo.select_contacto_financiero(cursor, contacto_id)
+    else:
+        estado = obtener_estado_financiero(db, contacto_id)
+        row = None
+    estado_inicial = None
+    if row:
+        estado_inicial = _resolver_estado_actual(dict(row), False)
+    elif cursor is None:
+        estado_inicial = estado
+
+    if estado_inicial == EstadoFinanciero.TRANSFERENCIA_ENVIADA:
+        return {"status": "success", "idempotent": True, "estado_final": estado_inicial.value}
+    if estado_inicial == EstadoFinanciero.TRANSFERIDO:
+        return {"status": "success", "idempotent": True, "estado_final": estado_inicial.value}
+
+    pasos: List[EstadoFinanciero] = []
+    if estado_inicial == EstadoFinanciero.LIBERACION_AUTORIZADA:
+        pasos.append(EstadoFinanciero.TRANSFERENCIA_PENDIENTE)
+    if estado_inicial in (
+        EstadoFinanciero.LIBERACION_AUTORIZADA,
+        EstadoFinanciero.TRANSFERENCIA_PENDIENTE,
+        None,
+    ):
+        pasos.append(EstadoFinanciero.TRANSFERENCIA_ENVIADA)
+
+    for estado in pasos:
+        if cursor is not None:
+            res = _transicionar_en_cursor(
+                db, cursor, contacto_id, estado,
+                actor_tipo="sistema", actor_codigo=actor_codigo,
+                motivo="transferencia Stripe creada",
+                stripe_ref=stripe_transfer_id if estado == EstadoFinanciero.TRANSFERENCIA_ENVIADA else "",
+            )
+        else:
+            res = transicionar(
+                db, contacto_id, estado,
+                actor_tipo="sistema", actor_codigo=actor_codigo,
+                motivo="transferencia Stripe creada",
+                stripe_ref=stripe_transfer_id if estado == EstadoFinanciero.TRANSFERENCIA_ENVIADA else "",
+            )
+        resultados.append(res)
+        if res.get("status") != "success":
+            return {
+                "status": "error",
+                "message": res.get("message", "fallo registrando transferencia enviada"),
+                "pasos": resultados,
+            }
+    return {
+        "status": "success",
+        "pasos": resultados,
+        "estado_final": EstadoFinanciero.TRANSFERENCIA_ENVIADA.value,
+    }
+
+
 def completar_ciclo_transferencia(
     db,
     contacto_id: int,

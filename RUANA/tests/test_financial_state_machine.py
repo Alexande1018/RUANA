@@ -251,7 +251,7 @@ def test_auditoria_registra_transicion(sqlite_db):
 
 # --- Integración Stripe existente no rota ---
 
-@patch("core.services.pago_service.stripe_client.create_transfer")
+@patch("core.services.financial_transfer_service.stripe_client.create_transfer")
 def test_stripe_confirmar_trabajo_sincroniza_estados(mock_transfer, sqlite_db):
     conn = sqlite_db._connect()
     cursor = conn.cursor()
@@ -279,7 +279,7 @@ def test_stripe_confirmar_trabajo_sincroniza_estados(mock_transfer, sqlite_db):
     mock_transfer.return_value = {"id": "tr_test_fin"}
     res = pago_service.confirmar_trabajo_y_transferir(sqlite_db, cid, "SOL")
     assert res["status"] == "success"
-    assert fts.obtener_estado_financiero(sqlite_db, cid) == EstadoFinanciero.TRANSFERIDO
+    assert fts.obtener_estado_financiero(sqlite_db, cid) == EstadoFinanciero.TRANSFERENCIA_ENVIADA
 
 
 def test_state_machine_pure_transiciones_invalidas():

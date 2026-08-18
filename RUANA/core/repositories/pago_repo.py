@@ -612,6 +612,21 @@ class PagoRepo:
         )
         return cursor.rowcount
 
+    def marcar_transfer_stripe_registrada(
+        self, cursor, contacto_id: int, transfer_id: str
+    ) -> int:
+        """Registra transfer_id sin marcar transferido (FASE 03 — pendiente de transfer.paid)."""
+        cursor.execute(
+            """
+            UPDATE contactos_ruana
+            SET stripe_transfer_id = COALESCE(stripe_transfer_id, ?),
+                actualizado_en = CURRENT_TIMESTAMP
+            WHERE id = ? AND modo_pago = 'stripe'
+            """,
+            (transfer_id, contacto_id),
+        )
+        return cursor.rowcount
+
     def marcar_transfer_stripe_completado(
         self, cursor, contacto_id: int, transfer_id: str
     ) -> int:
@@ -619,11 +634,11 @@ class PagoRepo:
             """
             UPDATE contactos_ruana
             SET estado = 'trabajo_cerrado', estado_pago = 'transferido',
-                stripe_transfer_id = ?, fecha_transferencia = CURRENT_TIMESTAMP,
+                stripe_transfer_id = COALESCE(stripe_transfer_id, ?),
+                fecha_transferencia = CURRENT_TIMESTAMP,
                 fecha_cierre = CURRENT_TIMESTAMP, pendiente_resolucion = 0,
                 actualizado_en = CURRENT_TIMESTAMP
-            WHERE id = ? AND modo_pago = 'stripe' AND estado_pago = 'cobro_confirmado'
-              AND stripe_transfer_id IS NULL
+            WHERE id = ? AND modo_pago = 'stripe' AND COALESCE(estado_pago, '') != 'transferido'
             """,
             (transfer_id, contacto_id),
         )
