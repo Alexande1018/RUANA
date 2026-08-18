@@ -446,6 +446,63 @@ def _handle_transfer_failed(
     return contacto_id, resultado, ant_val, nuevo_val
 
 
+def _extraer_refunds_del_objeto(obj: Any) -> list[Dict[str, Any]]:
+    """Extrae refunds Stripe embebidos en charge o refund suelto."""
+    refunds: list[Dict[str, Any]] = []
+    if str(_get(obj, "object") or "") == "refund":
+        refunds.append({
+            "id": str(_get(obj, "id") or ""),
+            "amount": int(_get(obj, "amount") or 0),
+            "status": str(_get(obj, "status") or ""),
+            "charge": str(_get(obj, "charge") or ""),
+            "payment_intent": str(_get(obj, "payment_intent") or ""),
+        })
+        return refunds
+    raw = _get(obj, "refunds")
+    data = []
+    if isinstance(raw, dict):
+        data = raw.get("data") or []
+    elif hasattr(raw, "data"):
+        data = raw.data or []
+    for item in data or []:
+        refunds.append({
+            "id": str(_get(item, "id") or ""),
+            "amount": int(_get(item, "amount") or 0),
+            "status": str(_get(item, "status") or ""),
+            "charge": str(_get(item, "charge") or _get(obj, "id") or ""),
+            "payment_intent": str(_get(item, "payment_intent") or _get(obj, "payment_intent") or ""),
+        })
+    return refunds
+
+
+def _sincronizar_financial_refunds_webhook(
+    db,
+    *,
+    refunds: list[Dict[str, Any]],
+    charge_id: str = "",
+    payment_intent_id: str = "",
+    event_id: str = "",
+) -> None:
+    """Actualiza financial_refunds existentes; no crea nuevos refunds."""
+    if not refunds:
+        return
+    from core.services import financial_refund_service as frs
+
+    for refund in refunds:
+        stripe_refund_id = (refund.get("id") or "").strip()
+        if not stripe_refund_id:
+            continue
+        frs.procesar_webhook_refund(
+            db,
+            stripe_refund_id=stripe_refund_id,
+            amount_cents=int(refund.get("amount") or 0),
+            status=str(refund.get("status") or ""),
+            charge_id=charge_id or str(refund.get("charge") or ""),
+            payment_intent_id=payment_intent_id or str(refund.get("payment_intent") or ""),
+            event_id=event_id,
+        )
+
+
 def _handle_charge_refunded(
     db, obj, event_id: str
 ) -> Tuple[Optional[int], str, str, str]:
@@ -507,7 +564,67 @@ def _handle_charge_refunded(
                     )
                 return contacto_id, res, ant_val, nuevo_val
 
+    _sincronizar_financial_refunds_webhook(
+        db,
+        refunds=_extraer_refunds_del_objeto(obj),
+        charge_id=charge_id,
+        payment_intent_id=payment_intent_id,
+        event_id=event_id,
+    )
+
     return contacto_id, "registrado" if inserted else "idempotent", ant_val, ant_val
+
+
+def _handle_refund_updated(
+    db, obj, event_id: str
+) -> Tuple[Optional[int], str, str, str]:
+    """charge.refund.updated / refund.updated: sincroniza financial_refunds sin crear refund."""
+    stripe_refund_id = _object_id(obj)
+    charge_id = str(_get(obj, "charge") or "")
+    payment_intent_id = str(_get(obj, "payment_intent") or "")
+    amount_cents = int(_get(obj, "amount") or 0)
+    status = str(_get(obj, "status") or "")
+
+    contacto_id = None
+    with db._lock:
+        conn = db._connect()
+        cursor = conn.cursor()
+        if payment_intent_id:
+            row = _wh_repo.select_contacto_por_payment_intent(cursor, payment_intent_id)
+            if row:
+                contacto_id = int(row[0] if not hasattr(row, "keys") else row["id"])
+        conn.close()
+
+    if not contacto_id:
+        return None, "contacto_no_encontrado", "", ""
+
+    from core.services import financial_refund_service as frs
+
+    result = frs.procesar_webhook_refund(
+        db,
+        stripe_refund_id=stripe_refund_id,
+        amount_cents=amount_cents,
+        status=status,
+        charge_id=charge_id,
+        payment_intent_id=payment_intent_id,
+        event_id=event_id,
+    )
+    estado = result.get("estado") or ""
+    if result.get("missing_ruana"):
+        reconciliation.registrar_discrepancia(
+            db, contacto_id, TipoDiscrepancia.REFUND_MISSING_RUANA,
+            stripe_payment_intent_id=payment_intent_id,
+            metadata={"stripe_refund_id": stripe_refund_id, "event_id": event_id},
+        )
+        return contacto_id, "missing_ruana", "", estado
+    if result.get("discrepancia"):
+        reconciliation.registrar_discrepancia(
+            db, contacto_id, TipoDiscrepancia.REFUND_AMOUNT_MISMATCH,
+            stripe_payment_intent_id=payment_intent_id,
+            metadata={"stripe_refund_id": stripe_refund_id, "event_id": event_id},
+        )
+        return contacto_id, "discrepancia", "", estado
+    return contacto_id, result.get("status", "ok"), "", estado
 
 
 def _handle_charge_dispute_created(
@@ -588,6 +705,8 @@ _HANDLERS = {
     "transfer.reversed": _handle_transfer_reversed,
     "transfer.failed": _handle_transfer_failed,
     "charge.refunded": _handle_charge_refunded,
+    "charge.refund.updated": _handle_refund_updated,
+    "refund.updated": _handle_refund_updated,
     "charge.dispute.created": _handle_charge_dispute_created,
 }
 

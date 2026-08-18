@@ -205,3 +205,61 @@ def retrieve_account(account_id: str) -> Dict[str, Any]:
     if stripe is None:
         raise RuntimeError("Stripe no configurado (falta STRIPE_SECRET_KEY)")
     return dict(stripe.Account.retrieve(account_id))
+
+
+def create_refund(
+    *,
+    amount_cents: int,
+    payment_intent_id: Optional[str] = None,
+    charge_id: Optional[str] = None,
+    reason: Optional[str] = None,
+    idempotency_key: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Crea Refund en Stripe con idempotency key estable."""
+    stripe = configure_stripe()
+    if stripe is None:
+        raise RuntimeError("Stripe no configurado (falta STRIPE_SECRET_KEY)")
+    if amount_cents <= 0:
+        raise ValueError("amount_cents debe ser > 0")
+    if not payment_intent_id and not charge_id:
+        raise ValueError("payment_intent_id o charge_id obligatorio")
+    params: Dict[str, Any] = {"amount": amount_cents}
+    if payment_intent_id:
+        params["payment_intent"] = payment_intent_id
+    if charge_id:
+        params["charge"] = charge_id
+    if reason:
+        params["reason"] = reason
+    if metadata:
+        params["metadata"] = {str(k): str(v) for k, v in metadata.items()}
+    kwargs: Dict[str, Any] = {}
+    if idempotency_key:
+        kwargs["idempotency_key"] = idempotency_key
+    refund = stripe.Refund.create(**params, **kwargs)
+    return dict(refund)
+
+
+def retrieve_refund_by_idempotency(
+    *,
+    amount_cents: int,
+    payment_intent_id: Optional[str] = None,
+    charge_id: Optional[str] = None,
+    idempotency_key: str,
+    reason: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    """Recupera refund tras timeout reintentando con la misma idempotency key."""
+    if not idempotency_key:
+        return None
+    try:
+        return create_refund(
+            amount_cents=amount_cents,
+            payment_intent_id=payment_intent_id,
+            charge_id=charge_id,
+            reason=reason,
+            idempotency_key=idempotency_key,
+            metadata=metadata,
+        )
+    except Exception:
+        return None
