@@ -1,0 +1,130 @@
+/* FASE 09 — Panel administrativo financiero */
+.financial-admin-wrap {
+  margin-top: 1rem;
+}
+
+.fin-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.fin-nav-btn {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  border-radius: 8px;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.fin-nav-btn.is-active {
+  border-color: rgba(96, 165, 250, 0.6);
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.fin-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.fin-kpi {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.fin-kpi.is-stale {
+  border-color: rgba(251, 191, 36, 0.5);
+}
+
+.fin-kpi-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.fin-kpi-label {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+.fin-meta {
+  font-size: 0.75rem;
+  opacity: 0.65;
+  margin-bottom: 0.75rem;
+}
+
+.fin-state {
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 0.5rem 0;
+}
+
+.fin-state.is-loading { opacity: 0.7; }
+.fin-state.is-error { border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; }
+.fin-state.is-empty { opacity: 0.7; font-style: italic; }
+
+.fin-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.fin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.fin-table th,
+.fin-table td {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.fin-cards {
+  display: none;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.fin-card-row {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.fin-alert {
+  border-left: 4px solid #f59e0b;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  border-radius: 0 8px 8px 0;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.fin-alert.is-critical { border-left-color: #ef4444; }
+.fin-alert.is-high { border-left-color: #f97316; }
+
+.fin-detail-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.fin-detail-block {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 0.75rem;
+}
+
+@media (max-width: 768px) {
+  .fin-table-wrap { display: none; }
+  .fin-cards { display: flex; }
+  .fin-nav { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 0.25rem; }
+}

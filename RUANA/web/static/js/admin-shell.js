@@ -47,6 +47,14 @@
             targets: ['#conversaciones-ruana-wrap', '#contactos-chat-admin-wrap']
         },
         {
+            id: 'finanzas',
+            label: 'Panel financiero',
+            kicker: 'Finanzas',
+            subtitle: 'Pagos Stripe, refunds, disputas, reconciliación y ledger.',
+            icon: 'credit',
+            targets: ['#financial-admin-wrap']
+        },
+        {
             id: 'pagos',
             label: 'Pagos y conflictos',
             kicker: 'Finanzas',
@@ -111,6 +119,7 @@
         { id: 'grupos-cp', label: 'Grupos y CP', module: 'grupos-cp', target: '#grupos-cp-wrap', icon: 'map' },
         { id: 'solicitudes', label: 'Solicitudes', module: 'solicitudes', target: '#solicitudes-admin-wrap', icon: 'inbox', badge: '#solicitudes-activas' },
         { id: 'trabajos', label: 'Trabajos', module: 'trabajos', target: '#conversaciones-ruana-wrap', icon: 'briefcase' },
+        { id: 'finanzas', label: 'Panel financiero', module: 'finanzas', target: '#financial-admin-wrap', icon: 'credit' },
         { id: 'pagos', label: 'Pagos y conflictos', module: 'pagos', target: '#conflictos-pago-wrap', icon: 'credit' },
         { id: 'scores', label: 'Scores y evaluaciones', module: 'scores', target: '#scores-evaluaciones-wrap', icon: 'chart' },
         { id: 'competencia', label: 'Competencia / suplentes', module: 'competencia', target: '#competencias-activas-wrap', icon: 'zap' },
@@ -131,6 +140,8 @@
         { id: 'grupos-overview', label: 'Grupos por CP', group: 'Territorio', module: 'grupos-cp', target: '#grupos-cp-wrap', icon: 'map' },
         { id: 'pendientes', label: 'Pendientes validación', group: 'Solicitudes', module: 'solicitudes', target: '#pendientes-validacion-wrap', icon: 'user-check', badge: '#pendientes-validacion-count' },
         { id: 'solicitudes-list', label: 'Lista solicitudes', group: 'Solicitudes', module: 'solicitudes', target: '#solicitudes-admin-wrap', icon: 'inbox' },
+        { id: 'finanzas-resumen', label: 'Resumen financiero', group: 'Finanzas', module: 'finanzas', target: '#finanzas-resumen', icon: 'credit' },
+        { id: 'finanzas-alertas', label: 'Acciones pendientes', group: 'Finanzas', module: 'finanzas', target: '#finanzas-acciones', icon: 'alert' },
         { id: 'conflictos', label: 'Conflictos de pago', group: 'Pagos', module: 'pagos', target: '#conflictos-pago-wrap', icon: 'alert' },
         { id: 'pagos-apoyo', label: 'Pagos Apoyo', group: 'Pagos', module: 'pagos', target: '#pagos-apoyo-wrap', icon: 'credit' },
         { id: 'pagos-revision', label: 'Pagos en revisión', group: 'Pagos', module: 'pagos', target: '#pagos-en-revision-wrap', icon: 'clock' },
@@ -819,6 +830,9 @@
         }
         if (moduleId === 'grupos-cp' && window.RuanaAdminModules?.redExplorer?.renderGruposCp && panel) {
             window.RuanaAdminModules.redExplorer.renderGruposCp(panel);
+        }
+        if (moduleId === 'finanzas' && window.RuanaAdminModules?.financial?.onModuleActivated) {
+            window.RuanaAdminModules.financial.onModuleActivated();
         }
     }
 
@@ -1540,6 +1554,9 @@
         }
         if (window.RuanaAdminModules && window.RuanaAdminModules.redExplorer) {
             window.RuanaAdminModules.redExplorer.setup();
+        }
+        if (window.RuanaAdminModules && window.RuanaAdminModules.financial) {
+            window.RuanaAdminModules.financial.setup();
         }
 
         const tryPatch = () => {

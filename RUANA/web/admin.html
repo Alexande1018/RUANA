@@ -17,6 +17,7 @@
       @import url("/static/css/admin-premium.css") layer(ruana-admin-premium);
       @import url("/static/css/admin-shell.css") layer(ruana-admin-shell);
       @import url("/static/css/admin-command-center.css") layer(ruana-admin-command-center);
+      @import url("/static/css/admin-financial.css") layer(ruana-admin-financial);
     </style>
     <link rel="stylesheet" href="/static/css/referidos-tree.css">
     <link rel="stylesheet" href="/static/css/ruana-identity.css">
@@ -34,6 +35,7 @@
     <script src="/static/js/admin-charts.js" defer></script>
     <script src="/static/js/admin-command-center-module.js" defer></script>
     <script src="/static/js/admin-intelligence-module.js" defer></script>
+    <script src="/static/js/admin-financial-module.js" defer></script>
     <script src="/static/js/referidos-module.js" defer></script>
     <script src="/static/js/admin-red-explorer-module.js" defer></script>
     <script src="/static/js/admin-shell.js" defer></script>
@@ -559,6 +561,22 @@
                 </div>
             </div>
             <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="stripe-transferencias-empty">No hay encargos con modo pago Stripe.</p>
+        </div>
+
+        <!-- FASE 09: Panel administrativo financiero -->
+        <div class="financial-admin-wrap" id="financial-admin-wrap" hidden>
+            <div id="finanzas-resumen" class="fin-section" data-fin-section="resumen"></div>
+            <div id="finanzas-pagos" class="fin-section" data-fin-section="pagos" hidden></div>
+            <div id="finanzas-transferencias" class="fin-section" data-fin-section="transferencias" hidden></div>
+            <div id="finanzas-refunds" class="fin-section" data-fin-section="refunds" hidden></div>
+            <div id="finanzas-disputas" class="fin-section" data-fin-section="disputas" hidden></div>
+            <div id="finanzas-conflictos" class="fin-section" data-fin-section="conflictos" hidden></div>
+            <div id="finanzas-reconciliacion" class="fin-section" data-fin-section="reconciliacion" hidden></div>
+            <div id="finanzas-ledger" class="fin-section" data-fin-section="ledger" hidden></div>
+            <div id="finanzas-webhooks" class="fin-section" data-fin-section="webhooks" hidden></div>
+            <div id="finanzas-auditoria" class="fin-section" data-fin-section="auditoria" hidden></div>
+            <div id="finanzas-acciones" class="fin-section" data-fin-section="acciones" hidden></div>
+            <div id="finanzas-detalle" class="fin-section" data-fin-section="detalle" hidden></div>
         </div>
 
         <!-- Modal rechazar comprobante de pago (motivo obligatorio, notifica al profesional) -->
