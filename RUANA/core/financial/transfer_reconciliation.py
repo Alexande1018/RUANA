@@ -21,6 +21,7 @@ class DecisionReconciliacionTransfer(str, Enum):
   PENDING = "pending"
   REVERSED = "reversed"
   MISMATCH = "mismatch"
+  BLOCKED = "blocked"
 
 
 _ESTADOS_PRE_CONFIRMACION = frozenset({
@@ -59,6 +60,7 @@ def evaluar_reconciliacion_transfer(
     financial_transfer: Optional[Dict[str, Any]],
     stripe_snapshot: Dict[str, Any],
     legacy_confirmacion: bool = False,
+    conflicto_abierto: bool = False,
 ) -> Tuple[DecisionReconciliacionTransfer, str]:
     """
     Compara RUANA vs snapshot Stripe. No mueve dinero.
@@ -66,6 +68,8 @@ def evaluar_reconciliacion_transfer(
     Returns:
         (decisión, motivo)
     """
+    if conflicto_abierto or estado_financiero == EstadoFinanciero.CONFLICTO_ABIERTO:
+        return DecisionReconciliacionTransfer.BLOCKED, "conflicto_abierto"
     if stripe_snapshot.get("reversed"):
         return DecisionReconciliacionTransfer.REVERSED, "stripe_transfer_reversed"
 

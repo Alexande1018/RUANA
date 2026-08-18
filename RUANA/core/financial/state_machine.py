@@ -42,17 +42,20 @@ _TRANSICIONES: Dict[EstadoFinanciero, FrozenSet[EstadoFinanciero]] = {
     }),
     EstadoFinanciero.LIBERACION_AUTORIZADA: frozenset({
         EstadoFinanciero.TRANSFERENCIA_PENDIENTE,
+        EstadoFinanciero.CONFLICTO_ABIERTO,
     }),
     EstadoFinanciero.TRANSFERENCIA_PENDIENTE: frozenset({
         EstadoFinanciero.TRANSFERENCIA_ENVIADA,
         EstadoFinanciero.TRANSFERENCIA_REVERTIDA,
         EstadoFinanciero.DISPUTA_STRIPE,
+        EstadoFinanciero.CONFLICTO_ABIERTO,
     }),
     EstadoFinanciero.TRANSFERENCIA_ENVIADA: frozenset({
         EstadoFinanciero.TRANSFERIDO,
         EstadoFinanciero.TRANSFERENCIA_FALLIDA,
         EstadoFinanciero.TRANSFERENCIA_REVERTIDA,
         EstadoFinanciero.DISPUTA_STRIPE,
+        EstadoFinanciero.CONFLICTO_ABIERTO,
     }),
     EstadoFinanciero.TRANSFERIDO: frozenset({
         EstadoFinanciero.TRANSFERENCIA_REVERTIDA,

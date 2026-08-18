@@ -259,6 +259,7 @@ def evaluar_reconciliacion_contacto(
         estado_financiero=estado,
         financial_transfer=ft,
         stripe_snapshot=snap,
+        conflicto_abierto=_conflicto_bloquea(db, contacto_id),
     )
     return {
         "status": "success",
@@ -320,7 +321,19 @@ def _evaluar_y_aplicar(
         financial_transfer=ft,
         stripe_snapshot=snapshot,
         legacy_confirmacion=legacy_confirmacion,
+        conflicto_abierto=_conflicto_bloquea(db, contacto_id),
     )
+
+    if decision == DecisionReconciliacionTransfer.BLOCKED:
+        reconciliation.registrar_discrepancia(
+            db, contacto_id, TipoDiscrepancia.STATUS_MISMATCH,
+            stripe_transfer_id=transfer_id,
+            ruana_estado=estado.value if estado else "",
+            stripe_estado=event_type,
+            metadata={"event_id": event_id, "motivo": motivo, "conflicto": True},
+        )
+        _marcar_reconciliacion(db, contacto_id, DecisionReconciliacionTransfer.BLOCKED.value)
+        return decision, motivo, "bloqueado_conflicto"
 
     if decision == DecisionReconciliacionTransfer.MISMATCH:
         tipo = {
@@ -449,6 +462,12 @@ def _cargar_ultimo_snapshot(db, contacto_id: int) -> Optional[Dict[str, Any]]:
         snap = _transfer_repo.ultimo_snapshot(cursor, contacto_id)
         conn.close()
     return snap
+
+
+def _conflicto_bloquea(db, contacto_id: int) -> bool:
+    from core.services import financial_conflict_service as fcs
+    bloquea, _ = fcs.bloquea_operaciones_financieras(db, contacto_id)
+    return bloquea
 
 
 def _cargar_financial_transfer(db, contacto_id: int) -> Optional[Dict[str, Any]]:
