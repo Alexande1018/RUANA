@@ -38,6 +38,9 @@
       document.querySelectorAll('[data-action="invitar-aliado"]').forEach((btn) => {
           btn.addEventListener('click', () => host.generarCodigoInvitacionPerfil());
       });
+      document.querySelectorAll('[data-action="invitar-crecimiento-grupo"]').forEach((btn) => {
+          btn.addEventListener('click', () => host.generarCodigoInvitacionCrecimientoGrupo());
+      });
       const filtrosAcuerdos = document.getElementById('mis-acuerdos-filtros');
       if (filtrosAcuerdos) {
           filtrosAcuerdos.addEventListener('click', (e) => {
