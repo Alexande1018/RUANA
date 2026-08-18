@@ -162,6 +162,155 @@
 
     let currentModule = 'resumen';
     let scrollSpyObserver = null;
+    let _suppressNavPush = false;
+    let _historyAnchor = 0;
+
+    function parseAdminHash(raw) {
+        const h = (raw || '').replace(/^#/, '').trim();
+        if (!h) return { module: 'resumen' };
+        if (h.startsWith('finanzas-detalle-')) {
+            return {
+                module: 'finanzas',
+                finSection: 'detalle',
+                finDetailId: h.slice('finanzas-detalle-'.length)
+            };
+        }
+        if (h.startsWith('finanzas-')) {
+            return { module: 'finanzas', finSection: h.slice('finanzas-'.length) || 'resumen' };
+        }
+        if (MODULE_DEFS.some((m) => m.id === h)) {
+            return { module: h };
+        }
+        return { module: 'resumen' };
+    }
+
+    function buildAdminHash(nav) {
+        const n = nav || {};
+        if (n.module === 'finanzas') {
+            if (n.finSection === 'detalle' && n.finDetailId) {
+                return '#finanzas-detalle-' + n.finDetailId;
+            }
+            if (n.finSection && n.finSection !== 'resumen') {
+                return '#finanzas-' + n.finSection;
+            }
+            return '#finanzas';
+        }
+        return '#' + (n.module || 'resumen');
+    }
+
+    function finSectionFromSelector(selector) {
+        if (!selector) return null;
+        if (selector === '#financial-admin-wrap') return 'resumen';
+        const match = /^#finanzas-(.+)$/.exec(selector);
+        return match ? match[1] : null;
+    }
+
+    function isAdminHomeNav(nav) {
+        const n = nav || {};
+        return n.module === 'resumen' && !n.finSection && !n.scrollTarget;
+    }
+
+    function updateNavBackButton() {
+        const btn = document.getElementById('adminNavBack');
+        if (!btn) return;
+        const nav = parseAdminHash(location.hash);
+        const canBack = !isAdminHomeNav(nav) || window.history.length > Math.max(1, _historyAnchor + 1);
+        btn.hidden = !canBack;
+        btn.disabled = !canBack;
+    }
+
+    function applyAdminNav(nav, options) {
+        const opts = options || {};
+        const targetModule = MODULE_DEFS.some((m) => m.id === nav.module) ? nav.module : 'resumen';
+        currentModule = targetModule;
+
+        document.querySelectorAll('.admin-module').forEach((pane) => {
+            const active = pane.getAttribute('data-admin-module') === targetModule;
+            pane.classList.toggle('is-active', active);
+            pane.setAttribute('aria-hidden', active ? 'false' : 'true');
+        });
+
+        document.querySelectorAll('[data-admin-module-nav]').forEach((btn) => {
+            btn.classList.toggle('is-active', btn.getAttribute('data-admin-module-nav') === targetModule);
+        });
+
+        renderModuleSwitcher();
+        const search = document.getElementById('adminNavSearch');
+        renderNavItems(search ? search.value : '');
+
+        if (!opts.skipScroll) {
+            window.scrollTo({ top: 0, behavior: opts.instant ? 'auto' : 'smooth' });
+        }
+
+        setupScrollSpy();
+        onModuleActivated(targetModule);
+
+        if (targetModule === 'finanzas' && window.RuanaAdminModules?.financial) {
+            const fin = window.RuanaAdminModules.financial;
+            if (nav.finSection === 'detalle' && nav.finDetailId && fin.loadOperation) {
+                fin.loadOperation(nav.finDetailId, { skipHistory: true });
+            } else if (fin.showSection) {
+                fin.showSection(nav.finSection || 'resumen', { skipHistory: true });
+            }
+        }
+
+        if (nav.scrollTarget) {
+            const el = document.querySelector(nav.scrollTarget);
+            if (el) {
+                requestAnimationFrame(() => {
+                    el.scrollIntoView({
+                        behavior: opts.instant ? 'auto' : 'smooth',
+                        block: 'start'
+                    });
+                });
+            }
+        }
+
+        updateNavBackButton();
+        return targetModule;
+    }
+
+    function pushAdminNav(nav) {
+        if (_suppressNavPush) return;
+        _suppressNavPush = true;
+        const hash = buildAdminHash(nav);
+        const state = Object.assign({ ruanaAdmin: true }, nav);
+        try {
+            history.pushState(state, '', '/admin' + hash);
+        } catch (_) {
+            if (location.hash !== hash) location.hash = hash;
+        }
+        setTimeout(function () { _suppressNavPush = false; }, 0);
+        updateNavBackButton();
+    }
+
+    function navigateAdmin(nav, options) {
+        const opts = options || {};
+        applyAdminNav(nav, opts);
+        if (opts.pushHistory !== false) {
+            pushAdminNav(nav);
+        }
+    }
+
+    function goAdminHome() {
+        navigateAdmin({ module: 'resumen' });
+    }
+
+    function goAdminBack() {
+        if (window.history.length > 1) {
+            history.back();
+        } else {
+            goAdminHome();
+        }
+    }
+
+    function pushFinanzasNav(sectionId, detailId) {
+        const nav = { module: 'finanzas', finSection: sectionId || 'resumen' };
+        if (sectionId === 'detalle' && detailId != null && detailId !== '') {
+            nav.finDetailId = String(detailId);
+        }
+        pushAdminNav(nav);
+    }
 
     const ADMIN_DELETE_MOTIVO = 'Gestionado desde panel de administración.';
     const SIDEBAR_MOBILE_MQ = '(max-width: 960px)';
@@ -748,35 +897,26 @@
     function showModule(moduleId, options) {
         const opts = options || {};
         const target = MODULE_DEFS.some((m) => m.id === moduleId) ? moduleId : 'resumen';
-        currentModule = target;
+        const nav = { module: target };
 
-        document.querySelectorAll('.admin-module').forEach((pane) => {
-            const active = pane.getAttribute('data-admin-module') === target;
-            pane.classList.toggle('is-active', active);
-            pane.setAttribute('aria-hidden', active ? 'false' : 'true');
-        });
+        if (opts.pushHistory) {
+            navigateAdmin(nav, Object.assign({}, opts, { pushHistory: true }));
+            return target;
+        }
 
-        document.querySelectorAll('[data-admin-module-nav]').forEach((btn) => {
-            btn.classList.toggle('is-active', btn.getAttribute('data-admin-module-nav') === target);
-        });
-
-        renderModuleSwitcher();
-        const search = document.getElementById('adminNavSearch');
-        renderNavItems(search ? search.value : '');
+        applyAdminNav(nav, opts);
 
         if (!opts.skipHash) {
+            _suppressNavPush = true;
             try {
-                const hash = '#' + target;
-                if (location.hash !== hash) history.replaceState(null, '', hash);
+                const hash = buildAdminHash(nav);
+                if (location.hash !== hash) {
+                    history.replaceState(Object.assign({ ruanaAdmin: true }, nav), '', '/admin' + hash);
+                }
             } catch (_) { /* ignore */ }
+            setTimeout(function () { _suppressNavPush = false; }, 0);
         }
 
-        if (!opts.skipScroll) {
-            window.scrollTo({ top: 0, behavior: opts.instant ? 'auto' : 'smooth' });
-        }
-
-        setupScrollSpy();
-        onModuleActivated(target);
         closeSidebarIfOverlay();
         return target;
     }
@@ -836,9 +976,23 @@
         }
     }
 
-    function navigateTo(selector) {
-        ensureModuleForTarget(selector);
-        handleSpecialNavigation(selector);
+    function navigateTo(selector, options) {
+        const opts = options || {};
+        const push = opts.pushHistory !== false;
+        const finSec = finSectionFromSelector(selector);
+        if (finSec) {
+            navigateAdmin({ module: 'finanzas', finSection: finSec }, { pushHistory: push, skipScroll: true });
+        } else {
+            handleSpecialNavigation(selector);
+            const section = NAV_SECTIONS.find((s) => s.target === selector);
+            const navItem = NAV_ITEMS.find((s) => s.target === selector);
+            const mod = (section && section.module) || (navItem && navItem.module);
+            if (mod) {
+                navigateAdmin({ module: mod, scrollTarget: selector }, { pushHistory: push, skipScroll: true });
+            } else {
+                ensureModuleForTarget(selector);
+            }
+        }
         const target = document.querySelector(selector === '#red-view-referidos' || selector === '#red-view-jerarquia'
             ? '#control-aliados-wrap'
             : selector);
@@ -910,7 +1064,7 @@
         document.body.appendChild(nav);
         nav.querySelectorAll('[data-admin-module-nav]').forEach((btn) => {
             btn.addEventListener('click', () => {
-                showModule(btn.getAttribute('data-admin-module-nav'));
+                showModule(btn.getAttribute('data-admin-module-nav'), { pushHistory: true });
             });
         });
     }
@@ -970,11 +1124,19 @@
         buildSidebarBackdrop();
 
         const hash = (location.hash || '').replace(/^#/, '');
-        if (MODULE_DEFS.some((m) => m.id === hash)) {
-            showModule(hash, { skipHash: true, instant: true });
-        } else {
-            showModule('resumen', { skipHash: false, instant: true });
-        }
+        _historyAnchor = window.history.length;
+        const initialNav = parseAdminHash(hash);
+        _suppressNavPush = true;
+        applyAdminNav(initialNav, { skipHash: true, instant: true, skipScroll: true });
+        try {
+            history.replaceState(
+                Object.assign({ ruanaAdmin: true }, initialNav),
+                '',
+                '/admin' + buildAdminHash(initialNav)
+            );
+        } catch (_) { /* ignore */ }
+        setTimeout(function () { _suppressNavPush = false; }, 0);
+        updateNavBackButton();
 
         // Route KPI shortcuts into modules without changing AdminPanel handlers
         document.addEventListener('click', (e) => {
@@ -990,8 +1152,17 @@
         }, true);
 
         window.addEventListener('hashchange', () => {
-            const h = (location.hash || '').replace(/^#/, '');
-            if (MODULE_DEFS.some((m) => m.id === h)) showModule(h, { skipHash: true });
+            if (_suppressNavPush) return;
+            _suppressNavPush = true;
+            applyAdminNav(parseAdminHash(location.hash), { skipHash: true });
+            _suppressNavPush = false;
+        });
+
+        window.addEventListener('popstate', (e) => {
+            _suppressNavPush = true;
+            const nav = (e.state && e.state.ruanaAdmin) ? e.state : parseAdminHash(location.hash);
+            applyAdminNav(nav, { skipHash: true });
+            _suppressNavPush = false;
         });
     }
 
@@ -1005,7 +1176,9 @@
             </button>
         `).join('');
         wrap.querySelectorAll('[data-admin-module-nav]').forEach((btn) => {
-            btn.addEventListener('click', () => showModule(btn.getAttribute('data-admin-module-nav')));
+            btn.addEventListener('click', () => {
+                showModule(btn.getAttribute('data-admin-module-nav'), { pushHistory: true });
+            });
         });
     }
 
@@ -1494,6 +1667,35 @@
         }
     }
 
+    function setupAdminNavButtons() {
+        if (window._ruanaAdminNavButtonsReady) return;
+        window._ruanaAdminNavButtonsReady = true;
+
+        const backBtn = document.getElementById('adminNavBack');
+        const homeBtn = document.getElementById('adminNavHome');
+        const brand = document.getElementById('adminBrandHome');
+
+        if (backBtn) {
+            backBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                goAdminBack();
+            });
+        }
+        if (homeBtn) {
+            homeBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                goAdminHome();
+            });
+        }
+        if (brand) {
+            brand.addEventListener('click', (e) => {
+                e.preventDefault();
+                goAdminHome();
+            });
+        }
+        updateNavBackButton();
+    }
+
     function setupTopbarExtras() {
         const actions = document.querySelector('.admin-topbar-actions');
         const brand = document.querySelector('.admin-topbar-brand');
@@ -1544,6 +1746,7 @@
         buildDangerModal();
         buildAuditDrawer();
         setupTopbarExtras();
+        setupAdminNavButtons();
         observeMutations();
 
         if (window.RuanaAdminModules && window.RuanaAdminModules.commandCenter) {
@@ -1604,7 +1807,11 @@
         toggleSidebar,
         setSidebarOpen,
         getCurrentModule,
-        refreshActiveModule
+        refreshActiveModule,
+        goBack: goAdminBack,
+        goHome: goAdminHome,
+        pushFinanzasNav,
+        parseAdminHash
     };
 
     if (document.readyState === 'loading') {

@@ -61,6 +61,32 @@
       ' · Frescura: ' + esc(meta.data_freshness) + '</p>';
   }
 
+  function ensureFinToolbar() {
+    var wrap = document.getElementById('financial-admin-wrap');
+    if (!wrap || wrap.querySelector('.fin-toolbar')) return;
+    var bar = document.createElement('div');
+    bar.className = 'fin-toolbar';
+    bar.innerHTML = '<button type="button" class="fin-back-btn" id="finSectionBack">← Volver</button>';
+    wrap.insertBefore(bar, wrap.firstChild);
+    var backBtn = bar.querySelector('#finSectionBack');
+    if (backBtn) {
+      backBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (global.AdminShell && global.AdminShell.goBack) {
+          global.AdminShell.goBack();
+        } else {
+          history.back();
+        }
+      });
+    }
+  }
+
+  function updateFinToolbar() {
+    var btn = document.getElementById('finSectionBack');
+    if (!btn) return;
+    btn.hidden = currentSection === 'resumen';
+  }
+
   function renderNav(container) {
     container.innerHTML = '<nav class="fin-nav" role="tablist">' + SECTIONS.map(function (s) {
       return '<button type="button" class="fin-nav-btn' + (s.id === currentSection ? ' is-active' : '') +
@@ -68,15 +94,17 @@
     }).join('') + '</nav>';
     container.querySelectorAll('[data-fin-nav]').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        showSection(btn.getAttribute('data-fin-nav'));
+        showSection(btn.getAttribute('data-fin-nav'), { pushHistory: true });
       });
     });
   }
 
-  function showSection(id) {
+  function showSection(id, options) {
+    var opts = options || {};
     currentSection = id || 'resumen';
     var wrap = document.getElementById('financial-admin-wrap');
     if (!wrap) return;
+    ensureFinToolbar();
     wrap.hidden = false;
     wrap.querySelectorAll('.fin-section').forEach(function (el) {
       var active = el.getAttribute('data-fin-section') === currentSection;
@@ -89,6 +117,10 @@
       wrap.querySelectorAll('.fin-nav-btn').forEach(function (b) {
         b.classList.toggle('is-active', b.getAttribute('data-fin-nav') === currentSection);
       });
+    }
+    updateFinToolbar();
+    if (opts.pushHistory && global.AdminShell && global.AdminShell.pushFinanzasNav) {
+      global.AdminShell.pushFinanzasNav(currentSection);
     }
     loadSection(currentSection);
   }
@@ -251,9 +283,13 @@
     }).catch(function () { renderError(host, 'Error de red'); });
   }
 
-  function loadOperation(contactoId) {
+  function loadOperation(contactoId, options) {
+    var opts = options || {};
     currentSection = 'detalle';
-    showSection('detalle');
+    showSection('detalle', { skipHistory: true });
+    if (!opts.skipHistory && global.AdminShell && global.AdminShell.pushFinanzasNav) {
+      global.AdminShell.pushFinanzasNav('detalle', contactoId);
+    }
     var host = document.getElementById('finanzas-detalle');
     if (!host) return;
     renderLoading(host);

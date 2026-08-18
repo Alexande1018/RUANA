@@ -1,6 +1,28 @@
 from pathlib import Path
 
 
+def test_admin_navigation_home_and_back_buttons():
+    """Inicio permanece en /admin; Volver usa historial; finanzas tiene toolbar."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    admin_html = (root / "admin.html").read_text(encoding="utf-8")
+    shell_js = (root / "static" / "js" / "admin-shell.js").read_text(encoding="utf-8")
+    financial_js = (root / "static" / "js" / "admin-financial-module.js").read_text(encoding="utf-8")
+
+    assert 'id="adminNavHome"' in admin_html
+    assert 'id="adminNavBack"' in admin_html
+    assert 'id="adminBrandHome"' in admin_html
+    assert 'href="/admin#resumen"' in admin_html
+    assert 'class="admin-topbar-link">← Inicio</a>' not in admin_html
+    assert "goAdminHome" in shell_js
+    assert "goAdminBack" in shell_js
+    assert "pushAdminNav" in shell_js
+    assert "parseAdminHash" in shell_js
+    assert "finanzas-detalle-" in shell_js
+    assert "fin-toolbar" in financial_js
+    assert "finSectionBack" in financial_js
+    assert "pushHistory: true" in financial_js
+
+
 def test_admin_financial_module_uses_shared_auth_headers():
     """El panel financiero debe reutilizar la misma cabecera de sesión que el resto del admin."""
     root = Path(__file__).resolve().parents[1] / "web"
