@@ -317,3 +317,118 @@ def submit_dispute_evidence(dispute_id: str) -> Dict[str, Any]:
     if stripe is None:
         raise RuntimeError("Stripe no configurado (falta STRIPE_SECRET_KEY)")
     return dict(stripe.Dispute.submit_evidence(dispute_id))
+
+
+# --- Lecturas seguras FASE 07 (solo observación, sin mutación) ---
+
+class StripeReadError(Exception):
+    def __init__(self, code: str, message: str = "", http_status: int = 0):
+        super().__init__(message or code)
+        self.code = code
+        self.http_status = http_status
+
+
+def _classify_stripe_exception(exc: Exception) -> StripeReadError:
+    msg = str(exc).lower()
+    http_status = int(getattr(exc, "http_status", 0) or 0)
+    if http_status == 404 or "no such" in msg or "not found" in msg:
+        return StripeReadError("missing", str(exc)[:500], http_status)
+    if http_status == 429 or "rate limit" in msg:
+        return StripeReadError("rate_limit", str(exc)[:500], http_status)
+    if http_status >= 500 or "timeout" in msg or "timed out" in msg:
+        return StripeReadError("server_error", str(exc)[:500], http_status)
+    if "connection" in msg or "network" in msg:
+        return StripeReadError("unavailable", str(exc)[:500], http_status)
+    return StripeReadError("error", str(exc)[:500], http_status)
+
+
+def safe_stripe_read(fn, *args, **kwargs) -> Dict[str, Any]:
+    """Ejecuta lectura Stripe y devuelve {status, data, error_code, http_status}."""
+    try:
+        data = fn(*args, **kwargs)
+        return {"status": "ok", "data": data, "error_code": "", "http_status": 200}
+    except StripeReadError as e:
+        status = "missing" if e.code == "missing" else "pending" if e.code in ("rate_limit", "server_error") else "error"
+        if e.code == "unavailable":
+            status = "unavailable"
+        return {"status": status, "data": None, "error_code": e.code, "http_status": e.http_status}
+    except Exception as e:
+        classified = _classify_stripe_exception(e)
+        status = "missing" if classified.code == "missing" else "pending" if classified.code in ("rate_limit", "server_error") else "error"
+        if classified.code == "unavailable":
+            status = "unavailable"
+        return {"status": status, "data": None, "error_code": classified.code, "http_status": classified.http_status}
+
+
+def retrieve_payment_intent_safe(payment_intent_id: str) -> Dict[str, Any]:
+    return safe_stripe_read(retrieve_payment_intent, payment_intent_id)
+
+
+def retrieve_charge_safe(charge_id: str) -> Dict[str, Any]:
+    return safe_stripe_read(retrieve_charge, charge_id)
+
+
+def retrieve_balance_transaction_safe(balance_transaction_id: str) -> Dict[str, Any]:
+    return safe_stripe_read(retrieve_balance_transaction, balance_transaction_id)
+
+
+def retrieve_transfer_safe(transfer_id: str) -> Dict[str, Any]:
+    return safe_stripe_read(retrieve_transfer, transfer_id)
+
+
+def retrieve_account_safe(account_id: str) -> Dict[str, Any]:
+    return safe_stripe_read(retrieve_account, account_id)
+
+
+def retrieve_refund(refund_id: str) -> Dict[str, Any]:
+    stripe = configure_stripe()
+    if stripe is None:
+        raise RuntimeError("Stripe no configurado (falta STRIPE_SECRET_KEY)")
+    return dict(stripe.Refund.retrieve(refund_id))
+
+
+def retrieve_refund_safe(refund_id: str) -> Dict[str, Any]:
+    return safe_stripe_read(retrieve_refund, refund_id)
+
+
+def retrieve_dispute_safe(dispute_id: str) -> Dict[str, Any]:
+    return safe_stripe_read(retrieve_dispute, dispute_id)
+
+
+def list_payment_intent_charges(payment_intent_id: str, *, limit: int = 10) -> Dict[str, Any]:
+    stripe = configure_stripe()
+    if stripe is None:
+        raise RuntimeError("Stripe no configurado (falta STRIPE_SECRET_KEY)")
+    result = stripe.Charge.list(payment_intent=payment_intent_id, limit=limit)
+    return {"data": [dict(c) for c in (result.get("data") or [])]}
+
+
+def list_payment_intent_charges_safe(payment_intent_id: str, *, limit: int = 10) -> Dict[str, Any]:
+    return safe_stripe_read(list_payment_intent_charges, payment_intent_id, limit=limit)
+
+
+def list_refunds(
+    *,
+    payment_intent_id: str = "",
+    charge_id: str = "",
+    limit: int = 20,
+) -> Dict[str, Any]:
+    stripe = configure_stripe()
+    if stripe is None:
+        raise RuntimeError("Stripe no configurado (falta STRIPE_SECRET_KEY)")
+    params: Dict[str, Any] = {"limit": limit}
+    if payment_intent_id:
+        params["payment_intent"] = payment_intent_id
+    if charge_id:
+        params["charge"] = charge_id
+    result = stripe.Refund.list(**params)
+    return {"data": [dict(r) for r in (result.get("data") or [])]}
+
+
+def list_refunds_safe(
+    *,
+    payment_intent_id: str = "",
+    charge_id: str = "",
+    limit: int = 20,
+) -> Dict[str, Any]:
+    return safe_stripe_read(list_refunds, payment_intent_id=payment_intent_id, charge_id=charge_id, limit=limit)

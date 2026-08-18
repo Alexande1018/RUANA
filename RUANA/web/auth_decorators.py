@@ -208,6 +208,31 @@ def require_dispute_permission(permiso_requerido: str):
     return decorator
 
 
+def require_reconciliation_permission(permiso_requerido: str):
+    """Decorator: admin autenticado + permiso granular de reconciliación (deny-by-default)."""
+    from core.reconciliation_authorization import tiene_permiso_recon
+
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            if not _admin_session_valid() and not (
+                _admin_jwt_payload() and _admin_jwt_payload().get("admin_codigo")
+            ):
+                return jsonify({
+                    "status": "error",
+                    "message": "Sesión admin expirada o no autorizado",
+                }), 401
+            if not tiene_permiso_recon(_admin_permisos(), permiso_requerido):
+                return jsonify({
+                    "status": "error",
+                    "message": f"Permiso requerido: {permiso_requerido}",
+                    "permiso_requerido": permiso_requerido,
+                }), 403
+            return f(*args, **kwargs)
+        return wrapped
+    return decorator
+
+
 def _aliado_session_valid():
     """True si hay sesión de aliado válida."""
     s = _get_ruana_session()
