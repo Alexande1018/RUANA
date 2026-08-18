@@ -5,6 +5,7 @@
  * `operaciones` → admin-operaciones-module.js (conflictos pago / pagos Apoyo / en revisión)
  * `red` → admin-red-module.js (jerarquía CP→grupo→tarjetas, linaje, detalle)
  * `sistema` → admin-sistema-module.js (campañas, códigos, reglas, métodos pago, plazas)
+ * `finanzas` → admin-financial-module.js (panel financiero FASE 09)
  */
 (function (global) {
   'use strict';
@@ -13,5 +14,6 @@
     operaciones: null,
     red: null,
     sistema: null,
+    financial: null,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

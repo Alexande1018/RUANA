@@ -426,6 +426,7 @@ def _init_db(db):
             db._migrar_financial_fase06_disputes(conn, cursor)
             db._migrar_financial_fase07_reconciliation(conn, cursor)
             db._migrar_financial_fase08_ledger(conn, cursor)
+            db._migrar_financial_fase09_admin_panel(conn, cursor)
 
             conn.commit()
             print(f"[RUANA][DB] Base de datos inicializada en: {db.db_path}")
@@ -1594,6 +1595,35 @@ def _migrar_financial_fase08_ledger(db, conn, cursor) -> None:
             actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (account_code, contacto_id, currency)
         )
+    """)
+
+
+def _migrar_financial_fase09_admin_panel(db, conn, cursor) -> None:
+    """FASE 09: panel administrativo financiero — resoluciones de alertas."""
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS financial_admin_alert_actions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            alert_key TEXT NOT NULL,
+            contacto_id INTEGER,
+            accion TEXT NOT NULL DEFAULT 'resolved',
+            motivo TEXT NOT NULL,
+            actor_codigo TEXT NOT NULL,
+            permiso_usado TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (alert_key, accion)
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_fin_admin_alert_key
+        ON financial_admin_alert_actions(alert_key)
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_fin_admin_alert_contacto
+        ON financial_admin_alert_actions(contacto_id)
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_contactos_stripe_estado
+        ON contactos_ruana(modo_pago, estado_financiero)
     """)
 
 
