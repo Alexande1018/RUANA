@@ -7,6 +7,7 @@ from functools import lru_cache
 from typing import Any, Dict, Optional
 
 from core.settings import get_settings
+from core.runtime_environment import is_test_context
 
 DEFAULT_STRIPE_API_VERSION = "2024-11-20.acacia"
 
@@ -42,17 +43,12 @@ def configure_stripe() -> Optional[Any]:
     secret = (settings.stripe_secret_key or "").strip()
     if not secret:
         return None
-    from core.runtime_environment import is_production, is_test_context
-    from core.startup_validation import validate_stripe_mode_and_keys
+    from core.startup_validation import validate_stripe_key_prefix_at_runtime
 
     mode = (os.environ.get("RUANA_STRIPE_MODE") or "").strip().lower()
     if not mode and is_test_context():
         mode = "test"
-    validate_stripe_mode_and_keys(
-        stripe_mode=mode,
-        stripe_secret_key=secret,
-        production=is_production(),
-    )
+    validate_stripe_key_prefix_at_runtime(stripe_mode=mode, stripe_secret_key=secret)
     stripe = _stripe_module()
     stripe.api_key = secret
     stripe.api_version = get_stripe_api_version()
