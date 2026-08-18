@@ -5,16 +5,14 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+from core.financial_schema_health import tabla_existe as _tabla_existe
+
 
 class FinancialAutomationRepo:
     MAX_LIMIT = 200
 
     def tabla_existe(self, cursor, nombre: str) -> bool:
-        cursor.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
-            (nombre,),
-        )
-        return cursor.fetchone() is not None
+        return _tabla_existe(cursor, nombre)
 
     def _now_iso(self) -> str:
         return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
