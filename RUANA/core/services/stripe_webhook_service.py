@@ -578,7 +578,7 @@ def _handle_charge_refunded(
 def _handle_refund_updated(
     db, obj, event_id: str
 ) -> Tuple[Optional[int], str, str, str]:
-    """charge.refund.updated / refund.updated: sincroniza financial_refunds sin crear refund."""
+    """refund.updated: sincroniza financial_refunds existentes sin crear refund."""
     stripe_refund_id = _object_id(obj)
     charge_id = str(_get(obj, "charge") or "")
     payment_intent_id = str(_get(obj, "payment_intent") or "")
@@ -705,7 +705,7 @@ _HANDLERS = {
     "transfer.reversed": _handle_transfer_reversed,
     "transfer.failed": _handle_transfer_failed,
     "charge.refunded": _handle_charge_refunded,
-    "charge.refund.updated": _handle_refund_updated,
+    # refund.updated es el evento unificado recomendado por Stripe (charge.refund.updated está deprecado).
     "refund.updated": _handle_refund_updated,
     "charge.dispute.created": _handle_charge_dispute_created,
 }
