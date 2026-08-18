@@ -13,12 +13,15 @@ from flask import Blueprint, jsonify, request
 from core import db_manager as db_manager_mod
 from core.services import pago_service
 from core.storage_manager import upload_ruana_file as _upload_ruana_file_default
+from core.conflict_authorization import CONFLICT_RESOLVE
 from web.auth_decorators import (
     _admin_codigo,
     _aliado_codigo,
     require_admin_escritura,
     require_aliado,
+    require_conflict_permission,
 )
+from web.financial_rate_limit import limit_financial_mutation
 
 pagos_bp = Blueprint("pagos", __name__)
 
@@ -123,12 +126,13 @@ def admin_subir_qr_revolut():
 
 
 @pagos_bp.route("/api/admin/payment-conflicts/<int:conflict_id>/resolver", methods=["POST"])
-@require_admin_escritura
+@require_conflict_permission(CONFLICT_RESOLVE)
+@limit_financial_mutation
 def admin_resolver_payment_conflict(conflict_id):
     """
     POST /api/admin/payment-conflicts/<id>/resolver
-    Body: { "decision": "contratante" | "profesional" | "rechazado", "comentario": "texto obligatorio" }
-    Marca estado RESUELTO/RECHAZADO, guarda comentario_admin; si resuelve a favor, cierra trabajo e importe.
+    DEPRECADO: delega en financial_conflict_service con permiso granular FASE 10.
+    Body legacy: { "decision": "contratante" | "profesional" | "rechazado", "comentario": "..." }
     """
     try:
         data = request.get_json() or {}

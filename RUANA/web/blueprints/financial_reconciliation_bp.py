@@ -147,6 +147,8 @@ def obtener_ejecucion(execution_id: int):
 def _http(result: Dict[str, Any]) -> Tuple[Any, int]:
     if result.get("status") == "success":
         return jsonify(result), 200
+    if result.get("code") == "version_conflict":
+        return jsonify(result), 409
     if result.get("message") == "Contacto no encontrado":
         return jsonify(result), 404
     return jsonify(result), 400

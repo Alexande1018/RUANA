@@ -122,6 +122,13 @@ app.register_blueprint(financial_admin_bp)
 # Cookie de sesión segura (aliado y admin)
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+_secure_cookie = os.environ.get('RUANA_SESSION_COOKIE_SECURE', '').strip().lower()
+if _secure_cookie in ('1', 'true', 'yes'):
+    app.config['SESSION_COOKIE_SECURE'] = True
+elif _secure_cookie in ('0', 'false', 'no'):
+    app.config['SESSION_COOKIE_SECURE'] = False
+elif os.environ.get('FLASK_ENV', '').strip().lower() == 'production':
+    app.config['SESSION_COOKIE_SECURE'] = True
 
 if CORS is not None:
     CORS(app)

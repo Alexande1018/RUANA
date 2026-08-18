@@ -106,6 +106,7 @@ def ejecutar_reembolso_desde_conflicto(
     causa_ruana: str = "",
     parte_ejecutada_cents: int = 0,
     conservar_comision_total: bool = False,
+    approval_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     with db._lock:
         conn = db._connect()
@@ -149,6 +150,7 @@ def ejecutar_reembolso_desde_conflicto(
         conflicto_id=conflicto_id,
         parte_ejecutada_cents=parte_ejecutada_cents,
         conservar_comision_total=conservar_comision_total,
+        approval_id=approval_id,
     )
 
 
@@ -165,6 +167,7 @@ def ejecutar_reembolso(
     parte_ejecutada_cents: int = 0,
     conservar_comision_total: bool = False,
     motivo_stripe: str = "requested_by_customer",
+    approval_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     if importe_solicitado_cents <= 0:
         return {"status": "error", "message": "importe_solicitado_cents debe ser > 0"}
@@ -174,6 +177,26 @@ def ejecutar_reembolso(
         return {"status": "error", "message": f"causa_ruana inválida: {causa_ruana}"}
     if not CausaReembolso.permite_ejecucion(causa):
         return {"status": "error", "message": "causa indeterminada: fondos bloqueados", "bloqueo": "causa_indeterminada"}
+
+    from core.services import financial_action_approval_service as faas
+    import os
+    require_approval = os.environ.get("RUANA_FINANCIAL_REQUIRE_APPROVAL", "1").strip().lower() not in ("0", "false", "no")
+    if require_approval:
+        if not approval_id:
+            return {
+                "status": "error",
+                "message": "approval_id obligatorio cuando RUANA_FINANCIAL_REQUIRE_APPROVAL=1",
+            }
+        chk = faas.consumir_aprobacion_para_ejecucion(
+            db, int(approval_id),
+            actor=actor,
+            action_type=faas.ACTION_REFUND_EXECUTE,
+            contacto_id=contacto_id,
+            importe_cents=importe_solicitado_cents,
+            currency="eur",
+        )
+        if chk.get("status") != "success":
+            return chk
 
     with _lock_por_contacto(contacto_id):
         return _ejecutar_reembolso_locked(

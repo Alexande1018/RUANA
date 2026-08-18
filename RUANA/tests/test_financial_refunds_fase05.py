@@ -22,6 +22,7 @@ from core.services import financial_refund_service as frs
 @pytest.fixture
 def sqlite_db(tmp_path, monkeypatch):
     monkeypatch.setenv("RUANA_STRIPE_PAYMENTS_ENABLED", "1")
+    monkeypatch.setenv("RUANA_FINANCIAL_REQUIRE_APPROVAL", "0")
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_x")
     monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_test")
     from core.settings import get_settings

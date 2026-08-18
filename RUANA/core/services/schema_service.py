@@ -427,6 +427,7 @@ def _init_db(db):
             db._migrar_financial_fase07_reconciliation(conn, cursor)
             db._migrar_financial_fase08_ledger(conn, cursor)
             db._migrar_financial_fase09_admin_panel(conn, cursor)
+            db._migrar_financial_fase10_security(conn, cursor)
 
             conn.commit()
             print(f"[RUANA][DB] Base de datos inicializada en: {db.db_path}")
@@ -1624,6 +1625,76 @@ def _migrar_financial_fase09_admin_panel(db, conn, cursor) -> None:
     _repo.execute(cursor, """
         CREATE INDEX IF NOT EXISTS idx_contactos_stripe_estado
         ON contactos_ruana(modo_pago, estado_financiero)
+    """)
+
+
+def _migrar_financial_fase10_security(db, conn, cursor) -> None:
+    """FASE 10: aprobaciones de acciones sensibles + auditoría financiera unificada."""
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS financial_action_approvals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            action_id TEXT NOT NULL,
+            action_type TEXT NOT NULL,
+            contacto_id INTEGER,
+            actor_solicitante TEXT NOT NULL,
+            actor_autorizador TEXT,
+            importe_cents INTEGER NOT NULL DEFAULT 0,
+            currency TEXT NOT NULL DEFAULT 'eur',
+            motivo TEXT NOT NULL,
+            estado TEXT NOT NULL DEFAULT 'REQUESTED',
+            version INTEGER NOT NULL DEFAULT 1,
+            idempotency_key TEXT NOT NULL,
+            expires_at TIMESTAMP,
+            metadata_json TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            approved_at TIMESTAMP,
+            executed_at TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (action_id, estado)
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_fin_approval_estado
+        ON financial_action_approvals(estado)
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_fin_approval_contacto
+        ON financial_action_approvals(contacto_id)
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_fin_approval_idem
+        ON financial_action_approvals(idempotency_key)
+    """)
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS financial_audit_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            request_id TEXT NOT NULL,
+            actor_codigo TEXT NOT NULL,
+            permiso_usado TEXT,
+            rol_capacidad TEXT,
+            accion TEXT NOT NULL,
+            recurso_tipo TEXT NOT NULL,
+            recurso_id TEXT NOT NULL,
+            importe_cents INTEGER,
+            moneda TEXT DEFAULT 'eur',
+            version_recursos INTEGER,
+            idempotency_key TEXT,
+            motivo TEXT,
+            resultado TEXT NOT NULL DEFAULT 'success',
+            error_sanitizado TEXT,
+            metadata_json TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_fin_audit_actor ON financial_audit_log(actor_codigo)
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_fin_audit_recurso
+        ON financial_audit_log(recurso_tipo, recurso_id)
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_fin_audit_created ON financial_audit_log(created_at DESC)
     """)
 
 

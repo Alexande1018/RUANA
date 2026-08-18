@@ -283,6 +283,31 @@ def require_financial_admin_permission(permiso_requerido: str):
     return decorator
 
 
+def require_financial_permission(permiso_requerido: str):
+    """Decorator: admin + permiso financiero centralizado FASE 10 (deny-by-default)."""
+    from core.financial_security_authorization import tiene_permiso_financiero
+
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            if not _admin_session_valid() and not (
+                _admin_jwt_payload() and _admin_jwt_payload().get("admin_codigo")
+            ):
+                return jsonify({
+                    "status": "error",
+                    "message": "Sesión admin expirada o no autorizado",
+                }), 401
+            if not tiene_permiso_financiero(_admin_permisos(), permiso_requerido):
+                return jsonify({
+                    "status": "error",
+                    "message": f"Permiso requerido: {permiso_requerido}",
+                    "permiso_requerido": permiso_requerido,
+                }), 403
+            return f(*args, **kwargs)
+        return wrapped
+    return decorator
+
+
 def _aliado_session_valid():
     """True si hay sesión de aliado válida."""
     s = _get_ruana_session()
