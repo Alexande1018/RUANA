@@ -14,13 +14,15 @@ from flask import Blueprint, jsonify, request
 
 from core import db_manager as db_manager_mod
 from core.services import aliado_service, invitacion_service
+from core.services import aliado_pin_service
+from core.aliado_pin_auth import GENERIC_CREDENTIALS_ERROR
 from core.auth_session import (
     RUANA_SESSION_HEADER,
     _ruana_session_create,
     _ruana_session_invalidate,
 )
 from core.db_manager import RUANA_CODIGO_INVITACION_REGEX
-from web.auth_decorators import _aliado_codigo, _aliado_session_valid
+from web.auth_decorators import _aliado_codigo, _aliado_session_valid, require_aliado
 from web.limiter import limiter
 
 auth_bp = Blueprint("auth", __name__)
@@ -51,39 +53,160 @@ def auth_bp_health():
 @limiter.limit("10 per minute")
 def aliado_login():
     """
-    POST /api/aliado/login  body: { codigo: "XXXXX" }
-    Valida el código, comprueba estado del aliado y crea sesión en store server-side.
-    Retorna { status: 'success', codigo: "...", session_id: "..." }. El frontend debe guardar
-    session_id en sessionStorage y enviar header X-Ruana-Session-Id en cada petición (aisla por pestaña).
+    POST /api/aliado/login  body: { codigo: "XXXXX", pin: "1234" }
+    Valida código + PIN (o devuelve pin_setup_required si aún no tiene PIN).
+    Retorna { status: 'success', codigo: "...", session_id: "..." }.
     """
     data = request.get_json() or {}
     codigo = (data.get('codigo') or '').strip()
+    pin = (data.get('pin') or '').strip()
     if not codigo:
-        return jsonify({'status': 'error', 'message': 'C?digo de aliado requerido'}), 400
+        return jsonify({'status': 'error', 'message': 'Código de aliado requerido'}), 400
     try:
         db = get_db()
-        aliado = aliado_service.obtener_aliado_por_codigo(db, codigo)
-        if not aliado:
-            return jsonify({'status': 'error', 'message': 'C?digo inv?lido o aliado no encontrado'}), 401
-        estado = aliado.get('estado')
-        if estado == 'expulsado':
-            return jsonify({'status': 'error', 'message': 'C?digo desactivado. Se requiere nueva invitaci?n para volver.'}), 403
-        if estado == 'pendiente_validacion':
-            return jsonify({'status': 'error', 'message': 'Tu cuenta est? pendiente de validaci?n. No puedes acceder al panel hasta que un administrador la active.'}), 403
-        if estado == 'rechazado':
-            return jsonify({'status': 'error', 'message': 'Tu solicitud de registro no fue aceptada.'}), 403
-        if estado == 'suspendido_temporal':
-            return jsonify({'status': 'error', 'message': 'Acceso suspendido temporalmente.'}), 403
-        if estado == 'en_espera':
-            return jsonify({'status': 'error', 'message': 'Estás en la lista de Suplentes. En cuanto se libere una plaza en tu zona, el equipo RUANA te incorporará y podrás acceder al panel.'}), 403
+        resultado = aliado_pin_service.validar_login_aliado(db, codigo, pin)
+        if not resultado.get('ok'):
+            status = resultado.get('http_status', 401)
+            return jsonify({'status': 'error', 'message': resultado.get('message', GENERIC_CREDENTIALS_ERROR)}), status
+
+        if resultado.get('pin_setup_required'):
+            return jsonify({
+                'status': 'success',
+                'pin_setup_required': True,
+                'codigo': resultado.get('codigo'),
+                'setup_token': resultado.get('setup_token'),
+            })
+
+        codigo_ok = resultado.get('codigo')
+        expires_at = time.time() + ALIADO_SESSION_EXPIRES_SECONDS
+        session_id = _ruana_session_create('aliado', codigo_ok, expires_at)
+        try:
+            aliado_service.registrar_acceso_login(db, codigo_ok)
+        except Exception:
+            pass
+        return jsonify({'status': 'success', 'codigo': codigo_ok, 'session_id': session_id})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@auth_bp.route("/api/aliado/pin/crear", methods=["POST"], strict_slashes=False)
+@limiter.limit("20 per hour")
+def aliado_pin_crear():
+    """Crea el PIN personal tras primer acceso (requiere setup_token)."""
+    data = request.get_json() or {}
+    setup_token = (data.get('setup_token') or '').strip()
+    pin = (data.get('pin') or '').strip()
+    pin_confirmacion = (data.get('pin_confirmacion') or data.get('pin_confirm') or '').strip()
+    if not setup_token:
+        return jsonify({'status': 'error', 'message': 'Token de configuración requerido'}), 400
+    try:
+        db = get_db()
+        resultado = aliado_pin_service.establecer_pin_inicial(db, setup_token, pin, pin_confirmacion)
+        if resultado.get('status') != 'success':
+            return jsonify(resultado), 400
+        codigo = resultado.get('codigo')
         expires_at = time.time() + ALIADO_SESSION_EXPIRES_SECONDS
         session_id = _ruana_session_create('aliado', codigo, expires_at)
-        # Regla 8: registrar día de login (calendario servidor) y evaluar racha 7 días
         try:
             aliado_service.registrar_acceso_login(db, codigo)
         except Exception:
             pass
-        return jsonify({'status': 'success', 'codigo': codigo, 'session_id': session_id})
+        return jsonify({
+            'status': 'success',
+            'message': resultado.get('message'),
+            'codigo': codigo,
+            'session_id': session_id,
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@auth_bp.route("/api/aliado/pin/cambiar", methods=["POST"], strict_slashes=False)
+@require_aliado
+@limiter.limit("20 per hour")
+def aliado_pin_cambiar():
+    """Cambia el PIN personal (requiere sesión activa)."""
+    data = request.get_json() or {}
+    pin_actual = (data.get('pin_actual') or '').strip()
+    pin_nuevo = (data.get('pin_nuevo') or '').strip()
+    pin_confirmacion = (data.get('pin_confirmacion') or data.get('pin_confirm') or '').strip()
+    try:
+        db = get_db()
+        resultado = aliado_pin_service.cambiar_pin(
+            db,
+            _aliado_codigo(),
+            pin_actual,
+            pin_nuevo,
+            pin_confirmacion,
+        )
+        status = 200 if resultado.get('status') == 'success' else 400
+        return jsonify(resultado), status
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@auth_bp.route("/api/aliado/recuperacion/solicitar", methods=["POST"], strict_slashes=False)
+@limiter.limit("10 per hour")
+@limiter.limit("3 per minute")
+def aliado_recuperacion_solicitar():
+    """Solicita código temporal por email (tipos: pin, codigo, ambos)."""
+    data = request.get_json() or {}
+    tipo = (data.get('tipo') or '').strip().lower()
+    email = (data.get('email') or '').strip()
+    codigo = (data.get('codigo') or '').strip()
+    try:
+        db = get_db()
+        resultado = aliado_pin_service.solicitar_recuperacion(
+            db, tipo=tipo, email=email, codigo=codigo,
+        )
+        status = 200 if resultado.get('status') == 'success' else 400
+        return jsonify(resultado), status
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@auth_bp.route("/api/aliado/recuperacion/verificar", methods=["POST"], strict_slashes=False)
+@limiter.limit("30 per hour")
+@limiter.limit("10 per minute")
+def aliado_recuperacion_verificar():
+    """Verifica el código temporal enviado por email."""
+    data = request.get_json() or {}
+    recovery_token = data.get('recovery_token')
+    codigo_temporal = (data.get('codigo_temporal') or data.get('codigo') or '').strip()
+    try:
+        token_id = int(recovery_token)
+    except (TypeError, ValueError):
+        return jsonify({'status': 'error', 'message': 'Solicitud de recuperación inválida.'}), 400
+    if not codigo_temporal:
+        return jsonify({'status': 'error', 'message': 'Introduce el código temporal.'}), 400
+    try:
+        db = get_db()
+        resultado = aliado_pin_service.verificar_recuperacion(db, token_id, codigo_temporal)
+        status = 200 if resultado.get('status') == 'success' else 400
+        return jsonify(resultado), status
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@auth_bp.route("/api/aliado/recuperacion/pin", methods=["POST"], strict_slashes=False)
+@limiter.limit("20 per hour")
+def aliado_recuperacion_pin():
+    """Restablece el PIN tras verificación por email."""
+    data = request.get_json() or {}
+    recovery_token = data.get('recovery_token')
+    pin_nuevo = (data.get('pin') or data.get('pin_nuevo') or '').strip()
+    pin_confirmacion = (data.get('pin_confirmacion') or data.get('pin_confirm') or '').strip()
+    try:
+        token_id = int(recovery_token)
+    except (TypeError, ValueError):
+        return jsonify({'status': 'error', 'message': 'Solicitud de recuperación inválida.'}), 400
+    try:
+        db = get_db()
+        resultado = aliado_pin_service.restablecer_pin_recuperacion(
+            db, token_id, pin_nuevo, pin_confirmacion,
+        )
+        status = 200 if resultado.get('status') == 'success' else 400
+        return jsonify(resultado), status
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 

@@ -407,6 +407,7 @@ def _init_db(db):
             db._migrar_referidos_origen(conn, cursor)
             db._migrar_invitaciones_oficio_codigo_referido(conn, cursor)
             db._migrar_aliados_invitado_por(conn, cursor)
+            db._migrar_aliados_pin_personal(conn, cursor)
             db._migrar_invitaciones_solicitud_id(conn, cursor)
             db._migrar_solicitudes_candidato(conn, cursor)
             db._migrar_aliado_accesos_dia(conn, cursor)
@@ -2204,6 +2205,37 @@ def _migrar_solicitudes_candidato(db, conn, cursor) -> None:
     except Exception as ex:
         print(f"[RUANA][DB] Aviso migrar solicitudes candidato: {ex}")
 
+def _migrar_aliados_pin_personal(db, conn, cursor) -> None:
+    """Añade PIN personal hasheado y tabla de recuperación de acceso."""
+    if _repo.migracion_aplicada(cursor, 'aliados_pin_personal_v1'):
+        return
+    columnas = _repo.columnas_tabla(cursor, "aliados")
+    if 'pin_hash' not in columnas:
+        _repo.execute(cursor, "ALTER TABLE aliados ADD COLUMN pin_hash TEXT")
+    if 'pin_intentos_fallidos' not in columnas:
+        _repo.execute(cursor, "ALTER TABLE aliados ADD COLUMN pin_intentos_fallidos INTEGER DEFAULT 0")
+    if 'pin_bloqueado_hasta' not in columnas:
+        _repo.execute(cursor, "ALTER TABLE aliados ADD COLUMN pin_bloqueado_hasta TIMESTAMP")
+    id_col = "SERIAL PRIMARY KEY" if db.backend == "postgres" else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    _repo.execute(cursor, f"""
+        CREATE TABLE IF NOT EXISTS aliado_recuperacion_acceso (
+            id {id_col},
+            email TEXT NOT NULL,
+            codigo_aliado TEXT,
+            tipo TEXT NOT NULL,
+            otp_hash TEXT NOT NULL,
+            otp_salt TEXT NOT NULL,
+            expira_en TIMESTAMP NOT NULL,
+            usado_en TIMESTAMP,
+            intentos_fallidos INTEGER DEFAULT 0,
+            verificado INTEGER DEFAULT 0,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    _repo.execute(cursor, "CREATE INDEX IF NOT EXISTS idx_recuperacion_email ON aliado_recuperacion_acceso(email)")
+    _repo.execute(cursor, "CREATE INDEX IF NOT EXISTS idx_recuperacion_codigo ON aliado_recuperacion_acceso(codigo_aliado)")
+    _repo.registrar_migracion(cursor, 'aliados_pin_personal_v1')
+
 def _migrar_aliados_eliminados(db, conn, cursor) -> None:
     """Tabla de archivo: un único registro por aliado eliminado definitivamente."""
     id_col = "SERIAL PRIMARY KEY" if db.backend == "postgres" else "INTEGER PRIMARY KEY AUTOINCREMENT"
@@ -2272,6 +2304,7 @@ def _init_postgres_schema(db):
         """)
         db._migrar_aliados_foto_perfil(conn, cursor)
         db._migrar_aliados_invitado_por(conn, cursor)
+        db._migrar_aliados_pin_personal(conn, cursor)
         db._migrar_invitaciones_solicitud_id(conn, cursor)
         db._migrar_solicitudes_candidato(conn, cursor)
         db._migrar_contactos_es_urgente(conn, cursor)

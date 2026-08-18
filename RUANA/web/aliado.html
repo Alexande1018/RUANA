@@ -381,6 +381,32 @@
                 </div>
             </div>
 
+            <section class="perfil-seguridad-wrap ruana-card-premium" id="perfil-seguridad-wrap">
+                <h3 class="catalogo-servicios-title">
+                    <i data-lucide="lock"></i>
+                    Seguridad
+                </h3>
+                <p class="catalogo-servicios-subtitle">Tu código de aliado es permanente. Puedes cambiar tu PIN personal cuando quieras.</p>
+                <form class="perfil-pin-form" id="form-cambiar-pin">
+                    <div class="detail-item">
+                        <label class="detail-label" for="pin-actual">PIN actual</label>
+                        <input type="password" class="register-input" id="pin-actual" inputmode="numeric" maxlength="6" autocomplete="current-password">
+                    </div>
+                    <div class="detail-item">
+                        <label class="detail-label" for="pin-nuevo">Nuevo PIN</label>
+                        <input type="password" class="register-input" id="pin-nuevo" inputmode="numeric" maxlength="6" autocomplete="new-password">
+                    </div>
+                    <div class="detail-item">
+                        <label class="detail-label" for="pin-nuevo-confirm">Confirmar nuevo PIN</label>
+                        <input type="password" class="register-input" id="pin-nuevo-confirm" inputmode="numeric" maxlength="6" autocomplete="new-password">
+                    </div>
+                    <div class="detail-edit-actions">
+                        <button type="submit" class="btn-guardar-campo" id="btn-guardar-pin">Cambiar PIN</button>
+                    </div>
+                    <p class="perfil-pin-status" id="perfil-pin-status" hidden></p>
+                </form>
+            </section>
+
             <div id="competencia-banner-wrap" class="competencia-banner" style="display: none;" role="status" aria-live="polite">
                 <div id="competencia-banner-titulo"><strong>En competencia</strong></div>
                 <div id="competencia-banner-texto"></div>
@@ -1933,6 +1959,12 @@
                 const mod = this._perfilModule();
                 if (mod && typeof mod.guardarDescripcion === 'function') {
                     return mod.guardarDescripcion(this);
+                }
+            }
+            async guardarPin() {
+                const mod = this._perfilModule();
+                if (mod && typeof mod.guardarPin === 'function') {
+                    return mod.guardarPin(this);
                 }
             }
             _directorioModule() {

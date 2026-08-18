@@ -151,6 +151,56 @@
         .invite-error.show {
             display: block;
         }
+
+        .auth-view { display: none; flex-direction: column; gap: 16px; }
+        .auth-view.is-active { display: flex; }
+
+        .auth-links {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 8px;
+            text-align: left;
+        }
+
+        .auth-link {
+            background: none;
+            border: none;
+            color: #86efac;
+            font-size: 0.85rem;
+            cursor: pointer;
+            padding: 0;
+            text-align: left;
+            text-decoration: underline;
+            text-underline-offset: 3px;
+        }
+
+        .auth-link-muted {
+            color: #9ca3af;
+            font-size: 0.8rem;
+            text-decoration: none;
+        }
+
+        .auth-support-box {
+            margin-top: 12px;
+            padding: 14px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            font-size: 0.85rem;
+            color: #bbb;
+            line-height: 1.5;
+        }
+
+        .ruana-auth-card.is-success-pulse {
+            animation: ruana-login-success 0.55s ease;
+        }
+
+        @keyframes ruana-login-success {
+            0% { transform: scale(1); box-shadow: 0 40px 100px rgba(0,0,0,0.45); }
+            45% { transform: scale(1.02); box-shadow: 0 40px 100px rgba(34,197,94,0.25); }
+            100% { transform: scale(1); box-shadow: 0 40px 100px rgba(0,0,0,0.45); }
+        }
     </style>
     <link rel="stylesheet" href="/static/css/auth-premium.css">
     <link rel="stylesheet" href="/static/css/ruana-identity.css">
@@ -159,15 +209,15 @@
 </head>
 <body>
     <div class="invite-container ruana-auth-container">
-        <div class="invite-card ruana-auth-card">
+        <div class="invite-card ruana-auth-card" id="auth-card">
             <a href="/" class="ruana-brand ruana-brand-center" aria-label="RUANA">
                 <svg class="ruana-brand-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="56" height="56" aria-hidden="true" focusable="false"><g fill="none" stroke="#A2FF00" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 24v7.5"/><path d="M32 31.5H18v7.5"/><path d="M32 31.5H46v7.5"/></g><rect x="22" y="8" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="8" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="36" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/></svg>
                 <span class="ruana-brand-word">RUANA</span>
             </a>
-            <p>Elige cómo quieres entrar a RUANA.</p>
+            <p id="auth-subtitle">Elige cómo quieres entrar a RUANA.</p>
 
             <!-- Selector de modo de acceso -->
-            <div class="access-mode-switch">
+            <div class="access-mode-switch" id="access-mode-switch">
                 <button type="button" id="btn-modo-ingreso" class="invite-btn ruana-button access-mode-button">
                     Tengo código de ingreso
                 </button>
@@ -175,21 +225,118 @@
                     Tengo código de invitación
                 </button>
             </div>
-            
-            <form class="invite-form" id="invite-form">
-                <input 
-                    type="text" 
-                    class="invite-input ruana-form-control"
-                    id="invite-code" 
-                    placeholder="Código de ingreso o invitación"
-                    autocomplete="off"
-                    required
-                >
-                <button type="submit" class="invite-btn ruana-button" id="invite-btn">Continuar</button>
-                <div class="invite-error" id="invite-error"></div>
-            </form>
 
-            <p class="invite-helper">
+            <!-- Vista: login ingreso -->
+            <div class="auth-view is-active" id="view-login" data-view="login">
+                <form class="invite-form" id="login-form">
+                    <input type="text" class="invite-input ruana-form-control" id="login-codigo" placeholder="Código de aliado" autocomplete="username" inputmode="text" required>
+                    <input type="password" class="invite-input ruana-form-control" id="login-pin" placeholder="PIN personal (4-6 dígitos)" autocomplete="current-password" inputmode="numeric" maxlength="6" pattern="[0-9]{4,6}">
+                    <button type="submit" class="invite-btn ruana-button" id="login-btn">Entrar</button>
+                    <div class="invite-error" id="login-error"></div>
+                </form>
+                <div class="auth-links">
+                    <button type="button" class="auth-link" data-goto="recovery-pin">¿Has olvidado tu PIN?</button>
+                    <button type="button" class="auth-link" data-goto="recovery-codigo">¿Has olvidado tu código?</button>
+                    <button type="button" class="auth-link" data-goto="recovery-ambos">¿Has olvidado código y PIN?</button>
+                    <button type="button" class="auth-link auth-link-muted" data-goto="support">Sin acceso al email asociado</button>
+                </div>
+            </div>
+
+            <!-- Vista: invitación -->
+            <div class="auth-view" id="view-invitacion" data-view="invitacion">
+                <form class="invite-form" id="invite-form">
+                    <input type="text" class="invite-input ruana-form-control" id="invite-code" placeholder="Código de invitación" autocomplete="off" required>
+                    <button type="submit" class="invite-btn ruana-button" id="invite-btn">Continuar</button>
+                    <div class="invite-error" id="invite-error"></div>
+                </form>
+            </div>
+
+            <!-- Vista: crear PIN -->
+            <div class="auth-view" id="view-pin-setup" data-view="pin-setup">
+                <form class="invite-form" id="pin-setup-form">
+                    <p style="color:#bbb;font-size:0.9rem;line-height:1.5;margin:0;">Crea tu PIN personal. Lo usarás junto con tu código de aliado en cada acceso.</p>
+                    <input type="password" class="invite-input ruana-form-control" id="pin-setup-1" placeholder="Nuevo PIN (4-6 dígitos)" inputmode="numeric" maxlength="6" required>
+                    <input type="password" class="invite-input ruana-form-control" id="pin-setup-2" placeholder="Confirmar PIN" inputmode="numeric" maxlength="6" required>
+                    <button type="submit" class="invite-btn ruana-button" id="pin-setup-btn">Guardar PIN y entrar</button>
+                    <div class="invite-error" id="pin-setup-error"></div>
+                </form>
+            </div>
+
+            <!-- Vista: recuperación PIN -->
+            <div class="auth-view" id="view-recovery-pin" data-view="recovery-pin">
+                <form class="invite-form" id="recovery-pin-form">
+                    <p style="color:#bbb;font-size:0.9rem;line-height:1.5;margin:0;">Introduce tu código de aliado. Enviaremos un código temporal al email asociado.</p>
+                    <input type="text" class="invite-input ruana-form-control" id="recovery-pin-codigo" placeholder="Código de aliado" required>
+                    <button type="submit" class="invite-btn ruana-button">Enviar código</button>
+                    <div class="invite-error" id="recovery-pin-error"></div>
+                </form>
+                <button type="button" class="auth-link auth-link-muted" data-goto="login">Volver al login</button>
+            </div>
+
+            <!-- Vista: recuperación código -->
+            <div class="auth-view" id="view-recovery-codigo" data-view="recovery-codigo">
+                <form class="invite-form" id="recovery-codigo-form">
+                    <p style="color:#bbb;font-size:0.9rem;line-height:1.5;margin:0;">Introduce el email de tu cuenta. Te enviaremos un código de verificación.</p>
+                    <input type="email" class="invite-input ruana-form-control" id="recovery-codigo-email" placeholder="Email" required>
+                    <button type="submit" class="invite-btn ruana-button">Enviar código</button>
+                    <div class="invite-error" id="recovery-codigo-error"></div>
+                </form>
+                <button type="button" class="auth-link auth-link-muted" data-goto="login">Volver al login</button>
+            </div>
+
+            <!-- Vista: recuperación ambos -->
+            <div class="auth-view" id="view-recovery-ambos" data-view="recovery-ambos">
+                <form class="invite-form" id="recovery-ambos-form">
+                    <p style="color:#bbb;font-size:0.9rem;line-height:1.5;margin:0;">Introduce el email de tu cuenta para recuperar tu código y crear un nuevo PIN.</p>
+                    <input type="email" class="invite-input ruana-form-control" id="recovery-ambos-email" placeholder="Email" required>
+                    <button type="submit" class="invite-btn ruana-button">Enviar código</button>
+                    <div class="invite-error" id="recovery-ambos-error"></div>
+                </form>
+                <button type="button" class="auth-link auth-link-muted" data-goto="login">Volver al login</button>
+            </div>
+
+            <!-- Vista: verificar OTP -->
+            <div class="auth-view" id="view-recovery-verify" data-view="recovery-verify">
+                <form class="invite-form" id="recovery-verify-form">
+                    <p style="color:#bbb;font-size:0.9rem;line-height:1.5;margin:0;" id="recovery-verify-hint">Introduce el código temporal que recibiste por email.</p>
+                    <input type="text" class="invite-input ruana-form-control" id="recovery-verify-code" placeholder="Código temporal" inputmode="numeric" maxlength="6" required>
+                    <button type="submit" class="invite-btn ruana-button">Verificar</button>
+                    <div class="invite-error" id="recovery-verify-error"></div>
+                </form>
+                <button type="button" class="auth-link auth-link-muted" data-goto="login">Volver al login</button>
+            </div>
+
+            <!-- Vista: mostrar código recuperado -->
+            <div class="auth-view" id="view-recovery-show-codigo" data-view="recovery-show-codigo">
+                <div style="padding:20px;border-radius:12px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.35);text-align:center;">
+                    <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;color:#999;margin-bottom:8px;">Tu código de aliado</div>
+                    <div id="recovered-codigo-display" style="font-size:2rem;font-weight:700;color:#22c55e;font-family:'Courier New',monospace;letter-spacing:3px;">-----</div>
+                </div>
+                <button type="button" class="invite-btn ruana-button" id="btn-recovery-to-login">Ir al login</button>
+            </div>
+
+            <!-- Vista: nuevo PIN tras recuperación -->
+            <div class="auth-view" id="view-recovery-new-pin" data-view="recovery-new-pin">
+                <form class="invite-form" id="recovery-new-pin-form">
+                    <p style="color:#bbb;font-size:0.9rem;line-height:1.5;margin:0;">Crea tu nuevo PIN personal.</p>
+                    <input type="password" class="invite-input ruana-form-control" id="recovery-new-pin-1" placeholder="Nuevo PIN" inputmode="numeric" maxlength="6" required>
+                    <input type="password" class="invite-input ruana-form-control" id="recovery-new-pin-2" placeholder="Confirmar PIN" inputmode="numeric" maxlength="6" required>
+                    <button type="submit" class="invite-btn ruana-button">Guardar PIN</button>
+                    <div class="invite-error" id="recovery-new-pin-error"></div>
+                </form>
+            </div>
+
+            <!-- Vista: soporte -->
+            <div class="auth-view" id="view-support" data-view="support">
+                <div class="auth-support-box">
+                    Si no tienes acceso al email asociado a tu cuenta, contacta con el equipo de soporte de RUANA desde el panel de administración o a través de tu administrador de zona.
+                    <br><br>
+                    Por seguridad, no es posible recuperar una cuenta solo con el código de 5 dígitos.
+                </div>
+                <button type="button" class="auth-link auth-link-muted" data-goto="login">Volver al login</button>
+            </div>
+
+            <p class="invite-helper" id="auth-helper">
                 • <strong>Código de ingreso</strong>: ya eres aliado y quieres entrar a tu panel (ej: 85776, ALFA01).<br>
                 • <strong>Código de invitación</strong>: te lo pasó otro aliado para registrarte por primera vez.
             </p>
@@ -197,94 +344,308 @@
     </div>
 
     <script>
-        /**
-         * RUANA Access Screen
-         * - Modo 1: Código de ingreso (aliado ya registrado → panel)
-         * - Modo 2: Código de invitación (nuevo aliado → registro)
-         */
-        
         class RAUANAAccess {
             constructor() {
-                this.form = document.getElementById('invite-form');
-                this.codeInput = document.getElementById('invite-code');
-                this.submitBtn = document.getElementById('invite-btn');
-                this.errorMsg = document.getElementById('invite-error');
-                this.btnModoIngreso = document.getElementById('btn-modo-ingreso');
-                this.btnModoInvitacion = document.getElementById('btn-modo-invitacion');
-                
-                // Modo por defecto: ingreso de aliado ya registrado
-                this.mode = 'ingreso'; // 'ingreso' | 'invitacion'
-                
-                this.init();
+                this.authCard = document.getElementById('auth-card');
+                this.subtitle = document.getElementById('auth-subtitle');
+                this.modeSwitch = document.getElementById('access-mode-switch');
+                this.helper = document.getElementById('auth-helper');
+                this.mode = 'ingreso';
+                this.view = 'login';
+                this.setupToken = sessionStorage.getItem('ruana_pin_setup_token') || '';
+                this.recoveryToken = null;
+                this.recoveryTipo = null;
+                this.recoveredCodigo = null;
+
+                this.bindEvents();
+                this.bootstrapFromSession();
             }
 
-            init() {
-                this.form.addEventListener('submit', (e) => this.handleSubmit(e));
-                this.codeInput.addEventListener('input', () => this.clearError());
-                this.codeInput.focus();
+            bindEvents() {
+                document.getElementById('btn-modo-ingreso').addEventListener('click', () => this.setMode('ingreso'));
+                document.getElementById('btn-modo-invitacion').addEventListener('click', () => this.setMode('invitacion'));
 
-                // Listeners para cambiar de modo
-                this.btnModoIngreso.addEventListener('click', () => this.setMode('ingreso'));
-                this.btnModoInvitacion.addEventListener('click', () => this.setMode('invitacion'));
+                document.getElementById('login-form').addEventListener('submit', (e) => this.handleLogin(e));
+                document.getElementById('invite-form').addEventListener('submit', (e) => this.handleInvite(e));
+                document.getElementById('pin-setup-form').addEventListener('submit', (e) => this.handlePinSetup(e));
+                document.getElementById('recovery-pin-form').addEventListener('submit', (e) => this.handleRecoveryRequest(e, 'pin'));
+                document.getElementById('recovery-codigo-form').addEventListener('submit', (e) => this.handleRecoveryRequest(e, 'codigo'));
+                document.getElementById('recovery-ambos-form').addEventListener('submit', (e) => this.handleRecoveryRequest(e, 'ambos'));
+                document.getElementById('recovery-verify-form').addEventListener('submit', (e) => this.handleRecoveryVerify(e));
+                document.getElementById('recovery-new-pin-form').addEventListener('submit', (e) => this.handleRecoveryNewPin(e));
+                document.getElementById('btn-recovery-to-login').addEventListener('click', () => this.showView('login'));
 
-                // Inicializar estilos de botones
-                this.setMode(this.mode);
+                document.querySelectorAll('[data-goto]').forEach((btn) => {
+                    btn.addEventListener('click', () => this.showView(btn.getAttribute('data-goto')));
+                });
+            }
+
+            bootstrapFromSession() {
+                const pendingSetup = sessionStorage.getItem('ruana_pin_setup_pending');
+                const token = sessionStorage.getItem('ruana_pin_setup_token');
+                if (pendingSetup === '1' && token) {
+                    this.setupToken = token;
+                    this.setMode('ingreso');
+                    this.showView('pin-setup');
+                    return;
+                }
+                this.setMode('ingreso');
             }
 
             setMode(mode) {
                 this.mode = mode;
-                this.btnModoIngreso.classList.toggle('is-muted', mode !== 'ingreso');
-                this.btnModoInvitacion.classList.toggle('is-muted', mode !== 'invitacion');
-
+                document.getElementById('btn-modo-ingreso').classList.toggle('is-muted', mode !== 'ingreso');
+                document.getElementById('btn-modo-invitacion').classList.toggle('is-muted', mode !== 'invitacion');
                 if (mode === 'ingreso') {
-                    this.codeInput.placeholder = 'Código de ingreso (aliado registrado)';
+                    this.showView('login');
                 } else {
-                    this.codeInput.placeholder = 'Código de invitación (nuevo aliado)';
+                    this.showView('invitacion');
                 }
             }
 
-            handleSubmit(e) {
+            showView(view) {
+                this.view = view;
+                document.querySelectorAll('.auth-view').forEach((el) => {
+                    el.classList.toggle('is-active', el.dataset.view === view);
+                });
+                const showSwitch = view === 'login' || view === 'invitacion';
+                this.modeSwitch.style.display = showSwitch ? '' : 'none';
+                this.helper.style.display = showSwitch ? '' : 'none';
+
+                const subtitles = {
+                    login: 'Introduce tu código de aliado y tu PIN personal.',
+                    invitacion: 'Introduce tu código de invitación para registrarte.',
+                    'pin-setup': 'Configura tu PIN personal para proteger tu cuenta.',
+                    'recovery-pin': 'Recuperación de PIN',
+                    'recovery-codigo': 'Recuperación de código de aliado',
+                    'recovery-ambos': 'Recuperación de acceso completo',
+                    'recovery-verify': 'Verificación por email',
+                    'recovery-show-codigo': 'Tu código de aliado',
+                    'recovery-new-pin': 'Crea tu nuevo PIN',
+                    support: 'Contactar con soporte'
+                };
+                this.subtitle.textContent = subtitles[view] || 'RUANA';
+                this.clearErrors();
+            }
+
+            showError(elId, message) {
+                const el = document.getElementById(elId);
+                if (!el) return;
+                el.textContent = message;
+                el.classList.add('show');
+            }
+
+            clearErrors() {
+                document.querySelectorAll('.invite-error').forEach((el) => {
+                    el.classList.remove('show');
+                    el.textContent = '';
+                });
+            }
+
+            async handleLogin(e) {
                 e.preventDefault();
-                const code = this.codeInput.value.trim();
-
-                if (!code) {
-                    this.showError('El código es requerido');
+                const codigo = document.getElementById('login-codigo').value.trim();
+                const pin = document.getElementById('login-pin').value.trim();
+                const btn = document.getElementById('login-btn');
+                if (!codigo) {
+                    this.showError('login-error', 'El código es requerido');
                     return;
                 }
+                btn.disabled = true;
+                btn.textContent = 'Verificando...';
+                try {
+                    const response = await fetch('/api/aliado/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ codigo, pin })
+                    });
+                    const result = await response.json();
+                    if (response.ok && result.pin_setup_required && result.setup_token) {
+                        this.setupToken = result.setup_token;
+                        sessionStorage.setItem('ruana_pin_setup_token', result.setup_token);
+                        sessionStorage.setItem('ruana_pin_setup_pending', '1');
+                        this.showView('pin-setup');
+                        return;
+                    }
+                    if (response.ok && result.status === 'success' && result.session_id) {
+                        await this.completeLogin(result);
+                        return;
+                    }
+                    this.showError('login-error', result.message || 'Credenciales incorrectas');
+                } catch (_) {
+                    this.showError('login-error', 'Error de conexión. Intenta de nuevo.');
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = 'Entrar';
+                }
+            }
 
-                if (code.length < 4) {
-                    this.showError('El código debe tener al menos 4 caracteres');
+            async handlePinSetup(e) {
+                e.preventDefault();
+                const pin = document.getElementById('pin-setup-1').value.trim();
+                const pinConfirm = document.getElementById('pin-setup-2').value.trim();
+                const btn = document.getElementById('pin-setup-btn');
+                if (!this.setupToken) {
+                    this.showError('pin-setup-error', 'La sesión de configuración ha expirado. Vuelve a iniciar sesión.');
                     return;
                 }
+                btn.disabled = true;
+                btn.textContent = 'Guardando...';
+                try {
+                    const response = await fetch('/api/aliado/pin/crear', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({
+                            setup_token: this.setupToken,
+                            pin,
+                            pin_confirmacion: pinConfirm
+                        })
+                    });
+                    const result = await response.json();
+                    if (response.ok && result.status === 'success' && result.session_id) {
+                        sessionStorage.removeItem('ruana_pin_setup_token');
+                        sessionStorage.removeItem('ruana_pin_setup_pending');
+                        await this.completeLogin(result);
+                        return;
+                    }
+                    this.showError('pin-setup-error', result.message || 'No se pudo guardar el PIN');
+                } catch (_) {
+                    this.showError('pin-setup-error', 'Error de conexión. Intenta de nuevo.');
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = 'Guardar PIN y entrar';
+                }
+            }
 
-                // S-02: No existe bypass admin en el frontend. El acceso admin es solo desde /admin con credenciales de servidor.
+            async handleRecoveryRequest(e, tipo) {
+                e.preventDefault();
+                const errorId = tipo === 'pin' ? 'recovery-pin-error' : (tipo === 'codigo' ? 'recovery-codigo-error' : 'recovery-ambos-error');
+                const payload = { tipo };
+                if (tipo === 'pin') {
+                    payload.codigo = document.getElementById('recovery-pin-codigo').value.trim();
+                } else {
+                    const emailEl = tipo === 'codigo' ? 'recovery-codigo-email' : 'recovery-ambos-email';
+                    payload.email = document.getElementById(emailEl).value.trim();
+                }
+                try {
+                    const response = await fetch('/api/aliado/recuperacion/solicitar', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await response.json();
+                    if (response.ok && result.status === 'success') {
+                        this.recoveryToken = result.recovery_token;
+                        this.recoveryTipo = tipo;
+                        this.showView('recovery-verify');
+                        return;
+                    }
+                    this.showError(errorId, result.message || 'No se pudo procesar la solicitud');
+                } catch (_) {
+                    this.showError(errorId, 'Error de conexión. Intenta de nuevo.');
+                }
+            }
 
-                // Auto-detectar: códigos RUANA-{grupo}-{oficio}-{4chars} siempre van a invitación → registro
+            async handleRecoveryVerify(e) {
+                e.preventDefault();
+                const codigoTemporal = document.getElementById('recovery-verify-code').value.trim();
+                try {
+                    const response = await fetch('/api/aliado/recuperacion/verificar', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            recovery_token: this.recoveryToken,
+                            codigo_temporal: codigoTemporal
+                        })
+                    });
+                    const result = await response.json();
+                    if (!response.ok || result.status !== 'success') {
+                        this.showError('recovery-verify-error', result.message || 'Código incorrecto');
+                        return;
+                    }
+                    this.recoveryTipo = result.tipo || this.recoveryTipo;
+                    if (result.codigo) {
+                        this.recoveredCodigo = result.codigo;
+                        document.getElementById('recovered-codigo-display').textContent = result.codigo;
+                    }
+                    if (this.recoveryTipo === 'pin') {
+                        this.showView('recovery-new-pin');
+                    } else if (this.recoveryTipo === 'codigo') {
+                        this.showView('recovery-show-codigo');
+                    } else {
+                        this.showView('recovery-show-codigo');
+                        if (result.pin_setup_required) {
+                            setTimeout(() => this.showView('recovery-new-pin'), 1200);
+                        }
+                    }
+                } catch (_) {
+                    this.showError('recovery-verify-error', 'Error de conexión. Intenta de nuevo.');
+                }
+            }
+
+            async handleRecoveryNewPin(e) {
+                e.preventDefault();
+                const pin = document.getElementById('recovery-new-pin-1').value.trim();
+                const pinConfirm = document.getElementById('recovery-new-pin-2').value.trim();
+                try {
+                    const response = await fetch('/api/aliado/recuperacion/pin', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            recovery_token: this.recoveryToken,
+                            pin,
+                            pin_confirmacion: pinConfirm
+                        })
+                    });
+                    const result = await response.json();
+                    if (response.ok && result.status === 'success') {
+                        if (this.recoveredCodigo) {
+                            document.getElementById('login-codigo').value = this.recoveredCodigo;
+                        }
+                        this.showView('login');
+                        this.subtitle.textContent = 'PIN restablecido. Ya puedes iniciar sesión.';
+                        return;
+                    }
+                    this.showError('recovery-new-pin-error', result.message || 'No se pudo restablecer el PIN');
+                } catch (_) {
+                    this.showError('recovery-new-pin-error', 'Error de conexión. Intenta de nuevo.');
+                }
+            }
+
+            async completeLogin(result) {
+                if (result.session_id) {
+                    sessionStorage.setItem('ruana_session_id', result.session_id);
+                }
+                if (result.codigo) {
+                    sessionStorage.setItem('ruana_codigo_aliado', result.codigo);
+                }
+                this.authCard.classList.add('is-success-pulse');
+                await new Promise((resolve) => setTimeout(resolve, 450));
+                window.location.href = '/aliado';
+            }
+
+            handleInvite(e) {
+                e.preventDefault();
+                const code = document.getElementById('invite-code').value.trim();
+                const btn = document.getElementById('invite-btn');
+                if (!code || code.length < 4) {
+                    this.showError('invite-error', 'El código debe tener al menos 4 caracteres');
+                    return;
+                }
                 const upper = code.toUpperCase();
                 if (/^RUANA-\d+-[A-Z0-9]+-[A-Z0-9]{4}$/.test(upper)) {
                     this.authorizeInvitacion(code);
                     return;
                 }
-
-                // Siempre intentar primero como invitación (5 dígitos pueden ser código "Conozco a alguien")
-                // Si es invitación válida → lleva a registro. Si no, se intenta como código de ingreso.
-                this.tryInvitacionThenIngreso(code);
-            }
-
-            /**
-             * Primero intenta validar como invitación (lleva a registro).
-             * Si no es invitación válida, intenta como código de ingreso (panel).
-             */
-            tryInvitacionThenIngreso(code) {
-                const upper = code.toUpperCase();
-                this.submitBtn.disabled = true;
-                this.submitBtn.textContent = 'Verificando...';
+                btn.disabled = true;
+                btn.textContent = 'Verificando...';
                 const urlInv = '/api/validar-invitacion?codigo=' + encodeURIComponent(upper);
                 fetch(urlInv, { method: 'GET' })
-                    .then(r => r.json())
-                    .then(result => {
+                    .then((r) => r.json())
+                    .then((result) => {
                         if (result.status === 'success' && result.invitacion) {
-                            // Es código de invitación → llevar a registro
                             sessionStorage.setItem('ruana_invite_valid', 'true');
                             sessionStorage.setItem('ruana_invite_codigo', upper);
                             sessionStorage.setItem('ruana_invite_payload', JSON.stringify({
@@ -297,109 +658,50 @@
                             window.location.href = 'register.html';
                             return;
                         }
-                        // No es invitación → intentar como código de ingreso
-                        this.authorizeIngreso(code);
+                        this.showError('invite-error', result.message || 'Código de invitación inválido o expirado');
                     })
-                    .catch(() => this.authorizeIngreso(code));
-            }
-
-            authorizeIngreso(code) {
-                console.log(`[RUANA] Autorizando código de ingreso: ${code}`);
-                this.submitBtn.disabled = true;
-                this.submitBtn.textContent = 'Verificando...';
-
-                // S-01: Login server-side (sesión cookie httpOnly). No confiar en ?codigo= en URL.
-                fetch('/api/aliado/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'same-origin',
-                    body: JSON.stringify({ codigo: code })
-                })
-                .then(response => response.json().then(result => ({ response, result })))
-                .then(({ response, result }) => {
-                    if (response.ok && result.status === 'success' && result.codigo) {
-                        if (result.session_id) sessionStorage.setItem('ruana_session_id', result.session_id);
-                        window.location.href = '/aliado';
-                    } else {
-                        let msg = (result && result.message) || 'Código inválido o aliado no encontrado';
-                        if (response.status === 404) {
-                            msg = 'Servidor no reconoce la ruta de login. Usa la app desde el mismo servidor (ej. http://localhost:5000) y reinicia el servidor Flask.';
-                        }
-                        this.showError(msg);
-                        this.submitBtn.disabled = false;
-                        this.submitBtn.textContent = 'Continuar';
-                    }
-                })
-                .catch(error => {
-                    console.error('[RUANA] Error de conexión:', error);
-                    this.showError('Error de conexión. Comprueba que el servidor esté en marcha y que entras desde la misma dirección (ej. http://localhost:5000).');
-                    this.submitBtn.disabled = false;
-                    this.submitBtn.textContent = 'Continuar';
-                });
+                    .catch(() => this.showError('invite-error', 'Error de conexión al validar la invitación.'))
+                    .finally(() => {
+                        btn.disabled = false;
+                        btn.textContent = 'Continuar';
+                    });
             }
 
             authorizeInvitacion(code) {
                 const upper = code.toUpperCase();
-                console.log(`[RUANA] Validando código de invitación: ${upper}`);
-                this.submitBtn.disabled = true;
-                this.submitBtn.textContent = 'Verificando invitación...';
-
-                // Usar query param para evitar problemas de path en algunos entornos
+                const btn = document.getElementById('invite-btn');
+                btn.disabled = true;
+                btn.textContent = 'Verificando invitación...';
                 const url = '/api/validar-invitacion?codigo=' + encodeURIComponent(upper);
                 fetch(url, { method: 'GET' })
-                .then(response => response.json())
-                .then(result => {
-                    console.log('[RUANA] Resultado validación invitación:', result);
-                    if (result.status === 'success' && result.invitacion) {
-                        const invitacion = result.invitacion;
-
-                        // Guardar contexto de invitación para register.html
-                        sessionStorage.setItem('ruana_invite_valid', 'true');
-                        sessionStorage.setItem('ruana_invite_codigo', upper);
-                        sessionStorage.setItem('ruana_invite_payload', JSON.stringify({
-                            codigo: upper,
-                            zona: invitacion.zona || '',
-                            grupo: invitacion.grupo || '',
-                            invitado_por: invitacion.aliado_id || '',
-                            fecha_expiracion: invitacion.fecha_expiracion || null
-                        }));
-
-                        // Redirigir a registro de nuevo aliado
-                        window.location.href = 'register.html';
-                    } else {
-                        this.showError(result.message || 'Código de invitación inválido o expirado');
-                        this.submitBtn.disabled = false;
-                        this.submitBtn.textContent = 'Continuar';
-                    }
-                })
-                .catch(error => {
-                    console.error('[RUANA] Error al validar invitación:', error);
-                    this.showError('Error de conexión al validar la invitación. Intenta de nuevo.');
-                    this.submitBtn.disabled = false;
-                    this.submitBtn.textContent = 'Continuar';
-                });
-            }
-
-            showError(message) {
-                this.errorMsg.textContent = message;
-                this.errorMsg.classList.add('show');
-            }
-
-            clearError() {
-                this.errorMsg.classList.remove('show');
-                this.errorMsg.textContent = '';
+                    .then((response) => response.json())
+                    .then((result) => {
+                        if (result.status === 'success' && result.invitacion) {
+                            const invitacion = result.invitacion;
+                            sessionStorage.setItem('ruana_invite_valid', 'true');
+                            sessionStorage.setItem('ruana_invite_codigo', upper);
+                            sessionStorage.setItem('ruana_invite_payload', JSON.stringify({
+                                codigo: upper,
+                                zona: invitacion.zona || '',
+                                grupo: invitacion.grupo || '',
+                                invitado_por: invitacion.aliado_id || '',
+                                fecha_expiracion: invitacion.fecha_expiracion || null
+                            }));
+                            window.location.href = 'register.html';
+                        } else {
+                            this.showError('invite-error', result.message || 'Código de invitación inválido o expirado');
+                        }
+                    })
+                    .catch(() => this.showError('invite-error', 'Error de conexión al validar la invitación.'))
+                    .finally(() => {
+                        btn.disabled = false;
+                        btn.textContent = 'Continuar';
+                    });
             }
         }
 
-        // Inicializar cuando DOM esté listo
         document.addEventListener('DOMContentLoaded', () => {
-            console.log('[RUANA] Inicializando pantalla de acceso...');
-            try {
-                new RAUANAAccess();
-                console.log('[RUANA] ✅ RAUANAAccess inicializado correctamente');
-            } catch (error) {
-                console.error('[RUANA] ❌ Error al inicializar:', error);
-            }
+            new RAUANAAccess();
         });
     </script>
 </body>
