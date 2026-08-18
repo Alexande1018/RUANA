@@ -51,6 +51,14 @@ def _admin_permisos():
     return []
 
 
+def _admin_permisos_efectivos():
+    """Permisos del admin con fallback legacy (mismo criterio que /api/admin/me)."""
+    permisos = _admin_permisos()
+    if not permisos and _admin_codigo():
+        return ["leer", "escribir", "eliminar", "configurar"]
+    return permisos
+
+
 def _admin_puede_escribir():
     """True si el admin tiene permiso de escritura o configuración."""
     p = _admin_permisos()
@@ -272,7 +280,7 @@ def require_financial_admin_permission(permiso_requerido: str):
                     "status": "error",
                     "message": "Sesión admin expirada o no autorizado",
                 }), 401
-            if not tiene_permiso_panel(_admin_permisos(), permiso_requerido):
+            if not tiene_permiso_panel(_admin_permisos_efectivos(), permiso_requerido):
                 return jsonify({
                     "status": "error",
                     "message": f"Permiso requerido: {permiso_requerido}",
@@ -297,7 +305,7 @@ def require_financial_permission(permiso_requerido: str):
                     "status": "error",
                     "message": "Sesión admin expirada o no autorizado",
                 }), 401
-            if not tiene_permiso_financiero(_admin_permisos(), permiso_requerido):
+            if not tiene_permiso_financiero(_admin_permisos_efectivos(), permiso_requerido):
                 return jsonify({
                     "status": "error",
                     "message": f"Permiso requerido: {permiso_requerido}",
@@ -324,7 +332,7 @@ def require_automation_permission(permiso_requerido: str):
                     "status": "error",
                     "message": "Sesión admin expirada o no autorizado",
                 }), 401
-            if not tiene_permiso_automation(_admin_permisos(), permiso_requerido):
+            if not tiene_permiso_automation(_admin_permisos_efectivos(), permiso_requerido):
                 return jsonify({
                     "status": "error",
                     "message": f"Permiso requerido: {permiso_requerido}",

@@ -1141,6 +1141,16 @@
                 this.checkExistingSession();
             }
 
+            static notifyAuthReady() {
+                document.dispatchEvent(new CustomEvent('ruana:admin-auth-ready'));
+                if (window.RuanaAdminModules?.financial?.onAuthReady) {
+                    window.RuanaAdminModules.financial.onAuthReady();
+                }
+                if (window.AdminShell?.refreshActiveModule) {
+                    window.AdminShell.refreshActiveModule();
+                }
+            }
+
             setupLoginForm() {
                 const form = document.getElementById('adminLoginForm');
                 const codigoInput = document.getElementById('adminLoginCodigo');
@@ -1173,6 +1183,7 @@
                         if (r.ok && data.status === 'success') {
                             if (data.session_id) sessionStorage.setItem('admin_session_id', data.session_id);
                             document.getElementById('adminLoginModal').classList.add('hidden');
+                            AdminAuthenticator.notifyAuthReady();
                             setTimeout(() => new AdminPanel(), 100);
                         } else {
                             if (errorEl) { errorEl.textContent = data.message || 'Código no válido'; errorEl.style.display = 'block'; }
@@ -1196,6 +1207,7 @@
                     .then(resp => {
                         if (resp.ok) {
                             document.getElementById('adminLoginModal').classList.add('hidden');
+                            AdminAuthenticator.notifyAuthReady();
                             setTimeout(() => new AdminPanel(), 100);
                         } else {
                             sessionStorage.removeItem('admin_session_id');

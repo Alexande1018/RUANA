@@ -82,10 +82,12 @@ def test_01_dashboard_requiere_autenticacion(client):
     assert resp.status_code == 401
 
 
-def test_02_dashboard_requiere_permiso(client, sqlite_db, monkeypatch, session_headers):
+def test_02_dashboard_permiso_legacy_sin_permisos_explicitos(client, sqlite_db, monkeypatch, session_headers):
+    """Sesión admin válida sin permisos explícitos usa fallback legacy (como /api/admin/me)."""
     monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
     resp = client.get("/api/admin/financial/dashboard", headers=_headers(session_headers, permisos=[]))
-    assert resp.status_code == 403
+    assert resp.status_code == 200
+    assert resp.get_json().get("status") == "success"
 
 
 def test_03_lectura_paginada(client, sqlite_db, monkeypatch, session_headers):

@@ -1,6 +1,25 @@
 from pathlib import Path
 
 
+def test_admin_financial_module_uses_shared_auth_headers():
+    """El panel financiero debe reutilizar la misma cabecera de sesión que el resto del admin."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    financial_js = (root / "static" / "js" / "admin-financial-module.js").read_text(encoding="utf-8")
+    admin_html = (root / "admin.html").read_text(encoding="utf-8")
+
+    assert "getRuanaAuthHeaders" in financial_js
+    assert "ruana:admin-auth-ready" in financial_js
+    assert "onAuthReady" in financial_js
+    assert "notifyAuthReady" in admin_html
+    assert "ruana:admin-auth-ready" in admin_html
+
+
+def test_admin_finanzas_deep_link_redirects_to_hash(client):
+    resp = client.get("/admin/finanzas", follow_redirects=False)
+    assert resp.status_code in (301, 302, 303, 307, 308)
+    assert resp.headers.get("Location", "").endswith("/admin#finanzas")
+
+
 def test_admin_fetch_response_destructuring_matches_fetch_order():
     resumen_js = (
         Path(__file__).resolve().parents[1]
