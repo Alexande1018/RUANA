@@ -17,6 +17,7 @@ from web.auth_decorators import (
     require_admin_escritura,
     require_aliado,
 )
+from web.limiter import limiter
 
 soporte_bp = Blueprint("soporte", __name__)
 
@@ -64,6 +65,28 @@ def admin_mensajes_centro_comunicacion(conversacion_id):
         return jsonify({'status': 'success', 'mensajes': mensajes})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@soporte_bp.route('/api/soporte/contacto-acceso', methods=['POST'])
+@limiter.limit("10 per hour")
+@limiter.limit("3 per minute")
+def soporte_contacto_acceso_publico():
+    """Contacto con soporte desde la pantalla de acceso (sin sesión)."""
+    try:
+        data = request.get_json() or {}
+        db = get_db()
+        result = chat_service.crear_soporte_contacto_acceso_publico(
+            db,
+            email=data.get('email') or '',
+            codigo=data.get('codigo') or '',
+            asunto=data.get('asunto') or '',
+            mensaje=data.get('mensaje') or '',
+            categoria=data.get('categoria') or 'ayuda',
+        )
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 
 @soporte_bp.route('/api/aliados/<codigo>/centro-comunicacion', methods=['GET', 'POST'])
 @require_aliado
