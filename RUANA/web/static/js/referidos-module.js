@@ -210,7 +210,7 @@
         if (e === 'pendiente_validacion') return 'Pendiente';
         if (e === 'pendiente_completar') return 'Pendiente de completar alta';
         if (e === 'suspendido_temporal') return 'Pausado';
-        if (e === 'eliminado') return 'Perfil eliminado';
+        if (e === 'eliminado') return 'Usuario eliminado';
         if (e === 'virtual') return 'Categoría';
         if (e === 'expulsado') return 'Expulsado';
         if (e === 'rechazado') return 'Rechazado';
@@ -223,6 +223,7 @@
         if (e === 'sistema') return 'sistema';
         if (e === 'pendiente_validacion' || e === 'pendiente_completar') return 'pendiente';
         if (e === 'suspendido_temporal' || e === 'expulsado' || e === 'rechazado') return 'riesgo';
+        if (e === 'eliminado') return 'eliminado';
         if (e === 'observacion') return 'observacion';
         return 'activo';
     }
@@ -266,12 +267,17 @@
 
         var adminActions = '';
         if (options.mode === 'admin' && !isVirtualNodo(nodo)) {
+            var accionesAdmin = '';
+            if (!nodo.perfil_eliminado && String(nodo.estado || '').toLowerCase() !== 'eliminado') {
+                accionesAdmin +=
+                    '<button type="button" class="btn-accion referidos-btn-pausar">Pausar aliado</button>' +
+                    '<button type="button" class="btn-accion danger referidos-btn-eliminar">Eliminar perfil</button>';
+            }
             adminActions =
                 '<div class="referidos-detail-actions">' +
                 '<button type="button" class="btn-accion referidos-btn-ver-detalle">Ver detalle completo</button>' +
                 '<button type="button" class="btn-accion referidos-btn-centrar">Centrar árbol aquí</button>' +
-                '<button type="button" class="btn-accion referidos-btn-pausar">Pausar aliado</button>' +
-                '<button type="button" class="btn-accion danger referidos-btn-eliminar">Eliminar perfil</button>' +
+                accionesAdmin +
                 '</div>';
         } else if (options.mode === 'admin' && typeof options.onVerDetalleCompleto === 'function') {
             adminActions =

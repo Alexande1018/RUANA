@@ -12,6 +12,14 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from core.db_constants import ALIADO_FOTO_PERFIL_COLUMN, SQL_ESTADO_CONTACTO_OCUPADO
 
 
+def _format_nombre_aliado_eliminado(nombre: str) -> str:
+    """Etiqueta visible en árbol: conserva el nombre real para el linaje."""
+    n = (nombre or "").strip()
+    if not n or n == "[Perfil eliminado]" or n.lower().endswith("(eliminado)"):
+        return "Usuario eliminado"
+    return f"{n} (eliminado)"
+
+
 class AliadoRepo:
     """Operaciones de persistencia del dominio aliado."""
 
@@ -371,20 +379,23 @@ class AliadoRepo:
         cursor.execute("DELETE FROM aliados WHERE codigo = ?", (codigo,))
         return cursor.rowcount
 
-    def soft_delete_por_codigo(self, cursor, codigo: str) -> int:
-        """Marca perfil eliminado conservando código y linaje para el árbol."""
+    def soft_delete_por_codigo(
+        self, cursor, codigo: str, nombre_original: str = ""
+    ) -> int:
+        """Marca perfil eliminado conservando código, linaje y nombre legible en el árbol."""
+        nombre_mostrar = _format_nombre_aliado_eliminado(nombre_original)
         cursor.execute(
             """
             UPDATE aliados
             SET estado = 'eliminado',
-                nombre = '[Perfil eliminado]',
+                nombre = ?,
                 email = NULL,
                 telefono = NULL,
                 actualizado_en = CURRENT_TIMESTAMP
             WHERE codigo = ?
               AND COALESCE(estado, '') != 'sistema'
             """,
-            (codigo,),
+            (nombre_mostrar, codigo),
         )
         return cursor.rowcount
 
@@ -435,7 +446,7 @@ class AliadoRepo:
                     FROM aliados h
                     WHERE h.invitado_por_codigo = a.codigo
                       AND COALESCE(h.estado, '') NOT IN (
-                          'pendiente_completar', 'sistema', 'rechazado', 'expulsado'
+                          'pendiente_completar', 'sistema', 'rechazado', 'expulsado', 'eliminado'
                       )
                 ) AS hijos_directos_count,
                 (
@@ -466,6 +477,7 @@ class AliadoRepo:
                 AND a.estado != 'suspendido_temporal'
                 AND a.estado != 'sistema'
                 AND a.estado != 'pendiente_completar'
+                AND a.estado != 'eliminado'
             ))
         """
         params: Tuple[Any, ...] = ()

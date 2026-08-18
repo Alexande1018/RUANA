@@ -193,11 +193,23 @@ def test_eliminado_conserva_linaje_hijos(sqlite_db):
     cur = conn.cursor()
     cur.execute("SELECT invitado_por_codigo FROM aliados WHERE codigo = ?", ("91003",))
     padre = cur.fetchone()[0]
-    cur.execute("SELECT estado FROM aliados WHERE codigo = ?", ("91002",))
-    estado = cur.fetchone()[0]
+    cur.execute("SELECT estado, nombre FROM aliados WHERE codigo = ?", ("91002",))
+    estado, nombre = cur.fetchone()
     conn.close()
     assert padre == "91002"
     assert estado == "eliminado"
+    assert "Juan" in nombre and "eliminado" in nombre.lower()
+
+    bosques = red_arbol_service.obtener_bosque_arbol_admin_completo(sqlite_db, max_depth=8)
+    codigos = set()
+    for root in bosques:
+        stack = [root]
+        while stack:
+            n = stack.pop()
+            if n.get("codigo"):
+                codigos.add(n["codigo"])
+            stack.extend(n.get("referidos") or [])
+    assert "91002" in codigos
 
 
 def test_score_hijo_nieto_intacto(sqlite_db):
