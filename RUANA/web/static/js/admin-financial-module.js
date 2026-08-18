@@ -34,12 +34,11 @@
     if (global.AdminAuthenticator && global.AdminAuthenticator.getAdminAuthHeaders) {
       return global.AdminAuthenticator.getAdminAuthHeaders();
     }
-    return { credentials: 'same-origin' };
+    return {};
   }
 
   function fetchJson(url, opts) {
-    var base = authHeaders();
-    var headers = Object.assign({}, base.headers || {}, (opts && opts.headers) || {});
+    var headers = Object.assign({}, authHeaders(), (opts && opts.headers) || {});
     return fetch(url, Object.assign({ credentials: 'same-origin' }, opts || {}, { headers: headers }))
       .then(function (r) { return r.json().then(function (j) { return { status: r.status, data: j }; }); });
   }
