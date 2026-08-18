@@ -29,6 +29,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.db_manager import get_db, DB_PATH
 from core.settings import get_settings
+from core.runtime_environment import is_production
+from core.startup_validation import StartupConfigurationError, validate_startup_configuration
 from core.storage_manager import upload_ruana_file, upload_foto_perfil_file, resolve_admin_document_access_url
 from core.admin_auth import verify_admin_login, change_admin_password
 from core.email_service import enviar_correo_bienvenida_aliado
@@ -126,12 +128,32 @@ app.register_blueprint(financial_automation_bp)
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 _secure_cookie = os.environ.get('RUANA_SESSION_COOKIE_SECURE', '').strip().lower()
-if _secure_cookie in ('1', 'true', 'yes'):
+if is_production():
+    app.config['SESSION_COOKIE_SECURE'] = True
+elif _secure_cookie in ('1', 'true', 'yes'):
     app.config['SESSION_COOKIE_SECURE'] = True
 elif _secure_cookie in ('0', 'false', 'no'):
     app.config['SESSION_COOKIE_SECURE'] = False
-elif os.environ.get('FLASK_ENV', '').strip().lower() == 'production':
-    app.config['SESSION_COOKIE_SECURE'] = True
+else:
+    app.config['SESSION_COOKIE_SECURE'] = False
+
+try:
+    validate_startup_configuration(settings)
+    if settings.postgres_configured:
+        from core.financial_schema_health import assert_esquema_financiero_completo
+        _boot_db = get_db()
+        with _boot_db._lock:
+            _boot_conn = _boot_db._connect()
+            try:
+                assert_esquema_financiero_completo(_boot_conn.cursor())
+            finally:
+                _boot_conn.close()
+except StartupConfigurationError as _boot_err:
+    raise SystemExit(f"[RUANA][BOOT] Configuración inválida: {_boot_err}") from _boot_err
+except RuntimeError as _schema_err:
+    if settings.postgres_configured and "Esquema financiero incompleto" in str(_schema_err):
+        raise SystemExit(f"[RUANA][BOOT] {_schema_err}") from _schema_err
+    raise
 
 if CORS is not None:
     CORS(app)

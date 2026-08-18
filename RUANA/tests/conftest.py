@@ -1,4 +1,13 @@
 import os
+
+# Entorno de test antes de importar la app (FASE 13A — validación de arranque)
+os.environ.setdefault("RUANA_ENV", "test")
+os.environ.setdefault("RUANA_STRIPE_MODE", "test")
+os.environ.setdefault("FLASK_SECRET_KEY", "pytest_flask_secret_key_24chars")
+os.environ.setdefault("STRIPE_SECRET_KEY", "sk_test_pytest_default_key")
+os.environ.setdefault("STRIPE_WEBHOOK_SECRET", "whsec_pytest_webhook_secret_24")
+os.environ.setdefault("RUANA_CRON_SECRET", "pytest_cron_secret_minimum_24")
+
 import time
 import threading
 from pathlib import Path

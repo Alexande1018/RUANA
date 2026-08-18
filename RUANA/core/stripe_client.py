@@ -42,6 +42,17 @@ def configure_stripe() -> Optional[Any]:
     secret = (settings.stripe_secret_key or "").strip()
     if not secret:
         return None
+    from core.runtime_environment import is_production, is_test_context
+    from core.startup_validation import validate_stripe_mode_and_keys
+
+    mode = (os.environ.get("RUANA_STRIPE_MODE") or "").strip().lower()
+    if not mode and is_test_context():
+        mode = "test"
+    validate_stripe_mode_and_keys(
+        stripe_mode=mode,
+        stripe_secret_key=secret,
+        production=is_production(),
+    )
     stripe = _stripe_module()
     stripe.api_key = secret
     stripe.api_version = get_stripe_api_version()
