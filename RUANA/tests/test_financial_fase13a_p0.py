@@ -290,7 +290,8 @@ def test_esquema_financiero_completo_sqlite(sqlite_db):
         assert t in r["presentes"]
 
 
-def test_esquema_incompleto_falla_arranque(tmp_path, monkeypatch):
+def test_esquema_incompleto_no_tumba_arranque_sqlite(tmp_path, monkeypatch):
+    """FASE 13A hotfix: esquema incompleto alerta pero no impide importar la app."""
     monkeypatch.setenv("RUANA_ENV", "test")
     db_path = tmp_path / "incomplete.db"
     conn = sqlite3.connect(str(db_path))

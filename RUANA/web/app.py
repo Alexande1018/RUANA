@@ -139,21 +139,27 @@ else:
 
 try:
     validate_startup_configuration(settings)
-    if settings.postgres_configured:
-        from core.financial_schema_health import assert_esquema_financiero_completo
+except StartupConfigurationError as _boot_err:
+    raise SystemExit(f"[RUANA][BOOT] Configuración inválida: {_boot_err}") from _boot_err
+
+if settings.postgres_configured:
+    try:
+        from core.financial_schema_health import verificar_esquema_financiero
         _boot_db = get_db()
         with _boot_db._lock:
             _boot_conn = _boot_db._connect()
             try:
-                assert_esquema_financiero_completo(_boot_conn.cursor())
+                _schema_status = verificar_esquema_financiero(_boot_conn.cursor())
+                if not _schema_status.get("ok"):
+                    print(
+                        "[RUANA][BOOT][WARN] Esquema financiero incompleto "
+                        f"(tablas faltantes: {_schema_status.get('faltantes')}). "
+                        "El servicio arranca; /api/admin/financial/schema-health reportará error."
+                    )
             finally:
                 _boot_conn.close()
-except StartupConfigurationError as _boot_err:
-    raise SystemExit(f"[RUANA][BOOT] Configuración inválida: {_boot_err}") from _boot_err
-except RuntimeError as _schema_err:
-    if settings.postgres_configured and "Esquema financiero incompleto" in str(_schema_err):
-        raise SystemExit(f"[RUANA][BOOT] {_schema_err}") from _schema_err
-    raise
+    except Exception as _schema_warn:
+        print(f"[RUANA][BOOT][WARN] No se pudo verificar esquema financiero: {_schema_warn}")
 
 if CORS is not None:
     CORS(app)

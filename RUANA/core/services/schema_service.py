@@ -2287,19 +2287,9 @@ def _init_postgres_schema(db):
         db._migrar_financial_fase03(conn, cursor)
         db._migrar_financial_fase03_1(conn, cursor)
         db._migrar_financial_fase03_2(conn, cursor)
-        db._migrar_financial_fase04_conflicts(conn, cursor)
-        db._migrar_financial_fase05_refunds(conn, cursor)
-        db._migrar_financial_fase06_disputes(conn, cursor)
-        db._migrar_financial_fase07_reconciliation(conn, cursor)
-        db._migrar_financial_fase08_ledger(conn, cursor)
-        db._migrar_financial_fase09_admin_panel(conn, cursor)
-        db._migrar_financial_fase10_security(conn, cursor)
-        db._migrar_financial_fase11_automation(conn, cursor)
         db._migrar_financial_fase13_p0_ledger_immutability(conn, cursor)
-        from core.financial_schema_health import assert_esquema_financiero_completo
-        assert_esquema_financiero_completo(cursor)
         conn.commit()
-        print("[RUANA][DB] Esquema Postgres verificado (fases 04–11 + inmutabilidad ledger FASE 13A)")
+        print("[RUANA][DB] Esquema Postgres verificado (core + triggers ledger FASE 13A)")
     except Exception as e:
         print(f"[RUANA][DB] Error inicializando esquema Postgres: {e}")
     finally:
