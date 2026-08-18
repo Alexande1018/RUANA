@@ -422,6 +422,7 @@ def _init_db(db):
             db._migrar_financial_fase03_1(conn, cursor)
             db._migrar_financial_fase03_2(conn, cursor)
             db._migrar_financial_fase04_conflicts(conn, cursor)
+            db._migrar_financial_fase05_refunds(conn, cursor)
 
             conn.commit()
             print(f"[RUANA][DB] Base de datos inicializada en: {db.db_path}")
@@ -1260,6 +1261,67 @@ def _migrar_financial_fase04_conflicts(db, conn, cursor) -> None:
             'ABIERTO', 'EN_INVESTIGACION', 'PENDIENTE_DE_EVIDENCIA', 'ESCALADO'
         )
     """)
+
+
+def _migrar_financial_fase05_refunds(db, conn, cursor) -> None:
+    """FASE 05: reembolsos Stripe blindados."""
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS financial_refunds (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            contacto_id INTEGER NOT NULL,
+            conflicto_id INTEGER,
+            payment_intent_id TEXT,
+            charge_id TEXT,
+            stripe_refund_id TEXT UNIQUE,
+            importe_solicitado_cents INTEGER NOT NULL,
+            importe_confirmado_cents INTEGER NOT NULL DEFAULT 0,
+            moneda TEXT NOT NULL DEFAULT 'eur',
+            estado TEXT NOT NULL DEFAULT 'REQUESTED',
+            motivo_stripe TEXT,
+            causa_ruana TEXT NOT NULL,
+            comision_total_cents INTEGER NOT NULL DEFAULT 0,
+            comision_conservada_cents INTEGER NOT NULL DEFAULT 0,
+            comision_devuelta_cents INTEGER NOT NULL DEFAULT 0,
+            parte_ejecutada_cents INTEGER NOT NULL DEFAULT 0,
+            parte_no_ejecutada_cents INTEGER NOT NULL DEFAULT 0,
+            actor_codigo TEXT NOT NULL,
+            permiso_usado TEXT,
+            idempotency_key TEXT NOT NULL UNIQUE,
+            error_stripe TEXT,
+            metadata_json TEXT,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (contacto_id) REFERENCES contactos_ruana(id),
+            FOREIGN KEY (conflicto_id) REFERENCES payment_conflicts(id)
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_financial_refunds_contacto ON financial_refunds(contacto_id)
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_financial_refunds_estado ON financial_refunds(estado)
+    """)
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS financial_refund_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            refund_id INTEGER NOT NULL,
+            operacion TEXT NOT NULL,
+            actor_codigo TEXT NOT NULL,
+            resultado TEXT NOT NULL,
+            metadata_json TEXT,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (refund_id) REFERENCES financial_refunds(id)
+        )
+    """)
+    columnas_sr = _repo.columnas_tabla(cursor, "stripe_refunds")
+    for nombre, sqlite_def in (
+        ("financial_refund_id", "INTEGER"),
+        ("amount_cents", "INTEGER"),
+        ("payment_intent_id", "TEXT"),
+        ("updated_at", "TIMESTAMP"),
+    ):
+        if nombre not in columnas_sr:
+            _repo.execute(cursor, f"ALTER TABLE stripe_refunds ADD COLUMN {nombre} {sqlite_def}")
 
 
 def _migrar_contactos_validacion_pago(db, conn, cursor) -> None:

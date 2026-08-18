@@ -6,9 +6,16 @@ from typing import Any, Dict, List, Optional
 
 from core.financial.discrepancia import TipoDiscrepancia
 from core.financial.estados import EstadoFinanciero
+from core.financial.refund_reconciliation import (
+    DecisionReconciliacionRefund,
+    evaluar_reconciliacion_refund,
+    extraer_snapshot_refund_stripe,
+)
 from core.repositories.financial_reconciliation_repo import FinancialReconciliationRepo
+from core.repositories.financial_refund_repo import FinancialRefundRepo
 
 _repo = FinancialReconciliationRepo()
+_refund_repo = FinancialRefundRepo()
 
 
 def _importe_contacto(contacto: Dict[str, Any]) -> float:
@@ -232,6 +239,69 @@ def reconciliar_contacto(
                 )
                 if r:
                     discrepancias.append(r)
+
+            refunds_snap = snap.get("refunds") or []
+            if refunds_snap and _refund_repo.tabla_existe(cursor):
+                cobrado_cents = int(round(importe_ruana * 100))
+                ruana_refunds = _refund_repo.listar_por_contacto(cursor, contacto_id)
+                ruana_por_stripe = {
+                    (r.get("stripe_refund_id") or "").strip(): r
+                    for r in ruana_refunds if (r.get("stripe_refund_id") or "").strip()
+                }
+                stripe_ids: set[str] = set()
+                disputa_abierta = ruana_estado == EstadoFinanciero.DISPUTA_STRIPE.value
+                for raw_refund in refunds_snap:
+                    stripe_snap = extraer_snapshot_refund_stripe(raw_refund)
+                    stripe_id = (stripe_snap.get("id") or "").strip()
+                    if stripe_id:
+                        stripe_ids.add(stripe_id)
+                    ruana_row = ruana_por_stripe.get(stripe_id) if stripe_id else None
+                    if stripe_id and not ruana_row:
+                        r = _registrar_en_cursor(
+                            cursor, contacto_id, TipoDiscrepancia.REFUND_MISSING_RUANA,
+                            pi_ruana, tr_ruana, ruana_estado, stripe_snap.get("status") or "",
+                            importe_ruana, _cents_to_eur(stripe_snap.get("amount")),
+                            metadata={"stripe_refund_id": stripe_id},
+                        )
+                        if r:
+                            discrepancias.append(r)
+                        continue
+                    decision, motivo = evaluar_reconciliacion_refund(
+                        financial_refund=ruana_row,
+                        stripe_snapshot=stripe_snap,
+                        importe_cobrado_cents=cobrado_cents,
+                        disputa_abierta=disputa_abierta,
+                    )
+                    if decision == DecisionReconciliacionRefund.MISMATCH:
+                        tipo = TipoDiscrepancia.REFUND_AMOUNT_MISMATCH
+                        if motivo in ("moneda",):
+                            tipo = TipoDiscrepancia.CURRENCY_MISMATCH
+                        elif motivo in ("charge", "refund_id", "payment_intent"):
+                            tipo = TipoDiscrepancia.PAYMENT_INTENT_MISMATCH
+                        elif motivo == "comision":
+                            tipo = TipoDiscrepancia.REFUND_COMMISSION_MISMATCH
+                        r = _registrar_en_cursor(
+                            cursor, contacto_id, tipo,
+                            pi_ruana, tr_ruana, ruana_estado, stripe_snap.get("status") or "",
+                            importe_ruana, _cents_to_eur(stripe_snap.get("amount")),
+                            metadata={"motivo": motivo, "stripe_refund_id": stripe_id},
+                        )
+                        if r:
+                            discrepancias.append(r)
+                for ruana_row in ruana_refunds:
+                    stripe_id = (ruana_row.get("stripe_refund_id") or "").strip()
+                    estado_rf = (ruana_row.get("estado") or "").upper()
+                    if stripe_id and stripe_id not in stripe_ids and estado_rf in (
+                        "SUCCEEDED", "PENDING_RECONCILIATION", "STRIPE_PROCESSING",
+                    ):
+                        r = _registrar_en_cursor(
+                            cursor, contacto_id, TipoDiscrepancia.REFUND_MISSING_STRIPE,
+                            pi_ruana, tr_ruana, estado_rf, "",
+                            importe_ruana, _cents_to_eur(ruana_row.get("importe_confirmado_cents")),
+                            metadata={"stripe_refund_id": stripe_id},
+                        )
+                        if r:
+                            discrepancias.append(r)
 
             conn.commit()
             return {
