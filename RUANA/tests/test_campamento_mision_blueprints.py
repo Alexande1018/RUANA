@@ -68,17 +68,20 @@ def test_blueprints_registrados_en_app(client):
 
 
 def test_aliado_login_y_sesion_via_auth_bp(client, sqlite_db, monkeypatch):
+    from core.aliado_pin_auth import hash_pin
+
     monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
     monkeypatch.setattr(db_module, "get_db", lambda: sqlite_db)
     conn = sqlite_db._connect()
     conn.execute(
-        "INSERT INTO aliados (codigo, nombre, marca, oficio, codigo_postal, email, telefono, estado, score)"
-        " VALUES ('73001', 'Auth', 'M', 'Fontanería', '28001', 'auth73001@test.com', '+34613000001', 'activo', 50)"
+        "INSERT INTO aliados (codigo, nombre, marca, oficio, codigo_postal, email, telefono, estado, score, pin_hash)"
+        " VALUES ('73001', 'Auth', 'M', 'Fontanería', '28001', 'auth73001@test.com', '+34613000001', 'activo', 50, ?)",
+        (hash_pin("1234"),),
     )
     conn.commit()
     conn.close()
 
-    resp = client.post("/api/aliado/login", json={"codigo": "73001"})
+    resp = client.post("/api/aliado/login", json={"codigo": "73001", "pin": "1234"})
     data = resp.get_json()
     assert resp.status_code == 200, data
     assert data.get("status") == "success"

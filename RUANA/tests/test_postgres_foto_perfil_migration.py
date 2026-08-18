@@ -46,6 +46,7 @@ def test_init_postgres_schema_runs_foto_perfil_migration(monkeypatch):
 
     monkeypatch.setattr(db, "_connect", lambda: FakeConn())
     monkeypatch.setattr(db, "_migrar_aliados_foto_perfil", lambda conn, cursor: calls.append("migrar_foto_perfil"))
+    monkeypatch.setattr(db, "_migrar_aliados_pin_personal", lambda conn, cursor: calls.append("migrar_pin_personal"))
     monkeypatch.setattr(db, "_migrar_negociacion_guiada", lambda conn, cursor: calls.append("migrar_negociacion_guiada"))
 
     db._init_postgres_schema()
