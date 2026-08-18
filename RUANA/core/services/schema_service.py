@@ -425,6 +425,7 @@ def _init_db(db):
             db._migrar_financial_fase05_refunds(conn, cursor)
             db._migrar_financial_fase06_disputes(conn, cursor)
             db._migrar_financial_fase07_reconciliation(conn, cursor)
+            db._migrar_financial_fase08_ledger(conn, cursor)
 
             conn.commit()
             print(f"[RUANA][DB] Base de datos inicializada en: {db.db_path}")
@@ -1505,6 +1506,94 @@ def _migrar_financial_fase07_reconciliation(db, conn, cursor) -> None:
     _repo.execute(cursor, """
         CREATE INDEX IF NOT EXISTS idx_fin_recon_res_exec
         ON financial_reconciliation_resource_results(execution_id, resource_type)
+    """)
+
+
+def _migrar_financial_fase08_ledger(db, conn, cursor) -> None:
+    """FASE 08: ledger financiero interno."""
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS ledger_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            transaction_key TEXT NOT NULL UNIQUE,
+            contacto_id INTEGER,
+            tipo TEXT NOT NULL,
+            moneda TEXT NOT NULL DEFAULT 'eur',
+            estado TEXT NOT NULL DEFAULT 'DRAFT',
+            actor_origen TEXT,
+            evento_origen TEXT,
+            referencia_stripe TEXT,
+            idempotency_key TEXT NOT NULL UNIQUE,
+            reversa_de_id INTEGER,
+            fecha_efectiva TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            fecha_publicacion TIMESTAMP,
+            metadata_json TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (contacto_id) REFERENCES contactos_ruana(id),
+            FOREIGN KEY (reversa_de_id) REFERENCES ledger_transactions(id)
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_ledger_tx_contacto ON ledger_transactions(contacto_id)
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_ledger_tx_tipo ON ledger_transactions(tipo)
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_ledger_tx_estado ON ledger_transactions(estado)
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_ledger_tx_idem ON ledger_transactions(idempotency_key)
+    """)
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS ledger_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ledger_transaction_id INTEGER NOT NULL,
+            account_code TEXT NOT NULL,
+            debit_cents INTEGER NOT NULL DEFAULT 0 CHECK (debit_cents >= 0),
+            credit_cents INTEGER NOT NULL DEFAULT 0 CHECK (credit_cents >= 0),
+            currency TEXT NOT NULL DEFAULT 'eur',
+            descripcion TEXT,
+            referencia TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (ledger_transaction_id) REFERENCES ledger_transactions(id),
+            CHECK (NOT (debit_cents > 0 AND credit_cents > 0)),
+            CHECK (debit_cents + credit_cents > 0)
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_ledger_entries_tx ON ledger_entries(ledger_transaction_id)
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_ledger_entries_account ON ledger_entries(account_code)
+    """)
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS ledger_event_links (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ledger_transaction_id INTEGER NOT NULL,
+            resource_type TEXT NOT NULL,
+            resource_id TEXT NOT NULL,
+            metadata_json TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (ledger_transaction_id) REFERENCES ledger_transactions(id),
+            UNIQUE (ledger_transaction_id, resource_type, resource_id)
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_ledger_links_resource
+        ON ledger_event_links(resource_type, resource_id)
+    """)
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS ledger_account_balances (
+            account_code TEXT NOT NULL,
+            contacto_id INTEGER NOT NULL DEFAULT 0,
+            currency TEXT NOT NULL DEFAULT 'eur',
+            debit_total_cents INTEGER NOT NULL DEFAULT 0,
+            credit_total_cents INTEGER NOT NULL DEFAULT 0,
+            saldo_neto_cents INTEGER NOT NULL DEFAULT 0,
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (account_code, contacto_id, currency)
+        )
     """)
 
 

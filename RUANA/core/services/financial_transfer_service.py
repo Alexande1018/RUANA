@@ -220,6 +220,15 @@ def ejecutar_liberacion_y_transferencia(
             )
             conn.commit()
 
+            from core.services.financial_ledger_hooks import on_transfer_creada
+            on_transfer_creada(
+                db,
+                contacto_id=contacto_id,
+                transfer_id=transfer_id,
+                importe_cents=amount_cents,
+                idempotency_key=idempotency_key,
+            )
+
             return {
                 "status": "success",
                 "contacto_id": contacto_id,
@@ -323,6 +332,14 @@ def finalizar_transferencia_completada(
                 origen, "", f"transfer={transfer_id} neto={neto_val}",
             )
             conn.commit()
+
+            from core.services.financial_ledger_hooks import on_transfer_completada
+            on_transfer_completada(
+                db,
+                contacto_id=contacto_id,
+                transfer_id=transfer_id,
+                importe_cents=int(round(neto_val * 100)),
+            )
 
             pago_service._aplicar_score_tras_transfer(db, contacto_id, solicitante, prof_codigo)
             return {
