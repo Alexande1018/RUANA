@@ -90,6 +90,7 @@ def _paginated(
     limit: int,
     offset: int,
     freshness_source: Optional[str] = None,
+    count_table: Optional[str] = None,
 ) -> Dict[str, Any]:
     t0 = time.perf_counter()
     lim, off = _repo.clamp_pagination(limit, offset)
@@ -98,7 +99,12 @@ def _paginated(
         try:
             cursor = conn.cursor()
             items = list_fn(cursor, limit=lim, offset=off)
-            total = _repo.count_query(cursor, count_sql, count_params) if count_sql else len(items)
+            if count_sql and count_table and not _repo.tabla_existe(cursor, count_table):
+                total = len(items)
+            elif count_sql:
+                total = _repo.count_query(cursor, count_sql, count_params)
+            else:
+                total = len(items)
         finally:
             conn.close()
     elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
@@ -299,6 +305,7 @@ def listar_pagos(db, **kwargs) -> Dict[str, Any]:
         ),
         count_sql=sql,
         count_params=tuple(params),
+        count_table="contactos_ruana",
         limit=kwargs.get("limit", 50),
         offset=kwargs.get("offset", 0),
     )
@@ -321,6 +328,7 @@ def listar_transfers(db, **kwargs) -> Dict[str, Any]:
         list_fn=lambda c, limit, offset: _repo.listar_transfers(c, limit=limit, offset=offset, estado=estado, q=q),
         count_sql=sql,
         count_params=tuple(params),
+        count_table="financial_transfers",
         limit=kwargs.get("limit", 50),
         offset=kwargs.get("offset", 0),
     )
@@ -343,6 +351,7 @@ def listar_refunds(db, **kwargs) -> Dict[str, Any]:
         list_fn=lambda c, limit, offset: _repo.listar_refunds(c, limit=limit, offset=offset, estado=estado, q=q),
         count_sql=sql,
         count_params=tuple(params),
+        count_table="financial_refunds",
         limit=kwargs.get("limit", 50),
         offset=kwargs.get("offset", 0),
     )
@@ -365,6 +374,7 @@ def listar_disputes(db, **kwargs) -> Dict[str, Any]:
         list_fn=lambda c, limit, offset: _repo.listar_disputes(c, limit=limit, offset=offset, estado=estado, q=q),
         count_sql=sql,
         count_params=tuple(params),
+        count_table="financial_disputes",
         limit=kwargs.get("limit", 50),
         offset=kwargs.get("offset", 0),
     )
@@ -387,6 +397,7 @@ def listar_conflicts(db, **kwargs) -> Dict[str, Any]:
         list_fn=lambda c, limit, offset: _repo.listar_conflicts(c, limit=limit, offset=offset, estado=estado, q=q),
         count_sql=sql,
         count_params=tuple(params),
+        count_table="payment_conflicts",
         limit=kwargs.get("limit", 50),
         offset=kwargs.get("offset", 0),
     )
@@ -412,6 +423,7 @@ def listar_reconciliation(db, **kwargs) -> Dict[str, Any]:
         list_fn=lambda c, limit, offset: _repo.listar_reconciliacion(c, limit=limit, offset=offset, estado=estado),
         count_sql=sql,
         count_params=tuple(params),
+        count_table="financial_reconciliation_executions",
         limit=kwargs.get("limit", 50),
         offset=kwargs.get("offset", 0),
         freshness_source=ultima,
@@ -431,6 +443,7 @@ def listar_ledger(db, **kwargs) -> Dict[str, Any]:
         list_fn=lambda c, limit, offset: _repo.listar_ledger(c, limit=limit, offset=offset, estado=estado),
         count_sql=sql,
         count_params=tuple(params),
+        count_table="ledger_transactions",
         limit=kwargs.get("limit", 50),
         offset=kwargs.get("offset", 0),
     )
@@ -438,19 +451,18 @@ def listar_ledger(db, **kwargs) -> Dict[str, Any]:
 
 def listar_webhooks(db, **kwargs) -> Dict[str, Any]:
     solo_fallidos = str(kwargs.get("solo_fallidos", "1")).lower() in ("1", "true", "yes")
+    sql = ""
     with db._lock:
         conn = db._connect()
         try:
             cursor = conn.cursor()
-            if not _repo.tabla_existe(cursor, "stripe_webhook_events"):
-                sql = ""
-            else:
-                cols = {c[1] for c in cursor.execute("PRAGMA table_info(stripe_webhook_events)").fetchall()}
+            if _repo.tabla_existe(cursor, "stripe_webhook_events"):
                 if solo_fallidos:
-                    if "estado_procesamiento" in cols:
-                        sql = "SELECT COUNT(*) FROM stripe_webhook_events WHERE estado_procesamiento != 'completed' OR error_message IS NOT NULL"
-                    else:
-                        sql = "SELECT COUNT(*) FROM stripe_webhook_events WHERE resultado IS NOT NULL AND resultado != 'ok'"
+                    wh_sql = _repo._stripe_webhook_failed_where(cursor)
+                    sql = (
+                        f"SELECT COUNT(*) FROM stripe_webhook_events WHERE {wh_sql}"
+                        if wh_sql else ""
+                    )
                 else:
                     sql = "SELECT COUNT(*) FROM stripe_webhook_events"
         finally:
@@ -460,6 +472,7 @@ def listar_webhooks(db, **kwargs) -> Dict[str, Any]:
         list_fn=lambda c, limit, offset: _repo.listar_webhooks(c, limit=limit, offset=offset, solo_fallidos=solo_fallidos),
         count_sql=sql,
         count_params=(),
+        count_table="stripe_webhook_events",
         limit=kwargs.get("limit", 50),
         offset=kwargs.get("offset", 0),
     )
@@ -482,6 +495,7 @@ def listar_audit(db, **kwargs) -> Dict[str, Any]:
         list_fn=lambda c, limit, offset: _repo.listar_audit(c, limit=limit, offset=offset, entidad=entidad, q=q),
         count_sql=sql,
         count_params=tuple(params),
+        count_table="audit_log",
         limit=kwargs.get("limit", 50),
         offset=kwargs.get("offset", 0),
     )

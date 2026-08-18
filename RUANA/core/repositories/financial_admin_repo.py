@@ -5,6 +5,9 @@ import json
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.financial_schema_health import tabla_existe as _tabla_existe
+from core.repositories.schema_repo import SchemaRepo
+
+_schema_repo = SchemaRepo()
 
 
 class FinancialAdminRepo:
@@ -19,58 +22,97 @@ class FinancialAdminRepo:
     def tabla_existe(self, cursor, nombre: str) -> bool:
         return _tabla_existe(cursor, nombre)
 
+    def columnas_tabla(self, cursor, nombre: str) -> set:
+        if not self.tabla_existe(cursor, nombre):
+            return set()
+        return set(_schema_repo.columnas_tabla(cursor, nombre))
+
+    def _scalar(self, row, default: int = 0) -> int:
+        if row is None:
+            return default
+        if hasattr(row, "keys"):
+            vals = list(row.values()) if hasattr(row, "values") else [row[k] for k in row.keys()]
+            if not vals:
+                return default
+            return int(vals[0] or default)
+        try:
+            return int(row[0] if row[0] is not None else default)
+        except (TypeError, ValueError, IndexError):
+            return default
+
     def count_query(self, cursor, sql: str, params: tuple = ()) -> int:
         cursor.execute(sql, params)
         row = cursor.fetchone()
-        return int(row[0] if row else 0)
+        return self._scalar(row, 0)
+
+    def _stripe_webhook_failed_where(self, cursor) -> Optional[str]:
+        if not self.tabla_existe(cursor, "stripe_webhook_events"):
+            return None
+        cols = self.columnas_tabla(cursor, "stripe_webhook_events")
+        if "procesado" in cols:
+            parts = ["procesado = 0"]
+            if "estado" in cols:
+                parts.append("estado = 'error'")
+            return " OR ".join(parts)
+        if "estado_procesamiento" in cols:
+            parts = ["estado_procesamiento != 'completed'"]
+            if "error_message" in cols:
+                parts.append("error_message IS NOT NULL")
+            return " OR ".join(parts)
+        if "resultado" in cols:
+            return "resultado IS NOT NULL AND resultado != 'ok'"
+        return None
 
     def dashboard_kpis(self, cursor) -> Dict[str, Any]:
         kpis: Dict[str, Any] = {}
         if self.tabla_existe(cursor, "contactos_ruana"):
-            kpis["pagos_pendientes"] = self.count_query(
-                cursor,
-                """
-                SELECT COUNT(*) FROM contactos_ruana
-                WHERE modo_pago = 'stripe'
-                  AND estado_financiero IN ('PAGO_PENDIENTE', 'PAGO_NO_INICIADO')
-                """,
-            )
-            kpis["pagos_confirmados"] = self.count_query(
-                cursor,
-                """
-                SELECT COUNT(*) FROM contactos_ruana
-                WHERE modo_pago = 'stripe'
-                  AND estado_financiero NOT IN ('PAGO_PENDIENTE', 'PAGO_NO_INICIADO', 'PAGO_FALLIDO', 'PAGO_CANCELADO')
-                """,
-            )
-            kpis["transferencias_revertidas"] = self.count_query(
-                cursor,
-                "SELECT COUNT(*) FROM contactos_ruana WHERE estado_financiero = 'TRANSFERENCIA_REVERTIDA'",
-            )
-            kpis["operaciones_bloqueadas"] = self.count_query(
-                cursor,
-                """
-                SELECT COUNT(*) FROM contactos_ruana
-                WHERE estado_financiero IN ('CONFLICTO_ABIERTO', 'DISPUTA_STRIPE', 'REEMBOLSO_PENDIENTE')
-                """,
-            )
-            cursor.execute(
-                """
-                SELECT COALESCE(SUM(CAST(ROUND(importe_acordado * 100) AS INTEGER)), 0)
-                FROM contactos_ruana
-                WHERE modo_pago = 'stripe' AND estado_transferencia = 'RETENIDO'
-                """
-            )
-            row = cursor.fetchone()
-            kpis["dinero_retenido_cents"] = int(row[0] if row else 0)
-            cursor.execute(
-                """
-                SELECT COALESCE(SUM(CAST(ROUND(importe_neto_profesional * 100) AS INTEGER)), 0)
-                FROM contactos_ruana WHERE estado_financiero = 'TRANSFERIDO'
-                """
-            )
-            row = cursor.fetchone()
-            kpis["dinero_transferido_cents"] = int(row[0] if row else 0)
+            cols = self.columnas_tabla(cursor, "contactos_ruana")
+            if {"modo_pago", "estado_financiero"} <= cols:
+                kpis["pagos_pendientes"] = self.count_query(
+                    cursor,
+                    """
+                    SELECT COUNT(*) FROM contactos_ruana
+                    WHERE modo_pago = 'stripe'
+                      AND estado_financiero IN ('PAGO_PENDIENTE', 'PAGO_NO_INICIADO')
+                    """,
+                )
+                kpis["pagos_confirmados"] = self.count_query(
+                    cursor,
+                    """
+                    SELECT COUNT(*) FROM contactos_ruana
+                    WHERE modo_pago = 'stripe'
+                      AND estado_financiero NOT IN ('PAGO_PENDIENTE', 'PAGO_NO_INICIADO', 'PAGO_FALLIDO', 'PAGO_CANCELADO')
+                    """,
+                )
+                kpis["operaciones_bloqueadas"] = self.count_query(
+                    cursor,
+                    """
+                    SELECT COUNT(*) FROM contactos_ruana
+                    WHERE estado_financiero IN ('CONFLICTO_ABIERTO', 'DISPUTA_STRIPE', 'REEMBOLSO_PENDIENTE')
+                    """,
+                )
+            if "estado_financiero" in cols:
+                kpis["transferencias_revertidas"] = self.count_query(
+                    cursor,
+                    "SELECT COUNT(*) FROM contactos_ruana WHERE estado_financiero = 'TRANSFERENCIA_REVERTIDA'",
+                )
+            if {"modo_pago", "estado_transferencia", "importe_acordado"} <= cols:
+                cursor.execute(
+                    """
+                    SELECT COALESCE(SUM(CAST(ROUND(importe_acordado * 100) AS INTEGER)), 0)
+                    FROM contactos_ruana
+                    WHERE modo_pago = 'stripe' AND estado_transferencia = 'RETENIDO'
+                    """
+                )
+                kpis["dinero_retenido_cents"] = self._scalar(cursor.fetchone(), 0)
+            if {"estado_financiero", "importe_neto_profesional"} <= cols:
+                cursor.execute(
+                    """
+                    SELECT COALESCE(SUM(CAST(ROUND(importe_neto_profesional * 100) AS INTEGER)), 0)
+                    FROM contactos_ruana WHERE estado_financiero = 'TRANSFERIDO'
+                    """
+                )
+                kpis["dinero_transferido_cents"] = self._scalar(cursor.fetchone(), 0)
         if self.tabla_existe(cursor, "financial_refunds"):
             kpis["refunds_pendientes"] = self.count_query(
                 cursor,
@@ -85,23 +127,24 @@ class FinancialAdminRepo:
                 "SELECT COUNT(*) FROM financial_disputes WHERE estado_interno IN ('ABIERTO', 'EN_INVESTIGACION', 'PENDIENTE_EVIDENCIA')",
             )
         if self.tabla_existe(cursor, "payment_conflicts"):
-            kpis["conflictos_abiertos"] = self.count_query(
-                cursor,
-                "SELECT COUNT(*) FROM payment_conflicts WHERE estado_conflicto NOT IN ('CERRADO', 'RESUELTO')",
-            )
+            pc_cols = self.columnas_tabla(cursor, "payment_conflicts")
+            if "estado_conflicto" in pc_cols:
+                kpis["conflictos_abiertos"] = self.count_query(
+                    cursor,
+                    "SELECT COUNT(*) FROM payment_conflicts WHERE estado_conflicto NOT IN ('CERRADO', 'RESUELTO')",
+                )
+            elif "estado" in pc_cols:
+                kpis["conflictos_abiertos"] = self.count_query(
+                    cursor,
+                    "SELECT COUNT(*) FROM payment_conflicts WHERE estado NOT IN ('RESUELTO', 'RECHAZADO')",
+                )
         if self.tabla_existe(cursor, "financial_reconciliation"):
             kpis["discrepancias_abiertas"] = self.count_query(
                 cursor,
                 "SELECT COUNT(*) FROM financial_reconciliation WHERE estado_reconciliacion = 'open'",
             )
-        if self.tabla_existe(cursor, "stripe_webhook_events"):
-            cols = {c[1] for c in cursor.execute("PRAGMA table_info(stripe_webhook_events)").fetchall()}
-            if "procesado" in cols:
-                wh_sql = "procesado = 0 OR estado = 'error'"
-            elif "estado_procesamiento" in cols:
-                wh_sql = "estado_procesamiento != 'completed' OR error_message IS NOT NULL"
-            else:
-                wh_sql = "resultado IS NOT NULL AND resultado != 'ok'"
+        wh_sql = self._stripe_webhook_failed_where(cursor)
+        if wh_sql:
             kpis["webhooks_fallidos"] = self.count_query(
                 cursor, f"SELECT COUNT(*) FROM stripe_webhook_events WHERE {wh_sql}",
             )
@@ -220,20 +263,42 @@ class FinancialAdminRepo:
     def listar_conflicts(self, cursor, *, limit: int, offset: int, estado: str = "", q: str = "") -> List[Dict[str, Any]]:
         if not self.tabla_existe(cursor, "payment_conflicts"):
             return []
+        cols = self.columnas_tabla(cursor, "payment_conflicts")
+        estado_col = "estado_conflicto" if "estado_conflicto" in cols else ("estado" if "estado" in cols else None)
+        if not estado_col:
+            return []
         lim, off = self.clamp_pagination(limit, offset)
         where = ["1=1"]
         params: list = []
         if estado:
-            where.append("estado_conflicto = ?")
+            where.append(f"{estado_col} = ?")
             params.append(estado)
         if q:
-            where.append("(CAST(trabajo_id AS TEXT) = ? OR stripe_payment_intent_id LIKE ?)")
-            params.extend([q, f"%{q}%"])
+            if "stripe_payment_intent_id" in cols:
+                where.append("(CAST(trabajo_id AS TEXT) = ? OR stripe_payment_intent_id LIKE ?)")
+                params.extend([q, f"%{q}%"])
+            else:
+                where.append("CAST(trabajo_id AS TEXT) = ?")
+                params.append(q)
         params.extend([lim, off])
+        select_estado = (
+            "estado_conflicto, bloqueo_financiero, responsable_codigo"
+            if "estado_conflicto" in cols
+            else "estado AS estado_conflicto, 1 AS bloqueo_financiero, NULL AS responsable_codigo"
+        )
+        extra_cols = []
+        if "tipo" in cols:
+            extra_cols.append("tipo")
+        else:
+            extra_cols.append("NULL AS tipo")
+        if "stripe_payment_intent_id" in cols:
+            extra_cols.append("stripe_payment_intent_id")
+        else:
+            extra_cols.append("NULL AS stripe_payment_intent_id")
         cursor.execute(
             f"""
-            SELECT id, trabajo_id, tipo, estado_conflicto, bloqueo_financiero,
-                   responsable_codigo, stripe_payment_intent_id, created_at, updated_at
+            SELECT id, trabajo_id, {', '.join(extra_cols)}, {select_estado},
+                   created_at, updated_at
             FROM payment_conflicts
             WHERE {' AND '.join(where)}
             ORDER BY id DESC LIMIT ? OFFSET ?
@@ -333,16 +398,31 @@ class FinancialAdminRepo:
                 })
 
         if self.tabla_existe(cursor, "payment_conflicts"):
-            cursor.execute(
-                """
-                SELECT id, trabajo_id, estado_conflicto, bloqueo_financiero, responsable_codigo, created_at
-                FROM payment_conflicts
-                WHERE bloqueo_financiero = 1
-                  AND estado_conflicto NOT IN ('CERRADO', 'RESUELTO')
-                ORDER BY created_at ASC LIMIT ?
-                """,
-                (lim,),
-            )
+            pc_cols = self.columnas_tabla(cursor, "payment_conflicts")
+            if "bloqueo_financiero" in pc_cols and "estado_conflicto" in pc_cols:
+                cursor.execute(
+                    """
+                    SELECT id, trabajo_id, estado_conflicto, bloqueo_financiero, responsable_codigo, created_at
+                    FROM payment_conflicts
+                    WHERE bloqueo_financiero = 1
+                      AND estado_conflicto NOT IN ('CERRADO', 'RESUELTO')
+                    ORDER BY created_at ASC LIMIT ?
+                    """,
+                    (lim,),
+                )
+            elif "estado" in pc_cols:
+                cursor.execute(
+                    """
+                    SELECT id, trabajo_id, estado AS estado_conflicto, 1 AS bloqueo_financiero,
+                           NULL AS responsable_codigo, created_at
+                    FROM payment_conflicts
+                    WHERE estado NOT IN ('RESUELTO', 'RECHAZADO')
+                    ORDER BY created_at ASC LIMIT ?
+                    """,
+                    (lim,),
+                )
+            else:
+                cursor.execute("SELECT 1 WHERE 0")
             for row in self._rows(cursor):
                 key = f"conflicto:{row.get('id')}"
                 if self.alerta_resuelta(cursor, key):
@@ -360,19 +440,25 @@ class FinancialAdminRepo:
                     "fuente": "payment_conflicts",
                 })
 
-        if self.tabla_existe(cursor, "stripe_webhook_events"):
-            cols = {c[1] for c in cursor.execute("PRAGMA table_info(stripe_webhook_events)").fetchall()}
+        wh_sql = self._stripe_webhook_failed_where(cursor)
+        if wh_sql:
+            cols = self.columnas_tabla(cursor, "stripe_webhook_events")
+            select_cols = ["id", "stripe_event_id", "tipo", "contacto_id"]
+            if "procesado_en" in cols:
+                select_cols.append("procesado_en")
+            if "resultado" in cols:
+                select_cols.append("resultado")
+            if "object_id" in cols:
+                select_cols.insert(3, "object_id")
             if "estado_procesamiento" in cols:
-                wh = "estado_procesamiento != 'completed' OR error_message IS NOT NULL"
-            elif "procesado" in cols:
-                wh = "procesado = 0 OR estado = 'error'"
-            else:
-                wh = "resultado IS NOT NULL AND resultado != 'ok'"
+                select_cols.append("estado_procesamiento")
+            if "error_message" in cols:
+                select_cols.append("error_message")
             cursor.execute(
                 f"""
-                SELECT id, stripe_event_id, tipo, contacto_id, procesado_en, resultado
+                SELECT {', '.join(select_cols)}
                 FROM stripe_webhook_events
-                WHERE {wh}
+                WHERE {wh_sql}
                 ORDER BY id DESC LIMIT ?
                 """,
                 (lim,),
@@ -511,7 +597,7 @@ class FinancialAdminRepo:
         cursor.execute(
             f"""
             SELECT id, transaction_key, contacto_id, tipo, moneda, estado,
-                   referencia_stripe, fecha_publicacion, creado_en
+                   referencia_stripe, fecha_publicacion, created_at
             FROM ledger_transactions
             WHERE {' AND '.join(where)}
             ORDER BY id DESC LIMIT ? OFFSET ?
@@ -524,8 +610,12 @@ class FinancialAdminRepo:
         if not self.tabla_existe(cursor, "stripe_webhook_events"):
             return []
         lim, off = self.clamp_pagination(limit, offset)
-        cols = {c[1] for c in cursor.execute("PRAGMA table_info(stripe_webhook_events)").fetchall()}
-        select_cols = ["id", "stripe_event_id", "tipo", "contacto_id", "procesado_en", "resultado"]
+        cols = self.columnas_tabla(cursor, "stripe_webhook_events")
+        select_cols = ["id", "stripe_event_id", "tipo", "contacto_id"]
+        if "procesado_en" in cols:
+            select_cols.append("procesado_en")
+        if "resultado" in cols:
+            select_cols.append("resultado")
         if "object_id" in cols:
             select_cols.insert(3, "object_id")
         if "estado_procesamiento" in cols:
@@ -534,12 +624,9 @@ class FinancialAdminRepo:
             select_cols.append("error_message")
         where = ""
         if solo_fallidos:
-            if "estado_procesamiento" in cols:
-                where = "WHERE estado_procesamiento != 'completed' OR error_message IS NOT NULL"
-            elif "procesado" in cols:
-                where = "WHERE procesado = 0 OR estado = 'error'"
-            else:
-                where = "WHERE resultado IS NOT NULL AND resultado != 'ok'"
+            wh_sql = self._stripe_webhook_failed_where(cursor)
+            if wh_sql:
+                where = f"WHERE {wh_sql}"
         cursor.execute(
             f"""
             SELECT {', '.join(select_cols)}

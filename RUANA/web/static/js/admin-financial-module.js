@@ -263,7 +263,7 @@
           return '—';
         }, raw: true },
         { key: 'fecha', label: 'Fecha', render: function (r) {
-          return r.creado_en || r.actualizado_en || r.fecha_cobro_confirmado || '—';
+          return r.creado_en || r.created_at || r.actualizado_en || r.updated_at || r.fecha_cobro_confirmado || '—';
         }},
         { key: 'link', label: '', render: function (r) {
           var cid = r.contacto_id || r.id || r.trabajo_id;
