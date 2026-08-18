@@ -121,7 +121,7 @@
 
     <div class="admin-topbar">
         <div class="admin-topbar-brand">
-            <a href="/" class="ruana-brand ruana-brand-topbar" aria-label="RUANA inicio">
+            <a href="/admin#resumen" class="ruana-brand ruana-brand-topbar" id="adminBrandHome" aria-label="Inicio del panel admin">
                 <svg class="ruana-brand-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="28" height="28" aria-hidden="true" focusable="false"><g fill="none" stroke="#A2FF00" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 24v7.5"/><path d="M32 31.5H18v7.5"/><path d="M32 31.5H46v7.5"/></g><rect x="22" y="8" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="8" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/><rect x="36" y="39" width="20" height="20" rx="5.5" fill="#A2FF00"/></svg>
                 <span class="ruana-brand-word">RUANA</span>
                 <span class="ruana-brand-suffix">Admin</span>
@@ -129,7 +129,8 @@
             <span class="admin-topbar-subtitle">Panel de administración</span>
         </div>
         <div class="admin-topbar-actions">
-            <a href="/" class="admin-topbar-link">← Inicio</a>
+            <button type="button" class="admin-topbar-link admin-nav-back" id="adminNavBack" hidden>← Volver</button>
+            <button type="button" class="admin-topbar-link" id="adminNavHome">← Inicio</button>
             <button type="button" id="admin-change-password-btn" class="btn-admin-password">Cambiar contraseña</button>
             <button type="button" id="admin-logout-btn" class="btn-admin-logout">Cerrar sesión admin</button>
         </div>
