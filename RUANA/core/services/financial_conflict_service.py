@@ -28,22 +28,29 @@ _sm = ConflictStateMachine()
 
 def bloquea_operaciones_financieras(db, contacto_id: int, cursor=None) -> Tuple[bool, str]:
     """
-    Comprobación central única: ¿hay conflicto que bloquee transferencias/reconciliación?
+    Comprobación central única: ¿hay conflicto o disputa que bloquee operaciones?
 
     Returns:
         (bloquea, motivo)
     """
+    from core.services import financial_dispute_service as fds
+
     if cursor is not None:
         if _repo.tiene_conflicto_bloqueante(cursor, contacto_id):
             return True, "conflicto_abierto"
+        if fds.tiene_disputa_bloqueante(db, contacto_id, cursor=cursor):
+            return True, "disputa_stripe"
         return False, ""
 
     with db._lock:
         conn = db._connect()
         try:
             cur = conn.cursor()
-            bloquea = _repo.tiene_conflicto_bloqueante(cur, contacto_id)
-            return (True, "conflicto_abierto") if bloquea else (False, "")
+            if _repo.tiene_conflicto_bloqueante(cur, contacto_id):
+                return True, "conflicto_abierto"
+            if fds.tiene_disputa_bloqueante(db, contacto_id, cursor=cur):
+                return True, "disputa_stripe"
+            return False, ""
         finally:
             conn.close()
 

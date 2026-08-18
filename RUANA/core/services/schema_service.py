@@ -423,6 +423,7 @@ def _init_db(db):
             db._migrar_financial_fase03_2(conn, cursor)
             db._migrar_financial_fase04_conflicts(conn, cursor)
             db._migrar_financial_fase05_refunds(conn, cursor)
+            db._migrar_financial_fase06_disputes(conn, cursor)
 
             conn.commit()
             print(f"[RUANA][DB] Base de datos inicializada en: {db.db_path}")
@@ -1322,6 +1323,87 @@ def _migrar_financial_fase05_refunds(db, conn, cursor) -> None:
     ):
         if nombre not in columnas_sr:
             _repo.execute(cursor, f"ALTER TABLE stripe_refunds ADD COLUMN {nombre} {sqlite_def}")
+
+
+def _migrar_financial_fase06_disputes(db, conn, cursor) -> None:
+    """FASE 06: disputas Stripe formales."""
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS financial_disputes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            contacto_id INTEGER NOT NULL,
+            stripe_dispute_id TEXT NOT NULL UNIQUE,
+            charge_id TEXT,
+            payment_intent_id TEXT,
+            amount_cents INTEGER NOT NULL,
+            currency TEXT NOT NULL DEFAULT 'eur',
+            reason TEXT,
+            status_stripe TEXT,
+            estado_interno TEXT NOT NULL DEFAULT 'ABIERTO',
+            evidence_due_by TIMESTAMP,
+            has_evidence INTEGER NOT NULL DEFAULT 0,
+            evidence_submitted INTEGER NOT NULL DEFAULT 0,
+            network_reason_code TEXT,
+            balance_transaction_id TEXT,
+            funds_withdrawn_cents INTEGER NOT NULL DEFAULT 0,
+            funds_reinstated_cents INTEGER NOT NULL DEFAULT 0,
+            resolution TEXT,
+            resolution_reason TEXT,
+            responsable_codigo TEXT,
+            conflicto_id INTEGER,
+            idempotency_key TEXT UNIQUE,
+            bloqueo_financiero INTEGER NOT NULL DEFAULT 1,
+            estado_financiero_historico TEXT,
+            metadata_json TEXT,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            cerrado_en TIMESTAMP,
+            FOREIGN KEY (contacto_id) REFERENCES contactos_ruana(id),
+            FOREIGN KEY (conflicto_id) REFERENCES payment_conflicts(id)
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_financial_disputes_contacto ON financial_disputes(contacto_id)
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_financial_disputes_estado ON financial_disputes(estado_interno)
+    """)
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS financial_dispute_evidence (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            dispute_id INTEGER NOT NULL,
+            tipo TEXT NOT NULL,
+            referencia TEXT,
+            content_hash TEXT,
+            autor_codigo TEXT NOT NULL,
+            estado TEXT NOT NULL DEFAULT 'BORRADOR',
+            enviada_a_stripe INTEGER NOT NULL DEFAULT 0,
+            fecha_envio TIMESTAMP,
+            metadata_json TEXT,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (dispute_id) REFERENCES financial_disputes(id)
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS financial_dispute_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            dispute_id INTEGER NOT NULL,
+            operacion TEXT NOT NULL,
+            actor_codigo TEXT NOT NULL,
+            permiso_usado TEXT,
+            resultado TEXT NOT NULL,
+            metadata_json TEXT,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (dispute_id) REFERENCES financial_disputes(id)
+        )
+    """)
+    columnas_sd = _repo.columnas_tabla(cursor, "stripe_disputes")
+    for nombre, sqlite_def in (
+        ("financial_dispute_id", "INTEGER"),
+        ("amount_cents", "INTEGER"),
+        ("updated_at", "TIMESTAMP"),
+    ):
+        if nombre not in columnas_sd:
+            _repo.execute(cursor, f"ALTER TABLE stripe_disputes ADD COLUMN {nombre} {sqlite_def}")
 
 
 def _migrar_contactos_validacion_pago(db, conn, cursor) -> None:

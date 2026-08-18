@@ -13,9 +13,16 @@ from core.financial.refund_reconciliation import (
 )
 from core.repositories.financial_reconciliation_repo import FinancialReconciliationRepo
 from core.repositories.financial_refund_repo import FinancialRefundRepo
+from core.repositories.financial_dispute_repo import FinancialDisputeRepo
+from core.financial.dispute_reconciliation import (
+    DecisionReconciliacionDispute,
+    evaluar_reconciliacion_dispute,
+    extraer_snapshot_dispute_stripe,
+)
 
 _repo = FinancialReconciliationRepo()
 _refund_repo = FinancialRefundRepo()
+_dispute_repo = FinancialDisputeRepo()
 
 
 def _importe_contacto(contacto: Dict[str, Any]) -> float:
@@ -299,6 +306,65 @@ def reconciliar_contacto(
                             pi_ruana, tr_ruana, estado_rf, "",
                             importe_ruana, _cents_to_eur(ruana_row.get("importe_confirmado_cents")),
                             metadata={"stripe_refund_id": stripe_id},
+                        )
+                        if r:
+                            discrepancias.append(r)
+
+            disputes_snap = snap.get("disputes") or []
+            if disputes_snap and _dispute_repo.tabla_existe(cursor):
+                cobrado_cents = int(round(importe_ruana * 100))
+                ruana_disputes = _dispute_repo.listar_por_contacto(cursor, contacto_id)
+                ruana_por_stripe_d = {
+                    (d.get("stripe_dispute_id") or "").strip(): d
+                    for d in ruana_disputes if (d.get("stripe_dispute_id") or "").strip()
+                }
+                stripe_d_ids: set[str] = set()
+                for raw_dispute in disputes_snap:
+                    stripe_snap_d = extraer_snapshot_dispute_stripe(raw_dispute)
+                    stripe_id = (stripe_snap_d.get("id") or "").strip()
+                    if stripe_id:
+                        stripe_d_ids.add(stripe_id)
+                    ruana_row_d = ruana_por_stripe_d.get(stripe_id) if stripe_id else None
+                    if stripe_id and not ruana_row_d:
+                        r = _registrar_en_cursor(
+                            cursor, contacto_id, TipoDiscrepancia.DISPUTE_MISSING_RUANA,
+                            pi_ruana, tr_ruana, ruana_estado, stripe_snap_d.get("status") or "",
+                            importe_ruana, _cents_to_eur(stripe_snap_d.get("amount")),
+                            metadata={"stripe_dispute_id": stripe_id},
+                        )
+                        if r:
+                            discrepancias.append(r)
+                        continue
+                    decision_d, motivo_d = evaluar_reconciliacion_dispute(
+                        financial_dispute=ruana_row_d,
+                        stripe_snapshot=stripe_snap_d,
+                        importe_cobrado_cents=cobrado_cents,
+                    )
+                    if decision_d == DecisionReconciliacionDispute.MISMATCH:
+                        tipo_d = TipoDiscrepancia.DISPUTE_AMOUNT_MISMATCH
+                        if motivo_d in ("estado_stripe", "estado"):
+                            tipo_d = TipoDiscrepancia.DISPUTE_STATUS_MISMATCH
+                        elif motivo_d in ("moneda",):
+                            tipo_d = TipoDiscrepancia.CURRENCY_MISMATCH
+                        r = _registrar_en_cursor(
+                            cursor, contacto_id, tipo_d,
+                            pi_ruana, tr_ruana, ruana_estado, stripe_snap_d.get("status") or "",
+                            importe_ruana, _cents_to_eur(stripe_snap_d.get("amount")),
+                            metadata={"motivo": motivo_d, "stripe_dispute_id": stripe_id},
+                        )
+                        if r:
+                            discrepancias.append(r)
+                for ruana_row_d in ruana_disputes:
+                    stripe_id = (ruana_row_d.get("stripe_dispute_id") or "").strip()
+                    estado_d = (ruana_row_d.get("estado_interno") or "").upper()
+                    if stripe_id and stripe_id not in stripe_d_ids and estado_d not in (
+                        "GANADA", "PERDIDA", "CERRADA",
+                    ):
+                        r = _registrar_en_cursor(
+                            cursor, contacto_id, TipoDiscrepancia.DISPUTE_MISSING_STRIPE,
+                            pi_ruana, tr_ruana, estado_d, "",
+                            importe_ruana, _cents_to_eur(ruana_row_d.get("amount_cents")),
+                            metadata={"stripe_dispute_id": stripe_id},
                         )
                         if r:
                             discrepancias.append(r)

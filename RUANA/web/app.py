@@ -66,6 +66,7 @@ from web.blueprints.evaluacion_bp import evaluacion_bp
 from web.blueprints.soporte_bp import soporte_bp
 from web.blueprints.financial_conflicts_bp import financial_conflicts_bp
 from web.blueprints.financial_refunds_bp import financial_refunds_bp
+from web.blueprints.financial_disputes_bp import financial_disputes_bp
 from web.auth_decorators import (
     require_admin,
     require_admin_escritura,
@@ -110,6 +111,7 @@ app.register_blueprint(evaluacion_bp)
 app.register_blueprint(soporte_bp)
 app.register_blueprint(financial_conflicts_bp)
 app.register_blueprint(financial_refunds_bp)
+app.register_blueprint(financial_disputes_bp)
 
 # Cookie de sesión segura (aliado y admin)
 app.config['SESSION_COOKIE_HTTPONLY'] = True

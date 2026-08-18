@@ -263,3 +263,57 @@ def retrieve_refund_by_idempotency(
         )
     except Exception:
         return None
+
+
+def retrieve_dispute(dispute_id: str) -> Dict[str, Any]:
+    stripe = configure_stripe()
+    if stripe is None:
+        raise RuntimeError("Stripe no configurado (falta STRIPE_SECRET_KEY)")
+    return dict(stripe.Dispute.retrieve(dispute_id))
+
+
+def retrieve_charge(charge_id: str) -> Dict[str, Any]:
+    stripe = configure_stripe()
+    if stripe is None:
+        raise RuntimeError("Stripe no configurado (falta STRIPE_SECRET_KEY)")
+    return dict(stripe.Charge.retrieve(charge_id))
+
+
+def retrieve_payment_intent(payment_intent_id: str) -> Dict[str, Any]:
+    stripe = configure_stripe()
+    if stripe is None:
+        raise RuntimeError("Stripe no configurado (falta STRIPE_SECRET_KEY)")
+    return dict(stripe.PaymentIntent.retrieve(payment_intent_id))
+
+
+def retrieve_balance_transaction(balance_transaction_id: str) -> Dict[str, Any]:
+    stripe = configure_stripe()
+    if stripe is None:
+        raise RuntimeError("Stripe no configurado (falta STRIPE_SECRET_KEY)")
+    return dict(stripe.BalanceTransaction.retrieve(balance_transaction_id))
+
+
+def update_dispute_evidence(
+    dispute_id: str,
+    *,
+    evidence: Dict[str, str],
+    idempotency_key: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Actualiza evidencia de disputa (solo acción administrativa)."""
+    stripe = configure_stripe()
+    if stripe is None:
+        raise RuntimeError("Stripe no configurado (falta STRIPE_SECRET_KEY)")
+    kwargs: Dict[str, Any] = {}
+    if idempotency_key:
+        kwargs["idempotency_key"] = idempotency_key
+    safe = {k: str(v) for k, v in evidence.items() if v}
+    result = stripe.Dispute.modify(dispute_id, evidence=safe, **kwargs)
+    return dict(result)
+
+
+def submit_dispute_evidence(dispute_id: str) -> Dict[str, Any]:
+    """Envía evidencia a Stripe (solo acción administrativa)."""
+    stripe = configure_stripe()
+    if stripe is None:
+        raise RuntimeError("Stripe no configurado (falta STRIPE_SECRET_KEY)")
+    return dict(stripe.Dispute.submit_evidence(dispute_id))
