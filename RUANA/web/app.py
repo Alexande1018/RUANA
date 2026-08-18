@@ -70,6 +70,7 @@ from web.blueprints.financial_disputes_bp import financial_disputes_bp
 from web.blueprints.financial_reconciliation_bp import financial_reconciliation_bp
 from web.blueprints.financial_ledger_bp import financial_ledger_bp
 from web.blueprints.financial_admin_bp import financial_admin_bp
+from web.blueprints.financial_automation_bp import financial_automation_bp
 from web.auth_decorators import (
     require_admin,
     require_admin_escritura,
@@ -82,6 +83,7 @@ from web.auth_decorators import (
     _aliado_session_valid,
     _aliado_codigo,
     _forbidden_unless_admin_or_aliado_self,
+    _cron_secret_valid,
 )
 from web.limiter import init_limiter
 from web.limiter import limiter
@@ -118,6 +120,7 @@ app.register_blueprint(financial_disputes_bp)
 app.register_blueprint(financial_reconciliation_bp)
 app.register_blueprint(financial_ledger_bp)
 app.register_blueprint(financial_admin_bp)
+app.register_blueprint(financial_automation_bp)
 
 # Cookie de sesión segura (aliado y admin)
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -152,6 +155,8 @@ def admin_auth_middleware():
     if _admin_session_valid():
         return None
     if _admin_jwt_payload() and _admin_jwt_payload().get('admin_codigo'):
+        return None
+    if _cron_secret_valid():
         return None
     resp = jsonify({'status': 'error', 'message': 'Sesión admin expirada o no autorizado'})
     resp.status_code = 401

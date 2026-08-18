@@ -171,11 +171,18 @@ def obtener_dashboard(db) -> Dict[str, Any]:
             })
     except Exception:
         ledger_ok = False
+    automation = {}
+    try:
+        from core.services import financial_automation_service as fauto
+        automation = fauto.obtener_resumen(db)
+    except Exception:
+        automation = {"automation_disponible": False}
     return {
         "status": "success",
         "kpis": kpi_items,
         "ledger_equilibrado": ledger_ok,
         "ultima_reconciliacion": ultima_recon,
+        "automation": automation,
         **meta,
     }
 
@@ -186,9 +193,22 @@ def listar_alertas(db, *, limit: int = 50, offset: int = 0) -> Dict[str, Any]:
         conn = db._connect()
         try:
             cursor = conn.cursor()
-            todas = _repo.generar_alertas(cursor, limit=lim + off + 200)
+            from core.repositories.financial_automation_repo import FinancialAutomationRepo
+            auto_repo = FinancialAutomationRepo()
+            todas: List[Dict[str, Any]] = []
+            if auto_repo.tabla_existe(cursor, "financial_alerts"):
+                todas = auto_repo.listar_alertas_abiertas(cursor, limit=lim + off + 200, offset=0)
+            keys = {a.get("alert_key") for a in todas}
+            for gen in _repo.generar_alertas(cursor, limit=lim + off + 200):
+                if gen.get("alert_key") not in keys:
+                    todas.append(gen)
+                    keys.add(gen.get("alert_key"))
         finally:
             conn.close()
+    todas.sort(key=lambda a: (
+        {"critical": 0, "high": 1, "medium": 2, "low": 3}.get(a.get("severidad", "low"), 9),
+        str(a.get("fecha") or a.get("fecha_ultima_deteccion") or ""),
+    ))
     page = todas[off: off + lim]
     meta = _freshness_meta(_utc_now_iso(), stale_minutes=5)
     return {
@@ -244,6 +264,10 @@ def resolver_alerta(
                 actor=actor,
                 permiso=permiso,
             )
+            from core.repositories.financial_automation_repo import FinancialAutomationRepo
+            auto_repo = FinancialAutomationRepo()
+            if auto_repo.tabla_existe(cursor, "financial_alerts"):
+                auto_repo.marcar_alerta_resuelta(cursor, key, actor=actor)
             conn.commit()
         finally:
             conn.close()

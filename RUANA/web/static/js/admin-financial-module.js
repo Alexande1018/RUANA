@@ -145,6 +145,16 @@
             '<div class="fin-meta">Fuente: ' + esc(k.fuente) + '</div></article>';
         }).join('') + '</div>';
       host.insertAdjacentHTML('beforeend', html);
+      if (d.automation && d.automation.automation_disponible) {
+        var au = d.automation;
+        var ult = au.ultima_ejecucion || {};
+        var al = au.alertas_abiertas || {};
+        var autoHtml = '<section class="fin-automation-summary"><h3>Automatización financiera</h3>' +
+          '<p>Última ejecución: ' + esc(ult.estado || '—') + ' · ' + esc(ult.run_id || '—') + '</p>' +
+          '<p>Alertas abiertas: críticas ' + esc(al.critical || 0) + ', altas ' + esc(al.high || 0) +
+          ', total ' + esc(al.total || 0) + '</p></section>';
+        host.insertAdjacentHTML('beforeend', autoHtml);
+      }
       loadAlerts(document.getElementById('finanzas-acciones'));
     }).catch(function () { renderError(host, 'Error de red'); });
   }
@@ -163,8 +173,9 @@
         return;
       }
       host.innerHTML = freshnessBadge(res.data) + items.map(function (a) {
+        var antig = a.antiguedad_horas != null ? ' · Antigüedad: ' + a.antiguedad_horas + 'h' : '';
         return '<article class="fin-alert is-' + esc(a.severidad || 'medium') + '">' +
-          '<strong>' + esc(a.tipo) + '</strong> · ' + esc(a.estado) +
+          '<strong>' + esc(a.tipo) + '</strong> · ' + esc(a.estado) + antig +
           '<div>Operación: ' + esc(a.contacto_id || a.object_id || '—') + '</div>' +
           '<div class="fin-meta">' + esc(a.accion_recomendada) + '</div>' +
           '<button type="button" class="fin-nav-btn" data-fin-resolve="' + esc(a.alert_key) + '">Resolver con comentario</button>' +

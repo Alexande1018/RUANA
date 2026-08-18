@@ -428,6 +428,7 @@ def _init_db(db):
             db._migrar_financial_fase08_ledger(conn, cursor)
             db._migrar_financial_fase09_admin_panel(conn, cursor)
             db._migrar_financial_fase10_security(conn, cursor)
+            db._migrar_financial_fase11_automation(conn, cursor)
 
             conn.commit()
             print(f"[RUANA][DB] Base de datos inicializada en: {db.db_path}")
@@ -1695,6 +1696,74 @@ def _migrar_financial_fase10_security(db, conn, cursor) -> None:
     """)
     _repo.execute(cursor, """
         CREATE INDEX IF NOT EXISTS idx_fin_audit_created ON financial_audit_log(created_at DESC)
+    """)
+
+
+def _migrar_financial_fase11_automation(db, conn, cursor) -> None:
+    """FASE 11: leases persistentes, ejecuciones de automatización y alertas financieras."""
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS financial_job_leases (
+            job_name TEXT PRIMARY KEY,
+            holder TEXT NOT NULL,
+            acquired_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP NOT NULL,
+            metadata_json TEXT
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS financial_automation_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id TEXT NOT NULL UNIQUE,
+            job_name TEXT NOT NULL,
+            estado TEXT NOT NULL DEFAULT 'RUNNING',
+            actor TEXT NOT NULL,
+            iniciado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            finalizado_en TIMESTAMP,
+            metricas_json TEXT,
+            errores_json TEXT,
+            alertas_nuevas INTEGER NOT NULL DEFAULT 0,
+            alertas_actualizadas INTEGER NOT NULL DEFAULT 0,
+            detalle_json TEXT
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_fin_auto_runs_job
+        ON financial_automation_runs(job_name, iniciado_en DESC)
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_fin_auto_runs_estado
+        ON financial_automation_runs(estado)
+    """)
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS financial_alerts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            alert_key TEXT NOT NULL UNIQUE,
+            tipo TEXT NOT NULL,
+            severidad TEXT NOT NULL,
+            contacto_id INTEGER,
+            estado TEXT NOT NULL DEFAULT 'OPEN',
+            fecha_primera_deteccion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            fecha_ultima_deteccion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            antiguedad_horas INTEGER,
+            accion_recomendada TEXT,
+            accion_disponible TEXT,
+            fuente TEXT,
+            metadata_json TEXT,
+            run_id_primera TEXT,
+            run_id_ultima TEXT,
+            resuelto_en TIMESTAMP,
+            resuelto_por TEXT
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_fin_alerts_estado
+        ON financial_alerts(estado, severidad)
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_fin_alerts_tipo ON financial_alerts(tipo)
+    """)
+    _repo.execute(cursor, """
+        CREATE INDEX IF NOT EXISTS idx_fin_alerts_contacto ON financial_alerts(contacto_id)
     """)
 
 
