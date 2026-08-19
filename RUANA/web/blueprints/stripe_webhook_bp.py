@@ -6,6 +6,7 @@ from flask import Blueprint, jsonify, request
 
 from core import db_manager as db_manager_mod
 from core.services import pago_service
+from web.financial_rate_limit import limit_stripe_webhook
 
 stripe_webhook_bp = Blueprint("stripe_webhook", __name__)
 
@@ -22,6 +23,7 @@ def get_db():
 
 
 @stripe_webhook_bp.route("/api/stripe/webhook", methods=["POST"])
+@limit_stripe_webhook
 def stripe_webhook():
   """
   POST /api/stripe/webhook

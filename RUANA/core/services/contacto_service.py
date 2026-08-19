@@ -5,6 +5,8 @@ SQL de contactos vía ContactoRepo; cross-domain vía callbacks db.*.
 """
 from __future__ import annotations
 
+from decimal import InvalidOperation
+
 from core.db_constants import RUANA_ROOT
 from pathlib import Path
 
@@ -15,6 +17,12 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from core import negociacion_manager as neg_mgr
+from core.financial.money import (
+    calcular_desglose_stripe_cents,
+    cents_a_importe_bd,
+    comision_ruana_cents,
+    importe_bd_a_cents,
+)
 from core.repositories.contacto_repo import ContactoRepo
 
 _repo = ContactoRepo()
@@ -362,7 +370,7 @@ def registrar_importe_contacto(db, contacto_id: int, parte: str,
 
             oficial = db._importe_oficial_contacto(contacto)
             if oficial is not None:
-                importe_val = float(oficial)
+                importe_val = cents_a_importe_bd(importe_bd_a_cents(oficial))
                 # Persistir columna si aún no estaba
                 if contacto.get('importe_acordado') is None:
                     _repo.update_importe_acordado(cursor, contacto_id, importe_val)
@@ -377,11 +385,12 @@ def registrar_importe_contacto(db, contacto_id: int, parte: str,
                     conn.close()
                     return {'status': 'error', 'message': 'Importe obligatorio'}
                 try:
-                    importe_val = float(importe)
-                except (TypeError, ValueError):
+                    cents = importe_bd_a_cents(importe)
+                    importe_val = cents_a_importe_bd(cents)
+                except (TypeError, ValueError, InvalidOperation):
                     conn.close()
                     return {'status': 'error', 'message': 'Importe debe ser numérico'}
-                if importe_val <= 0:
+                if cents <= 0:
                     conn.close()
                     return {'status': 'error', 'message': 'Importe debe ser mayor que cero'}
 
@@ -430,11 +439,11 @@ def registrar_importe_contacto(db, contacto_id: int, parte: str,
             importe_prof = contacto.get('importe_profesional')
 
             if importe_sol is not None:
-                # Comparar con redondeo a 2 decimales para evitar diferencias de precisión (100.0 vs 100.00)
-                if importe_prof is None or round(float(importe_sol), 2) == round(float(importe_prof), 2):
-                    pct = db._get_apoyo_pct()
-                    apoyo_ruana = round(float(importe_sol) * pct / 100.0, 2)
-                    comision_pct = pct / 100.0
+                if importe_prof is None or importe_bd_a_cents(importe_sol) == importe_bd_a_cents(importe_prof):
+                    _, apoyo_c, _, comision_pct = calcular_desglose_stripe_cents(
+                        importe_bd_a_cents(importe_sol)
+                    )
+                    apoyo_ruana = cents_a_importe_bd(apoyo_c)
                     _repo.update_trabajo_cerrado(
                         cursor, contacto_id, importe_sol, apoyo_ruana, comision_pct
                     )
@@ -605,12 +614,12 @@ def obtener_contacto_resumen(db, contacto_id: int) -> Optional[Dict[str, Any]]:
                 d['es_urgente'] = bool(int(d.get('es_urgente') or 0))
             # Reparación: si trabajo cerrado con importe_final pero apoyo_ruana/comision faltan, calcular
             if d.get('estado') == 'trabajo_cerrado' and d.get('importe_final') is not None:
-                imp = float(d['importe_final'])
                 ap = d.get('apoyo_ruana') if 'apoyo_ruana' in d else None
                 com = d.get('comision')
                 if ap is None or com is None:
-                    pct = db._get_apoyo_pct()
-                    calculado = round(imp * pct / 100.0, 2)
+                    calculado = cents_a_importe_bd(
+                        comision_ruana_cents(importe_bd_a_cents(d['importe_final']))
+                    )
                     if 'apoyo_ruana' in d:
                         d['apoyo_ruana'] = calculado
                     d['comision'] = calculado

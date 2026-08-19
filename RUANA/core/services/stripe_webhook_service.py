@@ -525,9 +525,11 @@ def _handle_charge_refunded(
 ) -> Tuple[Optional[int], str, str, str]:
     charge_id = _object_id(obj)
     payment_intent_id = str(_get(obj, "payment_intent") or "")
-    amount_refunded = _get(obj, "amount_refunded") or _get(obj, "amount") or 0
+    raw_refunded = _get(obj, "amount_refunded") or _get(obj, "amount") or 0
+    amount_refunded_cents = int(raw_refunded or 0)
     currency = str(_get(obj, "currency") or "eur").lower()
-    amount_eur = round(float(amount_refunded) / 100.0, 2)
+    from core.financial.money import cents_a_importe_bd, importe_bd_a_cents
+    amount_eur = cents_a_importe_bd(amount_refunded_cents)
 
     contacto_id = None
     with db._lock:
@@ -543,8 +545,10 @@ def _handle_charge_refunded(
         return None, "contacto_no_encontrado", "", ""
 
     row = _fin_repo_contacto(db, contacto_id)
-    importe_bruto = float(row.get("importe_acordado") or row.get("importe_final") or 0)
-    es_total = amount_eur >= importe_bruto - 0.01 if importe_bruto > 0 else False
+    importe_bruto_cents = importe_bd_a_cents(
+        row.get("importe_acordado") or row.get("importe_final")
+    )
+    es_total = amount_refunded_cents >= importe_bruto_cents if importe_bruto_cents > 0 else False
     refund_id = f"re_{charge_id}_{event_id}"[:80]
 
     with db._lock:

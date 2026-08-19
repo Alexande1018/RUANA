@@ -3,7 +3,7 @@
 > **Autoridad de producto/técnica:** [Manual Maestro §18](../../README.md#18-roadmap).  
 > Histórico completo del roadmap de mayo 2026: [`docs/archive/ROADMAP_2026-05.md`](../archive/ROADMAP_2026-05.md).
 
-Fecha de actualización: **2026-08-15** (revisión documental contra código).
+Fecha de actualización: **2026-08-19** (FASE 14 cierre de pagos).
 
 ## Estado actual
 
@@ -21,7 +21,7 @@ Infra base (Hito 1) desplegable: Docker → Cloud Run, Firebase Hosting rewrite,
 | 2 — Seguridad y permisos | Activo / parcial | 2A/2B con tests; endurecimientos pendientes |
 | Invitaciones admin + campañas | Hecho en código | Specs/planes en archive |
 | Métodos de pago + Storage | Hecho en código | QR Bizum/IBAN + Supabase Storage |
-| Stripe Connect (pagos encargo) | Hecho en código | Flag `RUANA_STRIPE_PAYMENTS_ENABLED`; tests `test_stripe_*` |
+| Stripe Connect (pagos encargo) | FASE 14: Test en prod; **Live bloqueado** | Céntimos enteros + rate limit; ver `docs/operaciones/fase-14-stripe-live.md` |
 | Impugnación cobros / alertas | Hecho en código | Plan en archive |
 | Competencia automática por score | Hecho en main | Umbral 15, reinicio 50 |
 | Campamento Base (modularización) | Avanzado | 16 services + 16 repos; fachada `DBManager` residual (~1.835 LOC) |

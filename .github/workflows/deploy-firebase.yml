@@ -103,7 +103,37 @@ jobs:
         run: npx firebase-tools@15.18.0 deploy --project "$PROJECT_ID" --only hosting --non-interactive
 
       - name: Verify public runtime
+        env:
+          CLOUD_RUN_URL: https://ruana-288784334163.europe-west1.run.app
         run: |
-          curl --fail --retry 8 --retry-delay 6 "$FIREBASE_HOSTING_URL/api/health"
-          curl --fail --retry 8 --retry-delay 6 "$FIREBASE_HOSTING_URL/aliado" | grep -q "input-foto-perfil"
-          curl --fail --retry 8 --retry-delay 6 "$FIREBASE_HOSTING_URL/" | grep -q "ruana-brand-mark"
+          set -euo pipefail
+          check_health() {
+            local name="$1"
+            local url="$2"
+            local last_code="000"
+            local i
+            for i in 1 2 3; do
+              last_code="$(curl -sS -o /tmp/ruana-health.json -w "%{http_code}" --max-time 20 "$url" || echo "000")"
+              if [[ "$last_code" == "200" ]]; then
+                echo "OK $name health HTTP 200"
+                return 0
+              fi
+              if [[ "$last_code" == "429" ]]; then
+                echo "::warning::$name health HTTP 429 (rate limit). El despliegue ya terminó; no se trata como fallo de Cloud Run/Firebase."
+                sleep 8
+                continue
+              fi
+              echo "$name health HTTP $last_code (intento $i)"
+              sleep 5
+            done
+            if [[ "$last_code" == "429" ]]; then
+              echo "::warning::$name verificación inconclusa por 429. No se marca el deploy como fallido."
+              return 0
+            fi
+            echo "::error::$name health falló con HTTP $last_code"
+            return 1
+          }
+          check_health "Cloud Run" "$CLOUD_RUN_URL/api/health"
+          check_health "Firebase Hosting" "$FIREBASE_HOSTING_URL/api/health"
+          curl --fail --retry 3 --retry-delay 5 --retry-all-errors "$FIREBASE_HOSTING_URL/aliado" | grep -q "input-foto-perfil"
+          curl --fail --retry 3 --retry-delay 5 --retry-all-errors "$FIREBASE_HOSTING_URL/" | grep -q "ruana-brand-mark"

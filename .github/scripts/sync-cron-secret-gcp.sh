@@ -47,3 +47,20 @@ gcloud secrets add-iam-policy-binding "$SECRET_NAME" \
   --quiet >/dev/null
 
 echo "IAM secretAccessor concedido a ${RUNTIME_SERVICE_ACCOUNT} en ${SECRET_NAME}."
+
+# Validación dura: el secreto debe existir y tener al menos una versión ENABLED.
+if ! gcloud secrets describe "$SECRET_NAME" --project "$PROJECT_ID" >/dev/null 2>&1; then
+  echo "::error::Secreto GCP ${SECRET_NAME} no existe tras la sincronización."
+  exit 1
+fi
+
+enabled_version="$(gcloud secrets versions list "$SECRET_NAME" \
+  --project "$PROJECT_ID" \
+  --filter="state=ENABLED" \
+  --format="value(name)" \
+  --limit=1)"
+if [[ -z "$enabled_version" ]]; then
+  echo "::error::Secreto GCP ${SECRET_NAME} no tiene versiones ENABLED."
+  exit 1
+fi
+echo "Validado: ${SECRET_NAME} existe con versión ENABLED (${enabled_version})."

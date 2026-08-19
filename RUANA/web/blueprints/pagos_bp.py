@@ -227,6 +227,7 @@ def subir_prueba_conflicto(conflict_id):
 
 
 @pagos_bp.route("/api/admin/contactos/<int:contacto_id>/estado-pago", methods=["POST"])
+@limit_financial_mutation
 @require_admin_escritura
 def admin_estado_pago_contacto(contacto_id):
     """
@@ -257,6 +258,7 @@ def admin_estado_pago_contacto(contacto_id):
 
 
 @pagos_bp.route("/api/contactos/<int:contacto_id>/stripe/checkout", methods=["POST"])
+@limit_financial_mutation
 @require_aliado
 def crear_checkout_stripe_contacto(contacto_id):
     """El contratante inicia el pago Stripe (importe desde BD)."""
@@ -273,6 +275,7 @@ def crear_checkout_stripe_contacto(contacto_id):
 
 
 @pagos_bp.route("/api/contactos/<int:contacto_id>/stripe/confirmar-trabajo", methods=["POST"])
+@limit_financial_mutation
 @require_aliado
 def confirmar_trabajo_stripe(contacto_id):
     """Solo el contratante confirma trabajo realizado → Transfer al profesional."""
@@ -326,6 +329,7 @@ def aliado_stripe_estado():
 
 
 @pagos_bp.route("/api/aliado/stripe/onboarding", methods=["POST"])
+@limit_financial_mutation
 @require_aliado
 def aliado_stripe_onboarding():
     """Profesional inicia onboarding Stripe Connect Express."""

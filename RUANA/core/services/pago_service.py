@@ -10,6 +10,11 @@ from core.repositories.pago_repo import PagoRepo
 from core import stripe_client
 from core.settings import get_settings
 from core.financial.estados import EstadoFinanciero
+from core.financial.money import (
+    cents_a_importe_bd,
+    calcular_desglose_stripe_cents,
+    importe_bd_a_cents,
+)
 from core.services import financial_transaction_service as fts
 
 import json
@@ -560,7 +565,7 @@ def impugnar_apoyo_ruana(db, contacto_id: int, profesional_codigo: str,
                 FinancialConflictRepo()._formalizar_existente(
                     cursor, contacto_id, TipoConflicto.IMPORTE_DISPUTADO,
                     (motivo or "importe impugnado")[:2000], prof_norm,
-                    int(round(importe_final * 100)), "eur",
+                    int(importe_bd_a_cents(importe_final)), "eur",
                 )
 
             db._audit_log(cursor, 'contacto', contacto_id, 'apoyo_impugnado',
@@ -685,17 +690,21 @@ def subir_prueba_conflicto(db, conflict_id: int, contratante_codigo: str, prueba
 
 # --- Stripe Connect (separate charges and transfers) ---
 
-def _importe_centimos(importe: float) -> int:
-    return int(round(float(importe) * 100))
+def _calcular_importes_stripe(importe_bruto_cents: int, db) -> Tuple[int, int, int, float]:
+    """Desglose en céntimos; comision_pct es fracción legacy para columnas BD (0.12)."""
+    _ = db  # apoyo_pct fijado en money.COMISION_RUANA_PCT (12 %)
+    return calcular_desglose_stripe_cents(importe_bruto_cents)
 
 
-def _calcular_importes_stripe(importe: float, db) -> Tuple[float, float, float, float]:
-    pct = _get_apoyo_pct(db)
-    importe_val = round(float(importe), 2)
-    apoyo = round(importe_val * pct / 100.0, 2)
-    neto = round(importe_val - apoyo, 2)
-    comision_pct = pct / 100.0
-    return importe_val, apoyo, neto, comision_pct
+def _calcular_importes_stripe_bd(importe_bd, db) -> Tuple[float, float, float, float]:
+    """Wrapper legacy: euros BD → céntimos → euros BD para persistencia."""
+    bruto_c, apoyo_c, neto_c, comision_pct = _calcular_importes_stripe(importe_bd_a_cents(importe_bd), db)
+    return (
+        cents_a_importe_bd(bruto_c),
+        cents_a_importe_bd(apoyo_c),
+        cents_a_importe_bd(neto_c),
+        comision_pct,
+    )
 
 
 def stripe_habilitado_global() -> bool:
@@ -802,7 +811,7 @@ def activar_pago_stripe_tras_acuerdo(
     importe: float,
 ) -> Dict[str, Any]:
     """Tras acuerdo bilateral: congela importe y deja el encargo pendiente de pago Stripe."""
-    importe_val, apoyo, neto, comision_pct = _calcular_importes_stripe(importe, db)
+    importe_val, apoyo, neto, comision_pct = _calcular_importes_stripe_bd(importe, db)
     with db._lock:
         conn = None
         try:
@@ -887,10 +896,10 @@ def crear_checkout_stripe(
             importe = contacto.get("importe_acordado")
             if importe is None:
                 importe = contacto.get("importe_final")
-            if importe is None or float(importe) <= 0:
+            amount_cents = importe_bd_a_cents(importe)
+            if amount_cents <= 0:
                 return {"status": "error", "message": "Importe acordado no válido en base de datos"}
-            importe_val = round(float(importe), 2)
-            amount_cents = _importe_centimos(importe_val)
+            importe_val = cents_a_importe_bd(amount_cents)
             session = stripe_client.create_checkout_session(
                 amount_cents=amount_cents,
                 currency="eur",
@@ -975,10 +984,15 @@ def _procesar_pago_confirmado(
             contacto = dict(row)
             if contacto.get("stripe_payment_intent_id"):
                 return {"status": "ignored", "message": "ya procesado"}
-            importe = contacto.get("importe_acordado") or contacto.get("importe_final")
-            if importe is None:
+            importe_cents = importe_bd_a_cents(
+                contacto.get("importe_acordado") or contacto.get("importe_final")
+            )
+            if importe_cents <= 0:
                 return {"status": "error", "message": "sin importe"}
-            importe_val, apoyo, neto, comision_pct = _calcular_importes_stripe(float(importe), db)
+            bruto_c, apoyo_c, neto_c, comision_pct = _calcular_importes_stripe(importe_cents, db)
+            importe_val = cents_a_importe_bd(bruto_c)
+            apoyo = cents_a_importe_bd(apoyo_c)
+            neto = cents_a_importe_bd(neto_c)
             updated = _repo.marcar_cobro_stripe_confirmado(
                 cursor,
                 contacto_id,
@@ -1033,7 +1047,7 @@ def _procesar_pago_confirmado(
                 db,
                 contacto_id=contacto_id,
                 payment_intent_id=payment_intent_id,
-                importe_bruto_cents=int(round(importe_val * 100)),
+                importe_bruto_cents=bruto_c,
             )
             return {"status": "success", "contacto_id": contacto_id}
         except Exception as e:
@@ -1067,7 +1081,9 @@ def procesar_timeouts_sin_confirmacion_stripe(db) -> int:
             for row in rows:
                 item = dict(row)
                 contacto_id = int(item["id"])
-                importe = float(item.get("importe_final") or 0)
+                importe = cents_a_importe_bd(
+                    importe_bd_a_cents(item.get("importe_final"))
+                )
                 id_sol = _repo.select_aliado_id_por_codigo(cursor, item.get("solicitante_codigo") or "")
                 id_prof = _repo.select_aliado_id_por_codigo(cursor, item.get("profesional_codigo") or "")
                 if id_sol is None or id_prof is None:

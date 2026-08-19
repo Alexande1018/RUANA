@@ -18,7 +18,7 @@ Copia histórica retirada de la raíz: [`docs/archive/README_RUANA_COMPLETO.md`]
 | [`seguridad/credenciales-admin.md`](seguridad/credenciales-admin.md) | Credenciales admin en producción (puente temporal) |
 | [`flujos/chat-y-alerta.md`](flujos/chat-y-alerta.md) | Deep-dive chat y alertas (alineado a código) |
 | [`flujos/registro-aliados.md`](flujos/registro-aliados.md) | Deep-dive registro, plazas y suplentes |
-| [`operaciones/roadmap.md`](operaciones/roadmap.md) | Roadmap operativo vivo |
+| [`operaciones/fase-14-stripe-live.md`](operaciones/fase-14-stripe-live.md) | Estado real Stripe Live (FASE 14): Test activo, Live bloqueado |
 | [`qa/plan-testing.md`](qa/plan-testing.md) | Plan QA / Playwright |
 | [`qa/solicitudes-flow.md`](qa/solicitudes-flow.md) | Nota QA solicitudes |
 | [`exports/`](exports/) | Informes descargables (auditoría); último: [`AUDITORIA_DOCUMENTAL_2026-08-15.md`](exports/AUDITORIA_DOCUMENTAL_2026-08-15.md) |

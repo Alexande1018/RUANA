@@ -10,6 +10,7 @@ from core.financial.conflict_estados import EstadoConflicto, ResolucionConflicto
 from core.financial.estados import EstadoFinanciero
 from core.financial.refund_comision import calcular_impacto_comision_refund
 from core.financial.refund_estados import CausaReembolso, EstadoRefund
+from core.financial.money import importe_bd_a_cents
 from core.refund_authorization import REFUND_EXECUTE
 from core.repositories.financial_conflict_repo import FinancialConflictRepo
 from core.repositories.financial_refund_repo import FinancialRefundRepo
@@ -45,8 +46,7 @@ def _lock_por_contacto(contacto_id: int) -> threading.Lock:
 
 
 def _importe_bruto_cents(contacto: Dict[str, Any]) -> int:
-    bruto = float(contacto.get("importe_acordado") or contacto.get("importe_final") or 0)
-    return int(round(bruto * 100))
+    return importe_bd_a_cents(contacto.get("importe_acordado") or contacto.get("importe_final"))
 
 
 def _resolver_causa_desde_conflicto(conflicto: Dict[str, Any], causa_explicita: str = "") -> CausaReembolso:

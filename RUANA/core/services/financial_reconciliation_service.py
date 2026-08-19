@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from core.financial.discrepancia import TipoDiscrepancia
 from core.financial.estados import EstadoFinanciero
+from core.financial.money import cents_a_importe_bd, importe_bd_a_cents
 from core.financial.refund_reconciliation import (
     DecisionReconciliacionRefund,
     evaluar_reconciliacion_refund,
@@ -29,7 +30,7 @@ def _importe_contacto(contacto: Dict[str, Any]) -> float:
     val = contacto.get("importe_acordado")
     if val is None:
         val = contacto.get("importe_final")
-    return round(float(val or 0), 2)
+    return cents_a_importe_bd(importe_bd_a_cents(val))
 
 
 def _row_dict(row) -> Dict[str, Any]:
@@ -249,7 +250,7 @@ def reconciliar_contacto(
 
             refunds_snap = snap.get("refunds") or []
             if refunds_snap and _refund_repo.tabla_existe(cursor):
-                cobrado_cents = int(round(importe_ruana * 100))
+                cobrado_cents = importe_bd_a_cents(importe_ruana)
                 ruana_refunds = _refund_repo.listar_por_contacto(cursor, contacto_id)
                 ruana_por_stripe = {
                     (r.get("stripe_refund_id") or "").strip(): r
@@ -312,7 +313,7 @@ def reconciliar_contacto(
 
             disputes_snap = snap.get("disputes") or []
             if disputes_snap and _dispute_repo.tabla_existe(cursor):
-                cobrado_cents = int(round(importe_ruana * 100))
+                cobrado_cents = importe_bd_a_cents(importe_ruana)
                 ruana_disputes = _dispute_repo.listar_por_contacto(cursor, contacto_id)
                 ruana_por_stripe_d = {
                     (d.get("stripe_dispute_id") or "").strip(): d
@@ -451,4 +452,7 @@ def _registrar_en_cursor(
 def _cents_to_eur(amount) -> Optional[float]:
     if amount is None:
         return None
-    return round(float(amount) / 100.0, 2)
+    try:
+        return cents_a_importe_bd(int(amount))
+    except (TypeError, ValueError):
+        return None

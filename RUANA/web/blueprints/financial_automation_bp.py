@@ -14,6 +14,7 @@ from web.auth_decorators import (
     require_admin_escritura_or_cron,
     require_automation_permission,
 )
+from web.financial_rate_limit import limit_financial_mutation
 
 financial_automation_bp = Blueprint("financial_automation", __name__)
 
@@ -56,6 +57,7 @@ def financial_automation_bp_health():
 @financial_automation_bp.route(f"{_BASE_ES}/ejecutar-ciclo", methods=["POST"])
 @require_admin_escritura_or_cron
 @require_automation_permission(AUTOMATION_EXECUTE)
+@limit_financial_mutation
 def ejecutar_ciclo():
     data = request.get_json(silent=True) or {}
     recon_limit = _query_int("recon_limit", int(data.get("recon_limit") or 20), min_v=1, max_v=100)
@@ -76,6 +78,7 @@ def ejecutar_ciclo():
 @financial_automation_bp.route(f"{_BASE_ES}/reconciliar-lote", methods=["POST"])
 @require_admin_escritura_or_cron
 @require_automation_permission(AUTOMATION_EXECUTE)
+@limit_financial_mutation
 def reconciliar_lote():
     data = request.get_json(silent=True) or {}
     limit = _query_int("limit", int(data.get("limit") or 20), min_v=1, max_v=100)

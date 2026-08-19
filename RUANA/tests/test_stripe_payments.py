@@ -154,3 +154,48 @@ def test_webhook_idempotente(sqlite_db):
         r2 = pago_service.procesar_webhook_stripe(sqlite_db, b"{}", "sig")
     assert r1["status"] == "success"
     assert r2.get("duplicate") is True
+
+
+def test_flujo_estados_cobro_retencion_reparto(sqlite_db):
+    """Punta a punta: pendiente → cobro confirmado (retenido) → transferencia 88 %."""
+    from core.financial.estados import EstadoFinanciero
+    from core.financial.money import calcular_desglose_stripe_cents, importe_bd_a_cents
+
+    contacto_id = _seed_stripe_contacto(sqlite_db, 199.99)
+    res = pago_service.activar_pago_stripe_tras_acuerdo(sqlite_db, contacto_id, "SOL", 199.99)
+    assert res["status"] == "success"
+    assert res["estado"] == "pendiente_de_pago"
+    assert res["estado_pago"] == "esperando_cobro_cliente"
+
+    cobro = pago_service._procesar_pago_confirmado(sqlite_db, contacto_id, "pi_flow_19999")
+    assert cobro["status"] == "success"
+    conn = sqlite_db._connect()
+    row = conn.execute(
+        """
+        SELECT estado, estado_pago, stripe_payment_intent_id, stripe_transfer_id,
+               importe_neto_profesional, apoyo_ruana, importe_acordado
+        FROM contactos_ruana WHERE id=?
+        """,
+        (contacto_id,),
+    ).fetchone()
+    conn.close()
+    assert row[0] == "trabajo_en_progreso"
+    assert row[1] == "cobro_confirmado"
+    assert row[2] == "pi_flow_19999"
+    assert not row[3]
+    bruto_c, apoyo_c, neto_c, _ = calcular_desglose_stripe_cents(importe_bd_a_cents(199.99))
+    assert importe_bd_a_cents(row[4]) == neto_c
+    assert importe_bd_a_cents(row[5]) == apoyo_c
+    assert neto_c + apoyo_c == bruto_c
+    assert round(neto_c / bruto_c, 2) == 0.88 or neto_c == (bruto_c * 88) // 100
+
+    fin = sqlite_db._connect().execute(
+        "SELECT estado_financiero FROM financial_transactions WHERE contacto_id=?",
+        (contacto_id,),
+    ).fetchone()
+    if fin:
+        assert fin[0] in (
+            EstadoFinanciero.PAGO_CONFIRMADO.value,
+            EstadoFinanciero.TRABAJO_EN_CURSO.value,
+            EstadoFinanciero.ESPERANDO_CONFIRMACION.value,
+        )
