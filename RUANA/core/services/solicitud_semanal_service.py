@@ -158,6 +158,15 @@ def crear_solicitud_semanal(
                 permitidos = {str(o).strip() for o in catalogo if o}
                 canon = catalogo_service._resolver_en_conjunto_catalogo(db, oficio, permitidos)
                 if not canon:
+                    oficios_grupo = {
+                        str(o).strip()
+                        for o in _repo.listar_oficios_grupo_activos(cursor, grupo_id)
+                        if o
+                    }
+                    canon = catalogo_service._resolver_en_conjunto_catalogo(
+                        db, oficio, oficios_grupo
+                    )
+                if not canon:
                     return {
                         "status": "error",
                         "message": "Oficio no válido en el catálogo RUANA",

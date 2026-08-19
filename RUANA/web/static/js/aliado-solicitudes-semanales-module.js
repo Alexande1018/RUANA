@@ -34,6 +34,10 @@
     return 'ruana_sol_sem_prompt_' + (semana || '');
   }
 
+  function esLunesLocal() {
+    return new Date().getDay() === 1;
+  }
+
   function formatoFecha(valor) {
     if (!valor) return '';
     var d = new Date(valor);
@@ -209,7 +213,8 @@
     }
   }
 
-  async function mostrarPromptCrear(host) {
+  async function mostrarPromptCrear(host, opts) {
+    opts = opts || {};
     var snap = host.solicitudesSemanales || {};
     if (snap.propia && snap.propia.estado === 'activa') {
       ocultarPromptCrear(host);
@@ -218,13 +223,20 @@
     var semana = snap.semana_inicio || '';
     var st = localStorage.getItem(semanaStorageKey(semana));
     if (st === 'hidden') {
+      ocultarPromptCrear(host);
+      return;
+    }
+    if (st === 'minimized' && !opts.forceFull) {
       mostrarMinimizado(host);
+      return;
+    }
+    if (!opts.forceFull && !esLunesLocal()) {
+      ocultarPromptCrear(host);
       return;
     }
     if (!obtenerOficiosParaPicker(host).length) {
       await fetchSnapshot(host);
     }
-    var overlay = document.getElementById('sol-sem-prompt-overlay');
     var titulo = document.getElementById('sol-sem-prompt-titulo');
     if (titulo) {
       titulo.textContent = nombreAliado(host) + ', ¿qué profesional necesitas esta semana?';
@@ -298,7 +310,11 @@
     });
     list.appendChild(otroBtn);
 
-    setOficioSeleccionado('', false);
+    if (oficios.length === 1) {
+      setOficioSeleccionado(oficios[0], false);
+    } else {
+      setOficioSeleccionado('', false);
+    }
     list.hidden = true;
 
     if (trigger && !trigger._solSemBound) {
@@ -553,13 +569,16 @@
   }
 
   function bindUi(host) {
+    if (host._solSemUiBound) return;
+    host._solSemUiBound = true;
+
     var btnMin = document.getElementById('sol-sem-prompt-minimize');
     var btnPub = document.getElementById('sol-sem-btn-publicar');
     var mini = document.getElementById('sol-sem-minimized');
     if (btnMin) btnMin.addEventListener('click', function () { minimizarPrompt(host); });
     if (btnPub) btnPub.addEventListener('click', function () { publicarSolicitud(host); });
     if (mini) mini.addEventListener('click', function () {
-      mostrarPromptCrear(host);
+      mostrarPromptCrear(host, { forceFull: true });
     });
 
     var btnPuedo = document.getElementById('sol-sem-btn-puedo');
