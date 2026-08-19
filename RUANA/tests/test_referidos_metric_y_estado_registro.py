@@ -63,6 +63,7 @@ def test_registro_con_codigo_suma_referidos_y_queda_activo(client, sqlite_db, mo
             "email": "ricardo@example.com",
             "telefono": "+34600999888",
             "codigo_invitacion": codigo_inv,
+            "acepta_privacidad_y_terminos": True,
         },
     )
     assert register.status_code == 201, register.get_json()

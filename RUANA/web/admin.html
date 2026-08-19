@@ -21,10 +21,12 @@
     </style>
     <link rel="stylesheet" href="/static/css/referidos-tree.css">
     <link rel="stylesheet" href="/static/css/ruana-identity.css">
+    <link rel="stylesheet" href="/static/css/ruana-legal.css">
     <!-- Identidad operativa: fuera de @layer para prevalecer sobre premium (!important) -->
     <link rel="stylesheet" href="/static/css/admin-ops-identity.css?v=20260818c">
     <script src="/static/js/ruana-atmosphere.js" defer></script>
     <script src="/static/js/ruana-ui.js" defer></script>
+    <script src="/static/js/ruana-legal-footer.js" defer></script>
     <script src="/static/js/ruana-api-client.js" defer></script>
     <script src="/static/js/admin-modules.js" defer></script>
     <script src="/static/js/admin-resumen-module.js" defer></script>
@@ -434,6 +436,31 @@
                 </div>
             </div>
             <p class="admin-subtitle" style="margin-top: 8px; color: #666;" id="eliminados-empty">No hay aliados eliminados registrados.</p>
+        </div>
+
+        <!-- CAPA 3.56: Solicitudes de baja / borrado (RGPD) -->
+        <div class="control-aliados" id="solicitudes-baja-wrap" style="display: block;">
+            <h2 class="seccion-titulo" id="seccion-solicitudes-baja">Solicitudes de baja</h2>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Peticiones de baja o borrado registradas por el aliado. No se borra automáticamente: revise y, si procede, use «Eliminar perfil» conservando la documentación de facturación (6 años — [CONFIRMAR CON ASESOR FISCAL]).</p>
+            <div class="movimiento-24h-tabla-wrap">
+                <div class="movimiento-24h-tabla-scroll">
+                    <table class="movimiento-24h-tabla" id="tabla-solicitudes-baja">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Código</th>
+                                <th>Motivo</th>
+                                <th>Estado</th>
+                                <th>Solicitado</th>
+                                <th>Admin</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-solicitudes-baja"></tbody>
+                    </table>
+                </div>
+            </div>
+            <p class="admin-subtitle" style="margin-top: 8px; color: #666;" id="solicitudes-baja-empty">No hay solicitudes de baja.</p>
         </div>
 
         <!-- CAPA 3.6: Conflicto de pagos (payment_conflicts) -->
@@ -1865,6 +1892,20 @@
                 const mod = this._redModule();
                 if (mod && typeof mod.renderAliadosEliminados === 'function') {
                     return mod.renderAliadosEliminados(this, aliados);
+                }
+            }
+
+            renderSolicitudesBaja(solicitudes) {
+                const mod = this._redModule();
+                if (mod && typeof mod.renderSolicitudesBaja === 'function') {
+                    return mod.renderSolicitudesBaja(this, solicitudes);
+                }
+            }
+
+            marcarSolicitudBaja(id, estado) {
+                const mod = this._redModule();
+                if (mod && typeof mod.marcarSolicitudBaja === 'function') {
+                    return mod.marcarSolicitudBaja(this, id, estado);
                 }
             }
 

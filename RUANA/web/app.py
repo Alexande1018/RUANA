@@ -285,6 +285,27 @@ def invite():
     return send_from_directory(str(web_dir), 'invite.html')
 
 
+@app.route('/aviso-legal')
+@app.route('/aviso-legal.html')
+def aviso_legal():
+    """Aviso legal LSSICE (borrador)."""
+    return send_from_directory(str(web_dir), 'aviso-legal.html')
+
+
+@app.route('/politica-privacidad')
+@app.route('/politica-privacidad.html')
+def politica_privacidad():
+    """Política de privacidad RGPD (borrador)."""
+    return send_from_directory(str(web_dir), 'politica-privacidad.html')
+
+
+@app.route('/terminos')
+@app.route('/terminos.html')
+def terminos_uso():
+    """Términos de uso (borrador)."""
+    return send_from_directory(str(web_dir), 'terminos.html')
+
+
 @app.route('/private-panel')
 @app.route('/private-panel.html')
 def private_panel_alt():

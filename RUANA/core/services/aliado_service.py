@@ -1128,3 +1128,204 @@ def rechazar_aliado_pendiente(db, codigo: str) -> Dict[str, Any]:
         finally:
             conn.close()
 
+
+LEGAL_DOCUMENT_VERSION = "v1-2026-08"
+_CAMPOS_PERFIL_EXCLUIDOS_EXPORT = frozenset({"pin_hash"})
+_ESTADOS_SOLICITUD_BAJA = frozenset({"pendiente", "en_revision", "completada", "rechazada"})
+
+
+def _row_as_dict(row: Any) -> Optional[Dict[str, Any]]:
+    if row is None:
+        return None
+    if isinstance(row, dict):
+        return dict(row)
+    if hasattr(row, "keys"):
+        return {k: row[k] for k in row.keys()}
+    return None
+
+
+def _rows_as_dicts(rows: Optional[List[Any]]) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    for row in rows or []:
+        item = _row_as_dict(row)
+        if item is not None:
+            out.append(item)
+    return out
+
+
+def consentimiento_registro_aceptado(data: Optional[Dict[str, Any]]) -> bool:
+    """True solo si el aliado marcó explícitamente el checkbox (nunca premarcado)."""
+    if not isinstance(data, dict):
+        return False
+    val = data.get("acepta_privacidad_y_terminos", data.get("acepta_terminos"))
+    if val is True:
+        return True
+    if val == 1:
+        return True
+    if isinstance(val, str) and val.strip().lower() in ("true", "1", "on", "yes", "si", "sí"):
+        return True
+    return False
+
+
+def registrar_consentimiento_aliado(
+    db,
+    codigo_aliado: str,
+    version_documento: Optional[str] = None,
+) -> Dict[str, Any]:
+    codigo = (codigo_aliado or "").strip()
+    version = (version_documento or LEGAL_DOCUMENT_VERSION).strip() or LEGAL_DOCUMENT_VERSION
+    if not codigo:
+        return {"status": "error", "message": "Código de aliado obligatorio"}
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            _repo.insertar_consentimiento(cursor, codigo, version)
+            conn.commit()
+            row = _repo.select_ultimo_consentimiento(cursor, codigo)
+            item = _row_as_dict(row) or {
+                "codigo_aliado": codigo,
+                "version_documento": version,
+            }
+            return {"status": "success", "consentimiento": item}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+        finally:
+            if conn is not None:
+                conn.close()
+
+
+def exportar_datos_aliado(db, codigo_aliado: str) -> Dict[str, Any]:
+    codigo = (codigo_aliado or "").strip()
+    if not codigo:
+        return {"status": "error", "message": "Código de aliado obligatorio"}
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            perfil_row = _repo.select_todo_por_codigo(cursor, codigo)
+            perfil = _row_as_dict(perfil_row)
+            if not perfil:
+                return {"status": "error", "message": f"Aliado {codigo} no encontrado"}
+            for campo in _CAMPOS_PERFIL_EXCLUIDOS_EXPORT:
+                perfil.pop(campo, None)
+            perfil["catalogo_servicios"] = _rows_as_dicts(_repo.select_catalogo_export(cursor, codigo))
+            perfil["consentimientos"] = _rows_as_dicts(_repo.select_consentimientos_por_codigo(cursor, codigo))
+            encargos = _rows_as_dicts(_repo.select_encargos_export(cursor, codigo))
+            mensajes = {
+                "chat": _rows_as_dicts(_repo.select_mensajes_chat_export(cursor, codigo)),
+                "negociacion": _rows_as_dicts(_repo.select_mensajes_negociacion_export(cursor, codigo)),
+                "soporte": _rows_as_dicts(_repo.select_mensajes_soporte_export(cursor, codigo)),
+            }
+            return {
+                "status": "success",
+                "datos": {
+                    "exportado_en": datetime.now(timezone.utc).isoformat(),
+                    "version_documento": LEGAL_DOCUMENT_VERSION,
+                    "perfil": perfil,
+                    "encargos": encargos,
+                    "mensajes": mensajes,
+                },
+            }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+        finally:
+            if conn is not None:
+                conn.close()
+
+
+def crear_solicitud_baja_aliado(
+    db,
+    codigo_aliado: str,
+    motivo: Optional[str] = None,
+) -> Dict[str, Any]:
+    codigo = (codigo_aliado or "").strip()
+    if not codigo:
+        return {"status": "error", "message": "Código de aliado obligatorio"}
+    motivo_txt = (motivo or "").strip() or None
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            if _repo.select_todo_por_codigo(cursor, codigo) is None:
+                return {"status": "error", "message": f"Aliado {codigo} no encontrado"}
+            existente = _row_as_dict(_repo.select_solicitud_baja_pendiente(cursor, codigo))
+            if existente:
+                return {
+                    "status": "success",
+                    "ya_existia": True,
+                    "solicitud": existente,
+                    "message": "Ya hay una solicitud de baja pendiente de gestión por un administrador.",
+                }
+            _repo.insertar_solicitud_baja(cursor, codigo, motivo_txt)
+            conn.commit()
+            creada = _row_as_dict(_repo.select_solicitud_baja_pendiente(cursor, codigo))
+            return {
+                "status": "success",
+                "ya_existia": False,
+                "solicitud": creada,
+                "message": "Solicitud de baja registrada. Un administrador la revisará; la cuenta no se borra de inmediato.",
+            }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+        finally:
+            if conn is not None:
+                conn.close()
+
+
+def listar_solicitudes_baja_aliado(db, limite: int = 200) -> List[Dict[str, Any]]:
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            return _rows_as_dicts(_repo.listar_solicitudes_baja(cursor, limite))
+        except Exception as e:
+            print(f"Error listando solicitudes de baja: {e}")
+            return []
+        finally:
+            if conn is not None:
+                conn.close()
+
+
+def resolver_solicitud_baja_aliado(
+    db,
+    solicitud_id: int,
+    estado: str,
+    admin_codigo: Optional[str] = None,
+    notas_admin: Optional[str] = None,
+) -> Dict[str, Any]:
+    estado_norm = (estado or "").strip().lower()
+    if estado_norm not in _ESTADOS_SOLICITUD_BAJA:
+        return {"status": "error", "message": "Estado de solicitud no válido"}
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            row = _repo.select_solicitud_baja_por_id(cursor, int(solicitud_id))
+            if not row:
+                return {"status": "error", "message": "Solicitud de baja no encontrada"}
+            _repo.update_solicitud_baja(
+                cursor,
+                int(solicitud_id),
+                estado_norm,
+                (admin_codigo or "").strip() or None,
+                (notas_admin or "").strip() or None,
+            )
+            conn.commit()
+            actualizada = _row_as_dict(_repo.select_solicitud_baja_por_id(cursor, int(solicitud_id)))
+            return {"status": "success", "solicitud": actualizada}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+        finally:
+            if conn is not None:
+                conn.close()
+

@@ -16,6 +16,7 @@ Copia histórica retirada de la raíz: [`docs/archive/README_RUANA_COMPLETO.md`]
 |------|-----------|
 | [`seguridad/autenticacion-sesiones.md`](seguridad/autenticacion-sesiones.md) | Sesiones por pestaña y header `X-Ruana-Session-Id` |
 | [`seguridad/credenciales-admin.md`](seguridad/credenciales-admin.md) | Credenciales admin en producción (puente temporal) |
+| [`legal/politica-retencion-datos.md`](legal/politica-retencion-datos.md) | Retención RGPD/LGT por tipo de dato (borrador interno) |
 | [`flujos/chat-y-alerta.md`](flujos/chat-y-alerta.md) | Deep-dive chat y alertas (alineado a código) |
 | [`flujos/registro-aliados.md`](flujos/registro-aliados.md) | Deep-dive registro, plazas y suplentes |
 | [`operaciones/roadmap.md`](operaciones/roadmap.md) | Roadmap operativo vivo |

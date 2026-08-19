@@ -309,6 +309,40 @@ def admin_listar_aliados_eliminados():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+@admin_bp.route('/api/admin/solicitudes-baja', methods=['GET'])
+@require_admin
+def admin_listar_solicitudes_baja():
+    """GET /api/admin/solicitudes-baja — peticiones de baja/borrado pendientes de gestión."""
+    try:
+        db = get_db()
+        solicitudes = aliado_service.listar_solicitudes_baja_aliado(db)
+        return jsonify({'status': 'success', 'solicitudes': solicitudes}), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/admin/solicitudes-baja/<int:solicitud_id>', methods=['POST'])
+@require_admin_escritura
+def admin_resolver_solicitud_baja(solicitud_id):
+    """POST /api/admin/solicitudes-baja/<id> Body: { estado, notas_admin? }."""
+    try:
+        data = request.get_json() or {}
+        estado = (data.get('estado') or '').strip()
+        notas = (data.get('notas_admin') or data.get('notas') or '').strip() or None
+        db = get_db()
+        result = aliado_service.resolver_solicitud_baja_aliado(
+            db,
+            solicitud_id,
+            estado,
+            admin_codigo=_admin_codigo() or None,
+            notas_admin=notas,
+        )
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
 @admin_bp.route('/api/admin/grupos', methods=['GET'])
 @require_admin
 def admin_listar_grupos():

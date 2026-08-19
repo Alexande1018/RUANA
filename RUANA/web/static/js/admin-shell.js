@@ -20,7 +20,7 @@
             kicker: 'RED',
             subtitle: 'Explora la red jerárquica y el árbol genealógico de aliados.',
             icon: 'network',
-            targets: ['#control-aliados-wrap', '#aliados-eliminados-wrap']
+            targets: ['#control-aliados-wrap', '#aliados-eliminados-wrap', '#solicitudes-baja-wrap']
         },
         {
             id: 'grupos-cp',
@@ -137,6 +137,7 @@
         { id: 'aliados', label: 'Jerarquía CP → Grupo', module: 'red', group: 'Red', target: '#control-aliados-wrap', icon: 'network' },
         { id: 'referidos', label: 'Árbol genealógico', group: 'Red', module: 'red', target: '#red-view-referidos', icon: 'network' },
         { id: 'aliados-eliminados', label: 'Aliados eliminados', group: 'Red', module: 'red', target: '#aliados-eliminados-wrap', icon: 'trash' },
+        { id: 'solicitudes-baja', label: 'Solicitudes de baja', group: 'Red', module: 'red', target: '#solicitudes-baja-wrap', icon: 'user-x' },
         { id: 'grupos-overview', label: 'Grupos por CP', group: 'Territorio', module: 'grupos-cp', target: '#grupos-cp-wrap', icon: 'map' },
         { id: 'pendientes', label: 'Pendientes validación', group: 'Solicitudes', module: 'solicitudes', target: '#pendientes-validacion-wrap', icon: 'user-check', badge: '#pendientes-validacion-count' },
         { id: 'solicitudes-list', label: 'Lista solicitudes', group: 'Solicitudes', module: 'solicitudes', target: '#solicitudes-admin-wrap', icon: 'inbox' },
@@ -1102,6 +1103,11 @@
             <nav class="admin-sidebar-nav" id="adminSidebarNav"></nav>
             <div class="admin-sidebar-footer">
                 <button type="button" id="adminOpenAuditBtn">Auditoría de sesión <span class="admin-kbd">⌘⇧A</span></button>
+                <nav class="ruana-legal-nav-inline" aria-label="Información legal">
+                    <a href="/aviso-legal.html">Aviso legal</a>
+                    <a href="/politica-privacidad.html">Privacidad</a>
+                    <a href="/terminos.html">Términos</a>
+                </nav>
             </div>
         `;
 

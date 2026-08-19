@@ -32,6 +32,8 @@
         '#perfil-nombre': 'perfil',
         '#detail-descripcion-wrap': 'perfil',
         '#perfil-status': 'perfil',
+        '#perfil-seguridad-wrap': 'perfil',
+        '#perfil-mis-datos-wrap': 'perfil',
         '#catalogo-servicios-wrap': 'perfil',
         '#btn-invitar-aliado': 'perfil',
         '#module-perfil': 'perfil',
