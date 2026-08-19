@@ -127,6 +127,10 @@ def test_aliado_perfil_module_is_wired():
     assert "mod.subirFotoPerfil(this, file)" in aliado
     assert "mod.quitarFotoPerfil(this)" in aliado
     assert "mod.guardarDescripcion(this)" in aliado
+    assert "mostrarFormularioCambiarPin" in perfil_js
+    assert "ocultarFormularioCambiarPin" in perfil_js
+    assert 'id="btn-mostrar-cambiar-pin"' in aliado
+    assert 'id="form-cambiar-pin"' in aliado
     # Markup del perfil permanece en aliado.html (sin reescritura masiva)
     assert 'id="module-perfil"' in aliado
     assert 'id="perfil-avatar"' in aliado
