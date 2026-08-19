@@ -148,6 +148,9 @@
             if (semModR && typeof semModR.actualizarModalEntrante === 'function') {
                 semModR.actualizarModalEntrante(host);
             }
+            if (semModR && typeof semModR.asegurarPromptCerradoSiPublicada === 'function') {
+                semModR.asegurarPromptCerradoSiPublicada(host);
+            }
         }
         if (targetSections.includes('directorio')) host.renderProfesionales();
         if (targetSections.includes('alertas')) {

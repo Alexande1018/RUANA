@@ -410,3 +410,7 @@ def test_solicitudes_semanales_recuadro_inicio_panel():
     assert "actualizarModalEntrante: actualizarModalEntrante" in sem_js or "actualizarModalEntrante," in sem_js
     assert "renderInicioSeccion(host)" in sync_js
     assert "actualizarModalEntrante(host)" in sync_js
+    assert "asegurarPromptCerradoSiPublicada(host)" in sync_js
+    assert "function asegurarPromptCerradoSiPublicada(host)" in sem_js
+    assert "ocultarPromptCrear(host)" in sem_js
+    assert "limpiarFormularioPrompt()" in sem_js

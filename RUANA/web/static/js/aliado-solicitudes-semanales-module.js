@@ -140,15 +140,15 @@
 
     var snap = host.solicitudesSemanales || {};
     var activas = Array.isArray(snap.activas_grupo) ? snap.activas_grupo : [];
-    var propia = snap.propia;
-    var tienePropia = propia && propia.estado === 'activa';
-    var tieneActivas = activas.length > 0;
 
-    renderPropiaCard(propia, propiaWrap);
+    if (propiaWrap) {
+      propiaWrap.innerHTML = '';
+      propiaWrap.hidden = true;
+    }
 
     lista.innerHTML = '';
-    if (!tieneActivas) {
-      wrap.hidden = !tienePropia;
+    if (!activas.length) {
+      wrap.hidden = true;
       return;
     }
 
@@ -260,13 +260,42 @@
     }
   }
 
+  function tieneSolicitudPropiaActiva(host) {
+    var snap = host.solicitudesSemanales || {};
+    return !!(snap.propia && snap.propia.estado === 'activa');
+  }
+
+  function marcarPromptPublicado(host) {
+    var semana = (host.solicitudesSemanales && host.solicitudesSemanales.semana_inicio) || '';
+    if (semana) {
+      localStorage.setItem(semanaStorageKey(semana), 'hidden');
+    }
+    host._solSemPromptOculto = true;
+  }
+
+  function limpiarFormularioPrompt() {
+    setOficioSeleccionado('', false);
+    var otroInput = document.getElementById('sol-sem-otro-input');
+    var detalle = document.getElementById('sol-sem-detalle-input');
+    if (otroInput) otroInput.value = '';
+    if (detalle) detalle.value = '';
+    cerrarPickerOficios();
+  }
+
+  function asegurarPromptCerradoSiPublicada(host) {
+    if (!tieneSolicitudPropiaActiva(host) && !host._solSemPromptOculto) return;
+    marcarPromptPublicado(host);
+    ocultarPromptCrear(host);
+    limpiarFormularioPrompt();
+  }
+
   async function mostrarPromptCrear(host, opts) {
     opts = opts || {};
-    var snap = host.solicitudesSemanales || {};
-    if (snap.propia && snap.propia.estado === 'activa') {
+    if (host._solSemPromptOculto || tieneSolicitudPropiaActiva(host)) {
       ocultarPromptCrear(host);
       return;
     }
+    var snap = host.solicitudesSemanales || {};
     var semana = snap.semana_inicio || '';
     var st = localStorage.getItem(semanaStorageKey(semana));
     if (st === 'hidden') {
@@ -418,14 +447,16 @@
       if (!resp.ok) {
         throw new Error(data.error || 'No se pudo publicar');
       }
-      var semana = (host.solicitudesSemanales && host.solicitudesSemanales.semana_inicio) || '';
-      localStorage.setItem(semanaStorageKey(semana), 'hidden');
       ocultarPromptCrear(host);
+      limpiarFormularioPrompt();
+      host._solSemPromptOculto = true;
       await fetchSnapshot(host);
+      marcarPromptPublicado(host);
       renderSeccion(host);
       if (typeof host.refreshAfterAction === 'function') {
         await host.refreshAfterAction(['solicitudes']);
       }
+      asegurarPromptCerradoSiPublicada(host);
     } catch (e) {
       alert(e.message || 'Error al publicar');
     } finally {
@@ -663,11 +694,10 @@
     bindUi(host);
     await fetchSnapshot(host);
     renderSeccion(host);
-    var snap = host.solicitudesSemanales || {};
-    if (!snap.propia || snap.propia.estado !== 'activa') {
-      mostrarPromptCrear(host);
+    if (tieneSolicitudPropiaActiva(host)) {
+      asegurarPromptCerradoSiPublicada(host);
     } else {
-      ocultarPromptCrear(host);
+      mostrarPromptCrear(host);
     }
     actualizarModalEntrante(host);
   }
@@ -679,5 +709,6 @@
     initSemanales: initSemanales,
     mostrarPromptCrear: mostrarPromptCrear,
     actualizarModalEntrante: actualizarModalEntrante,
+    asegurarPromptCerradoSiPublicada: asegurarPromptCerradoSiPublicada,
   };
 })(typeof window !== 'undefined' ? window : this);
