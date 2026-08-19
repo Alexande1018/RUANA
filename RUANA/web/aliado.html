@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="/static/css/ruana-identity.css">
     <link rel="stylesheet" href="/static/css/ruana-legal.css">
     <link rel="stylesheet" href="/static/css/referidos-tree.css">
-    <link rel="stylesheet" href="/static/css/aliado-solicitudes-semanales.css?v=20260819c">
+    <link rel="stylesheet" href="/static/css/aliado-solicitudes-semanales.css?v=20260819e">
     <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
     <script src="/static/js/ruana-atmosphere.js" defer></script>
     <script src="/static/js/ruana-ui.js" defer></script>
@@ -34,7 +34,7 @@
     <script src="/static/js/aliado-referidos-module.js" defer></script>
     <script src="/static/js/aliado-directorio-module.js" defer></script>
     <script src="/static/js/aliado-solicitudes-module.js" defer></script>
-    <script src="/static/js/aliado-solicitudes-semanales-module.js?v=20260819c" defer></script>
+    <script src="/static/js/aliado-solicitudes-semanales-module.js?v=20260819e" defer></script>
     <script src="/static/js/aliado-acuerdos-module.js" defer></script>
     <script src="/static/js/aliado-conexiones-module.js" defer></script>
     <script src="/static/js/aliado-centro-comunicacion-module.js" defer></script>
@@ -44,7 +44,7 @@
     <script src="/static/js/aliado-contactos-module.js" defer></script>
     <script src="/static/js/aliado-stripe-pagos-module.js" defer></script>
     <script src="/static/js/aliado-grupo-module.js" defer></script>
-    <script src="/static/js/aliado-sync-module.js" defer></script>
+    <script src="/static/js/aliado-sync-module.js?v=20260819e" defer></script>
     <script src="/static/js/aliado-events-module.js" defer></script>
     <script src="/static/js/aliado-shell.js" defer></script>
     <link rel="stylesheet" href="/static/css/negociacion-guiada.css">
@@ -662,7 +662,10 @@
             <p class="sol-sem-kicker">Esta semana en tu grupo</p>
             <h2 class="sol-sem-title" id="sol-sem-prompt-titulo">¿Qué profesional necesitas esta semana?</h2>
             <div class="sol-sem-field">
-                <span class="sol-sem-field-label">Seleccionar oficio</span>
+                <label class="sol-sem-field-label" for="sol-sem-oficio-select">Seleccionar oficio</label>
+                <select id="sol-sem-oficio-select" class="sol-sem-select">
+                    <option value="">Seleccionar oficio</option>
+                </select>
                 <div class="sol-sem-oficio-list" id="sol-sem-oficio-list" role="listbox" aria-label="Oficios del grupo"></div>
                 <input type="hidden" id="sol-sem-oficio-value" value="" />
             </div>
@@ -676,7 +679,7 @@
                 <textarea id="sol-sem-detalle-input" class="sol-sem-textarea" placeholder="Detalle breve…" maxlength="300"></textarea>
             </div>
             <div class="sol-sem-actions-row">
-                <button type="button" class="sol-sem-btn sol-sem-btn-primary" id="sol-sem-btn-publicar">PUBLICAR SOLICITUD</button>
+                <button type="button" class="sol-sem-btn sol-sem-btn-primary" id="sol-sem-btn-publicar" onclick="window.RuanaSolSemPublicar && window.RuanaSolSemPublicar(event)">PUBLICAR SOLICITUD</button>
                 <button type="button" class="sol-sem-btn sol-sem-btn-ghost" id="sol-sem-prompt-minimize">Recordarme más tarde</button>
             </div>
         </div>

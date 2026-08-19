@@ -206,10 +206,52 @@
     return grupo;
   }
 
+  function leerOficioElegido() {
+    var otroInput = document.getElementById('sol-sem-otro-input');
+    var otroTxt = otroInput ? String(otroInput.value || '').trim() : '';
+    var selected = document.querySelector('#sol-sem-oficio-list .sol-sem-oficio-item.selected');
+    if (selected && selected.getAttribute('data-otro') === '1') {
+      return { oficio: otroTxt, esOtro: true };
+    }
+    if (selected) {
+      var fromBtn = String(selected.getAttribute('data-oficio') || '').trim();
+      if (fromBtn) return { oficio: fromBtn, esOtro: false };
+    }
+    var select = document.getElementById('sol-sem-oficio-select');
+    if (select && select.value === '__OTRO__') {
+      return { oficio: otroTxt, esOtro: true };
+    }
+    if (select && String(select.value || '').trim()) {
+      return { oficio: String(select.value).trim(), esOtro: false };
+    }
+    var hidden = document.getElementById('sol-sem-oficio-value');
+    if (hidden && hidden.value === '__OTRO__') {
+      return { oficio: otroTxt, esOtro: true };
+    }
+    if (hidden && String(hidden.value || '').trim()) {
+      return { oficio: String(hidden.value).trim(), esOtro: false };
+    }
+    if (_oficioSeleccionado.esOtro) {
+      return { oficio: otroTxt, esOtro: true };
+    }
+    if (_oficioSeleccionado.value) {
+      return { oficio: String(_oficioSeleccionado.value).trim(), esOtro: false };
+    }
+    if (otroTxt) {
+      return { oficio: otroTxt, esOtro: true };
+    }
+    return { oficio: '', esOtro: false };
+  }
+
   function setOficioSeleccionado(value, esOtro) {
     _oficioSeleccionado = { value: value || '', esOtro: !!esOtro };
     var hidden = document.getElementById('sol-sem-oficio-value');
-    if (hidden) hidden.value = esOtro ? '__OTRO__' : value;
+    if (hidden) hidden.value = esOtro ? '__OTRO__' : (value || '');
+    var select = document.getElementById('sol-sem-oficio-select');
+    if (select) {
+      var want = esOtro ? '__OTRO__' : (value || '');
+      if (select.value !== want) select.value = want;
+    }
     var otroWrap = document.getElementById('sol-sem-otro-wrap');
     if (otroWrap) otroWrap.style.display = esOtro ? 'block' : 'none';
     var list = document.getElementById('sol-sem-oficio-list');
@@ -287,19 +329,32 @@
 
   function poblarSelectorOficios(host) {
     var list = document.getElementById('sol-sem-oficio-list');
-    if (!list) return;
-
+    var select = document.getElementById('sol-sem-oficio-select');
     var oficios = obtenerOficiosParaPicker(host);
-    list.innerHTML = '';
-    list.removeAttribute('hidden');
-    list.style.display = 'block';
+    var prev = leerOficioElegido();
 
-    if (!oficios.length) {
-      var empty = document.createElement('p');
-      empty.className = 'sol-sem-oficio-empty';
-      empty.textContent = 'Cargando oficios… Si no aparecen, usa «+ Otro profesional».';
-      list.appendChild(empty);
-    } else {
+    if (select) {
+      select.innerHTML = '<option value="">Seleccionar oficio</option>';
+      oficios.forEach(function (o) {
+        var opt = document.createElement('option');
+        opt.value = o;
+        opt.textContent = o;
+        select.appendChild(opt);
+      });
+      var otroOpt = document.createElement('option');
+      otroOpt.value = '__OTRO__';
+      otroOpt.textContent = '+ Otro profesional';
+      select.appendChild(otroOpt);
+      select.onchange = function () {
+        if (select.value === '__OTRO__') setOficioSeleccionado('', true);
+        else setOficioSeleccionado(select.value, false);
+      };
+    }
+
+    if (list) {
+      list.innerHTML = '';
+      list.removeAttribute('hidden');
+      list.style.display = 'block';
       oficios.forEach(function (o) {
         var btn = document.createElement('button');
         btn.type = 'button';
@@ -307,7 +362,7 @@
         btn.setAttribute('data-oficio', o);
         btn.setAttribute('role', 'option');
         var nombres = [];
-        if (host.profesionales && Array.isArray(host.profesionales)) {
+        if (host && host.profesionales && Array.isArray(host.profesionales)) {
           host.profesionales.forEach(function (p) {
             if (p && String(p.oficio || '').trim() === o && p.nombre) {
               nombres.push(String(p.nombre).trim());
@@ -322,30 +377,42 @@
         });
         list.appendChild(btn);
       });
+      var otroBtn = document.createElement('button');
+      otroBtn.type = 'button';
+      otroBtn.className = 'sol-sem-oficio-item sol-sem-oficio-otro';
+      otroBtn.setAttribute('data-otro', '1');
+      otroBtn.setAttribute('role', 'option');
+      otroBtn.textContent = '+ Otro profesional';
+      otroBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        setOficioSeleccionado('', true);
+      });
+      list.appendChild(otroBtn);
     }
 
-    var otroBtn = document.createElement('button');
-    otroBtn.type = 'button';
-    otroBtn.className = 'sol-sem-oficio-item sol-sem-oficio-otro';
-    otroBtn.setAttribute('data-otro', '1');
-    otroBtn.setAttribute('role', 'option');
-    otroBtn.textContent = '+ Otro profesional';
-    otroBtn.addEventListener('click', function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      setOficioSeleccionado('', true);
-    });
-    list.appendChild(otroBtn);
-    setOficioSeleccionado('', false);
+    if (prev.esOtro) setOficioSeleccionado('', true);
+    else if (prev.oficio) setOficioSeleccionado(prev.oficio, false);
+    else setOficioSeleccionado('', false);
+  }
+
+  function getPanelHost() {
+    if (global.__ruanaPanel) return global.__ruanaPanel;
+    return {
+      solicitudesSemanales: {},
+      profesionales: [],
+      refreshAfterAction: null,
+    };
   }
 
   async function publicarSolicitud(host) {
-    var otroInput = document.getElementById('sol-sem-otro-input');
+    host = host || getPanelHost();
+    var elegido = leerOficioElegido();
+    var esOtro = !!elegido.esOtro;
+    var oficio = String(elegido.oficio || '').trim();
     var detalle = document.getElementById('sol-sem-detalle-input');
-    var btn = document.getElementById('sol-sem-btn-publicar');
-    var esOtro = _oficioSeleccionado.esOtro;
-    var oficio = esOtro ? (otroInput && otroInput.value.trim()) : (_oficioSeleccionado.value || '').trim();
     var descripcion = detalle ? detalle.value.trim() : '';
+    var btn = document.getElementById('sol-sem-btn-publicar');
     mostrarErrorPrompt('');
     if (!oficio) {
       mostrarErrorPrompt(esOtro ? 'Indica qué profesional necesitas' : 'Selecciona un oficio de la lista');
@@ -368,10 +435,12 @@
       });
       var data = await resp.json().catch(function () { return {}; });
       if (!resp.ok && !(data && data.already_existed)) {
-        throw new Error(data.error || data.message || 'No se pudo publicar');
+        throw new Error(data.error || data.message || ('No se pudo publicar (HTTP ' + resp.status + ')'));
       }
       var semana = (host.solicitudesSemanales && host.solicitudesSemanales.semana_inicio) || '';
-      localStorage.setItem(semanaStorageKey(semana), 'hidden');
+      try {
+        localStorage.setItem(semanaStorageKey(semana), 'hidden');
+      } catch (_) {}
       ocultarPromptCrear(host);
       await fetchSnapshot(host);
       renderSeccion(host);
@@ -569,14 +638,17 @@
   }
 
   function bindUi(host) {
+    if (host) global.__ruanaPanel = host;
     var btnMin = document.getElementById('sol-sem-prompt-minimize');
-    var btnPub = document.getElementById('sol-sem-btn-publicar');
     var mini = document.getElementById('sol-sem-minimized');
-    if (btnMin) btnMin.addEventListener('click', function () { minimizarPrompt(host); });
-    if (btnPub) btnPub.addEventListener('click', function () { publicarSolicitud(host); });
-    if (mini) mini.addEventListener('click', function () {
-      mostrarPromptCrear(host);
-    });
+    if (btnMin && !btnMin._solSemBound) {
+      btnMin._solSemBound = true;
+      btnMin.addEventListener('click', function () { minimizarPrompt(getPanelHost()); });
+    }
+    if (mini && !mini._solSemBound) {
+      mini._solSemBound = true;
+      mini.addEventListener('click', function () { mostrarPromptCrear(getPanelHost()); });
+    }
 
     var btnPuedo = document.getElementById('sol-sem-btn-puedo');
     var btnNo = document.getElementById('sol-sem-btn-no-puedo');
@@ -585,26 +657,36 @@
     var btnEntNo = document.getElementById('sol-sem-entrante-no-puedo');
     var btnEntConozco = document.getElementById('sol-sem-entrante-conozco');
 
-    if (btnPuedo) {
+    if (btnPuedo && !btnPuedo._solSemBound) {
+      btnPuedo._solSemBound = true;
       btnPuedo.addEventListener('click', function () {
-        mostrarConfirmPuedo(host, function () { ejecutarPuedoAyudar(host); });
+        mostrarConfirmPuedo(getPanelHost(), function () { ejecutarPuedoAyudar(getPanelHost()); });
       });
     }
-    if (btnNo) btnNo.addEventListener('click', function () { ejecutarNoPuedo(host); });
-    if (btnConozco) {
+    if (btnNo && !btnNo._solSemBound) {
+      btnNo._solSemBound = true;
+      btnNo.addEventListener('click', function () { ejecutarNoPuedo(getPanelHost()); });
+    }
+    if (btnConozco && !btnConozco._solSemBound) {
+      btnConozco._solSemBound = true;
       btnConozco.addEventListener('click', function () {
-        mostrarConfirmConozco(function () { ejecutarConozco(host); });
+        mostrarConfirmConozco(function () { ejecutarConozco(getPanelHost()); });
       });
     }
-    if (btnEntPuedo) {
+    if (btnEntPuedo && !btnEntPuedo._solSemBound) {
+      btnEntPuedo._solSemBound = true;
       btnEntPuedo.addEventListener('click', function () {
-        mostrarConfirmPuedo(host, function () { ejecutarPuedoAyudar(host); });
+        mostrarConfirmPuedo(getPanelHost(), function () { ejecutarPuedoAyudar(getPanelHost()); });
       });
     }
-    if (btnEntNo) btnEntNo.addEventListener('click', function () { ejecutarNoPuedo(host); });
-    if (btnEntConozco) {
+    if (btnEntNo && !btnEntNo._solSemBound) {
+      btnEntNo._solSemBound = true;
+      btnEntNo.addEventListener('click', function () { ejecutarNoPuedo(getPanelHost()); });
+    }
+    if (btnEntConozco && !btnEntConozco._solSemBound) {
+      btnEntConozco._solSemBound = true;
       btnEntConozco.addEventListener('click', function () {
-        mostrarConfirmConozco(function () { ejecutarConozco(host); });
+        mostrarConfirmConozco(function () { ejecutarConozco(getPanelHost()); });
       });
     }
   }
@@ -627,5 +709,14 @@
     renderSeccion: renderSeccion,
     initSemanales: initSemanales,
     mostrarPromptCrear: mostrarPromptCrear,
+    publicarSolicitud: publicarSolicitud,
+  };
+
+  global.RuanaSolSemPublicar = function (ev) {
+    if (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+    }
+    return publicarSolicitud(getPanelHost());
   };
 })(typeof window !== 'undefined' ? window : this);

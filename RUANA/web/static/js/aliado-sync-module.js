@@ -560,6 +560,7 @@
     host.solicitudesList = document.getElementById('solicitudes-list');
     host.solicitudesPropiasList = document.getElementById('solicitudes-propias-list');
     host.solicitudesHistorialList = document.getElementById('solicitudes-historial-list');
+    global.__ruanaPanel = host;
 
     // Estructura de métricas por defecto (nunca undefined)
     // Estas son las claves que espera el motor RUANA
