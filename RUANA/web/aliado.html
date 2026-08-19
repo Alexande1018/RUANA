@@ -19,6 +19,7 @@
     <link rel="stylesheet" href="/static/css/ruana-score-callout.css">
     <link rel="stylesheet" href="/static/css/ruana-identity.css">
     <link rel="stylesheet" href="/static/css/referidos-tree.css">
+    <link rel="stylesheet" href="/static/css/aliado-solicitudes-semanales.css">
     <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
     <script src="/static/js/ruana-atmosphere.js" defer></script>
     <script src="/static/js/ruana-ui.js" defer></script>
@@ -31,6 +32,7 @@
     <script src="/static/js/aliado-referidos-module.js" defer></script>
     <script src="/static/js/aliado-directorio-module.js" defer></script>
     <script src="/static/js/aliado-solicitudes-module.js" defer></script>
+    <script src="/static/js/aliado-solicitudes-semanales-module.js" defer></script>
     <script src="/static/js/aliado-acuerdos-module.js" defer></script>
     <script src="/static/js/aliado-conexiones-module.js" defer></script>
     <script src="/static/js/aliado-centro-comunicacion-module.js" defer></script>
@@ -560,6 +562,12 @@
                 <p class="aliado-module-subtitle">Recibidas, enviadas e historial — cada una como unidad de trabajo.</p>
             </header>
             <div class="solicitudes-zone">
+                <div class="solicitudes-subsection" id="solicitudes-semanales-wrap">
+                    <h3 class="solicitudes-subtitle">Solicitudes para esta semana</h3>
+                    <p class="solicitudes-desc">Necesidades profesionales de tu grupo esta semana. Solo visible para miembros del mismo grupo.</p>
+                    <div id="solicitudes-semanales-propia" hidden></div>
+                    <div class="solicitudes-semanales-list" id="solicitudes-semanales-list"></div>
+                </div>
                 <div class="solicitudes-subsection" id="solicitudes-encargos-wrap">
                     <h3 class="solicitudes-subtitle">Encargos activos</h3>
                     <p class="solicitudes-desc">Negociaciones en curso con otros aliados. Responde directamente sin pasar por Inicio.</p>
@@ -611,6 +619,76 @@
             </div>
         </section>
     </div>
+
+    <!-- Solicitudes semanales: prompt crear -->
+    <div class="sol-sem-overlay" id="sol-sem-prompt-overlay" aria-hidden="true" role="dialog" aria-modal="true">
+        <div class="sol-sem-modal">
+            <p class="sol-sem-kicker">Esta semana en tu grupo</p>
+            <h2 class="sol-sem-title" id="sol-sem-prompt-titulo">¿Qué profesional necesitas esta semana?</h2>
+            <div class="sol-sem-field">
+                <label for="sol-sem-oficio-select">Seleccionar oficio</label>
+                <select id="sol-sem-oficio-select" class="sol-sem-select"></select>
+            </div>
+            <div class="sol-sem-field" id="sol-sem-otro-wrap" style="display:none;">
+                <label for="sol-sem-otro-input">¿Qué profesional necesitas?</label>
+                <input type="text" id="sol-sem-otro-input" class="sol-sem-input" placeholder="Ej: Fotógrafo especializado en producto" maxlength="120" />
+            </div>
+            <div class="sol-sem-field">
+                <label for="sol-sem-detalle-input">¿Quieres añadir algún detalle? (opcional)</label>
+                <textarea id="sol-sem-detalle-input" class="sol-sem-textarea" placeholder="Detalle breve…" maxlength="300"></textarea>
+            </div>
+            <div class="sol-sem-actions-row">
+                <button type="button" class="sol-sem-btn sol-sem-btn-primary" id="sol-sem-btn-publicar">PUBLICAR SOLICITUD</button>
+                <button type="button" class="sol-sem-btn sol-sem-btn-ghost" id="sol-sem-prompt-minimize">Recordarme más tarde</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Solicitudes semanales: entrante flotante -->
+    <div class="sol-sem-overlay" id="sol-sem-entrante-overlay" aria-hidden="true" role="dialog" aria-modal="true">
+        <div class="sol-sem-modal">
+            <p class="sol-sem-kicker">🔔</p>
+            <h2 class="sol-sem-title" id="sol-sem-entrante-titulo">SOLICITUD PARA ESTA SEMANA</h2>
+            <p class="sol-sem-text" id="sol-sem-entrante-texto"></p>
+            <div class="sol-sem-actions-row">
+                <button type="button" class="sol-sem-btn sol-sem-btn-primary" id="sol-sem-entrante-puedo">PUEDO AYUDAR</button>
+                <button type="button" class="sol-sem-btn sol-sem-btn-secondary" id="sol-sem-entrante-no-puedo">NO PUEDO AYUDAR</button>
+            </div>
+            <div class="sol-sem-actions-row">
+                <button type="button" class="sol-sem-btn sol-sem-btn-secondary" id="sol-sem-entrante-conozco">CONOZCO A ALGUIEN</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Solicitudes semanales: respuesta desde lista -->
+    <div class="sol-sem-overlay" id="sol-sem-respuesta-overlay" aria-hidden="true" role="dialog" aria-modal="true">
+        <div class="sol-sem-modal">
+            <h2 class="sol-sem-title">Solicitud para esta semana</h2>
+            <p class="sol-sem-text" id="sol-sem-respuesta-texto"></p>
+            <div class="sol-sem-actions-row">
+                <button type="button" class="sol-sem-btn sol-sem-btn-primary" id="sol-sem-btn-puedo">PUEDO AYUDAR</button>
+                <button type="button" class="sol-sem-btn sol-sem-btn-secondary" id="sol-sem-btn-no-puedo">NO PUEDO AYUDAR</button>
+            </div>
+            <div class="sol-sem-actions-row">
+                <button type="button" class="sol-sem-btn sol-sem-btn-secondary" id="sol-sem-btn-conozco">CONOZCO A ALGUIEN</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Solicitudes semanales: confirmación -->
+    <div class="sol-sem-overlay" id="sol-sem-confirm-overlay" aria-hidden="true" role="dialog" aria-modal="true">
+        <div class="sol-sem-modal">
+            <p class="sol-sem-text" id="sol-sem-confirm-texto"></p>
+            <div class="sol-sem-actions-row">
+                <button type="button" class="sol-sem-btn sol-sem-btn-primary" id="sol-sem-confirm-ok">Confirmar</button>
+                <button type="button" class="sol-sem-btn sol-sem-btn-secondary" id="sol-sem-confirm-cancel">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <button type="button" class="sol-sem-minimized" id="sol-sem-minimized" aria-label="¿Qué profesional necesitas esta semana?">
+        <span>📋 ¿Qué profesional necesitas?</span>
+    </button>
 
     <button type="button" class="ruana-help-fab" id="ruana-help-fab" aria-label="Hablar con el equipo de RUANA" title="Hablar con RUANA">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -1825,6 +1903,9 @@
                 if (mod && typeof mod.maybeShowScoreChangeNotification === 'function') {
                     return mod.maybeShowScoreChangeNotification(this);
                 }
+            }
+            _solicitudesSemanalesModule() {
+                return (typeof RuanaAliadoModules !== 'undefined' && RuanaAliadoModules.solicitudesSemanales) || null;
             }
             _solicitudesModule() {
                 return (typeof RuanaAliadoModules !== 'undefined' && RuanaAliadoModules.solicitudes) || null;

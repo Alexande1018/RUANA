@@ -410,6 +410,7 @@ def _init_db(db):
             db._migrar_aliados_pin_personal(conn, cursor)
             db._migrar_invitaciones_solicitud_id(conn, cursor)
             db._migrar_solicitudes_candidato(conn, cursor)
+            db._migrar_solicitudes_semanales(conn, cursor)
             db._migrar_aliado_accesos_dia(conn, cursor)
             db._migrar_datos_plaza_oficio(conn, cursor)
             db._migrar_drop_especializaciones(conn, cursor)
@@ -2205,6 +2206,54 @@ def _migrar_solicitudes_candidato(db, conn, cursor) -> None:
     except Exception as ex:
         print(f"[RUANA][DB] Aviso migrar solicitudes candidato: {ex}")
 
+def _migrar_solicitudes_semanales(db, conn, cursor) -> None:
+    """Tablas solicitudes_semanales y solicitudes_semanales_respuestas."""
+    try:
+        _repo.execute(cursor, """
+            CREATE TABLE IF NOT EXISTS solicitudes_semanales (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                grupo_id INTEGER NOT NULL,
+                solicitante_codigo TEXT NOT NULL,
+                solicitante_nombre TEXT NOT NULL,
+                oficio TEXT NOT NULL,
+                descripcion TEXT DEFAULT '',
+                es_oficio_personalizado INTEGER NOT NULL DEFAULT 0,
+                semana_inicio TEXT NOT NULL,
+                estado TEXT NOT NULL DEFAULT 'activa',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                expira_at TEXT,
+                FOREIGN KEY (grupo_id) REFERENCES grupos(id)
+            )
+        """)
+        _repo.execute(cursor, """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_sol_sem_solicitante_semana
+            ON solicitudes_semanales(solicitante_codigo, semana_inicio)
+        """)
+        _repo.execute(cursor, """
+            CREATE INDEX IF NOT EXISTS idx_sol_sem_grupo_semana
+            ON solicitudes_semanales(grupo_id, semana_inicio, estado)
+        """)
+        _repo.execute(cursor, """
+            CREATE TABLE IF NOT EXISTS solicitudes_semanales_respuestas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                solicitud_semanal_id INTEGER NOT NULL,
+                aliado_codigo TEXT NOT NULL,
+                aliado_nombre TEXT NOT NULL,
+                tipo_respuesta TEXT NOT NULL,
+                contacto_id INTEGER,
+                invitacion_codigo TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (solicitud_semanal_id) REFERENCES solicitudes_semanales(id),
+                UNIQUE(solicitud_semanal_id, aliado_codigo)
+            )
+        """)
+        _repo.execute(cursor, """
+            CREATE INDEX IF NOT EXISTS idx_sol_sem_resp_solicitud
+            ON solicitudes_semanales_respuestas(solicitud_semanal_id)
+        """)
+    except Exception as ex:
+        print(f"[RUANA][DB] Aviso migrar solicitudes_semanales: {ex}")
+
 def _migrar_aliados_pin_personal(db, conn, cursor) -> None:
     """Añade PIN personal hasheado y tabla de recuperación de acceso."""
     if _repo.migracion_aplicada(cursor, 'aliados_pin_personal_v1'):
@@ -2307,6 +2356,7 @@ def _init_postgres_schema(db):
         db._migrar_aliados_pin_personal(conn, cursor)
         db._migrar_invitaciones_solicitud_id(conn, cursor)
         db._migrar_solicitudes_candidato(conn, cursor)
+        db._migrar_solicitudes_semanales(conn, cursor)
         db._migrar_contactos_es_urgente(conn, cursor)
         db._migrar_negociacion_guiada(conn, cursor)
         db._migrar_acuerdo_cierre_bilateral(conn, cursor)

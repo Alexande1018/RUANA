@@ -121,6 +121,12 @@
         const jobs = [];
         if (targetSections.includes('perfil') || targetSections.includes('metricas') || targetSections.includes('alertas')) jobs.push(host.fetchAliadoSnapshot());
         if (targetSections.includes('solicitudes')) jobs.push(host.fetchSolicitudesSnapshot());
+        if (targetSections.includes('solicitudes')) {
+            var semMod = global.RuanaAliadoModules && global.RuanaAliadoModules.solicitudesSemanales;
+            if (semMod && typeof semMod.fetchSnapshot === 'function') {
+                jobs.push(semMod.fetchSnapshot(host));
+            }
+        }
         if (targetSections.includes('directorio')) jobs.push(host.fetchDirectorioSnapshot());
         if (targetSections.includes('alertas')) jobs.push(host.actualizarEstadoAlertas());
         if (targetSections.includes('centro')) jobs.push(host.fetchCentroComunicacionSnapshot());
@@ -135,6 +141,10 @@
         }
         if (targetSections.includes('metricas')) host.renderMetricas();
         if (targetSections.includes('solicitudes')) host.renderSolicitudes();
+        if (targetSections.includes('solicitudes')) {
+            var semModR = global.RuanaAliadoModules && global.RuanaAliadoModules.solicitudesSemanales;
+            if (semModR && typeof semModR.renderSeccion === 'function') semModR.renderSeccion(host);
+        }
         if (targetSections.includes('directorio')) host.renderProfesionales();
         if (targetSections.includes('alertas')) {
             host.renderNotificaciones();
@@ -343,6 +353,10 @@
       // Render temprano: el usuario entra al panel sin esperar sincronizaciones largas.
       host.render();
       host.renderAlertas();
+      const semModInit = global.RuanaAliadoModules && global.RuanaAliadoModules.solicitudesSemanales;
+      if (semModInit && typeof semModInit.initSemanales === 'function') {
+          await semModInit.initSemanales(host);
+      }
       host.setPanelLoading(false);
       host.initOnboarding();
       if (global.RuanaStripePagos && typeof global.RuanaStripePagos.handleOnboardingReturn === 'function') {
@@ -363,6 +377,10 @@
       host.renderGrupo();
       host.renderMetricas();
       host.renderSolicitudes();
+      const semModRender = global.RuanaAliadoModules && global.RuanaAliadoModules.solicitudesSemanales;
+      if (semModRender && typeof semModRender.renderSeccion === 'function') {
+          semModRender.renderSeccion(host);
+      }
       host.renderProfesionales();
       host.renderNotificaciones();
       host.renderCentroComunicacion();
