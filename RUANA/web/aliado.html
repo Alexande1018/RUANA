@@ -806,13 +806,15 @@
     <!-- Modal: Invitación por oficio (código generado al clic en oficio faltante) -->
     <div class="modal-overlay" id="modal-invitacion-oficio">
         <div class="modal-content">
-            <h3 class="modal-title">Código de invitación para <span id="modal-invitacion-oficio-nombre"></span></h3>
-            <p class="modal-text">Comparte este código con un profesional de este oficio para que se registre en tu grupo:</p>
+            <h3 class="modal-title">¿Conoces un <span id="modal-invitacion-oficio-nombre"></span>?</h3>
+            <p class="modal-text">Invítalo a formar parte de RUANA.</p>
+            <p class="modal-text">Entrégale este código de invitación:</p>
             <div class="invite-code-box">
                 <div class="invite-code-value" id="modal-invitacion-oficio-codigo">---</div>
             </div>
             <div class="modal-actions">
-                <button class="btn-copy" id="btn-copiar-invitacion-oficio">Copiar</button>
+                <button class="btn-copy" id="btn-copiar-invitacion-oficio">Copiar código</button>
+                <button class="btn-copy" id="btn-compartir-invitacion-oficio">Compartir invitación</button>
                 <button class="btn-close-modal" id="btn-cerrar-invitacion-oficio">Cerrar</button>
             </div>
         </div>
@@ -2072,6 +2074,12 @@
                 const mod = this._invitacionesModule();
                 if (mod && typeof mod.copiarCodigoInvitacionOficio === 'function') {
                     return mod.copiarCodigoInvitacionOficio(this);
+                }
+            }
+            async compartirInvitacionOficio() {
+                const mod = this._invitacionesModule();
+                if (mod && typeof mod.compartirInvitacionOficio === 'function') {
+                    return mod.compartirInvitacionOficio(this);
                 }
             }
             cerrarModalInvitacionOficio() {

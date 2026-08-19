@@ -302,6 +302,8 @@ def test_aliado_invitaciones_module_is_wired():
     assert "mod.generateInviteCode(this, solicitudId)" in aliado
     assert 'id="modal-code"' in aliado
     assert 'id="modal-invitacion-oficio"' in aliado
+    assert 'id="btn-compartir-invitacion-oficio"' in aliado
+    assert "compartirInvitacionOficio" in inv_js
 
 
 def test_aliado_alertas_module_is_wired():

@@ -5,6 +5,7 @@ SQL de invitaciones vía InvitacionRepo.
 """
 from __future__ import annotations
 
+import random
 import string
 
 from core.db_constants import RUANA_CODIGO_INVITACION_REGEX
@@ -422,8 +423,12 @@ def consumir_invitacion_oficio(db, codigo: str, nuevo_aliado_codigo: str) -> boo
             if estado == 'pendiente':
                 _repo.marcar_invitacion_oficio_usada(cursor, nuevo_aliado_codigo, invitacion_id)
                 if not ya_registrado:
-                    db.aplicar_cambio_score(
-                        codigo_invitador, db.REGLA9_DELTA, 'invitacion_oficio_usada'
+                    from core.services import score_service
+                    score_service.aplicar_cambio_score(
+                        cursor,
+                        codigo_invitador,
+                        db.REGLA9_DELTA,
+                        'invitacion_oficio_usada',
                     )
             elif estado == 'usado' and not ya_registrado:
                 _repo.update_codigo_referido_oficio_si_vacio(

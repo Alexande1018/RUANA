@@ -216,11 +216,30 @@
     return code;
   }
 
+  function buildInvitacionOficioRegistroUrl(codigo) {
+    const origin = global.RUANA_PUBLIC_APP_URL || window.location.origin;
+    return `${origin}/invite.html?codigo=${encodeURIComponent(codigo || '')}`;
+  }
+
+  function buildMensajeCompartirInvitacionOficio(oficio, codigo, puntosScore, registroUrl) {
+    const puntos = puntosScore != null ? puntosScore : 5;
+    return (
+      '¿Conoces un ' + oficio + '?\n\n' +
+      'RUANA está buscando un profesional de este oficio para formar parte de un grupo de profesionales de su zona.\n\n' +
+      'Si te registras con este código de invitación, el usuario que te invitó recibirá ' + puntos +
+      ' puntos de score por tu incorporación justo después de que tu registro como aliado haya sido confirmado.\n\n' +
+      'Regístrate en RUANA utilizando este código de invitación:\n\n' +
+      codigo + '\n\n' +
+      (registroUrl || buildInvitacionOficioRegistroUrl(codigo))
+    );
+  }
+
   async function generarInvitacionOficio(host, oficio) {
     const codigo = host.codigoAliado;
     if (!codigo) { alert('No hay código de aliado.'); return; }
+    const apiBase = getApiBaseSafe();
     try {
-        const resp = await fetch('/api/generar-invitacion', {
+        const resp = await fetch(apiBase + '/api/generar-invitacion', {
             method: 'POST',
             headers: getAuthHeadersSafe({ 'Content-Type': 'application/json' }),
             credentials: 'same-origin',
@@ -228,9 +247,19 @@
         });
         const data = await resp.json();
         if (data.status === 'success' && data.codigo) {
-            document.getElementById('modal-invitacion-oficio-nombre').textContent = oficio;
-            document.getElementById('modal-invitacion-oficio-codigo').textContent = data.codigo;
-            document.getElementById('modal-invitacion-oficio').classList.add('show');
+            const registroUrl = data.registro_url || buildInvitacionOficioRegistroUrl(data.codigo);
+            host._invitacionOficioActual = {
+                oficio,
+                codigo: data.codigo,
+                registroUrl,
+                puntosScore: data.puntos_score_recompensa,
+            };
+            const nombreEl = document.getElementById('modal-invitacion-oficio-nombre');
+            const codigoEl = document.getElementById('modal-invitacion-oficio-codigo');
+            const modalEl = document.getElementById('modal-invitacion-oficio');
+            if (nombreEl) nombreEl.textContent = oficio;
+            if (codigoEl) codigoEl.textContent = data.codigo;
+            if (modalEl) modalEl.classList.add('show');
             await host.refreshAfterAction(['metricas', 'alertas']);
         } else {
             alert(data.message || 'No se pudo generar el código.');
@@ -276,16 +305,51 @@
   }
 
   function copiarCodigoInvitacionOficio(host) {
-    const el = document.getElementById('modal-invitacion-oficio-codigo');
-    if (!el || !el.textContent) return;
-    navigator.clipboard.writeText(el.textContent).then(() => {
+    const data = host._invitacionOficioActual;
+    const texto = (data && data.codigo) || (document.getElementById('modal-invitacion-oficio-codigo') || {}).textContent;
+    if (!texto || texto === '---') return;
+    navigator.clipboard.writeText(texto).then(() => {
         const btn = document.getElementById('btn-copiar-invitacion-oficio');
         if (btn) { const t = btn.textContent; btn.textContent = '¡Copiado!'; setTimeout(() => btn.textContent = t, 1500); }
     }).catch(() => alert('No se pudo copiar'));
   }
 
+  async function compartirInvitacionOficio(host) {
+    const data = host._invitacionOficioActual;
+    if (!data || !data.codigo) return;
+    const mensaje = buildMensajeCompartirInvitacionOficio(
+        data.oficio,
+        data.codigo,
+        data.puntosScore,
+        data.registroUrl
+    );
+    const btn = document.getElementById('btn-compartir-invitacion-oficio');
+    if (navigator.share) {
+        try {
+            await navigator.share({
+                title: 'Invitación RUANA',
+                text: mensaje,
+            });
+            return;
+        } catch (e) {
+            if (e && e.name === 'AbortError') return;
+        }
+    }
+    try {
+        await navigator.clipboard.writeText(mensaje);
+        if (btn) {
+            const t = btn.textContent;
+            btn.textContent = '¡Mensaje copiado!';
+            setTimeout(() => { btn.textContent = t; }, 1500);
+        }
+    } catch (_) {
+        alert('No se pudo compartir ni copiar el mensaje.');
+    }
+  }
+
   function cerrarModalInvitacionOficio(host) {
     document.getElementById('modal-invitacion-oficio')?.classList.remove('show');
+    host._invitacionOficioActual = null;
   }
 
   modules.invitaciones = {
@@ -297,6 +361,9 @@
     getFechaExpiracion: getFechaExpiracion,
     generateRandomCode: generateRandomCode,
     generarInvitacionOficio: generarInvitacionOficio,
+    buildInvitacionOficioRegistroUrl: buildInvitacionOficioRegistroUrl,
+    buildMensajeCompartirInvitacionOficio: buildMensajeCompartirInvitacionOficio,
+    compartirInvitacionOficio: compartirInvitacionOficio,
     copiarCodigoInvitacionOficio: copiarCodigoInvitacionOficio,
     cerrarModalInvitacionOficio: cerrarModalInvitacionOficio,
   };
