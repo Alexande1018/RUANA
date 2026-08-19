@@ -269,13 +269,20 @@
                 </div>
 
                 <div class="grupo-crecimiento-card grupo-crecimiento-card--inicio" style="display: none;" aria-live="polite" data-grupo-crecimiento-card>
-                    <p class="grupo-crecimiento-lead">Este grupo todavía está creciendo.</p>
+                    <div class="grupo-crecimiento-card-header">
+                        <span class="grupo-crecimiento-badge">Grupo en creación</span>
+                    </div>
+                    <p class="grupo-crecimiento-lead">
+                        <i data-lucide="users-round" class="grupo-crecimiento-icon" aria-hidden="true"></i>
+                        Este grupo todavía está creciendo
+                    </p>
                     <p class="grupo-crecimiento-texto"></p>
                     <p class="grupo-crecimiento-recompensa"></p>
                     <p class="grupo-crecimiento-progreso"></p>
                     <button type="button"
                         class="btn-invitar-crecimiento-grupo"
                         data-action="invitar-crecimiento-grupo">
+                        <i data-lucide="user-plus" aria-hidden="true"></i>
                         Invitar a un profesional
                     </button>
                 </div>
@@ -402,49 +409,6 @@
                 </div>
             </div>
 
-            <section class="perfil-seguridad-wrap ruana-card-premium" id="perfil-seguridad-wrap">
-                <h3 class="catalogo-servicios-title">
-                    <i data-lucide="lock"></i>
-                    Seguridad
-                </h3>
-                <p class="catalogo-servicios-subtitle">Tu código de aliado es permanente. Puedes cambiar tu PIN personal cuando quieras.</p>
-                <div class="perfil-pin-actions" id="perfil-pin-actions">
-                    <button type="button" class="btn-editar-campo" id="btn-mostrar-cambiar-pin">Cambiar PIN</button>
-                </div>
-                <form class="perfil-pin-form" id="form-cambiar-pin" style="display: none;">
-                    <div class="detail-item">
-                        <label class="detail-label" for="pin-actual">PIN actual</label>
-                        <input type="password" class="register-input" id="pin-actual" inputmode="numeric" maxlength="6" autocomplete="current-password">
-                    </div>
-                    <div class="detail-item">
-                        <label class="detail-label" for="pin-nuevo">Nuevo PIN</label>
-                        <input type="password" class="register-input" id="pin-nuevo" inputmode="numeric" maxlength="6" autocomplete="new-password">
-                    </div>
-                    <div class="detail-item">
-                        <label class="detail-label" for="pin-nuevo-confirm">Confirmar nuevo PIN</label>
-                        <input type="password" class="register-input" id="pin-nuevo-confirm" inputmode="numeric" maxlength="6" autocomplete="new-password">
-                    </div>
-                    <div class="detail-edit-actions">
-                        <button type="submit" class="btn-guardar-campo" id="btn-guardar-pin">Guardar</button>
-                        <button type="button" class="btn-cancelar-campo" id="btn-cancelar-cambiar-pin">Cancelar</button>
-                    </div>
-                </form>
-                <p class="perfil-pin-status" id="perfil-pin-status" hidden></p>
-            </section>
-
-            <section class="perfil-mis-datos-wrap ruana-card-premium" id="perfil-mis-datos-wrap">
-                <h3 class="catalogo-servicios-title">
-                    <i data-lucide="shield"></i>
-                    Mis datos
-                </h3>
-                <p class="catalogo-servicios-subtitle">Portabilidad y baja. El borrado de cuenta no es inmediato: un administrador lo gestiona para conservar la documentación de facturación exigida por ley.</p>
-                <div class="perfil-mis-datos-actions">
-                    <button type="button" class="btn-editar-campo" id="btn-exportar-mis-datos">Exportar mis datos</button>
-                    <button type="button" class="btn-editar-campo" id="btn-solicitar-baja">Solicitar baja / borrado</button>
-                </div>
-                <p class="perfil-mis-datos-status" id="perfil-mis-datos-status" hidden></p>
-            </section>
-
             <div id="competencia-banner-wrap" class="competencia-banner" style="display: none;" role="status" aria-live="polite">
                 <div id="competencia-banner-titulo"><strong>En competencia</strong></div>
                 <div id="competencia-banner-texto"></div>
@@ -553,16 +517,68 @@
                     </div>
                 </div>
                 <div class="grupo-crecimiento-card grupo-crecimiento-card--perfil" style="display: none;" aria-live="polite" data-grupo-crecimiento-card>
-                    <p class="grupo-crecimiento-lead">Este grupo todavía está creciendo.</p>
+                    <div class="grupo-crecimiento-card-header">
+                        <span class="grupo-crecimiento-badge">Grupo en creación</span>
+                    </div>
+                    <p class="grupo-crecimiento-lead">
+                        <i data-lucide="users-round" class="grupo-crecimiento-icon" aria-hidden="true"></i>
+                        Este grupo todavía está creciendo
+                    </p>
                     <p class="grupo-crecimiento-texto"></p>
                     <p class="grupo-crecimiento-recompensa"></p>
                     <p class="grupo-crecimiento-progreso"></p>
                     <button type="button"
                         class="btn-invitar-crecimiento-grupo"
                         data-action="invitar-crecimiento-grupo">
+                        <i data-lucide="user-plus" aria-hidden="true"></i>
                         Invitar a un profesional
                     </button>
                 </div>
+            </div>
+
+            <div class="perfil-cuenta-seguridad-footer" id="perfil-cuenta-seguridad-footer">
+                <section class="perfil-seguridad-wrap ruana-card-premium" id="perfil-seguridad-wrap">
+                    <h3 class="catalogo-servicios-title">
+                        <i data-lucide="lock"></i>
+                        Seguridad
+                    </h3>
+                    <p class="catalogo-servicios-subtitle">Tu código de aliado es permanente. Puedes cambiar tu PIN personal cuando quieras.</p>
+                    <div class="perfil-pin-actions" id="perfil-pin-actions">
+                        <button type="button" class="btn-editar-campo" id="btn-mostrar-cambiar-pin">Cambiar PIN</button>
+                    </div>
+                    <form class="perfil-pin-form" id="form-cambiar-pin" style="display: none;">
+                        <div class="detail-item">
+                            <label class="detail-label" for="pin-actual">PIN actual</label>
+                            <input type="password" class="register-input" id="pin-actual" inputmode="numeric" maxlength="6" autocomplete="current-password">
+                        </div>
+                        <div class="detail-item">
+                            <label class="detail-label" for="pin-nuevo">Nuevo PIN</label>
+                            <input type="password" class="register-input" id="pin-nuevo" inputmode="numeric" maxlength="6" autocomplete="new-password">
+                        </div>
+                        <div class="detail-item">
+                            <label class="detail-label" for="pin-nuevo-confirm">Confirmar nuevo PIN</label>
+                            <input type="password" class="register-input" id="pin-nuevo-confirm" inputmode="numeric" maxlength="6" autocomplete="new-password">
+                        </div>
+                        <div class="detail-edit-actions">
+                            <button type="submit" class="btn-guardar-campo" id="btn-guardar-pin">Guardar</button>
+                            <button type="button" class="btn-cancelar-campo" id="btn-cancelar-cambiar-pin">Cancelar</button>
+                        </div>
+                    </form>
+                    <p class="perfil-pin-status" id="perfil-pin-status" hidden></p>
+                </section>
+
+                <section class="perfil-mis-datos-wrap ruana-card-premium" id="perfil-mis-datos-wrap">
+                    <h3 class="catalogo-servicios-title">
+                        <i data-lucide="shield"></i>
+                        Mis datos
+                    </h3>
+                    <p class="catalogo-servicios-subtitle">Portabilidad y baja. El borrado de cuenta no es inmediato: un administrador lo gestiona para conservar la documentación de facturación exigida por ley.</p>
+                    <div class="perfil-mis-datos-actions">
+                        <button type="button" class="btn-editar-campo" id="btn-exportar-mis-datos">Exportar mis datos</button>
+                        <button type="button" class="btn-editar-campo" id="btn-solicitar-baja">Solicitar baja / borrado</button>
+                    </div>
+                    <p class="perfil-mis-datos-status" id="perfil-mis-datos-status" hidden></p>
+                </section>
             </div>
         </div>
         </section><!-- /module-perfil -->

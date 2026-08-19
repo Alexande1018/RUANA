@@ -162,6 +162,10 @@ html.admin-shell-enabled .ruana-legal-footer {
     margin-top: 20px;
 }
 
+.perfil-cuenta-seguridad-footer .perfil-mis-datos-wrap {
+    margin-top: 0;
+}
+
 .perfil-mis-datos-actions {
     display: flex;
     flex-wrap: wrap;

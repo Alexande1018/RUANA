@@ -224,6 +224,10 @@
       }
       if (btn) btn.disabled = false;
     });
+
+    if (typeof global.RuanaUI !== 'undefined' && typeof global.RuanaUI.initIcons === 'function') {
+      global.RuanaUI.initIcons(document.querySelector('[data-grupo-crecimiento-card]') || document);
+    }
   }
 
   function renderOficiosFaltantesFullList(host, oficios) {
