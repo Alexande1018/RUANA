@@ -662,8 +662,13 @@
             <p class="sol-sem-kicker">Esta semana en tu grupo</p>
             <h2 class="sol-sem-title" id="sol-sem-prompt-titulo">¿Qué profesional necesitas esta semana?</h2>
             <div class="sol-sem-field">
-                <label for="sol-sem-oficio-select">Seleccionar oficio</label>
-                <select id="sol-sem-oficio-select" class="sol-sem-select"></select>
+                <span class="sol-sem-field-label">Seleccionar oficio</span>
+                <button type="button" class="sol-sem-picker-trigger" id="sol-sem-picker-trigger" aria-expanded="false" aria-controls="sol-sem-oficio-list">
+                    <span id="sol-sem-picker-label">Seleccionar oficio</span>
+                    <span class="sol-sem-picker-chevron" aria-hidden="true">▼</span>
+                </button>
+                <div class="sol-sem-oficio-list" id="sol-sem-oficio-list" hidden></div>
+                <input type="hidden" id="sol-sem-oficio-value" value="" />
             </div>
             <div class="sol-sem-field" id="sol-sem-otro-wrap" style="display:none;">
                 <label for="sol-sem-otro-input">¿Qué profesional necesitas?</label>
