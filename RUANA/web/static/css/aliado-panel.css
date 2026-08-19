@@ -212,6 +212,52 @@
         .grupo-panel-details .detail-item {
             margin-bottom: 8px;
         }
+        .grupo-crecimiento-card {
+            margin-top: 16px;
+            padding: 16px;
+            border-radius: 12px;
+            background: rgba(34, 197, 94, 0.06);
+            border: 1px solid rgba(34, 197, 94, 0.18);
+        }
+        .grupo-crecimiento-lead {
+            font-weight: 600;
+            color: #e8e8e8;
+            margin: 0 0 8px;
+        }
+        .grupo-crecimiento-texto,
+        .grupo-crecimiento-recompensa,
+        .grupo-crecimiento-progreso {
+            margin: 0 0 8px;
+            color: #b8b8b8;
+            font-size: 0.92rem;
+            line-height: 1.5;
+        }
+        .grupo-crecimiento-progreso {
+            color: #9ca3af;
+            font-size: 0.85rem;
+        }
+        .btn-invitar-crecimiento-grupo {
+            margin-top: 8px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-radius: 8px;
+            border: 1px solid rgba(34, 197, 94, 0.35);
+            background: rgba(34, 197, 94, 0.12);
+            color: #86efac;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .btn-invitar-crecimiento-grupo:hover:not(:disabled) {
+            background: rgba(34, 197, 94, 0.2);
+            border-color: rgba(34, 197, 94, 0.5);
+        }
+        .btn-invitar-crecimiento-grupo:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
         .detail-item-fullwidth {
             grid-column: 1 / -1;
         }

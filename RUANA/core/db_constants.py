@@ -36,6 +36,13 @@ DB_PATH = str(
 )
 RUANA_CODIGO_INVITACION_REGEX = r"^RUANA-\d+-[A-Z0-9]+-[A-Z0-9]{4}$"
 
+# Crecimiento orgánico de grupos profesionales
+GRUPO_EN_CREACION_MAX_ALIADOS = 10
+CRECIMIENTO_GRUPO_MAX_RECOMPENSAS = 10
+CRECIMIENTO_GRUPO_SCORE_DELTA = 5
+INVITACION_TIPO_CRECIMIENTO_GRUPO = "crecimiento_grupo"
+SCORE_MOTIVO_ALIADO_INVITADO_REGISTRADO = "aliado_invitado_registrado"
+
 
 def email_liberado_aliado(codigo: str) -> str:
     return f'liberado+{codigo}@ruana.invalid'

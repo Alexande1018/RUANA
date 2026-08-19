@@ -518,6 +518,18 @@
                         </div>
                     </div>
                 </div>
+                <div id="grupo-crecimiento-card" class="grupo-crecimiento-card" style="display: none;" aria-live="polite">
+                    <p class="grupo-crecimiento-lead">Este grupo todavía está creciendo.</p>
+                    <p class="grupo-crecimiento-texto" id="grupo-crecimiento-texto"></p>
+                    <p class="grupo-crecimiento-recompensa" id="grupo-crecimiento-recompensa"></p>
+                    <p class="grupo-crecimiento-progreso" id="grupo-crecimiento-progreso"></p>
+                    <button type="button"
+                        class="btn-invitar-crecimiento-grupo"
+                        id="btn-invitar-crecimiento-grupo"
+                        data-action="invitar-crecimiento-grupo">
+                        Invitar a un profesional
+                    </button>
+                </div>
             </div>
         </div>
         </section><!-- /module-perfil -->
@@ -1873,6 +1885,12 @@
                 const mod = this._invitacionesModule();
                 if (mod && typeof mod.generarCodigoInvitacionPerfil === 'function') {
                     return mod.generarCodigoInvitacionPerfil(this);
+                }
+            }
+            async generarCodigoInvitacionCrecimientoGrupo() {
+                const mod = this._invitacionesModule();
+                if (mod && typeof mod.generarCodigoInvitacionCrecimientoGrupo === 'function') {
+                    return mod.generarCodigoInvitacionCrecimientoGrupo(this);
                 }
             }
             async generateInviteCode(solicitudId) {

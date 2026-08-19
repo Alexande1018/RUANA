@@ -22,8 +22,10 @@ def _registrar_invitacion(db,
     codigo_invitacion: str,
     invitador_aliado_id: int,
     solicitud_id: Optional[int] = None,
+    grupo_id: Optional[int] = None,
+    tipo: str = "ampliar_red",
 ) -> None:
-    """Registra que este código de invitación fue creado por el aliado invitador (para +3 al completar)."""
+    """Registra que este código de invitación fue creado por el aliado invitador."""
     codigo_invitacion = (codigo_invitacion or "").strip()
     if not codigo_invitacion or invitador_aliado_id is None:
         raise ValueError("codigo_invitacion e invitador_aliado_id son obligatorios")
@@ -33,20 +35,31 @@ def _registrar_invitacion(db,
             sid = int(solicitud_id)
         except (TypeError, ValueError):
             sid = None
+    gid = None
+    if grupo_id is not None:
+        try:
+            gid = int(grupo_id)
+        except (TypeError, ValueError):
+            gid = None
+    tipo_norm = (tipo or "ampliar_red").strip() or "ampliar_red"
     with db._lock:
         conn = None
         try:
             conn = db._connect()
             cursor = conn.cursor()
-            # Asegurar columna solicitud_id en instalaciones antiguas
             try:
                 db._migrar_invitaciones_solicitud_id(conn, cursor)
+                db._migrar_invitaciones_crecimiento_grupo(conn, cursor)
             except Exception:
                 pass
             if db.backend == "postgres":
-                _repo.upsert_invitacion_postgres(cursor, codigo_invitacion, invitador_aliado_id, sid)
+                _repo.upsert_invitacion_postgres(
+                    cursor, codigo_invitacion, invitador_aliado_id, sid, gid, tipo_norm
+                )
             else:
-                _repo.upsert_invitacion_sqlite(cursor, codigo_invitacion, invitador_aliado_id, sid)
+                _repo.upsert_invitacion_sqlite(
+                    cursor, codigo_invitacion, invitador_aliado_id, sid, gid, tipo_norm
+                )
             conn.commit()
         finally:
             if conn:
@@ -247,10 +260,14 @@ def consumir_invitacion_y_recompensar(db, codigo_invitacion: str, nuevo_aliado_c
                 return False
             usado = int(row['usado'] or 0)
             codigo_invitador = row['codigo_invitador']
+            tipo_inv = (row['tipo'] or '').strip() or 'ampliar_red'
+            grupo_id_inv = row['grupo_id']
             if (row['invitador_estado'] or '').strip() == 'sistema':
                 origen = 'admin_invitacion'
             elif row['solicitud_id']:
                 origen = 'yo_conozco_a_alguien'
+            elif tipo_inv == 'crecimiento_grupo':
+                origen = 'crecimiento_grupo'
             else:
                 origen = 'ampliar_red'
             ya_registrado = False
@@ -260,7 +277,17 @@ def consumir_invitacion_y_recompensar(db, codigo_invitacion: str, nuevo_aliado_c
             if not ya_registrado:
                 ya_registrado = _repo.existe_referido(cursor, nuevo_aliado_codigo)
             if not ya_registrado and usado == 0:
-                db.aplicar_cambio_score(codigo_invitador, 3, 'aliado_referido_registro_valido')
+                if tipo_inv == 'crecimiento_grupo':
+                    from core.services import grupo_crecimiento_service
+                    grupo_crecimiento_service.otorgar_recompensa_registro(
+                        db,
+                        codigo_invitador,
+                        nuevo_aliado_codigo,
+                        codigo_invitacion,
+                        grupo_id_inv,
+                    )
+                else:
+                    db.aplicar_cambio_score(codigo_invitador, 3, 'aliado_referido_registro_valido')
             if usado == 0:
                 _repo.marcar_invitacion_usada(cursor, codigo_invitacion)
             conn.commit()

@@ -14,29 +14,44 @@ class InvitacionRepo:
     """Operaciones de persistencia del dominio invitación."""
 
     def upsert_invitacion_postgres(
-        self, cursor, codigo: str, invitador_aliado_id: int, sid: Optional[int]
+        self,
+        cursor,
+        codigo: str,
+        invitador_aliado_id: int,
+        sid: Optional[int],
+        grupo_id: Optional[int] = None,
+        tipo: str = "ampliar_red",
     ) -> None:
         cursor.execute(
             """
-            INSERT INTO invitaciones (codigo, invitador_aliado_id, usado, solicitud_id)
-            VALUES (?, ?, 0, ?)
+            INSERT INTO invitaciones (codigo, invitador_aliado_id, usado, solicitud_id, grupo_id, tipo)
+            VALUES (?, ?, 0, ?, ?, ?)
             ON CONFLICT (codigo) DO UPDATE SET
                 invitador_aliado_id = EXCLUDED.invitador_aliado_id,
                 usado = 0,
-                solicitud_id = COALESCE(EXCLUDED.solicitud_id, invitaciones.solicitud_id)
+                solicitud_id = COALESCE(EXCLUDED.solicitud_id, invitaciones.solicitud_id),
+                grupo_id = COALESCE(EXCLUDED.grupo_id, invitaciones.grupo_id),
+                tipo = COALESCE(EXCLUDED.tipo, invitaciones.tipo)
             """,
-            (codigo, int(invitador_aliado_id), sid),
+            (codigo, int(invitador_aliado_id), sid, grupo_id, tipo),
         )
 
     def upsert_invitacion_sqlite(
-        self, cursor, codigo: str, invitador_aliado_id: int, sid: Optional[int]
+        self,
+        cursor,
+        codigo: str,
+        invitador_aliado_id: int,
+        sid: Optional[int],
+        grupo_id: Optional[int] = None,
+        tipo: str = "ampliar_red",
     ) -> None:
         cursor.execute(
             """
-            INSERT OR REPLACE INTO invitaciones (codigo, invitador_aliado_id, usado, solicitud_id)
-            VALUES (?, ?, 0, ?)
+            INSERT OR REPLACE INTO invitaciones
+            (codigo, invitador_aliado_id, usado, solicitud_id, grupo_id, tipo)
+            VALUES (?, ?, 0, ?, ?, ?)
             """,
-            (codigo, int(invitador_aliado_id), sid),
+            (codigo, int(invitador_aliado_id), sid, grupo_id, tipo),
         )
 
     def existe_campana(self, cursor, codigo: str) -> bool:
@@ -143,7 +158,8 @@ class InvitacionRepo:
         cursor.execute(
             """
             SELECT i.usado, i.invitador_aliado_id, inv.codigo AS codigo_invitador,
-                   inv.estado AS invitador_estado, i.solicitud_id
+                   inv.estado AS invitador_estado, i.solicitud_id,
+                   i.grupo_id, COALESCE(i.tipo, 'ampliar_red') AS tipo
             FROM invitaciones i
             JOIN aliados inv ON inv.id = i.invitador_aliado_id
             WHERE i.codigo = ?

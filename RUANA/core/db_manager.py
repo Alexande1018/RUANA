@@ -345,6 +345,14 @@ class DBManager:
         """Fachada Campamento Base → schema_service._migrar_invitaciones_solicitud_id."""
         return schema_service._migrar_invitaciones_solicitud_id(self, conn, cursor)
 
+    def _migrar_invitaciones_crecimiento_grupo(self, conn, cursor) -> None:
+        """Fachada Campamento Base → schema_service._migrar_invitaciones_crecimiento_grupo."""
+        return schema_service._migrar_invitaciones_crecimiento_grupo(self, conn, cursor)
+
+    def _migrar_grupo_crecimiento_recompensas(self, conn, cursor) -> None:
+        """Fachada Campamento Base → schema_service._migrar_grupo_crecimiento_recompensas."""
+        return schema_service._migrar_grupo_crecimiento_recompensas(self, conn, cursor)
+
     def _migrar_solicitudes_candidato(self, conn, cursor) -> None:
         """Fachada Campamento Base → schema_service._migrar_solicitudes_candidato."""
         return schema_service._migrar_solicitudes_candidato(self, conn, cursor)
@@ -352,6 +360,7 @@ class DBManager:
     ORIGEN_REFERIDO_LABELS: Dict[str, str] = {
         'aliado': 'Invitación de aliado',
         'ampliar_red': 'Ampliar mi red',
+        'crecimiento_grupo': 'Crecimiento del grupo',
         'yo_conozco_a_alguien': 'Conozco a alguien',
         'oficio': 'Invitación por oficio',
         'campana': 'Campaña del administrador',
@@ -501,9 +510,11 @@ class DBManager:
         """Fachada Campamento Base → catalogo_service.get_catalogo_oficios_jerarquico."""
         return catalogo_service.get_catalogo_oficios_jerarquico(self)
 
-    def info_grupo_para_panel(self, grupo_id: int) -> Optional[Dict[str, Any]]:
+    def info_grupo_para_panel(
+        self, grupo_id: int, codigo_aliado: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
         """Fachada Campamento Base → grupo_service.info_grupo_para_panel."""
-        return grupo_service.info_grupo_para_panel(self, grupo_id)
+        return grupo_service.info_grupo_para_panel(self, grupo_id, codigo_aliado)
 
     def _buscar_candidato_fusion(self, cursor, grupo_id: int, codigo_postal: str, oficio_aliado_solo: str) -> Optional[Dict[str, Any]]:
         """Fachada Campamento Base → grupo_service._buscar_candidato_fusion."""
@@ -970,9 +981,13 @@ class DBManager:
         codigo_invitacion: str,
         invitador_aliado_id: int,
         solicitud_id: Optional[int] = None,
+        grupo_id: Optional[int] = None,
+        tipo: str = "ampliar_red",
     ) -> None:
         """Fachada Campamento Base → invitacion_service._registrar_invitacion."""
-        return invitacion_service._registrar_invitacion(self, codigo_invitacion, invitador_aliado_id, solicitud_id)
+        return invitacion_service._registrar_invitacion(
+            self, codigo_invitacion, invitador_aliado_id, solicitud_id, grupo_id, tipo
+        )
 
     def marcar_solicitud_candidato_pendiente(self, solicitud_id: int, codigo_proponente: str) -> Dict[str, Any]:
         """Fachada Campamento Base → solicitud_service.marcar_solicitud_candidato_pendiente."""

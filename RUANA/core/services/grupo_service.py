@@ -181,23 +181,36 @@ def contar_aliados_activos_grupo(db, grupo_id: int) -> int:
         finally:
             conn.close()
 
-def info_grupo_para_panel(db, grupo_id: int) -> Optional[Dict[str, Any]]:
+def info_grupo_para_panel(
+    db, grupo_id: int, codigo_aliado: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
     """
     Información del grupo para el panel del aliado (sin scores ni métricas de otros).
-    Devuelve: nombre, estado, num_oficios, oficios_faltantes (según catálogo RUANA).
+    Devuelve: nombre, estado, num_oficios, oficios_faltantes, aliados y crecimiento.
     """
+    from core.services import grupo_crecimiento_service
+
     grupo = db.obtener_grupo_por_id(grupo_id)
     if not grupo:
         return None
     oficios_en_grupo = db.obtener_oficios_grupo(grupo_id)
     catalogo = db.get_catalogo_oficios_ruana()
     oficios_faltantes = sorted([o for o in catalogo if o and o not in oficios_en_grupo])
-    return {
+    num_aliados = db.contar_aliados_activos_grupo(grupo_id)
+    en_creacion = grupo_crecimiento_service.es_grupo_en_creacion(num_aliados)
+    info = {
         'nombre': grupo.get('nombre') or '---',
         'estado': grupo.get('estado') or 'activo',
         'num_oficios': len(oficios_en_grupo),
         'oficios_faltantes': oficios_faltantes,
+        'num_aliados': num_aliados,
+        'en_creacion': en_creacion,
     }
+    if en_creacion and codigo_aliado:
+        info['crecimiento'] = grupo_crecimiento_service.info_progreso_invitador(
+            db, codigo_aliado
+        )
+    return info
 
 def procesar_viabilidad_grupo(db, grupo_id: int) -> Dict[str, Any]:
     """
