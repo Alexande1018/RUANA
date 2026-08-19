@@ -34,18 +34,14 @@ def _mensaje_solicitud_semanal_grupo(nombre_solicitante: str, oficio: str) -> st
 
 def _notificar_grupo_nueva_solicitud(
     db,
-    cursor,
-    grupo_id: Any,
+    codigos: List[str],
     solicitante_codigo: str,
     solicitante_nombre: str,
     oficio: str,
     solicitud_id: int,
     semana_inicio: str,
 ) -> None:
-    """Avisa a todos los aliados activos del grupo (excepto el solicitante)."""
-    codigos = _repo.listar_codigos_activos_grupo(
-        cursor, grupo_id, excluir_codigo=solicitante_codigo
-    )
+    """Avisa a aliados del grupo tras commit (transacción independiente por notificación)."""
     if not codigos:
         return
     titulo = "Solicitud de esta semana"
@@ -66,8 +62,20 @@ def _notificar_grupo_nueva_solicitud(
             titulo,
             mensaje,
             metadata=metadata,
-            cursor=cursor,
         )
+
+
+def _asegurar_esquema_sol_sem(db, conn, cursor) -> None:
+    """Migración SQLite o no-op en Postgres (tablas vía Supabase)."""
+    if getattr(db, "backend", None) == "postgres":
+        return
+    try:
+        db._migrar_solicitudes_semanales(conn, cursor)
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
 
 
 def _expirar_vencidas(db, cursor) -> None:
@@ -98,7 +106,7 @@ def obtener_panel_por_codigo(db, codigo: str) -> Dict[str, Any]:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             try:
-                db._migrar_solicitudes_semanales(conn, cursor)
+                _asegurar_esquema_sol_sem(db, conn, cursor)
             except Exception:
                 pass
             _expirar_vencidas(db, cursor)
@@ -145,6 +153,10 @@ def obtener_panel_por_codigo(db, codigo: str) -> Dict[str, Any]:
                 "historial": historial,
             }
         except Exception as e:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
             return {"status": "error", "message": str(e)}
         finally:
             conn.close()
@@ -177,7 +189,7 @@ def crear_solicitud_semanal(
             conn = db._connect()
             cursor = conn.cursor()
             try:
-                db._migrar_solicitudes_semanales(conn, cursor)
+                _asegurar_esquema_sol_sem(db, conn, cursor)
             except Exception:
                 pass
             _expirar_vencidas(db, cursor)
@@ -228,19 +240,25 @@ def crear_solicitud_semanal(
                 semana_str,
                 expira,
             )
+            codigos_notificar = _repo.listar_codigos_activos_grupo(
+                cursor, grupo_id, excluir_codigo=codigo
+            )
+            conn.commit()
             _notificar_grupo_nueva_solicitud(
                 db,
-                cursor,
-                grupo_id,
+                codigos_notificar,
                 codigo,
                 nombre,
                 oficio,
                 int(sid),
                 semana_str,
             )
-            conn.commit()
             return {"status": "success", "ok": True, "id": sid}
         except Exception as e:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
             err = str(e)
             if "UNIQUE" in err.upper() or "unique" in err:
                 return {
@@ -557,7 +575,7 @@ def expirar_solicitudes_vencidas(db) -> Dict[str, Any]:
             conn = db._connect()
             cursor = conn.cursor()
             try:
-                db._migrar_solicitudes_semanales(conn, cursor)
+                _asegurar_esquema_sol_sem(db, conn, cursor)
             except Exception:
                 pass
             semana = _semana_inicio_str()
