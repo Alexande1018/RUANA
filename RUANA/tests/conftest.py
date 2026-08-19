@@ -78,8 +78,8 @@ class Hito2AFakeDB:
         self.calls.append(("crear_aliado", kwargs))
         return {"status": "success"}
 
-    def _registrar_invitacion(self, codigo, aliado_id, solicitud_id=None):
-        self.calls.append(("_registrar_invitacion", codigo, aliado_id, solicitud_id))
+    def _registrar_invitacion(self, codigo, aliado_id, solicitud_id=None, grupo_id=None, tipo="ampliar_red"):
+        self.calls.append(("_registrar_invitacion", codigo, aliado_id, solicitud_id, grupo_id, tipo))
 
     def validar_campana_invitacion(self, codigo):
         self.calls.append(("validar_campana_invitacion", codigo))
