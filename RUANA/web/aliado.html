@@ -389,7 +389,10 @@
                     Seguridad
                 </h3>
                 <p class="catalogo-servicios-subtitle">Tu código de aliado es permanente. Puedes cambiar tu PIN personal cuando quieras.</p>
-                <form class="perfil-pin-form" id="form-cambiar-pin">
+                <div class="perfil-pin-actions" id="perfil-pin-actions">
+                    <button type="button" class="btn-editar-campo" id="btn-mostrar-cambiar-pin">Cambiar PIN</button>
+                </div>
+                <form class="perfil-pin-form" id="form-cambiar-pin" style="display: none;">
                     <div class="detail-item">
                         <label class="detail-label" for="pin-actual">PIN actual</label>
                         <input type="password" class="register-input" id="pin-actual" inputmode="numeric" maxlength="6" autocomplete="current-password">
@@ -403,10 +406,11 @@
                         <input type="password" class="register-input" id="pin-nuevo-confirm" inputmode="numeric" maxlength="6" autocomplete="new-password">
                     </div>
                     <div class="detail-edit-actions">
-                        <button type="submit" class="btn-guardar-campo" id="btn-guardar-pin">Cambiar PIN</button>
+                        <button type="submit" class="btn-guardar-campo" id="btn-guardar-pin">Guardar</button>
+                        <button type="button" class="btn-cancelar-campo" id="btn-cancelar-cambiar-pin">Cancelar</button>
                     </div>
-                    <p class="perfil-pin-status" id="perfil-pin-status" hidden></p>
                 </form>
+                <p class="perfil-pin-status" id="perfil-pin-status" hidden></p>
             </section>
 
             <div id="competencia-banner-wrap" class="competencia-banner" style="display: none;" role="status" aria-live="polite">
@@ -2046,6 +2050,18 @@
                 const mod = this._perfilModule();
                 if (mod && typeof mod.guardarPin === 'function') {
                     return mod.guardarPin(this);
+                }
+            }
+            mostrarFormularioCambiarPin() {
+                const mod = this._perfilModule();
+                if (mod && typeof mod.mostrarFormularioCambiarPin === 'function') {
+                    return mod.mostrarFormularioCambiarPin();
+                }
+            }
+            ocultarFormularioCambiarPin() {
+                const mod = this._perfilModule();
+                if (mod && typeof mod.ocultarFormularioCambiarPin === 'function') {
+                    return mod.ocultarFormularioCambiarPin();
                 }
             }
             _directorioModule() {

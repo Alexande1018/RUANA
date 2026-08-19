@@ -23,6 +23,7 @@ from core.aliado_pin_auth import (
     verificar_pin,
 )
 from core.repositories.aliado_repo import AliadoRepo
+from core.services import schema_service
 
 _repo = AliadoRepo()
 
@@ -48,6 +49,10 @@ def _generar_otp() -> str:
 
 def _normalizar_email(email: str) -> str:
     return (email or "").strip().lower()
+
+
+def _asegurar_esquema_pin(db) -> None:
+    schema_service.ensure_aliados_pin_schema(db)
 
 
 def aliado_tiene_pin(aliado: Optional[Dict[str, Any]]) -> bool:
@@ -128,6 +133,8 @@ def establecer_pin_inicial(db, setup_token: str, pin: str, pin_confirmacion: str
     if aliado_tiene_pin(aliado):
         return {"status": "error", "message": "Este aliado ya tiene un PIN configurado."}
 
+    _asegurar_esquema_pin(db)
+
     with db._lock:
         conn = db._connect()
         cursor = conn.cursor()
@@ -163,6 +170,8 @@ def cambiar_pin(db, codigo: str, pin_actual: str, pin_nuevo: str, pin_confirmaci
     if not verificar_pin(pin_actual, aliado.get("pin_hash") or ""):
         _registrar_intento_pin_fallido(db, codigo)
         return {"status": "error", "message": "El PIN actual no es correcto."}
+
+    _asegurar_esquema_pin(db)
 
     with db._lock:
         conn = db._connect()
@@ -317,6 +326,8 @@ def restablecer_pin_recuperacion(
     if not codigo:
         return {"status": "error", "message": "No se pudo identificar la cuenta."}
 
+    _asegurar_esquema_pin(db)
+
     with db._lock:
         conn = db._connect()
         cursor = conn.cursor()
@@ -335,6 +346,7 @@ def restablecer_pin_recuperacion(
 
 
 def _registrar_intento_pin_fallido(db, codigo: str) -> None:
+    _asegurar_esquema_pin(db)
     with db._lock:
         conn = db._connect()
         cursor = conn.cursor()
@@ -351,6 +363,7 @@ def _registrar_intento_pin_fallido(db, codigo: str) -> None:
 
 
 def _resetear_intentos_pin(db, codigo: str) -> None:
+    _asegurar_esquema_pin(db)
     with db._lock:
         conn = db._connect()
         cursor = conn.cursor()

@@ -16,7 +16,7 @@ def test_migrar_aliados_foto_perfil_adds_column_on_sqlite(tmp_path):
     assert ALIADO_FOTO_PERFIL_COLUMN in cols
 
 
-def test_init_postgres_schema_runs_foto_perfil_migration(monkeypatch):
+def test_init_postgres_schema_runs_pin_migration_before_foto_perfil(monkeypatch):
     calls = []
 
     class FakeCursor:
@@ -51,5 +51,102 @@ def test_init_postgres_schema_runs_foto_perfil_migration(monkeypatch):
 
     db._init_postgres_schema()
 
-    assert "migrar_foto_perfil" in calls
+    assert calls.index("migrar_pin_personal") < calls.index("migrar_foto_perfil")
     assert "migrar_negociacion_guiada" in calls
+
+
+def test_migrar_aliados_foto_perfil_postgres_adds_column(monkeypatch):
+    from core.services import schema_service
+
+    calls = []
+
+    class FakeCursor:
+        def execute(self, sql, params=None):
+            calls.append(str(sql).strip())
+
+    db = DBManager.__new__(DBManager)
+    db.backend = "postgres"
+
+    schema_service._migrar_aliados_foto_perfil(db, None, FakeCursor())
+
+    assert f"ADD COLUMN IF NOT EXISTS {ALIADO_FOTO_PERFIL_COLUMN}" in calls[0]
+
+
+def test_ensure_aliados_pin_schema_postgres_runs_migration(monkeypatch):
+    from core.services import schema_service
+
+    calls = []
+
+    class FakeCursor:
+        def execute(self, sql, params=None):
+            calls.append(str(sql).strip())
+
+        def fetchall(self):
+            return []
+
+        def fetchone(self):
+            return None
+
+    class FakeConn:
+        def cursor(self):
+            return FakeCursor()
+
+        def commit(self):
+            calls.append("commit")
+
+        def rollback(self):
+            calls.append("rollback")
+
+        def close(self):
+            pass
+
+    db = DBManager.__new__(DBManager)
+    db.backend = "postgres"
+    db._lock = __import__("threading").RLock()
+    monkeypatch.setattr(db, "_connect", lambda: FakeConn())
+
+    schema_service.ensure_aliados_pin_schema(db)
+
+    joined = "\n".join(calls)
+    assert "ADD COLUMN IF NOT EXISTS pin_hash" in joined
+    assert "commit" in calls
+
+
+def test_ensure_aliados_pin_schema_noop_on_sqlite(tmp_path):
+    from core.services import schema_service
+
+    db = DBManager(str(tmp_path / "ensure_pin.db"))
+    assert db.backend == "sqlite"
+    schema_service.ensure_aliados_pin_schema(db)
+
+
+def test_migrar_aliados_pin_personal_postgres_adds_columns(monkeypatch):
+    from core.services import schema_service
+
+    calls = []
+
+    class FakeCursor:
+        def execute(self, sql, params=None):
+            calls.append(str(sql).strip())
+
+        def fetchall(self):
+            return []
+
+        def fetchone(self):
+            return None
+
+    class FakeConn:
+        def cursor(self):
+            return FakeCursor()
+
+    db = DBManager.__new__(DBManager)
+    db.backend = "postgres"
+    db._lock = __import__("threading").RLock()
+
+    schema_service._migrar_aliados_pin_personal(db, FakeConn(), FakeCursor())
+
+    joined = "\n".join(calls)
+    assert "ADD COLUMN IF NOT EXISTS pin_hash" in joined
+    assert "ADD COLUMN IF NOT EXISTS pin_intentos_fallidos" in joined
+    assert "ADD COLUMN IF NOT EXISTS pin_bloqueado_hasta" in joined
+    assert "CREATE TABLE IF NOT EXISTS aliado_recuperacion_acceso" in joined
