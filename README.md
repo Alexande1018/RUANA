@@ -633,7 +633,7 @@ Estado exacto schema/RLS remoto en vivo; Realtime en cliente; purga en operació
 
 ## 18. Roadmap
 
-Fuente: [`docs/operaciones/roadmap.md`](docs/operaciones/roadmap.md) (2026-07-28). `ROADMAP.md` solo apunta ahí.
+Fuente: [`docs/operaciones/roadmap.md`](docs/operaciones/roadmap.md) (2026-08-19). `ROADMAP.md` solo apunta ahí.
 
 | Hito | Estado documentado |
 |------|--------------------|
@@ -642,9 +642,11 @@ Fuente: [`docs/operaciones/roadmap.md`](docs/operaciones/roadmap.md) (2026-07-28
 | Invitaciones admin + campañas | Hecho en código |
 | Métodos de pago + Storage | Hecho en código |
 | Impugnación cobros | Hecho en código |
+| Módulo financiero (FASE 04–13) | Hecho en código |
 | Competencia automática | Hecho en main |
-| Stripe Connect (pagos encargo) | Hecho en código; activación por flag |
-| Campamento Base (modularización) | **Avanzado** — 16 services + 16 repos; fachada `DBManager` residual |
+| Stripe Connect (pagos encargo) | Hecho en código; deploy fija `RUANA_STRIPE_MODE=test` |
+| Campamento Base (modularización) | **Avanzado** — 36 services + 30 repos; fachada `DBManager` (~1.925 LOC) |
+| Pack documentación cierre | Hecho 2026-08-19 |
 | Admin → Firebase Auth | Preparado, **no implementado** |
 
 Histórico: `docs/archive/ROADMAP_2026-05.md`.
