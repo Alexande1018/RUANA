@@ -353,6 +353,10 @@
       if (btnEditarDesc) btnEditarDesc.addEventListener('click', () => host.iniciarEditarDescripcion());
       if (btnGuardarDesc) btnGuardarDesc.addEventListener('click', () => host.guardarDescripcion());
       if (btnCancelarDesc) btnCancelarDesc.addEventListener('click', () => host.cancelarEditarDescripcion());
+      const btnMostrarCambiarPin = document.getElementById('btn-mostrar-cambiar-pin');
+      const btnCancelarCambiarPin = document.getElementById('btn-cancelar-cambiar-pin');
+      if (btnMostrarCambiarPin) btnMostrarCambiarPin.addEventListener('click', () => host.mostrarFormularioCambiarPin());
+      if (btnCancelarCambiarPin) btnCancelarCambiarPin.addEventListener('click', () => host.ocultarFormularioCambiarPin());
       const formCambiarPin = document.getElementById('form-cambiar-pin');
       if (formCambiarPin) {
           formCambiarPin.addEventListener('submit', (e) => {

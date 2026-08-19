@@ -563,6 +563,9 @@ def _migrar_aliados_descripcion_servicio(db, conn, cursor) -> None:
 def _migrar_aliados_foto_perfil(db, conn, cursor) -> None:
     """Añade foto_perfil_url (foto pública del aliado, editable solo por el propio aliado)."""
     col = ALIADO_FOTO_PERFIL_COLUMN
+    if db.backend == "postgres":
+        _repo.execute(cursor, f"ALTER TABLE aliados ADD COLUMN IF NOT EXISTS {col} TEXT")
+        return
     columnas = _repo.columnas_tabla(cursor, "aliados")
     if col in columnas:
         return
@@ -2145,11 +2148,15 @@ def _migrar_invitaciones_oficio_codigo_referido(db, conn, cursor) -> None:
 
 def _migrar_aliados_invitado_por(db, conn, cursor) -> None:
     """Añade invitado_por_codigo e invitado_origen en aliados (fuente del linaje)."""
-    columnas = _repo.columnas_tabla(cursor, "aliados")
-    if 'invitado_por_codigo' not in columnas:
-        _repo.execute(cursor, "ALTER TABLE aliados ADD COLUMN invitado_por_codigo TEXT DEFAULT NULL")
-    if 'invitado_origen' not in columnas:
-        _repo.execute(cursor, "ALTER TABLE aliados ADD COLUMN invitado_origen TEXT DEFAULT ''")
+    if db.backend == "postgres":
+        _repo.execute(cursor, "ALTER TABLE aliados ADD COLUMN IF NOT EXISTS invitado_por_codigo TEXT DEFAULT NULL")
+        _repo.execute(cursor, "ALTER TABLE aliados ADD COLUMN IF NOT EXISTS invitado_origen TEXT DEFAULT ''")
+    else:
+        columnas = _repo.columnas_tabla(cursor, "aliados")
+        if 'invitado_por_codigo' not in columnas:
+            _repo.execute(cursor, "ALTER TABLE aliados ADD COLUMN invitado_por_codigo TEXT DEFAULT NULL")
+        if 'invitado_origen' not in columnas:
+            _repo.execute(cursor, "ALTER TABLE aliados ADD COLUMN invitado_origen TEXT DEFAULT ''")
     try:
         _repo.execute(cursor, 
             "CREATE INDEX IF NOT EXISTS idx_aliados_invitado_por ON aliados(invitado_por_codigo)"
@@ -2255,17 +2262,23 @@ def _migrar_solicitudes_candidato(db, conn, cursor) -> None:
     except Exception as ex:
         print(f"[RUANA][DB] Aviso migrar solicitudes candidato: {ex}")
 
-def _migrar_aliados_pin_personal(db, conn, cursor) -> None:
-    """Añade PIN personal hasheado y tabla de recuperación de acceso."""
-    if _repo.migracion_aplicada(cursor, 'aliados_pin_personal_v1'):
-        return
-    columnas = _repo.columnas_tabla(cursor, "aliados")
-    if 'pin_hash' not in columnas:
-        _repo.execute(cursor, "ALTER TABLE aliados ADD COLUMN pin_hash TEXT")
-    if 'pin_intentos_fallidos' not in columnas:
-        _repo.execute(cursor, "ALTER TABLE aliados ADD COLUMN pin_intentos_fallidos INTEGER DEFAULT 0")
-    if 'pin_bloqueado_hasta' not in columnas:
-        _repo.execute(cursor, "ALTER TABLE aliados ADD COLUMN pin_bloqueado_hasta TIMESTAMP")
+def _aplicar_esquema_pin_personal(db, cursor) -> None:
+    """DDL de PIN personal en aliados y tabla de recuperación (sin capturar errores)."""
+    if db.backend == "postgres":
+        _repo.execute(cursor, "ALTER TABLE aliados ADD COLUMN IF NOT EXISTS pin_hash TEXT")
+        _repo.execute(cursor, "ALTER TABLE aliados ADD COLUMN IF NOT EXISTS pin_intentos_fallidos INTEGER DEFAULT 0")
+        _repo.execute(cursor, "ALTER TABLE aliados ADD COLUMN IF NOT EXISTS pin_bloqueado_hasta TIMESTAMP")
+    else:
+        if _repo.migracion_aplicada(cursor, 'aliados_pin_personal_v1'):
+            return
+        columnas = _repo.columnas_tabla(cursor, "aliados")
+        if 'pin_hash' not in columnas:
+            _repo.execute(cursor, "ALTER TABLE aliados ADD COLUMN pin_hash TEXT")
+        if 'pin_intentos_fallidos' not in columnas:
+            _repo.execute(cursor, "ALTER TABLE aliados ADD COLUMN pin_intentos_fallidos INTEGER DEFAULT 0")
+        if 'pin_bloqueado_hasta' not in columnas:
+            _repo.execute(cursor, "ALTER TABLE aliados ADD COLUMN pin_bloqueado_hasta TIMESTAMP")
+
     id_col = "SERIAL PRIMARY KEY" if db.backend == "postgres" else "INTEGER PRIMARY KEY AUTOINCREMENT"
     _repo.execute(cursor, f"""
         CREATE TABLE IF NOT EXISTS aliado_recuperacion_acceso (
@@ -2284,7 +2297,34 @@ def _migrar_aliados_pin_personal(db, conn, cursor) -> None:
     """)
     _repo.execute(cursor, "CREATE INDEX IF NOT EXISTS idx_recuperacion_email ON aliado_recuperacion_acceso(email)")
     _repo.execute(cursor, "CREATE INDEX IF NOT EXISTS idx_recuperacion_codigo ON aliado_recuperacion_acceso(codigo_aliado)")
-    _repo.registrar_migracion(cursor, 'aliados_pin_personal_v1')
+
+    if db.backend != "postgres":
+        _repo.registrar_migracion(cursor, 'aliados_pin_personal_v1')
+
+
+def ensure_aliados_pin_schema(db) -> None:
+    """Garantiza columnas PIN en Postgres aunque falle el init de esquema al arranque."""
+    if db.backend != "postgres":
+        return
+    with db._lock:
+        conn = db._connect()
+        try:
+            cursor = conn.cursor()
+            _aplicar_esquema_pin_personal(db, cursor)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+
+def _migrar_aliados_pin_personal(db, conn, cursor) -> None:
+    """Añade PIN personal hasheado y tabla de recuperación de acceso."""
+    try:
+        _aplicar_esquema_pin_personal(db, cursor)
+    except Exception as ex:
+        print(f"[RUANA][DB] Aviso migrar aliados_pin_personal: {ex}")
 
 def _migrar_aliados_eliminados(db, conn, cursor) -> None:
     """Tabla de archivo: un único registro por aliado eliminado definitivamente."""
@@ -2352,9 +2392,9 @@ def _init_postgres_schema(db):
                 UNIQUE(aliado_codigo, posicion)
             )
         """)
+        db._migrar_aliados_pin_personal(conn, cursor)
         db._migrar_aliados_foto_perfil(conn, cursor)
         db._migrar_aliados_invitado_por(conn, cursor)
-        db._migrar_aliados_pin_personal(conn, cursor)
         db._migrar_invitaciones_solicitud_id(conn, cursor)
         db._migrar_solicitudes_candidato(conn, cursor)
         db._migrar_contactos_es_urgente(conn, cursor)
