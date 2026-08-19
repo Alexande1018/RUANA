@@ -209,3 +209,68 @@ html.admin-shell-enabled .ruana-legal-footer {
     color: #86efac;
     text-decoration: none;
 }
+
+.legal-card .legal-placeholder {
+    background: rgba(250, 204, 21, 0.12);
+    padding: 0.08em 0.28em;
+    border-radius: 3px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.92em;
+    color: #fde68a;
+}
+
+.legal-layer-1 {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(134, 239, 172, 0.22);
+    border-radius: 10px;
+    padding: 1rem 1.15rem;
+    margin: 0 0 1.6rem;
+}
+
+.legal-layer-1 h2 {
+    margin-top: 0;
+    color: #86efac;
+}
+
+.legal-layer-1 ul {
+    margin-bottom: 0;
+}
+
+.legal-toc {
+    list-style: decimal;
+    padding-left: 1.3rem;
+    margin: 0 0 1.6rem;
+}
+
+.legal-toc a {
+    color: #86efac;
+}
+
+.register-legal-layer {
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: #9ca3af;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 0.7rem 0.85rem;
+    margin: 0 0 0.75rem;
+}
+
+.register-legal-layer p {
+    margin: 0 0 0.45rem;
+}
+
+.register-legal-layer ul {
+    margin: 0;
+    padding-left: 1.1rem;
+}
+
+.register-legal-layer li {
+    margin: 0.2rem 0;
+}
+
+.register-legal-layer a {
+    color: #86efac;
+    font-weight: 600;
+}

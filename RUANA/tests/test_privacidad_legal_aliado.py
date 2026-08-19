@@ -228,6 +228,10 @@ def test_privacidad_cita_encargados_y_retencion():
     assert "[CONFIRMAR CON ASESOR FISCAL]" in text
     assert "[DECISIÓN PENDIENTE]" in text
     assert "no hay banner de cookies" in text.lower() or "no incluye banner de cookies" in text.lower()
+    assert "legal-layer-1" in text
+    assert "art. 6.1.b" in text
+    assert "artículo 22" in text or "art. 22" in text
+    assert "no son encargados" in text.lower() or "no es un encargo" in text.lower()
 
 
 def test_register_checkbox_obligatorio_no_premarcado():
@@ -240,6 +244,9 @@ def test_register_checkbox_obligatorio_no_premarcado():
     # No premarcado
     assert "id=\"condiciones\" checked" not in html
     assert "id='condiciones' checked" not in html
+    assert "register-legal-layer" in html
+    assert "Información básica sobre protección de datos" in html
+    assert "Responsable:" in html
 
 
 def test_footer_legal_incluido_en_paginas_publicas_y_paneles():
