@@ -1828,6 +1828,10 @@ class DBManager:
         """Fachada Campamento Base → schema_service._migrar_aliados_eliminados."""
         return schema_service._migrar_aliados_eliminados(self, conn, cursor)
 
+    def _migrar_privacidad_rgpd_aliado(self, conn, cursor) -> None:
+        """Fachada Campamento Base → schema_service._migrar_privacidad_rgpd_aliado."""
+        return schema_service._migrar_privacidad_rgpd_aliado(self, conn, cursor)
+
     def _purga_datos_aliado_completa(self, cursor, codigo: str, aliado_id: int) -> None:
         """Fachada Campamento Base → competencia_service._purga_datos_aliado_completa."""
         return competencia_service._purga_datos_aliado_completa(self, cursor, codigo, aliado_id)
@@ -1844,6 +1848,34 @@ class DBManager:
     ) -> Dict[str, Any]:
         """Fachada Campamento Base → aliado_service.eliminar_perfil_aliado_admin."""
         return aliado_service.eliminar_perfil_aliado_admin(self, codigo_aliado, motivo, admin_codigo)
+
+    def registrar_consentimiento_aliado(self, codigo_aliado: str, version_documento: Optional[str] = None) -> Dict[str, Any]:
+        """Fachada Campamento Base → aliado_service.registrar_consentimiento_aliado."""
+        return aliado_service.registrar_consentimiento_aliado(self, codigo_aliado, version_documento)
+
+    def exportar_datos_aliado(self, codigo_aliado: str) -> Dict[str, Any]:
+        """Fachada Campamento Base → aliado_service.exportar_datos_aliado."""
+        return aliado_service.exportar_datos_aliado(self, codigo_aliado)
+
+    def crear_solicitud_baja_aliado(self, codigo_aliado: str, motivo: Optional[str] = None) -> Dict[str, Any]:
+        """Fachada Campamento Base → aliado_service.crear_solicitud_baja_aliado."""
+        return aliado_service.crear_solicitud_baja_aliado(self, codigo_aliado, motivo)
+
+    def listar_solicitudes_baja_aliado(self, limite: int = 200) -> List[Dict[str, Any]]:
+        """Fachada Campamento Base → aliado_service.listar_solicitudes_baja_aliado."""
+        return aliado_service.listar_solicitudes_baja_aliado(self, limite)
+
+    def resolver_solicitud_baja_aliado(
+        self,
+        solicitud_id: int,
+        estado: str,
+        admin_codigo: Optional[str] = None,
+        notas_admin: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Fachada Campamento Base → aliado_service.resolver_solicitud_baja_aliado."""
+        return aliado_service.resolver_solicitud_baja_aliado(
+            self, solicitud_id, estado, admin_codigo, notas_admin
+        )
 
     def contar_retadores_activos(self) -> int:
         """Fachada Campamento Base → admin_service.contar_retadores_activos."""

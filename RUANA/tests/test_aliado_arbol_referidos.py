@@ -223,6 +223,7 @@ def test_registro_invitacion_aparece_en_arbol(client, sqlite_db, monkeypatch):
             "email": "nuevo@example.com",
             "telefono": "+34600999111",
             "codigo_invitacion": codigo_inv,
+            "acepta_privacidad_y_terminos": True,
         },
     )
     assert register.status_code == 201

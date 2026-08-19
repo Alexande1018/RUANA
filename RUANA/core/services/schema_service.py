@@ -419,6 +419,7 @@ def _init_db(db):
             db._migrar_retador_rename(conn, cursor)
             db._migrar_competencia_permanencia(conn, cursor)
             db._migrar_aliados_eliminados(conn, cursor)
+            db._migrar_privacidad_rgpd_aliado(conn, cursor)
             db._migrar_stripe_pagos(conn, cursor)
             db._migrar_estado_financiero(conn, cursor)
             db._migrar_financial_fase02(conn, cursor)
@@ -2402,6 +2403,45 @@ def _migrar_aliados_eliminados(db, conn, cursor) -> None:
     )
 
 
+def _migrar_privacidad_rgpd_aliado(db, conn, cursor) -> None:
+    """Consentimientos de alta (RGPD) y solicitudes de baja/borrado gestionadas por admin."""
+    id_col = "SERIAL PRIMARY KEY" if db.backend == "postgres" else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    _repo.execute(cursor, f"""
+        CREATE TABLE IF NOT EXISTS consentimientos_aliado (
+            id {id_col},
+            codigo_aliado TEXT NOT NULL,
+            version_documento TEXT NOT NULL,
+            aceptado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(codigo_aliado) REFERENCES aliados(codigo)
+        )
+    """)
+    _repo.execute(
+        cursor,
+        "CREATE INDEX IF NOT EXISTS idx_consentimientos_aliado_codigo ON consentimientos_aliado(codigo_aliado)",
+    )
+    _repo.execute(cursor, f"""
+        CREATE TABLE IF NOT EXISTS solicitudes_baja_aliado (
+            id {id_col},
+            codigo_aliado TEXT NOT NULL,
+            motivo TEXT,
+            estado TEXT NOT NULL DEFAULT 'pendiente',
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            admin_codigo TEXT,
+            notas_admin TEXT,
+            FOREIGN KEY(codigo_aliado) REFERENCES aliados(codigo)
+        )
+    """)
+    _repo.execute(
+        cursor,
+        "CREATE INDEX IF NOT EXISTS idx_solicitudes_baja_aliado_codigo ON solicitudes_baja_aliado(codigo_aliado)",
+    )
+    _repo.execute(
+        cursor,
+        "CREATE INDEX IF NOT EXISTS idx_solicitudes_baja_aliado_estado ON solicitudes_baja_aliado(estado)",
+    )
+
+
 def _init_postgres_schema(db):
     """Crea tablas/migraciones pendientes en Supabase/Postgres al arrancar."""
     conn = None
@@ -2454,6 +2494,7 @@ def _init_postgres_schema(db):
         db._migrar_aliado_accesos_dia(conn, cursor)
         db._migrar_centro_comunicacion_ruana(conn, cursor)
         db._migrar_aliados_eliminados(conn, cursor)
+        db._migrar_privacidad_rgpd_aliado(conn, cursor)
         db._migrar_stripe_pagos(conn, cursor)
         db._migrar_payment_conflicts(conn, cursor)
         db._migrar_estado_financiero(conn, cursor)

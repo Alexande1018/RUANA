@@ -687,3 +687,168 @@ class AliadoRepo:
             """,
             (token_id,),
         )
+
+    def insertar_consentimiento(self, cursor, codigo_aliado: str, version_documento: str) -> None:
+        cursor.execute(
+            """
+            INSERT INTO consentimientos_aliado (codigo_aliado, version_documento)
+            VALUES (?, ?)
+            """,
+            (codigo_aliado, version_documento),
+        )
+
+    def select_ultimo_consentimiento(self, cursor, codigo_aliado: str) -> Optional[Any]:
+        cursor.execute(
+            """
+            SELECT id, codigo_aliado, version_documento, aceptado_en
+            FROM consentimientos_aliado
+            WHERE codigo_aliado = ?
+            ORDER BY aceptado_en DESC, id DESC
+            LIMIT 1
+            """,
+            (codigo_aliado,),
+        )
+        return cursor.fetchone()
+
+    def select_consentimientos_por_codigo(self, cursor, codigo_aliado: str) -> List[Any]:
+        cursor.execute(
+            """
+            SELECT id, codigo_aliado, version_documento, aceptado_en
+            FROM consentimientos_aliado
+            WHERE codigo_aliado = ?
+            ORDER BY aceptado_en DESC, id DESC
+            """,
+            (codigo_aliado,),
+        )
+        return list(cursor.fetchall() or [])
+
+    def select_encargos_export(self, cursor, codigo_aliado: str) -> List[Any]:
+        cursor.execute(
+            """
+            SELECT *
+            FROM contactos_ruana
+            WHERE solicitante_codigo = ? OR profesional_codigo = ?
+            ORDER BY creado_en DESC
+            """,
+            (codigo_aliado, codigo_aliado),
+        )
+        return list(cursor.fetchall() or [])
+
+    def select_mensajes_chat_export(self, cursor, codigo_aliado: str) -> List[Any]:
+        cursor.execute(
+            """
+            SELECT m.id, m.contacto_id, m.emisor_codigo, m.texto, m.creado_en
+            FROM chat_mensajes m
+            JOIN contactos_ruana c ON c.id = m.contacto_id
+            WHERE c.solicitante_codigo = ? OR c.profesional_codigo = ? OR m.emisor_codigo = ?
+            ORDER BY m.creado_en ASC
+            """,
+            (codigo_aliado, codigo_aliado, codigo_aliado),
+        )
+        return list(cursor.fetchall() or [])
+
+    def select_mensajes_negociacion_export(self, cursor, codigo_aliado: str) -> List[Any]:
+        cursor.execute(
+            """
+            SELECT e.id, e.contacto_id, e.tipo, e.campo, e.valor, e.emisor_codigo, e.mensaje, e.creado_en
+            FROM negociacion_eventos e
+            JOIN contactos_ruana c ON c.id = e.contacto_id
+            WHERE c.solicitante_codigo = ? OR c.profesional_codigo = ? OR e.emisor_codigo = ?
+            ORDER BY e.creado_en ASC
+            """,
+            (codigo_aliado, codigo_aliado, codigo_aliado),
+        )
+        return list(cursor.fetchall() or [])
+
+    def select_mensajes_soporte_export(self, cursor, codigo_aliado: str) -> List[Any]:
+        cursor.execute(
+            """
+            SELECT m.id, m.conversacion_id, m.emisor_tipo, m.emisor_codigo, m.mensaje, m.creado_en
+            FROM ruana_soporte_mensajes m
+            JOIN ruana_soporte_conversaciones c ON c.id = m.conversacion_id
+            WHERE c.aliado_codigo = ?
+            ORDER BY m.creado_en ASC
+            """,
+            (codigo_aliado,),
+        )
+        return list(cursor.fetchall() or [])
+
+    def select_catalogo_export(self, cursor, codigo_aliado: str) -> List[Any]:
+        cursor.execute(
+            """
+            SELECT posicion, descripcion, precio, actualizado_en
+            FROM catalogo_servicios_aliado
+            WHERE aliado_codigo = ?
+            ORDER BY posicion ASC
+            """,
+            (codigo_aliado,),
+        )
+        return list(cursor.fetchall() or [])
+
+    def select_solicitud_baja_pendiente(self, cursor, codigo_aliado: str) -> Optional[Any]:
+        cursor.execute(
+            """
+            SELECT id, codigo_aliado, motivo, estado, creado_en, actualizado_en, admin_codigo, notas_admin
+            FROM solicitudes_baja_aliado
+            WHERE codigo_aliado = ? AND estado IN ('pendiente', 'en_revision')
+            ORDER BY creado_en DESC, id DESC
+            LIMIT 1
+            """,
+            (codigo_aliado,),
+        )
+        return cursor.fetchone()
+
+    def insertar_solicitud_baja(self, cursor, codigo_aliado: str, motivo: Optional[str]) -> Any:
+        cursor.execute(
+            """
+            INSERT INTO solicitudes_baja_aliado (codigo_aliado, motivo, estado)
+            VALUES (?, ?, 'pendiente')
+            """,
+            (codigo_aliado, motivo or None),
+        )
+        return getattr(cursor, "lastrowid", None)
+
+    def select_solicitud_baja_por_id(self, cursor, solicitud_id: int) -> Optional[Any]:
+        cursor.execute(
+            """
+            SELECT id, codigo_aliado, motivo, estado, creado_en, actualizado_en, admin_codigo, notas_admin
+            FROM solicitudes_baja_aliado
+            WHERE id = ?
+            """,
+            (solicitud_id,),
+        )
+        return cursor.fetchone()
+
+    def listar_solicitudes_baja(self, cursor, limite: int = 200) -> List[Any]:
+        cursor.execute(
+            """
+            SELECT id, codigo_aliado, motivo, estado, creado_en, actualizado_en, admin_codigo, notas_admin
+            FROM solicitudes_baja_aliado
+            ORDER BY creado_en DESC, id DESC
+            LIMIT ?
+            """,
+            (int(limite),),
+        )
+        return list(cursor.fetchall() or [])
+
+    def update_solicitud_baja(
+        self,
+        cursor,
+        solicitud_id: int,
+        estado: str,
+        admin_codigo: Optional[str],
+        notas_admin: Optional[str],
+    ) -> int:
+        cursor.execute(
+            """
+            UPDATE solicitudes_baja_aliado
+            SET estado = ?,
+                admin_codigo = COALESCE(?, admin_codigo),
+                notas_admin = COALESCE(?, notas_admin),
+                actualizado_en = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (estado, admin_codigo, notas_admin, solicitud_id),
+        )
+        return cursor.rowcount or 0
+

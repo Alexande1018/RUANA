@@ -134,6 +134,7 @@ def test_invitation_flow_sets_invitado_por(client, sqlite_db, monkeypatch):
             "email": "invitada.linaje@example.com",
             "telefono": "+34600999888",
             "codigo_invitacion": codigo_invitacion,
+            "acepta_privacidad_y_terminos": True,
         },
     )
     assert register.status_code == 201

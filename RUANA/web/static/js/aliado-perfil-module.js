@@ -534,6 +534,70 @@
       });
   }
 
+  function setMisDatosStatus(message, ok) {
+    var statusEl = document.getElementById('perfil-mis-datos-status');
+    if (!statusEl) return;
+    statusEl.hidden = !message;
+    statusEl.textContent = message || '';
+    statusEl.style.color = ok ? '#86efac' : '#fca5a5';
+  }
+
+  function exportarMisDatos() {
+    setMisDatosStatus('Preparando exportación…', true);
+    fetch('/api/aliados/me/exportar-datos', {
+      method: 'GET',
+      headers: getAuthHeadersSafe(),
+      credentials: 'same-origin'
+    })
+      .then(function (resp) { return resp.json().then(function (data) { return { resp: resp, data: data }; }); })
+      .then(function (result) {
+        if (!result.resp.ok || result.data.status !== 'success') {
+          setMisDatosStatus((result.data && result.data.message) || 'No se pudieron exportar los datos.', false);
+          return;
+        }
+        var blob = new Blob([JSON.stringify(result.data.datos, null, 2)], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'ruana-mis-datos.json';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        setMisDatosStatus('Datos exportados.', true);
+      })
+      .catch(function () {
+        setMisDatosStatus('Error de conexión al exportar.', false);
+      });
+  }
+
+  function solicitarBajaCuenta() {
+    var ok = window.confirm(
+      'Se registrará una solicitud de baja para que un administrador la gestione. ' +
+      'La cuenta no se borra de inmediato porque RUANA debe conservar documentación de facturación. ¿Continuar?'
+    );
+    if (!ok) return;
+    var motivo = window.prompt('Motivo (opcional):', '') || '';
+    setMisDatosStatus('Enviando solicitud…', true);
+    fetch('/api/aliados/me/solicitud-baja', {
+      method: 'POST',
+      headers: getAuthHeadersSafe({ 'Content-Type': 'application/json' }),
+      credentials: 'same-origin',
+      body: JSON.stringify({ motivo: motivo })
+    })
+      .then(function (resp) { return resp.json(); })
+      .then(function (data) {
+        if (data.status === 'success') {
+          setMisDatosStatus(data.message || 'Solicitud de baja registrada. Un administrador la revisará.', true);
+        } else {
+          setMisDatosStatus(data.message || 'No se pudo registrar la solicitud.', false);
+        }
+      })
+      .catch(function () {
+        setMisDatosStatus('Error de conexión al solicitar la baja.', false);
+      });
+  }
+
   modules.perfil = {
     getIniciales: getIniciales,
     mapEtiquetaAvatarStatus: mapEtiquetaAvatarStatus,
@@ -550,5 +614,7 @@
     mostrarFormularioCambiarPin: mostrarFormularioCambiarPin,
     ocultarFormularioCambiarPin: ocultarFormularioCambiarPin,
     guardarPin: guardarPin,
+    exportarMisDatos: exportarMisDatos,
+    solicitarBajaCuenta: solicitarBajaCuenta,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

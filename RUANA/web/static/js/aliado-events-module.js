@@ -364,6 +364,10 @@
               host.guardarPin();
           });
       }
+      const btnExportarDatos = document.getElementById('btn-exportar-mis-datos');
+      if (btnExportarDatos) btnExportarDatos.addEventListener('click', () => host.exportarMisDatos());
+      const btnSolicitarBaja = document.getElementById('btn-solicitar-baja');
+      if (btnSolicitarBaja) btnSolicitarBaja.addEventListener('click', () => host.solicitarBajaCuenta());
       const catalogoGrid = document.getElementById('catalogo-servicios-grid');
       if (catalogoGrid) {
           catalogoGrid.addEventListener('click', (e) => {

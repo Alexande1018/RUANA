@@ -31,11 +31,12 @@ Documentación para handoff, auditoría y continuidad operativa:
 | Ruta | Contenido |
 |------|-----------|
 | [`seguridad/autenticacion-sesiones.md`](seguridad/autenticacion-sesiones.md) | Sesiones por pestaña y header `X-Ruana-Session-Id` |
-| [`seguridad/credenciales-admin.md`](seguridad/credenciales-admin.md) | Credenciales admin en producción |
+| [`seguridad/credenciales-admin.md`](seguridad/credenciales-admin.md) | Credenciales admin en producción (puente temporal) |
+| [`legal/politica-retencion-datos.md`](legal/politica-retencion-datos.md) | Retención RGPD/LGT por tipo de dato (borrador interno) |
 | [`flujos/registro-aliados.md`](flujos/registro-aliados.md) | Registro, plazas y suplentes |
 | [`flujos/chat-y-alerta.md`](flujos/chat-y-alerta.md) | Mensajes de contacto y alertas (chat libre encargo → 410) |
 | [`flujos/financial-*.md`](flujos/) | Máquina de estados, transferencias, webhooks financieros |
-| [`operaciones/roadmap.md`](operaciones/roadmap.md) | Roadmap operativo |
+| [`operaciones/roadmap.md`](operaciones/roadmap.md) | Roadmap operativo vivo |
 | [`operaciones/cloud_scheduler_jobs.md`](operaciones/cloud_scheduler_jobs.md) | Jobs cron HTTP |
 | [`qa/plan-testing.md`](qa/plan-testing.md) | Plan QA / Playwright |
 | [`qa/solicitudes-flow.md`](qa/solicitudes-flow.md) | Nota QA solicitudes |

@@ -18,11 +18,13 @@
     <link rel="stylesheet" href="/static/css/encargo-seguimiento.css">
     <link rel="stylesheet" href="/static/css/ruana-score-callout.css">
     <link rel="stylesheet" href="/static/css/ruana-identity.css">
+    <link rel="stylesheet" href="/static/css/ruana-legal.css">
     <link rel="stylesheet" href="/static/css/referidos-tree.css">
     <link rel="stylesheet" href="/static/css/aliado-solicitudes-semanales.css">
     <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
     <script src="/static/js/ruana-atmosphere.js" defer></script>
     <script src="/static/js/ruana-ui.js" defer></script>
+    <script src="/static/js/ruana-legal-footer.js" defer></script>
     <script src="/static/js/ruana-alert-hub.js" defer></script>
     <script src="/static/js/ruana-api-client.js" defer></script>
     <script src="/static/js/aliado-modules.js" defer></script>
@@ -102,6 +104,11 @@
                 <span>Ampliar mi red</span>
             </button>
             <p class="aliado-shell-nav-hint">Crece la red · disponible en todo momento</p>
+            <nav class="ruana-legal-nav-inline" aria-label="Información legal">
+                <a href="/aviso-legal.html">Aviso legal</a>
+                <a href="/politica-privacidad.html">Privacidad</a>
+                <a href="/terminos.html">Términos</a>
+            </nav>
         </div>
     </nav>
 
@@ -411,6 +418,19 @@
                     </div>
                 </form>
                 <p class="perfil-pin-status" id="perfil-pin-status" hidden></p>
+            </section>
+
+            <section class="perfil-mis-datos-wrap ruana-card-premium" id="perfil-mis-datos-wrap">
+                <h3 class="catalogo-servicios-title">
+                    <i data-lucide="shield"></i>
+                    Mis datos
+                </h3>
+                <p class="catalogo-servicios-subtitle">Portabilidad y baja. El borrado de cuenta no es inmediato: un administrador lo gestiona para conservar la documentación de facturación exigida por ley.</p>
+                <div class="perfil-mis-datos-actions">
+                    <button type="button" class="btn-editar-campo" id="btn-exportar-mis-datos">Exportar mis datos</button>
+                    <button type="button" class="btn-editar-campo" id="btn-solicitar-baja">Solicitar baja / borrado</button>
+                </div>
+                <p class="perfil-mis-datos-status" id="perfil-mis-datos-status" hidden></p>
             </section>
 
             <div id="competencia-banner-wrap" class="competencia-banner" style="display: none;" role="status" aria-live="polite">
@@ -2065,9 +2085,23 @@
                 }
             }
             async guardarPin() {
-                const mod = this._perfilModule();
+                const mod = this._perfilModule ? this._perfilModule() : (window.RuanaAliadoModules && window.RuanaAliadoModules.perfil);
                 if (mod && typeof mod.guardarPin === 'function') {
                     return mod.guardarPin(this);
+                }
+            }
+
+            exportarMisDatos() {
+                const mod = this._perfilModule ? this._perfilModule() : (window.RuanaAliadoModules && window.RuanaAliadoModules.perfil);
+                if (mod && typeof mod.exportarMisDatos === 'function') {
+                    return mod.exportarMisDatos(this);
+                }
+            }
+
+            solicitarBajaCuenta() {
+                const mod = this._perfilModule ? this._perfilModule() : (window.RuanaAliadoModules && window.RuanaAliadoModules.perfil);
+                if (mod && typeof mod.solicitarBajaCuenta === 'function') {
+                    return mod.solicitarBajaCuenta(this);
                 }
             }
             mostrarFormularioCambiarPin() {

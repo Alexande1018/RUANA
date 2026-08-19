@@ -129,6 +129,7 @@ def _registrar_invitado(client, codigo_inv, codigo_suffix, oficio_idx=0):
             "email": f"inv{codigo_suffix}@example.com",
             "telefono": f"+34601{codigo_suffix}",
             "codigo_invitacion": codigo_inv,
+            "acepta_privacidad_y_terminos": True,
         },
     )
 
