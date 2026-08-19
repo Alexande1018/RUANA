@@ -161,7 +161,7 @@ Extracción Campamento Base incompleta. Cambios amplios tienen radio de impacto 
 **Estado:** Abierto  
 **Verificado:** plan en `docs/archive/superpowers/plans/2026-07-27-admin-firebase-auth-migration.md`
 
-Admin sigue con credenciales JSON hasheadas.
+Admin sigue con credenciales JSON hasheadas. El cambio de contraseña desde el panel persiste en Secret Manager (`RUANA/core/admin_auth.py`); no sustituye Firebase Auth.
 
 ---
 
