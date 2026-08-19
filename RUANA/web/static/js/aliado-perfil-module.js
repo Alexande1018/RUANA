@@ -457,6 +457,30 @@
     });
   }
 
+  function mostrarFormularioCambiarPin() {
+    var actionsEl = document.getElementById('perfil-pin-actions');
+    var formEl = document.getElementById('form-cambiar-pin');
+    var statusEl = document.getElementById('perfil-pin-status');
+    var pinActual = document.getElementById('pin-actual');
+    if (actionsEl) actionsEl.style.display = 'none';
+    if (formEl) formEl.style.display = 'block';
+    if (statusEl) {
+      statusEl.hidden = true;
+      statusEl.textContent = '';
+    }
+    if (pinActual) pinActual.focus();
+  }
+
+  function ocultarFormularioCambiarPin() {
+    var actionsEl = document.getElementById('perfil-pin-actions');
+    var formEl = document.getElementById('form-cambiar-pin');
+    if (formEl) {
+      formEl.reset();
+      formEl.style.display = 'none';
+    }
+    if (actionsEl) actionsEl.style.display = '';
+  }
+
   function guardarPin(host) {
     var pinActual = (document.getElementById('pin-actual') || {}).value || '';
     var pinNuevo = (document.getElementById('pin-nuevo') || {}).value || '';
@@ -490,8 +514,12 @@
           statusEl.style.color = data.status === 'success' ? '#86efac' : '#fca5a5';
         }
         if (data.status === 'success') {
-          var form = document.getElementById('form-cambiar-pin');
-          if (form) form.reset();
+          ocultarFormularioCambiarPin();
+          if (statusEl) {
+            statusEl.hidden = false;
+            statusEl.textContent = data.message || 'PIN actualizado.';
+            statusEl.style.color = '#86efac';
+          }
         }
       })
       .catch(function () {
@@ -519,6 +547,8 @@
     iniciarEditarDescripcion: iniciarEditarDescripcion,
     cancelarEditarDescripcion: cancelarEditarDescripcion,
     guardarDescripcion: guardarDescripcion,
+    mostrarFormularioCambiarPin: mostrarFormularioCambiarPin,
+    ocultarFormularioCambiarPin: ocultarFormularioCambiarPin,
     guardarPin: guardarPin,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
