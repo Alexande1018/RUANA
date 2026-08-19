@@ -3,7 +3,9 @@
 > **Autoridad de producto/técnica:** [Manual Maestro §18](../../README.md#18-roadmap).  
 > Histórico completo del roadmap de mayo 2026: [`docs/archive/ROADMAP_2026-05.md`](../archive/ROADMAP_2026-05.md).
 
-Fecha de actualización: **2026-08-15** (revisión documental contra código).
+Fecha de actualización: **2026-08-19** (alineado con pack de cierre y pytest local).
+
+Pack documentación: [`docs/HANDOFF.md`](../HANDOFF.md) · [`docs/PROJECT_AUDIT.md`](../PROJECT_AUDIT.md).
 
 ## Estado actual
 
@@ -11,7 +13,9 @@ RUANA está en fase **pre-MVP avanzada** (v0.9).
 
 Infra base (Hito 1) desplegable: Docker → Cloud Run, Firebase Hosting rewrite, Supabase Postgres/Storage, SQLite fallback.
 
-**Enfoque activo:** cerrar superficie crítica de seguridad/permisos (Hito 2), paridad migraciones Postgres, y consolidar operación.
+**Enfoque activo:** cerrar superficie crítica de seguridad/permisos (Hito 2), paridad migraciones Postgres, confirmar cron en GCP, y consolidar operación post-handoff.
+
+**Métricas verificadas (2026-08-19):** 21 blueprints, 36 services, 30 repos, **784 tests** pytest passed (11 skipped).
 
 ## Hitos
 
@@ -21,14 +25,17 @@ Infra base (Hito 1) desplegable: Docker → Cloud Run, Firebase Hosting rewrite,
 | 2 — Seguridad y permisos | Activo / parcial | 2A/2B con tests; endurecimientos pendientes |
 | Invitaciones admin + campañas | Hecho en código | Specs/planes en archive |
 | Métodos de pago + Storage | Hecho en código | QR Bizum/IBAN + Supabase Storage |
-| Stripe Connect (pagos encargo) | Hecho en código | Flag `RUANA_STRIPE_PAYMENTS_ENABLED`; tests `test_stripe_*` |
+| Stripe Connect (pagos encargo) | Hecho en código | Flag `RUANA_STRIPE_PAYMENTS_ENABLED`; **deploy fija `RUANA_STRIPE_MODE=test`** — revisar antes de live |
 | Impugnación cobros / alertas | Hecho en código | Plan en archive |
+| Módulo financiero admin (FASE 04–13) | Hecho en código | 7 blueprints `financial_*` + automatización FASE 11 |
 | Competencia automática por score | Hecho en main | Umbral 15, reinicio 50 |
-| Campamento Base (modularización) | Avanzado | 16 services + 16 repos; fachada `DBManager` residual (~1.835 LOC) |
-| 13 blueprints HTTP | Hecho en main | Rutas API extraídas de monolito `app.py` |
+| Campamento Base (modularización) | Avanzado | 36 services + 30 repos; fachada `DBManager` (~1.925 LOC) |
+| 21 blueprints HTTP | Hecho en main | Rutas API + HTML en `app.py` (~525 LOC) |
+| PIN aliado | Hecho en código | `aliado_pin_*`; adopción prod **no verificada** |
 | Admin → Firebase Auth | Preparado, no implementado | Plan 2026-07-27 en archive |
-| Purga mensual automatizada | Lógica + endpoint + auth cron | **Listo para Cloud Scheduler** — ver `docs/operaciones/cloud_scheduler_jobs.md` |
-| Motor evaluación periódico | Motor v0.2 + `POST /api/admin/motor/evaluar-periodico` | **Listo para Cloud Scheduler** — ver `docs/operaciones/cloud_scheduler_jobs.md` |
+| Purga mensual automatizada | Lógica + endpoint + auth cron | **Listo para Cloud Scheduler** — despliegue GCP **no verificado** |
+| Motor evaluación periódico | Motor v0.2 + endpoint cron | **Listo para Cloud Scheduler** — despliegue GCP **no verificado** |
+| Pack documentación cierre | Hecho 2026-08-19 | HANDOFF, PROJECT_AUDIT, ARCHITECTURE, SETUP, DEPLOYMENT, ENV, KNOWN_ISSUES |
 
 ## Método
 
@@ -39,6 +46,8 @@ Infra base (Hito 1) desplegable: Docker → Cloud Run, Firebase Hosting rewrite,
 
 ## Referencias
 
+- Pack cierre 2026-08-19: [`docs/HANDOFF.md`](../HANDOFF.md), [`docs/PROJECT_AUDIT.md`](../PROJECT_AUDIT.md)
 - Auditoría documental 2026-08-15: [`docs/exports/AUDITORIA_DOCUMENTAL_2026-08-15.md`](../exports/AUDITORIA_DOCUMENTAL_2026-08-15.md)
+- Cron jobs: [`cloud_scheduler_jobs.md`](cloud_scheduler_jobs.md)
 - Roadmap antiguo citaba `HITOS_PROYECTO.md` y `AUDITORIA_RUANA_2026-05-19.md`, **ausentes** en el repositorio.
 - Auditoría forense congelada: `docs/archive/AUDITORIA_FORENSE_RUANA.md`
