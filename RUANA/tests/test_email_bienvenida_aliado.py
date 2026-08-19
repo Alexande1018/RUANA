@@ -117,6 +117,7 @@ def test_registro_envia_correo_sin_bloquear_si_falla(client, sqlite_db, monkeypa
                 "codigo_postal": "28013",
                 "email": "testcorreo@example.com",
                 "telefono": "+34600111222",
+                "acepta_privacidad_y_terminos": True,
             },
         )
 
@@ -141,6 +142,7 @@ def test_registro_llama_envio_correo_con_codigo(client, sqlite_db, monkeypatch):
                 "codigo_postal": "28013",
                 "email": "ana.ruana@example.com",
                 "telefono": "+34600333444",
+                "acepta_privacidad_y_terminos": True,
             },
         )
 

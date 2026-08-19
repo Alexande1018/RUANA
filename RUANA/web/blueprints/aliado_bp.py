@@ -16,7 +16,7 @@ from flask import Blueprint, jsonify, request
 from core import db_manager as db_manager_mod
 from core.db_manager import RUANA_CODIGO_INVITACION_REGEX
 from core.phone_utils import normalize_phone
-from core.services import notificacion_service
+from core.services import aliado_service, notificacion_service
 from web.auth_decorators import (
     _admin_codigo,
     _aliado_codigo,
@@ -387,6 +387,11 @@ def registrar_aliado():
     """
     try:
         data = request.get_json() or {}
+        if not aliado_service.consentimiento_registro_aceptado(data):
+            return jsonify({
+                'status': 'error',
+                'message': 'Debes aceptar la Política de Privacidad y los Términos de Uso para registrarte.'
+            }), 400
         db = get_db()
         
         # Validar campos requeridos
@@ -542,6 +547,16 @@ def registrar_aliado():
         codigo_aliado = (result.get('codigo') or '').strip()
         if codigo_aliado:
             try:
+                consent = aliado_service.registrar_consentimiento_aliado(
+                    db,
+                    codigo_aliado,
+                    version_documento=aliado_service.LEGAL_DOCUMENT_VERSION,
+                )
+                if consent.get('status') != 'success':
+                    print(f"[RUANA][LEGAL] No se pudo guardar consentimiento de {codigo_aliado}: {consent.get('message')}")
+            except Exception as consent_err:
+                print(f"[RUANA][LEGAL] Error inesperado al guardar consentimiento: {consent_err}")
+            try:
                 enviar_correo_bienvenida_aliado(
                     nombre=nombre,
                     email=email,
@@ -557,6 +572,40 @@ def registrar_aliado():
             'status': 'error',
             'message': str(e)
         }), 500
+
+
+@aliado_bp.route('/api/aliados/me/exportar-datos', methods=['GET'])
+@require_aliado
+def exportar_mis_datos():
+    """GET /api/aliados/me/exportar-datos — portabilidad RGPD (JSON)."""
+    codigo = _aliado_codigo()
+    if not codigo:
+        return jsonify({'status': 'error', 'message': 'Sesión expirada'}), 401
+    try:
+        result = aliado_service.exportar_datos_aliado(get_db(), codigo)
+        status_code = 200 if result.get('status') == 'success' else 400
+        if result.get('status') == 'error' and 'no encontrado' in (result.get('message') or '').lower():
+            status_code = 404
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@aliado_bp.route('/api/aliados/me/solicitud-baja', methods=['POST'])
+@require_aliado
+def solicitar_baja_cuenta():
+    """POST /api/aliados/me/solicitud-baja — registra baja para gestión admin (sin borrado inmediato)."""
+    codigo = _aliado_codigo()
+    if not codigo:
+        return jsonify({'status': 'error', 'message': 'Sesión expirada'}), 401
+    try:
+        data = request.get_json(silent=True) or {}
+        motivo = (data.get('motivo') or '').strip() or None
+        result = aliado_service.crear_solicitud_baja_aliado(get_db(), codigo, motivo)
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 @aliado_bp.route('/api/aliados/obtener-por-codigo/<codigo>', methods=['GET'])

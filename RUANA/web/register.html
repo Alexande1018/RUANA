@@ -11,10 +11,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/auth-premium.css">
     <link rel="stylesheet" href="/static/css/ruana-identity.css">
+    <link rel="stylesheet" href="/static/css/ruana-legal.css">
     <script src="/static/js/phone-countries.js" defer></script>
     <script src="/static/js/phone-input.js" defer></script>
     <script src="/static/js/ruana-atmosphere.js" defer></script>
     <script src="/static/js/ruana-ui.js" defer></script>
+    <script src="/static/js/ruana-legal-footer.js" defer></script>
     <style>
         /* Botón de volver atrás */
         .btn-back {
@@ -714,16 +716,20 @@
                     <input type="hidden" id="telefono" name="telefono">
                 </div>
 
-                <!-- Checkbox de condiciones -->
+                <!-- Checkbox de condiciones: obligatorio, no premarcado -->
                 <div class="form-group">
                     <div class="checkbox-group">
-                        <input 
-                            type="checkbox" 
-                            id="condiciones" 
+                        <input
+                            type="checkbox"
+                            id="condiciones"
+                            name="acepta_privacidad_y_terminos"
                             required
                         >
                         <label for="condiciones">
-                            Acepto que mi información será verificada y podré ser parte de la red RUANA
+                            He leído y acepto la
+                            <a href="/politica-privacidad.html" target="_blank" rel="noopener">Política de Privacidad</a>
+                            y los
+                            <a href="/terminos.html" target="_blank" rel="noopener">Términos de Uso</a>
                         </label>
                     </div>
                 </div>
@@ -963,7 +969,7 @@
                 }
 
                 if (!condiciones) {
-                    this.showError('Debes aceptar los términos para continuar');
+                    this.showError('Debes aceptar la Política de Privacidad y los Términos de Uso para continuar');
                     return;
                 }
 
@@ -1001,7 +1007,8 @@
                         codigo_postal: data.codigo_postal,
                         email: data.email,
                         telefono: data.telefono,
-                        codigo_invitacion: data.codigo_invitacion || sessionStorage.getItem('ruana_invite_code') || sessionStorage.getItem('ruana_invite_codigo') || ''
+                        codigo_invitacion: data.codigo_invitacion || sessionStorage.getItem('ruana_invite_code') || sessionStorage.getItem('ruana_invite_codigo') || '',
+                        acepta_privacidad_y_terminos: true
                     })
                 })
                 .then(response => response.json().then(result => ({ response, result })))

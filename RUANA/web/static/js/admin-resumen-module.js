@@ -252,7 +252,8 @@
               fetch('/api/admin/metodos-pago', fetchOpts),
               fetch('/api/admin/suplentes-espera', fetchOpts),
               fetch('/api/admin/centro-comunicacion?limite=120', fetchOpts),
-              fetch('/api/admin/aliados-eliminados', fetchOpts)
+              fetch('/api/admin/aliados-eliminados', fetchOpts),
+              fetch('/api/admin/solicitudes-baja', fetchOpts)
           ];
           const settled = await Promise.allSettled(fetchPromises);
           const responses = settled.map((r, i) => (r.status === 'fulfilled' ? r.value : null));
@@ -270,7 +271,7 @@
               return r.json().catch(() => null);
           }
           const idx16 = responses[16];
-          const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, stripeResumenData, solicitudesData, chatsData, contactosChatData, competenciasData, competenciasPendientesData, competenciasHistorialData, stats24hData, invitacionesRecData, campanasData, metodosPagoData, suplentesEsperaData, centroComData, eliminadosData] = await Promise.all([
+          const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, stripeResumenData, solicitudesData, chatsData, contactosChatData, competenciasData, competenciasPendientesData, competenciasHistorialData, stats24hData, invitacionesRecData, campanasData, metodosPagoData, suplentesEsperaData, centroComData, eliminadosData, solicitudesBajaData] = await Promise.all([
               parseResponse(responses[0], false),
               parseResponse(responses[1], false),
               parseResponse(responses[2], false),
@@ -293,7 +294,8 @@
               parseResponse(responses[19], false),
               parseResponse(responses[20], false),
               parseResponse(responses[21], false),
-              parseResponse(responses[22], false)
+              parseResponse(responses[22], false),
+              parseResponse(responses[23], false)
           ]);
 
           // Pendientes de validación (unir API + lista por código)
@@ -358,6 +360,9 @@
           host.renderMetricas({ metricas: metricasPayload });
           host.renderPendientesValidacion(pendientes);
           host.renderAliadosEliminados((eliminadosData && eliminadosData.status === 'success' && Array.isArray(eliminadosData.aliados)) ? eliminadosData.aliados : []);
+          if (typeof host.renderSolicitudesBaja === 'function') {
+              host.renderSolicitudesBaja((solicitudesBajaData && solicitudesBajaData.status === 'success' && Array.isArray(solicitudesBajaData.solicitudes)) ? solicitudesBajaData.solicitudes : []);
+          }
           host._aliadosData = ((aliadosData && aliadosData.aliados) || []).filter(a => !host.esAliadoPlaceholder(a));
           host.renderAliadosJerarquia();
           host.renderEventos((eventosData && eventosData.status === 'success' && Array.isArray(eventosData.eventos)) ? eventosData.eventos : []);

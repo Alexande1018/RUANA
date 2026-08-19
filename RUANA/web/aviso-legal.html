@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RUANA - Aviso legal</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/ruana-feedback.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="icon" href="/static/images/ruana-logo.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/static/css/auth-premium.css">
+    <link rel="stylesheet" href="/static/css/ruana-identity.css">
+    <link rel="stylesheet" href="/static/css/ruana-legal.css">
+    <script src="/static/js/ruana-atmosphere.js" defer></script>
+    <script src="/static/js/ruana-ui.js" defer></script>
+    <script src="/static/js/ruana-legal-footer.js" defer></script>
+    <style>
+        .btn-back {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            color: #bbb;
+            font-size: 0.85rem;
+            font-weight: 500;
+            text-decoration: none;
+            cursor: pointer;
+            z-index: 100;
+        }
+        .btn-back:hover { color: #e0e0e0; }
+    </style>
+</head>
+<body class="legal-page">
+    <a href="/" class="btn-back">← Volver</a>
+    <div class="legal-container">
+        <article class="legal-card">
+            <p class="legal-draft-banner">[BORRADOR — PENDIENTE DE REVISIÓN POR UN ABOGADO ANTES DE PUBLICAR]</p>
+            <h1>Aviso legal</h1>
+            <p class="legal-meta">Versión v1-2026-08 · Servicio RUANA · Ámbito: España</p>
+
+            <h2>1. Identificación del titular</h2>
+            <p>En cumplimiento de lo previsto en el artículo 10 de la Ley 34/2002, de 11 de julio, de Servicios de la Sociedad de la Información y de Comercio Electrónico (LSSICE), se informa de los siguientes datos identificativos:</p>
+            <ul>
+                <li><strong>Titular:</strong> Carlos Alexander Acero, persona física, operando bajo el nombre comercial «RUANA».</li>
+                <li><strong>Domicilio:</strong> Calle Diputado José Luis Barceló 14, Alicante, España.</li>
+                <li><strong>NIF:</strong> [NIF_TITULAR] <!-- LSSICE art.10 exige NIF si hay actividad económica; confirmar con abogado si aplica mientras no exista sociedad constituida --></li>
+                <li><strong>Correo electrónico:</strong> <a href="mailto:team.ruana@gmail.com">team.ruana@gmail.com</a></li>
+                <li><strong>Teléfono:</strong> 642868261</li>
+            </ul>
+            <p class="legal-note">La sociedad mercantil titular no está constituida a la fecha de este borrador. El responsable actual es la persona física indicada. [PENDIENTE: actualizar esta sección cuando se constituya la sociedad y se asigne CIF.]</p>
+
+            <h2>2. Actividad</h2>
+            <p>RUANA es un intermediario tecnológico que pone en contacto a profesionales independientes entre sí para facilitar encargos profesionales en España. RUANA no es empleador de los aliados ni presta por sí misma los servicios profesionales que estos anuncian o ejecutan.</p>
+
+            <h2>3. Condiciones de uso</h2>
+            <p>El acceso y uso de este sitio web y de la plataforma se rigen por los <a href="/terminos.html">Términos de uso</a> y por la <a href="/politica-privacidad.html">Política de privacidad</a>. El uso de RUANA implica la lectura de dichos documentos.</p>
+
+            <h2>4. Alojamiento</h2>
+            <p>El servicio se aloja en Google Cloud Run, región <strong>europe-west1</strong>, a través de Firebase Hosting. Los datos de la plataforma se persisten mediante Supabase (base de datos y almacenamiento). La región de Supabase está pendiente de confirmación: [REGION_SUPABASE_PENDIENTE_CONFIRMAR].</p>
+
+            <h2>5. Propiedad intelectual</h2>
+            <p>Los textos, marcas, logotipos, diseño y código de RUANA son titularidad de Carlos Alexander Acero (nombre comercial RUANA), salvo que se indique lo contrario. Queda prohibida su reproducción, distribución o transformación no autorizada.</p>
+
+            <h2>6. Contacto</h2>
+            <p>Para cualquier comunicación relacionada con este aviso legal puede escribir a <a href="mailto:team.ruana@gmail.com">team.ruana@gmail.com</a> o llamar al 642868261.</p>
+
+            <p class="legal-note">Ley aplicable y fuero: [JURISDICCIÓN_PENDIENTE].</p>
+        </article>
+    </div>
+    <footer id="ruana-legal-footer" class="ruana-legal-footer" role="contentinfo">
+        <nav aria-label="Información legal">
+            <a href="/aviso-legal.html">Aviso legal</a>
+            <span aria-hidden="true"> · </span>
+            <a href="/politica-privacidad.html">Política de privacidad</a>
+            <span aria-hidden="true"> · </span>
+            <a href="/terminos.html">Términos de uso</a>
+        </nav>
+        <p>RUANA · España</p>
+    </footer>
+</body>
+</html>

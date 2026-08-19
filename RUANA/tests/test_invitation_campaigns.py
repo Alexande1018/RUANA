@@ -71,6 +71,7 @@ def test_admin_campaign_code_validates_and_is_consumed_on_registration(
             "email": "persona.campana@example.com",
             "telefono": "+34600543210",
             "codigo_invitacion": "RUANA-TEST",
+            "acepta_privacidad_y_terminos": True,
         },
     )
 
@@ -167,6 +168,7 @@ def test_admin_invitation_registers_referral_with_distinct_personal_code(
             "email": "aliado.admin.placeholder@example.com",
             "telefono": "+34600111222",
             "codigo_invitacion": codigo_invitacion,
+            "acepta_privacidad_y_terminos": True,
         },
     )
     assert register_response.status_code == 201

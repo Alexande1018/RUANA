@@ -455,6 +455,69 @@
     });
   }
 
+  function renderSolicitudesBaja(host, solicitudes) {
+    const tbody = document.getElementById('tbody-solicitudes-baja');
+    const emptyEl = document.getElementById('solicitudes-baja-empty');
+    const wrap = document.getElementById('solicitudes-baja-wrap');
+    if (!tbody || !wrap) return;
+
+    wrap.style.display = 'block';
+    tbody.innerHTML = '';
+    if (emptyEl) emptyEl.style.display = 'none';
+
+    const lista = Array.isArray(solicitudes) ? solicitudes : [];
+    if (!lista.length) {
+        if (emptyEl) emptyEl.style.display = 'block';
+        return;
+    }
+
+    lista.forEach(s => {
+        const id = s.id;
+        const estado = (s.estado || 'pendiente').toLowerCase();
+        const fecha = s.creado_en ? host.formatearHora(s.creado_en) : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${host.escapeHtml(String(id || ''))}</td>
+            <td><code>${host.escapeHtml(s.codigo_aliado || '')}</code></td>
+            <td>${host.escapeHtml(s.motivo || '—')}</td>
+            <td>${host.escapeHtml(estado)}</td>
+            <td>${fecha}</td>
+            <td>${host.escapeHtml(s.admin_codigo || '—')}</td>
+            <td>
+                ${estado === 'pendiente' || estado === 'en_revision' ? (
+                    '<button type="button" class="btn-activar-pendiente btn-marcar-baja-revision" data-id="' + id + '" style="padding:4px 10px; font-size:0.8rem; margin-right:6px;">En revisión</button>' +
+                    '<button type="button" class="btn-activar-pendiente btn-marcar-baja-completada" data-id="' + id + '" style="padding:4px 10px; font-size:0.8rem;">Marcar gestionada</button>'
+                ) : ''}
+            </td>
+        `;
+        const btnRev = tr.querySelector('.btn-marcar-baja-revision');
+        if (btnRev) btnRev.addEventListener('click', () => host.marcarSolicitudBaja(id, 'en_revision'));
+        const btnDone = tr.querySelector('.btn-marcar-baja-completada');
+        if (btnDone) btnDone.addEventListener('click', () => host.marcarSolicitudBaja(id, 'completada'));
+        tbody.appendChild(tr);
+    });
+  }
+
+  async function marcarSolicitudBaja(host, solicitudId, estado) {
+    try {
+        const r = await fetch('/api/admin/solicitudes-baja/' + encodeURIComponent(solicitudId), {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: host.getAuthHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ estado: estado })
+        });
+        const data = await r.json().catch(() => ({}));
+        if (data.status === 'success') {
+            if (typeof host.showToast === 'function') host.showToast('Solicitud de baja actualizada', 'success');
+            if (typeof host.loadDashboard === 'function') host.loadDashboard();
+        } else if (typeof host.showToast === 'function') {
+            host.showToast(data.message || 'No se pudo actualizar la solicitud', 'error');
+        }
+    } catch (_) {
+        if (typeof host.showToast === 'function') host.showToast('Error de conexión', 'error');
+    }
+  }
+
   function renderSuplentesEspera(host, aliados) {
     const tbody = document.getElementById('tbody-suplentes-espera');
     const emptyEl = document.getElementById('suplentes-espera-empty');
@@ -959,6 +1022,8 @@ modules.red = {
     renderAliados: renderAliados,
     renderPendientesValidacion: renderPendientesValidacion,
     renderAliadosEliminados: renderAliadosEliminados,
+    renderSolicitudesBaja: renderSolicitudesBaja,
+    marcarSolicitudBaja: marcarSolicitudBaja,
     renderSuplentesEspera: renderSuplentesEspera,
     getGrupoTerritorialLabel: getGrupoTerritorialLabel,
     abrirCatalogoServiciosModal: abrirCatalogoServiciosModal,

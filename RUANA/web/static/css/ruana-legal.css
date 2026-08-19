@@ -1,0 +1,211 @@
+/* RUANA — páginas legales y footer común (mínimo viable RGPD/LSSICE). */
+
+.ruana-legal-footer {
+    width: 100%;
+    margin-top: 24px;
+    padding: 16px 20px 28px;
+    text-align: center;
+    font-size: 0.78rem;
+    color: #888;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(0, 0, 0, 0.25);
+}
+
+.ruana-legal-footer nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    justify-content: center;
+    align-items: center;
+}
+
+.ruana-legal-footer a {
+    color: #86efac;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.ruana-legal-footer a:hover {
+    text-decoration: underline;
+}
+
+.ruana-legal-footer p {
+    margin: 8px 0 0;
+    font-size: 0.72rem;
+    color: #666;
+}
+
+body.aliado-app .ruana-legal-footer {
+    padding-bottom: 96px;
+}
+
+body.admin-shell-enabled .ruana-legal-footer,
+html.admin-shell-enabled .ruana-legal-footer {
+    padding-bottom: 88px;
+}
+
+.legal-page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.legal-container {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    padding: 72px 20px 32px;
+}
+
+.legal-card {
+    width: 100%;
+    max-width: 760px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 40px 32px;
+    backdrop-filter: blur(10px);
+    color: #ddd;
+    line-height: 1.65;
+}
+
+.legal-card h1 {
+    font-size: 1.85rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #22c55e 0%, #86efac 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin: 0 0 8px;
+    letter-spacing: -0.02em;
+}
+
+.legal-card h2 {
+    font-size: 1.15rem;
+    font-weight: 650;
+    color: #e5e7eb;
+    margin: 28px 0 10px;
+}
+
+.legal-card h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #d1d5db;
+    margin: 20px 0 8px;
+}
+
+.legal-card p,
+.legal-card li {
+    font-size: 0.95rem;
+    color: #bbb;
+}
+
+.legal-card ul,
+.legal-card ol {
+    margin: 0 0 12px;
+    padding-left: 1.25rem;
+}
+
+.legal-card a {
+    color: #86efac;
+}
+
+.legal-meta {
+    font-size: 0.82rem;
+    color: #888;
+    margin-bottom: 20px;
+}
+
+.legal-draft-banner {
+    margin: 0 0 20px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(250, 204, 21, 0.35);
+    background: rgba(250, 204, 21, 0.08);
+    color: #fde68a;
+    font-size: 0.85rem;
+    font-weight: 600;
+    line-height: 1.45;
+}
+
+.legal-table-wrap {
+    overflow-x: auto;
+    margin: 12px 0 16px;
+}
+
+.legal-card table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+
+.legal-card th,
+.legal-card td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    vertical-align: top;
+}
+
+.legal-card th {
+    color: #e5e7eb;
+    font-weight: 600;
+}
+
+.legal-note {
+    font-size: 0.85rem;
+    color: #9ca3af;
+    font-style: italic;
+}
+
+.perfil-mis-datos-wrap {
+    margin-top: 20px;
+}
+
+.perfil-mis-datos-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.perfil-mis-datos-status {
+    margin-top: 10px;
+    font-size: 0.85rem;
+    color: #9ca3af;
+}
+
+.register-form .checkbox-group a {
+    color: #86efac;
+    text-decoration: underline;
+}
+
+.aliado-shell-nav-footer .ruana-legal-nav-inline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    margin-top: 10px;
+    font-size: 0.72rem;
+}
+
+.aliado-shell-nav-footer .ruana-legal-nav-inline a {
+    color: #86efac;
+    text-decoration: none;
+}
+
+.aliado-shell-nav-footer .ruana-legal-nav-inline a:hover {
+    text-decoration: underline;
+}
+
+.admin-sidebar-footer .ruana-legal-nav-inline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 8px;
+    margin-top: 10px;
+    font-size: 0.72rem;
+}
+
+.admin-sidebar-footer .ruana-legal-nav-inline a {
+    color: #86efac;
+    text-decoration: none;
+}
