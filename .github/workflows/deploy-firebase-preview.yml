@@ -61,6 +61,7 @@ jobs:
       - name: Sync admin credentials to Secret Manager
         env:
           ADMIN_CREDENTIALS_JSON: ${{ secrets.RUANA_ADMIN_CREDENTIALS_JSON }}
+          FORCE_ADMIN_CREDENTIALS_SYNC: "false"
         run: bash .github/scripts/sync-admin-credentials-gcp.sh
 
       - name: Sync Stripe secrets to Secret Manager

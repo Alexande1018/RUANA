@@ -50,7 +50,10 @@ Header de sesión (no env): `X-Ruana-Session-Id` — ver [`seguridad/autenticaci
 | Variable | Obligatoria | Descripción |
 |----------|-------------|-------------|
 | `RUANA_ADMIN_CREDENTIALS_PATH` | Una de dos | Ruta a JSON con hashes bcrypt |
-| `RUANA_ADMIN_CREDENTIALS_JSON` | Una de dos | JSON inline (Cloud Run / CI) |
+| `RUANA_ADMIN_CREDENTIALS_JSON` | Una de dos | JSON inline (Cloud Run / CI). En prod es overlay de arranque; fuente de verdad = Secret Manager |
+| `RUANA_ADMIN_USE_SECRET_MANAGER` | No | `1` fuerza lectura/escritura GCP; `0` desactiva. Default: activo si `is_production()` |
+| `RUANA_ADMIN_GCP_SECRET_NAME` | No | Nombre del secreto GCP (default `ruana-admin-credentials`) |
+| `GOOGLE_CLOUD_PROJECT` / `GCLOUD_PROJECT` | Auto Cloud Run | ID de proyecto para API Secret Manager |
 
 Formato JSON: ver `RUANA/scripts/bootstrap_admin_credentials.py` y [`seguridad/credenciales-admin.md`](seguridad/credenciales-admin.md).
 
