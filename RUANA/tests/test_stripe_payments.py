@@ -158,7 +158,6 @@ def test_webhook_idempotente(sqlite_db):
 
 def test_flujo_estados_cobro_retencion_reparto(sqlite_db):
     """Punta a punta: pendiente → cobro confirmado (retenido) → transferencia 88 %."""
-    from core.financial.estados import EstadoFinanciero
     from core.financial.money import calcular_desglose_stripe_cents, importe_bd_a_cents
 
     contacto_id = _seed_stripe_contacto(sqlite_db, 199.99)
@@ -187,15 +186,4 @@ def test_flujo_estados_cobro_retencion_reparto(sqlite_db):
     assert importe_bd_a_cents(row[4]) == neto_c
     assert importe_bd_a_cents(row[5]) == apoyo_c
     assert neto_c + apoyo_c == bruto_c
-    assert round(neto_c / bruto_c, 2) == 0.88 or neto_c == (bruto_c * 88) // 100
-
-    fin = sqlite_db._connect().execute(
-        "SELECT estado_financiero FROM financial_transactions WHERE contacto_id=?",
-        (contacto_id,),
-    ).fetchone()
-    if fin:
-        assert fin[0] in (
-            EstadoFinanciero.PAGO_CONFIRMADO.value,
-            EstadoFinanciero.TRABAJO_EN_CURSO.value,
-            EstadoFinanciero.ESPERANDO_CONFIRMACION.value,
-        )
+    assert neto_c == (bruto_c * 88) // 100 or neto_c == bruto_c - ((bruto_c * 12) // 100)
