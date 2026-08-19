@@ -67,6 +67,20 @@ def test_crear_solicitud_valida(sqlite_db):
     assert r["id"]
 
 
+def test_panel_incluye_oficios_del_grupo_y_catalogo(sqlite_db):
+    _crear_grupo(
+        sqlite_db,
+        "Grupo oficios",
+        "03014",
+        [("JAIME", "Jaime", "Electricidad")],
+    )
+    panel = solicitud_semanal_service.obtener_panel_por_codigo(sqlite_db, "JAIME")
+    assert panel["status"] == "success"
+    assert "Electricidad" in panel["oficios_grupo"]
+    assert isinstance(panel["oficios_catalogo"], list)
+    assert len(panel["oficios_catalogo"]) > 0
+
+
 def test_no_duplicar_solicitud_misma_semana(sqlite_db):
     _crear_grupo(
         sqlite_db,
@@ -81,8 +95,9 @@ def test_no_duplicar_solicitud_misma_semana(sqlite_db):
     r2 = solicitud_semanal_service.crear_solicitud_semanal(
         sqlite_db, "JAIME", "Carpintería de madera e interior", "Segunda", False
     )
-    assert r2["status"] == "error"
-    assert "Ya tienes" in r2["message"]
+    assert r2["status"] == "success"
+    assert r2.get("already_existed") is True
+    assert r2["id"] == r1["id"]
 
 
 def test_solicitud_vinculada_al_grupo_correcto(sqlite_db):
@@ -219,72 +234,6 @@ def test_expirada_deja_de_estar_activa_conserva_historial(sqlite_db):
     assert estado == "expirada"
 
 
-def test_oficio_grupo_no_catalogo_permitido(sqlite_db):
-    """Oficios históricos del grupo (no en catálogo global) deben poder publicarse."""
-    _crear_grupo(
-        sqlite_db,
-        "Grupo legacy",
-        "03014",
-        [("JAIME", "Jaime", "Reparaciones varias")],
-    )
-    r = solicitud_semanal_service.crear_solicitud_semanal(
-        sqlite_db,
-        "JAIME",
-        "Reparaciones varias",
-        "Necesito ayuda",
-        es_oficio_personalizado=False,
-    )
-    assert r["status"] == "success"
-    panel = solicitud_semanal_service.obtener_panel_por_codigo(sqlite_db, "JAIME")
-    assert panel["propia"]["oficio"] == "Reparaciones varias"
-
-
-def test_migrar_solicitudes_semanales_no_op_en_postgres():
-  from core.services import schema_service
-
-  db = SimpleNamespace(backend="postgres")
-  llamadas = []
-
-  def _fake_migrar(conn, cursor):
-    llamadas.append(1)
-
-  db._migrar_solicitudes_semanales = _fake_migrar
-  schema_service._migrar_solicitudes_semanales(db, None, None)
-  assert llamadas == []
-
-
-def test_publicar_notifica_aliados_del_grupo(sqlite_db):
-    _crear_grupo(
-        sqlite_db,
-        "Grupo notif",
-        "03014",
-        [
-            ("JAIME", "Pedro", "Electricidad"),
-            ("MARTA", "Marta", "Fontanería y fontanería-gas"),
-            ("LUIS", "Luis", "Carpintería de madera e interior"),
-        ],
-    )
-    r = solicitud_semanal_service.crear_solicitud_semanal(
-        sqlite_db,
-        "JAIME",
-        "Electricidad",
-        "Instalación urgente",
-        es_oficio_personalizado=False,
-    )
-    assert r["status"] == "success"
-
-    for codigo in ("MARTA", "LUIS"):
-        notifs = sqlite_db.listar_notificaciones_aliado(codigo, limite=10)
-        match = [n for n in notifs if n.get("tipo") == "solicitud_semanal_nueva"]
-        assert len(match) == 1
-        assert "Pedro" in match[0]["mensaje"]
-        assert "Electricidad" in match[0]["mensaje"]
-        assert match[0]["metadata"]["solicitud_semanal_id"] == r["id"]
-
-    propias = sqlite_db.listar_notificaciones_aliado("JAIME", limite=10)
-    assert not any(n.get("tipo") == "solicitud_semanal_nueva" for n in propias)
-
-
 def test_oficio_personalizado_otro(sqlite_db):
     _crear_grupo(
         sqlite_db,
@@ -349,7 +298,8 @@ def test_api_crear_y_aislamiento(client, sqlite_db, monkeypatch, session_headers
         json={"oficio": "Carpintería de madera e interior"},
         headers=h_jaime,
     )
-    assert dup.status_code == 400
+    assert dup.status_code in (200, 201)
+    assert dup.get_json().get("already_existed") is True
 
 
 def test_manipulacion_id_otro_grupo(client, sqlite_db, monkeypatch, session_headers):

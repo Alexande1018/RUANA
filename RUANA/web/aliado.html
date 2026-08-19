@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="/static/css/ruana-identity.css">
     <link rel="stylesheet" href="/static/css/ruana-legal.css">
     <link rel="stylesheet" href="/static/css/referidos-tree.css">
-    <link rel="stylesheet" href="/static/css/aliado-solicitudes-semanales.css">
+    <link rel="stylesheet" href="/static/css/aliado-solicitudes-semanales.css?v=20260819e">
     <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
     <script src="/static/js/ruana-atmosphere.js" defer></script>
     <script src="/static/js/ruana-ui.js" defer></script>
@@ -34,7 +34,7 @@
     <script src="/static/js/aliado-referidos-module.js" defer></script>
     <script src="/static/js/aliado-directorio-module.js" defer></script>
     <script src="/static/js/aliado-solicitudes-module.js" defer></script>
-    <script src="/static/js/aliado-solicitudes-semanales-module.js" defer></script>
+    <script src="/static/js/aliado-solicitudes-semanales-module.js?v=20260819e" defer></script>
     <script src="/static/js/aliado-acuerdos-module.js" defer></script>
     <script src="/static/js/aliado-conexiones-module.js" defer></script>
     <script src="/static/js/aliado-centro-comunicacion-module.js" defer></script>
@@ -44,7 +44,7 @@
     <script src="/static/js/aliado-contactos-module.js" defer></script>
     <script src="/static/js/aliado-stripe-pagos-module.js" defer></script>
     <script src="/static/js/aliado-grupo-module.js" defer></script>
-    <script src="/static/js/aliado-sync-module.js" defer></script>
+    <script src="/static/js/aliado-sync-module.js?v=20260819e" defer></script>
     <script src="/static/js/aliado-events-module.js" defer></script>
     <script src="/static/js/aliado-shell.js" defer></script>
     <link rel="stylesheet" href="/static/css/negociacion-guiada.css">
@@ -268,32 +268,6 @@
                     </button>
                 </div>
 
-                <div class="grupo-crecimiento-card grupo-crecimiento-card--inicio" style="display: none;" aria-live="polite" data-grupo-crecimiento-card>
-                    <div class="grupo-crecimiento-card-header">
-                        <span class="grupo-crecimiento-badge">Grupo en creación</span>
-                    </div>
-                    <p class="grupo-crecimiento-lead">
-                        <i data-lucide="users-round" class="grupo-crecimiento-icon" aria-hidden="true"></i>
-                        Este grupo todavía está creciendo
-                    </p>
-                    <p class="grupo-crecimiento-texto"></p>
-                    <p class="grupo-crecimiento-recompensa"></p>
-                    <p class="grupo-crecimiento-progreso"></p>
-                    <button type="button"
-                        class="btn-invitar-crecimiento-grupo"
-                        data-action="invitar-crecimiento-grupo">
-                        <i data-lucide="user-plus" aria-hidden="true"></i>
-                        Invitar a un profesional
-                    </button>
-                </div>
-
-                <section class="inicio-sol-sem" id="inicio-solicitudes-semanales-wrap" hidden aria-live="polite">
-                    <h3 class="inicio-sol-sem-title">Solicitudes de esta semana</h3>
-                    <p class="inicio-sol-sem-subtitle">Necesidades profesionales de tu grupo esta semana. Se renuevan cada lunes.</p>
-                    <div id="inicio-solicitudes-semanales-propia" hidden></div>
-                    <div class="inicio-sol-sem-list" id="inicio-solicitudes-semanales-list"></div>
-                </section>
-
                 <div class="inicio-tasks" id="inicio-tasks">
                     <h3 class="inicio-tasks-title">Tareas pendientes</h3>
                     <ul class="inicio-tasks-list" id="inicio-tasks-list"></ul>
@@ -416,6 +390,49 @@
                 </div>
             </div>
 
+            <section class="perfil-seguridad-wrap ruana-card-premium" id="perfil-seguridad-wrap">
+                <h3 class="catalogo-servicios-title">
+                    <i data-lucide="lock"></i>
+                    Seguridad
+                </h3>
+                <p class="catalogo-servicios-subtitle">Tu código de aliado es permanente. Puedes cambiar tu PIN personal cuando quieras.</p>
+                <div class="perfil-pin-actions" id="perfil-pin-actions">
+                    <button type="button" class="btn-editar-campo" id="btn-mostrar-cambiar-pin">Cambiar PIN</button>
+                </div>
+                <form class="perfil-pin-form" id="form-cambiar-pin" style="display: none;">
+                    <div class="detail-item">
+                        <label class="detail-label" for="pin-actual">PIN actual</label>
+                        <input type="password" class="register-input" id="pin-actual" inputmode="numeric" maxlength="6" autocomplete="current-password">
+                    </div>
+                    <div class="detail-item">
+                        <label class="detail-label" for="pin-nuevo">Nuevo PIN</label>
+                        <input type="password" class="register-input" id="pin-nuevo" inputmode="numeric" maxlength="6" autocomplete="new-password">
+                    </div>
+                    <div class="detail-item">
+                        <label class="detail-label" for="pin-nuevo-confirm">Confirmar nuevo PIN</label>
+                        <input type="password" class="register-input" id="pin-nuevo-confirm" inputmode="numeric" maxlength="6" autocomplete="new-password">
+                    </div>
+                    <div class="detail-edit-actions">
+                        <button type="submit" class="btn-guardar-campo" id="btn-guardar-pin">Guardar</button>
+                        <button type="button" class="btn-cancelar-campo" id="btn-cancelar-cambiar-pin">Cancelar</button>
+                    </div>
+                </form>
+                <p class="perfil-pin-status" id="perfil-pin-status" hidden></p>
+            </section>
+
+            <section class="perfil-mis-datos-wrap ruana-card-premium" id="perfil-mis-datos-wrap">
+                <h3 class="catalogo-servicios-title">
+                    <i data-lucide="shield"></i>
+                    Mis datos
+                </h3>
+                <p class="catalogo-servicios-subtitle">Portabilidad y baja. El borrado de cuenta no es inmediato: un administrador lo gestiona para conservar la documentación de facturación exigida por ley.</p>
+                <div class="perfil-mis-datos-actions">
+                    <button type="button" class="btn-editar-campo" id="btn-exportar-mis-datos">Exportar mis datos</button>
+                    <button type="button" class="btn-editar-campo" id="btn-solicitar-baja">Solicitar baja / borrado</button>
+                </div>
+                <p class="perfil-mis-datos-status" id="perfil-mis-datos-status" hidden></p>
+            </section>
+
             <div id="competencia-banner-wrap" class="competencia-banner" style="display: none;" role="status" aria-live="polite">
                 <div id="competencia-banner-titulo"><strong>En competencia</strong></div>
                 <div id="competencia-banner-texto"></div>
@@ -523,69 +540,18 @@
                         </div>
                     </div>
                 </div>
-                <div class="grupo-crecimiento-card grupo-crecimiento-card--perfil" style="display: none;" aria-live="polite" data-grupo-crecimiento-card>
-                    <div class="grupo-crecimiento-card-header">
-                        <span class="grupo-crecimiento-badge">Grupo en creación</span>
-                    </div>
-                    <p class="grupo-crecimiento-lead">
-                        <i data-lucide="users-round" class="grupo-crecimiento-icon" aria-hidden="true"></i>
-                        Este grupo todavía está creciendo
-                    </p>
-                    <p class="grupo-crecimiento-texto"></p>
-                    <p class="grupo-crecimiento-recompensa"></p>
-                    <p class="grupo-crecimiento-progreso"></p>
+                <div id="grupo-crecimiento-card" class="grupo-crecimiento-card" style="display: none;" aria-live="polite">
+                    <p class="grupo-crecimiento-lead">Este grupo todavía está creciendo.</p>
+                    <p class="grupo-crecimiento-texto" id="grupo-crecimiento-texto"></p>
+                    <p class="grupo-crecimiento-recompensa" id="grupo-crecimiento-recompensa"></p>
+                    <p class="grupo-crecimiento-progreso" id="grupo-crecimiento-progreso"></p>
                     <button type="button"
                         class="btn-invitar-crecimiento-grupo"
+                        id="btn-invitar-crecimiento-grupo"
                         data-action="invitar-crecimiento-grupo">
-                        <i data-lucide="user-plus" aria-hidden="true"></i>
                         Invitar a un profesional
                     </button>
                 </div>
-            </div>
-
-            <div class="perfil-cuenta-seguridad-footer" id="perfil-cuenta-seguridad-footer">
-                <section class="perfil-seguridad-wrap ruana-card-premium" id="perfil-seguridad-wrap">
-                    <h3 class="catalogo-servicios-title">
-                        <i data-lucide="lock"></i>
-                        Seguridad
-                    </h3>
-                    <p class="catalogo-servicios-subtitle">Tu código de aliado es permanente. Puedes cambiar tu PIN personal cuando quieras.</p>
-                    <div class="perfil-pin-actions" id="perfil-pin-actions">
-                        <button type="button" class="btn-editar-campo" id="btn-mostrar-cambiar-pin">Cambiar PIN</button>
-                    </div>
-                    <form class="perfil-pin-form" id="form-cambiar-pin" style="display: none;">
-                        <div class="detail-item">
-                            <label class="detail-label" for="pin-actual">PIN actual</label>
-                            <input type="password" class="register-input" id="pin-actual" inputmode="numeric" maxlength="6" autocomplete="current-password">
-                        </div>
-                        <div class="detail-item">
-                            <label class="detail-label" for="pin-nuevo">Nuevo PIN</label>
-                            <input type="password" class="register-input" id="pin-nuevo" inputmode="numeric" maxlength="6" autocomplete="new-password">
-                        </div>
-                        <div class="detail-item">
-                            <label class="detail-label" for="pin-nuevo-confirm">Confirmar nuevo PIN</label>
-                            <input type="password" class="register-input" id="pin-nuevo-confirm" inputmode="numeric" maxlength="6" autocomplete="new-password">
-                        </div>
-                        <div class="detail-edit-actions">
-                            <button type="submit" class="btn-guardar-campo" id="btn-guardar-pin">Guardar</button>
-                            <button type="button" class="btn-cancelar-campo" id="btn-cancelar-cambiar-pin">Cancelar</button>
-                        </div>
-                    </form>
-                    <p class="perfil-pin-status" id="perfil-pin-status" hidden></p>
-                </section>
-
-                <section class="perfil-mis-datos-wrap ruana-card-premium" id="perfil-mis-datos-wrap">
-                    <h3 class="catalogo-servicios-title">
-                        <i data-lucide="shield"></i>
-                        Mis datos
-                    </h3>
-                    <p class="catalogo-servicios-subtitle">Portabilidad y baja. El borrado de cuenta no es inmediato: un administrador lo gestiona para conservar la documentación de facturación exigida por ley.</p>
-                    <div class="perfil-mis-datos-actions">
-                        <button type="button" class="btn-editar-campo" id="btn-exportar-mis-datos">Exportar mis datos</button>
-                        <button type="button" class="btn-editar-campo" id="btn-solicitar-baja">Solicitar baja / borrado</button>
-                    </div>
-                    <p class="perfil-mis-datos-status" id="perfil-mis-datos-status" hidden></p>
-                </section>
             </div>
         </div>
         </section><!-- /module-perfil -->
@@ -633,7 +599,7 @@
             </header>
             <div class="solicitudes-zone">
                 <div class="solicitudes-subsection" id="solicitudes-semanales-wrap">
-                    <h3 class="solicitudes-subtitle">Solicitudes de esta semana</h3>
+                    <h3 class="solicitudes-subtitle">Solicitudes para esta semana</h3>
                     <p class="solicitudes-desc">Necesidades profesionales de tu grupo esta semana. Solo visible para miembros del mismo grupo.</p>
                     <div id="solicitudes-semanales-propia" hidden></div>
                     <div class="solicitudes-semanales-list" id="solicitudes-semanales-list"></div>
@@ -696,14 +662,14 @@
             <p class="sol-sem-kicker">Esta semana en tu grupo</p>
             <h2 class="sol-sem-title" id="sol-sem-prompt-titulo">¿Qué profesional necesitas esta semana?</h2>
             <div class="sol-sem-field">
-                <span class="sol-sem-field-label">Seleccionar oficio</span>
-                <button type="button" class="sol-sem-picker-trigger" id="sol-sem-picker-trigger" aria-expanded="false" aria-controls="sol-sem-oficio-list">
-                    <span id="sol-sem-picker-label">Seleccionar oficio</span>
-                    <span class="sol-sem-picker-chevron" aria-hidden="true">▼</span>
-                </button>
-                <div class="sol-sem-oficio-list" id="sol-sem-oficio-list" hidden></div>
+                <label class="sol-sem-field-label" for="sol-sem-oficio-select">Seleccionar oficio</label>
+                <select id="sol-sem-oficio-select" class="sol-sem-select">
+                    <option value="">Seleccionar oficio</option>
+                </select>
+                <div class="sol-sem-oficio-list" id="sol-sem-oficio-list" role="listbox" aria-label="Oficios del grupo"></div>
                 <input type="hidden" id="sol-sem-oficio-value" value="" />
             </div>
+            <p class="sol-sem-error" id="sol-sem-prompt-error" hidden></p>
             <div class="sol-sem-field" id="sol-sem-otro-wrap" style="display:none;">
                 <label for="sol-sem-otro-input">¿Qué profesional necesitas?</label>
                 <input type="text" id="sol-sem-otro-input" class="sol-sem-input" placeholder="Ej: Fotógrafo especializado en producto" maxlength="120" />
@@ -713,7 +679,7 @@
                 <textarea id="sol-sem-detalle-input" class="sol-sem-textarea" placeholder="Detalle breve…" maxlength="300"></textarea>
             </div>
             <div class="sol-sem-actions-row">
-                <button type="button" class="sol-sem-btn sol-sem-btn-primary" id="sol-sem-btn-publicar">PUBLICAR SOLICITUD</button>
+                <button type="button" class="sol-sem-btn sol-sem-btn-primary" id="sol-sem-btn-publicar" onclick="window.RuanaSolSemPublicar && window.RuanaSolSemPublicar(event)">PUBLICAR SOLICITUD</button>
                 <button type="button" class="sol-sem-btn sol-sem-btn-ghost" id="sol-sem-prompt-minimize">Recordarme más tarde</button>
             </div>
         </div>

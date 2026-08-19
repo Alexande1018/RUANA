@@ -116,11 +116,13 @@ def obtener_panel_por_codigo(db, codigo: str) -> Dict[str, Any]:
             if not aliado:
                 return {"status": "error", "message": "Aliado no encontrado"}
             grupo_id, nombre, _oficio = aliado
+            oficios_catalogo = db.get_catalogo_oficios_ruana() or []
             if grupo_id is None:
                 return {
                     "status": "success",
                     "semana_inicio": semana,
                     "oficios_grupo": [],
+                    "oficios_catalogo": oficios_catalogo,
                     "propia": None,
                     "activas_grupo": [],
                     "historial": [],
@@ -148,6 +150,7 @@ def obtener_panel_por_codigo(db, codigo: str) -> Dict[str, Any]:
                 "status": "success",
                 "semana_inicio": semana,
                 "oficios_grupo": oficios_grupo,
+                "oficios_catalogo": oficios_catalogo,
                 "propia": propia,
                 "activas_grupo": activas,
                 "historial": historial,
@@ -203,31 +206,34 @@ def crear_solicitud_semanal(
 
             existente = _repo.existe_activa_semana(cursor, codigo, semana_str)
             if existente:
+                conn.commit()
                 return {
-                    "status": "error",
-                    "message": "Ya tienes una solicitud activa esta semana",
+                    "status": "success",
+                    "ok": True,
                     "id": existente,
+                    "already_existed": True,
                 }
 
+            catalogo = db.get_catalogo_oficios_ruana()
+            permitidos = {str(o).strip() for o in catalogo if o}
+            oficios_grupo = {
+                str(o).strip()
+                for o in _repo.listar_oficios_grupo_activos(cursor, grupo_id)
+                if o
+            }
             if not es_oficio_personalizado:
-                catalogo = db.get_catalogo_oficios_ruana()
-                permitidos = {str(o).strip() for o in catalogo if o}
                 canon = catalogo_service._resolver_en_conjunto_catalogo(db, oficio, permitidos)
                 if not canon:
-                    oficios_grupo = {
-                        str(o).strip()
-                        for o in _repo.listar_oficios_grupo_activos(cursor, grupo_id)
-                        if o
-                    }
                     canon = catalogo_service._resolver_en_conjunto_catalogo(
                         db, oficio, oficios_grupo
                     )
-                if not canon:
+                if canon:
+                    oficio = canon
+                elif oficio not in oficios_grupo:
                     return {
                         "status": "error",
-                        "message": "Oficio no válido en el catálogo RUANA",
+                        "message": "Oficio no válido. Elige uno de la lista o usa «Otro profesional».",
                     }
-                oficio = canon
 
             sid = _repo.insertar(
                 cursor,

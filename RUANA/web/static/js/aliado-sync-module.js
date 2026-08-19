@@ -144,13 +144,6 @@
         if (targetSections.includes('solicitudes')) {
             var semModR = global.RuanaAliadoModules && global.RuanaAliadoModules.solicitudesSemanales;
             if (semModR && typeof semModR.renderSeccion === 'function') semModR.renderSeccion(host);
-            if (semModR && typeof semModR.renderInicioSeccion === 'function') semModR.renderInicioSeccion(host);
-            if (semModR && typeof semModR.actualizarModalEntrante === 'function') {
-                semModR.actualizarModalEntrante(host);
-            }
-            if (semModR && typeof semModR.asegurarPromptCerradoSiPublicada === 'function') {
-                semModR.asegurarPromptCerradoSiPublicada(host);
-            }
         }
         if (targetSections.includes('directorio')) host.renderProfesionales();
         if (targetSections.includes('alertas')) {
@@ -388,9 +381,6 @@
       if (semModRender && typeof semModRender.renderSeccion === 'function') {
           semModRender.renderSeccion(host);
       }
-      if (semModRender && typeof semModRender.renderInicioSeccion === 'function') {
-          semModRender.renderInicioSeccion(host);
-      }
       host.renderProfesionales();
       host.renderNotificaciones();
       host.renderCentroComunicacion();
@@ -570,6 +560,7 @@
     host.solicitudesList = document.getElementById('solicitudes-list');
     host.solicitudesPropiasList = document.getElementById('solicitudes-propias-list');
     host.solicitudesHistorialList = document.getElementById('solicitudes-historial-list');
+    global.__ruanaPanel = host;
 
     // Estructura de métricas por defecto (nunca undefined)
     // Estas son las claves que espera el motor RUANA
