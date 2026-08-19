@@ -2267,9 +2267,19 @@ def _migrar_solicitudes_candidato(db, conn, cursor) -> None:
 def _migrar_solicitudes_semanales(db, conn, cursor) -> None:
     """Tablas solicitudes_semanales y solicitudes_semanales_respuestas."""
     try:
-        _repo.execute(cursor, """
+        id_col = (
+            "SERIAL PRIMARY KEY"
+            if getattr(db, "backend", "") == "postgres"
+            else "INTEGER PRIMARY KEY AUTOINCREMENT"
+        )
+        created_col = (
+            "TIMESTAMPTZ DEFAULT NOW()"
+            if getattr(db, "backend", "") == "postgres"
+            else "DATETIME DEFAULT CURRENT_TIMESTAMP"
+        )
+        _repo.execute(cursor, f"""
             CREATE TABLE IF NOT EXISTS solicitudes_semanales (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id {id_col},
                 grupo_id INTEGER NOT NULL,
                 solicitante_codigo TEXT NOT NULL,
                 solicitante_nombre TEXT NOT NULL,
@@ -2278,7 +2288,7 @@ def _migrar_solicitudes_semanales(db, conn, cursor) -> None:
                 es_oficio_personalizado INTEGER NOT NULL DEFAULT 0,
                 semana_inicio TEXT NOT NULL,
                 estado TEXT NOT NULL DEFAULT 'activa',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                created_at {created_col},
                 expira_at TEXT,
                 FOREIGN KEY (grupo_id) REFERENCES grupos(id)
             )
@@ -2291,16 +2301,16 @@ def _migrar_solicitudes_semanales(db, conn, cursor) -> None:
             CREATE INDEX IF NOT EXISTS idx_sol_sem_grupo_semana
             ON solicitudes_semanales(grupo_id, semana_inicio, estado)
         """)
-        _repo.execute(cursor, """
+        _repo.execute(cursor, f"""
             CREATE TABLE IF NOT EXISTS solicitudes_semanales_respuestas (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id {id_col},
                 solicitud_semanal_id INTEGER NOT NULL,
                 aliado_codigo TEXT NOT NULL,
                 aliado_nombre TEXT NOT NULL,
                 tipo_respuesta TEXT NOT NULL,
                 contacto_id INTEGER,
                 invitacion_codigo TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                created_at {created_col},
                 FOREIGN KEY (solicitud_semanal_id) REFERENCES solicitudes_semanales(id),
                 UNIQUE(solicitud_semanal_id, aliado_codigo)
             )

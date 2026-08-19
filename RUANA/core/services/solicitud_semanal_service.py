@@ -69,12 +69,18 @@ def obtener_panel_por_codigo(db, codigo: str) -> Dict[str, Any]:
                     "status": "success",
                     "semana_inicio": semana,
                     "oficios_grupo": [],
+                    "oficios_catalogo": [],
                     "propia": None,
                     "activas_grupo": [],
                     "historial": [],
                 }
 
             oficios_grupo = _repo.listar_oficios_grupo_activos(cursor, grupo_id)
+            oficios_catalogo = [
+                str(o).strip()
+                for o in db.get_catalogo_oficios_ruana()
+                if o and str(o).strip()
+            ]
             propia = _repo.listar_propia_semana(cursor, codigo, semana)
             if propia and propia.get("estado") == "activa":
                 propia["interesados_count"] = _repo.contar_interesados(
@@ -96,6 +102,7 @@ def obtener_panel_por_codigo(db, codigo: str) -> Dict[str, Any]:
                 "status": "success",
                 "semana_inicio": semana,
                 "oficios_grupo": oficios_grupo,
+                "oficios_catalogo": oficios_catalogo,
                 "propia": propia,
                 "activas_grupo": activas,
                 "historial": historial,
@@ -147,22 +154,30 @@ def crear_solicitud_semanal(
 
             existente = _repo.existe_activa_semana(cursor, codigo, semana_str)
             if existente:
+                conn.commit()
                 return {
-                    "status": "error",
-                    "message": "Ya tienes una solicitud activa esta semana",
+                    "status": "success",
+                    "ok": True,
                     "id": existente,
+                    "already_existed": True,
                 }
 
+            catalogo = db.get_catalogo_oficios_ruana()
+            permitidos = {str(o).strip() for o in catalogo if o}
+            oficios_grupo = set(_repo.listar_oficios_grupo_activos(cursor, grupo_id))
             if not es_oficio_personalizado:
-                catalogo = db.get_catalogo_oficios_ruana()
-                permitidos = {str(o).strip() for o in catalogo if o}
                 canon = catalogo_service._resolver_en_conjunto_catalogo(db, oficio, permitidos)
                 if not canon:
+                    canon = catalogo_service._resolver_en_conjunto_catalogo(
+                        db, oficio, oficios_grupo
+                    )
+                if canon:
+                    oficio = canon
+                elif oficio not in oficios_grupo:
                     return {
                         "status": "error",
-                        "message": "Oficio no válido en el catálogo RUANA",
+                        "message": "Oficio no válido. Elige uno de la lista o usa «Otro profesional».",
                     }
-                oficio = canon
 
             sid = _repo.insertar(
                 cursor,
@@ -180,9 +195,20 @@ def crear_solicitud_semanal(
         except Exception as e:
             err = str(e)
             if "UNIQUE" in err.upper() or "unique" in err:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                existente = None
+                try:
+                    existente = _repo.existe_activa_semana(cursor, codigo, semana_str)
+                except Exception:
+                    pass
                 return {
-                    "status": "error",
-                    "message": "Ya tienes una solicitud activa esta semana",
+                    "status": "success",
+                    "ok": True,
+                    "id": existente,
+                    "already_existed": True,
                 }
             return {"status": "error", "message": err}
         finally:
