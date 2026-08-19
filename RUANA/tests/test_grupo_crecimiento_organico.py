@@ -383,6 +383,36 @@ def test_progreso_en_panel_muestra_recompensas(client, sqlite_db, monkeypatch):
     assert crec.get("limite_alcanzado") is False
 
 
+def test_aliado_nuevo_en_grupo_pequeno_ve_aviso_crecimiento(client, sqlite_db, monkeypatch):
+    """Un aliado que entra a un grupo con ≤10 miembros recibe en_creacion en sus datos."""
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    sqlite_db.obtener_o_crear_invitador_admin("RUANA-ADMIN")
+    grupo_id = _crear_grupo(sqlite_db)
+    codigos = _poblar_grupo(sqlite_db, grupo_id, 4, codigo_base="850")
+    invitador = codigos[0]
+
+    inv = _crear_invitacion_crecimiento(client, invitador).get_json()["codigo"]
+    reg = _registrar_invitado(client, inv, "85099", oficio_idx=5)
+    assert reg.status_code == 201
+    nuevo_codigo = reg.get_json()["codigo"]
+
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE aliados SET grupo_id = ? WHERE codigo = ?",
+        (grupo_id, nuevo_codigo),
+    )
+    conn.commit()
+    conn.close()
+
+    datos = client.get("/api/aliado/datos", headers=_session_headers(nuevo_codigo))
+    assert datos.status_code == 200
+    grupo_info = datos.get_json()["aliado"].get("grupo_info") or {}
+    assert grupo_info.get("en_creacion") is True
+    assert grupo_info.get("num_aliados") == 5
+    assert "crecimiento" in grupo_info
+
+
 def test_no_permite_invitacion_crecimiento_si_grupo_consolidado(client, sqlite_db, monkeypatch):
     monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
     sqlite_db.obtener_o_crear_invitador_admin("RUANA-ADMIN")

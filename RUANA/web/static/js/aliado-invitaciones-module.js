@@ -246,8 +246,8 @@
       alert('Sesión no válida');
       return;
     }
-    const btn = document.getElementById('btn-invitar-crecimiento-grupo');
-    if (btn) btn.disabled = true;
+    const inviteBtns = Array.from(document.querySelectorAll('[data-action="invitar-crecimiento-grupo"]'));
+    inviteBtns.forEach((b) => { b.disabled = true; });
     const apiBase = getApiBaseSafe();
     try {
       const r = await fetch(apiBase + '/api/invitaciones/crear', {
@@ -271,7 +271,7 @@
     } catch (e) {
       alert('Error de conexión: ' + (e.message || e));
     } finally {
-      if (btn) btn.disabled = false;
+      inviteBtns.forEach((b) => { b.disabled = false; });
     }
   }
 
