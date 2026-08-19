@@ -67,6 +67,20 @@ def test_crear_solicitud_valida(sqlite_db):
     assert r["id"]
 
 
+def test_panel_incluye_oficios_del_grupo_y_catalogo(sqlite_db):
+    _crear_grupo(
+        sqlite_db,
+        "Grupo oficios",
+        "03014",
+        [("JAIME", "Jaime", "Electricidad")],
+    )
+    panel = solicitud_semanal_service.obtener_panel_por_codigo(sqlite_db, "JAIME")
+    assert panel["status"] == "success"
+    assert "Electricidad" in panel["oficios_grupo"]
+    assert isinstance(panel["oficios_catalogo"], list)
+    assert len(panel["oficios_catalogo"]) > 0
+
+
 def test_no_duplicar_solicitud_misma_semana(sqlite_db):
     _crear_grupo(
         sqlite_db,
@@ -81,8 +95,9 @@ def test_no_duplicar_solicitud_misma_semana(sqlite_db):
     r2 = solicitud_semanal_service.crear_solicitud_semanal(
         sqlite_db, "JAIME", "Carpintería de madera e interior", "Segunda", False
     )
-    assert r2["status"] == "error"
-    assert "Ya tienes" in r2["message"]
+    assert r2["status"] == "success"
+    assert r2.get("already_existed") is True
+    assert r2["id"] == r1["id"]
 
 
 def test_solicitud_vinculada_al_grupo_correcto(sqlite_db):
@@ -283,7 +298,8 @@ def test_api_crear_y_aislamiento(client, sqlite_db, monkeypatch, session_headers
         json={"oficio": "Carpintería de madera e interior"},
         headers=h_jaime,
     )
-    assert dup.status_code == 400
+    assert dup.status_code in (200, 201)
+    assert dup.get_json().get("already_existed") is True
 
 
 def test_manipulacion_id_otro_grupo(client, sqlite_db, monkeypatch, session_headers):

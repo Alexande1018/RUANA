@@ -59,6 +59,18 @@
     if (!resp.ok) return null;
     var data = await resp.json();
     if (data.status === 'success' || data.semana_inicio) {
+      if (!Array.isArray(data.oficios_catalogo) || !data.oficios_catalogo.length) {
+        try {
+          var catResp = await fetch(apiBase + '/api/catalogo/oficios', {
+            credentials: 'same-origin',
+            headers: getAuthHeadersSafe(),
+          });
+          if (catResp.ok) {
+            var cat = await catResp.json();
+            data.oficios_catalogo = nombresOficios(cat.oficios || []);
+          }
+        } catch (_) {}
+      }
       host.solicitudesSemanales = data;
       return data;
     }
@@ -140,12 +152,14 @@
     if (el) {
       el.classList.remove('show');
       el.setAttribute('aria-hidden', 'true');
+      el.style.display = 'none';
     }
   }
 
   function mostrarOverlay(id) {
     var el = document.getElementById(id);
     if (el) {
+      el.style.display = 'flex';
       el.classList.add('show');
       el.setAttribute('aria-hidden', 'false');
     }
@@ -153,52 +167,51 @@
 
   var _oficioSeleccionado = { value: '', esOtro: false };
 
+  function nombresOficios(items) {
+    var out = [];
+    var seen = {};
+    (items || []).forEach(function (o) {
+      var nombre = '';
+      if (typeof o === 'string') nombre = o.trim();
+      else if (o && typeof o === 'object') nombre = String(o.nombre || o.oficio || '').trim();
+      if (nombre && !seen[nombre]) {
+        seen[nombre] = true;
+        out.push(nombre);
+      }
+    });
+    return out;
+  }
+
   function obtenerOficiosParaPicker(host) {
     var snap = host.solicitudesSemanales || {};
-    var oficios = Array.isArray(snap.oficios_grupo) ? snap.oficios_grupo.slice() : [];
+    var grupo = nombresOficios(snap.oficios_grupo);
+    var catalogo = nombresOficios(snap.oficios_catalogo);
     var seen = {};
-    oficios.forEach(function (o) {
-      if (o) seen[String(o).trim()] = true;
-    });
+    grupo.forEach(function (o) { seen[o] = true; });
     if (host.profesionales && Array.isArray(host.profesionales)) {
       host.profesionales.forEach(function (p) {
         var o = (p && p.oficio ? String(p.oficio) : '').trim();
         if (o && !seen[o]) {
           seen[o] = true;
-          oficios.push(o);
+          grupo.push(o);
         }
       });
     }
-    return oficios.sort(function (a, b) {
-      return String(a).localeCompare(String(b), 'es');
+    catalogo.forEach(function (o) {
+      if (!seen[o]) {
+        seen[o] = true;
+        grupo.push(o);
+      }
     });
-  }
-
-  function cerrarPickerOficios() {
-    var list = document.getElementById('sol-sem-oficio-list');
-    var trigger = document.getElementById('sol-sem-picker-trigger');
-    if (list) list.hidden = true;
-    if (trigger) trigger.setAttribute('aria-expanded', 'false');
-  }
-
-  function abrirPickerOficios() {
-    var list = document.getElementById('sol-sem-oficio-list');
-    var trigger = document.getElementById('sol-sem-picker-trigger');
-    if (list) list.hidden = false;
-    if (trigger) trigger.setAttribute('aria-expanded', 'true');
+    return grupo;
   }
 
   function setOficioSeleccionado(value, esOtro) {
     _oficioSeleccionado = { value: value || '', esOtro: !!esOtro };
     var hidden = document.getElementById('sol-sem-oficio-value');
-    var label = document.getElementById('sol-sem-picker-label');
     if (hidden) hidden.value = esOtro ? '__OTRO__' : value;
-    if (label) {
-      label.textContent = esOtro ? '+ Otro profesional' : (value || 'Seleccionar oficio');
-    }
     var otroWrap = document.getElementById('sol-sem-otro-wrap');
     if (otroWrap) otroWrap.style.display = esOtro ? 'block' : 'none';
-    cerrarPickerOficios();
     var list = document.getElementById('sol-sem-oficio-list');
     if (list) {
       list.querySelectorAll('.sol-sem-oficio-item').forEach(function (btn) {
@@ -206,6 +219,18 @@
         var val = btn.getAttribute('data-oficio') || '';
         btn.classList.toggle('selected', isOtro === esOtro && (esOtro || val === value));
       });
+    }
+  }
+
+  function mostrarErrorPrompt(msg) {
+    var err = document.getElementById('sol-sem-prompt-error');
+    if (!err) return;
+    if (msg) {
+      err.textContent = msg;
+      err.hidden = false;
+    } else {
+      err.textContent = '';
+      err.hidden = true;
     }
   }
 
@@ -218,17 +243,21 @@
     var semana = snap.semana_inicio || '';
     var st = localStorage.getItem(semanaStorageKey(semana));
     if (st === 'hidden') {
+      ocultarPromptCrear(host);
+      return;
+    }
+    if (st === 'minimized') {
       mostrarMinimizado(host);
       return;
     }
     if (!obtenerOficiosParaPicker(host).length) {
       await fetchSnapshot(host);
     }
-    var overlay = document.getElementById('sol-sem-prompt-overlay');
     var titulo = document.getElementById('sol-sem-prompt-titulo');
     if (titulo) {
       titulo.textContent = nombreAliado(host) + ', ¿qué profesional necesitas esta semana?';
     }
+    mostrarErrorPrompt('');
     poblarSelectorOficios(host);
     mostrarOverlay('sol-sem-prompt-overlay');
     ocultarMinimizado();
@@ -258,20 +287,25 @@
 
   function poblarSelectorOficios(host) {
     var list = document.getElementById('sol-sem-oficio-list');
-    var trigger = document.getElementById('sol-sem-picker-trigger');
     if (!list) return;
 
     var oficios = obtenerOficiosParaPicker(host);
     list.innerHTML = '';
+    list.removeAttribute('hidden');
+    list.style.display = 'block';
 
     if (!oficios.length) {
-      list.innerHTML = '<p class="sol-sem-oficio-empty">No hay oficios en tu grupo todavía. Usa «+ Otro profesional».</p>';
+      var empty = document.createElement('p');
+      empty.className = 'sol-sem-oficio-empty';
+      empty.textContent = 'Cargando oficios… Si no aparecen, usa «+ Otro profesional».';
+      list.appendChild(empty);
     } else {
       oficios.forEach(function (o) {
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'sol-sem-oficio-item';
         btn.setAttribute('data-oficio', o);
+        btn.setAttribute('role', 'option');
         var nombres = [];
         if (host.profesionales && Array.isArray(host.profesionales)) {
           host.profesionales.forEach(function (p) {
@@ -281,7 +315,9 @@
           });
         }
         btn.textContent = nombres.length ? o + ' — ' + nombres.join(', ') : o;
-        btn.addEventListener('click', function () {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
           setOficioSeleccionado(o, false);
         });
         list.appendChild(btn);
@@ -292,37 +328,15 @@
     otroBtn.type = 'button';
     otroBtn.className = 'sol-sem-oficio-item sol-sem-oficio-otro';
     otroBtn.setAttribute('data-otro', '1');
+    otroBtn.setAttribute('role', 'option');
     otroBtn.textContent = '+ Otro profesional';
-    otroBtn.addEventListener('click', function () {
+    otroBtn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
       setOficioSeleccionado('', true);
     });
     list.appendChild(otroBtn);
-
     setOficioSeleccionado('', false);
-    list.hidden = true;
-
-    if (trigger && !trigger._solSemBound) {
-      trigger._solSemBound = true;
-      trigger.addEventListener('click', function (e) {
-        e.stopPropagation();
-        var expanded = trigger.getAttribute('aria-expanded') === 'true';
-        if (expanded) {
-          cerrarPickerOficios();
-        } else {
-          abrirPickerOficios();
-        }
-      });
-    }
-
-    if (!document._solSemPickerDocBound) {
-      document._solSemPickerDocBound = true;
-      document.addEventListener('click', function (e) {
-        var wrap = document.getElementById('sol-sem-prompt-overlay');
-        if (!wrap || !wrap.classList.contains('show')) return;
-        if (e.target.closest('#sol-sem-picker-trigger') || e.target.closest('#sol-sem-oficio-list')) return;
-        cerrarPickerOficios();
-      });
-    }
   }
 
   async function publicarSolicitud(host) {
@@ -332,8 +346,9 @@
     var esOtro = _oficioSeleccionado.esOtro;
     var oficio = esOtro ? (otroInput && otroInput.value.trim()) : (_oficioSeleccionado.value || '').trim();
     var descripcion = detalle ? detalle.value.trim() : '';
+    mostrarErrorPrompt('');
     if (!oficio) {
-      alert(esOtro ? 'Indica qué profesional necesitas' : 'Selecciona un oficio');
+      mostrarErrorPrompt(esOtro ? 'Indica qué profesional necesitas' : 'Selecciona un oficio de la lista');
       return;
     }
     if (btn) {
@@ -352,8 +367,8 @@
         }),
       });
       var data = await resp.json().catch(function () { return {}; });
-      if (!resp.ok) {
-        throw new Error(data.error || 'No se pudo publicar');
+      if (!resp.ok && !(data && data.already_existed)) {
+        throw new Error(data.error || data.message || 'No se pudo publicar');
       }
       var semana = (host.solicitudesSemanales && host.solicitudesSemanales.semana_inicio) || '';
       localStorage.setItem(semanaStorageKey(semana), 'hidden');
@@ -364,7 +379,8 @@
         await host.refreshAfterAction(['solicitudes']);
       }
     } catch (e) {
-      alert(e.message || 'Error al publicar');
+      mostrarOverlay('sol-sem-prompt-overlay');
+      mostrarErrorPrompt(e.message || 'Error al publicar');
     } finally {
       if (btn) {
         btn.disabled = false;

@@ -59,7 +59,11 @@ def api_solicitudes_semanales():
     )
     if result.get("status") != "success":
         return jsonify({"error": result.get("message", "Error")}), 400
-    return jsonify({"ok": True, "id": result.get("id")}), 201
+    return jsonify({
+        "ok": True,
+        "id": result.get("id"),
+        "already_existed": bool(result.get("already_existed")),
+    }), 201
 
 
 @solicitudes_semanales_bp.route(

@@ -4,22 +4,16 @@
   position: fixed;
   inset: 0;
   z-index: 12000;
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   padding: 20px;
   background: rgba(8, 12, 20, 0.72);
   backdrop-filter: blur(6px);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity 0.25s ease, visibility 0.25s ease;
 }
 
 .sol-sem-overlay.show {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
+  display: flex;
 }
 
 .sol-sem-modal {
@@ -100,17 +94,24 @@
 }
 
 .sol-sem-oficio-list {
-  margin-top: 8px;
-  max-height: 220px;
+  margin-top: 4px;
+  max-height: 240px;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 10px;
   background: #141c28;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  display: block;
 }
 
-.sol-sem-oficio-list:not([hidden]) {
-  display: block;
+.sol-sem-error {
+  color: #ffb4b4;
+  background: rgba(180, 50, 50, 0.2);
+  border: 1px solid rgba(255, 120, 120, 0.3);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  margin: 0 0 12px;
 }
 
 .sol-sem-oficio-item {

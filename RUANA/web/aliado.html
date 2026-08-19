@@ -19,7 +19,7 @@
     <link rel="stylesheet" href="/static/css/ruana-score-callout.css">
     <link rel="stylesheet" href="/static/css/ruana-identity.css">
     <link rel="stylesheet" href="/static/css/referidos-tree.css">
-    <link rel="stylesheet" href="/static/css/aliado-solicitudes-semanales.css">
+    <link rel="stylesheet" href="/static/css/aliado-solicitudes-semanales.css?v=20260819c">
     <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
     <script src="/static/js/ruana-atmosphere.js" defer></script>
     <script src="/static/js/ruana-ui.js" defer></script>
@@ -32,7 +32,7 @@
     <script src="/static/js/aliado-referidos-module.js" defer></script>
     <script src="/static/js/aliado-directorio-module.js" defer></script>
     <script src="/static/js/aliado-solicitudes-module.js" defer></script>
-    <script src="/static/js/aliado-solicitudes-semanales-module.js" defer></script>
+    <script src="/static/js/aliado-solicitudes-semanales-module.js?v=20260819c" defer></script>
     <script src="/static/js/aliado-acuerdos-module.js" defer></script>
     <script src="/static/js/aliado-conexiones-module.js" defer></script>
     <script src="/static/js/aliado-centro-comunicacion-module.js" defer></script>
@@ -627,13 +627,10 @@
             <h2 class="sol-sem-title" id="sol-sem-prompt-titulo">¿Qué profesional necesitas esta semana?</h2>
             <div class="sol-sem-field">
                 <span class="sol-sem-field-label">Seleccionar oficio</span>
-                <button type="button" class="sol-sem-picker-trigger" id="sol-sem-picker-trigger" aria-expanded="false" aria-controls="sol-sem-oficio-list">
-                    <span id="sol-sem-picker-label">Seleccionar oficio</span>
-                    <span class="sol-sem-picker-chevron" aria-hidden="true">▼</span>
-                </button>
-                <div class="sol-sem-oficio-list" id="sol-sem-oficio-list" hidden></div>
+                <div class="sol-sem-oficio-list" id="sol-sem-oficio-list" role="listbox" aria-label="Oficios del grupo"></div>
                 <input type="hidden" id="sol-sem-oficio-value" value="" />
             </div>
+            <p class="sol-sem-error" id="sol-sem-prompt-error" hidden></p>
             <div class="sol-sem-field" id="sol-sem-otro-wrap" style="display:none;">
                 <label for="sol-sem-otro-input">¿Qué profesional necesitas?</label>
                 <input type="text" id="sol-sem-otro-input" class="sol-sem-input" placeholder="Ej: Fotógrafo especializado en producto" maxlength="120" />
