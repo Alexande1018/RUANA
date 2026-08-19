@@ -188,7 +188,7 @@ def get_aliado_datos():
             if grupo_id:
                 avisos_grupo = db.obtener_avisos_grupo(grupo_id)
                 # Info del grupo para el panel: nombre, estado, num oficios, oficios faltantes (cat?logo RUANA). Sin scores ni m?tricas de otros.
-                grupo_info = db.info_grupo_para_panel(grupo_id)
+                grupo_info = db.info_grupo_para_panel(grupo_id, codigo)
                 if grupo_info:
                     aliado_dict['grupo_info'] = grupo_info
             aliado_dict['competencia_activa'] = bool(

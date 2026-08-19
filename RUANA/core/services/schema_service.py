@@ -409,6 +409,8 @@ def _init_db(db):
             db._migrar_aliados_invitado_por(conn, cursor)
             db._migrar_aliados_pin_personal(conn, cursor)
             db._migrar_invitaciones_solicitud_id(conn, cursor)
+            db._migrar_invitaciones_crecimiento_grupo(conn, cursor)
+            db._migrar_grupo_crecimiento_recompensas(conn, cursor)
             db._migrar_solicitudes_candidato(conn, cursor)
             db._migrar_solicitudes_semanales(conn, cursor)
             db._migrar_aliado_accesos_dia(conn, cursor)
@@ -2179,6 +2181,54 @@ def _migrar_invitaciones_solicitud_id(db, conn, cursor) -> None:
         )
     except Exception as ex:
         print(f"[RUANA][DB] Aviso migrar invitaciones.solicitud_id: {ex}")
+
+def _migrar_invitaciones_crecimiento_grupo(db, conn, cursor) -> None:
+    """Campos para invitaciones de crecimiento orgánico de grupo."""
+    try:
+        if db.backend == "postgres":
+            _repo.execute(cursor,
+                "ALTER TABLE invitaciones ADD COLUMN IF NOT EXISTS grupo_id BIGINT"
+            )
+            _repo.execute(cursor,
+                "ALTER TABLE invitaciones ADD COLUMN IF NOT EXISTS tipo TEXT DEFAULT 'ampliar_red'"
+            )
+        else:
+            columnas = _repo.columnas_tabla(cursor, "invitaciones")
+            if 'grupo_id' not in columnas:
+                _repo.execute(cursor, "ALTER TABLE invitaciones ADD COLUMN grupo_id INTEGER")
+            if 'tipo' not in columnas:
+                _repo.execute(cursor,
+                    "ALTER TABLE invitaciones ADD COLUMN tipo TEXT DEFAULT 'ampliar_red'"
+                )
+        _repo.execute(cursor,
+            "CREATE INDEX IF NOT EXISTS idx_invitaciones_grupo_id ON invitaciones(grupo_id)"
+        )
+        _repo.execute(cursor,
+            "CREATE INDEX IF NOT EXISTS idx_invitaciones_tipo ON invitaciones(tipo)"
+        )
+    except Exception as ex:
+        print(f"[RUANA][DB] Aviso migrar invitaciones crecimiento grupo: {ex}")
+
+def _migrar_grupo_crecimiento_recompensas(db, conn, cursor) -> None:
+    """Tabla de auditoría para recompensas de crecimiento de grupo."""
+    try:
+        _repo.execute(cursor, """
+            CREATE TABLE IF NOT EXISTS grupo_crecimiento_recompensas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                invitador_codigo TEXT NOT NULL,
+                invitado_codigo TEXT NOT NULL,
+                invitacion_codigo TEXT,
+                grupo_id INTEGER,
+                score_delta INTEGER NOT NULL DEFAULT 5,
+                creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(invitador_codigo, invitado_codigo)
+            )
+        """)
+        _repo.execute(cursor,
+            "CREATE INDEX IF NOT EXISTS idx_gcr_invitador ON grupo_crecimiento_recompensas(invitador_codigo)"
+        )
+    except Exception as ex:
+        print(f"[RUANA][DB] Aviso migrar grupo_crecimiento_recompensas: {ex}")
 
 def _migrar_solicitudes_candidato(db, conn, cursor) -> None:
     """Campos para candidato pendiente e incorporación del aliado invitado."""

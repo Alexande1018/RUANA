@@ -32,6 +32,7 @@
     if (!key) return 'actualización de reglas RUANA';
     var mappings = [
       [/^aliado_referido_registro_valido/, 'registro válido de un aliado referido'],
+      [/^aliado_invitado_registrado_/, 'profesional invitado registrado en RUANA'],
       [/^encargo_completado_apoyo_pagado/, 'encargo completado con apoyo RUANA validado'],
       [/^referido_encargo_completado_gen/, 'impacto positivo de tu red de referidos'],
       [/^regla4_/, 'constancia de encargos completados en el mes'],

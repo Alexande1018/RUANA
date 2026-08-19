@@ -240,6 +240,41 @@
     }
   }
 
+  async function generarCodigoInvitacionCrecimientoGrupo(host) {
+    const codigo = host.codigoAliado || (host.aliado && host.aliado.codigo) || '';
+    if (!codigo) {
+      alert('Sesión no válida');
+      return;
+    }
+    const btn = document.getElementById('btn-invitar-crecimiento-grupo');
+    if (btn) btn.disabled = true;
+    const apiBase = getApiBaseSafe();
+    try {
+      const r = await fetch(apiBase + '/api/invitaciones/crear', {
+        method: 'POST',
+        headers: getAuthHeadersSafe({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ crecimiento_grupo: true }),
+        credentials: 'same-origin'
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok && data.status === 'success' && data.codigo) {
+        host.currentCode = data.codigo;
+        host.currentSolicitud = null;
+        host.mostrarModalCodigoInvitacion(data.codigo, false);
+        const modalText = document.querySelector('#modal-code .modal-text');
+        if (modalText) {
+          modalText.textContent = 'Comparte este código con un profesional de cualquier oficio para que se registre en RUANA y amplíe la red del grupo:';
+        }
+      } else {
+        alert(data.message || data.error || 'No se pudo generar el código. Intenta de nuevo.');
+      }
+    } catch (e) {
+      alert('Error de conexión: ' + (e.message || e));
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
   function copiarCodigoInvitacionOficio(host) {
     const el = document.getElementById('modal-invitacion-oficio-codigo');
     if (!el || !el.textContent) return;
@@ -255,6 +290,7 @@
 
   modules.invitaciones = {
     generarCodigoInvitacionPerfil: generarCodigoInvitacionPerfil,
+    generarCodigoInvitacionCrecimientoGrupo: generarCodigoInvitacionCrecimientoGrupo,
     generateInviteCode: generateInviteCode,
     mostrarModalCodigoInvitacion: mostrarModalCodigoInvitacion,
     registerInviteCodeWithBackend: registerInviteCodeWithBackend,

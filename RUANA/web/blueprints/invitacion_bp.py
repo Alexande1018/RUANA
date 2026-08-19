@@ -13,6 +13,8 @@ from flask import Blueprint, jsonify, request
 
 from core import db_manager as db_manager_mod
 from core.services import admin_service, aliado_service, invitacion_service, solicitud_service
+from core.services import grupo_crecimiento_service
+from core.db_constants import INVITACION_TIPO_CRECIMIENTO_GRUPO
 from web.auth_decorators import (
     _admin_codigo,
     _aliado_codigo,
@@ -136,10 +138,29 @@ def crear_invitacion():
 
         aliado_invitador_id = aliado_sesion.get('id')
         solicitud_id = data.get('solicitud_id')
+        crecimiento_grupo = bool(
+            data.get('crecimiento_grupo')
+            or (data.get('tipo') or '').strip() == INVITACION_TIPO_CRECIMIENTO_GRUPO
+        )
+
+        grupo_id_inv = None
+        tipo_inv = 'ampliar_red'
+        if crecimiento_grupo:
+            validacion = grupo_crecimiento_service.puede_crear_invitacion_crecimiento(
+                db, codigo_sesion
+            )
+            if not validacion.get('ok'):
+                return jsonify({
+                    'status': 'error',
+                    'message': validacion.get('message') or 'No puedes crear esta invitación',
+                }), 400
+            grupo_id_inv = validacion.get('grupo_id')
+            tipo_inv = INVITACION_TIPO_CRECIMIENTO_GRUPO
+            solicitud_id = None
 
         codigo = _generar_codigo_invitacion(db)
 
-        # Registrar quién invitó (para recompensa +3 y métrica de referidos al completar)
+        # Registrar quién invitó (recompensa al completar registro del invitado)
         if aliado_invitador_id is None:
             return jsonify({'status': 'error', 'message': 'No se pudo identificar al invitador'}), 500
         sid = None
@@ -149,7 +170,14 @@ def crear_invitacion():
             except (TypeError, ValueError):
                 sid = None
         try:
-            invitacion_service._registrar_invitacion(db, codigo, int(aliado_invitador_id), sid)
+            invitacion_service._registrar_invitacion(
+                db,
+                codigo,
+                int(aliado_invitador_id),
+                sid,
+                grupo_id_inv,
+                tipo_inv,
+            )
         except Exception as e:
             print(f"[RUANA] Error registrando invitacion {codigo}: {e}")
             return jsonify({
@@ -170,7 +198,8 @@ def crear_invitacion():
             'status': 'success',
             'message': f'C?digo de invitaci?n creado',
             'codigo': codigo,
-            'tipo': 'invitacion',
+            'tipo': tipo_inv if crecimiento_grupo else 'invitacion',
+            'grupo_id': grupo_id_inv,
             'solicitud_id': sid,
             'estado_solicitud': 'candidato_pendiente' if sid is not None else None,
             'timestamp': datetime.now().isoformat()

@@ -98,6 +98,8 @@
         block.style.display = 'none';
         const nombreEl = document.getElementById('grupo-nombre');
         if (nombreEl) nombreEl.textContent = '---';
+        const card = document.getElementById('grupo-crecimiento-card');
+        if (card) card.style.display = 'none';
         if (window.AliadoShell && typeof window.AliadoShell.refresh === 'function') {
             window.AliadoShell.refresh();
         }
@@ -113,6 +115,8 @@
         estadoEl.textContent = estadoLabels[grupoInfo.estado] || grupoInfo.estado || '---';
     }
     if (numEl) numEl.textContent = String(grupoInfo.num_oficios != null ? grupoInfo.num_oficios : 0);
+
+    renderGrupoCrecimiento(host, grupoInfo);
 
     if (window.AliadoShell && typeof window.AliadoShell.refresh === 'function') {
         window.AliadoShell.refresh();
@@ -159,7 +163,54 @@
     host.renderOficiosFaltantesFullList(faltantes);
   }
 
-    function renderOficiosFaltantesFullList(host, oficios) {
+  function renderGrupoCrecimiento(host, grupoInfo) {
+    const card = document.getElementById('grupo-crecimiento-card');
+    const textoEl = document.getElementById('grupo-crecimiento-texto');
+    const recompensaEl = document.getElementById('grupo-crecimiento-recompensa');
+    const progresoEl = document.getElementById('grupo-crecimiento-progreso');
+    const btn = document.getElementById('btn-invitar-crecimiento-grupo');
+    if (!card) return;
+
+    const enCreacion = !!grupoInfo.en_creacion;
+    if (!enCreacion) {
+      card.style.display = 'none';
+      return;
+    }
+
+    const numAliados = grupoInfo.num_aliados != null ? grupoInfo.num_aliados : 0;
+    const crecimiento = grupoInfo.crecimiento || {};
+    const obtenidas = crecimiento.recompensas_obtenidas != null ? crecimiento.recompensas_obtenidas : 0;
+    const maxRecompensas = crecimiento.recompensas_max != null ? crecimiento.recompensas_max : 10;
+    const scoreObtenido = crecimiento.score_obtenido != null ? crecimiento.score_obtenido : 0;
+    const limiteAlcanzado = !!crecimiento.limite_alcanzado;
+
+    card.style.display = 'block';
+    if (textoEl) {
+      textoEl.textContent = 'Somos ' + numAliados + ' profesional' + (numAliados === 1 ? '' : 'es') +
+        ' en este grupo. Invita a un profesional de cualquier oficio que conozcas para ampliar nuestra red y aumentar las posibilidades de encontrar nuevas oportunidades.';
+    }
+    if (recompensaEl) {
+      if (limiteAlcanzado) {
+        recompensaEl.style.display = 'none';
+        recompensaEl.textContent = '';
+      } else {
+        recompensaEl.style.display = 'block';
+        recompensaEl.textContent = 'Además, por cada aliado que invites y se registre correctamente en RUANA recibirás +5 puntos de Score. Puedes conseguir hasta 50 puntos.';
+      }
+    }
+    if (progresoEl) {
+      if (obtenidas > 0) {
+        progresoEl.style.display = 'block';
+        progresoEl.textContent = obtenidas + ' de ' + maxRecompensas + ' recompensas · Has conseguido +' + scoreObtenido + ' Score';
+      } else {
+        progresoEl.style.display = 'none';
+        progresoEl.textContent = '';
+      }
+    }
+    if (btn) btn.disabled = false;
+  }
+
+  function renderOficiosFaltantesFullList(host, oficios) {
       const fullListEl = document.getElementById('oficios-faltantes-full-list');
       if (!fullListEl) return;
       const query = (document.getElementById('oficios-faltantes-search') || {}).value || '';
