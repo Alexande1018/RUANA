@@ -216,22 +216,50 @@
     return code;
   }
 
+  function registroUrlInvitacionOficio(codigo) {
+    const apiBase = getApiBaseSafe() || (typeof global.location !== 'undefined' ? global.location.origin : '');
+    return String(apiBase).replace(/\/$/, '') + '/invite.html?codigo=' + encodeURIComponent(codigo || '');
+  }
+
+  function mostrarModalInvitacionOficio(host, oficio, codigo, registroUrl, mensajeCompartir) {
+    const nombreEl = document.getElementById('modal-invitacion-oficio-nombre');
+    const codigoEl = document.getElementById('modal-invitacion-oficio-codigo');
+    const modal = document.getElementById('modal-invitacion-oficio');
+    if (nombreEl) nombreEl.textContent = oficio || '';
+    if (codigoEl) codigoEl.textContent = codigo || '---';
+    host._invitacionOficio = {
+      oficio: oficio || '',
+      codigo: codigo || '',
+      registroUrl: registroUrl || registroUrlInvitacionOficio(codigo || ''),
+      mensajeCompartir: mensajeCompartir || '',
+    };
+    if (modal) modal.classList.add('show');
+  }
+
   async function generarInvitacionOficio(host, oficio) {
     const codigo = host.codigoAliado;
     if (!codigo) { alert('No hay código de aliado.'); return; }
+    const apiBase = getApiBaseSafe();
     try {
-        const resp = await fetch('/api/generar-invitacion', {
+        const resp = await fetch(apiBase + '/api/generar-invitacion', {
             method: 'POST',
             headers: getAuthHeadersSafe({ 'Content-Type': 'application/json' }),
             credentials: 'same-origin',
             body: JSON.stringify({ oficio })
         });
-        const data = await resp.json();
+        const data = await resp.json().catch(() => ({}));
         if (data.status === 'success' && data.codigo) {
-            document.getElementById('modal-invitacion-oficio-nombre').textContent = oficio;
-            document.getElementById('modal-invitacion-oficio-codigo').textContent = data.codigo;
-            document.getElementById('modal-invitacion-oficio').classList.add('show');
-            await host.refreshAfterAction(['metricas', 'alertas']);
+            const oficioMostrar = data.oficio || oficio;
+            mostrarModalInvitacionOficio(
+                host,
+                oficioMostrar,
+                data.codigo,
+                data.registro_url,
+                data.mensaje_compartir
+            );
+            if (typeof host.refreshAfterAction === 'function') {
+                await host.refreshAfterAction(['metricas', 'alertas']);
+            }
         } else {
             alert(data.message || 'No se pudo generar el código.');
         }
@@ -277,11 +305,72 @@
 
   function copiarCodigoInvitacionOficio(host) {
     const el = document.getElementById('modal-invitacion-oficio-codigo');
-    if (!el || !el.textContent) return;
-    navigator.clipboard.writeText(el.textContent).then(() => {
+    const codigo = (host && host._invitacionOficio && host._invitacionOficio.codigo) || (el && el.textContent) || '';
+    if (!codigo || codigo === '---') return;
+    const done = () => {
         const btn = document.getElementById('btn-copiar-invitacion-oficio');
         if (btn) { const t = btn.textContent; btn.textContent = '¡Copiado!'; setTimeout(() => btn.textContent = t, 1500); }
-    }).catch(() => alert('No se pudo copiar'));
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(codigo).then(done).catch(() => alert('No se pudo copiar'));
+    } else {
+        alert('No se pudo copiar');
+    }
+  }
+
+  function mensajeCompartirInvitacionOficio(host) {
+    const data = (host && host._invitacionOficio) || {};
+    if (data.mensajeCompartir) return data.mensajeCompartir;
+    const oficio = data.oficio || (document.getElementById('modal-invitacion-oficio-nombre') || {}).textContent || '';
+    const codigo = data.codigo || (document.getElementById('modal-invitacion-oficio-codigo') || {}).textContent || '';
+    const url = data.registroUrl || registroUrlInvitacionOficio(codigo);
+    return [
+      '¿Conoces un ' + oficio + '?',
+      '',
+      'RUANA está buscando un profesional de este oficio para formar parte de un grupo de profesionales de su zona.',
+      '',
+      'Si te registras con este código de invitación, el usuario que te invitó recibirá 3 puntos de score por tu incorporación justo después de que tu registro como aliado haya sido confirmado.',
+      '',
+      'Regístrate en RUANA utilizando este código de invitación:',
+      '',
+      codigo,
+      '',
+      url
+    ].join('\n');
+  }
+
+  async function compartirInvitacionOficio(host) {
+    const texto = mensajeCompartirInvitacionOficio(host);
+    const data = (host && host._invitacionOficio) || {};
+    const btn = document.getElementById('btn-compartir-invitacion-oficio');
+    const marcarCopiado = (label) => {
+        if (!btn) return;
+        const t = btn.textContent;
+        btn.textContent = label;
+        setTimeout(() => { btn.textContent = t; }, 1500);
+    };
+    if (typeof navigator.share === 'function') {
+        try {
+            await navigator.share({
+                title: 'Invitación RUANA',
+                text: texto,
+                url: data.registroUrl || undefined,
+            });
+            return;
+        } catch (e) {
+            if (e && e.name === 'AbortError') return;
+        }
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+            await navigator.clipboard.writeText(texto);
+            marcarCopiado('¡Copiado!');
+            return;
+        } catch (_) {
+            /* fallback alert */
+        }
+    }
+    alert('No se pudo compartir. Copia el código manualmente.');
   }
 
   function cerrarModalInvitacionOficio(host) {
@@ -298,6 +387,9 @@
     generateRandomCode: generateRandomCode,
     generarInvitacionOficio: generarInvitacionOficio,
     copiarCodigoInvitacionOficio: copiarCodigoInvitacionOficio,
+    compartirInvitacionOficio: compartirInvitacionOficio,
+    mensajeCompartirInvitacionOficio: mensajeCompartirInvitacionOficio,
+    mostrarModalInvitacionOficio: mostrarModalInvitacionOficio,
     cerrarModalInvitacionOficio: cerrarModalInvitacionOficio,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

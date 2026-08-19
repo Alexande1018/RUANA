@@ -5,6 +5,7 @@ SQL de invitaciones vía InvitacionRepo.
 """
 from __future__ import annotations
 
+import random
 import string
 
 from core.db_constants import RUANA_CODIGO_INVITACION_REGEX
@@ -299,6 +300,29 @@ def consumir_invitacion_y_recompensar(db, codigo_invitacion: str, nuevo_aliado_c
     if not codigo_invitador:
         return False
     return db.asignar_invitado_por(nuevo_aliado_codigo, codigo_invitador, origen) or True
+
+def mensaje_compartir_invitacion_oficio(
+    oficio: str, codigo: str, registro_url: str = ""
+) -> str:
+    """Mensaje para copiar/compartir una invitación por oficio faltante."""
+    oficio_txt = (oficio or "").strip() or "profesional"
+    codigo_txt = (codigo or "").strip()
+    url = (registro_url or "").strip()
+    partes = [
+        f"¿Conoces un {oficio_txt}?",
+        "",
+        "RUANA está buscando un profesional de este oficio para formar parte de un grupo de profesionales de su zona.",
+        "",
+        "Si te registras con este código de invitación, el usuario que te invitó recibirá 3 puntos de score por tu incorporación justo después de que tu registro como aliado haya sido confirmado.",
+        "",
+        "Regístrate en RUANA utilizando este código de invitación:",
+        "",
+        codigo_txt,
+    ]
+    if url:
+        partes.extend(["", url])
+    return "\n".join(partes)
+
 
 def generar_invitacion_oficio(db, codigo_aliado: str, oficio: str) -> Dict[str, Any]:
     """

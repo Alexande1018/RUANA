@@ -443,9 +443,11 @@
 
       // Modal invitación oficio
       const btnCopiarInv = document.getElementById('btn-copiar-invitacion-oficio');
+      const btnCompartirInv = document.getElementById('btn-compartir-invitacion-oficio');
       const btnCerrarInv = document.getElementById('btn-cerrar-invitacion-oficio');
       const modalInv = document.getElementById('modal-invitacion-oficio');
       if (btnCopiarInv) btnCopiarInv.addEventListener('click', () => host.copiarCodigoInvitacionOficio());
+      if (btnCompartirInv) btnCompartirInv.addEventListener('click', () => host.compartirInvitacionOficio());
       if (btnCerrarInv) btnCerrarInv.addEventListener('click', () => host.cerrarModalInvitacionOficio());
       if (modalInv) modalInv.addEventListener('click', (e) => { if (e.target === modalInv) host.cerrarModalInvitacionOficio(); });
 

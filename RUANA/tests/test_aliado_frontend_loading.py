@@ -298,6 +298,8 @@ def test_aliado_invitaciones_module_is_wired():
     assert "generateInviteCode" in inv_js
     assert "/api/invitaciones/crear" in inv_js
     assert "generarInvitacionOficio" in inv_js
+    assert "compartirInvitacionOficio" in inv_js
+    assert "navigator.share" in inv_js
     assert "_invitacionesModule" in aliado
     assert "mod.generateInviteCode(this, solicitudId)" in aliado
     assert 'id="modal-code"' in aliado

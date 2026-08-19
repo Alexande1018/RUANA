@@ -101,7 +101,17 @@ def generar_invitacion():
         result = invitacion_service.generar_invitacion_oficio(db, codigo, oficio)
         if result.get('status') == 'error':
             return jsonify(result), 400
-        return jsonify({'status': 'success', 'codigo': result['codigo']})
+        codigo_inv = result['codigo']
+        registro_url = _registro_url_para_invitacion(codigo_inv)
+        return jsonify({
+            'status': 'success',
+            'codigo': codigo_inv,
+            'oficio': oficio,
+            'registro_url': registro_url,
+            'mensaje_compartir': invitacion_service.mensaje_compartir_invitacion_oficio(
+                oficio, codigo_inv, registro_url
+            ),
+        })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 

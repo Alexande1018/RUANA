@@ -1377,6 +1377,15 @@
             gap: 12px;
         }
 
+        #modal-invitacion-oficio .modal-actions-oficio {
+            flex-wrap: wrap;
+        }
+
+        #modal-invitacion-oficio .invite-code-value {
+            letter-spacing: 1px;
+            font-size: 1.15rem;
+        }
+
         .btn-copy {
             flex: 1;
             padding: 12px 16px;
