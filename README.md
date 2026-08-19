@@ -6,12 +6,14 @@
 
 | Campo | Valor |
 |-------|-------|
-| Fecha de auditoría | 2026-08-15 (auditoría documental completa contra código) |
-| Commit de referencia al auditar | `main` (13 blueprints, 16 services/repos, Stripe opcional) |
-| Informe de auditoría | [`docs/exports/AUDITORIA_DOCUMENTAL_2026-08-15.md`](docs/exports/AUDITORIA_DOCUMENTAL_2026-08-15.md) |
+| Fecha de auditoría | 2026-08-19 (auditoría de cierre + pytest local) |
+| Commit de referencia al auditar | `main` (21 blueprints, 36 services, 30 repos, módulo financiero FASE 04–13) |
+| Pack documentación de cierre | [`docs/HANDOFF.md`](docs/HANDOFF.md) · [`docs/PROJECT_AUDIT.md`](docs/PROJECT_AUDIT.md) |
+| Informe auditoría anterior | [`docs/exports/AUDITORIA_DOCUMENTAL_2026-08-15.md`](docs/exports/AUDITORIA_DOCUMENTAL_2026-08-15.md) |
 | Fase declarada en roadmap | pre-MVP avanzada (v0.9) |
 | Código fuente principal | `RUANA/` |
 | Hosting público verificado | Firebase Hosting → Cloud Run (`https://ruana-4293f.web.app`) |
+| Tests backend (verificado 2026-08-19) | **784 passed**, 11 skipped (`python3 -m pytest RUANA/tests -q`) |
 
 ---
 
@@ -65,7 +67,7 @@ Orden profesional territorial: un oficio principal por plaza en cada grupo, repu
 | Umbral de competencia = 15 | `ruana_reglas_v1.json` | Reinicio tras derrota: 50 |
 | Apoyo RUANA = % sobre importe | `apoyo_pct` (12.0 en config) | `pago_service` |
 | Backend-first | Flask sirve UI y API | Firebase Hosting reescribe a Cloud Run |
-| Campamento Base | 16 `services/` + 16 `repositories/` con SQL real + fachada `DBManager` | Extracción avanzada; `DBManager` sigue como compatibilidad |
+| Campamento Base | 36 `services/` + 30 `repositories/` con SQL real + fachada `DBManager` (~1.925 LOC) | Extracción avanzada; `DBManager` sigue como compatibilidad |
 
 ### ⚠️ INCONSISTENCIAS / DISCREPANCIAS DETECTADAS
 
@@ -76,7 +78,7 @@ Orden profesional territorial: un oficio principal por plaza en cada grupo, repu
 5. **Drift SQLite/Postgres:** varias tablas/columnas existen solo en init SQLite o parches runtime Postgres (`schema_service._init_postgres_schema`). No asumir paridad sin verificar migraciones.
 6. **`ingresos_ruana.apoyo_ruana_2pct`** (PG migración) vs **`contactos_ruana.apoyo_ruana`** — nombres distintos en tablas relacionadas.
 7. **Motor evaluación:** umbrales de filtros (0.70, 0.80, 6 meses) están **hardcodeados** en `motor_evaluacion.py`; no en `ruana_reglas_v1.json` (`reglas: []` vacío).
-8. **`RUANA/ruana.db` commiteado:** snapshot antiguo (25 tablas); no representa el schema actual tras `_init_db()`.
+8. **`RUANA/ruana.db` local:** generado en runtime; **gitignored** (`*.db`). No usar como referencia de schema; usar migraciones + `_init_db()`.
 
 ---
 
@@ -102,7 +104,8 @@ Leyenda: 🟢 operativo · 🟡 parcial / requiere revisión · 🔴 no implemen
 | Purga mensual | 🟡 | Lógica/endpoint existen; operación en producción `NO VERIFICADO` |
 | Auth admin Firebase | 🔴 | `PLANIFICADO` (plan en archive); vigente: credenciales hasheadas |
 | Supabase Auth / `profiles` | 🟡 | Tabla en migración; login Flask **no** usa `auth.users` |
-| Modularización Campamento Base | 🟡 | 16 services + 16 repos con SQL; `DBManager` (~1.835 LOC) sigue como fachada |
+| Módulo financiero admin (FASE 04–13) | 🟢 | 7 blueprints `financial_*` + services/repos; cron automatización |
+| Modularización Campamento Base | 🟡 | 36 services + 30 repos; `DBManager` (~1.925 LOC) sigue como fachada |
 
 ---
 
@@ -119,8 +122,8 @@ Firebase Hosting (proyecto ruana-4293f)
 Cloud Run service "ruana" (europe-west1)
   Docker: python:3.13-slim + gunicorn → web.app:app
         │
-        ├── web/app.py (455 líneas: HTML, estáticos, auth admin legacy)
-        │     └── 13 Blueprints (~166 rutas API)
+        ├── web/app.py (~525 líneas: HTML, estáticos, auth admin)
+        │     └── 21 Blueprints (~320 rutas API + rutas HTML en app.py)
         │           └── core/services/<dominio>_service.py
         │                 └── core/repositories/<dominio>_repo.py
         ├── Postgres (Supabase) vía DATABASE_URL
@@ -134,15 +137,15 @@ Cloud Run service "ruana" (europe-west1)
 |------|-------------------------------|
 | Frontend | HTML, CSS, JS vanilla en `RUANA/web/` |
 | Backend | Flask 2.3.3, Flask-Cors, PyJWT, Werkzeug, gunicorn, stripe |
-| Dominio | `RUANA/core/services/` (16 services) |
-| Persistencia | `DBManager` fachada (~1.835 líneas) + 16 repositories con SQL |
+| Dominio | `RUANA/core/services/` (36 services, incl. financiero) |
+| Persistencia | `DBManager` fachada (~1.925 líneas) + 30 repositories con SQL |
 | Constantes BD | `RUANA/core/db_constants.py` |
 | Sesiones | `RUANA/core/auth_session.py` |
-| Blueprints | 13: `admin`, `aliado`, `auth`, `catalogo`, `contactos`, `evaluacion`, `invitacion`, `negociacion`, `pagos`, `referidos`, `solicitudes`, `soporte`, `stripe_webhook` |
+| Blueprints | 21: core (`admin`, `aliado`, `auth`, `catalogo`, `contactos`, `evaluacion`, `invitacion`, `negociacion`, `pagos`, `referidos`, `solicitudes`, `solicitudes_semanales`, `soporte`, `stripe_webhook`) + financiero (`financial_admin`, `financial_automation`, `financial_conflicts`, `financial_disputes`, `financial_ledger`, `financial_reconciliation`, `financial_refunds`) |
 | BD | Postgres (psycopg) o SQLite |
 | Storage | Supabase Storage (+ fallback local con `RUANA_ALLOW_LOCAL_UPLOADS`) |
 | Hosting | Firebase Hosting → Cloud Run |
-| QA | pytest 383 tests (push/PR) + Playwright E2E (push / manual) |
+| QA | pytest **784 tests** (push/PR) + Playwright E2E (push / manual) |
 
 ### Patrón Campamento Base (verificado)
 
@@ -179,18 +182,18 @@ No hay herencia de services desde `DBManager`: es **delegación** pasando `self`
 └── RUANA/
     ├── config/                   # Reglas, oficios, ejemplos admin
     ├── core/
-    │   ├── db_manager.py         # Fachada Campamento Base (~1.835 LOC)
+    │   ├── db_manager.py         # Fachada Campamento Base (~1.925 LOC)
     │   ├── db_constants.py
     │   ├── auth_session.py
     │   ├── admin_auth.py
     │   ├── negociacion_manager.py
-    │   ├── services/             # 16 módulos de dominio
-    │   └── repositories/         # 16 repos con SQL
+    │   ├── services/             # 36 módulos de dominio (+ financiero)
+    │   └── repositories/         # 30 repos con SQL
     ├── engines/                  # Motor de evaluación v0.2
     ├── events/ / metrics/
     ├── web/
-    │   ├── app.py                # Setup Flask + HTML (~455 LOC)
-    │   ├── blueprints/           # 13 blueprints (~166 rutas API)
+    │   ├── app.py                # Setup Flask + HTML (~525 LOC)
+    │   ├── blueprints/           # 21 blueprints (~320 rutas API)
     │   ├── *.html
     │   └── static/
     ├── tests/
@@ -544,7 +547,7 @@ npm run qa:e2e
 
 ### Funcionando
 
-Registro, login, paneles, grupos/plazas, invitaciones/referidos/campañas, contactos, negociación, Apoyo con revisión, notificaciones, competencia por score, deploy cloud, **16 services + 16 repos**, CI automático pytest (**383 tests** verificados 2026-08-15).
+Registro, login, paneles, grupos/plazas, invitaciones/referidos/campañas, contactos, negociación, Apoyo con revisión, notificaciones, competencia por score, módulo financiero admin, deploy cloud, **36 services + 30 repos**, CI automático pytest (**784 tests** verificados 2026-08-19).
 
 ### Parcial
 
@@ -654,7 +657,19 @@ No se inventan hitos fuera de fuentes del repo + estado verificable del código.
 
 Índice: [`docs/README.md`](docs/README.md).
 
-- [`docs/exports/AUDITORIA_DOCUMENTAL_2026-08-15.md`](docs/exports/AUDITORIA_DOCUMENTAL_2026-08-15.md) — informe de auditoría documental
+### Pack de cierre (2026-08-19)
+
+- [`docs/HANDOFF.md`](docs/HANDOFF.md) — transferencia operativa
+- [`docs/PROJECT_AUDIT.md`](docs/PROJECT_AUDIT.md) — auditoría técnica del repositorio
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — arquitectura verificada
+- [`docs/SETUP.md`](docs/SETUP.md) — instalación y ejecución local
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — despliegue CI/CD
+- [`docs/ENVIRONMENT_VARIABLES.md`](docs/ENVIRONMENT_VARIABLES.md) — variables de entorno
+- [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md) — problemas conocidos
+
+### Deep-dives y histórico
+
+- [`docs/exports/AUDITORIA_DOCUMENTAL_2026-08-15.md`](docs/exports/AUDITORIA_DOCUMENTAL_2026-08-15.md) — informe de auditoría documental anterior
 - [`docs/flujos/registro-aliados.md`](docs/flujos/registro-aliados.md)
 - [`docs/seguridad/autenticacion-sesiones.md`](docs/seguridad/autenticacion-sesiones.md)
 - [`docs/seguridad/credenciales-admin.md`](docs/seguridad/credenciales-admin.md)
@@ -665,4 +680,18 @@ No se inventan hitos fuera de fuentes del repo + estado verificable del código.
 
 ---
 
-*Auditoría basada en inspección del repositorio actual. El README describe únicamente funcionalidades y arquitectura verificadas; lo demás está etiquetado explícitamente.*
+## 19. Handoff / mantenimiento
+
+Ver [`docs/HANDOFF.md`](docs/HANDOFF.md) para checklist de recepción, secretos, operación recurrente y deuda priorizada.
+
+## 20. Responsables o puntos de contacto
+
+**No verificado** en el repositorio. Completar en `HANDOFF.md` §11 antes de cierre comercial.
+
+## 21. Licencia
+
+**Ausente.** No existe archivo `LICENSE` en la raíz del repositorio. Tratar como *all rights reserved* hasta publicación explícita de una licencia.
+
+---
+
+*Auditoría basada en inspección del repositorio y pytest local (2026-08-19). El README describe funcionalidades verificadas; lo demás está etiquetado explícitamente.*
