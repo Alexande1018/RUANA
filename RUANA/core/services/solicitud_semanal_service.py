@@ -66,9 +66,7 @@ def _notificar_grupo_nueva_solicitud(
 
 
 def _asegurar_esquema_sol_sem(db, conn, cursor) -> None:
-    """Migración SQLite o no-op en Postgres (tablas vía Supabase)."""
-    if getattr(db, "backend", None) == "postgres":
-        return
+    """Asegura tablas de solicitudes semanales (SQLite y Postgres)."""
     try:
         db._migrar_solicitudes_semanales(conn, cursor)
     except Exception:

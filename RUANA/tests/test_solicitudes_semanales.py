@@ -327,3 +327,55 @@ def test_manipulacion_id_otro_grupo(client, sqlite_db, monkeypatch, session_head
         headers=session_headers("aliado", "PEDRO"),
     )
     assert resp.status_code == 400
+
+
+def test_migrar_solicitudes_semanales_postgres_crea_tablas():
+    from core.services import schema_service
+
+    calls = []
+
+    class FakeCursor:
+        def execute(self, sql, params=None):
+            calls.append(str(sql).strip())
+
+    db = db_module.DBManager.__new__(db_module.DBManager)
+    db.backend = "postgres"
+
+    schema_service._migrar_solicitudes_semanales(db, None, FakeCursor())
+
+    joined = "\n".join(calls)
+    assert "CREATE TABLE IF NOT EXISTS solicitudes_semanales" in joined
+    assert "CREATE TABLE IF NOT EXISTS solicitudes_semanales_respuestas" in joined
+    assert "idx_sol_sem_solicitante_semana" in joined
+
+
+def test_asegurar_esquema_sol_sem_postgres_invoca_migracion(monkeypatch):
+    calls = []
+
+    class FakeCursor:
+        pass
+
+    class FakeConn:
+        def rollback(self):
+            pass
+
+    db = db_module.DBManager.__new__(db_module.DBManager)
+    db.backend = "postgres"
+    monkeypatch.setattr(
+        db,
+        "_migrar_solicitudes_semanales",
+        lambda conn, cursor: calls.append("migrar"),
+    )
+
+    from core.services.solicitud_semanal_service import _asegurar_esquema_sol_sem
+
+    _asegurar_esquema_sol_sem(db, FakeConn(), FakeCursor())
+    assert calls == ["migrar"]
+
+
+def test_init_postgres_schema_incluye_solicitudes_semanales():
+    import inspect
+    from core.services import schema_service
+
+    source = inspect.getsource(schema_service._init_postgres_schema)
+    assert "_migrar_solicitudes_semanales" in source
