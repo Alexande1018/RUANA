@@ -239,6 +239,20 @@ def test_oficio_grupo_no_catalogo_permitido(sqlite_db):
     assert panel["propia"]["oficio"] == "Reparaciones varias"
 
 
+def test_migrar_solicitudes_semanales_no_op_en_postgres():
+  from core.services import schema_service
+
+  db = SimpleNamespace(backend="postgres")
+  llamadas = []
+
+  def _fake_migrar(conn, cursor):
+    llamadas.append(1)
+
+  db._migrar_solicitudes_semanales = _fake_migrar
+  schema_service._migrar_solicitudes_semanales(db, None, None)
+  assert llamadas == []
+
+
 def test_publicar_notifica_aliados_del_grupo(sqlite_db):
     _crear_grupo(
         sqlite_db,

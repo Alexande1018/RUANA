@@ -2266,6 +2266,8 @@ def _migrar_solicitudes_candidato(db, conn, cursor) -> None:
 
 def _migrar_solicitudes_semanales(db, conn, cursor) -> None:
     """Tablas solicitudes_semanales y solicitudes_semanales_respuestas."""
+    if getattr(db, "backend", None) == "postgres":
+        return
     try:
         _repo.execute(cursor, """
             CREATE TABLE IF NOT EXISTS solicitudes_semanales (
