@@ -310,3 +310,34 @@
     justify-content: center;
   }
 }
+
+.inicio-sol-sem {
+  margin: 1.25rem 0 0;
+  padding: 1rem 1.1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(145deg, rgba(20, 28, 40, 0.92), rgba(12, 18, 28, 0.96));
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+}
+
+.inicio-sol-sem-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.inicio-sol-sem-subtitle {
+  margin: 0 0 0.85rem;
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.inicio-sol-sem-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.sol-sem-card--inicio {
+  margin: 0;
+}

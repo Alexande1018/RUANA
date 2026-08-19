@@ -375,3 +375,42 @@ def test_aliado_catalogo_contactos_grupo_sync_modules_are_wired():
     # Bootstrap: inline define PrivatePanel; sync-module (defer) lo invoca al cargar
     assert "window.PrivatePanel = PrivatePanel" in aliado
     assert "RuanaAliadoModules.sync.bootstrapPrivatePanel()" not in aliado
+
+
+def test_solicitudes_semanales_prompt_solo_lunes_y_minimizado_persiste():
+    """El prompt semanal solo auto-abre el lunes; 'minimized' no reabre el overlay."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    sem_js = (
+        root / "static" / "js" / "aliado-solicitudes-semanales-module.js"
+    ).read_text(encoding="utf-8")
+
+    assert "function esLunesLocal()" in sem_js
+    assert "st === 'minimized' && !opts.forceFull" in sem_js
+    assert "!opts.forceFull && !esLunesLocal()" in sem_js
+    assert "forceFull: true" in sem_js
+    assert "host._solSemUiBound" in sem_js
+    assert "st === 'hidden'" in sem_js
+    assert "ocultarPromptCrear(host)" in sem_js
+    assert "mostrarMinimizado(host)" in sem_js
+
+
+def test_solicitudes_semanales_recuadro_inicio_panel():
+    """Las solicitudes semanales se acumulan en Inicio y notifican al grupo."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    sem_js = (
+        root / "static" / "js" / "aliado-solicitudes-semanales-module.js"
+    ).read_text(encoding="utf-8")
+    sync_js = (root / "static" / "js" / "aliado-sync-module.js").read_text(encoding="utf-8")
+
+    assert 'id="inicio-solicitudes-semanales-wrap"' in aliado
+    assert "Solicitudes de esta semana" in aliado
+    assert "function renderInicioSeccion(host)" in sem_js
+    assert "renderInicioSeccion: renderInicioSeccion" in sem_js or "renderInicioSeccion," in sem_js
+    assert "actualizarModalEntrante: actualizarModalEntrante" in sem_js or "actualizarModalEntrante," in sem_js
+    assert "renderInicioSeccion(host)" in sync_js
+    assert "actualizarModalEntrante(host)" in sync_js
+    assert "asegurarPromptCerradoSiPublicada(host)" in sync_js
+    assert "function asegurarPromptCerradoSiPublicada(host)" in sem_js
+    assert "ocultarPromptCrear(host)" in sem_js
+    assert "limpiarFormularioPrompt()" in sem_js

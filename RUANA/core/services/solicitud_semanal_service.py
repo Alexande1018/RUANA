@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from core.repositories.solicitud_semanal_repo import SolicitudSemanalRepo
-from core.services import catalogo_service, contacto_service, invitacion_service
+from core.services import catalogo_service, contacto_service, invitacion_service, notificacion_service
 
 _repo = SolicitudSemanalRepo()
 
@@ -24,6 +24,50 @@ def _semana_inicio_str(ref: Optional[date] = None) -> str:
 def _expira_at_str(semana_inicio: date) -> str:
     siguiente = semana_inicio + timedelta(days=7)
     return siguiente.isoformat()
+
+
+def _mensaje_solicitud_semanal_grupo(nombre_solicitante: str, oficio: str) -> str:
+    nombre = (nombre_solicitante or "Un aliado").strip()
+    oficio_txt = (oficio or "profesional").strip()
+    return f"Esta semana {nombre} necesita un {oficio_txt}."
+
+
+def _notificar_grupo_nueva_solicitud(
+    db,
+    cursor,
+    grupo_id: Any,
+    solicitante_codigo: str,
+    solicitante_nombre: str,
+    oficio: str,
+    solicitud_id: int,
+    semana_inicio: str,
+) -> None:
+    """Avisa a todos los aliados activos del grupo (excepto el solicitante)."""
+    codigos = _repo.listar_codigos_activos_grupo(
+        cursor, grupo_id, excluir_codigo=solicitante_codigo
+    )
+    if not codigos:
+        return
+    titulo = "Solicitud de esta semana"
+    mensaje = _mensaje_solicitud_semanal_grupo(solicitante_nombre, oficio)
+    metadata = {
+        "solicitud_semanal_id": int(solicitud_id),
+        "oficio": oficio,
+        "solicitante_nombre": solicitante_nombre,
+        "solicitante_codigo": solicitante_codigo,
+        "semana_inicio": semana_inicio,
+        "origen": "solicitud_semanal",
+    }
+    for codigo in codigos:
+        notificacion_service.crear_notificacion_aliado(
+            db,
+            codigo,
+            "solicitud_semanal_nueva",
+            titulo,
+            mensaje,
+            metadata=metadata,
+            cursor=cursor,
+        )
 
 
 def _expirar_vencidas(db, cursor) -> None:
@@ -158,6 +202,15 @@ def crear_solicitud_semanal(
                 permitidos = {str(o).strip() for o in catalogo if o}
                 canon = catalogo_service._resolver_en_conjunto_catalogo(db, oficio, permitidos)
                 if not canon:
+                    oficios_grupo = {
+                        str(o).strip()
+                        for o in _repo.listar_oficios_grupo_activos(cursor, grupo_id)
+                        if o
+                    }
+                    canon = catalogo_service._resolver_en_conjunto_catalogo(
+                        db, oficio, oficios_grupo
+                    )
+                if not canon:
                     return {
                         "status": "error",
                         "message": "Oficio no válido en el catálogo RUANA",
@@ -174,6 +227,16 @@ def crear_solicitud_semanal(
                 1 if es_oficio_personalizado else 0,
                 semana_str,
                 expira,
+            )
+            _notificar_grupo_nueva_solicitud(
+                db,
+                cursor,
+                grupo_id,
+                codigo,
+                nombre,
+                oficio,
+                int(sid),
+                semana_str,
             )
             conn.commit()
             return {"status": "success", "ok": True, "id": sid}

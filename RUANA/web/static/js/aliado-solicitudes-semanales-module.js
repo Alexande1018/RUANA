@@ -34,6 +34,10 @@
     return 'ruana_sol_sem_prompt_' + (semana || '');
   }
 
+  function esLunesLocal() {
+    return new Date().getDay() === 1;
+  }
+
   function formatoFecha(valor) {
     if (!valor) return '';
     var d = new Date(valor);
@@ -65,6 +69,100 @@
     return null;
   }
 
+  function textoNecesitaOficio(solicitanteNombre, oficio) {
+    return '<strong>' + escapeHtml(solicitanteNombre) + '</strong> necesita un ' + escapeHtml(oficio);
+  }
+
+  function bindAyudarButtons(root, host) {
+    if (!root) return;
+    root.querySelectorAll('.btn-sol-sem-ayudar').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = parseInt(btn.getAttribute('data-id'), 10);
+        mostrarModalRespuesta(host, id);
+      });
+    });
+  }
+
+  function crearCardSolicitud(s, host, extraClass) {
+    var card = document.createElement('article');
+    card.className = 'sol-sem-card' + (extraClass ? ' ' + extraClass : '');
+    var yaResp = s.mi_respuesta === 'puedo_ayudar' || s.mi_respuesta === 'no_puedo_ayudar' || s.mi_respuesta === 'conozco_alguien';
+    card.innerHTML =
+      '<div class="sol-sem-card-head">' +
+      '<span class="sol-sem-icon">' + iconoOficio(s.oficio) + '</span>' +
+      '<div class="sol-sem-card-text">' + textoNecesitaOficio(s.solicitante_nombre, s.oficio) +
+      '</div></div>' +
+      (s.descripcion ? '<p class="sol-sem-card-desc">' + escapeHtml(s.descripcion) + '</p>' : '') +
+      '<p class="sol-sem-card-meta">Esta semana · ' + escapeHtml(formatoFecha(s.created_at)) + '</p>' +
+      (yaResp
+        ? '<p class="sol-sem-ya-respondido">Ya respondiste a esta solicitud.</p>'
+        : '<div class="sol-sem-actions">' +
+          '<button type="button" class="btn-sol-sem-ayudar" data-id="' + s.id + '">Puedo ayudar</button>' +
+          '</div>');
+    return card;
+  }
+
+  function renderPropiaCard(propia, target) {
+    if (!target) return;
+    if (propia && propia.estado === 'activa') {
+      var count = propia.interesados_count || 0;
+      var interTxt = count > 0
+        ? '🟢 ' + count + ' aliado' + (count === 1 ? '' : 's') + ' puede' + (count === 1 ? '' : 'n') + ' ayudarte'
+        : '🟡 Buscando ayuda';
+      var interList = '';
+      if (Array.isArray(propia.interesados) && propia.interesados.length) {
+        interList = '<ul class="sol-sem-interesados">' +
+          propia.interesados.map(function (i) {
+            return '<li>' + escapeHtml(i.aliado_nombre || i.aliado_codigo) + '</li>';
+          }).join('') + '</ul>';
+      }
+      target.innerHTML =
+        '<div class="sol-sem-propia-card">' +
+        '<h4 class="sol-sem-propia-title">TU SOLICITUD</h4>' +
+        '<p class="sol-sem-propia-oficio">Necesitas: <strong>' + escapeHtml(propia.oficio) + '</strong></p>' +
+        (propia.descripcion ? '<p class="sol-sem-propia-desc">' + escapeHtml(propia.descripcion) + '</p>' : '') +
+        '<p class="sol-sem-propia-estado">' + interTxt + '</p>' +
+        interList +
+        '<p class="sol-sem-propia-meta">Publicada ' + escapeHtml(formatoFecha(propia.created_at)) + '</p>' +
+        '</div>';
+      target.hidden = false;
+    } else {
+      target.innerHTML = '';
+      target.hidden = true;
+    }
+  }
+
+  function renderInicioSeccion(host) {
+    var wrap = document.getElementById('inicio-solicitudes-semanales-wrap');
+    var lista = document.getElementById('inicio-solicitudes-semanales-list');
+    var propiaWrap = document.getElementById('inicio-solicitudes-semanales-propia');
+    if (!wrap || !lista) return;
+
+    var snap = host.solicitudesSemanales || {};
+    var activas = Array.isArray(snap.activas_grupo) ? snap.activas_grupo : [];
+
+    if (propiaWrap) {
+      propiaWrap.innerHTML = '';
+      propiaWrap.hidden = true;
+    }
+
+    lista.innerHTML = '';
+    if (!activas.length) {
+      wrap.hidden = true;
+      return;
+    }
+
+    activas.forEach(function (s) {
+      lista.appendChild(crearCardSolicitud(s, host, 'sol-sem-card--inicio'));
+    });
+    bindAyudarButtons(lista, host);
+    wrap.hidden = false;
+
+    if (global.AliadoShell && typeof global.AliadoShell.refresh === 'function') {
+      global.AliadoShell.refresh();
+    }
+  }
+
   function renderSeccion(host) {
     var lista = document.getElementById('solicitudes-semanales-list');
     var propiaWrap = document.getElementById('solicitudes-semanales-propia');
@@ -73,66 +171,19 @@
     var activas = Array.isArray(snap.activas_grupo) ? snap.activas_grupo : [];
     var propia = snap.propia;
 
-    if (propiaWrap) {
-      if (propia && propia.estado === 'activa') {
-        var count = propia.interesados_count || 0;
-        var interTxt = count > 0
-          ? '🟢 ' + count + ' aliado' + (count === 1 ? '' : 's') + ' puede' + (count === 1 ? '' : 'n') + ' ayudarte'
-          : '🟡 Buscando ayuda';
-        var interList = '';
-        if (Array.isArray(propia.interesados) && propia.interesados.length) {
-          interList = '<ul class="sol-sem-interesados">' +
-            propia.interesados.map(function (i) {
-              return '<li>' + escapeHtml(i.aliado_nombre || i.aliado_codigo) + '</li>';
-            }).join('') + '</ul>';
-        }
-        propiaWrap.innerHTML =
-          '<div class="sol-sem-propia-card">' +
-          '<h4 class="sol-sem-propia-title">TU SOLICITUD</h4>' +
-          '<p class="sol-sem-propia-oficio">Necesitas: <strong>' + escapeHtml(propia.oficio) + '</strong></p>' +
-          (propia.descripcion ? '<p class="sol-sem-propia-desc">' + escapeHtml(propia.descripcion) + '</p>' : '') +
-          '<p class="sol-sem-propia-estado">' + interTxt + '</p>' +
-          interList +
-          '<p class="sol-sem-propia-meta">Publicada ' + escapeHtml(formatoFecha(propia.created_at)) + '</p>' +
-          '</div>';
-        propiaWrap.hidden = false;
-      } else {
-        propiaWrap.innerHTML = '';
-        propiaWrap.hidden = true;
-      }
-    }
+    renderPropiaCard(propia, propiaWrap);
 
     lista.innerHTML = '';
     if (!activas.length) {
       lista.innerHTML = '<p class="solicitudes-empty">No hay solicitudes activas de otros aliados esta semana.</p>';
+      renderInicioSeccion(host);
       return;
     }
     activas.forEach(function (s) {
-      var card = document.createElement('article');
-      card.className = 'sol-sem-card';
-      var yaResp = s.mi_respuesta === 'puedo_ayudar' || s.mi_respuesta === 'no_puedo_ayudar' || s.mi_respuesta === 'conozco_alguien';
-      card.innerHTML =
-        '<div class="sol-sem-card-head">' +
-        '<span class="sol-sem-icon">' + iconoOficio(s.oficio) + '</span>' +
-        '<div class="sol-sem-card-text">' +
-        '<strong>' + escapeHtml(s.solicitante_nombre) + '</strong> necesita un ' + escapeHtml(s.oficio) +
-        '</div></div>' +
-        (s.descripcion ? '<p class="sol-sem-card-desc">' + escapeHtml(s.descripcion) + '</p>' : '') +
-        '<p class="sol-sem-card-meta">Necesidad profesional de esta semana · ' + escapeHtml(formatoFecha(s.created_at)) + '</p>' +
-        (yaResp
-          ? '<p class="sol-sem-ya-respondido">Ya respondiste a esta solicitud.</p>'
-          : '<div class="sol-sem-actions">' +
-            '<button type="button" class="btn-sol-sem-ayudar" data-id="' + s.id + '">Puedo ayudar</button>' +
-            '</div>');
-      lista.appendChild(card);
+      lista.appendChild(crearCardSolicitud(s, host, ''));
     });
-
-    lista.querySelectorAll('.btn-sol-sem-ayudar').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var id = parseInt(btn.getAttribute('data-id'), 10);
-        mostrarModalRespuesta(host, id);
-      });
-    });
+    bindAyudarButtons(lista, host);
+    renderInicioSeccion(host);
   }
 
   function ocultarOverlay(id) {
@@ -209,22 +260,59 @@
     }
   }
 
-  async function mostrarPromptCrear(host) {
+  function tieneSolicitudPropiaActiva(host) {
     var snap = host.solicitudesSemanales || {};
-    if (snap.propia && snap.propia.estado === 'activa') {
+    return !!(snap.propia && snap.propia.estado === 'activa');
+  }
+
+  function marcarPromptPublicado(host) {
+    var semana = (host.solicitudesSemanales && host.solicitudesSemanales.semana_inicio) || '';
+    if (semana) {
+      localStorage.setItem(semanaStorageKey(semana), 'hidden');
+    }
+    host._solSemPromptOculto = true;
+  }
+
+  function limpiarFormularioPrompt() {
+    setOficioSeleccionado('', false);
+    var otroInput = document.getElementById('sol-sem-otro-input');
+    var detalle = document.getElementById('sol-sem-detalle-input');
+    if (otroInput) otroInput.value = '';
+    if (detalle) detalle.value = '';
+    cerrarPickerOficios();
+  }
+
+  function asegurarPromptCerradoSiPublicada(host) {
+    if (!tieneSolicitudPropiaActiva(host) && !host._solSemPromptOculto) return;
+    marcarPromptPublicado(host);
+    ocultarPromptCrear(host);
+    limpiarFormularioPrompt();
+  }
+
+  async function mostrarPromptCrear(host, opts) {
+    opts = opts || {};
+    if (host._solSemPromptOculto || tieneSolicitudPropiaActiva(host)) {
       ocultarPromptCrear(host);
       return;
     }
+    var snap = host.solicitudesSemanales || {};
     var semana = snap.semana_inicio || '';
     var st = localStorage.getItem(semanaStorageKey(semana));
     if (st === 'hidden') {
+      ocultarPromptCrear(host);
+      return;
+    }
+    if (st === 'minimized' && !opts.forceFull) {
       mostrarMinimizado(host);
+      return;
+    }
+    if (!opts.forceFull && !esLunesLocal()) {
+      ocultarPromptCrear(host);
       return;
     }
     if (!obtenerOficiosParaPicker(host).length) {
       await fetchSnapshot(host);
     }
-    var overlay = document.getElementById('sol-sem-prompt-overlay');
     var titulo = document.getElementById('sol-sem-prompt-titulo');
     if (titulo) {
       titulo.textContent = nombreAliado(host) + ', ¿qué profesional necesitas esta semana?';
@@ -298,7 +386,11 @@
     });
     list.appendChild(otroBtn);
 
-    setOficioSeleccionado('', false);
+    if (oficios.length === 1) {
+      setOficioSeleccionado(oficios[0], false);
+    } else {
+      setOficioSeleccionado('', false);
+    }
     list.hidden = true;
 
     if (trigger && !trigger._solSemBound) {
@@ -355,14 +447,16 @@
       if (!resp.ok) {
         throw new Error(data.error || 'No se pudo publicar');
       }
-      var semana = (host.solicitudesSemanales && host.solicitudesSemanales.semana_inicio) || '';
-      localStorage.setItem(semanaStorageKey(semana), 'hidden');
       ocultarPromptCrear(host);
+      limpiarFormularioPrompt();
+      host._solSemPromptOculto = true;
       await fetchSnapshot(host);
+      marcarPromptPublicado(host);
       renderSeccion(host);
       if (typeof host.refreshAfterAction === 'function') {
         await host.refreshAfterAction(['solicitudes']);
       }
+      asegurarPromptCerradoSiPublicada(host);
     } catch (e) {
       alert(e.message || 'Error al publicar');
     } finally {
@@ -553,13 +647,16 @@
   }
 
   function bindUi(host) {
+    if (host._solSemUiBound) return;
+    host._solSemUiBound = true;
+
     var btnMin = document.getElementById('sol-sem-prompt-minimize');
     var btnPub = document.getElementById('sol-sem-btn-publicar');
     var mini = document.getElementById('sol-sem-minimized');
     if (btnMin) btnMin.addEventListener('click', function () { minimizarPrompt(host); });
     if (btnPub) btnPub.addEventListener('click', function () { publicarSolicitud(host); });
     if (mini) mini.addEventListener('click', function () {
-      mostrarPromptCrear(host);
+      mostrarPromptCrear(host, { forceFull: true });
     });
 
     var btnPuedo = document.getElementById('sol-sem-btn-puedo');
@@ -597,11 +694,10 @@
     bindUi(host);
     await fetchSnapshot(host);
     renderSeccion(host);
-    var snap = host.solicitudesSemanales || {};
-    if (!snap.propia || snap.propia.estado !== 'activa') {
-      mostrarPromptCrear(host);
+    if (tieneSolicitudPropiaActiva(host)) {
+      asegurarPromptCerradoSiPublicada(host);
     } else {
-      ocultarPromptCrear(host);
+      mostrarPromptCrear(host);
     }
     actualizarModalEntrante(host);
   }
@@ -609,7 +705,10 @@
   modules.solicitudesSemanales = {
     fetchSnapshot: fetchSnapshot,
     renderSeccion: renderSeccion,
+    renderInicioSeccion: renderInicioSeccion,
     initSemanales: initSemanales,
     mostrarPromptCrear: mostrarPromptCrear,
+    actualizarModalEntrante: actualizarModalEntrante,
+    asegurarPromptCerradoSiPublicada: asegurarPromptCerradoSiPublicada,
   };
 })(typeof window !== 'undefined' ? window : this);
