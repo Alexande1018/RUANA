@@ -48,6 +48,12 @@ gcloud secrets add-iam-policy-binding "$SECRET_NAME" \
   --project "$PROJECT_ID" \
   --quiet >/dev/null
 
+gcloud secrets add-iam-policy-binding "$SECRET_NAME" \
+  --member="serviceAccount:${RUNTIME_SA}" \
+  --role="roles/secretmanager.secretVersionAdder" \
+  --project "$PROJECT_ID" \
+  --quiet >/dev/null
+
 echo "Secreto actualizado en Secret Manager."
 
 if gcloud run services describe "$SERVICE" --region "$REGION" --project "$PROJECT_ID" >/dev/null 2>&1; then

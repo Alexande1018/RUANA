@@ -8,7 +8,7 @@ assignees: ''
 
 ## Contexto
 
-El puente actual (GitHub Secret → GCP → Cloud Run) resuelve la exposición de contraseñas en el repo, pero no escala para equipos ni permite cambiar contraseña sin redeploy.
+El puente actual (GitHub Secret bootstrap → GCP Secret Manager → Cloud Run) resuelve la exposición de contraseñas en el repo. El panel ya puede persistir el cambio de contraseña en Secret Manager; sigue sin escalar para equipos ni roles.
 
 **Plan completo:** `docs/superpowers/plans/2026-07-27-admin-firebase-auth-migration.md`
 
@@ -35,5 +35,5 @@ El puente actual (GitHub Secret → GCP → Cloud Run) resuelve la exposición d
 
 ## Referencias
 
-- Puente actual: `docs/ADMIN_CREDENTIALS_SETUP.md`
+- Puente actual: `docs/seguridad/credenciales-admin.md`
 - Código puente: `RUANA/core/admin_auth.py` (marcado como temporal)

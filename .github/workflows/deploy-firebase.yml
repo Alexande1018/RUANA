@@ -5,6 +5,12 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      force_admin_credentials_sync:
+        description: Sobrescribir Secret Manager con el GitHub Secret RUANA_ADMIN_CREDENTIALS_JSON
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: firebase-production
@@ -60,6 +66,7 @@ jobs:
       - name: Sync admin credentials to Secret Manager
         env:
           ADMIN_CREDENTIALS_JSON: ${{ secrets.RUANA_ADMIN_CREDENTIALS_JSON }}
+          FORCE_ADMIN_CREDENTIALS_SYNC: ${{ github.event.inputs.force_admin_credentials_sync || 'false' }}
         run: bash .github/scripts/sync-admin-credentials-gcp.sh
 
       - name: Sync SMTP password to Secret Manager

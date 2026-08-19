@@ -3,6 +3,7 @@
 .env
 .env.*
 .local-secrets
+RUANA/config/admin_credentials.qa.json
 .firebaserc
 firebase-public
 
