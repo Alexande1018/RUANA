@@ -219,6 +219,9 @@
             background: rgba(34, 197, 94, 0.06);
             border: 1px solid rgba(34, 197, 94, 0.18);
         }
+        .grupo-crecimiento-card--inicio {
+            margin: 0 0 20px;
+        }
         .grupo-crecimiento-lead {
             font-weight: 600;
             color: #e8e8e8;
