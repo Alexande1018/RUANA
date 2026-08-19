@@ -14,6 +14,7 @@ import sqlite3
 from typing import Any, Dict, List, Optional
 
 from core.repositories.invitacion_repo import InvitacionRepo
+from core.services import score_service
 
 _repo = InvitacionRepo()
 
@@ -446,8 +447,12 @@ def consumir_invitacion_oficio(db, codigo: str, nuevo_aliado_codigo: str) -> boo
             if estado == 'pendiente':
                 _repo.marcar_invitacion_oficio_usada(cursor, nuevo_aliado_codigo, invitacion_id)
                 if not ya_registrado:
-                    db.aplicar_cambio_score(
-                        codigo_invitador, db.REGLA9_DELTA, 'invitacion_oficio_usada'
+                    # Mismo cursor: evitar bloqueo SQLite de una segunda conexión.
+                    score_service.aplicar_cambio_score(
+                        cursor,
+                        codigo_aliado=codigo_invitador,
+                        delta=db.REGLA9_DELTA,
+                        motivo='invitacion_oficio_usada',
                     )
             elif estado == 'usado' and not ya_registrado:
                 _repo.update_codigo_referido_oficio_si_vacio(

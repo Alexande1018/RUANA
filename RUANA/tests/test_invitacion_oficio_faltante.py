@@ -250,6 +250,7 @@ def test_tras_consumir_se_puede_generar_otro_codigo_si_sigue_faltante(
     assert second["codigo"] != codigo1
     rows = _contar_invitaciones_oficio(sqlite_db, aliado["grupo_id"], oficio)
     assert len(rows) == 2
+    assert int(sqlite_db.obtener_aliado_por_codigo("81006")["score"]) == 50 + sqlite_db.REGLA9_DELTA
 
 
 def test_mensaje_compartir_invitacion_oficio_contrato():
