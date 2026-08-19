@@ -239,6 +239,38 @@ def test_oficio_grupo_no_catalogo_permitido(sqlite_db):
     assert panel["propia"]["oficio"] == "Reparaciones varias"
 
 
+def test_publicar_notifica_aliados_del_grupo(sqlite_db):
+    _crear_grupo(
+        sqlite_db,
+        "Grupo notif",
+        "03014",
+        [
+            ("JAIME", "Pedro", "Electricidad"),
+            ("MARTA", "Marta", "Fontanería y fontanería-gas"),
+            ("LUIS", "Luis", "Carpintería de madera e interior"),
+        ],
+    )
+    r = solicitud_semanal_service.crear_solicitud_semanal(
+        sqlite_db,
+        "JAIME",
+        "Electricidad",
+        "Instalación urgente",
+        es_oficio_personalizado=False,
+    )
+    assert r["status"] == "success"
+
+    for codigo in ("MARTA", "LUIS"):
+        notifs = sqlite_db.listar_notificaciones_aliado(codigo, limite=10)
+        match = [n for n in notifs if n.get("tipo") == "solicitud_semanal_nueva"]
+        assert len(match) == 1
+        assert "Pedro" in match[0]["mensaje"]
+        assert "Electricidad" in match[0]["mensaje"]
+        assert match[0]["metadata"]["solicitud_semanal_id"] == r["id"]
+
+    propias = sqlite_db.listar_notificaciones_aliado("JAIME", limite=10)
+    assert not any(n.get("tipo") == "solicitud_semanal_nueva" for n in propias)
+
+
 def test_oficio_personalizado_otro(sqlite_db):
     _crear_grupo(
         sqlite_db,

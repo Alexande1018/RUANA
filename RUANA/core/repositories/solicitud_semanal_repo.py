@@ -259,3 +259,26 @@ class SolicitudSemanalRepo:
             (grupo_id,),
         )
         return [r[0].strip() for r in cursor.fetchall() if r[0]]
+
+    def listar_codigos_activos_grupo(
+        self, cursor, grupo_id: Any, excluir_codigo: Optional[str] = None
+    ) -> List[str]:
+        if excluir_codigo:
+            cursor.execute(
+                """
+                SELECT codigo FROM aliados
+                WHERE grupo_id = ? AND estado = 'activo' AND codigo != ?
+                ORDER BY nombre
+                """,
+                (grupo_id, excluir_codigo),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT codigo FROM aliados
+                WHERE grupo_id = ? AND estado = 'activo'
+                ORDER BY nombre
+                """,
+                (grupo_id,),
+            )
+        return [str(r[0]).strip() for r in cursor.fetchall() if r[0]]

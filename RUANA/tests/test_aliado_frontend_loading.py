@@ -392,3 +392,21 @@ def test_solicitudes_semanales_prompt_solo_lunes_y_minimizado_persiste():
     assert "st === 'hidden'" in sem_js
     assert "ocultarPromptCrear(host)" in sem_js
     assert "mostrarMinimizado(host)" in sem_js
+
+
+def test_solicitudes_semanales_recuadro_inicio_panel():
+    """Las solicitudes semanales se acumulan en Inicio y notifican al grupo."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    sem_js = (
+        root / "static" / "js" / "aliado-solicitudes-semanales-module.js"
+    ).read_text(encoding="utf-8")
+    sync_js = (root / "static" / "js" / "aliado-sync-module.js").read_text(encoding="utf-8")
+
+    assert 'id="inicio-solicitudes-semanales-wrap"' in aliado
+    assert "Solicitudes de esta semana" in aliado
+    assert "function renderInicioSeccion(host)" in sem_js
+    assert "renderInicioSeccion: renderInicioSeccion" in sem_js or "renderInicioSeccion," in sem_js
+    assert "actualizarModalEntrante: actualizarModalEntrante" in sem_js or "actualizarModalEntrante," in sem_js
+    assert "renderInicioSeccion(host)" in sync_js
+    assert "actualizarModalEntrante(host)" in sync_js

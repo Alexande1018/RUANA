@@ -10,6 +10,7 @@
         '#inicio-identity': 'inicio',
         '.inicio-quick-grid': 'inicio',
         '#inicio-tasks': 'inicio',
+        '#inicio-solicitudes-semanales-wrap': 'inicio',
         '.metricas-block': 'inicio',
         '#metrica-card-score': 'inicio',
         '#inicio-score-pill': 'inicio',
@@ -290,6 +291,23 @@
             });
         }
 
+        const panel = global.PrivatePanel;
+        if (panel && panel.solicitudesSemanales && Array.isArray(panel.solicitudesSemanales.activas_grupo)) {
+            const pendientesSem = panel.solicitudesSemanales.activas_grupo.filter(function (s) {
+                return !s.mi_respuesta;
+            });
+            if (pendientesSem.length > 0) {
+                tasks.push({
+                    text: pendientesSem.length === 1
+                        ? '1 solicitud de esta semana sin responder'
+                        : pendientesSem.length + ' solicitudes de esta semana sin responder',
+                    action: 'inicio',
+                    label: 'Ver ahora',
+                    scrollSolSem: true,
+                });
+            }
+        }
+
         list.innerHTML = '';
         if (!tasks.length) {
             empty.hidden = false;
@@ -309,6 +327,11 @@
                     return;
                 }
                 showModule(task.action);
+                if (task.scrollSolSem) {
+                    const block = qs('#inicio-solicitudes-semanales-wrap');
+                    if (block) block.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    return;
+                }
                 if (task.scrollAlerts) {
                     const alerts = qs('.aliado-shell-alerts');
                     if (alerts) alerts.scrollIntoView({ behavior: 'smooth', block: 'start' });
