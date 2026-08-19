@@ -357,6 +357,10 @@ class DBManager:
         """Fachada Campamento Base → schema_service._migrar_solicitudes_candidato."""
         return schema_service._migrar_solicitudes_candidato(self, conn, cursor)
 
+    def _migrar_solicitudes_semanales(self, conn, cursor) -> None:
+        """Fachada Campamento Base → schema_service._migrar_solicitudes_semanales."""
+        return schema_service._migrar_solicitudes_semanales(self, conn, cursor)
+
     ORIGEN_REFERIDO_LABELS: Dict[str, str] = {
         'aliado': 'Invitación de aliado',
         'ampliar_red': 'Ampliar mi red',
