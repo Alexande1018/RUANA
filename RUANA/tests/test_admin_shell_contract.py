@@ -9,6 +9,7 @@ def test_admin_shell_assets_linked():
     assert 'href="/static/css/admin-ops-identity.css' in text
     assert 'src="/static/js/admin-shell.js"' in text
     assert 'src="/static/js/admin-command-center-module.js"' in text
+    assert 'src="/static/js/admin-score-bands-module.js"' in text
 
 
 def test_admin_shell_js_exports_api():

@@ -419,31 +419,14 @@
         var chartEl = document.getElementById('scores-eval-chart');
         if (!grid) return;
         var aliados = (host && host._aliadosData) || [];
-        var buckets = { alto: 0, medio: 0, bajo: 0, riesgo: 0 };
-        var enRiesgo = 0;
-        aliados.forEach(function (a) {
-            var s = Number(a.score_panel != null ? a.score_panel : a.score) || 0;
-            if (s >= 400) buckets.alto++;
-            else if (s >= 250) buckets.medio++;
-            else if (s >= 100) buckets.bajo++;
-            else buckets.riesgo++;
-            if (a.estado_panel === 'riesgo') enRiesgo++;
-        });
-        grid.innerHTML =
-            '<div class="score-stat-card"><strong>' + buckets.alto + '</strong><span>Score alto (400+)</span></div>' +
-            '<div class="score-stat-card"><strong>' + buckets.medio + '</strong><span>Score medio</span></div>' +
-            '<div class="score-stat-card"><strong>' + buckets.bajo + '</strong><span>Score bajo</span></div>' +
-            '<div class="score-stat-card"><strong>' + buckets.riesgo + '</strong><span>En riesgo (&lt;100)</span></div>' +
-            '<div class="score-stat-card"><strong>' + enRiesgo + '</strong><span>Estado panel: riesgo</span></div>';
+        var bands = global.RuanaAdminScoreBands;
+        if (!bands) return;
+        var buckets = bands.scoreRuanaBuckets(aliados);
+        grid.innerHTML = bands.statCardsHtml(buckets);
         if (chartEl && global.RuanaAdminCharts) {
             global.RuanaAdminCharts.renderDonutChart(chartEl, {
                 title: 'Distribución de scores en la red',
-                segments: [
-                    { label: 'Alto', value: buckets.alto, color: '#a2ff00' },
-                    { label: 'Medio', value: buckets.medio, color: '#5ecf9a' },
-                    { label: 'Bajo', value: buckets.bajo, color: '#e8c468' },
-                    { label: 'Riesgo', value: buckets.riesgo, color: '#d4926e' }
-                ]
+                segments: bands.donutSegments(buckets)
             });
         }
     }

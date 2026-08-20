@@ -284,3 +284,25 @@ def test_admin_inline_fetch_budget_and_module_coverage():
     assert "activarAliadoPendiente" in red
     assert "mod.cargarDesdeApi(this)" in admin
     assert "mod.setupEventListeners(this)" in admin
+
+
+def test_admin_score_bands_match_motor_ruana():
+    """Distribución de scores admin usa las mismas bandas que score_service (350/200/50/15)."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    admin = (root / "admin.html").read_text(encoding="utf-8")
+    bands_js = (root / "static" / "js" / "admin-score-bands-module.js").read_text(encoding="utf-8")
+    red_ex = (root / "static" / "js" / "admin-red-explorer-module.js").read_text(encoding="utf-8")
+    cc = (root / "static" / "js" / "admin-command-center-module.js").read_text(encoding="utf-8")
+
+    assert 'src="/static/js/admin-score-bands-module.js"' in admin
+    assert "RuanaAdminScoreBands" in bands_js
+    assert "if (s >= 350) return 'elite';" in bands_js
+    assert "if (s >= 200) return 'destacado';" in bands_js
+    assert "if (s >= 50) return 'estable';" in bands_js
+    assert "if (s >= 15) return 'en_riesgo';" in bands_js
+    assert "return 'competencia';" in bands_js
+    assert "Score alto (400+)" not in red_ex
+    assert "s >= 400" not in red_ex
+    assert "s >= 250" not in cc
+    assert "RuanaAdminScoreBands" in red_ex
+    assert "RuanaAdminScoreBands" in cc

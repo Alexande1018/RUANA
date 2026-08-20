@@ -81,15 +81,9 @@
     }
 
     function scoreBuckets(aliados) {
-        var buckets = { alto: 0, medio: 0, bajo: 0, riesgo: 0 };
-        (aliados || []).forEach(function (a) {
-            var s = Number(a.score_panel != null ? a.score_panel : a.score) || 0;
-            if (s >= 400) buckets.alto++;
-            else if (s >= 250) buckets.medio++;
-            else if (s >= 100) buckets.bajo++;
-            else buckets.riesgo++;
-        });
-        return buckets;
+        var bands = global.RuanaAdminScoreBands;
+        if (!bands) return { elite: 0, destacado: 0, estable: 0, en_riesgo: 0, competencia: 0 };
+        return bands.scoreRuanaBuckets(aliados);
     }
 
     function groupByCp(aliados) {
@@ -212,8 +206,9 @@
         var eventos = payload && payload.eventos ? payload.eventos : [];
         var incidencias = payload && payload.incidencias ? payload.incidencias : [];
         var competencias = payload && payload.competencias ? payload.competencias : [];
+        var scoreBands = global.RuanaAdminScoreBands;
         var aliadosEnRiesgo = aliados.filter(function (a) {
-            return (a.estado_panel === 'riesgo') || Number(a.score_panel || a.score) < 100;
+            return scoreBands && scoreBands.isEnRiesgo(a);
         });
 
         var kpiStrip = document.getElementById('cc-kpi-strip');
@@ -268,14 +263,17 @@
         });
 
         var buckets = scoreBuckets(aliados);
+        var scoreNav = '#scores-evaluaciones-wrap';
         charts.renderDonutChart(document.getElementById('cc-chart-scores'), {
             title: 'Distribución de scores',
-            segments: [
-                { label: 'Alto (400+)', value: buckets.alto, color: '#a2ff00', nav: '#scores-evaluaciones-wrap' },
-                { label: 'Medio', value: buckets.medio, color: '#5ecf9a', nav: '#scores-evaluaciones-wrap' },
-                { label: 'Bajo', value: buckets.bajo, color: '#e8c468', nav: '#scores-evaluaciones-wrap' },
-                { label: 'Riesgo', value: buckets.riesgo, color: '#d4926e', nav: '#scores-evaluaciones-wrap' }
-            ]
+            segments: scoreBands ? scoreBands.BANDS.map(function (band) {
+                return {
+                    label: band.label,
+                    value: buckets[band.key] || 0,
+                    color: band.color,
+                    nav: scoreNav
+                };
+            }) : []
         });
 
         var cpGroups = groupByCp(aliados).slice(0, 8);
