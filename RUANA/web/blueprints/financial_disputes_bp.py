@@ -14,6 +14,7 @@ from core.dispute_authorization import (
 )
 from core.services import financial_dispute_service as fds
 from web.auth_decorators import _admin_codigo, require_dispute_permission
+from web.financial_rate_limit import limit_financial_mutation
 
 financial_disputes_bp = Blueprint("financial_disputes", __name__)
 
@@ -67,6 +68,7 @@ def listar_por_contacto(contacto_id: int):
 @financial_disputes_bp.route(f"{_BASE_EN}/<int:dispute_id>/transicion", methods=["POST"])
 @financial_disputes_bp.route(f"{_BASE_ES}/<int:dispute_id>/transicion", methods=["POST"])
 @require_dispute_permission(DISPUTE_INVESTIGATE)
+@limit_financial_mutation
 def transicion_disputa(dispute_id: int):
     data = _json_body()
     estado = (data.get("estado_interno") or "").strip()
@@ -81,6 +83,7 @@ def transicion_disputa(dispute_id: int):
 @financial_disputes_bp.route(f"{_BASE_EN}/<int:dispute_id>/evidencias", methods=["POST"])
 @financial_disputes_bp.route(f"{_BASE_ES}/<int:dispute_id>/evidencias", methods=["POST"])
 @require_dispute_permission(DISPUTE_ADD_EVIDENCE)
+@limit_financial_mutation
 def agregar_evidencia(dispute_id: int):
     data = _json_body()
     tipo = (data.get("tipo") or "").strip()
@@ -96,6 +99,7 @@ def agregar_evidencia(dispute_id: int):
 @financial_disputes_bp.route(f"{_BASE_EN}/<int:dispute_id>/enviar-evidencia", methods=["POST"])
 @financial_disputes_bp.route(f"{_BASE_ES}/<int:dispute_id>/enviar-evidencia", methods=["POST"])
 @require_dispute_permission(DISPUTE_SUBMIT_EVIDENCE)
+@limit_financial_mutation
 def enviar_evidencia(dispute_id: int):
     data = _json_body()
     key = _idempotency_key(data)
@@ -111,6 +115,7 @@ def enviar_evidencia(dispute_id: int):
 @financial_disputes_bp.route(f"{_BASE_EN}/<int:dispute_id>/vincular-conflicto", methods=["POST"])
 @financial_disputes_bp.route(f"{_BASE_ES}/<int:dispute_id>/vincular-conflicto", methods=["POST"])
 @require_dispute_permission(DISPUTE_INVESTIGATE)
+@limit_financial_mutation
 def vincular_conflicto(dispute_id: int):
     data = _json_body()
     conflicto_id = data.get("conflicto_id")

@@ -3,11 +3,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from core.financial.money import comision_ruana_cents, importe_bd_a_cents
+
 RECONCILER_VERSION = "fase07-1"
-
-
-def comision_ruana_cents(importe_bruto_cents: int) -> int:
-    return (int(importe_bruto_cents) * 12) // 100
 
 
 def empty_snapshot() -> Dict[str, Any]:
@@ -48,8 +46,8 @@ def empty_snapshot() -> Dict[str, Any]:
 def build_ruana_snapshot(contacto: Dict[str, Any]) -> Dict[str, Any]:
     snap = empty_snapshot()
     cid = int(contacto.get("id") or 0)
-    bruto = int(round(float(contacto.get("importe_acordado") or contacto.get("importe_final") or 0) * 100))
-    neto_pro = int(round(float(contacto.get("importe_neto_profesional") or 0) * 100))
+    bruto = importe_bd_a_cents(contacto.get("importe_acordado") or contacto.get("importe_final"))
+    neto_pro = importe_bd_a_cents(contacto.get("importe_neto_profesional"))
     comision = comision_ruana_cents(bruto)
     snap["identidad"]["contacto_id"] = cid
     snap["identidad"]["payment_intent_id"] = str(contacto.get("stripe_payment_intent_id") or "")

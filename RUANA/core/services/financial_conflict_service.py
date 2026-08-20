@@ -12,6 +12,7 @@ from core.financial.conflict_estados import (
 )
 from core.financial.conflict_state_machine import ConflictStateMachine
 from core.financial.estados import EstadoFinanciero
+from core.financial.money import cents_a_importe_bd, importe_bd_a_cents
 from core.financial.state_machine import TransicionBloqueadaError, TransicionInvalidaError
 from core.repositories.financial_conflict_repo import FinancialConflictRepo
 from core.repositories.financial_transaction_repo import FinancialTransactionRepo
@@ -105,11 +106,16 @@ def abrir_conflicto(
             if sol_id is None or prof_id is None:
                 return {"status": "error", "message": "Partes no identificadas"}
 
-            imp_con = float(contacto.get("importe_final") or contacto.get("importe_acordado") or 0)
-            imp_prof = float(contacto.get("importe_neto_profesional") or imp_con)
+            imp_con = cents_a_importe_bd(
+                importe_bd_a_cents(contacto.get("importe_final") or contacto.get("importe_acordado"))
+            )
+            imp_prof = cents_a_importe_bd(
+                importe_bd_a_cents(contacto.get("importe_neto_profesional") or imp_con)
+            )
             if not importe_reclamado_cents:
-                base = float(contacto.get("importe_neto_profesional") or contacto.get("importe_final") or imp_con)
-                importe_reclamado_cents = int(round(base * 100))
+                importe_reclamado_cents = importe_bd_a_cents(
+                    contacto.get("importe_neto_profesional") or contacto.get("importe_final") or imp_con
+                )
 
             claim, conflicto = _repo.insertar_conflicto(
                 cursor,
@@ -731,8 +737,7 @@ def _validar_importes_resolucion(
     neto_cents = 0
     if fin:
         d = dict(fin) if hasattr(fin, "keys") else {}
-        neto = float(d.get("importe_neto_profesional") or 0)
-        neto_cents = int(round(neto * 100))
+        neto_cents = importe_bd_a_cents(d.get("importe_neto_profesional"))
 
     if resolucion == ResolucionConflicto.LIBERAR_PROFESIONAL:
         if liberar <= 0:

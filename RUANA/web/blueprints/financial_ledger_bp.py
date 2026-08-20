@@ -10,6 +10,7 @@ from core.ledger_authorization import LEDGER_ADJUST, LEDGER_RECONCILE, LEDGER_VI
 from core.services import financial_ledger_reconciliation_service as flrs
 from core.services import financial_ledger_service as fls
 from web.auth_decorators import _admin_codigo, require_ledger_permission
+from web.financial_rate_limit import limit_financial_mutation
 
 financial_ledger_bp = Blueprint("financial_ledger", __name__)
 
@@ -71,6 +72,7 @@ def listar_huerfanos():
 @financial_ledger_bp.route(f"{_BASE_EN}/transacciones/<int:transaction_id>/anular", methods=["POST"])
 @financial_ledger_bp.route(f"{_BASE_ES}/transacciones/<int:transaction_id>/anular", methods=["POST"])
 @require_ledger_permission(LEDGER_VOID)
+@limit_financial_mutation
 def anular_transaccion(transaction_id: int):
     data = request.get_json(silent=True) or {}
     motivo = (data.get("motivo") or "").strip()
@@ -87,6 +89,7 @@ def anular_transaccion(transaction_id: int):
 @financial_ledger_bp.route(f"{_BASE_EN}/ajuste", methods=["POST"])
 @financial_ledger_bp.route(f"{_BASE_ES}/ajuste", methods=["POST"])
 @require_ledger_permission(LEDGER_ADJUST)
+@limit_financial_mutation
 def ajuste_admin():
     data = request.get_json(silent=True) or {}
     key = (data.get("idempotency_key") or "").strip()

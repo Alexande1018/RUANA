@@ -7,6 +7,11 @@ from typing import Any, Dict, Optional, Tuple
 
 from core import stripe_client
 from core.financial.estados import EstadoFinanciero, EstadoTransferencia
+from core.financial.money import (
+    cents_a_importe_bd,
+    calcular_desglose_stripe_cents,
+    importe_bd_a_cents,
+)
 from core.financial.state_machine import FinancialStateMachine
 from core.repositories.financial_transaction_repo import FinancialTransactionRepo
 from core.repositories.financial_transfer_repo import FinancialTransferRepo
@@ -312,7 +317,9 @@ def finalizar_transferencia_completada(
             _transfer_repo.marcar_completada(cursor, contacto_id)
             _pago_repo.marcar_transfer_stripe_completado(cursor, contacto_id, transfer_id)
 
-            neto_val = float(contacto.get("importe_neto_profesional") or 0)
+            neto_val = cents_a_importe_bd(
+                importe_bd_a_cents(contacto.get("importe_neto_profesional"))
+            )
             prof_codigo = str(contacto.get("profesional_codigo") or "").strip()
             solicitante = str(contacto.get("solicitante_codigo") or "").strip()
 
@@ -338,7 +345,7 @@ def finalizar_transferencia_completada(
                 db,
                 contacto_id=contacto_id,
                 transfer_id=transfer_id,
-                importe_cents=int(round(neto_val * 100)),
+                importe_cents=importe_bd_a_cents(neto_val),
             )
 
             pago_service._aplicar_score_tras_transfer(db, contacto_id, solicitante, prof_codigo)
@@ -493,18 +500,17 @@ def _validar_precondiciones(
             "bloqueo": "connect",
         }
 
-    neto = contacto.get("importe_neto_profesional")
-    importe_bruto = float(contacto.get("importe_final") or contacto.get("importe_acordado") or 0)
-    if neto is None and importe_bruto > 0:
-        from core.services.pago_service import _calcular_importes_stripe
-        _, _, neto, _ = _calcular_importes_stripe(importe_bruto, db)
-    neto_val = round(float(neto or 0), 2)
-    if neto_val <= 0:
+    neto_cents = importe_bd_a_cents(contacto.get("importe_neto_profesional"))
+    bruto_cents = importe_bd_a_cents(
+        contacto.get("importe_final") or contacto.get("importe_acordado")
+    )
+    if neto_cents <= 0 and bruto_cents > 0:
+        _, _, neto_cents, _ = calcular_desglose_stripe_cents(bruto_cents)
+    neto_val = cents_a_importe_bd(neto_cents)
+    if neto_cents <= 0:
         return {"status": "error", "message": "Importe neto del profesional no válido", "bloqueo": "importe"}
 
-    amount_cents = int(round(neto_val * 100))
-    if amount_cents <= 0:
-        return {"status": "error", "message": "Importe en céntimos no válido", "bloqueo": "importe"}
+    amount_cents = neto_cents
 
     if estado_actual in (
         EstadoFinanciero.PAGO_CANCELADO,

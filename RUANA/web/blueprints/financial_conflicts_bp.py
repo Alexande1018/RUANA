@@ -25,6 +25,7 @@ from core.conflict_authorization import (
 from core.financial.conflict_estados import EstadoConflicto, ResolucionConflicto, TipoConflicto
 from core.services import financial_conflict_service as fcs
 from web.auth_decorators import _admin_codigo, require_conflict_permission
+from web.financial_rate_limit import limit_financial_mutation
 
 financial_conflicts_bp = Blueprint("financial_conflicts", __name__)
 
@@ -112,6 +113,7 @@ def detalle_conflicto(conflict_id: int):
 @financial_conflicts_bp.route(_BASE_EN, methods=["POST"])
 @financial_conflicts_bp.route(_BASE_ES, methods=["POST"])
 @require_conflict_permission(CONFLICT_INVESTIGATE)
+@limit_financial_mutation
 def abrir_conflicto():
     """POST /api/admin/financial-conflicts — abre conflicto formal."""
     data = _json_body()
@@ -142,6 +144,7 @@ def abrir_conflicto():
 @financial_conflicts_bp.route(f"{_BASE_EN}/<int:conflict_id>/asignar", methods=["POST"])
 @financial_conflicts_bp.route(f"{_BASE_ES}/<int:conflict_id>/asignar", methods=["POST"])
 @require_conflict_permission(CONFLICT_INVESTIGATE)
+@limit_financial_mutation
 def asignar_responsable(conflict_id: int):
     data = _json_body()
     version = _version(data)
@@ -161,6 +164,7 @@ def asignar_responsable(conflict_id: int):
 @financial_conflicts_bp.route(f"{_BASE_EN}/<int:conflict_id>/investigar", methods=["POST"])
 @financial_conflicts_bp.route(f"{_BASE_ES}/<int:conflict_id>/investigar", methods=["POST"])
 @require_conflict_permission(CONFLICT_INVESTIGATE)
+@limit_financial_mutation
 def pasar_en_investigacion(conflict_id: int):
     data = _json_body()
     version = _version(data)
@@ -182,6 +186,7 @@ def pasar_en_investigacion(conflict_id: int):
     f"{_BASE_ES}/<int:conflict_id>/solicitar-evidencia", methods=["POST"],
 )
 @require_conflict_permission(CONFLICT_REQUEST_EVIDENCE)
+@limit_financial_mutation
 def solicitar_evidencia(conflict_id: int):
     data = _json_body()
     version = _version(data)
@@ -201,6 +206,7 @@ def solicitar_evidencia(conflict_id: int):
 @financial_conflicts_bp.route(f"{_BASE_EN}/<int:conflict_id>/evidencias", methods=["POST"])
 @financial_conflicts_bp.route(f"{_BASE_ES}/<int:conflict_id>/evidencias", methods=["POST"])
 @require_conflict_permission(CONFLICT_ADD_EVIDENCE)
+@limit_financial_mutation
 def anadir_evidencia(conflict_id: int):
     data = _json_body()
     tipo = (data.get("tipo") or "").strip()
@@ -224,6 +230,7 @@ def anadir_evidencia(conflict_id: int):
 @financial_conflicts_bp.route(f"{_BASE_EN}/<int:conflict_id>/comentarios", methods=["POST"])
 @financial_conflicts_bp.route(f"{_BASE_ES}/<int:conflict_id>/comentarios", methods=["POST"])
 @require_conflict_permission(CONFLICT_COMMENT)
+@limit_financial_mutation
 def anadir_comentario(conflict_id: int):
     data = _json_body()
     texto = (data.get("texto") or "").strip()
@@ -242,6 +249,7 @@ def anadir_comentario(conflict_id: int):
 @financial_conflicts_bp.route(f"{_BASE_EN}/<int:conflict_id>/resolver", methods=["POST"])
 @financial_conflicts_bp.route(f"{_BASE_ES}/<int:conflict_id>/resolver", methods=["POST"])
 @require_conflict_permission(CONFLICT_RESOLVE)
+@limit_financial_mutation
 def resolver_conflicto(conflict_id: int):
     data = _json_body()
     resolucion_raw = (data.get("resolucion") or "").strip().upper()
@@ -281,6 +289,7 @@ def resolver_conflicto(conflict_id: int):
 @financial_conflicts_bp.route(f"{_BASE_EN}/<int:conflict_id>/escalar", methods=["POST"])
 @financial_conflicts_bp.route(f"{_BASE_ES}/<int:conflict_id>/escalar", methods=["POST"])
 @require_conflict_permission(CONFLICT_ESCALATE)
+@limit_financial_mutation
 def escalar_conflicto(conflict_id: int):
     data = _json_body()
     version = _version(data)
@@ -301,6 +310,7 @@ def escalar_conflicto(conflict_id: int):
 @financial_conflicts_bp.route(f"{_BASE_EN}/<int:conflict_id>/cerrar", methods=["POST"])
 @financial_conflicts_bp.route(f"{_BASE_ES}/<int:conflict_id>/cerrar", methods=["POST"])
 @require_conflict_permission(CONFLICT_CLOSE)
+@limit_financial_mutation
 def cerrar_conflicto(conflict_id: int):
     data = _json_body()
     version = _version(data)

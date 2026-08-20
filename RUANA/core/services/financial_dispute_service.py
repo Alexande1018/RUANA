@@ -14,6 +14,7 @@ from core.dispute_authorization import (
     DISPUTE_SUBMIT_EVIDENCE,
 )
 from core.financial.discrepancia import TipoDiscrepancia
+from core.financial.money import importe_bd_a_cents
 from core.financial.dispute_estados import (
     EstadoDisputa,
     TipoEvidenciaDisputa,
@@ -613,8 +614,7 @@ def _importe_cobrado_cents(db, contacto_id: int) -> int:
             if not row:
                 return 0
             d = dict(row)
-            bruto = float(d.get("importe_acordado") or d.get("importe_final") or 0)
-            return int(round(bruto * 100))
+            return importe_bd_a_cents(d.get("importe_acordado") or d.get("importe_final"))
         finally:
             conn.close()
 

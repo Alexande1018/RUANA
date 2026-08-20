@@ -9,6 +9,7 @@ from core import db_manager as db_manager_mod
 from core.reconciliation_authorization import RECON_EXECUTE, RECON_RESOLVE, RECON_VIEW
 from core.services import financial_reconciliation_advanced_service as fras
 from web.auth_decorators import _admin_codigo, require_reconciliation_permission
+from web.financial_rate_limit import limit_financial_mutation
 
 financial_reconciliation_bp = Blueprint("financial_reconciliation", __name__)
 
@@ -46,6 +47,7 @@ def financial_reconciliation_bp_health():
 @financial_reconciliation_bp.route(f"{_BASE_EN}/contacto/<int:contacto_id>", methods=["POST"])
 @financial_reconciliation_bp.route(f"{_BASE_ES}/contacto/<int:contacto_id>", methods=["POST"])
 @require_reconciliation_permission(RECON_EXECUTE)
+@limit_financial_mutation
 def reconciliar_contacto(contacto_id: int):
     data = _json_body()
     key = _idempotency_key(data) or f"api-recon-contacto-{contacto_id}"
@@ -62,6 +64,7 @@ def reconciliar_contacto(contacto_id: int):
 @financial_reconciliation_bp.route(f"{_BASE_EN}/payment-intent/<payment_intent_id>", methods=["POST"])
 @financial_reconciliation_bp.route(f"{_BASE_ES}/payment-intent/<payment_intent_id>", methods=["POST"])
 @require_reconciliation_permission(RECON_EXECUTE)
+@limit_financial_mutation
 def reconciliar_payment_intent(payment_intent_id: str):
     data = _json_body()
     key = _idempotency_key(data) or f"api-recon-pi-{payment_intent_id}"
@@ -77,6 +80,7 @@ def reconciliar_payment_intent(payment_intent_id: str):
 @financial_reconciliation_bp.route(f"{_BASE_EN}/transfer/<transfer_id>", methods=["POST"])
 @financial_reconciliation_bp.route(f"{_BASE_ES}/transfer/<transfer_id>", methods=["POST"])
 @require_reconciliation_permission(RECON_EXECUTE)
+@limit_financial_mutation
 def reconciliar_transfer(transfer_id: str):
     data = _json_body()
     key = _idempotency_key(data) or f"api-recon-tr-{transfer_id}"
@@ -92,6 +96,7 @@ def reconciliar_transfer(transfer_id: str):
 @financial_reconciliation_bp.route(f"{_BASE_EN}/lote", methods=["POST"])
 @financial_reconciliation_bp.route(f"{_BASE_ES}/lote", methods=["POST"])
 @require_reconciliation_permission(RECON_EXECUTE)
+@limit_financial_mutation
 def ejecutar_lote():
     data = _json_body()
     try:
@@ -110,6 +115,7 @@ def ejecutar_lote():
 @financial_reconciliation_bp.route(f"{_BASE_EN}/ejecuciones/<int:execution_id>/resolver", methods=["POST"])
 @financial_reconciliation_bp.route(f"{_BASE_ES}/ejecuciones/<int:execution_id>/resolver", methods=["POST"])
 @require_reconciliation_permission(RECON_RESOLVE)
+@limit_financial_mutation
 def resolver_ejecucion(execution_id: int):
     data = _json_body()
     motivo = (data.get("motivo") or "").strip()

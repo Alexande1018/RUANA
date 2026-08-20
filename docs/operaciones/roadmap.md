@@ -3,7 +3,7 @@
 > **Autoridad de producto/técnica:** [Manual Maestro §18](../../README.md#18-roadmap).  
 > Histórico completo del roadmap de mayo 2026: [`docs/archive/ROADMAP_2026-05.md`](../archive/ROADMAP_2026-05.md).
 
-Fecha de actualización: **2026-08-19** (alineado con pack de cierre y pytest local).
+Fecha de actualización: **2026-08-19** (pack de cierre + FASE 14 cierre de pagos).
 
 Pack documentación: [`docs/HANDOFF.md`](../HANDOFF.md) · [`docs/PROJECT_AUDIT.md`](../PROJECT_AUDIT.md).
 
@@ -25,7 +25,7 @@ Infra base (Hito 1) desplegable: Docker → Cloud Run, Firebase Hosting rewrite,
 | 2 — Seguridad y permisos | Activo / parcial | 2A/2B con tests; endurecimientos pendientes |
 | Invitaciones admin + campañas | Hecho en código | Specs/planes en archive |
 | Métodos de pago + Storage | Hecho en código | QR Bizum/IBAN + Supabase Storage |
-| Stripe Connect (pagos encargo) | Hecho en código | Flag `RUANA_STRIPE_PAYMENTS_ENABLED`; **deploy fija `RUANA_STRIPE_MODE=test`** — revisar antes de live |
+| Stripe Connect (pagos encargo) | FASE 14: Test en prod; **Live bloqueado** | Céntimos enteros + rate limit; ver `docs/operaciones/fase-14-stripe-live.md` |
 | Impugnación cobros / alertas | Hecho en código | Plan en archive |
 | Módulo financiero admin (FASE 04–13) | Hecho en código | 7 blueprints `financial_*` + automatización FASE 11 |
 | Competencia automática por score | Hecho en main | Umbral 15, reinicio 50 |

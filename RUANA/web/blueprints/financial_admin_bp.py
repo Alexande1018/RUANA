@@ -19,6 +19,7 @@ from core.financial_admin_authorization import (
 )
 from core.services import financial_admin_service as fas
 from web.auth_decorators import _admin_codigo, require_financial_admin_permission
+from web.financial_rate_limit import limit_financial_mutation
 
 financial_admin_bp = Blueprint("financial_admin", __name__)
 
@@ -88,6 +89,7 @@ def alertas():
 @financial_admin_bp.route(f"{_BASE}/alerts/<path:alert_key>/resolve", methods=["POST"])
 @financial_admin_bp.route(f"{_BASE_ES}/alertas/<path:alert_key>/resolve", methods=["POST"])
 @require_financial_admin_permission(DASHBOARD_VIEW)
+@limit_financial_mutation
 def resolver_alerta(alert_key: str):
     data = request.get_json(silent=True) or {}
     result = fas.resolver_alerta(

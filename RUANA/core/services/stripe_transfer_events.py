@@ -15,6 +15,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from core.financial.discrepancia import TipoDiscrepancia
 from core.financial.estados import EstadoFinanciero, EstadoTransferencia
+from core.financial.money import importe_bd_a_cents
 from core.financial.transfer_reconciliation import (
     DecisionReconciliacionTransfer,
     comparar_snapshots,
@@ -188,7 +189,7 @@ def manejar_reversion_transfer(
                             (contacto_id,),
                         ).fetchone()
                         if row:
-                            amount_cents = int(round(float(row[0] or 0) * 100))
+                            amount_cents = importe_bd_a_cents(row[0])
                     finally:
                         conn.close()
             from core.services.financial_ledger_hooks import on_transfer_revertida

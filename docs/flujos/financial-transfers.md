@@ -1,6 +1,6 @@
 # Transferencias Stripe blindadas (FASE 03 / 03.1 / 03.2)
 
-Documentación del flujo de liberación de fondos al profesional tras confirmación del contratante.
+**Importes:** el cálculo interno del reparto 88/12 y de las transferencias usa **céntimos enteros** (`core/financial/money.py`). Las columnas REAL de `contactos_ruana` permanecen como borde de persistencia legacy (euros con 2 decimales).
 
 ## Flujo normal (FASE 03.2 — reconciliación explícita)
 
