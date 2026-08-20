@@ -435,15 +435,18 @@
         }
         const puedeMarcarAtendida = (s.estado === 'pendiente' || s.estado === 'candidato_pendiente') || (s.estado === 'atendida' && !(s.atendido_por_nombre || s.atendido_por_codigo) && !s.atendido_at);
         const btnAtender = puedeMarcarAtendida
-            ? `<button type="button" class="btn-accion btn-marcar-atendida" data-solicitud-id="${s.id}" title="Registrar como atendida (Atendido por / Atendido at)">Marcar atendida</button>`
+            ? `<button type="button" class="btn-accion btn-marcar-atendida" data-solicitud-id="${s.id}" title="${s.estado === 'candidato_pendiente' ? 'Cierra la espera del candidato y marca la solicitud como atendida' : 'Registrar como atendida (Atendido por / Atendido at)'}">${s.estado === 'candidato_pendiente' ? 'Cerrar espera' : 'Marcar atendida'}</button>`
             : '';
+        const estadoLabel = s.estado === 'candidato_pendiente'
+            ? 'Candidato pendiente'
+            : (s.estado === 'pendiente' ? 'Pendiente' : (s.estado === 'atendida' || s.estado === 'contestada' ? 'Atendida' : (s.estado || '—')));
         tr.innerHTML = `
             <td>${s.id || '—'}</td>
             <td>${host.escapeHtml((s.grupo_nombre || '') || ('#' + (s.grupo_id || '')))}</td>
             <td>${host.escapeHtml(s.solicitante_nombre || s.solicitante_codigo || '—')}</td>
             <td>${host.escapeHtml(s.oficio || '—')}</td>
             <td title="${host.escapeHtml(s.descripcion || '')}">${host.escapeHtml(descCorta)}</td>
-            <td>${host.escapeHtml(s.estado || '—')}</td>
+            <td title="${s.estado === 'candidato_pendiente' ? 'Espera el registro de la persona invitada; no es una solicitud pendiente del grupo' : ''}">${host.escapeHtml(estadoLabel)}</td>
             <td>${s.created_at ? host.formatearHora(s.created_at) : '—'}</td>
             <td>${host.escapeHtml(s.atendido_por_nombre || s.atendido_por_codigo || '—')}</td>
             <td>${s.atendido_at ? host.formatearHora(s.atendido_at) : '—'}</td>

@@ -322,7 +322,11 @@ def atender_solicitud_por_id(db, solicitud_id: int, codigo: str) -> Dict[str, An
 
 
 def marcar_solicitud_atendida_por_admin(db, solicitud_id: int, admin_codigo: str) -> Dict[str, Any]:
-    """Marca la solicitud como atendida y registra al admin como 'Atendido por' y 'Atendido at'. Si ya estaba atendida pero con columnas vacías, las rellena."""
+    """Marca la solicitud como atendida y registra al admin como 'Atendido por' y 'Atendido at'.
+
+    Cierra tanto pendientes como candidato_pendiente (espera de registro).
+    Si ya estaba atendida pero con columnas vacías, las rellena.
+    """
     with db._lock:
         try:
             conn = db._connect()
@@ -338,7 +342,7 @@ def marcar_solicitud_atendida_por_admin(db, solicitud_id: int, admin_codigo: str
             atendido_at = row[3]
             nombre_admin = (admin_codigo or '').strip() or 'Admin'
             codigo_str = (admin_codigo or '').strip()
-            if estado == 'pendiente':
+            if estado in ('pendiente', 'candidato_pendiente'):
                 _repo.update_atendida_admin(cursor, solicitud_id, codigo_str, nombre_admin)
             elif not atendido_por and not atendido_at:
                 _repo.update_rellenar_atendido_admin(cursor, solicitud_id, codigo_str, nombre_admin)

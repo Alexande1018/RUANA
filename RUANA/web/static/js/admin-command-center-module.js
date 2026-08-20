@@ -120,7 +120,10 @@
                 esc(a.nombre || a.codigo) + ' <span>' + esc(a.score || '—') + '</span></button></li>';
         }).join('') || '<li class="cc-aside-empty">Ninguno detectado</li>';
 
-        var solList = (data.solicitudes || []).slice(0, 5).map(function (s) {
+        var solicitudesPendientes = (data.solicitudes || []).filter(function (s) {
+            return (s.estado || '') === 'pendiente';
+        });
+        var solList = solicitudesPendientes.slice(0, 5).map(function (s) {
             return '<li><button type="button" class="cc-aside-link" data-cc-nav="#solicitudes-admin-wrap">' +
                 '<span>' + esc(s.oficio || 'Solicitud') + '</span><small>#' + esc(s.id) + '</small></button></li>';
         }).join('') || '<li class="cc-aside-empty">Sin pendientes</li>';

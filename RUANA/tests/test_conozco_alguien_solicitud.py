@@ -55,8 +55,17 @@ def test_conozco_alguien_no_cierra_y_vincula_al_registrar(sqlite_db):
     assert propias[0]["estado"] == "candidato_pendiente"
     assert propias[0]["candidato_por_codigo"] == "C0002"
 
-    entrantes = sqlite_db.listar_solicitudes_activas_por_codigo("C0002")
-    assert all(s["id"] != solicitud_id for s in entrantes)
+    for codigo in ("C0001", "C0002"):
+        entrantes = sqlite_db.listar_solicitudes_activas_por_codigo(codigo)
+        assert all(s["id"] != solicitud_id for s in entrantes)
+        assert all(s["estado"] != "candidato_pendiente" for s in entrantes)
+
+    historial_espera = sqlite_db.listar_solicitudes_historial_grupo_por_codigo("C0001")
+    assert any(
+        s["id"] == solicitud_id and s["estado"] == "candidato_pendiente"
+        for s in historial_espera
+    )
+    assert sqlite_db.contar_solicitudes_activas() == 0
 
     # Incorporación del invitado al mismo grupo (plaza disponible)
     conn = sqlite_db._connect()
@@ -96,3 +105,31 @@ def test_conozco_alguien_no_cierra_y_vincula_al_registrar(sqlite_db):
     notifs = [dict(r) for r in cur.fetchall()]
     conn.close()
     assert any(n.get("tipo") == "solicitud_asignada" for n in notifs)
+
+
+def test_candidato_pendiente_no_es_solicitud_activa_y_admin_puede_cerrar(sqlite_db):
+    """Candidato pendiente sale de la bandeja; el admin puede cerrar la espera."""
+    _crear_grupo_con_aliados(sqlite_db)
+    creada = sqlite_db.crear_solicitud_por_codigo(
+        "C0001", "Pintura", "Necesito pintar un piso"
+    )
+    solicitud_id = creada["id"]
+    assert sqlite_db.contar_solicitudes_activas() == 1
+
+    mark = sqlite_db.marcar_solicitud_candidato_pendiente(solicitud_id, "C0002")
+    assert mark.get("status") == "success"
+    assert sqlite_db.contar_solicitudes_activas() == 0
+    assert all(
+        s["id"] != solicitud_id
+        for s in sqlite_db.listar_solicitudes_activas_por_codigo("C0002")
+    )
+
+    cerrado = sqlite_db.marcar_solicitud_atendida_por_admin(solicitud_id, "ADMIN")
+    assert cerrado.get("status") == "success"
+
+    propias = sqlite_db.listar_solicitudes_propias_por_codigo("C0001")
+    assert propias[0]["estado"] == "atendida"
+    assert propias[0]["atendido_por_codigo"] == "ADMIN"
+    historial = sqlite_db.listar_solicitudes_historial_grupo_por_codigo("C0001")
+    assert historial[0]["estado"] == "atendida"
+    assert sqlite_db.contar_solicitudes_activas() == 0

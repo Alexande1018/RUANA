@@ -127,6 +127,11 @@
         escapeHtmlSafe(host, candidatoPor) + (candidatoAt ? ' · ' + candidatoAt : '') + '</span></div>'
       );
     }
+    var avisoCandidato = '';
+    if (estado === 'candidato_pendiente') {
+      avisoCandidato =
+        '<p class="solicitud-candidato-aviso">Esperando que la persona invitada se registre. Entonces esta solicitud se le asignará sola y volverá a pendientes para que la gestione. El resto del grupo no tiene que hacer nada.</p>';
+    }
     if (asignadaA) {
       metaExtraParts.push(
         '<div class="meta-item"><span class="meta-label">Asignada a</span><span class="meta-value">' +
@@ -152,6 +157,7 @@
         (fechaFmt ? '<div class="meta-item"><span class="meta-label">Fecha</span><span class="meta-value">' + fechaFmt + '</span></div>' : '') +
         metaExtra +
       '</div>' +
+      avisoCandidato +
       (mostrarConocer
         ? '<div class="solicitud-actions"><button class="btn-conocer" data-id="' + (solicitud.id || 0) + '"><i data-lucide="user-plus" style="width:16px;height:16px;vertical-align:-2px;margin-right:6px"></i>Conozco a alguien</button></div>'
         : '');
@@ -165,16 +171,24 @@
       host.solicitudesPropiasList.innerHTML = '<p class="solicitudes-empty">Aún no has enviado ninguna solicitud. Usa Conexiones para crear una.</p>';
       return;
     }
-    var enCurso = propias.filter(function (s) {
-      var e = normalizarEstadoSolicitud(s);
-      return e === 'pendiente' || e === 'candidato_pendiente';
+    var pendientes = propias.filter(function (s) {
+      return normalizarEstadoSolicitud(s) === 'pendiente';
+    });
+    var esperandoCandidato = propias.filter(function (s) {
+      return normalizarEstadoSolicitud(s) === 'candidato_pendiente';
     });
     var atendidas = propias.filter(function (s) {
       return normalizarEstadoSolicitud(s) === 'atendida';
     });
-    if (enCurso.length) {
-      appendGrupoHeader(host.solicitudesPropiasList, 'En curso', enCurso.length);
-      enCurso.forEach(function (solicitud) {
+    if (pendientes.length) {
+      appendGrupoHeader(host.solicitudesPropiasList, 'Pendientes', pendientes.length);
+      pendientes.forEach(function (solicitud) {
+        appendSolicitudCard(host, host.solicitudesPropiasList, solicitud, false);
+      });
+    }
+    if (esperandoCandidato.length) {
+      appendGrupoHeader(host.solicitudesPropiasList, 'Esperando candidato', esperandoCandidato.length);
+      esperandoCandidato.forEach(function (solicitud) {
         appendSolicitudCard(host, host.solicitudesPropiasList, solicitud, false);
       });
     }
@@ -203,7 +217,9 @@
    * @param {object} host PrivatePanel
    */
   function renderSolicitudes(host) {
-    var entrantes = Array.isArray(host.solicitudesEntrantes) ? host.solicitudesEntrantes.slice() : [];
+    var entrantes = (Array.isArray(host.solicitudesEntrantes) ? host.solicitudesEntrantes : []).filter(function (s) {
+      return normalizarEstadoSolicitud(s) === 'pendiente';
+    });
     var propias = Array.isArray(host.solicitudesPropias) ? host.solicitudesPropias.slice() : [];
     var historial = Array.isArray(host.solicitudesHistorial) ? host.solicitudesHistorial.slice() : [];
 

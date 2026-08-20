@@ -646,6 +646,17 @@ body:not(.panel-loading) {
     background: #f59e0b;
 }
 
+.solicitud-candidato-aviso {
+    margin: 12px 0 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.28);
+    color: var(--ruana-text-soft);
+    font-size: 0.82rem;
+    line-height: 1.45;
+}
+
 .solicitud-card:hover {
     border-color: var(--ruana-border-strong);
     transform: translateX(2px);

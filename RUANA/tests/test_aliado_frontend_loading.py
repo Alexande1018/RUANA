@@ -193,6 +193,10 @@ def test_aliado_solicitudes_module_is_wired():
     assert 'solicitudes-historial-list' in aliado
     assert 'data-solicitudes-count' in solicitudes_js
     assert 'solicitudes-group-header' in solicitudes_js
+    assert 'Esperando candidato' in solicitudes_js
+    assert "normalizarEstadoSolicitud(s) === 'pendiente'" in solicitudes_js
+    assert 'solicitud-candidato-aviso' in solicitudes_js
+    assert 'candidato_pendiente' in solicitudes_js
 
 
 def test_aliado_acuerdos_module_is_wired():

@@ -306,3 +306,17 @@ def test_admin_score_bands_match_motor_ruana():
     assert "s >= 250" not in cc
     assert "RuanaAdminScoreBands" in red_ex
     assert "RuanaAdminScoreBands" in cc
+
+
+def test_admin_solicitudes_pendientes_no_mezclan_candidato():
+    """Las pendientes del command center son solo estado pendiente; candidato se etiqueta aparte."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    cc = (root / "static" / "js" / "admin-command-center-module.js").read_text(encoding="utf-8")
+    sistema = (root / "static" / "js" / "admin-sistema-module.js").read_text(encoding="utf-8")
+    admin = (root / "admin.html").read_text(encoding="utf-8")
+
+    assert "solicitudesPendientes" in cc
+    assert "(s.estado || '') === 'pendiente'" in cc
+    assert "Cerrar espera" in sistema
+    assert "Candidato pendiente" in sistema
+    assert "no cuenta como solicitud pendiente" in admin
