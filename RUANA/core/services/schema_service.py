@@ -410,6 +410,7 @@ def _init_db(db):
             db._migrar_aliados_pin_personal(conn, cursor)
             db._migrar_invitaciones_solicitud_id(conn, cursor)
             db._migrar_invitaciones_crecimiento_grupo(conn, cursor)
+            db._migrar_invitaciones_revocada(conn, cursor)
             db._migrar_grupo_crecimiento_recompensas(conn, cursor)
             db._migrar_solicitudes_candidato(conn, cursor)
             db._migrar_solicitudes_semanales(conn, cursor)
@@ -2209,6 +2210,20 @@ def _migrar_invitaciones_crecimiento_grupo(db, conn, cursor) -> None:
         )
     except Exception as ex:
         print(f"[RUANA][DB] Aviso migrar invitaciones crecimiento grupo: {ex}")
+
+def _migrar_invitaciones_revocada(db, conn, cursor) -> None:
+    """Marca temporal de revocación para códigos «Conozco a alguien» caducados."""
+    try:
+        if db.backend == "postgres":
+            _repo.execute(cursor,
+                "ALTER TABLE invitaciones ADD COLUMN IF NOT EXISTS revocada_en TIMESTAMP"
+            )
+        else:
+            columnas = _repo.columnas_tabla(cursor, "invitaciones")
+            if "revocada_en" not in columnas:
+                _repo.execute(cursor, "ALTER TABLE invitaciones ADD COLUMN revocada_en DATETIME")
+    except Exception as ex:
+        print(f"[RUANA][DB] Aviso migrar invitaciones.revocada_en: {ex}")
 
 def _migrar_grupo_crecimiento_recompensas(db, conn, cursor) -> None:
     """Tabla de auditoría para recompensas de crecimiento de grupo."""

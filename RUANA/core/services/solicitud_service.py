@@ -5,12 +5,20 @@ SQL de solicitudes vía SolicitudRepo.
 """
 from __future__ import annotations
 
+import os
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
+from core.repositories.invitacion_repo import InvitacionRepo
 from core.repositories.solicitud_repo import SolicitudRepo
 
 _repo = SolicitudRepo()
+_inv_repo = InvitacionRepo()
+
+CANDIDATO_INVITACION_HORAS = max(
+    1, int(os.environ.get("RUANA_CANDIDATO_INVITACION_HORAS", "24"))
+)
 
 
 def _extra_cols_candidato_asignada(cols: List[str]) -> str:
@@ -20,6 +28,60 @@ def _extra_cols_candidato_asignada(cols: List[str]) -> str:
     if "asignada_a_codigo" in cols:
         extra += ", asignada_a_codigo, asignada_a_nombre"
     return extra
+
+
+def _asegurar_migraciones_candidato(db, conn, cursor) -> None:
+    try:
+        db._migrar_solicitudes_candidato(conn, cursor)
+        db._migrar_invitaciones_revocada(conn, cursor)
+    except Exception:
+        pass
+
+
+def calcular_expiracion_candidato(desde: Optional[datetime] = None) -> str:
+    """ISO timestamp de caducidad del código «Conozco a alguien»."""
+    base = desde or datetime.now(timezone.utc).replace(tzinfo=None)
+    return (base + timedelta(hours=CANDIDATO_INVITACION_HORAS)).replace(microsecond=0).isoformat() + "Z"
+
+
+def _expirar_candidatos_vencidos(db, cursor) -> int:
+    """
+    Revoca invitaciones «Conozco a alguien» vencidas y reabre solicitudes a pendiente.
+    Retorna cuántas solicitudes se reactivaron.
+    """
+    ids = _repo.listar_ids_candidatos_vencidos(cursor, CANDIDATO_INVITACION_HORAS)
+    reactivadas = 0
+    for sid in ids:
+        _inv_repo.revocar_invitacion_conozco_por_solicitud(cursor, sid)
+        reactivadas += _repo.revertir_candidato_a_pendiente(cursor, sid)
+    return reactivadas
+
+
+def _expirar_candidatos_vencidos_lazy(db, conn, cursor) -> int:
+    _asegurar_migraciones_candidato(db, conn, cursor)
+    return _expirar_candidatos_vencidos(db, cursor)
+
+
+def expirar_candidatos_pendientes_vencidos(db) -> Dict[str, Any]:
+    """Cron/lazy: caduca candidatos «Conozco a alguien» sin registro en plazo."""
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            n = _expirar_candidatos_vencidos_lazy(db, conn, cursor)
+            conn.commit()
+            return {"status": "success", "ok": True, "expiradas": n}
+        except Exception as e:
+            if conn:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            return {"status": "error", "message": str(e)}
+        finally:
+            if conn:
+                conn.close()
 
 
 def marcar_solicitud_candidato_pendiente(db, solicitud_id: int, codigo_proponente: str) -> Dict[str, Any]:
@@ -204,6 +266,8 @@ def listar_solicitudes_activas_por_codigo(db, codigo: str) -> List[Dict[str, Any
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
+            _expirar_candidatos_vencidos_lazy(db, conn, cursor)
+            conn.commit()
             codigo = codigo.strip()
             aliado = _repo.select_aliado_grupo_nombre(cursor, codigo)
             if not aliado:
@@ -234,6 +298,8 @@ def listar_solicitudes_propias_por_codigo(db, codigo: str) -> List[Dict[str, Any
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
+            _expirar_candidatos_vencidos_lazy(db, conn, cursor)
+            conn.commit()
             aliado = _repo.select_aliado_grupo_nombre(cursor, codigo.strip())
             if not aliado or aliado[0] is None:
                 return []
@@ -256,6 +322,8 @@ def listar_solicitudes_historial_grupo_por_codigo(db, codigo: str, limite: int =
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
+            _expirar_candidatos_vencidos_lazy(db, conn, cursor)
+            conn.commit()
             aliado = _repo.select_aliado_grupo_nombre(cursor, codigo.strip())
             if not aliado or aliado[0] is None:
                 return []
@@ -280,6 +348,8 @@ def obtener_solicitudes_grupo(db, codigo_postal: str) -> List[Dict[str, Any]]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
+            _expirar_candidatos_vencidos_lazy(db, conn, cursor)
+            conn.commit()
             cols = _repo.columnas_solicitudes(cursor)
             if 'solicitante_codigo' not in cols:
                 return []

@@ -14,6 +14,7 @@ from web.auth_decorators import (
     _admin_codigo,
     _aliado_codigo,
     require_admin_escritura,
+    require_admin_or_cron,
     require_aliado,
 )
 
@@ -121,3 +122,14 @@ def admin_solicitud_atender(solicitud_id):
         return jsonify({"status": "success", "ok": True}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@solicitudes_bp.route("/api/solicitudes/expirar-candidatos", methods=["POST"])
+@require_admin_or_cron
+def expirar_candidatos_solicitud():
+    """Caduca invitaciones «Conozco a alguien» vencidas y reabre solicitudes (cron/manual)."""
+    db = get_db()
+    result = solicitud_service.expirar_candidatos_pendientes_vencidos(db)
+    if result.get("status") != "success":
+        return jsonify({"error": result.get("message")}), 500
+    return jsonify({"ok": True, "expiradas": result.get("expiradas", 0)})

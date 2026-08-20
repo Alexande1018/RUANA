@@ -328,3 +328,29 @@ class SolicitudRepo:
             (codigo, estado),
         )
         return cursor.fetchone()[0] or 0
+
+    def listar_ids_candidatos_vencidos(self, cursor, horas: int) -> List[int]:
+        cursor.execute(
+            """
+            SELECT id FROM solicitudes
+            WHERE estado = 'candidato_pendiente'
+              AND candidato_at IS NOT NULL
+              AND datetime(candidato_at) <= datetime('now', ?)
+            """,
+            (f"-{int(horas)} hours",),
+        )
+        return [int(r[0]) for r in cursor.fetchall()]
+
+    def revertir_candidato_a_pendiente(self, cursor, solicitud_id: int) -> int:
+        cursor.execute(
+            """
+            UPDATE solicitudes
+            SET estado = 'pendiente',
+                candidato_por_codigo = NULL,
+                candidato_por_nombre = NULL,
+                candidato_at = NULL
+            WHERE id = ? AND estado = 'candidato_pendiente'
+            """,
+            (int(solicitud_id),),
+        )
+        return cursor.rowcount

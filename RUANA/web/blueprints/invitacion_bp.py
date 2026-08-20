@@ -193,6 +193,10 @@ def crear_invitacion():
                     print(f"[RUANA] Aviso candidato pendiente solicitud {sid}: {mark.get('message')}")
             except Exception as e:
                 print(f"[RUANA] Error marcando candidato pendiente {sid}: {e}")
+
+        expires_at = None
+        if sid is not None:
+            expires_at = solicitud_service.calcular_expiracion_candidato()
         
         return jsonify({
             'status': 'success',
@@ -202,6 +206,8 @@ def crear_invitacion():
             'grupo_id': grupo_id_inv,
             'solicitud_id': sid,
             'estado_solicitud': 'candidato_pendiente' if sid is not None else None,
+            'expires_at': expires_at,
+            'validez_horas': solicitud_service.CANDIDATO_INVITACION_HORAS if sid is not None else None,
             'timestamp': datetime.now().isoformat()
         }), 201
         

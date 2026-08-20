@@ -159,7 +159,8 @@ class InvitacionRepo:
             """
             SELECT i.usado, i.invitador_aliado_id, inv.codigo AS codigo_invitador,
                    inv.estado AS invitador_estado, i.solicitud_id,
-                   i.grupo_id, COALESCE(i.tipo, 'ampliar_red') AS tipo
+                   i.grupo_id, COALESCE(i.tipo, 'ampliar_red') AS tipo,
+                   i.revocada_en, i.creado_en
             FROM invitaciones i
             JOIN aliados inv ON inv.id = i.invitador_aliado_id
             WHERE i.codigo = ?
@@ -255,11 +256,37 @@ class InvitacionRepo:
                    inv.id AS invitador_id
             FROM invitaciones i
             JOIN aliados inv ON inv.id = i.invitador_aliado_id
-            WHERE i.codigo = ? AND COALESCE(i.usado, 0) = 0
+            WHERE i.codigo = ? AND COALESCE(i.usado, 0) = 0 AND i.revocada_en IS NULL
             """,
             (codigo,),
         )
         return cursor.fetchone()
+
+    def select_invitacion_basica(self, cursor, codigo: str) -> Optional[Any]:
+        cursor.execute(
+            """
+            SELECT codigo, usado, solicitud_id, creado_en, revocada_en
+            FROM invitaciones
+            WHERE codigo = ?
+            """,
+            (codigo,),
+        )
+        return cursor.fetchone()
+
+    def revocar_invitacion_conozco_por_solicitud(
+        self, cursor, solicitud_id: int
+    ) -> int:
+        cursor.execute(
+            """
+            UPDATE invitaciones
+            SET revocada_en = CURRENT_TIMESTAMP
+            WHERE solicitud_id = ?
+              AND COALESCE(usado, 0) = 0
+              AND revocada_en IS NULL
+            """,
+            (int(solicitud_id),),
+        )
+        return cursor.rowcount
 
     def eliminar_aliado_placeholder(self, cursor, codigo: str) -> int:
         cursor.execute(

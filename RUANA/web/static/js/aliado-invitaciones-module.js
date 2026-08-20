@@ -106,7 +106,7 @@
                 modalText.innerHTML = `
                     <strong>Profesional que pidió:</strong> ${host.escapeHtml(host.currentSolicitud.por)}<br>
                     <strong>Solicitud:</strong> ${host.escapeHtml(host.currentSolicitud.texto)}<br><br>
-                    Entrega este código a esa persona para que se registre. La solicitud quedará como <strong>candidato pendiente</strong> hasta que se incorpore; entonces se le asignará automáticamente.
+                    Entrega este código a esa persona para que se registre. La solicitud quedará como <strong>candidato pendiente</strong> hasta que se incorpore (máximo <strong>24 horas</strong>); si no se registra, la solicitud se reabrirá al grupo para que otro aliado pueda invitar.
                 `;
             }
             try {

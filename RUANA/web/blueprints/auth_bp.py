@@ -9,11 +9,12 @@ from __future__ import annotations
 import os
 import re
 import time
+from datetime import datetime
 
 from flask import Blueprint, jsonify, request
 
 from core import db_manager as db_manager_mod
-from core.services import aliado_service, invitacion_service
+from core.services import aliado_service, invitacion_service, solicitud_service
 from core.services import aliado_pin_service
 from core.aliado_pin_auth import GENERIC_CREDENTIALS_ERROR
 from core.auth_session import (
@@ -311,6 +312,16 @@ def _validar_invitacion_impl(codigo_raw):
         # Preferir invitaciones reales (tabla invitaciones) frente a placeholders legacy.
         invitacion_pendiente = invitacion_service.obtener_invitacion_pendiente(db, codigo)
         if invitacion_pendiente:
+            fecha_exp = None
+            if invitacion_pendiente.get('solicitud_id') is not None:
+                creado = invitacion_pendiente.get('creado_en')
+                desde = None
+                if creado:
+                    try:
+                        desde = datetime.fromisoformat(str(creado).replace('Z', '').split('.')[0])
+                    except (TypeError, ValueError):
+                        desde = None
+                fecha_exp = solicitud_service.calcular_expiracion_candidato(desde)
             return jsonify({
                 'status': 'success',
                 'message': 'C?digo v?lido',
@@ -319,10 +330,16 @@ def _validar_invitacion_impl(codigo_raw):
                     'zona': invitacion_pendiente.get('zona_invitador') or '',
                     'grupo': None,
                     'aliado_id': invitacion_pendiente.get('invitador_aliado_id') or invitacion_pendiente.get('invitador_id'),
-                    'fecha_expiracion': None,
+                    'fecha_expiracion': fecha_exp,
                     'tipo': 'invitacion',
                 }
             }), 200
+
+        if invitacion_service.es_codigo_conozco_caducado(db, codigo):
+            return jsonify({
+                'status': 'error',
+                'message': 'Este código ha caducado (24 h sin registro). Pide uno nuevo al aliado del grupo.',
+            }), 404
 
         aliado = aliado_service.obtener_aliado_por_codigo(db, codigo)
 

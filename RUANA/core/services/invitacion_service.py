@@ -13,6 +13,7 @@ import sqlite3
 from typing import Any, Dict, List, Optional
 
 from core.repositories.invitacion_repo import InvitacionRepo
+from core.services import solicitud_service
 
 _repo = InvitacionRepo()
 
@@ -255,8 +256,14 @@ def consumir_invitacion_y_recompensar(db, codigo_invitacion: str, nuevo_aliado_c
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
+            solicitud_service._expirar_candidatos_vencidos_lazy(db, conn, cursor)
             row = _repo.select_invitacion_con_invitador(cursor, codigo_invitacion)
             if not row:
+                return False
+            sid = row['solicitud_id'] if hasattr(row, 'keys') else None
+            revocada = row['revocada_en'] if hasattr(row, 'keys') else None
+            if sid is not None and revocada:
+                conn.commit()
                 return False
             usado = int(row['usado'] or 0)
             codigo_invitador = row['codigo_invitador']
@@ -457,6 +464,38 @@ def invitacion_codigo_existe(db, codigo: str) -> bool:
             if conn:
                 conn.close()
 
+def es_codigo_conozco_caducado(db, codigo: str) -> bool:
+    """True si el código perteneció a «Conozco a alguien» y ya no es válido (revocado/expirado)."""
+    codigo = (codigo or '').strip()
+    if not codigo:
+        return False
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            solicitud_service._expirar_candidatos_vencidos_lazy(db, conn, cursor)
+            conn.commit()
+            row = _repo.select_invitacion_basica(cursor, codigo)
+            if not row:
+                return False
+            if hasattr(row, 'keys'):
+                sid = row['solicitud_id']
+                usado = int(row['usado'] or 0)
+                revocada = row['revocada_en']
+            else:
+                sid = row[2]
+                usado = int(row[1] or 0)
+                revocada = row[4]
+            if sid is None or usado != 0:
+                return False
+            return revocada is not None
+        except Exception:
+            return False
+        finally:
+            if conn:
+                conn.close()
+
 def obtener_invitacion_pendiente(db, codigo: str) -> Optional[Dict[str, Any]]:
     """
     Devuelve una invitación aliado/admin aún no usada (tabla invitaciones).
@@ -471,6 +510,8 @@ def obtener_invitacion_pendiente(db, codigo: str) -> Optional[Dict[str, Any]]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
+            solicitud_service._expirar_candidatos_vencidos_lazy(db, conn, cursor)
+            conn.commit()
             row = _repo.select_invitacion_pendiente(cursor, codigo)
             if not row:
                 return None

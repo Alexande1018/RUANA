@@ -349,6 +349,10 @@ class DBManager:
         """Fachada Campamento Base → schema_service._migrar_invitaciones_crecimiento_grupo."""
         return schema_service._migrar_invitaciones_crecimiento_grupo(self, conn, cursor)
 
+    def _migrar_invitaciones_revocada(self, conn, cursor) -> None:
+        """Fachada Campamento Base → schema_service._migrar_invitaciones_revocada."""
+        return schema_service._migrar_invitaciones_revocada(self, conn, cursor)
+
     def _migrar_grupo_crecimiento_recompensas(self, conn, cursor) -> None:
         """Fachada Campamento Base → schema_service._migrar_grupo_crecimiento_recompensas."""
         return schema_service._migrar_grupo_crecimiento_recompensas(self, conn, cursor)
@@ -997,6 +1001,10 @@ class DBManager:
         """Fachada Campamento Base → solicitud_service.marcar_solicitud_candidato_pendiente."""
         return solicitud_service.marcar_solicitud_candidato_pendiente(self, solicitud_id, codigo_proponente)
 
+    def expirar_candidatos_pendientes_vencidos(self) -> Dict[str, Any]:
+        """Fachada Campamento Base → solicitud_service.expirar_candidatos_pendientes_vencidos."""
+        return solicitud_service.expirar_candidatos_pendientes_vencidos(self)
+
     def vincular_solicitud_a_aliado_incorporado(
         self,
         codigo_invitacion: str,
@@ -1079,6 +1087,10 @@ class DBManager:
     def obtener_invitacion_pendiente(self, codigo: str) -> Optional[Dict[str, Any]]:
         """Fachada Campamento Base → invitacion_service.obtener_invitacion_pendiente."""
         return invitacion_service.obtener_invitacion_pendiente(self, codigo)
+
+    def es_codigo_conozco_caducado(self, codigo: str) -> bool:
+        """Fachada Campamento Base → invitacion_service.es_codigo_conozco_caducado."""
+        return invitacion_service.es_codigo_conozco_caducado(self, codigo)
 
     def eliminar_aliado_placeholder(self, codigo: str) -> bool:
         """Fachada Campamento Base → invitacion_service.eliminar_aliado_placeholder."""
