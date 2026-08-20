@@ -64,7 +64,7 @@ def test_aliado_inicio_module_is_wired():
 
     assert 'src="/static/js/aliado-modules.js"' in aliado
     assert 'src="/static/js/aliado-inicio-module.js"' in aliado
-    assert 'src="/static/js/aliado-shell.js"' in aliado
+    assert '/static/js/aliado-shell.js' in aliado
     assert "RuanaAliadoModules" in modules_js
     assert "RuanaAliadoModules.inicio" in inicio_js or "modules.inicio" in inicio_js
     assert "renderMetricas" in inicio_js
@@ -174,7 +174,7 @@ def test_aliado_solicitudes_module_is_wired():
     modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
 
     assert 'src="/static/js/aliado-modules.js"' in aliado
-    assert 'src="/static/js/aliado-solicitudes-module.js"' in aliado
+    assert '/static/js/aliado-solicitudes-module.js' in aliado
     assert "RuanaAliadoModules" in modules_js
     assert "solicitudes: null" in modules_js
     assert "RuanaAliadoModules.solicitudes" in solicitudes_js or "modules.solicitudes" in solicitudes_js
@@ -193,6 +193,47 @@ def test_aliado_solicitudes_module_is_wired():
     assert 'solicitudes-historial-list' in aliado
     assert 'data-solicitudes-count' in solicitudes_js
     assert 'solicitudes-group-header' in solicitudes_js
+    assert 'semMod.renderSeccion' in solicitudes_js
+    assert "contactosMod.renderEncargosActivos(host)" in solicitudes_js
+
+
+def test_aliado_solicitudes_panel_refresca_al_abrir_y_modulos_visibles():
+    """El panel Solicitudes se ve al activarlo y recarga semanales/encargos/enviadas/historial."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    shell_js = (root / "static" / "js" / "aliado-shell.js").read_text(encoding="utf-8")
+    shell_css = (root / "static" / "css" / "aliado-shell.css").read_text(encoding="utf-8")
+    sync_js = (root / "static" / "js" / "aliado-sync-module.js").read_text(encoding="utf-8")
+
+    for section_id in (
+        "solicitudes-semanales-wrap",
+        "solicitudes-encargos-wrap",
+        "solicitudes-entrantes-wrap",
+        "solicitudes-propias-wrap",
+        "solicitudes-historial-wrap",
+        "encargos-activos-list",
+        "solicitudes-propias-list",
+        "solicitudes-historial-list",
+    ):
+        assert f'id="{section_id}"' in aliado
+
+    assert "function refreshSolicitudesPanel()" in shell_js
+    assert "previous !== 'solicitudes'" in shell_js
+    assert "refreshAfterAction(['solicitudes', 'contactos'])" in shell_js
+    assert "refreshSolicitudes: refreshSolicitudesPanel" in shell_js
+    assert "'#solicitudes-semanales-wrap': 'solicitudes'" in shell_js
+    assert "'#solicitudes-historial-wrap': 'solicitudes'" in shell_js
+
+    assert "animation: aliado-module-in 280ms ease both;" in shell_css
+    active_block = shell_css.split(".aliado-module.is-active")[1].split("}")[0]
+    assert "animation: aliado-module-in" in active_block
+    assert "opacity: 1" in active_block
+    base_block = shell_css.split(".aliado-module {")[1].split("}")[0]
+    assert "animation:" not in base_block
+
+    assert "semMod.fetchSnapshot(host)" in sync_js
+    assert "semanalesTask" in sync_js
+    assert "targetSections.includes('solicitudes') && !targetSections.includes('contactos')" in sync_js
 
 
 def test_aliado_acuerdos_module_is_wired():

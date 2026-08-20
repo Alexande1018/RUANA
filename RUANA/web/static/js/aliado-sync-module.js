@@ -127,6 +127,9 @@
                 jobs.push(semMod.fetchSnapshot(host));
             }
         }
+        if (targetSections.includes('solicitudes') && !targetSections.includes('contactos')) {
+            jobs.push(host.cargarContactosPendientes());
+        }
         if (targetSections.includes('directorio')) jobs.push(host.fetchDirectorioSnapshot());
         if (targetSections.includes('alertas')) jobs.push(host.actualizarEstadoAlertas());
         if (targetSections.includes('centro')) jobs.push(host.fetchCentroComunicacionSnapshot());
@@ -244,7 +247,7 @@
                 console.error('Error refrescando datos aliado:', e);
             }
 
-            const [notificacionesTask, solicitudesTask, directorioTask] = await Promise.allSettled([
+            const [notificacionesTask, solicitudesTask, directorioTask, semanalesTask] = await Promise.allSettled([
                 (async () => {
                     // Cargar notificaciones explícitamente (mensajes de RUANA: comprobante rechazado, etc.)
                     const respNotif = await fetch(apiBase + '/api/aliados/' + encodeURIComponent(host.codigoAliado) + '/notificaciones?limite=50', {
@@ -285,6 +288,12 @@
                     if (dataDirectorio.status === 'success' && Array.isArray(dataDirectorio.aliados)) {
                         host.profesionales = dataDirectorio.aliados;
                     }
+                })(),
+                (async () => {
+                    var semMod = global.RuanaAliadoModules && global.RuanaAliadoModules.solicitudesSemanales;
+                    if (semMod && typeof semMod.fetchSnapshot === 'function') {
+                        await semMod.fetchSnapshot(host);
+                    }
                 })()
             ]);
 
@@ -296,6 +305,9 @@
             }
             if (directorioTask.status === 'rejected') {
                 console.error('Error cargando directorio de profesionales:', directorioTask.reason);
+            }
+            if (semanalesTask.status === 'rejected') {
+                console.error('Error cargando solicitudes semanales:', semanalesTask.reason);
             }
         }
 

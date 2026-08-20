@@ -384,13 +384,22 @@
     const wrap = document.getElementById('solicitudes-encargos-wrap');
     if (!list || !wrap) return;
     const encargos = Array.isArray(host.contactosAbiertos) ? host.contactosAbiertos : [];
+    wrap.style.display = '';
+    wrap.hidden = false;
     if (!encargos.length) {
         list.innerHTML = '<p class="encargos-activos-empty">No tienes encargos activos en este momento.</p>';
-        wrap.style.display = '';
         return;
     }
     list.innerHTML = encargos.map((c) => {
-        const ui = host._encargoUiLabels(c);
+        const ui = (host._encargoUiLabels ? host._encargoUiLabels(c) : null) || {
+            estadoLabel: 'Encargo activo',
+            contexto: '',
+            pasoTxt: '',
+            accionTxt: '',
+            btnPrincipal: 'Ver encargo',
+            requiereRespuesta: false,
+            contraparte: '',
+        };
         const servicio = host.escapeHtml(c.servicio || 'Encargo RUANA');
         const contraparte = host.escapeHtml(String(ui.contraparte || ''));
         const pasoHtml = ui.pasoTxt

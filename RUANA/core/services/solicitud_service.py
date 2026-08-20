@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from core.repositories.invitacion_repo import InvitacionRepo
@@ -19,6 +19,24 @@ _inv_repo = InvitacionRepo()
 CANDIDATO_INVITACION_HORAS = max(
     1, int(os.environ.get("RUANA_CANDIDATO_INVITACION_HORAS", "24"))
 )
+
+
+def _json_safe_value(value: Any) -> Any:
+    """Fechas Postgres → ISO para que el panel aliado pinte created_at/atendido_at."""
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    return value
+
+
+def _json_safe_row(row: Any) -> Dict[str, Any]:
+    data = dict(row) if row is not None else {}
+    return {key: _json_safe_value(val) for key, val in data.items()}
+
+
+def _json_safe_rows(rows: List[Any]) -> List[Dict[str, Any]]:
+    return [_json_safe_row(row) for row in (rows or [])]
 
 
 def _extra_cols_candidato_asignada(cols: List[str]) -> str:
@@ -280,11 +298,11 @@ def listar_solicitudes_activas_por_codigo(db, codigo: str) -> List[Dict[str, Any
             if grupo_id is None and not has_asignada:
                 return []
             if grupo_id is not None and has_asignada:
-                return _repo.listar_activas_grupo_o_asignada(cursor, codigo, grupo_id)
+                return _json_safe_rows(_repo.listar_activas_grupo_o_asignada(cursor, codigo, grupo_id))
             elif grupo_id is not None:
-                return _repo.listar_activas_grupo(cursor, codigo, grupo_id)
+                return _json_safe_rows(_repo.listar_activas_grupo(cursor, codigo, grupo_id))
             else:
-                return _repo.listar_activas_asignadas(cursor, codigo)
+                return _json_safe_rows(_repo.listar_activas_asignadas(cursor, codigo))
         except Exception as e:
             return []
         finally:
@@ -308,7 +326,7 @@ def listar_solicitudes_propias_por_codigo(db, codigo: str) -> List[Dict[str, Any
             if 'solicitante_codigo' not in cols:
                 return []
             extra = _extra_cols_candidato_asignada(cols)
-            return _repo.listar_propias(cursor, grupo_id, codigo.strip(), extra)
+            return _json_safe_rows(_repo.listar_propias(cursor, grupo_id, codigo.strip(), extra))
         except Exception as e:
             return []
         finally:
@@ -332,7 +350,7 @@ def listar_solicitudes_historial_grupo_por_codigo(db, codigo: str, limite: int =
             if 'solicitante_codigo' not in cols:
                 return []
             extra = _extra_cols_candidato_asignada(cols)
-            return _repo.listar_historial_grupo(cursor, grupo_id, limite, extra)
+            return _json_safe_rows(_repo.listar_historial_grupo(cursor, grupo_id, limite, extra))
         except Exception as e:
             return []
         finally:
@@ -353,7 +371,7 @@ def obtener_solicitudes_grupo(db, codigo_postal: str) -> List[Dict[str, Any]]:
             cols = _repo.columnas_solicitudes(cursor)
             if 'solicitante_codigo' not in cols:
                 return []
-            return _repo.listar_pendientes_por_cp(cursor, codigo_postal.strip())
+            return _json_safe_rows(_repo.listar_pendientes_por_cp(cursor, codigo_postal.strip()))
         except Exception as e:
             return []
         finally:
@@ -458,7 +476,7 @@ def listar_solicitudes_admin_todas(db) -> List[Dict[str, Any]]:
             cols = _repo.columnas_solicitudes(cursor)
             if 'solicitante_codigo' not in cols:
                 return []
-            return _repo.listar_admin_todas(cursor)
+            return _json_safe_rows(_repo.listar_admin_todas(cursor))
         except Exception as e:
             return []
         finally:

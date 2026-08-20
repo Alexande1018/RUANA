@@ -372,14 +372,19 @@ body.aliado-app > .ruana-brand-watermark {
     display: none;
 }
 
-/* Modules */
+/* Modules
+   La animación SOLO en .is-active: si se aplica al módulo oculto
+   (display:none + fill-mode both), opacity queda en 0 y al abrir
+   Solicitudes/Directorio/Perfil el contenido no se ve. */
 .aliado-module {
     display: none;
-    animation: aliado-module-in 280ms ease both;
+    opacity: 0;
 }
 
 .aliado-module.is-active {
     display: block;
+    opacity: 1;
+    animation: aliado-module-in 280ms ease both;
 }
 
 @keyframes aliado-module-in {

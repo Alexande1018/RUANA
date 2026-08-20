@@ -21,8 +21,13 @@
         '#module-directorio': 'directorio',
         '#solicitudes-entrantes-wrap': 'solicitudes',
         '#solicitudes-encargos-wrap': 'solicitudes',
+        '#solicitudes-semanales-wrap': 'solicitudes',
+        '#solicitudes-propias-wrap': 'solicitudes',
+        '#solicitudes-historial-wrap': 'solicitudes',
         '#encargos-activos-list': 'solicitudes',
         '#solicitudes-list': 'solicitudes',
+        '#solicitudes-propias-list': 'solicitudes',
+        '#solicitudes-historial-list': 'solicitudes',
         '.solicitudes-zone': 'solicitudes',
         '#module-solicitudes': 'solicitudes',
         '.crear-solicitud-zone': 'conexiones',
@@ -67,8 +72,29 @@
         return el.getAttribute('style') ? !/display\s*:\s*none/i.test(el.getAttribute('style')) || style.display !== 'none' : true;
     }
 
+    function refreshSolicitudesPanel() {
+        const panel = global.__ruanaPanel;
+        if (!panel) return;
+        if (typeof panel.refreshAfterAction === 'function') {
+            panel.refreshAfterAction(['solicitudes', 'contactos']);
+            return;
+        }
+        if (typeof panel.renderSolicitudes === 'function') {
+            panel.renderSolicitudes();
+        }
+        const semMod = global.RuanaAliadoModules && global.RuanaAliadoModules.solicitudesSemanales;
+        if (semMod && typeof semMod.renderSeccion === 'function') {
+            semMod.renderSeccion(panel);
+        }
+        const contactosMod = global.RuanaAliadoModules && global.RuanaAliadoModules.contactos;
+        if (contactosMod && typeof contactosMod.renderEncargosActivos === 'function') {
+            contactosMod.renderEncargosActivos(panel);
+        }
+    }
+
     function showModule(name, options) {
         const opts = options || {};
+        const previous = current;
         const target = MODULES.includes(name) ? name : 'inicio';
         current = target;
 
@@ -106,6 +132,9 @@
         updateNavBadges();
 
         document.dispatchEvent(new CustomEvent('aliado-module-change', { detail: { module: target } }));
+        if (target === 'solicitudes' && previous !== 'solicitudes') {
+            refreshSolicitudesPanel();
+        }
         return target;
     }
 
@@ -492,6 +521,7 @@
         moduleForSelector: moduleForSelector,
         refresh: refreshInicioSurface,
         updateNavBadges: updateNavBadges,
+        refreshSolicitudes: refreshSolicitudesPanel,
     };
 
     global.AliadoShell = api;

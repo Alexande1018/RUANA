@@ -237,7 +237,20 @@
 
     var contactosMod = global.RuanaAliadoModules && global.RuanaAliadoModules.contactos;
     if (contactosMod && typeof contactosMod.renderEncargosActivos === 'function') {
-      contactosMod.renderEncargosActivos(host);
+      try {
+        contactosMod.renderEncargosActivos(host);
+      } catch (err) {
+        console.error('Error pintando encargos activos:', err);
+      }
+    }
+
+    var semMod = global.RuanaAliadoModules && global.RuanaAliadoModules.solicitudesSemanales;
+    if (semMod && typeof semMod.renderSeccion === 'function') {
+      try {
+        semMod.renderSeccion(host);
+      } catch (err) {
+        console.error('Error pintando solicitudes semanales:', err);
+      }
     }
 
     if (typeof global.RuanaUI !== 'undefined') global.RuanaUI.initIcons(document.querySelector('.solicitudes-zone'));

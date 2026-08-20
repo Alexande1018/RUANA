@@ -94,3 +94,22 @@ def test_qa_solicitudes_crear_entrantes_propias_e_historial(
     assert vista_b_atendida["entrantes"] == []
     assert vista_b_atendida["historial"][0]["estado"] == "atendida"
     assert vista_b_atendida["historial"][0]["atendido_por_codigo"] == "QA002"
+
+
+def test_json_safe_row_serializa_fechas_para_el_panel():
+    from datetime import date, datetime
+
+    from core.services.solicitud_service import _json_safe_row
+
+    row = _json_safe_row(
+        {
+            "id": 7,
+            "estado": "pendiente",
+            "created_at": datetime(2026, 8, 20, 9, 30, 0),
+            "atendido_at": date(2026, 8, 19),
+        }
+    )
+    assert row["id"] == 7
+    assert row["created_at"] == "2026-08-20T09:30:00"
+    assert row["atendido_at"] == "2026-08-19"
+    assert row["estado"] == "pendiente"

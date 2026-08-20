@@ -12,6 +12,30 @@ from core.services import catalogo_service, contacto_service, invitacion_service
 _repo = SolicitudSemanalRepo()
 
 
+def _json_safe_value(value: Any) -> Any:
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    return value
+
+
+def _json_safe_row(row: Any) -> Optional[Dict[str, Any]]:
+    if not row:
+        return None
+    data = dict(row)
+    return {key: _json_safe_value(val) for key, val in data.items()}
+
+
+def _json_safe_rows(rows: List[Any]) -> List[Dict[str, Any]]:
+    out = []
+    for row in rows or []:
+        item = _json_safe_row(row)
+        if item:
+            out.append(item)
+    return out
+
+
 def _semana_inicio_lunes(ref: Optional[date] = None) -> date:
     d = ref or date.today()
     return d - timedelta(days=d.weekday())
@@ -127,21 +151,25 @@ def obtener_panel_por_codigo(db, codigo: str) -> Dict[str, Any]:
                 }
 
             oficios_grupo = _repo.listar_oficios_grupo_activos(cursor, grupo_id)
-            propia = _repo.listar_propia_semana(cursor, codigo, semana)
+            propia = _json_safe_row(_repo.listar_propia_semana(cursor, codigo, semana))
             if propia and propia.get("estado") == "activa":
                 propia["interesados_count"] = _repo.contar_interesados(
                     cursor, int(propia["id"])
                 )
-                propia["interesados"] = _repo.listar_respuestas_por_solicitud(
-                    cursor, int(propia["id"]), "puedo_ayudar"
+                propia["interesados"] = _json_safe_rows(
+                    _repo.listar_respuestas_por_solicitud(
+                        cursor, int(propia["id"]), "puedo_ayudar"
+                    )
                 )
             elif propia and propia.get("estado") != "activa":
                 propia = None
 
-            activas = _repo.listar_activas_grupo(cursor, grupo_id, semana, codigo)
+            activas = _json_safe_rows(
+                _repo.listar_activas_grupo(cursor, grupo_id, semana, codigo)
+            )
             activas = _enriquecer_con_respuestas(db, cursor, activas, codigo)
 
-            historial = _repo.listar_historial_grupo(cursor, grupo_id, 30)
+            historial = _json_safe_rows(_repo.listar_historial_grupo(cursor, grupo_id, 30))
 
             conn.commit()
             return {
