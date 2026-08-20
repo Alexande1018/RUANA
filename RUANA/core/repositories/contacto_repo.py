@@ -100,7 +100,7 @@ class ContactoRepo:
     def select_para_cierre(self, cursor, contacto_id: int) -> Optional[Dict[str, Any]]:
         cursor.execute(
             """
-            SELECT id, estado, solicitante_codigo, profesional_codigo
+            SELECT id, estado, solicitante_codigo, profesional_codigo, importe_acordado
             FROM contactos_ruana WHERE id = ?
             """,
             (contacto_id,),

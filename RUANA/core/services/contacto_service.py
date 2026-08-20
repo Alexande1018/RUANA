@@ -19,6 +19,29 @@ from core.repositories.contacto_repo import ContactoRepo
 
 _repo = ContactoRepo()
 
+# Tras confirmar el precio el encargo ya es un negocio: no se puede marcar «no se concretó».
+_ESTADOS_NEGOCIO_CONCRETADO = (
+    'acuerdo_alcanzado',
+    'pendiente_de_pago',
+    'trabajo_cerrado',
+    'importe_en_disputa',
+)
+
+MSG_NO_CONCRETADO_PRECIO_CONFIRMADO = (
+    'El precio del encargo ya está confirmado. El negocio quedó concretado '
+    'y no se puede marcar como no concretado.'
+)
+
+
+def _contacto_tiene_negocio_concretado(contacto: Optional[Dict[str, Any]]) -> bool:
+    """True si el precio ya se confirmó y el encargo quedó como negocio hecho."""
+    if not contacto:
+        return False
+    estado = (contacto.get('estado') or '').strip()
+    if estado in _ESTADOS_NEGOCIO_CONCRETADO:
+        return True
+    return contacto.get('importe_acordado') is not None
+
 
 def crear_contacto_ruana(
     db,
@@ -199,6 +222,7 @@ def marcar_cerrado_no_concretado(db, contacto_id: int, motivo: str = "",
     - Estado → cerrado_no_concretado, pendiente_resolucion = 0.
     - -1 punto Score RUANA a cada aliado.
     - audit_log. No permitir si ya está en estado final.
+    - Tampoco permitir si el precio ya está confirmado (el negocio quedó concretado).
     """
     sol = prof = None
     with db._lock:
@@ -214,6 +238,12 @@ def marcar_cerrado_no_concretado(db, contacto_id: int, motivo: str = "",
                 return {
                     'status': 'error',
                     'message': f'El contacto ya está cerrado o en estado final ({estado_actual}).'
+                }
+            if _contacto_tiene_negocio_concretado(contacto):
+                return {
+                    'status': 'error',
+                    'message': MSG_NO_CONCRETADO_PRECIO_CONFIRMADO,
+                    'estado': estado_actual,
                 }
 
             sol = contacto.get('solicitante_codigo')

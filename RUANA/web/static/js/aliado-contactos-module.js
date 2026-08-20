@@ -158,7 +158,8 @@
         const btnNoConcreto = document.getElementById('btn-contacto-no-concreto');
         // Fase 3: el cierre manual por «Sí, hubo trabajo» no está disponible en el panel normal.
         if (btnSiTrabajo) btnSiTrabajo.style.display = 'none';
-        if (btnNoConcreto) btnNoConcreto.style.display = (estado === 'trabajo_cerrado') ? 'none' : '';
+        // Tras confirmar el precio el negocio ya está hecho: no ofrecer «No se concretó».
+        if (btnNoConcreto) btnNoConcreto.style.display = _encargoYaConcretado(host.contactoActual) ? 'none' : '';
 
         const subirPruebaEl = document.getElementById('contacto-aviso-subir-prueba');
         const codigoAliado = host.codigoAliado || (host.aliado && host.aliado.codigo) || '';
@@ -267,6 +268,23 @@
     } catch (e) {
         if (catalogoWrap) catalogoWrap.style.display = 'none';
     }
+  }
+
+  function _encargoYaConcretado(contacto) {
+    if (!contacto) return false;
+    const estado = (contacto.estado || '').toString().trim();
+    if (
+        estado === 'trabajo_cerrado'
+        || estado === 'acuerdo_alcanzado'
+        || estado === 'pendiente_de_pago'
+        || estado === 'importe_en_disputa'
+    ) {
+        return true;
+    }
+    if (contacto.negociacion_completa) return true;
+    if (contacto.importe_acordado != null && contacto.importe_acordado !== '') return true;
+    if (contacto.precio_congelado) return true;
+    return false;
   }
 
   function _encargoUiLabels(host, contacto) {
@@ -691,6 +709,11 @@
 
   async function confirmarNoConcretado(host) {
     if (!host.contactoActual) return;
+    if (_encargoYaConcretado(host.contactoActual)) {
+        const modalBloqueado = document.getElementById('modal-no-concretado');
+        if (modalBloqueado) modalBloqueado.classList.remove('show');
+        return;
+    }
     const modal = document.getElementById('modal-no-concretado');
     const contactoId = host.contactoActual.id;
     try {
@@ -861,6 +884,7 @@
 
   function handleAvisoNoSeConcreto(host) {
       if (!host.contactoActual) return;
+      if (_encargoYaConcretado(host.contactoActual)) return;
       const modal = document.getElementById('modal-no-concretado');
       if (modal) modal.classList.add('show');
   }
@@ -941,6 +965,7 @@ modules.contactos = {
     mostrarAvisoPrevioContacto: mostrarAvisoPrevioContacto,
     _cargarCatalogoEnPrevioContacto: _cargarCatalogoEnPrevioContacto,
     _encargoUiLabels: _encargoUiLabels,
+    _encargoYaConcretado: _encargoYaConcretado,
     renderEncargosActivos: renderEncargosActivos,
     crearContactoYAbrirNegociacion: crearContactoYAbrirNegociacion,
     handleAvisoSiHuboTrabajo: handleAvisoSiHuboTrabajo,
