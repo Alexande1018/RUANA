@@ -199,6 +199,31 @@ def test_score_repo_listar_dias_acceso(sqlite_db):
     assert desde == ["2026-08-09", "2026-08-11"]
 
 
+@pytest.mark.parametrize(
+    "score,esperado",
+    [
+        (500, "ÉLITE"),
+        (350, "ÉLITE"),
+        (349, "DESTACADO"),
+        (200, "DESTACADO"),
+        (199, "ESTABLE"),
+        (50, "ESTABLE"),
+        (49, "EN RIESGO"),
+        (15, "EN RIESGO"),
+        (14, "COMPETENCIA"),
+        (0, "COMPETENCIA"),
+        (None, "COMPETENCIA"),
+        ("abc", "COMPETENCIA"),
+    ],
+)
+def test_score_a_estado_bandas_oficiales(score, esperado):
+    """Motor RUANA: ÉLITE 350-500, DESTACADO 200-349, ESTABLE 50-199, EN RIESGO 15-49, COMPETENCIA 0-14."""
+    assert score_service.score_a_estado(score) == esperado
+    from core.db_manager import DBManager
+
+    assert DBManager.score_a_estado(score) == esperado
+
+
 def test_ya_aplicado_motivo_score_via_repo(sqlite_db):
     _crear_activo(sqlite_db, "81010", score=45)
     assert sqlite_db._ya_aplicado_motivo_score("81010", "motivo_unico_x") is False

@@ -81,15 +81,10 @@
     }
 
     function scoreBuckets(aliados) {
-        var buckets = { alto: 0, medio: 0, bajo: 0, riesgo: 0 };
-        (aliados || []).forEach(function (a) {
-            var s = Number(a.score_panel != null ? a.score_panel : a.score) || 0;
-            if (s >= 400) buckets.alto++;
-            else if (s >= 250) buckets.medio++;
-            else if (s >= 100) buckets.bajo++;
-            else buckets.riesgo++;
-        });
-        return buckets;
+        if (global.RuanaScoreEstado) {
+            return global.RuanaScoreEstado.bucketsFromAliados(aliados);
+        }
+        return { elite: 0, destacado: 0, estable: 0, en_riesgo: 0, competencia: 0 };
     }
 
     function groupByCp(aliados) {
@@ -213,7 +208,9 @@
         var incidencias = payload && payload.incidencias ? payload.incidencias : [];
         var competencias = payload && payload.competencias ? payload.competencias : [];
         var aliadosEnRiesgo = aliados.filter(function (a) {
-            return (a.estado_panel === 'riesgo') || Number(a.score_panel || a.score) < 100;
+            return global.RuanaScoreEstado
+                ? global.RuanaScoreEstado.esEnRiesgo(a)
+                : false;
         });
 
         var kpiStrip = document.getElementById('cc-kpi-strip');
@@ -268,14 +265,15 @@
         });
 
         var buckets = scoreBuckets(aliados);
+        var scoreSegments = global.RuanaScoreEstado
+            ? global.RuanaScoreEstado.chartSegments(buckets)
+            : [];
         charts.renderDonutChart(document.getElementById('cc-chart-scores'), {
             title: 'Distribución de scores',
-            segments: [
-                { label: 'Alto (400+)', value: buckets.alto, color: '#a2ff00', nav: '#scores-evaluaciones-wrap' },
-                { label: 'Medio', value: buckets.medio, color: '#5ecf9a', nav: '#scores-evaluaciones-wrap' },
-                { label: 'Bajo', value: buckets.bajo, color: '#e8c468', nav: '#scores-evaluaciones-wrap' },
-                { label: 'Riesgo', value: buckets.riesgo, color: '#d4926e', nav: '#scores-evaluaciones-wrap' }
-            ]
+            segments: scoreSegments.map(function (seg) {
+                seg.nav = '#scores-evaluaciones-wrap';
+                return seg;
+            })
         });
 
         var cpGroups = groupByCp(aliados).slice(0, 8);

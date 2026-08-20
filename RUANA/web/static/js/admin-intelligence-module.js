@@ -130,7 +130,9 @@
             var cp = (a.codigo_postal || '').toString().trim() || '—';
             if (!byCp[cp]) byCp[cp] = { activos: 0, riesgo: 0 };
             if ((a.estado || '').toLowerCase() === 'activo') byCp[cp].activos++;
-            if (a.estado_panel === 'riesgo' || Number(a.score) < 100) byCp[cp].riesgo++;
+            if (global.RuanaScoreEstado ? global.RuanaScoreEstado.esAtencion(a) : Number(a.score) < 50) {
+                byCp[cp].riesgo++;
+            }
         });
         var cpItems = Object.keys(byCp).slice(0, 6).map(function (cp) {
             return { label: cp.slice(-4), value: byCp[cp].activos };
@@ -151,7 +153,9 @@
         if (conflictos > 3) {
             anomalies.push(conflictos + ' conflictos activos requieren revisión.');
         }
-        (aliados || []).filter(function (a) { return a.estado_panel === 'riesgo'; }).slice(0, 3).forEach(function (a) {
+        (aliados || []).filter(function (a) {
+            return global.RuanaScoreEstado ? global.RuanaScoreEstado.esAtencion(a) : Number(a.score) < 50;
+        }).slice(0, 3).forEach(function (a) {
             anomalies.push('Aliado en riesgo: ' + (a.nombre || a.codigo));
         });
         if (!anomalies.length) anomalies.push('Sin anomalías detectadas en los umbrales actuales.');

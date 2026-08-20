@@ -553,6 +553,7 @@ def listar_aliados(db, filtro_postal: str = None) -> List[Dict[str, Any]]:
                 else:
                     score_panel = float(item.get('score') or 0)
                 item['score_panel'] = score_panel
+                item['estado_ruana'] = db.score_a_estado(item.get('score'))
 
                 # Estado de panel: prioriza estado real de BD (activo / pendiente_validacion / en_espera).
                 # El score de evaluación solo reclasifica a observación/riesgo cuando existe evaluación.

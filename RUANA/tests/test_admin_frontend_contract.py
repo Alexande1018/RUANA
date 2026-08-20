@@ -284,3 +284,37 @@ def test_admin_inline_fetch_budget_and_module_coverage():
     assert "activarAliadoPendiente" in red
     assert "mod.cargarDesdeApi(this)" in admin
     assert "mod.setupEventListeners(this)" in admin
+
+
+def test_admin_scores_usa_estados_oficiales_ruana():
+    """Scores y evaluaciones debe usar ÉLITE/DESTACADO/ESTABLE/EN RIESGO/COMPETENCIA, no 400+/<100."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    admin = (root / "admin.html").read_text(encoding="utf-8")
+    helper = (root / "static" / "js" / "score-estado.js").read_text(encoding="utf-8")
+    explorer = (root / "static" / "js" / "admin-red-explorer-module.js").read_text(encoding="utf-8")
+    command = (root / "static" / "js" / "admin-command-center-module.js").read_text(encoding="utf-8")
+    intel = (root / "static" / "js" / "admin-intelligence-module.js").read_text(encoding="utf-8")
+
+    assert 'src="/static/js/score-estado.js"' in admin
+    assert "Élite 350-500" in admin
+    assert "En riesgo 15-49" in admin
+    assert "Competencia 0-14" in admin
+
+    assert "s >= 350" in helper
+    assert "s >= 200" in helper
+    assert "s >= 50" in helper
+    assert "s >= 15" in helper
+    assert "RuanaScoreEstado" in helper
+
+    assert "RuanaScoreEstado" in explorer
+    assert "RuanaScoreEstado" in command
+    assert "bucketsFromAliados" in explorer
+    assert "Score alto (400+)" not in explorer
+    assert "Alto (400+)" not in command
+    assert "En riesgo (&lt;100)" not in explorer
+    assert "s >= 400" not in explorer
+    assert "s >= 400" not in command
+    assert "s >= 250" not in explorer
+    assert "s >= 250" not in command
+    assert "< 100" not in intel
+    assert "Estado panel: riesgo" not in explorer

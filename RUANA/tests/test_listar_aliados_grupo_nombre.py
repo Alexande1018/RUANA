@@ -34,3 +34,30 @@ def test_listar_aliados_incluye_grupo_nombre(sqlite_db):
     aliado = next(a for a in listado if a["codigo"] == "GN001")
     assert aliado["grupo_id"] == grupo_id
     assert aliado["grupo_nombre"] == "Grupo Norte QA"
+
+
+def test_listar_aliados_incluye_estado_ruana_segun_score(sqlite_db):
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    filas = [
+        ("EL001", "Elite", 400),
+        ("DE001", "Destacado", 220),
+        ("ES001", "Estable", 50),
+        ("RI001", "Riesgo", 20),
+        ("CO001", "Competencia", 10),
+    ]
+    for codigo, nombre, score in filas:
+        cur.execute(
+            "INSERT INTO aliados (codigo, nombre, oficio, codigo_postal, estado, score) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (codigo, nombre, "Electricidad", "28001", "activo", score),
+        )
+    conn.commit()
+    conn.close()
+
+    por_codigo = {a["codigo"]: a for a in sqlite_db.listar_aliados()}
+    assert por_codigo["EL001"]["estado_ruana"] == "ÉLITE"
+    assert por_codigo["DE001"]["estado_ruana"] == "DESTACADO"
+    assert por_codigo["ES001"]["estado_ruana"] == "ESTABLE"
+    assert por_codigo["RI001"]["estado_ruana"] == "EN RIESGO"
+    assert por_codigo["CO001"]["estado_ruana"] == "COMPETENCIA"
