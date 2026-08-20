@@ -226,8 +226,8 @@
 
 .sol-sem-minimized {
   position: fixed;
+  left: 16px;
   bottom: 88px;
-  right: 16px;
   z-index: 11000;
   display: none;
   align-items: center;
@@ -235,7 +235,7 @@
   padding: 10px 14px;
   border-radius: 999px;
   background: linear-gradient(135deg, #2a3f5f, #1e2d44);
-  border: 1px solid rgba(120, 180, 255, 0.35);
+  border: 1px solid rgba(120, 180, 255, 0.45);
   color: #fff;
   font-size: 0.82rem;
   cursor: pointer;

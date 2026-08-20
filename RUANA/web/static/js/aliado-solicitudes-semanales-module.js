@@ -365,12 +365,10 @@
       ocultarPromptCrear(host);
       return;
     }
-    if (st === 'minimized' && !opts.forceFull) {
+    var mostrarCompleto = !!opts.forceFull || (esLunesLocal() && st !== 'minimized');
+    if (!mostrarCompleto) {
+      ocultarOverlay('sol-sem-prompt-overlay');
       mostrarMinimizado(host);
-      return;
-    }
-    if (!opts.forceFull && !esLunesLocal()) {
-      ocultarPromptCrear(host);
       return;
     }
     if (!obtenerOficiosParaPicker(host).length) {
