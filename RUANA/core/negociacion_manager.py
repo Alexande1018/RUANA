@@ -503,6 +503,11 @@ def accion_disponible(estado: Dict[str, Any], rol: str, contacto_estado: str) ->
     """Indica qué puede hacer el usuario. Nunca devuelve espera sin contexto."""
     if contacto_estado in ('cerrado_no_concretado', 'no_concretado', 'trabajo_cerrado'):
         return {'tipo': 'cerrado', 'mensaje': 'Esta negociación está cerrada.'}
+    if contacto_estado == 'pendiente_de_pago':
+        return {
+            'tipo': 'pago',
+            'mensaje': 'Completa el pago con Stripe para reservar el encargo.',
+        }
     if contacto_estado == 'acuerdo_alcanzado':
         return {
             'tipo': 'resumen',

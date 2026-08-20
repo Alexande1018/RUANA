@@ -104,6 +104,10 @@
             if (cerrar) cerrar.addEventListener('click', () => this.cerrar());
             if (cerrarX) cerrarX.addEventListener('click', () => this.cerrar());
             if (cerrarNeg) cerrarNeg.addEventListener('click', () => this.confirmarCerrarNegociacion());
+            const ctaConfirmar = document.getElementById('neg-cta-flotante-confirmar');
+            if (ctaConfirmar) {
+                ctaConfirmar.addEventListener('click', () => this.confirmarCerrarNegociacion());
+            }
             const overlay = document.getElementById('modal-negociacion-guiada');
             if (overlay) {
                 overlay.addEventListener('click', (e) => {
@@ -164,6 +168,7 @@
             this._catalogoAbierto = false;
             this._cambiarServicio = false;
             this._precioReferencia = '';
+            this._ocultarCtaFlotante();
             document.body.classList.remove('neg-modal-abierto');
             if (this.panel && typeof this.panel.restaurarAcuerdoFlotanteTrasNegociacion === 'function') {
                 this.panel.restaurarAcuerdoFlotanteTrasNegociacion(contactoId, dataSnapshot);
@@ -227,6 +232,8 @@
         _contactoStripeDesdeData() {
             return {
                 id: this.contactoId,
+                estado: this.data.estado_contacto || '',
+                estado_contacto: this.data.estado_contacto || '',
                 modo_pago: this.data.modo_pago || 'stripe',
                 estado_pago: this.data.estado_pago || '',
                 importe_acordado: this.data.importe_acordado,
@@ -253,6 +260,10 @@
                     this._contactoStripeDesdeData(),
                     slot
                 );
+            }
+            const btnPagar = slot && slot.querySelector('.stripe-pagar-btn');
+            if (btnPagar && this.contactoId) {
+                btnPagar.setAttribute('data-contacto-id', String(this.contactoId));
             }
         }
 
@@ -510,6 +521,7 @@
             this.renderResumen();
             this.renderAcciones();
             this.renderAcuerdoFinal();
+            this.renderCtaFlotante();
             this.renderBotonesHeader();
         }
 
@@ -635,27 +647,100 @@
             el.textContent = `${label} · ${rol}`;
         }
 
+        _stripePagoPendiente() {
+            if (!this.data) return false;
+            const modo = (this.data.modo_pago || 'stripe').toString().trim() || 'stripe';
+            if (modo !== 'stripe') return false;
+            const estado = this.data.estado_contacto || '';
+            const estadoPago = this.data.estado_pago || '';
+            if (['cobro_confirmado', 'transferido'].includes(estadoPago)) return false;
+            if (estado === 'pendiente_de_pago') return true;
+            return ['esperando_cobro_cliente', 'checkout_activo', 'no_generado'].includes(estadoPago);
+        }
+
+        _soyContratante() {
+            if (!this.data) return false;
+            return this.data.rol === 'solicitante'
+                || this._miCodigo() === String(this.data.solicitante_codigo || '').trim();
+        }
+
+        _ocultarCtaFlotante() {
+            const wrap = document.getElementById('neg-cta-flotante');
+            if (!wrap) return;
+            wrap.hidden = true;
+            wrap.classList.remove('is-visible');
+        }
+
+        renderCtaFlotante() {
+            const wrap = document.getElementById('neg-cta-flotante');
+            if (!wrap || !this.data) return;
+            const estado = this.data.estado_contacto || '';
+            const acuerdo = !!(this.data.acuerdo_alcanzado
+                || ['acuerdo_alcanzado', 'pendiente_de_pago', 'trabajo_cerrado'].includes(estado));
+            if (!acuerdo) {
+                this._ocultarCtaFlotante();
+                return;
+            }
+            const yaConfirme = !!this.data.yo_confirme_cierre;
+            const trabajoCerrado = estado === 'trabajo_cerrado';
+            const mostrarConfirmar = !yaConfirme && !trabajoCerrado;
+            const mostrarPagar = this._soyContratante() && this._stripePagoPendiente();
+            if (!mostrarConfirmar && !mostrarPagar) {
+                this._ocultarCtaFlotante();
+                return;
+            }
+            const kicker = document.getElementById('neg-cta-flotante-kicker');
+            const msg = document.getElementById('neg-cta-flotante-msg');
+            const btnConfirmar = document.getElementById('neg-cta-flotante-confirmar');
+            const btnPagar = document.getElementById('neg-cta-flotante-pagar');
+            if (kicker) kicker.textContent = mostrarPagar && yaConfirme ? 'Pago pendiente' : 'Acuerdo alcanzado';
+            if (msg) {
+                if (mostrarPagar && !mostrarConfirmar) {
+                    msg.textContent = 'El importe acordado está listo. Pulsa «Ir a pagar» para completar el cobro con Stripe.';
+                } else if (mostrarPagar) {
+                    msg.textContent = 'Confirma el acuerdo y pulsa «Ir a pagar» para no dejar el encargo a medias.';
+                } else {
+                    msg.textContent = 'Revisa el resumen y confirma el acuerdo. Este paso no debe pasar desapercibido.';
+                }
+            }
+            if (btnConfirmar) {
+                btnConfirmar.hidden = !mostrarConfirmar;
+                btnConfirmar.disabled = !mostrarConfirmar;
+            }
+            if (btnPagar) {
+                btnPagar.hidden = !mostrarPagar;
+                btnPagar.disabled = !mostrarPagar;
+                if (this.contactoId) {
+                    btnPagar.setAttribute('data-contacto-id', String(this.contactoId));
+                } else {
+                    btnPagar.removeAttribute('data-contacto-id');
+                }
+            }
+            wrap.hidden = false;
+            wrap.classList.add('is-visible');
+        }
+
         renderBotonesHeader() {
             const btnCerrarNeg = document.getElementById('neg-btn-cerrar-negociacion');
             if (!btnCerrarNeg) return;
             const estado = this.data.estado_contacto || '';
             const abandonado = ['cerrado_no_concretado', 'no_concretado'].includes(estado);
             const trabajoCerrado = estado === 'trabajo_cerrado';
-            const acuerdo = estado === 'acuerdo_alcanzado' || this.data.acuerdo_alcanzado;
+            const acuerdo = estado === 'acuerdo_alcanzado'
+                || estado === 'pendiente_de_pago'
+                || this.data.acuerdo_alcanzado;
             if (abandonado || (trabajoCerrado && this.data.yo_confirme_cierre)) {
                 btnCerrarNeg.style.display = 'none';
                 return;
             }
-            btnCerrarNeg.style.display = '';
             if (acuerdo || trabajoCerrado) {
-                btnCerrarNeg.textContent = this.data.yo_confirme_cierre
-                    ? 'Ya confirmaste'
-                    : 'Confirmar acuerdo';
-                btnCerrarNeg.disabled = !!this.data.yo_confirme_cierre;
-            } else {
-                btnCerrarNeg.textContent = 'Cerrar';
-                btnCerrarNeg.disabled = false;
+                // El CTA flotante centrado sustituye al botón pequeño de cabecera.
+                btnCerrarNeg.style.display = 'none';
+                return;
             }
+            btnCerrarNeg.style.display = '';
+            btnCerrarNeg.textContent = 'Cerrar';
+            btnCerrarNeg.disabled = false;
         }
 
         _bubbleHtml(tipo, texto, meta) {
@@ -868,8 +953,8 @@
 
         renderAcciones() {
             const el = document.getElementById('neg-acciones-wrap');
-            if (!el || !this.data.accion) return;
-            const acc = this.data.accion;
+            if (!el || !this.data) return;
+            const acc = this.data.accion || {};
             const accionKey = this._accionKey(acc);
 
             if (this._catalogoAbierto && (
@@ -884,15 +969,17 @@
             } else if (acc.campo) {
                 this._guardarBorradoresFormulario(acc.campo);
             }
-            if (this._formularioEnUso() && accionKey === this._lastAccionKey) {
+            if (acc.tipo && this._formularioEnUso() && accionKey === this._lastAccionKey) {
                 return;
             }
             this._lastAccionKey = accionKey;
 
-            if (this.data.estado_contacto === 'pendiente_de_pago' && this.data.modo_pago === 'stripe') {
+            if (this._stripePagoPendiente() && (this._soyContratante() || acc.tipo === 'pago')) {
                 this._renderAccionesPagoStripe();
                 return;
             }
+
+            if (!this.data.accion) return;
 
             if (this.data.acuerdo_alcanzado
                 || this.data.estado_contacto === 'acuerdo_alcanzado'

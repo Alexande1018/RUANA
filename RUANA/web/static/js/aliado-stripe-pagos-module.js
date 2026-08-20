@@ -27,26 +27,80 @@
     return base;
   }
 
+  function apiUrl(path) {
+    if (typeof global.apiUrl === 'function') {
+      return global.apiUrl(path);
+    }
+    const base = (typeof global.getApiBase === 'function'
+      ? String(global.getApiBase() || '')
+      : '').replace(/\/$/, '');
+    const normalized = String(path || '').startsWith('/') ? String(path) : `/${path || ''}`;
+    return `${base}${normalized}`;
+  }
+
+  function contactoIdValido(id) {
+    const n = Number(id);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
+  function notifyPago(message, type) {
+    const msg = String(message || '');
+    if (typeof global.RuanaUI !== 'undefined') {
+      if (type === 'error' && typeof global.RuanaUI.error === 'function') {
+        global.RuanaUI.error('', msg);
+        return;
+      }
+      if (type === 'warning' && typeof global.RuanaUI.warning === 'function') {
+        global.RuanaUI.warning('', msg);
+        return;
+      }
+    }
+    alert(msg);
+  }
+
+  function puedeIniciarPagoStripe(contacto, codigoAliado) {
+    if (!contacto) return false;
+    const modo = String(contacto.modo_pago || 'stripe').trim() || 'stripe';
+    if (modo !== 'stripe') return false;
+    const codigo = String(codigoAliado || '').trim();
+    const esContratante = !!codigo && codigo === String(contacto.solicitante_codigo || '').trim();
+    if (!esContratante) return false;
+    const estado = String(contacto.estado || contacto.estado_contacto || '').trim();
+    const estadoPago = String(contacto.estado_pago || '').trim();
+    if (['cobro_confirmado', 'transferido'].includes(estadoPago)) return false;
+    if (['esperando_cobro_cliente', 'checkout_activo', 'no_generado'].includes(estadoPago)) return true;
+    return estado === 'pendiente_de_pago';
+  }
+
   async function iniciarPagoStripe(host, contactoId) {
-    const resp = await fetch(`/api/contactos/${contactoId}/stripe/checkout`, {
+    const id = contactoIdValido(contactoId);
+    if (!id) {
+      throw new Error('No se pudo iniciar el pago: encargo no válido.');
+    }
+    const resp = await fetch(apiUrl(`/api/contactos/${id}/stripe/checkout`), {
       method: 'POST',
-      credentials: 'include',
+      credentials: 'same-origin',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
     });
-    const data = await resp.json();
+    let data = {};
+    try {
+      data = await resp.json();
+    } catch (e) {
+      throw new Error(resp.ok ? 'Respuesta inválida del servidor' : `Error del servidor (${resp.status})`);
+    }
     if (data.status !== 'success' || !data.checkout_url) {
       throw new Error(data.message || 'No se pudo iniciar el pago');
     }
-    global.location.href = data.checkout_url;
+    global.location.assign(data.checkout_url);
   }
 
   async function confirmarTrabajoStripe(host, contactoId) {
     if (!global.confirm('¿Confirmas que el trabajo se realizó correctamente? Se liberará el pago al profesional.')) {
       return;
     }
-    const resp = await fetch(`/api/contactos/${contactoId}/stripe/confirmar-trabajo`, {
+    const resp = await fetch(apiUrl(`/api/contactos/${contactoId}/stripe/confirmar-trabajo`), {
       method: 'POST',
-      credentials: 'include',
+      credentials: 'same-origin',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
     });
     const data = await resp.json();
@@ -210,12 +264,12 @@
     }
 
     if (esContratante) {
-      if (['esperando_cobro_cliente', 'checkout_activo'].includes(estadoPago)) {
+      if (puedeIniciarPagoStripe(contacto, codigo)) {
         parts.push(
           `<p class="stripe-estado-msg">${importeTxt
             ? `Importe acordado: <strong>${escapeHtml(importeTxt)}</strong>. `
             : ''}Completa el pago para reservar el encargo.</p>`
-          + '<button type="button" class="encargo-card-btn stripe-pagar-btn">Ir a pagar</button>'
+          + `<button type="button" class="encargo-card-btn stripe-pagar-btn" data-contacto-id="${escapeHtml(String(contacto.id || ''))}">Ir a pagar</button>`
         );
       } else if (estadoPago === 'cobro_confirmado') {
         parts.push(
@@ -228,12 +282,6 @@
     }
 
     container.innerHTML = parts.join('');
-    const btnPagar = container.querySelector('.stripe-pagar-btn');
-    if (btnPagar) {
-      btnPagar.addEventListener('click', () => {
-        iniciarPagoStripe(host, contacto.id).catch((e) => alert(e.message));
-      });
-    }
     const btnConfirmar = container.querySelector('.stripe-confirmar-btn');
     if (btnConfirmar) {
       btnConfirmar.addEventListener('click', () => {
@@ -370,6 +418,41 @@
     isStripeConectado,
     stripePagosActivos,
     labelEstadoPago,
+    puedeIniciarPagoStripe,
     MSG_PAGO_NO_DISPONIBLE,
   };
+
+  function ensureDelegatedPagoClicks() {
+    if (typeof document === 'undefined') return;
+    if (document.documentElement.getAttribute('data-stripe-pagar-bound') === '1') return;
+    document.documentElement.setAttribute('data-stripe-pagar-bound', '1');
+    document.addEventListener('click', (e) => {
+      const target = e.target;
+      if (!target || typeof target.closest !== 'function') return;
+      const btn = target.closest('.stripe-pagar-btn, #acuerdo-flotante-pagar, #neg-cta-flotante-pagar');
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (btn.disabled || btn.getAttribute('aria-busy') === 'true') return;
+      const id = btn.getAttribute('data-contacto-id');
+      const prev = btn.textContent;
+      btn.setAttribute('aria-busy', 'true');
+      btn.disabled = true;
+      btn.textContent = 'Abriendo pago…';
+      iniciarPagoStripe(null, id).catch((err) => {
+        notifyPago((err && err.message) || 'No se pudo iniciar el pago', 'error');
+        btn.disabled = false;
+        btn.textContent = prev || 'Ir a pagar';
+        btn.removeAttribute('aria-busy');
+      });
+    });
+  }
+
+  if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', ensureDelegatedPagoClicks);
+    } else {
+      ensureDelegatedPagoClicks();
+    }
+  }
 })(window);

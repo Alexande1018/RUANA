@@ -201,6 +201,11 @@ class TestNegociacionGuiada(unittest.TestCase):
         self.assertEqual(float(contacto.get('importe_acordado')), 150.0)
         self.assertEqual(contacto.get('estado_pago'), 'esperando_cobro_cliente')
 
+        payload = self.db.obtener_negociacion_contacto(cid, '90001')
+        self.assertEqual(payload['status'], 'success')
+        self.assertEqual(payload.get('accion', {}).get('tipo'), 'pago')
+        self.assertEqual(payload.get('estado_contacto'), 'pendiente_de_pago')
+
         r1 = self.db.cerrar_negociacion(cid, '90001')
         self.assertEqual(r1['status'], 'success', r1.get('message'))
         self.assertIn(r1.get('estado_contacto'), ('pendiente_de_pago', 'acuerdo_alcanzado'))

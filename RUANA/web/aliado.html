@@ -866,6 +866,15 @@
                     <button type="button" class="neg-btn-cerrar-x" id="neg-btn-cerrar-x" aria-label="Cerrar conversación">×</button>
                 </div>
             </div>
+            <div class="neg-modal-stage">
+            <div id="neg-cta-flotante" class="neg-cta-flotante" hidden>
+                <div class="neg-cta-flotante-card">
+                    <p class="neg-cta-flotante-kicker" id="neg-cta-flotante-kicker">Acuerdo alcanzado</p>
+                    <p class="neg-cta-flotante-msg" id="neg-cta-flotante-msg">Revisa el resumen y confirma el acuerdo para continuar.</p>
+                    <button type="button" class="neg-cta-flotante-btn" id="neg-cta-flotante-confirmar">Confirmar acuerdo</button>
+                    <button type="button" class="neg-cta-flotante-btn primary stripe-pagar-btn" id="neg-cta-flotante-pagar" hidden>Ir a pagar</button>
+                </div>
+            </div>
             <div id="neg-acuerdo-final" style="display:none;"></div>
             <div id="neg-stripe-aviso" class="neg-stripe-aviso" style="display:none;" role="alert" aria-live="polite"></div>
             <div id="neg-estado-bar" class="neg-estado-bar" style="display:none;" aria-live="polite"></div>
@@ -881,11 +890,13 @@
                 </aside>
             </div>
             <div id="neg-acciones-wrap" class="neg-acciones"></div>
+            </div>
         </div>
     </div>
 
     <!-- Panel flotante persistente del resumen de acuerdo -->
     <aside id="acuerdo-flotante" class="acuerdo-flotante" hidden aria-live="polite">
+        <div class="acuerdo-flotante-card">
         <div class="acuerdo-flotante-header">
             <div>
                 <p class="acuerdo-flotante-kicker">Acuerdo alcanzado</p>
@@ -896,8 +907,10 @@
         <div class="acuerdo-flotante-body" id="acuerdo-flotante-body"></div>
         <p class="acuerdo-flotante-estado" id="acuerdo-flotante-estado"></p>
         <div class="acuerdo-flotante-actions">
-            <button type="button" class="acuerdo-flotante-btn primary" id="acuerdo-flotante-abrir">Ver negociación</button>
-            <button type="button" class="acuerdo-flotante-btn" id="acuerdo-flotante-confirmar">Confirmar acuerdo</button>
+            <button type="button" class="acuerdo-flotante-btn primary stripe-pagar-btn" id="acuerdo-flotante-pagar" hidden>Ir a pagar</button>
+            <button type="button" class="acuerdo-flotante-btn primary" id="acuerdo-flotante-confirmar">Confirmar acuerdo</button>
+            <button type="button" class="acuerdo-flotante-btn" id="acuerdo-flotante-abrir">Ver negociación</button>
+        </div>
         </div>
     </aside>
 

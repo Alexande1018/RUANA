@@ -42,6 +42,7 @@
     const body = document.getElementById('acuerdo-flotante-body');
     const estadoEl = document.getElementById('acuerdo-flotante-estado');
     const btnConfirmar = document.getElementById('acuerdo-flotante-confirmar');
+    const btnPagar = document.getElementById('acuerdo-flotante-pagar');
     if (title) title.textContent = item.servicio || 'Resumen del acuerdo';
     const items = Array.isArray(item.resumen)
         ? item.resumen.filter((r) => r && r.valor && r.campo !== 'observaciones_profesional')
@@ -62,6 +63,36 @@
         const hide = !!(item.yo_confirme_cierre || item.estado === 'trabajo_cerrado' || item.ambos_confirmaron_cierre);
         btnConfirmar.style.display = hide ? 'none' : '';
         btnConfirmar.disabled = hide;
+        btnConfirmar.hidden = hide;
+    }
+    if (btnPagar) {
+        const codigo = (host.codigoAliado || (host.aliado && host.aliado.codigo) || '').toString().trim();
+        const abierto = (Array.isArray(host.contactosAbiertos) ? host.contactosAbiertos : [])
+            .find((c) => Number(c.id) === Number(item.contacto_id));
+        const pagoCtx = Object.assign({}, abierto || {}, item, {
+            id: item.contacto_id || (abierto && abierto.id),
+            estado: item.estado || (abierto && abierto.estado) || '',
+            estado_contacto: item.estado || (abierto && abierto.estado) || '',
+            solicitante_codigo: item.solicitante_codigo
+                || (abierto && abierto.solicitante_codigo)
+                || '',
+            profesional_codigo: item.profesional_codigo
+                || (abierto && abierto.profesional_codigo)
+                || '',
+            modo_pago: item.modo_pago || (abierto && abierto.modo_pago) || 'stripe',
+            estado_pago: item.estado_pago || (abierto && abierto.estado_pago) || '',
+        });
+        const mostrarPagar = global.RuanaStripePagos
+            && typeof global.RuanaStripePagos.puedeIniciarPagoStripe === 'function'
+            ? global.RuanaStripePagos.puedeIniciarPagoStripe(pagoCtx, codigo)
+            : false;
+        btnPagar.hidden = !mostrarPagar;
+        btnPagar.disabled = !mostrarPagar;
+        if (item.contacto_id) {
+            btnPagar.setAttribute('data-contacto-id', String(item.contacto_id));
+        } else {
+            btnPagar.removeAttribute('data-contacto-id');
+        }
     }
     panel.hidden = false;
     panel.classList.add('show');
@@ -765,7 +796,7 @@
     function syncAcuerdoFlotante(host, data) {
       if (!data || data.resumen_dismissed) return;
       const estado = data.estado_contacto || '';
-      if (!(['acuerdo_alcanzado', 'trabajo_cerrado'].includes(estado) || data.acuerdo_alcanzado)) {
+      if (!(['acuerdo_alcanzado', 'trabajo_cerrado', 'pendiente_de_pago'].includes(estado) || data.acuerdo_alcanzado)) {
           return;
       }
       host.mostrarAcuerdoFlotante({
@@ -777,13 +808,18 @@
           ambos_confirmaron_cierre: !!data.ambos_confirmaron_cierre,
           cierre_confirmado_solicitante: !!data.cierre_confirmado_solicitante,
           cierre_confirmado_profesional: !!data.cierre_confirmado_profesional,
+          modo_pago: data.modo_pago || 'stripe',
+          estado_pago: data.estado_pago || '',
+          solicitante_codigo: data.solicitante_codigo || '',
+          profesional_codigo: data.profesional_codigo || '',
+          importe_acordado: data.importe_acordado,
       });
   }
 
   function mostrarAcuerdoFlotanteDesdeNegociacion(host, contactoId, data) {
       if (!data || data.resumen_dismissed) return;
       const estado = data.estado_contacto || '';
-      if (!(data.acuerdo_alcanzado || ['acuerdo_alcanzado', 'trabajo_cerrado'].includes(estado))) {
+      if (!(data.acuerdo_alcanzado || ['acuerdo_alcanzado', 'trabajo_cerrado', 'pendiente_de_pago'].includes(estado))) {
           return;
       }
       host.mostrarAcuerdoFlotante({
@@ -793,6 +829,11 @@
           resumen: data.resumen || [],
           yo_confirme_cierre: !!data.yo_confirme_cierre,
           ambos_confirmaron_cierre: !!data.ambos_confirmaron_cierre,
+          modo_pago: data.modo_pago || 'stripe',
+          estado_pago: data.estado_pago || '',
+          solicitante_codigo: data.solicitante_codigo || '',
+          profesional_codigo: data.profesional_codigo || '',
+          importe_acordado: data.importe_acordado,
       });
   }
 

@@ -72,3 +72,21 @@ def test_dispute_support_uses_ruana_modal_instead_of_browser_dialogs():
     assert "window.prompt" not in snippet
     assert "window.confirm" not in snippet
     assert "alert(" not in snippet
+
+
+def test_ir_a_pagar_usa_contacto_id_y_checkout_con_api_base():
+    """El botón Ir a pagar inicia checkout Stripe con id del encargo y API base."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    stripe_js = (root / "static" / "js" / "aliado-stripe-pagos-module.js").read_text(encoding="utf-8")
+    contactos_js = (root / "static" / "js" / "aliado-contactos-module.js").read_text(encoding="utf-8")
+    neg_js = (root / "static" / "js" / "negociacion-guiada.js").read_text(encoding="utf-8")
+
+    assert "data-contacto-id" in stripe_js
+    assert "stripe-pagar-btn" in stripe_js
+    assert "ensureDelegatedPagoClicks" in stripe_js
+    assert "/api/contactos/${id}/stripe/checkout" in stripe_js
+    assert "apiUrl(" in stripe_js
+    assert "puedeIniciarPagoStripe" in stripe_js
+    assert "acuerdo-flotante-pagar" in contactos_js
+    assert "neg-cta-flotante-pagar" in neg_js
+    assert "data-contacto-id" in neg_js
