@@ -175,6 +175,41 @@
     }
   }
 
+  function crearCardHistorialSemanal(s) {
+    var card = document.createElement('article');
+    card.className = 'sol-sem-card sol-sem-card--historial';
+    var estado = (s.estado || 'expirada').replace(/_/g, ' ');
+    card.innerHTML =
+      '<div class="sol-sem-card-head">' +
+      '<span class="sol-sem-icon">' + iconoOficio(s.oficio) + '</span>' +
+      '<div class="sol-sem-card-text">' + textoNecesitaOficio(s.solicitante_nombre, s.oficio) +
+      '</div></div>' +
+      (s.descripcion ? '<p class="sol-sem-card-desc">' + escapeHtml(s.descripcion) + '</p>' : '') +
+      '<p class="sol-sem-card-meta">Semana del ' + escapeHtml(s.semana_inicio || '') +
+      ' · ' + escapeHtml(estado) + '</p>';
+    return card;
+  }
+
+  function renderHistorialSemanal(host) {
+    var wrap = document.getElementById('solicitudes-semanales-historial-wrap');
+    var lista = document.getElementById('solicitudes-semanales-historial-list');
+    if (!wrap || !lista) return;
+
+    var snap = host.solicitudesSemanales || {};
+    var historial = Array.isArray(snap.historial) ? snap.historial : [];
+
+    lista.innerHTML = '';
+    if (!historial.length) {
+      wrap.hidden = true;
+      return;
+    }
+
+    historial.forEach(function (s) {
+      lista.appendChild(crearCardHistorialSemanal(s));
+    });
+    wrap.hidden = false;
+  }
+
   function renderSeccion(host) {
     var lista = document.getElementById('solicitudes-semanales-list');
     var propiaWrap = document.getElementById('solicitudes-semanales-propia');
@@ -188,13 +223,13 @@
     lista.innerHTML = '';
     if (!activas.length) {
       lista.innerHTML = '<p class="solicitudes-empty">No hay solicitudes activas de otros aliados esta semana.</p>';
-      renderInicioSeccion(host);
-      return;
+    } else {
+      activas.forEach(function (s) {
+        lista.appendChild(crearCardSolicitud(s, host, ''));
+      });
+      bindAyudarButtons(lista, host);
     }
-    activas.forEach(function (s) {
-      lista.appendChild(crearCardSolicitud(s, host, ''));
-    });
-    bindAyudarButtons(lista, host);
+    renderHistorialSemanal(host);
     renderInicioSeccion(host);
   }
 
@@ -787,6 +822,7 @@
   modules.solicitudesSemanales = {
     fetchSnapshot: fetchSnapshot,
     renderSeccion: renderSeccion,
+    renderHistorialSemanal: renderHistorialSemanal,
     renderInicioSeccion: renderInicioSeccion,
     initSemanales: initSemanales,
     mostrarPromptCrear: mostrarPromptCrear,

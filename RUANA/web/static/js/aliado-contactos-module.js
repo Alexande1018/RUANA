@@ -72,8 +72,7 @@
   async function cargarContactosPendientes(host) {
     try {
         const codigo = (host.codigoAliado || (host.aliado && host.aliado.codigo) || '').toString().trim();
-        const avisoEl = document.getElementById('contacto-aviso-persistente');
-        if (!codigo || !avisoEl) {
+        if (!codigo) {
             return;
         }
 
@@ -90,6 +89,15 @@
         host.contactosAbiertos = data.contactos || [];
         // Backend ya excluye contactos con posponer_recordatorio=1 (server-driven)
         host.contactoActual = host.contactosAbiertos.length > 0 ? host.contactosAbiertos[0] : null;
+        host.renderEncargosActivos();
+        if (typeof host.renderMensajesEncargo === 'function') {
+            host.renderMensajesEncargo();
+        }
+
+        const avisoEl = document.getElementById('contacto-aviso-persistente');
+        if (!avisoEl) {
+            return;
+        }
 
         if (!host.contactoActual) {
             await host.cargarPagosApoyoPendientes();
@@ -101,10 +109,6 @@
             if (badgeUrgenteOff) badgeUrgenteOff.style.display = 'none';
             const stripeSlotOff = document.getElementById('contacto-aviso-stripe-acciones');
             if (stripeSlotOff) stripeSlotOff.innerHTML = '';
-            host.renderEncargosActivos();
-            if (typeof host.renderMensajesEncargo === 'function') {
-                host.renderMensajesEncargo();
-            }
             return;
         }
 

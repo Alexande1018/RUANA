@@ -55,6 +55,14 @@
     host.renderNotificaciones();
     host.renderListaPagosPendientes();
     host.renderMisAcuerdos();
+    host.renderSolicitudes();
+    var semModWarm = global.RuanaAliadoModules && global.RuanaAliadoModules.solicitudesSemanales;
+    if (semModWarm && typeof semModWarm.renderSeccion === 'function') {
+        semModWarm.renderSeccion(host);
+    }
+    if (semModWarm && typeof semModWarm.renderInicioSeccion === 'function') {
+        semModWarm.renderInicioSeccion(host);
+    }
   }
 
   function getSyncElements(host, sections) {
@@ -91,14 +99,19 @@
   }
 
   async function fetchSolicitudesSnapshot(host) {
-    const codigo = host.codigoAliado || (host.aliado && host.aliado.codigo) || '';
-    if (!codigo) return;
     const apiBase = getApiBaseSafe();
-    const resp = await fetch(apiBase + '/api/solicitudes?codigo=' + encodeURIComponent(codigo), {
+    const codigo = host.codigoAliado || (host.aliado && host.aliado.codigo) || '';
+    const url = codigo
+        ? apiBase + '/api/solicitudes?codigo=' + encodeURIComponent(codigo)
+        : apiBase + '/api/solicitudes';
+    const resp = await fetch(url, {
         credentials: 'same-origin',
         headers: getAuthHeadersSafe()
     });
-    if (!resp.ok) return;
+    if (!resp.ok) {
+        console.warn('No se pudieron cargar solicitudes de grupo (HTTP ' + resp.status + ')');
+        return;
+    }
     const data = await resp.json();
     if (data && typeof data === 'object' && !Array.isArray(data)) {
         host.solicitudesEntrantes = Array.isArray(data.entrantes) ? data.entrantes : [];
@@ -215,7 +228,7 @@
 
         // Refrescar datos del aliado desde la API (sesión cookie; backend usa sesión)
         const apiBase = getApiBaseSafe();
-        if (host.codigoAliado) {
+        try {
             const fetchedAtRaw = sessionStorage.getItem('ruana_aliado_data_fetched_at');
             const fetchedAt = fetchedAtRaw ? Number(fetchedAtRaw) : 0;
             const fetchedRecently = Number.isFinite(fetchedAt) && fetchedAt > 0 && (Date.now() - fetchedAt) < 15000;
@@ -228,6 +241,9 @@
                         if (dataDatos.status === 'success' && dataDatos.aliado) {
                             host.aliado = { ...(host.aliado || {}), ...dataDatos.aliado };
                             host.notificaciones = Array.isArray(dataDatos.notificaciones) ? dataDatos.notificaciones : [];
+                            if (!host.codigoAliado && (dataDatos.aliado.codigo || dataDatos.aliado.codigo_aliado)) {
+                                host.codigoAliado = dataDatos.aliado.codigo || dataDatos.aliado.codigo_aliado;
+                            }
                         }
                     } else if (respDatos.status === 403) {
                         // Cuenta pendiente de validación: no puede acceder al panel
@@ -244,10 +260,16 @@
                 console.error('Error refrescando datos aliado:', e);
             }
 
-            const [notificacionesTask, solicitudesTask, directorioTask] = await Promise.allSettled([
-                (async () => {
+            const codigoFetch = host.codigoAliado || (host.aliado && (host.aliado.codigo || host.aliado.codigo_aliado)) || '';
+            const solicitudesUrl = codigoFetch
+                ? apiBase + '/api/solicitudes?codigo=' + encodeURIComponent(codigoFetch)
+                : apiBase + '/api/solicitudes';
+            const semModLoad = global.RuanaAliadoModules && global.RuanaAliadoModules.solicitudesSemanales;
+
+            const [notificacionesTask, solicitudesTask, directorioTask, semanalesTask] = await Promise.allSettled([
+                codigoFetch ? (async () => {
                     // Cargar notificaciones explícitamente (mensajes de RUANA: comprobante rechazado, etc.)
-                    const respNotif = await fetch(apiBase + '/api/aliados/' + encodeURIComponent(host.codigoAliado) + '/notificaciones?limite=50', {
+                    const respNotif = await fetch(apiBase + '/api/aliados/' + encodeURIComponent(codigoFetch) + '/notificaciones?limite=50', {
                         credentials: 'same-origin',
                         headers: getAuthHeadersSafe()
                     });
@@ -256,13 +278,16 @@
                     if (dataNotif.status === 'success' && Array.isArray(dataNotif.notificaciones)) {
                         host.notificaciones = dataNotif.notificaciones;
                     }
-                })(),
+                })() : Promise.resolve(),
                 (async () => {
-                    const respSol = await fetch(apiBase + '/api/solicitudes?codigo=' + encodeURIComponent(host.codigoAliado), {
+                    const respSol = await fetch(solicitudesUrl, {
                         credentials: 'same-origin',
                         headers: getAuthHeadersSafe()
                     });
-                    if (!respSol.ok) return;
+                    if (!respSol.ok) {
+                        console.warn('No se pudieron cargar solicitudes de grupo (HTTP ' + respSol.status + ')');
+                        return;
+                    }
                     const dataSol = await respSol.json();
                     if (dataSol && typeof dataSol === 'object' && !Array.isArray(dataSol)) {
                         host.solicitudesEntrantes = Array.isArray(dataSol.entrantes) ? dataSol.entrantes : [];
@@ -285,6 +310,11 @@
                     if (dataDirectorio.status === 'success' && Array.isArray(dataDirectorio.aliados)) {
                         host.profesionales = dataDirectorio.aliados;
                     }
+                })(),
+                (async () => {
+                    if (semModLoad && typeof semModLoad.fetchSnapshot === 'function') {
+                        await semModLoad.fetchSnapshot(host);
+                    }
                 })()
             ]);
 
@@ -297,6 +327,11 @@
             if (directorioTask.status === 'rejected') {
                 console.error('Error cargando directorio de profesionales:', directorioTask.reason);
             }
+            if (semanalesTask.status === 'rejected') {
+                console.error('Error cargando solicitudes semanales:', semanalesTask.reason);
+            }
+        } catch (e) {
+            console.error('Error cargando datos de panel:', e);
         }
 
         // Métricas se calculan directamente a partir de datos reales

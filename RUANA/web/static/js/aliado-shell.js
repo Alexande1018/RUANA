@@ -60,6 +60,10 @@
         return Array.from((root || document).querySelectorAll(sel));
     }
 
+    function getPanelHost() {
+        return global.__ruanaPanel || null;
+    }
+
     function isVisible(el) {
         if (!el) return false;
         const style = window.getComputedStyle(el);
@@ -105,8 +109,28 @@
         refreshInicioSurface();
         updateNavBadges();
 
+        if (target === 'solicitudes') {
+            refreshSolicitudesModule();
+        }
+
         document.dispatchEvent(new CustomEvent('aliado-module-change', { detail: { module: target } }));
         return target;
+    }
+
+    function refreshSolicitudesModule() {
+        const panel = getPanelHost();
+        if (!panel) return;
+        if (typeof panel.refreshAfterAction === 'function') {
+            panel.refreshAfterAction(['solicitudes', 'contactos'], { allowConcurrent: true });
+            return;
+        }
+        if (typeof panel.renderSolicitudes === 'function') {
+            panel.renderSolicitudes();
+        }
+        const semMod = global.RuanaAliadoModules && global.RuanaAliadoModules.solicitudesSemanales;
+        if (semMod && typeof semMod.renderSeccion === 'function') {
+            semMod.renderSeccion(panel);
+        }
     }
 
     function moduleForSelector(selector) {
@@ -291,7 +315,7 @@
             });
         }
 
-        const panel = global.PrivatePanel;
+        const panel = getPanelHost();
         if (panel && panel.solicitudesSemanales && Array.isArray(panel.solicitudesSemanales.activas_grupo)) {
             const pendientesSem = panel.solicitudesSemanales.activas_grupo.filter(function (s) {
                 return !s.mi_respuesta;
@@ -344,7 +368,7 @@
     }
 
     function countMensajesPendientes() {
-        const panel = global.PrivatePanel;
+        const panel = getPanelHost();
         if (panel && Array.isArray(panel.contactosAbiertos)) {
             const ui = global.RuanaConversacionUI;
             if (ui && typeof ui.countMensajesPendientes === 'function') {

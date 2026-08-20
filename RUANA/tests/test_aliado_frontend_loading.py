@@ -39,7 +39,7 @@ def test_aliado_solicitudes_initial_load_sends_auth_headers():
     """Carga de solicitudes (loadData/sync) envía credenciales + auth headers."""
     root = Path(__file__).resolve().parents[1] / "web"
     sync_js = (root / "static" / "js" / "aliado-sync-module.js").read_text(encoding="utf-8")
-    start = sync_js.index("fetch(apiBase + '/api/solicitudes?codigo='")
+    start = sync_js.index("const respSol = await fetch(solicitudesUrl,")
     snippet = sync_js[start : start + 320]
 
     assert "credentials: 'same-origin'" in snippet
@@ -414,3 +414,39 @@ def test_solicitudes_semanales_recuadro_inicio_panel():
     assert "function asegurarPromptCerradoSiPublicada(host)" in sem_js
     assert "ocultarPromptCrear(host)" in sem_js
     assert "limpiarFormularioPrompt()" in sem_js
+
+
+def test_shell_usa_instancia_panel_y_refresca_solicitudes():
+    """AliadoShell debe leer __ruanaPanel (instancia) y refrescar al abrir Solicitudes."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    shell_js = (root / "static" / "js" / "aliado-shell.js").read_text(encoding="utf-8")
+
+    assert "function getPanelHost()" in shell_js
+    assert "global.__ruanaPanel" in shell_js
+    assert "global.PrivatePanel.solicitudesSemanales" not in shell_js
+    assert "function refreshSolicitudesModule()" in shell_js
+    assert "if (target === 'solicitudes')" in shell_js
+    assert "refreshSolicitudesModule();" in shell_js
+
+
+def test_solicitudes_semanales_historial_en_modulo():
+    """El historial semanal del backend se pinta en el módulo Solicitudes."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    aliado = (root / "aliado.html").read_text(encoding="utf-8")
+    sem_js = (
+        root / "static" / "js" / "aliado-solicitudes-semanales-module.js"
+    ).read_text(encoding="utf-8")
+
+    assert 'id="solicitudes-semanales-historial-list"' in aliado
+    assert "function renderHistorialSemanal(host)" in sem_js
+    assert "renderHistorialSemanal(host)" in sem_js
+
+
+def test_sync_carga_solicitudes_sin_bloquear_por_codigo():
+    """loadData y fetchSolicitudesSnapshot usan sesión aunque falte codigoAliado local."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    sync_js = (root / "static" / "js" / "aliado-sync-module.js").read_text(encoding="utf-8")
+
+    assert "apiBase + '/api/solicitudes'" in sync_js
+    assert "fetchSnapshot(host)" in sync_js
+    assert "host.renderSolicitudes();" in sync_js
