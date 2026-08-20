@@ -23,3 +23,13 @@ def test_negociacion_guiada_replaces_free_chat_modal():
     assert "/api/contactos/${contactoId}/negociacion" in neg_js or "/api/contactos/" in neg_js
     assert "negociacion/proponer" in neg_js or "_negociacionApiUrl" in neg_js
     assert "chat_horas_restantes" not in aliado
+
+    assert 'id="neg-acuerdo-confirm-flotante"' in aliado
+    assert 'id="neg-btn-confirmar-acuerdo-flotante"' in aliado
+    assert 'id="acuerdo-flotante-confirmar"' in aliado
+    assert "_debeMostrarPagoStripe" in neg_js
+    assert "_enlazarBotonPagoStripe" in neg_js
+    assert "renderAcuerdoConfirmFlotante" in neg_js
+    stripe_js = (root / "static" / "js" / "aliado-stripe-pagos-module.js").read_text(encoding="utf-8")
+    assert "function apiUrl(path)" in stripe_js
+    assert "contactoEstado === 'pendiente_de_pago'" in stripe_js

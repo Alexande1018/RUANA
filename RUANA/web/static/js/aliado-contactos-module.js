@@ -62,6 +62,8 @@
         const hide = !!(item.yo_confirme_cierre || item.estado === 'trabajo_cerrado' || item.ambos_confirmaron_cierre);
         btnConfirmar.style.display = hide ? 'none' : '';
         btnConfirmar.disabled = hide;
+        btnConfirmar.classList.toggle('primary', !hide);
+        btnConfirmar.classList.add('acuerdo-flotante-btn-confirmar');
     }
     panel.hidden = false;
     panel.classList.add('show');

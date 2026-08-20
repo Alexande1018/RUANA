@@ -27,10 +27,20 @@
     return base;
   }
 
+  function apiUrl(path) {
+    const normalized = path.startsWith('/') ? path : `/${path}`;
+    if (typeof global.getApiBase === 'function') {
+      return `${String(global.getApiBase() || '').replace(/\/$/, '')}${normalized}`;
+    }
+    const base = global.RUANA_API_BASE
+      || (typeof global.location !== 'undefined' ? global.location.origin : '');
+    return `${String(base || '').replace(/\/$/, '')}${normalized}`;
+  }
+
   async function iniciarPagoStripe(host, contactoId) {
-    const resp = await fetch(`/api/contactos/${contactoId}/stripe/checkout`, {
+    const resp = await fetch(apiUrl(`/api/contactos/${contactoId}/stripe/checkout`), {
       method: 'POST',
-      credentials: 'include',
+      credentials: 'same-origin',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
     });
     const data = await resp.json();
@@ -44,9 +54,9 @@
     if (!global.confirm('¿Confirmas que el trabajo se realizó correctamente? Se liberará el pago al profesional.')) {
       return;
     }
-    const resp = await fetch(`/api/contactos/${contactoId}/stripe/confirmar-trabajo`, {
+    const resp = await fetch(apiUrl(`/api/contactos/${contactoId}/stripe/confirmar-trabajo`), {
       method: 'POST',
-      credentials: 'include',
+      credentials: 'same-origin',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
     });
     const data = await resp.json();
@@ -210,7 +220,10 @@
     }
 
     if (esContratante) {
-      if (['esperando_cobro_cliente', 'checkout_activo'].includes(estadoPago)) {
+      const contactoEstado = String(contacto.estado || '').trim();
+      const puedeIniciarPago = ['esperando_cobro_cliente', 'checkout_activo', 'no_generado', ''].includes(estadoPago)
+        || contactoEstado === 'pendiente_de_pago';
+      if (puedeIniciarPago) {
         parts.push(
           `<p class="stripe-estado-msg">${importeTxt
             ? `Importe acordado: <strong>${escapeHtml(importeTxt)}</strong>. `
@@ -229,13 +242,15 @@
 
     container.innerHTML = parts.join('');
     const btnPagar = container.querySelector('.stripe-pagar-btn');
-    if (btnPagar) {
+    if (btnPagar && btnPagar.dataset.negStripeBound !== '1') {
+      btnPagar.dataset.negStripeBound = '1';
       btnPagar.addEventListener('click', () => {
         iniciarPagoStripe(host, contacto.id).catch((e) => alert(e.message));
       });
     }
     const btnConfirmar = container.querySelector('.stripe-confirmar-btn');
-    if (btnConfirmar) {
+    if (btnConfirmar && btnConfirmar.dataset.negStripeBound !== '1') {
+      btnConfirmar.dataset.negStripeBound = '1';
       btnConfirmar.addEventListener('click', () => {
         confirmarTrabajoStripe(host, contacto.id).catch((e) => alert(e.message));
       });
