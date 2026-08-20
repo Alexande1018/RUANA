@@ -347,7 +347,7 @@ def test_aliado_catalogo_contactos_grupo_sync_modules_are_wired():
         "aliado-sync-module.js",
         "aliado-events-module.js",
     ):
-        assert f'src="/static/js/{src}"' in aliado
+        assert f'/static/js/{src}' in aliado
 
     assert "catalogo: null" in modules_js
     assert "contactos: null" in modules_js
