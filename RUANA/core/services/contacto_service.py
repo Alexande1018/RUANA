@@ -200,6 +200,21 @@ def marcar_trabajo_en_progreso(db, contacto_id: int) -> Dict[str, Any]:
             conn.close()
 
 
+def _encargo_con_precio_confirmado(db, contacto: Dict[str, Any]) -> bool:
+    """True cuando ambas partes ya fijaron el precio del encargo (negocio en curso)."""
+    estado = (contacto.get('estado') or '').strip()
+    if estado in ('acuerdo_alcanzado', 'pendiente_de_pago', 'trabajo_cerrado'):
+        return True
+    if (contacto.get('modo_pago') or '').strip() == 'stripe' and estado == 'trabajo_en_progreso':
+        return True
+    if contacto.get('acuerdo_resumen_json'):
+        return True
+    if db._importe_oficial_contacto(contacto) is not None:
+        return True
+    neg = neg_mgr.parse_negociacion(contacto.get('negociacion_json'))
+    return bool(neg.get('completo'))
+
+
 def marcar_cerrado_no_concretado(db, contacto_id: int, motivo: str = "",
                                  actor_codigo: str = "") -> Dict[str, Any]:
     """
@@ -218,6 +233,14 @@ def marcar_cerrado_no_concretado(db, contacto_id: int, motivo: str = "",
             if not contacto:
                 return {'status': 'error', 'message': f'Contacto {contacto_id} no encontrado'}
             estado_actual = (contacto.get('estado') or '').strip()
+            if _encargo_con_precio_confirmado(db, contacto):
+                return {
+                    'status': 'error',
+                    'message': (
+                        'No se puede marcar como no concretado: el precio del encargo '
+                        'ya está confirmado por ambas partes.'
+                    ),
+                }
             if estado_actual in db._ESTADOS_FINALES_CONTACTO:
                 return {
                     'status': 'error',

@@ -488,6 +488,14 @@ class TestNegociacionGuiada(unittest.TestCase):
         abiertos = self.db.obtener_contactos_abiertos_por_codigo('90001')
         self.assertTrue(all(c['id'] != cid for c in abiertos))
 
+    def test_no_concretado_bloqueado_tras_precio_confirmado(self):
+        cid = self._flujo_hasta_acuerdo('150')
+        r = self.db.marcar_cerrado_no_concretado(cid, actor_codigo='90001')
+        self.assertEqual(r['status'], 'error')
+        self.assertIn('precio', (r.get('message') or '').lower())
+        contacto = self.db.obtener_contacto_por_id(cid)
+        self.assertEqual(contacto['estado'], 'pendiente_de_pago')
+
     def test_modificar_propia_propuesta_servicio(self):
         cid = self._crear_aliados_y_contacto()
         self.db.proponer_negociacion(cid, '90001', 'servicio', 'Grifo')
