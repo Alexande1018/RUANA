@@ -151,14 +151,15 @@
         avisoEl.classList.toggle('encargo-requiere-respuesta', ui.requiereRespuesta);
         avisoEl.dataset.contactoId = String(host.contactoActual.id);
         avisoEl.dataset.requiereRespuesta = ui.requiereRespuesta ? '1' : '0';
+        const precioConfirmado = _encargoConPrecioConfirmado(host.contactoActual);
         // Ocultar "Sigue en conversación" tras acuerdo alcanzado
         const btnSigue = document.getElementById('btn-contacto-sigue');
-        if (btnSigue) btnSigue.style.display = (estado === 'acuerdo_alcanzado' || estado === 'trabajo_cerrado') ? 'none' : '';
+        if (btnSigue) btnSigue.style.display = precioConfirmado ? 'none' : '';
         const btnSiTrabajo = document.getElementById('btn-contacto-si-trabajo');
         const btnNoConcreto = document.getElementById('btn-contacto-no-concreto');
         // Fase 3: el cierre manual por «Sí, hubo trabajo» no está disponible en el panel normal.
         if (btnSiTrabajo) btnSiTrabajo.style.display = 'none';
-        if (btnNoConcreto) btnNoConcreto.style.display = (estado === 'trabajo_cerrado') ? 'none' : '';
+        if (btnNoConcreto) btnNoConcreto.style.display = precioConfirmado ? 'none' : '';
 
         const subirPruebaEl = document.getElementById('contacto-aviso-subir-prueba');
         const codigoAliado = host.codigoAliado || (host.aliado && host.aliado.codigo) || '';
@@ -267,6 +268,24 @@
     } catch (e) {
         if (catalogoWrap) catalogoWrap.style.display = 'none';
     }
+  }
+
+  function _encargoConPrecioConfirmado(contacto) {
+      if (!contacto) return false;
+      const estado = contacto.estado || '';
+      if (['trabajo_cerrado', 'acuerdo_alcanzado', 'pendiente_de_pago'].includes(estado)) {
+          return true;
+      }
+      if (contacto.modo_pago === 'stripe' && estado === 'trabajo_en_progreso') {
+          return true;
+      }
+      if (contacto.negociacion_completa) {
+          return true;
+      }
+      if (contacto.importe_acordado != null && !Number.isNaN(Number(contacto.importe_acordado))) {
+          return true;
+      }
+      return false;
   }
 
   function _encargoUiLabels(host, contacto) {
@@ -861,6 +880,9 @@
 
   function handleAvisoNoSeConcreto(host) {
       if (!host.contactoActual) return;
+      if (_encargoConPrecioConfirmado(host.contactoActual)) {
+          return;
+      }
       const modal = document.getElementById('modal-no-concretado');
       if (modal) modal.classList.add('show');
   }
