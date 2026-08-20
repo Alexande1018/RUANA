@@ -104,6 +104,10 @@
             if (cerrar) cerrar.addEventListener('click', () => this.cerrar());
             if (cerrarX) cerrarX.addEventListener('click', () => this.cerrar());
             if (cerrarNeg) cerrarNeg.addEventListener('click', () => this.confirmarCerrarNegociacion());
+            const confirmFlotante = document.getElementById('neg-btn-confirmar-acuerdo-flotante');
+            if (confirmFlotante) {
+                confirmFlotante.addEventListener('click', () => this.confirmarCerrarNegociacion());
+            }
             const overlay = document.getElementById('modal-negociacion-guiada');
             if (overlay) {
                 overlay.addEventListener('click', (e) => {
@@ -207,53 +211,110 @@
         }
 
         _hostStripe() {
-            if (this.panel) return this.panel;
+            const panel = this.panel || {};
+            const codigo = (
+                panel.codigoAliado
+                || (panel.aliado && panel.aliado.codigo)
+                || this._miCodigo()
+                || ''
+            ).toString().trim();
             return {
-                codigoAliado: this._miCodigo(),
-                aliado: { codigo: this._miCodigo() },
+                codigoAliado: codigo,
+                aliado: panel.aliado || { codigo },
                 cargarContactosPendientes: async () => {
-                    if (this.panel && typeof this.panel.cargarContactosPendientes === 'function') {
-                        await this.panel.cargarContactosPendientes();
+                    if (panel && typeof panel.cargarContactosPendientes === 'function') {
+                        await panel.cargarContactosPendientes();
                     }
                 },
                 refreshAfterAction: async (keys) => {
-                    if (this.panel && typeof this.panel.refreshAfterAction === 'function') {
-                        await this.panel.refreshAfterAction(keys);
+                    if (panel && typeof panel.refreshAfterAction === 'function') {
+                        await panel.refreshAfterAction(keys);
                     }
                 },
             };
         }
 
         _contactoStripeDesdeData() {
+            const estado = (this.data && this.data.estado_contacto) || '';
+            let estadoPago = (this.data && this.data.estado_pago) || '';
+            if (!estadoPago && estado === 'pendiente_de_pago') {
+                estadoPago = 'esperando_cobro_cliente';
+            }
             return {
-                id: this.contactoId,
-                modo_pago: this.data.modo_pago || 'stripe',
-                estado_pago: this.data.estado_pago || '',
-                importe_acordado: this.data.importe_acordado,
-                solicitante_codigo: this.data.solicitante_codigo,
-                profesional_codigo: this.data.profesional_codigo,
+                id: contactoIdValido(this.contactoId),
+                estado,
+                modo_pago: (this.data && this.data.modo_pago) || 'stripe',
+                estado_pago: estadoPago,
+                importe_acordado: this.data && this.data.importe_acordado,
+                solicitante_codigo: this.data && this.data.solicitante_codigo,
+                profesional_codigo: this.data && this.data.profesional_codigo,
             };
+        }
+
+        _debeMostrarPagoStripe() {
+            if (!this.data || this.data.modo_pago !== 'stripe') return false;
+            const estado = this.data.estado_contacto || '';
+            if (estado === 'pendiente_de_pago') return true;
+            if (estado === 'trabajo_en_progreso' && this.data.estado_pago === 'cobro_confirmado') {
+                return true;
+            }
+            return false;
+        }
+
+        _enlazarBotonPagoStripe(container, host, contacto) {
+            if (!container || !global.RuanaStripePagos) return;
+            const btnPagar = container.querySelector('.stripe-pagar-btn');
+            if (!btnPagar || btnPagar.dataset.negStripeBound === '1') return;
+            btnPagar.dataset.negStripeBound = '1';
+            btnPagar.addEventListener('click', () => {
+                const cid = contactoIdValido(contacto && contacto.id != null ? contacto.id : this.contactoId);
+                if (!cid) {
+                    notify('No hay un contacto activo. Cierra y vuelve a abrir la negociación.', 'warning');
+                    return;
+                }
+                global.RuanaStripePagos.iniciarPagoStripe(host, cid).catch((e) => {
+                    notify((e && e.message) || 'No se pudo iniciar el pago', 'error');
+                });
+            });
+            const btnConfirmar = container.querySelector('.stripe-confirmar-btn');
+            if (!btnConfirmar || btnConfirmar.dataset.negStripeBound === '1') return;
+            btnConfirmar.dataset.negStripeBound = '1';
+            btnConfirmar.addEventListener('click', () => {
+                const cid = contactoIdValido(contacto && contacto.id != null ? contacto.id : this.contactoId);
+                if (!cid) return;
+                global.RuanaStripePagos.confirmarTrabajoStripe(host, cid).catch((e) => {
+                    notify((e && e.message) || 'No se pudo confirmar el trabajo', 'error');
+                });
+            });
         }
 
         _renderAccionesPagoStripe() {
             const el = document.getElementById('neg-acciones-wrap');
             if (!el || !this.data) return;
+            const contacto = this._contactoStripeDesdeData();
+            const host = this._hostStripe();
             const importe = this.data.importe_acordado;
             const importeTxt = importe != null && Number(importe) > 0
                 ? ` Importe acordado: ${Number(importe).toFixed(2)} €.`
                 : '';
+            const esContratante = this.data.rol === 'solicitante';
+            const puedePagar = esContratante && ['esperando_cobro_cliente', 'checkout_activo', 'no_generado', ''].includes(
+                String(contacto.estado_pago || '')
+            );
             el.innerHTML = `<div class="neg-compose-stack neg-pago-stripe-wrap">
-                <p class="neg-esperar-msg">Acuerdo confirmado.${importeTxt}</p>
+                <p class="neg-esperar-msg">${puedePagar
+                    ? `Acuerdo listo.${importeTxt} Completa el pago para reservar el encargo.`
+                    : `Acuerdo confirmado.${importeTxt}`}</p>
                 <div id="neg-stripe-pago-acciones" class="encargo-stripe-acciones"></div>
             </div>`;
             const slot = document.getElementById('neg-stripe-pago-acciones');
             if (slot && global.RuanaStripePagos && global.RuanaStripePagos.renderStripeAcciones) {
-                global.RuanaStripePagos.renderStripeAcciones(
-                    this._hostStripe(),
-                    this._contactoStripeDesdeData(),
-                    slot
-                );
+                global.RuanaStripePagos.renderStripeAcciones(host, contacto, slot);
             }
+            if (slot && puedePagar && !slot.querySelector('.stripe-pagar-btn')) {
+                slot.innerHTML = '<button type="button" class="neg-btn neg-btn-primary neg-btn-block stripe-pagar-btn">Ir a pagar</button>';
+            }
+            this._enlazarBotonPagoStripe(slot || el, host, contacto);
         }
 
         _camposSolicitante() {
@@ -510,6 +571,7 @@
             this.renderResumen();
             this.renderAcciones();
             this.renderAcuerdoFinal();
+            this.renderAcuerdoConfirmFlotante();
             this.renderBotonesHeader();
         }
 
@@ -638,11 +700,13 @@
         renderBotonesHeader() {
             const btnCerrarNeg = document.getElementById('neg-btn-cerrar-negociacion');
             if (!btnCerrarNeg) return;
+            const flotante = document.getElementById('neg-acuerdo-confirm-flotante');
+            const flotanteVisible = !!(flotante && flotante.classList.contains('show'));
             const estado = this.data.estado_contacto || '';
             const abandonado = ['cerrado_no_concretado', 'no_concretado'].includes(estado);
             const trabajoCerrado = estado === 'trabajo_cerrado';
             const acuerdo = estado === 'acuerdo_alcanzado' || this.data.acuerdo_alcanzado;
-            if (abandonado || (trabajoCerrado && this.data.yo_confirme_cierre)) {
+            if (abandonado || (trabajoCerrado && this.data.yo_confirme_cierre) || flotanteVisible) {
                 btnCerrarNeg.style.display = 'none';
                 return;
             }
@@ -656,6 +720,24 @@
                 btnCerrarNeg.textContent = 'Cerrar';
                 btnCerrarNeg.disabled = false;
             }
+        }
+
+        renderAcuerdoConfirmFlotante() {
+            const bar = document.getElementById('neg-acuerdo-confirm-flotante');
+            if (!bar || !this.data) return;
+            const estado = this.data.estado_contacto || '';
+            const abandonado = ['cerrado_no_concretado', 'no_concretado'].includes(estado);
+            const trabajoCerrado = estado === 'trabajo_cerrado';
+            const acuerdo = this.data.acuerdo_alcanzado
+                || estado === 'acuerdo_alcanzado'
+                || estado === 'pendiente_de_pago';
+            const show = acuerdo
+                && !abandonado
+                && !trabajoCerrado
+                && !this.data.yo_confirme_cierre
+                && !this.data.ambos_confirmaron_cierre;
+            bar.hidden = !show;
+            bar.classList.toggle('show', show);
         }
 
         _bubbleHtml(tipo, texto, meta) {
@@ -868,7 +950,15 @@
 
         renderAcciones() {
             const el = document.getElementById('neg-acciones-wrap');
-            if (!el || !this.data.accion) return;
+            if (!el || !this.data) return;
+
+            if (this._debeMostrarPagoStripe()) {
+                this._lastAccionKey = 'stripe-pago';
+                this._renderAccionesPagoStripe();
+                return;
+            }
+
+            if (!this.data.accion) return;
             const acc = this.data.accion;
             const accionKey = this._accionKey(acc);
 
@@ -888,11 +978,6 @@
                 return;
             }
             this._lastAccionKey = accionKey;
-
-            if (this.data.estado_contacto === 'pendiente_de_pago' && this.data.modo_pago === 'stripe') {
-                this._renderAccionesPagoStripe();
-                return;
-            }
 
             if (this.data.acuerdo_alcanzado
                 || this.data.estado_contacto === 'acuerdo_alcanzado'
