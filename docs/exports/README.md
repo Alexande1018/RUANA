@@ -31,3 +31,7 @@ Fuente Markdown archivada: [`docs/archive/AUDITORIA_FORENSE_RUANA.md`](../archiv
 | [AUDITORIA_DOCUMENTAL_2026-08-15.md](./AUDITORIA_DOCUMENTAL_2026-08-15.md) | Markdown | Auditoría completa documentación vs código actual |
 
 > La verdad actual del producto está en el [Manual Maestro](../../README.md).
+
+## Capturas de landing (producto)
+
+Set corporativo de 10 pantallas reales, mismo viewport y mismo marco de navegador: [`landing-screenshots/`](./landing-screenshots/).

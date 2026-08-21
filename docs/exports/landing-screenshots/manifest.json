@@ -1,0 +1,80 @@
+{
+  "generated_at": "2026-08-21T08:21:39.417Z",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "deviceScaleFactor": 2,
+  "shots": [
+    {
+      "id": "01-dashboard-aliado",
+      "title": "Panel del aliado",
+      "file": "docs/exports/landing-screenshots/01-dashboard-aliado.png",
+      "raw": "docs/exports/landing-screenshots/raw/01-dashboard-aliado.png",
+      "urlBar": "app.ruana.es/aliado"
+    },
+    {
+      "id": "02-panel-admin",
+      "title": "Command Center",
+      "file": "docs/exports/landing-screenshots/02-panel-admin.png",
+      "raw": "docs/exports/landing-screenshots/raw/02-panel-admin.png",
+      "urlBar": "app.ruana.es/admin"
+    },
+    {
+      "id": "03-negociacion-guiada",
+      "title": "Negociación guiada",
+      "file": "docs/exports/landing-screenshots/03-negociacion-guiada.png",
+      "raw": "docs/exports/landing-screenshots/raw/03-negociacion-guiada.png",
+      "urlBar": "app.ruana.es/aliado/negociacion"
+    },
+    {
+      "id": "04-grupos-territorio",
+      "title": "Grupos y territorio",
+      "file": "docs/exports/landing-screenshots/04-grupos-territorio.png",
+      "raw": "docs/exports/landing-screenshots/raw/04-grupos-territorio.png",
+      "urlBar": "app.ruana.es/admin/territorio"
+    },
+    {
+      "id": "05-score-operativo",
+      "title": "Score operativo",
+      "file": "docs/exports/landing-screenshots/05-score-operativo.png",
+      "raw": "docs/exports/landing-screenshots/raw/05-score-operativo.png",
+      "urlBar": "app.ruana.es/admin/score"
+    },
+    {
+      "id": "06-pagos-apoyo",
+      "title": "Pagos y Apoyo RUANA",
+      "file": "docs/exports/landing-screenshots/06-pagos-apoyo.png",
+      "raw": "docs/exports/landing-screenshots/raw/06-pagos-apoyo.png",
+      "urlBar": "app.ruana.es/admin/pagos"
+    },
+    {
+      "id": "07-directorio-red",
+      "title": "Directorio de aliados",
+      "file": "docs/exports/landing-screenshots/07-directorio-red.png",
+      "raw": "docs/exports/landing-screenshots/raw/07-directorio-red.png",
+      "urlBar": "app.ruana.es/aliado/directorio"
+    },
+    {
+      "id": "08-perfil-aliado",
+      "title": "Perfil del aliado",
+      "file": "docs/exports/landing-screenshots/08-perfil-aliado.png",
+      "raw": "docs/exports/landing-screenshots/raw/08-perfil-aliado.png",
+      "urlBar": "app.ruana.es/aliado/perfil"
+    },
+    {
+      "id": "09-notificaciones",
+      "title": "Centro de avisos",
+      "file": "docs/exports/landing-screenshots/09-notificaciones.png",
+      "raw": "docs/exports/landing-screenshots/raw/09-notificaciones.png",
+      "urlBar": "app.ruana.es/aliado/avisos"
+    },
+    {
+      "id": "10-competencia-suplencia",
+      "title": "Competencia y suplencia",
+      "file": "docs/exports/landing-screenshots/10-competencia-suplencia.png",
+      "raw": "docs/exports/landing-screenshots/raw/10-competencia-suplencia.png",
+      "urlBar": "app.ruana.es/admin/competencia"
+    }
+  ]
+}

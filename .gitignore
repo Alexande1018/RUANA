@@ -21,3 +21,6 @@ RUANA/web/static/uploads/*
 
 qa-artifacts/
 output/playwright/
+
+scripts/landing/.demo-state.json
+docs/exports/landing-screenshots/raw/
