@@ -224,15 +224,20 @@
   padding: 8px;
 }
 
+/* Centro inferior: no tapa «Ampliar mi red» del menú izquierdo. */
 .sol-sem-minimized {
   position: fixed;
-  left: 16px;
-  bottom: 88px;
+  left: 50%;
+  right: auto;
+  bottom: 28px;
+  transform: translateX(-50%);
   z-index: 11000;
   display: none;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 10px 14px;
+  max-width: min(420px, calc(100vw - 32px));
   border-radius: 999px;
   background: linear-gradient(135deg, #2a3f5f, #1e2d44);
   border: 1px solid rgba(120, 180, 255, 0.45);
@@ -240,6 +245,14 @@
   font-size: 0.82rem;
   cursor: pointer;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+@media (min-width: 901px) {
+  .sol-sem-minimized {
+    /* Centro del área de contenido (a la derecha del sidebar). */
+    left: calc(var(--aliado-nav-w, 232px) + (100vw - var(--aliado-nav-w, 232px)) / 2);
+    bottom: 32px;
+  }
 }
 
 .sol-sem-minimized.visible {
@@ -316,10 +329,14 @@
   .sol-sem-btn {
     width: 100%;
   }
+}
+
+@media (max-width: 900px) {
   .sol-sem-minimized {
-    left: 16px;
-    right: 16px;
-    bottom: 72px;
-    justify-content: center;
+    left: 50%;
+    right: auto;
+    bottom: calc(var(--aliado-bottom-h, 68px) + 12px);
+    transform: translateX(-50%);
+    max-width: calc(100vw - 32px);
   }
 }
