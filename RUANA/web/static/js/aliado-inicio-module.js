@@ -257,6 +257,7 @@
     if (typeof host.renderAlertHub === 'function') host.renderAlertHub();
     if (typeof global.RuanaUI !== 'undefined') global.RuanaUI.initIcons();
     maybeShowScoreChangeNotification(host);
+    renderActividadCinta(host);
   }
 
   /**
@@ -269,13 +270,21 @@
     }
   }
 
+  function renderActividadCinta(host) {
+    if (global.RuanaActividadCinta && typeof global.RuanaActividadCinta.render === 'function') {
+      global.RuanaActividadCinta.render(host);
+    }
+  }
+
   function render(host) {
     renderMetricas(host);
+    renderActividadCinta(host);
     refreshInicioSurface();
   }
 
   function refresh(host) {
     renderMetricas(host);
+    renderActividadCinta(host);
     refreshInicioSurface();
   }
 
@@ -283,6 +292,7 @@
     render: render,
     refresh: refresh,
     renderMetricas: renderMetricas,
+    renderActividadCinta: renderActividadCinta,
     maybeShowScoreChangeNotification: maybeShowScoreChangeNotification,
     formatScoreMotivo: formatScoreMotivo,
     getScoreNotifVariants: getScoreNotifVariants,

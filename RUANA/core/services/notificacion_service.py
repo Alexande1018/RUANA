@@ -10,8 +10,57 @@ import sqlite3
 from typing import Any, Dict, List, Optional
 
 from core.repositories.notificacion_repo import NotificacionRepo
+from core.services import actividad_cinta_service
 
 _repo = NotificacionRepo()
+
+MAX_ACTIVIDAD_CINTA = actividad_cinta_service.MAX_ACTIVIDAD_CINTA
+
+
+def preparar_actividad_cinta(
+    db,
+    aliado_codigo: str,
+    avisos_grupo: Optional[List[Dict[str, Any]]] = None,
+    limite: int = MAX_ACTIVIDAD_CINTA,
+) -> List[Dict[str, Any]]:
+    """Fachada → actividad_cinta_service (fuente única de la cinta)."""
+    return actividad_cinta_service.preparar_actividad_cinta(
+        db, aliado_codigo, avisos_grupo=avisos_grupo, limite=limite
+    )
+
+
+def preparar_actividad_cinta_para_aliado(
+    db,
+    aliado_codigo: str,
+    limite: int = MAX_ACTIVIDAD_CINTA,
+) -> List[Dict[str, Any]]:
+    """Fachada → actividad_cinta_service."""
+    return actividad_cinta_service.preparar_actividad_cinta_para_aliado(
+        db, aliado_codigo, limite=limite
+    )
+
+
+def notificar_grupo_actividad(
+    db,
+    grupo_id: int,
+    tipo: str,
+    titulo: str,
+    mensaje: str,
+    metadata: Optional[Dict[str, Any]] = None,
+    excluir_codigo: Optional[str] = None,
+    cursor=None,
+) -> None:
+    """Fachada → actividad_cinta_service."""
+    return actividad_cinta_service.notificar_grupo_actividad(
+        db,
+        grupo_id,
+        tipo,
+        titulo,
+        mensaje,
+        metadata=metadata,
+        excluir_codigo=excluir_codigo,
+        cursor=cursor,
+    )
 
 
 def crear_notificacion_aliado(

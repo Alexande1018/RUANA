@@ -359,9 +359,18 @@
         ]);
         const dataNotif = respNotif.ok ? await respNotif.json() : {};
         const dataPagos = respPagos.ok ? await respPagos.json() : {};
-        const notifList = (dataNotif.status === 'success' && Array.isArray(dataNotif.notificaciones))
-            ? dataNotif.notificaciones
-            : [];
+        if (global.RuanaAliadoSync && typeof global.RuanaAliadoSync.applyNotificacionesPayload === 'function') {
+            global.RuanaAliadoSync.applyNotificacionesPayload(host, dataNotif);
+        } else {
+            const notifList = (dataNotif.status === 'success' && Array.isArray(dataNotif.notificaciones))
+                ? dataNotif.notificaciones
+                : [];
+            host.notificaciones = notifList;
+            if (dataNotif.status === 'success' && Array.isArray(dataNotif.actividad_cinta)) {
+                host.actividadCinta = dataNotif.actividad_cinta;
+            }
+        }
+        const notifList = Array.isArray(host.notificaciones) ? host.notificaciones : [];
         const contactosPago = (dataPagos.status === 'success' && Array.isArray(dataPagos.contactos))
             ? dataPagos.contactos
             : [];
@@ -373,6 +382,11 @@
         host.renderListaPagosPendientes();
         host.renderAlertas();
         host.maybeShowScoreChangeNotification();
+        if (global.RuanaAliadoSync && typeof global.RuanaAliadoSync.renderActividadCinta === 'function') {
+            global.RuanaAliadoSync.renderActividadCinta(host);
+        } else if (global.RuanaActividadCinta && typeof global.RuanaActividadCinta.render === 'function') {
+            global.RuanaActividadCinta.render(host);
+        }
     } catch (e) {
         console.error('Error actualizarEstadoAlertas:', e);
         host.renderAlertas();

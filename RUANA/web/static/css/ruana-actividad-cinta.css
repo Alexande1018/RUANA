@@ -1,0 +1,195 @@
+/* Cinta de actividad RUANA — corriente horizontal continua (módulo Inicio) */
+
+.ruana-actividad-cinta {
+    --ruana-cinta-speed: 80s;
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    min-height: 36px;
+    max-height: 40px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.06) 0%,
+        rgba(255, 255, 255, 0.03) 55%,
+        rgba(162, 255, 0, 0.04) 100%
+    );
+    overflow: hidden;
+    position: relative;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.ruana-actividad-cinta[hidden] {
+    display: none !important;
+}
+
+.ruana-actividad-cinta__badge {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 12px 0 14px;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(0, 0, 0, 0.18);
+    z-index: 2;
+}
+
+.ruana-actividad-cinta__pulse {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ruana-brand-lime, #a2ff00);
+    box-shadow: 0 0 8px rgba(162, 255, 0, 0.55);
+    animation: ruana-cinta-pulse 2.8s ease-in-out infinite;
+}
+
+.ruana-actividad-cinta__label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.72);
+    white-space: nowrap;
+}
+
+.ruana-actividad-cinta__viewport {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    position: relative;
+    mask-image: linear-gradient(90deg, transparent 0%, #000 12px, #000 calc(100% - 24px), transparent 100%);
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 12px, #000 calc(100% - 24px), transparent 100%);
+}
+
+.ruana-actividad-cinta__marquee {
+    display: flex;
+    width: max-content;
+    will-change: transform;
+    animation: ruana-cinta-scroll var(--ruana-cinta-speed) linear infinite;
+}
+
+.ruana-actividad-cinta:hover .ruana-actividad-cinta__marquee {
+    animation-play-state: paused;
+}
+
+.ruana-actividad-cinta__track {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    padding: 0 18px;
+    white-space: nowrap;
+}
+
+.ruana-actividad-cinta__item {
+    font-size: 0.8rem;
+    line-height: 1.2;
+    color: rgba(255, 255, 255, 0.82);
+}
+
+.ruana-actividad-cinta__item-time {
+    margin-left: 6px;
+    font-size: 0.68rem;
+    color: rgba(255, 255, 255, 0.38);
+    font-weight: 500;
+}
+
+.ruana-actividad-cinta__sep {
+    margin: 0 14px;
+    color: rgba(255, 255, 255, 0.22);
+    font-size: 0.75rem;
+    user-select: none;
+}
+
+.ruana-actividad-cinta--static .ruana-actividad-cinta__marquee {
+    animation: none;
+    transform: none;
+}
+
+.ruana-actividad-cinta--static .ruana-actividad-cinta__viewport {
+    mask-image: none;
+    -webkit-mask-image: none;
+}
+
+.ruana-actividad-cinta--static .ruana-actividad-cinta__track--clone {
+    display: none;
+}
+
+@keyframes ruana-cinta-scroll {
+    from {
+        transform: translate3d(0, 0, 0);
+    }
+    to {
+        transform: translate3d(-50%, 0, 0);
+    }
+}
+
+@keyframes ruana-cinta-pulse {
+    0%, 100% {
+        opacity: 0.45;
+        transform: scale(0.92);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@media (max-width: 640px) {
+    .ruana-actividad-cinta {
+        min-height: 32px;
+        max-height: 34px;
+        border-radius: 12px;
+    }
+
+    .ruana-actividad-cinta__badge {
+        padding: 0 8px 0 10px;
+    }
+
+    .ruana-actividad-cinta__label--full {
+        display: none;
+    }
+
+    .ruana-actividad-cinta__label--short {
+        display: inline;
+    }
+
+    .ruana-actividad-cinta__item {
+        font-size: 0.74rem;
+    }
+
+    .ruana-actividad-cinta__sep {
+        margin: 0 10px;
+    }
+}
+
+@media (min-width: 641px) {
+    .ruana-actividad-cinta__label--short {
+        display: none;
+    }
+
+    .ruana-actividad-cinta__label--full {
+        display: inline;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ruana-actividad-cinta__marquee {
+        animation: none !important;
+        transform: none !important;
+    }
+
+    .ruana-actividad-cinta__pulse {
+        animation: none;
+        opacity: 0.7;
+    }
+
+    .ruana-actividad-cinta__track--clone {
+        display: none;
+    }
+
+    .ruana-actividad-cinta__viewport {
+        mask-image: none;
+        -webkit-mask-image: none;
+    }
+}

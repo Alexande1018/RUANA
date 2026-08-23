@@ -213,6 +213,9 @@ def get_aliado_datos():
             notificaciones = notificacion_service.listar_notificaciones_aliado(
                 db, codigo, limite=50
             )
+            actividad_cinta = notificacion_service.preparar_actividad_cinta(
+                db, codigo, avisos_grupo=avisos_grupo
+            )
             listar_catalogo = getattr(db, 'listar_catalogo_servicios_aliado', None)
             aliado_dict['catalogo_servicios'] = listar_catalogo(codigo) if callable(listar_catalogo) else []
 
@@ -224,6 +227,7 @@ def get_aliado_datos():
                 'solicitudes_enviadas_contestadas': solicitudes_enviadas_contestadas,
                 'referidos_count': referidos_count,
                 'notificaciones': notificaciones,
+                'actividad_cinta': actividad_cinta,
                 'timestamp': datetime.now().isoformat()
             })
         
@@ -939,7 +943,14 @@ def get_notificaciones_aliado(codigo):
         notificaciones = notificacion_service.listar_notificaciones_aliado(
             db, codigo, limite=limite
         )
-        return jsonify({'status': 'success', 'notificaciones': notificaciones})
+        actividad_cinta = notificacion_service.preparar_actividad_cinta_para_aliado(
+            db, codigo
+        )
+        return jsonify({
+            'status': 'success',
+            'notificaciones': notificaciones,
+            'actividad_cinta': actividad_cinta,
+        })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
