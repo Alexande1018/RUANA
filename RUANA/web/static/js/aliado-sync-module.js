@@ -55,6 +55,7 @@
     host.renderNotificaciones();
     host.renderListaPagosPendientes();
     host.renderMisAcuerdos();
+    renderActividadCinta(host);
   }
 
   function getSyncElements(host, sections) {
@@ -160,7 +161,10 @@
                 global.RuanaStripePagos.renderOnboardingUi(host);
             }
         }
-        if (targetSections.includes('metricas')) host.renderMetricas();
+        if (targetSections.includes('metricas')) {
+            host.renderMetricas();
+            renderActividadCinta(host);
+        }
         if (targetSections.includes('solicitudes')) host.renderSolicitudes();
         if (targetSections.includes('solicitudes')) {
             var semModR = global.RuanaAliadoModules && global.RuanaAliadoModules.solicitudesSemanales;
@@ -331,6 +335,7 @@
 
         // Métricas se calculan directamente a partir de datos reales
         host.isDataLoaded = true;
+        renderActividadCinta(host);
     } catch (error) {
         console.error('Error cargando datos:', error);
         host.isDataLoaded = false;
@@ -413,6 +418,7 @@
       host.renderCompetencia();
       host.renderGrupo();
       host.renderMetricas();
+      renderActividadCinta(host);
       host.renderSolicitudes();
       const semModRender = global.RuanaAliadoModules && global.RuanaAliadoModules.solicitudesSemanales;
       if (semModRender && typeof semModRender.renderSeccion === 'function') {

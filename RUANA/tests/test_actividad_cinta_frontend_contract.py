@@ -79,6 +79,22 @@ def test_sync_exports_actividad_cinta_helpers():
     assert "renderActividadCinta" in sync
 
 
+def test_sync_render_calls_actividad_cinta():
+    sync = _read("static/js/aliado-sync-module.js")
+    render_start = sync.index("function render(host)")
+    render_end = sync.index("async function handleLogout", render_start)
+    block = sync[render_start:render_end]
+    assert "renderMetricas()" in block
+    assert "renderActividadCinta(host)" in block
+
+
+def test_load_data_renders_actividad_cinta():
+    sync = _read("static/js/aliado-sync-module.js")
+    assert "host.isDataLoaded = true" in sync
+    idx = sync.index("host.isDataLoaded = true")
+    assert "renderActividadCinta(host)" in sync[idx:idx + 200]
+
+
 def test_alertas_refresh_updates_actividad_cinta():
     alertas = _read("static/js/aliado-alertas-module.js")
     assert "actividad_cinta" in alertas

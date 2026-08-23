@@ -1933,6 +1933,15 @@
                     return mod.renderMetricas(this);
                 }
             }
+            renderActividadCinta() {
+                if (window.RuanaAliadoSync && typeof window.RuanaAliadoSync.renderActividadCinta === 'function') {
+                    return window.RuanaAliadoSync.renderActividadCinta(this);
+                }
+                const mod = this._inicioModule();
+                if (mod && typeof mod.renderActividadCinta === 'function') {
+                    return mod.renderActividadCinta(this);
+                }
+            }
             formatScoreMotivo(motivo) {
                 const mod = this._inicioModule();
                 if (mod && typeof mod.formatScoreMotivo === 'function') {

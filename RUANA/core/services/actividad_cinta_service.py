@@ -1078,6 +1078,30 @@ def _seleccionar_items(
     return unicos
 
 
+def _listar_notificaciones_cursor(
+    cursor, codigo: str, limite: int = 50
+) -> List[Dict[str, Any]]:
+    codigo_norm = str(codigo or "").strip()
+    if not codigo_norm:
+        return []
+    try:
+        rows = _notif_repo.listar_por_aliado(
+            cursor, codigo_norm, max(1, min(limite, 200))
+        )
+        out = []
+        for item in rows:
+            row = dict(item) if hasattr(item, "keys") else item
+            if isinstance(row, dict) and row.get("metadata"):
+                try:
+                    row["metadata"] = json.loads(row["metadata"])
+                except Exception:
+                    pass
+            out.append(row)
+        return out
+    except Exception:
+        return []
+
+
 def _listar_notificaciones(db, codigo: str, limite: int = 50) -> List[Dict[str, Any]]:
     codigo_norm = str(codigo or "").strip()
     if not codigo_norm:
@@ -1131,7 +1155,7 @@ def preparar_actividad_cinta(
             if ctx is None:
                 ctx = _act_repo.contexto_aliado(cursor, codigo_norm) or {}
 
-            for notif in _listar_notificaciones(db, codigo_norm, limite=50):
+            for notif in _listar_notificaciones_cursor(cursor, codigo_norm, limite=50):
                 formateada = _formatear_notificacion_cinta(
                     notif, codigo_norm, cursor=cursor
                 )
