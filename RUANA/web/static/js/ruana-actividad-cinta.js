@@ -88,7 +88,12 @@
     var track = marquee.querySelector('.ruana-actividad-cinta__track:not(.ruana-actividad-cinta__track--clone)');
     if (!track) return;
     var width = track.offsetWidth;
-    if (!width) return;
+    if (!width) {
+      requestAnimationFrame(function () {
+        applyMarqueeTiming(root, marquee);
+      });
+      return;
+    }
     var seconds = Math.max(28, Math.round(width / PX_PER_SECOND));
     root.style.setProperty('--ruana-cinta-speed', seconds + 's');
   }

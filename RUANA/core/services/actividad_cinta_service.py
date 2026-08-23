@@ -7,6 +7,7 @@ y métricas agregadas. El panel solo muestra host.actividadCinta.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -1021,18 +1022,22 @@ def _recolectar_metricas(
             )
 
         n_grupo_aliados = _act_repo.contar_aliados_activos_grupo(cursor, grupo_id)
-        if n_grupo_aliados > 0 and not cp:
-            items.append(
-                _item(
-                    "metric-aliados-grupo",
-                    f"Tu grupo cuenta con {n_grupo_aliados} aliados activos",
-                    ahora,
-                    "metrica_aliados_grupo",
-                    "metrica",
-                    _PRIORIDAD_METRICA,
-                    "metric-aliados-grupo",
-                )
+        if n_grupo_aliados > 0:
+            tiene_metrica_cp = any(
+                it.get("tipo") == "metrica_aliados_cp" for it in items
             )
+            if not tiene_metrica_cp:
+                items.append(
+                    _item(
+                        "metric-aliados-grupo",
+                        f"Tu grupo cuenta con {n_grupo_aliados} aliados activos",
+                        ahora,
+                        "metrica_aliados_grupo",
+                        "metrica",
+                        _PRIORIDAD_METRICA,
+                        "metric-aliados-grupo",
+                    )
+                )
 
     if cp:
         n_nuevos_cp = _act_repo.contar_nuevos_aliados_mes_cp(cursor, cp, anio_mes)
@@ -1192,7 +1197,9 @@ def preparar_actividad_cinta(
             )
             items.extend(_recolectar_metricas(cursor, grupo_id, cp))
         except Exception:
-            pass
+            logging.getLogger(__name__).exception(
+                "Error preparando actividad cinta para %s", codigo_norm
+            )
         finally:
             if conn:
                 conn.close()

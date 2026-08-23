@@ -55,10 +55,13 @@
     }
   }
 
-  function applyActividadCinta(host, items) {
+  function applyActividadCinta(host, items, options) {
     if (!Array.isArray(items)) return;
+    var force = options && options.force;
+    var hasExisting = Array.isArray(host.actividadCinta) && host.actividadCinta.length > 0;
+    if (!items.length && hasExisting && !force) return;
     host.actividadCinta = items;
-    persistActividadCinta(items);
+    if (items.length) persistActividadCinta(items);
   }
 
   async function runWarmupSync(host) {
@@ -278,9 +281,10 @@
             const fetchedAtRaw = sessionStorage.getItem('ruana_aliado_data_fetched_at');
             const fetchedAt = fetchedAtRaw ? Number(fetchedAtRaw) : 0;
             const fetchedRecently = Number.isFinite(fetchedAt) && fetchedAt > 0 && (Date.now() - fetchedAt) < 15000;
+            const needsActividadRefresh = !Array.isArray(host.actividadCinta) || host.actividadCinta.length === 0;
             try {
-                // Evita fetch duplicado inmediato tras bootstrap (DOMContentLoaded ya lo hizo).
-                if (!fetchedRecently) {
+                // Evita fetch duplicado inmediato tras bootstrap, salvo si aún no hay cinta.
+                if (!fetchedRecently || needsActividadRefresh) {
                     const respDatos = await fetch(apiBase + '/api/aliado/datos', { credentials: 'same-origin', headers: getAuthHeadersSafe() });
                     if (respDatos.ok) {
                         const dataDatos = await respDatos.json();
@@ -415,6 +419,13 @@
           if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons(document.querySelector('.aliado-shell-nav') || document.body);
           if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons(document.querySelector('.aliado-shell-bottom'));
           if (typeof RuanaUI !== 'undefined') RuanaUI.initIcons(document.getElementById('module-inicio'));
+      }
+      if (!isLoading) {
+          requestAnimationFrame(function () {
+              requestAnimationFrame(function () {
+                  renderActividadCinta(host);
+              });
+          });
       }
   }
 

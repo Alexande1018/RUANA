@@ -114,3 +114,17 @@ def test_alertas_refresh_updates_actividad_cinta():
     alertas = _read("static/js/aliado-alertas-module.js")
     assert "actividad_cinta" in alertas
     assert "renderActividadCinta" in alertas
+
+
+def test_sync_skips_empty_actividad_overwrite():
+    sync = _read("static/js/aliado-sync-module.js")
+    assert "hasExisting" in sync
+    assert "needsActividadRefresh" in sync
+
+
+def test_set_panel_loading_renders_actividad_cinta():
+    sync = _read("static/js/aliado-sync-module.js")
+    start = sync.index("function setPanelLoading")
+    end = sync.index("async function init", start)
+    block = sync[start:end]
+    assert "renderActividadCinta(host)" in block
