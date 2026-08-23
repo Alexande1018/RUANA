@@ -442,6 +442,21 @@ def test_solicitudes_semanales_prompt_solo_lunes_y_minimizado_persiste():
     assert "tieneSolicitudPropiaActiva(host)" in sem_js
 
 
+def test_solicitudes_semanales_minimizado_centro_inferior():
+    """El recuadro mínimo va al centro inferior para no tapar «Ampliar mi red» del sidebar."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    css = (root / "static" / "css" / "aliado-solicitudes-semanales.css").read_text(
+        encoding="utf-8"
+    )
+    aliado = (root / "aliado.html").read_text(encoding="utf-8")
+
+    assert ".sol-sem-minimized" in css
+    assert "left: 50%" in css
+    assert "transform: translateX(-50%)" in css
+    assert "left: 16px;\n  bottom: 88px;" not in css
+    assert 'id="sol-sem-minimized"' in aliado
+
+
 def test_solicitudes_semanales_recuadro_inicio_panel():
     """Las solicitudes semanales se acumulan en Inicio y notifican al grupo."""
     root = Path(__file__).resolve().parents[1] / "web"
