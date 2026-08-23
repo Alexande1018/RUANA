@@ -20,6 +20,51 @@ _SCORE_MAX = 500
 _DELTA_DIA_MAX = 10
 
 
+def _notificar_grupo_cambio_score(
+    cursor,
+    codigo_aliado: str,
+    delta_real: int,
+    movimiento_id: Optional[int],
+) -> None:
+    """Informa al grupo (excepto el aliado afectado) de un cambio real de score."""
+    if not codigo_aliado or not delta_real:
+        return
+    try:
+        cursor.execute(
+            "SELECT grupo_id, nombre FROM aliados WHERE codigo = ?",
+            (codigo_aliado.strip(),),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return
+        grupo_id = row[0] if not hasattr(row, "keys") else row["grupo_id"]
+        nombre = row[1] if not hasattr(row, "keys") else row["nombre"]
+        if not grupo_id:
+            return
+        nombre_txt = str(nombre or "").strip()
+        if not nombre_txt:
+            return
+        from core.services.actividad_cinta_service import notificar_grupo_actividad
+
+        notificar_grupo_actividad(
+            None,
+            int(grupo_id),
+            "score_change",
+            "Score actualizado",
+            f"El score de {nombre_txt} acaba de cambiar",
+            metadata={
+                "nombre": nombre_txt,
+                "codigo": codigo_aliado.strip(),
+                "movimiento_id": movimiento_id,
+                "delta": delta_real,
+            },
+            excluir_codigo=codigo_aliado.strip(),
+            cursor=cursor,
+        )
+    except Exception:
+        return
+
+
 def calcular_delta_aplicar(delta: int, delta_hoy: int) -> int:
     """Aplica el tope diario ±10 al delta solicitado."""
     if delta > 0:
@@ -82,6 +127,9 @@ def aplicar_cambio_score(
         score_nuevo=score_nuevo,
         motivo=motivo,
         movimiento_id=movimiento_id,
+    )
+    _notificar_grupo_cambio_score(
+        cursor, codigo_aliado, delta_real, movimiento_id
     )
     return {
         "status": "success",

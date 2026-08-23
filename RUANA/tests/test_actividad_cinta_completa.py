@@ -116,11 +116,8 @@ def _insert_notif(db, codigo, tipo, metadata=None, creado_en=None):
         ("grupo_nuevo_cp", {}, "Nuevo grupo creado en tu código postal"),
         ("plaza_disponible", {"oficio": "Pintor"}, "Nueva plaza de Pintor disponible en tu zona"),
         ("competencia_cp", {"nombre": "Juan"}, "Juan, aliado de tu CP, ha pasado a competencia"),
-        ("score_change", {"nombre": "Pedro"}, "El score de Pedro acaba de cambiar"),
-        ("competencia_inicio", {}, "Nueva competencia iniciada en tu grupo"),
+        ("score_change", {"nombre": "Pedro", "codigo": "X999"}, "El score de Pedro acaba de cambiar"),
         ("competencia_reto", {"retador_nombre": "A", "titular_nombre": "B"}, "A ha retado a B"),
-        ("competencia_victoria", {"ganador_nombre": "A"}, "A acaba de ganar una competencia"),
-        ("competencia_perdida", {"perdedor_nombre": "B"}, "B ha perdido una competencia"),
     ],
 )
 def test_formateo_notificaciones_cinta(sqlite_db, tipo, meta, esperado):

@@ -51,15 +51,28 @@ def test_preparar_actividad_cinta_excluye_tipos_operativos(sqlite_db):
     assert notificacion_service.preparar_actividad_cinta(sqlite_db, codigo) == []
 
 
-def test_preparar_actividad_cinta_incluye_score_change(sqlite_db):
+def test_preparar_actividad_cinta_excluye_score_change_personal(sqlite_db):
     codigo = "94002b"
     _insert_notif(
         sqlite_db,
         codigo,
         "score_change",
         "Score",
-        "Cambio de score",
-        metadata={"nombre": "Pedro"},
+        "Tu score cambió",
+        metadata={"delta": 2, "codigo": codigo},
+    )
+    assert notificacion_service.preparar_actividad_cinta(sqlite_db, codigo) == []
+
+
+def test_preparar_actividad_cinta_incluye_score_change_grupo(sqlite_db):
+    codigo = "94002b"
+    _insert_notif(
+        sqlite_db,
+        codigo,
+        "score_change",
+        "Score",
+        "Cambio de score en el grupo",
+        metadata={"nombre": "Pedro", "codigo": "94099", "movimiento_id": 1},
     )
     items = notificacion_service.preparar_actividad_cinta(sqlite_db, codigo)
     assert len(items) == 1

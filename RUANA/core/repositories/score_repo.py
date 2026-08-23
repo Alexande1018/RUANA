@@ -169,12 +169,30 @@ class ScoreRepo:
             motivo_txt = (motivo or "actualización de reglas RUANA").strip()
             titulo = "Cambio en tu Score RUANA"
             mensaje = f"Tu score {direccion} {puntos} puntos. Motivo: {motivo_txt}."
+            nombre = ""
+            try:
+                cursor.execute(
+                    "SELECT nombre FROM aliados WHERE codigo = ?",
+                    (codigo_aliado.strip(),),
+                )
+                row_nombre = cursor.fetchone()
+                if row_nombre:
+                    nombre = str(
+                        row_nombre[0]
+                        if not hasattr(row_nombre, "keys")
+                        else row_nombre["nombre"]
+                        or ""
+                    ).strip()
+            except Exception:
+                nombre = ""
             metadata = json.dumps(
                 {
                     "delta": delta_real,
                     "score_final": int(score_nuevo),
                     "motivo": motivo_txt,
                     "movimiento_id": movimiento_id,
+                    "nombre": nombre,
+                    "codigo": codigo_aliado.strip(),
                 },
                 ensure_ascii=False,
             )

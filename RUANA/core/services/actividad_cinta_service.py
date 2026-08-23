@@ -28,6 +28,13 @@ _CINTA_TIPOS_EXCLUIDOS = frozenset({
     "prueba_conflicto_en_revision",
     "ruana_soporte",
     "ruana_soporte_estado",
+    # Notificaciones personales de competencia (la cinta usa lecturas de grupo)
+    "competencia_inicio",
+    "competencia_titular",
+    "competencia_victoria",
+    "competencia_derrota",
+    "competencia_expulsion",
+    "competencia_perdida",
 })
 
 _PRIORIDAD_ALTA = 90
@@ -86,9 +93,45 @@ def _item(
     }
 
 
-def _nombre(valor: Any, fallback: str = "Un aliado") -> str:
+def _nombre(valor: Any, fallback: Optional[str] = None) -> Optional[str]:
     texto = str(valor or "").strip()
-    return texto if texto else fallback
+    if texto:
+        return texto
+    return fallback
+
+
+def _nombre_requerido(valor: Any) -> Optional[str]:
+    return _nombre(valor, fallback=None)
+
+
+def _lookup_nombre_aliado(cursor, codigo: Any) -> Optional[str]:
+    cod = str(codigo or "").strip()
+    if not cod or cursor is None:
+        return None
+    try:
+        cursor.execute(
+            "SELECT nombre FROM aliados WHERE TRIM(CAST(codigo AS TEXT)) = ?",
+            (cod,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        nombre = row[0] if not hasattr(row, "keys") else row["nombre"]
+        return _nombre_requerido(nombre)
+    except Exception:
+        return None
+
+
+def _resolver_nombre(
+    meta: Dict[str, Any],
+    nombre_key: str,
+    codigo_key: str,
+    cursor=None,
+) -> Optional[str]:
+    directo = _nombre_requerido(meta.get(nombre_key))
+    if directo:
+        return directo
+    return _lookup_nombre_aliado(cursor, meta.get(codigo_key))
 
 
 def _importe_eur(valor: Any) -> Optional[str]:
@@ -103,7 +146,11 @@ def _importe_eur(valor: Any) -> Optional[str]:
     return f"{num:.2f}".rstrip("0").rstrip(".")
 
 
-def _formatear_notificacion_cinta(notif: Dict[str, Any], viewer_codigo: str) -> Optional[Dict[str, Any]]:
+def _formatear_notificacion_cinta(
+    notif: Dict[str, Any],
+    viewer_codigo: str,
+    cursor=None,
+) -> Optional[Dict[str, Any]]:
     tipo = str(notif.get("tipo") or "").strip()
     if not tipo or tipo in _CINTA_TIPOS_EXCLUIDOS:
         return None
@@ -114,7 +161,9 @@ def _formatear_notificacion_cinta(notif: Dict[str, Any], viewer_codigo: str) -> 
     base_id = f"notif-{notif_id}" if notif_id is not None else f"notif-{tipo}"
 
     if tipo == "solicitud_semanal_nueva":
-        nombre = _nombre(meta.get("solicitante_nombre"))
+        nombre = _resolver_nombre(meta, "solicitante_nombre", "solicitante_codigo", cursor)
+        if not nombre:
+            return None
         return _item(
             base_id,
             f"Nueva solicitud publicada por {nombre} en el grupo",
@@ -126,7 +175,9 @@ def _formatear_notificacion_cinta(notif: Dict[str, Any], viewer_codigo: str) -> 
         )
 
     if tipo == "solicitud_nueva":
-        nombre = _nombre(meta.get("solicitante_nombre"))
+        nombre = _resolver_nombre(meta, "solicitante_nombre", "solicitante_codigo", cursor)
+        if not nombre:
+            return None
         return _item(
             base_id,
             f"{nombre} ha publicado una nueva solicitud",
@@ -138,7 +189,9 @@ def _formatear_notificacion_cinta(notif: Dict[str, Any], viewer_codigo: str) -> 
         )
 
     if tipo == "solicitud_actualizada":
-        nombre = _nombre(meta.get("solicitante_nombre"))
+        nombre = _resolver_nombre(meta, "solicitante_nombre", "solicitante_codigo", cursor)
+        if not nombre:
+            return None
         return _item(
             base_id,
             f"{nombre} acaba de actualizar una solicitud",
@@ -161,7 +214,9 @@ def _formatear_notificacion_cinta(notif: Dict[str, Any], viewer_codigo: str) -> 
         )
 
     if tipo == "solicitud_semanal_respuesta":
-        nombre = _nombre(meta.get("respondiente_nombre"))
+        nombre = _resolver_nombre(meta, "respondiente_nombre", "respondiente_codigo", cursor)
+        if not nombre:
+            return None
         return _item(
             base_id,
             f"{nombre} ya ha respondido a la solicitud semanal",
@@ -173,8 +228,10 @@ def _formatear_notificacion_cinta(notif: Dict[str, Any], viewer_codigo: str) -> 
         )
 
     if tipo == "propuesta":
-        proponente = _nombre(meta.get("proponente_nombre"))
-        propuesto = _nombre(meta.get("propuesto_nombre"), "un profesional")
+        proponente = _resolver_nombre(meta, "proponente_nombre", "proponente_codigo", cursor)
+        propuesto = _resolver_nombre(meta, "propuesto_nombre", "propuesto_codigo", cursor) or "un profesional"
+        if not proponente:
+            return None
         return _item(
             base_id,
             f"{proponente} ha propuesto a {propuesto}",
@@ -186,8 +243,10 @@ def _formatear_notificacion_cinta(notif: Dict[str, Any], viewer_codigo: str) -> 
         )
 
     if tipo == "recomendacion":
-        origen = _nombre(meta.get("origen_nombre"))
-        destino = _nombre(meta.get("destino_nombre"))
+        origen = _resolver_nombre(meta, "origen_nombre", "origen_codigo", cursor)
+        destino = _resolver_nombre(meta, "destino_nombre", "destino_codigo", cursor)
+        if not origen or not destino:
+            return None
         return _item(
             base_id,
             f"{origen} acaba de recomendar a {destino}",
@@ -199,9 +258,11 @@ def _formatear_notificacion_cinta(notif: Dict[str, Any], viewer_codigo: str) -> 
         )
 
     if tipo == "recomendacion_oficio":
-        origen = _nombre(meta.get("origen_nombre"))
-        destino = _nombre(meta.get("destino_nombre"))
-        oficio = _nombre(meta.get("oficio"), "profesional")
+        origen = _resolver_nombre(meta, "origen_nombre", "origen_codigo", cursor)
+        destino = _resolver_nombre(meta, "destino_nombre", "destino_codigo", cursor)
+        oficio = _nombre(meta.get("oficio")) or "profesional"
+        if not origen or not destino:
+            return None
         return _item(
             base_id,
             f"{origen} recomienda a {destino} para {oficio}",
@@ -224,8 +285,10 @@ def _formatear_notificacion_cinta(notif: Dict[str, Any], viewer_codigo: str) -> 
         )
 
     if tipo == "acuerdo_cerrado":
-        sol = _nombre(meta.get("solicitante_nombre"))
-        pro = _nombre(meta.get("profesional_nombre"))
+        sol = _resolver_nombre(meta, "solicitante_nombre", "solicitante_codigo", cursor)
+        pro = _resolver_nombre(meta, "profesional_nombre", "profesional_codigo", cursor)
+        if not sol or not pro:
+            return None
         importe = _importe_eur(meta.get("importe"))
         viewer = (viewer_codigo or "").strip()
         es_parte = viewer and viewer in {
@@ -249,7 +312,9 @@ def _formatear_notificacion_cinta(notif: Dict[str, Any], viewer_codigo: str) -> 
         )
 
     if tipo == "aliado_nuevo_grupo":
-        nombre = _nombre(meta.get("nombre"))
+        nombre = _resolver_nombre(meta, "nombre", "codigo", cursor)
+        if not nombre:
+            return None
         return _item(
             base_id,
             f"{nombre} acaba de entrar al grupo",
@@ -261,8 +326,10 @@ def _formatear_notificacion_cinta(notif: Dict[str, Any], viewer_codigo: str) -> 
         )
 
     if tipo == "invitacion":
-        invitador = _nombre(meta.get("invitador_nombre"))
-        invitado = _nombre(meta.get("invitado_nombre"))
+        invitador = _resolver_nombre(meta, "invitador_nombre", "invitador_codigo", cursor)
+        invitado = _resolver_nombre(meta, "invitado_nombre", "invitado_codigo", cursor)
+        if not invitador or not invitado:
+            return None
         return _item(
             base_id,
             f"{invitador} ha invitado a {invitado} a RUANA",
@@ -274,8 +341,10 @@ def _formatear_notificacion_cinta(notif: Dict[str, Any], viewer_codigo: str) -> 
         )
 
     if tipo == "invitacion_oficio":
-        invitador = _nombre(meta.get("invitador_nombre"))
-        oficio = _nombre(meta.get("oficio"), "profesional")
+        invitador = _resolver_nombre(meta, "invitador_nombre", "invitador_codigo", cursor)
+        oficio = _nombre(meta.get("oficio")) or "profesional"
+        if not invitador:
+            return None
         return _item(
             base_id,
             f"{invitador} ha generado una invitación para {oficio}",
@@ -287,7 +356,9 @@ def _formatear_notificacion_cinta(notif: Dict[str, Any], viewer_codigo: str) -> 
         )
 
     if tipo == "catalogo_actualizado":
-        nombre = _nombre(meta.get("nombre"))
+        nombre = _resolver_nombre(meta, "nombre", "codigo", cursor)
+        if not nombre:
+            return None
         return _item(
             base_id,
             f"{nombre} acaba de actualizar sus servicios",
@@ -299,7 +370,9 @@ def _formatear_notificacion_cinta(notif: Dict[str, Any], viewer_codigo: str) -> 
         )
 
     if tipo == "foto_actualizada":
-        nombre = _nombre(meta.get("nombre"))
+        nombre = _resolver_nombre(meta, "nombre", "codigo", cursor)
+        if not nombre:
+            return None
         return _item(
             base_id,
             f"{nombre} acaba de actualizar su foto",
@@ -322,7 +395,7 @@ def _formatear_notificacion_cinta(notif: Dict[str, Any], viewer_codigo: str) -> 
         )
 
     if tipo == "plaza_disponible":
-        oficio = _nombre(meta.get("oficio"), "profesional")
+        oficio = _nombre(meta.get("oficio")) or "profesional"
         return _item(
             base_id,
             f"Nueva plaza de {oficio} disponible en tu zona",
@@ -334,7 +407,9 @@ def _formatear_notificacion_cinta(notif: Dict[str, Any], viewer_codigo: str) -> 
         )
 
     if tipo == "competencia_cp":
-        nombre = _nombre(meta.get("nombre"))
+        nombre = _resolver_nombre(meta, "nombre", "codigo", cursor)
+        if not nombre:
+            return None
         return _item(
             base_id,
             f"{nombre}, aliado de tu CP, ha pasado a competencia",
@@ -346,7 +421,12 @@ def _formatear_notificacion_cinta(notif: Dict[str, Any], viewer_codigo: str) -> 
         )
 
     if tipo == "score_change":
-        nombre = _nombre(meta.get("nombre"))
+        nombre = _resolver_nombre(meta, "nombre", "codigo", cursor)
+        if not nombre:
+            return None
+        sujeto = str(meta.get("codigo") or "").strip()
+        if sujeto and sujeto == str(viewer_codigo or "").strip():
+            return None
         return _item(
             base_id,
             f"El score de {nombre} acaba de cambiar",
@@ -358,8 +438,6 @@ def _formatear_notificacion_cinta(notif: Dict[str, Any], viewer_codigo: str) -> 
         )
 
     if tipo == "competencia_inicio":
-        retador = _nombre(meta.get("retador_nombre"))
-        titular = _nombre(meta.get("titular_nombre"))
         return _item(
             base_id,
             "Nueva competencia iniciada en tu grupo",
@@ -371,8 +449,10 @@ def _formatear_notificacion_cinta(notif: Dict[str, Any], viewer_codigo: str) -> 
         )
 
     if tipo == "competencia_reto":
-        retador = _nombre(meta.get("retador_nombre"))
-        titular = _nombre(meta.get("titular_nombre"))
+        retador = _resolver_nombre(meta, "retador_nombre", "retador_codigo", cursor)
+        titular = _resolver_nombre(meta, "titular_nombre", "titular_codigo", cursor)
+        if not retador or not titular:
+            return None
         return _item(
             base_id,
             f"{retador} ha retado a {titular}",
@@ -384,7 +464,9 @@ def _formatear_notificacion_cinta(notif: Dict[str, Any], viewer_codigo: str) -> 
         )
 
     if tipo == "competencia_victoria":
-        ganador = _nombre(meta.get("ganador_nombre"))
+        ganador = _resolver_nombre(meta, "ganador_nombre", "ganador_codigo", cursor)
+        if not ganador:
+            return None
         return _item(
             base_id,
             f"{ganador} acaba de ganar una competencia",
@@ -396,7 +478,9 @@ def _formatear_notificacion_cinta(notif: Dict[str, Any], viewer_codigo: str) -> 
         )
 
     if tipo in ("competencia_derrota", "competencia_expulsion", "competencia_perdida"):
-        perdedor = _nombre(meta.get("perdedor_nombre"))
+        perdedor = _resolver_nombre(meta, "perdedor_nombre", "perdedor_codigo", cursor)
+        if not perdedor:
+            return None
         return _item(
             base_id,
             f"{perdedor} ha perdido una competencia",
@@ -448,6 +532,20 @@ def _formatear_aviso_grupo_cinta(aviso: Dict[str, Any]) -> Optional[Dict[str, An
     )
 
 
+def _nombre_fila(
+    cursor,
+    row: Dict[str, Any],
+    nombre_key: str,
+    codigo_key: Optional[str] = None,
+) -> Optional[str]:
+    directo = _nombre_requerido(row.get(nombre_key))
+    if directo:
+        return directo
+    if codigo_key:
+        return _lookup_nombre_aliado(cursor, row.get(codigo_key))
+    return None
+
+
 def _recolectar_desde_tablas(
     cursor,
     viewer_codigo: str,
@@ -465,7 +563,9 @@ def _recolectar_desde_tablas(
     for row in _act_repo.listar_solicitudes_nuevas_grupo(cursor, grupo_id, viewer_codigo):
         if str(row.get("solicitante_codigo") or "").strip() == viewer_codigo:
             continue
-        nombre = _nombre(row.get("solicitante_nombre"))
+        nombre = _nombre_fila(cursor, row, "solicitante_nombre", "solicitante_codigo")
+        if not nombre:
+            continue
         sid = row.get("id")
         items.append(
             _item(
@@ -480,7 +580,9 @@ def _recolectar_desde_tablas(
         )
 
     for row in _act_repo.listar_solicitudes_atendidas_grupo(cursor, grupo_id):
-        nombre = _nombre(row.get("atendido_por_nombre"))
+        nombre = _nombre_fila(cursor, row, "atendido_por_nombre", "atendido_por_codigo")
+        if not nombre:
+            continue
         sid = row.get("id")
         items.append(
             _item(
@@ -511,8 +613,13 @@ def _recolectar_desde_tablas(
 
     if has_candidato:
         for row in _act_repo.listar_propuestas_grupo(cursor, grupo_id):
-            proponente = _nombre(row.get("solicitante_nombre"))
-            propuesto = _nombre(row.get("candidato_por_nombre"), "un profesional")
+            proponente = _nombre_fila(cursor, row, "solicitante_nombre", "solicitante_codigo")
+            propuesto = (
+                _nombre_fila(cursor, row, "candidato_por_nombre", "candidato_por_codigo")
+                or "un profesional"
+            )
+            if not proponente:
+                continue
             sid = row.get("id")
             items.append(
                 _item(
@@ -528,8 +635,10 @@ def _recolectar_desde_tablas(
 
     for row in _act_repo.listar_contactos_nuevos_grupo(cursor, grupo_id):
         cid = row.get("id")
-        origen = _nombre(row.get("solicitante_nombre"))
-        destino = _nombre(row.get("profesional_nombre"))
+        origen = _nombre_fila(cursor, row, "solicitante_nombre", "solicitante_codigo")
+        destino = _nombre_fila(cursor, row, "profesional_nombre", "profesional_codigo")
+        if not origen or not destino:
+            continue
         oficio = str(row.get("servicio") or "").strip()
         if oficio:
             texto = f"{origen} recomienda a {destino} para {oficio}"
@@ -553,8 +662,10 @@ def _recolectar_desde_tablas(
 
     for row in _act_repo.listar_acuerdos_grupo(cursor, grupo_id):
         cid = row.get("id")
-        sol = _nombre(row.get("solicitante_nombre"))
-        pro = _nombre(row.get("profesional_nombre"))
+        sol = _nombre_fila(cursor, row, "solicitante_nombre", "solicitante_codigo")
+        pro = _nombre_fila(cursor, row, "profesional_nombre", "profesional_codigo")
+        if not sol or not pro:
+            continue
         viewer = viewer_codigo.strip()
         es_parte = viewer in {
             str(row.get("solicitante_codigo") or "").strip(),
@@ -595,7 +706,9 @@ def _recolectar_desde_tablas(
 
     for row in _act_repo.listar_aliados_nuevos_grupo(cursor, grupo_id, viewer_codigo):
         cod = row.get("codigo")
-        nombre = _nombre(row.get("nombre"))
+        nombre = _nombre_fila(cursor, row, "nombre", "codigo")
+        if not nombre:
+            continue
         items.append(
             _item(
                 f"aliado-{cod}",
@@ -609,8 +722,10 @@ def _recolectar_desde_tablas(
         )
 
     for row in _act_repo.listar_referidos_recientes_grupo(cursor, grupo_id):
-        invitador = _nombre(row.get("invitador_nombre"))
-        referido = _nombre(row.get("referido_nombre"))
+        invitador = _nombre_requerido(row.get("invitador_nombre"))
+        referido = _nombre_requerido(row.get("referido_nombre"))
+        if not invitador or not referido:
+            continue
         oficio = str(row.get("referido_oficio") or "").strip()
         creado = row.get("creado_en")
         items.append(
@@ -639,7 +754,9 @@ def _recolectar_desde_tablas(
 
     for row in _act_repo.listar_catalogo_actualizado_grupo(cursor, grupo_id, viewer_codigo):
         cod = row.get("aliado_codigo")
-        nombre = _nombre(row.get("nombre"))
+        nombre = _nombre_fila(cursor, row, "nombre", "aliado_codigo")
+        if not nombre:
+            continue
         items.append(
             _item(
                 f"cat-{cod}",
@@ -656,7 +773,9 @@ def _recolectar_desde_tablas(
     if "foto_perfil_url" in cols_aliados:
         for row in _act_repo.listar_foto_actualizada_grupo(cursor, grupo_id, viewer_codigo):
             cod = row.get("codigo")
-            nombre = _nombre(row.get("nombre"))
+            nombre = _nombre_fila(cursor, row, "nombre", "codigo")
+            if not nombre:
+                continue
             items.append(
                 _item(
                     f"foto-{cod}",
@@ -690,7 +809,9 @@ def _recolectar_desde_tablas(
             cod = row.get("codigo")
             if str(cod or "").strip() == viewer_codigo:
                 continue
-            nombre = _nombre(row.get("nombre"))
+            nombre = _nombre_fila(cursor, row, "nombre", "codigo")
+            if not nombre:
+                continue
             items.append(
                 _item(
                     f"comp-cp-{cod}",
@@ -704,7 +825,7 @@ def _recolectar_desde_tablas(
             )
 
         for row in _act_repo.listar_plazas_disponibles_cp(cursor, codigo_postal):
-            oficio = _nombre(row.get("oficio"), "profesional")
+            oficio = _nombre(row.get("oficio")) or "profesional"
             gid = row.get("grupo_id")
             items.append(
                 _item(
@@ -721,8 +842,10 @@ def _recolectar_desde_tablas(
     for row in _act_repo.listar_competencias_grupo(cursor, grupo_id):
         cid = row.get("id")
         creado = row.get("creado_en")
-        retador = _nombre(row.get("retador_nombre"))
-        titular = _nombre(row.get("titular_nombre"))
+        retador = _nombre_fila(cursor, row, "retador_nombre", "retador_codigo")
+        titular = _nombre_fila(cursor, row, "titular_nombre", "aliado_original_codigo")
+        if not retador or not titular:
+            continue
         estado = str(row.get("estado") or "").strip().lower()
         items.append(
             _item(
@@ -747,7 +870,9 @@ def _recolectar_desde_tablas(
             )
         )
         if estado == "finalizada" and row.get("ganador_codigo"):
-            ganador = _nombre(row.get("ganador_nombre"))
+            ganador = _nombre_fila(cursor, row, "ganador_nombre", "ganador_codigo")
+            if not ganador:
+                continue
             items.append(
                 _item(
                     f"comp-win-{cid}",
@@ -768,6 +893,8 @@ def _recolectar_desde_tablas(
                 perdedor = titular
             else:
                 perdedor = retador
+            if not perdedor:
+                continue
             items.append(
                 _item(
                     f"comp-loss-{cid}",
@@ -782,7 +909,9 @@ def _recolectar_desde_tablas(
 
     for row in _act_repo.listar_score_cambios_grupo(cursor, grupo_id, viewer_codigo):
         sid = row.get("id")
-        nombre = _nombre(row.get("nombre"))
+        nombre = _nombre_fila(cursor, row, "nombre", "codigo_aliado")
+        if not nombre:
+            continue
         items.append(
             _item(
                 f"score-{sid}",
@@ -992,16 +1121,6 @@ def preparar_actividad_cinta(
 
     items: List[Dict[str, Any]] = []
 
-    for notif in _listar_notificaciones(db, codigo_norm, limite=50):
-        formateada = _formatear_notificacion_cinta(notif, codigo_norm)
-        if formateada:
-            items.append(formateada)
-
-    for aviso in avisos_grupo or []:
-        formateada = _formatear_aviso_grupo_cinta(aviso)
-        if formateada:
-            items.append(formateada)
-
     ctx = _contexto
     with db._lock:
         conn = None
@@ -1011,6 +1130,19 @@ def preparar_actividad_cinta(
             cursor = conn.cursor()
             if ctx is None:
                 ctx = _act_repo.contexto_aliado(cursor, codigo_norm) or {}
+
+            for notif in _listar_notificaciones(db, codigo_norm, limite=50):
+                formateada = _formatear_notificacion_cinta(
+                    notif, codigo_norm, cursor=cursor
+                )
+                if formateada:
+                    items.append(formateada)
+
+            for aviso in avisos_grupo or []:
+                formateada = _formatear_aviso_grupo_cinta(aviso)
+                if formateada:
+                    items.append(formateada)
+
             grupo_id = ctx.get("grupo_id")
             cp = str(ctx.get("codigo_postal") or "").strip()
 
