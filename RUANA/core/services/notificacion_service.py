@@ -177,6 +177,30 @@ def preparar_actividad_cinta(
     return unicos
 
 
+def preparar_actividad_cinta_para_aliado(
+    db,
+    aliado_codigo: str,
+    limite: int = MAX_ACTIVIDAD_CINTA,
+) -> List[Dict[str, Any]]:
+    """Prepara la cinta con avisos de grupo del aliado cuando corresponda."""
+    codigo_norm = str(aliado_codigo or "").strip()
+    if not codigo_norm:
+        return []
+
+    avisos_grupo: List[Dict[str, Any]] = []
+    try:
+        aliado = db.obtener_aliado_por_codigo(codigo_norm)
+        grupo_id = aliado.get("grupo_id") if aliado else None
+        if grupo_id:
+            avisos_grupo = db.obtener_avisos_grupo(grupo_id)
+    except Exception:
+        avisos_grupo = []
+
+    return preparar_actividad_cinta(
+        db, codigo_norm, avisos_grupo=avisos_grupo, limite=limite
+    )
+
+
 def crear_notificacion_aliado(
     db,
     aliado_codigo: str,

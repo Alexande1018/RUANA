@@ -147,3 +147,10 @@ def test_preparar_actividad_cinta_nunca_mas_de_diez_con_limite(sqlite_db):
 
 def test_preparar_actividad_cinta_constante_max(sqlite_db):
     assert notificacion_service.MAX_ACTIVIDAD_CINTA == 10
+
+
+def test_preparar_actividad_cinta_para_aliado_con_aviso_grupo(sqlite_db):
+    codigo = "94008"
+    items = notificacion_service.preparar_actividad_cinta_para_aliado(sqlite_db, codigo)
+    assert items == []
+

@@ -60,3 +60,26 @@ def test_aliado_bp_exposes_actividad_cinta():
     bp = (ROOT / "web" / "blueprints" / "aliado_bp.py").read_text(encoding="utf-8")
     assert "preparar_actividad_cinta" in bp
     assert "'actividad_cinta': actividad_cinta" in bp
+    assert "preparar_actividad_cinta_para_aliado" in bp
+
+
+def test_notificaciones_endpoint_includes_actividad_cinta():
+    bp = (ROOT / "web" / "blueprints" / "aliado_bp.py").read_text(encoding="utf-8")
+    start = bp.index("def get_notificaciones_aliado")
+    end = bp.index("def marcar_todas_notificaciones_leidas_api", start)
+    block = bp[start:end]
+    assert "preparar_actividad_cinta_para_aliado" in block
+    assert "'actividad_cinta': actividad_cinta" in block
+
+
+def test_sync_exports_actividad_cinta_helpers():
+    sync = _read("static/js/aliado-sync-module.js")
+    assert "RuanaAliadoSync" in sync
+    assert "applyNotificacionesPayload" in sync
+    assert "renderActividadCinta" in sync
+
+
+def test_alertas_refresh_updates_actividad_cinta():
+    alertas = _read("static/js/aliado-alertas-module.js")
+    assert "actividad_cinta" in alertas
+    assert "renderActividadCinta" in alertas

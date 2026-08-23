@@ -894,7 +894,14 @@ def get_notificaciones_aliado(codigo):
         notificaciones = notificacion_service.listar_notificaciones_aliado(
             db, codigo, limite=limite
         )
-        return jsonify({'status': 'success', 'notificaciones': notificaciones})
+        actividad_cinta = notificacion_service.preparar_actividad_cinta_para_aliado(
+            db, codigo
+        )
+        return jsonify({
+            'status': 'success',
+            'notificaciones': notificaciones,
+            'actividad_cinta': actividad_cinta,
+        })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 

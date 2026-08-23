@@ -79,6 +79,23 @@
     });
   }
 
+  function applyNotificacionesPayload(host, data) {
+    if (!data || data.status !== 'success') return;
+    if (Array.isArray(data.notificaciones)) host.notificaciones = data.notificaciones;
+    if (Array.isArray(data.actividad_cinta)) host.actividadCinta = data.actividad_cinta;
+  }
+
+  function renderActividadCinta(host) {
+    if (global.RuanaActividadCinta && typeof global.RuanaActividadCinta.render === 'function') {
+      global.RuanaActividadCinta.render(host);
+      return;
+    }
+    var mod = global.RuanaAliadoModules && global.RuanaAliadoModules.inicio;
+    if (mod && typeof mod.renderActividadCinta === 'function') {
+      mod.renderActividadCinta(host);
+    }
+  }
+
   async function fetchAliadoSnapshot(host) {
     const apiBase = getApiBaseSafe();
     const resp = await fetch(apiBase + '/api/aliado/datos', { credentials: 'same-origin', headers: getAuthHeadersSafe() });
@@ -141,6 +158,7 @@
             host.renderNotificaciones();
             host.renderListaPagosPendientes();
             host.renderAlertas();
+            renderActividadCinta(host);
         }
         if (targetSections.includes('centro')) host.renderCentroComunicacion();
     } catch (e) {
@@ -238,9 +256,7 @@
                     });
                     if (!respNotif.ok) return;
                     const dataNotif = await respNotif.json();
-                    if (dataNotif.status === 'success' && Array.isArray(dataNotif.notificaciones)) {
-                        host.notificaciones = dataNotif.notificaciones;
-                    }
+                    applyNotificacionesPayload(host, dataNotif);
                 })(),
                 (async () => {
                     const respSol = await fetch(apiBase + '/api/solicitudes?codigo=' + encodeURIComponent(host.codigoAliado), {
@@ -635,6 +651,11 @@ modules.sync = {
     fetchAliadoDatos: fetchAliadoDatos,
     bootstrapPrivatePanel: bootstrapPrivatePanel,
 };
+
+  global.RuanaAliadoSync = global.RuanaAliadoSync || {
+    applyNotificacionesPayload: applyNotificacionesPayload,
+    renderActividadCinta: renderActividadCinta,
+  };
 
   // El script inline de aliado.html corre antes que los defer; PrivatePanel ya está en window.
   if (typeof global.PrivatePanel !== 'undefined') {
