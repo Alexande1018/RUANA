@@ -422,6 +422,30 @@ def test_score_desde_tabla(sqlite_db):
     assert "El score de Pablo acaba de cambiar" in _textos(items)
 
 
+def test_metricas_cp_via_grupo_sin_postal_aliado(sqlite_db):
+    """Aliados sin codigo_postal propio deben contarse vía CP del grupo."""
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO grupos (nombre, codigo_postal, estado, fecha_creacion) VALUES (?, ?, ?, ?)",
+        ("Grupo CP", "28001", "activo", _ahora()),
+    )
+    g1 = cur.lastrowid
+    for cod, nom in [("G001", "Ana"), ("G002", "Luis"), ("G003", "Marta")]:
+        cur.execute(
+            """
+            INSERT INTO aliados (codigo, nombre, oficio, codigo_postal, grupo_id, estado, creado_en)
+            VALUES (?, ?, ?, '', ?, 'activo', ?)
+            """,
+            (cod, nom, "Electricidad", g1, _ahora()),
+        )
+    conn.commit()
+    conn.close()
+    items = actividad_cinta_service.preparar_actividad_cinta(sqlite_db, "G001")
+    textos = _textos(items)
+    assert any("3 aliados activos en tu código postal" in t for t in textos)
+
+
 def test_metricas_agregadas(sqlite_db):
     ctx = _setup_red(sqlite_db)
     conn = sqlite_db._connect()
@@ -499,6 +523,20 @@ def test_notificacion_service_fachada(sqlite_db):
     )
     items = notificacion_service.preparar_actividad_cinta(sqlite_db, "V001")
     assert any("A acaba de recomendar a B" in it["texto"] for it in items)
+
+
+def test_endpoint_datos_incluye_actividad_cinta(client, sqlite_db, monkeypatch, session_headers):
+    from RUANA.web import app as app_module
+
+    _setup_red(sqlite_db)
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    resp = client.get("/api/aliado/datos", headers=session_headers("aliado", "V001"))
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["status"] == "success"
+    assert isinstance(data.get("actividad_cinta"), list)
+    assert len(data["actividad_cinta"]) > 0
+    assert len(data["actividad_cinta"]) <= 10
 
 
 def test_endpoint_notificaciones_incluye_actividad_cinta(client, sqlite_db, monkeypatch, session_headers):

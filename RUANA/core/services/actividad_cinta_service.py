@@ -932,44 +932,46 @@ def _recolectar_metricas(
     grupo_id: Optional[int],
     codigo_postal: str,
 ) -> List[Dict[str, Any]]:
-    if not codigo_postal:
+    cp = str(codigo_postal or "").strip()
+    if not cp and not grupo_id:
         return []
     anio_mes = datetime.utcnow().strftime("%Y-%m")
     ahora = datetime.utcnow().isoformat(sep=" ", timespec="seconds")
     items: List[Dict[str, Any]] = []
 
-    n_cp = _act_repo.contar_encargos_mes_cp(cursor, codigo_postal, anio_mes)
-    n_grupo = (
-        _act_repo.contar_encargos_mes_grupo(cursor, grupo_id, anio_mes)
-        if grupo_id
-        else 0
-    )
-    if n_cp > 0:
-        items.append(
-            _item(
-                f"metric-encargos-{anio_mes}",
-                f"RUANA ya ha gestionado {n_cp} encargos este mes · {n_grupo} en tu grupo",
-                ahora,
-                "metrica_encargos",
-                "metrica",
-                _PRIORIDAD_METRICA,
-                f"metric-enc:{anio_mes}",
-            )
+    if cp:
+        n_cp = _act_repo.contar_encargos_mes_cp(cursor, cp, anio_mes)
+        n_grupo = (
+            _act_repo.contar_encargos_mes_grupo(cursor, grupo_id, anio_mes)
+            if grupo_id
+            else 0
         )
+        if n_cp > 0:
+            items.append(
+                _item(
+                    f"metric-encargos-{anio_mes}",
+                    f"RUANA ya ha gestionado {n_cp} encargos este mes · {n_grupo} en tu grupo",
+                    ahora,
+                    "metrica_encargos",
+                    "metrica",
+                    _PRIORIDAD_METRICA,
+                    f"metric-enc:{anio_mes}",
+                )
+            )
 
-    n_aliados = _act_repo.contar_aliados_activos_cp(cursor, codigo_postal)
-    if n_aliados > 0:
-        items.append(
-            _item(
-                f"metric-aliados-cp",
-                f"Ya sois {n_aliados} aliados activos en tu código postal",
-                ahora,
-                "metrica_aliados_cp",
-                "metrica",
-                _PRIORIDAD_METRICA,
-                "metric-aliados-cp",
+        n_aliados = _act_repo.contar_aliados_activos_cp(cursor, cp)
+        if n_aliados > 0:
+            items.append(
+                _item(
+                    f"metric-aliados-cp",
+                    f"Ya sois {n_aliados} aliados activos en tu código postal",
+                    ahora,
+                    "metrica_aliados_cp",
+                    "metrica",
+                    _PRIORIDAD_METRICA,
+                    "metric-aliados-cp",
+                )
             )
-        )
 
     if grupo_id:
         n_rec = _act_repo.contar_recomendaciones_contacto_mes_grupo(
@@ -1018,34 +1020,49 @@ def _recolectar_metricas(
                 )
             )
 
-    n_nuevos_cp = _act_repo.contar_nuevos_aliados_mes_cp(cursor, codigo_postal, anio_mes)
-    n_nuevos_total = _act_repo.contar_nuevos_aliados_mes_total(cursor, anio_mes)
-    if n_nuevos_total > 0:
-        items.append(
-            _item(
-                f"metric-nuevos-{anio_mes}",
-                f"RUANA suma {n_nuevos_total} nuevos aliados este mes · {n_nuevos_cp} en tu CP",
-                ahora,
-                "metrica_nuevos_aliados",
-                "metrica",
-                _PRIORIDAD_METRICA,
-                f"metric-nuevos:{anio_mes}",
+        n_grupo_aliados = _act_repo.contar_aliados_activos_grupo(cursor, grupo_id)
+        if n_grupo_aliados > 0 and not cp:
+            items.append(
+                _item(
+                    "metric-aliados-grupo",
+                    f"Tu grupo cuenta con {n_grupo_aliados} aliados activos",
+                    ahora,
+                    "metrica_aliados_grupo",
+                    "metrica",
+                    _PRIORIDAD_METRICA,
+                    "metric-aliados-grupo",
+                )
             )
-        )
 
-    top = _act_repo.ranking_actividad_grupos_cp(cursor, codigo_postal, grupo_id)
-    if top:
-        items.append(
-            _item(
-                "metric-top-grupo",
-                "Tu grupo está entre los más activos de tu CP este mes",
-                ahora,
-                "metrica_grupo_activo",
-                "metrica",
-                _PRIORIDAD_METRICA,
-                "metric-top-grupo",
+    if cp:
+        n_nuevos_cp = _act_repo.contar_nuevos_aliados_mes_cp(cursor, cp, anio_mes)
+        n_nuevos_total = _act_repo.contar_nuevos_aliados_mes_total(cursor, anio_mes)
+        if n_nuevos_total > 0:
+            items.append(
+                _item(
+                    f"metric-nuevos-{anio_mes}",
+                    f"RUANA suma {n_nuevos_total} nuevos aliados este mes · {n_nuevos_cp} en tu CP",
+                    ahora,
+                    "metrica_nuevos_aliados",
+                    "metrica",
+                    _PRIORIDAD_METRICA,
+                    f"metric-nuevos:{anio_mes}",
+                )
             )
-        )
+
+        top = _act_repo.ranking_actividad_grupos_cp(cursor, cp, grupo_id)
+        if top:
+            items.append(
+                _item(
+                    "metric-top-grupo",
+                    "Tu grupo está entre los más activos de tu CP este mes",
+                    ahora,
+                    "metrica_grupo_activo",
+                    "metrica",
+                    _PRIORIDAD_METRICA,
+                    "metric-top-grupo",
+                )
+            )
 
     return items
 

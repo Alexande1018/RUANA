@@ -54,6 +54,21 @@ def test_sync_module_stores_actividad_cinta_from_api():
     sync = _read("static/js/aliado-sync-module.js")
     assert "actividad_cinta" in sync
     assert "host.actividadCinta" in sync
+    assert "ruana_actividad_cinta" in sync
+    assert "__ruanaBootstrapActividadCinta" in sync
+    assert "persistActividadCinta" in sync
+    assert "restoreActividadCintaFromStorage" in sync
+
+
+def test_bootstrap_persists_actividad_cinta_before_panel_init():
+    sync = _read("static/js/aliado-sync-module.js")
+    bootstrap_start = sync.index("function bootstrapPrivatePanel")
+    bootstrap_end = sync.index("function initState", bootstrap_start)
+    block = sync[bootstrap_start:bootstrap_end]
+    assert "datos.actividad_cinta" in block
+    assert "ACTIVIDAD_CINTA_STORAGE_KEY" in block
+    assert "new global.PrivatePanel()" in block
+    assert block.index("datos.actividad_cinta") < block.index("new global.PrivatePanel()")
 
 
 def test_aliado_bp_exposes_actividad_cinta():

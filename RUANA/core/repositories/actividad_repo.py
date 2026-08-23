@@ -384,12 +384,30 @@ class ActividadRepo:
         return int(row[0] if row else 0)
 
     def contar_aliados_activos_cp(self, cursor, codigo_postal: str) -> int:
+        cp = codigo_postal.strip()
+        cursor.execute(
+            """
+            SELECT COUNT(DISTINCT a.codigo)
+            FROM aliados a
+            LEFT JOIN grupos g ON g.id = a.grupo_id
+            WHERE a.estado = 'activo'
+              AND (
+                TRIM(COALESCE(a.codigo_postal, '')) = ?
+                OR TRIM(COALESCE(g.codigo_postal, '')) = ?
+              )
+            """,
+            (cp, cp),
+        )
+        row = cursor.fetchone()
+        return int(row[0] if row else 0)
+
+    def contar_aliados_activos_grupo(self, cursor, grupo_id: int) -> int:
         cursor.execute(
             """
             SELECT COUNT(*) FROM aliados
-            WHERE estado = 'activo' AND TRIM(codigo_postal) = ?
+            WHERE estado = 'activo' AND grupo_id = ?
             """,
-            (codigo_postal.strip(),),
+            (int(grupo_id),),
         )
         row = cursor.fetchone()
         return int(row[0] if row else 0)
@@ -467,13 +485,20 @@ class ActividadRepo:
         return int(row[0] if row else 0)
 
     def contar_nuevos_aliados_mes_cp(self, cursor, codigo_postal: str, anio_mes: str) -> int:
+        cp = codigo_postal.strip()
         cursor.execute(
             """
-            SELECT COUNT(*) FROM aliados
-            WHERE estado = 'activo' AND TRIM(codigo_postal) = ?
-              AND strftime('%Y-%m', creado_en) = ?
+            SELECT COUNT(DISTINCT a.codigo)
+            FROM aliados a
+            LEFT JOIN grupos g ON g.id = a.grupo_id
+            WHERE a.estado = 'activo'
+              AND strftime('%Y-%m', a.creado_en) = ?
+              AND (
+                TRIM(COALESCE(a.codigo_postal, '')) = ?
+                OR TRIM(COALESCE(g.codigo_postal, '')) = ?
+              )
             """,
-            (codigo_postal.strip(), anio_mes),
+            (anio_mes, cp, cp),
         )
         row = cursor.fetchone()
         return int(row[0] if row else 0)

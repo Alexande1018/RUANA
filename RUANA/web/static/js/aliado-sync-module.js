@@ -36,6 +36,31 @@
     return extra || {};
   }
 
+  var ACTIVIDAD_CINTA_STORAGE_KEY = 'ruana_actividad_cinta';
+
+  function persistActividadCinta(items) {
+    if (!Array.isArray(items)) return;
+    try {
+      sessionStorage.setItem(ACTIVIDAD_CINTA_STORAGE_KEY, JSON.stringify(items));
+    } catch (_) {}
+  }
+
+  function restoreActividadCintaFromStorage() {
+    try {
+      var raw = sessionStorage.getItem(ACTIVIDAD_CINTA_STORAGE_KEY);
+      var parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function applyActividadCinta(host, items) {
+    if (!Array.isArray(items)) return;
+    host.actividadCinta = items;
+    persistActividadCinta(items);
+  }
+
   async function runWarmupSync(host) {
     const bootstrapTasks = await Promise.allSettled([
         host.fetchCentroComunicacionSnapshot(),
@@ -83,7 +108,7 @@
   function applyNotificacionesPayload(host, data) {
     if (!data || data.status !== 'success') return;
     if (Array.isArray(data.notificaciones)) host.notificaciones = data.notificaciones;
-    if (Array.isArray(data.actividad_cinta)) host.actividadCinta = data.actividad_cinta;
+    if (Array.isArray(data.actividad_cinta)) applyActividadCinta(host, data.actividad_cinta);
   }
 
   function renderActividadCinta(host) {
@@ -105,7 +130,7 @@
     if (data.status === 'success' && data.aliado) {
         host.aliado = { ...(host.aliado || {}), ...data.aliado };
         if (Array.isArray(data.notificaciones)) host.notificaciones = data.notificaciones;
-        if (Array.isArray(data.actividad_cinta)) host.actividadCinta = data.actividad_cinta;
+        if (Array.isArray(data.actividad_cinta)) applyActividadCinta(host, data.actividad_cinta);
     }
   }
 
@@ -233,6 +258,14 @@
             }
         }
 
+        var cachedCinta = restoreActividadCintaFromStorage();
+        if (cachedCinta.length) {
+            host.actividadCinta = cachedCinta;
+        } else if (Array.isArray(global.__ruanaBootstrapActividadCinta) && global.__ruanaBootstrapActividadCinta.length) {
+            host.actividadCinta = global.__ruanaBootstrapActividadCinta;
+            persistActividadCinta(host.actividadCinta);
+        }
+
         // Si aún no tenemos código, sessionStorage directo
         if (!host.codigoAliado) {
             const codigoSesion = sessionStorage.getItem('ruana_codigo_aliado');
@@ -254,7 +287,10 @@
                         if (dataDatos.status === 'success' && dataDatos.aliado) {
                             host.aliado = { ...(host.aliado || {}), ...dataDatos.aliado };
                             host.notificaciones = Array.isArray(dataDatos.notificaciones) ? dataDatos.notificaciones : [];
-                            host.actividadCinta = Array.isArray(dataDatos.actividad_cinta) ? dataDatos.actividad_cinta : [];
+                            applyActividadCinta(
+                                host,
+                                Array.isArray(dataDatos.actividad_cinta) ? dataDatos.actividad_cinta : []
+                            );
                         }
                     } else if (respDatos.status === 403) {
                         // Cuenta pendiente de validación: no puede acceder al panel
@@ -441,6 +477,7 @@
       } catch (_) {}
       sessionStorage.removeItem('ruana_codigo_aliado');
       sessionStorage.removeItem('ruana_aliado_data');
+      sessionStorage.removeItem(ACTIVIDAD_CINTA_STORAGE_KEY);
       sessionStorage.removeItem('ruana_invite_valid');
       sessionStorage.removeItem('ruana_invite_payload');
       sessionStorage.removeItem('ruana_invite_codigo');
@@ -584,6 +621,10 @@
       sessionStorage.setItem('ruana_codigo_aliado', sesionData.codigo);
       sessionStorage.setItem('ruana_aliado_data', JSON.stringify(datos.aliado));
       sessionStorage.setItem('ruana_aliado_data_fetched_at', String(Date.now()));
+      if (Array.isArray(datos.actividad_cinta)) {
+        sessionStorage.setItem(ACTIVIDAD_CINTA_STORAGE_KEY, JSON.stringify(datos.actividad_cinta));
+        global.__ruanaBootstrapActividadCinta = datos.actividad_cinta;
+      }
       new global.PrivatePanel();
     });
   }
@@ -642,7 +683,14 @@
     host.profesionalSeleccionado = null;
     host.negociacionGuiada = null;
     host.notificaciones = [];
-    host.actividadCinta = [];
+    var restoredCinta = restoreActividadCintaFromStorage();
+    if (restoredCinta.length) {
+      host.actividadCinta = restoredCinta;
+    } else if (Array.isArray(global.__ruanaBootstrapActividadCinta) && global.__ruanaBootstrapActividadCinta.length) {
+      host.actividadCinta = global.__ruanaBootstrapActividadCinta;
+    } else {
+      host.actividadCinta = [];
+    }
     host.soporteConversations = [];
     host.soporteMensajes = [];
     host.soporteSelectedId = null;
