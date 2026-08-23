@@ -9,9 +9,11 @@
   <link rel="stylesheet" href="/static/css/panel-premium.css">
   <link rel="stylesheet" href="/static/css/auth-premium.css">
   <link rel="stylesheet" href="/static/css/aliado-shell.css">
+  <link rel="stylesheet" href="/static/css/ruana-actividad-cinta.css">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
   <script src="/static/js/aliado-shell.js" defer></script>
+  <script src="/static/js/ruana-actividad-cinta.js" defer></script>
   <style>
     body { margin: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
     .preview-card {
@@ -94,6 +96,9 @@
           </div>
           <button type="button" class="inicio-score-pill" id="inicio-score-pill"><span class="inicio-score-pill-label">Score RUANA</span><strong id="inicio-score">92</strong></button>
         </div>
+
+        <div id="inicio-actividad-cinta" hidden></div>
+
         <div class="inicio-quick-grid">
           <button type="button" class="inicio-quick-btn" data-aliado-goto="directorio"><i data-lucide="search"></i><span>Directorio</span><small>Encontrar profesionales</small></button>
           <button type="button" class="inicio-quick-btn" data-aliado-goto="solicitudes"><i data-lucide="inbox"></i><span>Solicitudes</span><small>Bandeja de trabajo</small></button>
@@ -226,6 +231,22 @@
           if (window.AliadoShell) window.AliadoShell.show(btn.getAttribute('data-aliado-goto'));
         });
       });
+
+      // Datos demo solo para preview visual (no producción)
+      if (window.RuanaActividadCinta) {
+        var now = Date.now();
+        window.RuanaActividadCinta.render({
+          actividadCinta: [
+            { id: 'demo-1', texto: 'Ana acaba de recomendar a Javier', creado_en: new Date(now - 2 * 60000).toISOString() },
+            { id: 'demo-2', texto: 'Nueva solicitud de Carlos', creado_en: new Date(now - 15 * 60000).toISOString() },
+            { id: 'demo-3', texto: 'Marta acaba de entrar al grupo', creado_en: new Date(now - 45 * 60000).toISOString() },
+            { id: 'demo-4', texto: 'Nueva plaza de Fontanero disponible en tu zona', creado_en: new Date(now - 90 * 60000).toISOString() },
+            { id: 'demo-5', texto: 'Acuerdo alcanzado: 250 €', creado_en: new Date(now - 3 * 3600000).toISOString() },
+            { id: 'demo-6', texto: 'Nueva competencia iniciada en tu grupo', creado_en: new Date(now - 5 * 3600000).toISOString() },
+            { id: 'demo-7', texto: 'Nueva solicitud publicada por Laura en el grupo', creado_en: new Date(now - 86400000).toISOString() },
+          ]
+        });
+      }
     });
   </script>
 </body>
