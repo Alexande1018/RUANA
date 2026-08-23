@@ -47,8 +47,23 @@ def test_preparar_actividad_cinta_excluye_tipos_operativos(sqlite_db):
     codigo = "94002"
     _insert_notif(sqlite_db, codigo, "apoyo_ruana", "Apoyo", "Paga el apoyo")
     _insert_notif(sqlite_db, codigo, "pago_rechazado", "Rechazado", "Comprobante rechazado")
-    _insert_notif(sqlite_db, codigo, "score_change", "Score", "Tu score cambió")
+    _insert_notif(sqlite_db, codigo, "ruana_soporte", "Soporte", "Ticket abierto")
     assert notificacion_service.preparar_actividad_cinta(sqlite_db, codigo) == []
+
+
+def test_preparar_actividad_cinta_incluye_score_change(sqlite_db):
+    codigo = "94002b"
+    _insert_notif(
+        sqlite_db,
+        codigo,
+        "score_change",
+        "Score",
+        "Cambio de score",
+        metadata={"nombre": "Pedro"},
+    )
+    items = notificacion_service.preparar_actividad_cinta(sqlite_db, codigo)
+    assert len(items) == 1
+    assert items[0]["texto"] == "El score de Pedro acaba de cambiar"
 
 
 def test_preparar_actividad_cinta_formatea_solicitud_semanal(sqlite_db):
@@ -101,12 +116,12 @@ def test_preparar_actividad_cinta_orden_mas_reciente_primero(sqlite_db):
         "solicitud_asignada",
         "B",
         "msg",
-        metadata={"oficio": "Carpintero"},
+        metadata={"solicitud_id": 99},
         creado_en=base.strftime("%Y-%m-%d %H:%M:%S"),
     )
     items = notificacion_service.preparar_actividad_cinta(sqlite_db, codigo)
     assert len(items) == 2
-    assert items[0]["texto"] == "Nueva solicitud de Carpintero"
+    assert items[0]["texto"] == "Una solicitud acaba de ser asignada"
     assert items[1]["texto"] == "Nueva solicitud publicada por Antigua en el grupo"
 
 
@@ -117,17 +132,17 @@ def test_preparar_actividad_cinta_maximo_diez(sqlite_db):
         _insert_notif(
             sqlite_db,
             codigo,
-            "solicitud_asignada",
+            "solicitud_nueva",
             f"T{i}",
             "msg",
-            metadata={"oficio": f"Oficio{i}"},
+            metadata={"solicitante_nombre": f"Aliado{i}", "solicitud_id": i},
             creado_en=(base + timedelta(minutes=i)).strftime("%Y-%m-%d %H:%M:%S"),
         )
     items = notificacion_service.preparar_actividad_cinta(sqlite_db, codigo)
     assert len(items) == 10
-    assert items[0]["texto"] == "Nueva solicitud de Oficio10"
-    assert items[-1]["texto"] == "Nueva solicitud de Oficio1"
-    assert "Oficio0" not in [x["texto"] for x in items]
+    assert items[0]["texto"] == "Aliado10 ha publicado una nueva solicitud"
+    assert items[-1]["texto"] == "Aliado1 ha publicado una nueva solicitud"
+    assert not any("Aliado0 ha publicado" in x["texto"] for x in items)
 
 
 def test_preparar_actividad_cinta_nunca_mas_de_diez_con_limite(sqlite_db):
@@ -136,10 +151,10 @@ def test_preparar_actividad_cinta_nunca_mas_de_diez_con_limite(sqlite_db):
         _insert_notif(
             sqlite_db,
             codigo,
-            "solicitud_asignada",
+            "solicitud_nueva",
             f"T{i}",
             "msg",
-            metadata={"oficio": f"O{i}"},
+            metadata={"solicitante_nombre": f"O{i}", "solicitud_id": i},
         )
     items = notificacion_service.preparar_actividad_cinta(sqlite_db, codigo, limite=3)
     assert len(items) == 3

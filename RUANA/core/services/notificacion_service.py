@@ -10,108 +10,11 @@ import sqlite3
 from typing import Any, Dict, List, Optional
 
 from core.repositories.notificacion_repo import NotificacionRepo
+from core.services import actividad_cinta_service
 
 _repo = NotificacionRepo()
 
-MAX_ACTIVIDAD_CINTA = 10
-
-# Tipos operativos/personales que no deben aparecer en la cinta de actividad.
-_CINTA_TIPOS_EXCLUIDOS = frozenset({
-    "apoyo_ruana",
-    "pago_aceptado",
-    "pago_rechazado",
-    "pago_stripe",
-    "importe_impugnado",
-    "prueba_conflicto_en_revision",
-    "ruana_soporte",
-    "ruana_soporte_estado",
-    "score_change",
-})
-
-
-def _parse_creado_en(valor: Any) -> float:
-    """Ordena por fecha real cuando exista; 0 si no es parseable."""
-    if valor is None or valor == "":
-        return 0.0
-    if isinstance(valor, (int, float)):
-        return float(valor)
-    texto = str(valor).strip()
-    if not texto:
-        return 0.0
-    normalizado = texto.replace("Z", "+00:00")
-    if " " in normalizado and "T" not in normalizado:
-        normalizado = normalizado.replace(" ", "T", 1)
-    try:
-        from datetime import datetime
-
-        return datetime.fromisoformat(normalizado).timestamp()
-    except Exception:
-        return 0.0
-
-
-def _metadata_dict(notif: Dict[str, Any]) -> Dict[str, Any]:
-    meta = notif.get("metadata")
-    if isinstance(meta, dict):
-        return meta
-    if isinstance(meta, str) and meta.strip():
-        try:
-            parsed = json.loads(meta)
-            return parsed if isinstance(parsed, dict) else {}
-        except Exception:
-            return {}
-    return {}
-
-
-def _formatear_notificacion_cinta(notif: Dict[str, Any]) -> Optional[str]:
-    """Convierte una notificación existente en texto humano para la cinta."""
-    tipo = str(notif.get("tipo") or "").strip()
-    if not tipo or tipo in _CINTA_TIPOS_EXCLUIDOS:
-        return None
-
-    meta = _metadata_dict(notif)
-    mensaje = str(notif.get("mensaje") or "").strip()
-
-    if tipo == "solicitud_semanal_nueva":
-        nombre = str(meta.get("solicitante_nombre") or "Un aliado").strip()
-        return f"Nueva solicitud publicada por {nombre} en el grupo"
-
-    if tipo == "solicitud_asignada":
-        oficio = str(meta.get("oficio") or "").strip()
-        if oficio:
-            return f"Nueva solicitud de {oficio}"
-        if mensaje:
-            return mensaje
-        return "Una solicitud acaba de ser asignada"
-
-    if tipo == "competencia_inicio":
-        return "Nueva competencia iniciada en tu grupo"
-
-    if tipo == "competencia_titular":
-        oficio = str(meta.get("oficio") or "").strip()
-        if oficio:
-            return f"Nueva competencia iniciada en tu grupo por {oficio}"
-        return "Nueva competencia iniciada en tu grupo"
-
-    if tipo == "competencia_victoria":
-        oficio = str(meta.get("oficio") or "").strip()
-        if oficio:
-            return f"Acabas de ganar una competencia por {oficio}"
-        return "Acabas de ganar una competencia"
-
-    if tipo in ("competencia_derrota", "competencia_expulsion"):
-        return "Has perdido una competencia"
-
-    return None
-
-
-def _formatear_aviso_grupo_cinta(aviso: Dict[str, Any]) -> Optional[str]:
-    texto = str(aviso.get("texto") or "").strip()
-    if not texto:
-        return None
-    tipo = str(aviso.get("tipo") or "").strip().lower()
-    if tipo == "competencia":
-        return "Nueva competencia iniciada en tu grupo"
-    return texto
+MAX_ACTIVIDAD_CINTA = actividad_cinta_service.MAX_ACTIVIDAD_CINTA
 
 
 def preparar_actividad_cinta(
@@ -120,61 +23,10 @@ def preparar_actividad_cinta(
     avisos_grupo: Optional[List[Dict[str, Any]]] = None,
     limite: int = MAX_ACTIVIDAD_CINTA,
 ) -> List[Dict[str, Any]]:
-    """Prepara hasta 10 noticias reales para la cinta (más reciente → más antigua)."""
-    codigo_norm = str(aliado_codigo or "").strip()
-    if not codigo_norm:
-        return []
-
-    limite_final = max(0, min(int(limite or MAX_ACTIVIDAD_CINTA), MAX_ACTIVIDAD_CINTA))
-    if limite_final == 0:
-        return []
-
-    items: List[Dict[str, Any]] = []
-
-    for notif in listar_notificaciones_aliado(db, codigo_norm, limite=50):
-        texto = _formatear_notificacion_cinta(notif)
-        if not texto:
-            continue
-        notif_id = notif.get("id")
-        items.append(
-            {
-                "id": f"notif-{notif_id}" if notif_id is not None else f"notif-{len(items)}",
-                "texto": texto,
-                "creado_en": notif.get("creado_en"),
-                "tipo": notif.get("tipo"),
-                "fuente": "notificacion",
-            }
-        )
-
-    for aviso in avisos_grupo or []:
-        texto = _formatear_aviso_grupo_cinta(aviso)
-        if not texto:
-            continue
-        aviso_id = aviso.get("id")
-        items.append(
-            {
-                "id": f"aviso-{aviso_id}" if aviso_id is not None else f"aviso-{len(items)}",
-                "texto": texto,
-                "creado_en": aviso.get("creado_en"),
-                "tipo": aviso.get("tipo"),
-                "fuente": "aviso_grupo",
-            }
-        )
-
-    items.sort(key=lambda item: _parse_creado_en(item.get("creado_en")), reverse=True)
-
-    vistos: set = set()
-    unicos: List[Dict[str, Any]] = []
-    for item in items:
-        clave = item.get("texto")
-        if not clave or clave in vistos:
-            continue
-        vistos.add(clave)
-        unicos.append(item)
-        if len(unicos) >= limite_final:
-            break
-
-    return unicos
+    """Fachada → actividad_cinta_service (fuente única de la cinta)."""
+    return actividad_cinta_service.preparar_actividad_cinta(
+        db, aliado_codigo, avisos_grupo=avisos_grupo, limite=limite
+    )
 
 
 def preparar_actividad_cinta_para_aliado(
@@ -182,22 +34,32 @@ def preparar_actividad_cinta_para_aliado(
     aliado_codigo: str,
     limite: int = MAX_ACTIVIDAD_CINTA,
 ) -> List[Dict[str, Any]]:
-    """Prepara la cinta con avisos de grupo del aliado cuando corresponda."""
-    codigo_norm = str(aliado_codigo or "").strip()
-    if not codigo_norm:
-        return []
+    """Fachada → actividad_cinta_service."""
+    return actividad_cinta_service.preparar_actividad_cinta_para_aliado(
+        db, aliado_codigo, limite=limite
+    )
 
-    avisos_grupo: List[Dict[str, Any]] = []
-    try:
-        aliado = db.obtener_aliado_por_codigo(codigo_norm)
-        grupo_id = aliado.get("grupo_id") if aliado else None
-        if grupo_id:
-            avisos_grupo = db.obtener_avisos_grupo(grupo_id)
-    except Exception:
-        avisos_grupo = []
 
-    return preparar_actividad_cinta(
-        db, codigo_norm, avisos_grupo=avisos_grupo, limite=limite
+def notificar_grupo_actividad(
+    db,
+    grupo_id: int,
+    tipo: str,
+    titulo: str,
+    mensaje: str,
+    metadata: Optional[Dict[str, Any]] = None,
+    excluir_codigo: Optional[str] = None,
+    cursor=None,
+) -> None:
+    """Fachada → actividad_cinta_service."""
+    return actividad_cinta_service.notificar_grupo_actividad(
+        db,
+        grupo_id,
+        tipo,
+        titulo,
+        mensaje,
+        metadata=metadata,
+        excluir_codigo=excluir_codigo,
+        cursor=cursor,
     )
 
 
