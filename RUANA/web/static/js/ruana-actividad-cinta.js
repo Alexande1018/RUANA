@@ -6,7 +6,7 @@
   'use strict';
 
   var MAX_ITEMS = 10;
-  var PX_PER_SECOND = 42;
+  var PX_PER_SECOND = 40;
 
   function parseTimestamp(value) {
     if (value == null || value === '') return null;
