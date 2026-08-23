@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="/static/css/encargo-seguimiento.css">
     <link rel="stylesheet" href="/static/css/ruana-score-callout.css">
     <link rel="stylesheet" href="/static/css/ruana-identity.css">
+    <link rel="stylesheet" href="/static/css/ruana-actividad-cinta.css">
     <link rel="stylesheet" href="/static/css/referidos-tree.css">
     <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
     <script src="/static/js/ruana-atmosphere.js" defer></script>
@@ -26,6 +27,7 @@
     <script src="/static/js/ruana-api-client.js" defer></script>
     <script src="/static/js/aliado-modules.js" defer></script>
     <script src="/static/js/aliado-inicio-module.js" defer></script>
+    <script src="/static/js/ruana-actividad-cinta.js" defer></script>
     <script src="/static/js/aliado-perfil-module.js" defer></script>
     <script src="/static/js/referidos-module.js" defer></script>
     <script src="/static/js/aliado-referidos-module.js" defer></script>
@@ -230,6 +232,14 @@
                         <strong id="inicio-score">0</strong>
                     </button>
                 </div>
+
+                <div
+                    class="ruana-actividad-cinta"
+                    id="inicio-actividad-cinta"
+                    role="region"
+                    aria-label="Noticias de actividad RUANA"
+                    hidden
+                ></div>
 
                 <div class="inicio-quick-grid" aria-label="Accesos rápidos">
                     <button type="button" class="inicio-quick-btn inicio-quick-btn-invite" data-action="invitar-aliado" id="btn-invitar-inicio">

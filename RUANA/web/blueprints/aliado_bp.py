@@ -213,6 +213,9 @@ def get_aliado_datos():
             notificaciones = notificacion_service.listar_notificaciones_aliado(
                 db, codigo, limite=50
             )
+            actividad_cinta = notificacion_service.preparar_actividad_cinta(
+                db, codigo, avisos_grupo=avisos_grupo
+            )
             listar_catalogo = getattr(db, 'listar_catalogo_servicios_aliado', None)
             aliado_dict['catalogo_servicios'] = listar_catalogo(codigo) if callable(listar_catalogo) else []
 
@@ -224,6 +227,7 @@ def get_aliado_datos():
                 'solicitudes_enviadas_contestadas': solicitudes_enviadas_contestadas,
                 'referidos_count': referidos_count,
                 'notificaciones': notificaciones,
+                'actividad_cinta': actividad_cinta,
                 'timestamp': datetime.now().isoformat()
             })
         

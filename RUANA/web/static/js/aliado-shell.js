@@ -8,6 +8,7 @@
     const MODULES = ['inicio', 'directorio', 'solicitudes', 'conexiones', 'perfil'];
     const SELECTOR_MODULE = {
         '#inicio-identity': 'inicio',
+        '#inicio-actividad-cinta': 'inicio',
         '.inicio-quick-grid': 'inicio',
         '#inicio-tasks': 'inicio',
         '.metricas-block': 'inicio',

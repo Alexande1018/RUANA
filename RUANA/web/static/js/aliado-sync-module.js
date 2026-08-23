@@ -87,6 +87,7 @@
     if (data.status === 'success' && data.aliado) {
         host.aliado = { ...(host.aliado || {}), ...data.aliado };
         if (Array.isArray(data.notificaciones)) host.notificaciones = data.notificaciones;
+        if (Array.isArray(data.actividad_cinta)) host.actividadCinta = data.actividad_cinta;
     }
   }
 
@@ -211,6 +212,7 @@
                         if (dataDatos.status === 'success' && dataDatos.aliado) {
                             host.aliado = { ...(host.aliado || {}), ...dataDatos.aliado };
                             host.notificaciones = Array.isArray(dataDatos.notificaciones) ? dataDatos.notificaciones : [];
+                            host.actividadCinta = Array.isArray(dataDatos.actividad_cinta) ? dataDatos.actividad_cinta : [];
                         }
                     } else if (respDatos.status === 403) {
                         // Cuenta pendiente de validación: no puede acceder al panel
@@ -577,6 +579,7 @@
     host.profesionalSeleccionado = null;
     host.negociacionGuiada = null;
     host.notificaciones = [];
+    host.actividadCinta = [];
     host.soporteConversations = [];
     host.soporteMensajes = [];
     host.soporteSelectedId = null;
