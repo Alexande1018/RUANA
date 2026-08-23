@@ -323,6 +323,13 @@ def test_aliado_conexiones_module_is_wired():
     assert 'id="module-conexiones"' in aliado
     assert 'id="nueva-solicitud-oficio"' in aliado
     assert 'id="btn-enviar"' in aliado
+    assert 'id="oficios-faltantes-card"' in aliado
+    assert 'id="grupo-oficios-faltantes-wrap"' in aliado
+    conexiones_start = aliado.index('id="module-conexiones"')
+    perfil_start = aliado.index('id="module-perfil"')
+    oficios_pos = aliado.index('id="oficios-faltantes-card"')
+    assert conexiones_start < oficios_pos < perfil_start or conexiones_start < oficios_pos
+    assert 'Oficios faltantes (catálogo RUANA)' not in aliado
 
 
 def test_aliado_invitaciones_module_is_wired():

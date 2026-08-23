@@ -323,7 +323,42 @@
             grid-column: 1 / -1;
         }
 
-        /* Oficios faltantes: preview, expandir, buscador */
+        /* Oficios faltantes: preview, expandir, buscador (módulo Conexiones) */
+        .oficios-faltantes-card {
+            margin-top: 24px;
+            padding: 24px 28px;
+            border-radius: 24px;
+            background:
+                linear-gradient(155deg, rgba(251, 191, 36, 0.14) 0%, rgba(255, 255, 255, 0.04) 55%, rgba(34, 197, 94, 0.08) 100%);
+            border: 1px solid rgba(251, 191, 36, 0.35);
+            box-shadow:
+                0 16px 40px rgba(0, 0, 0, 0.22),
+                inset 0 1px 0 rgba(255, 255, 255, 0.12),
+                0 0 0 1px rgba(251, 191, 36, 0.08);
+        }
+        .oficios-faltantes-header {
+            margin-bottom: 16px;
+        }
+        .oficios-faltantes-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 0 0 8px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #fbbf24;
+        }
+        .oficios-faltantes-title svg {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+        .oficios-faltantes-lead {
+            margin: 0;
+            font-size: 0.9rem;
+            line-height: 1.45;
+            color: rgba(255, 255, 255, 0.72);
+        }
         .oficios-faltantes-container {
             width: 100%;
         }
@@ -345,17 +380,19 @@
         }
         .oficios-faltantes-tag:hover,
         .oficio-item:hover {
-            background: rgba(34, 197, 94, 0.15) !important;
-            border-color: rgba(34, 197, 94, 0.4) !important;
+            background: rgba(251, 191, 36, 0.22) !important;
+            border-color: rgba(251, 191, 36, 0.65) !important;
+            color: #fff7ed !important;
         }
         .oficios-faltantes-tag {
             display: inline-block;
-            padding: 4px 10px;
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 6px;
-            font-size: 0.8rem;
-            color: #bbb;
+            padding: 6px 12px;
+            background: rgba(251, 191, 36, 0.12);
+            border: 1px solid rgba(251, 191, 36, 0.4);
+            border-radius: 8px;
+            font-size: 0.84rem;
+            font-weight: 600;
+            color: #fde68a;
         }
         .btn-ver-todos-oficios,
         .btn-ocultar-oficios {
@@ -406,16 +443,18 @@
             padding: 4px 0;
         }
         .oficio-item {
-            padding: 5px 10px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 6px;
-            font-size: 0.82rem;
-            color: #ccc;
+            padding: 6px 12px;
+            background: rgba(251, 191, 36, 0.1);
+            border: 1px solid rgba(251, 191, 36, 0.35);
+            border-radius: 8px;
+            font-size: 0.84rem;
+            font-weight: 600;
+            color: #fde68a;
         }
         .oficios-faltantes-empty {
-            font-size: 1rem;
-            color: #999;
+            font-size: 0.92rem;
+            color: rgba(255, 255, 255, 0.65);
+            padding: 8px 0 2px;
         }
         @media (max-width: 600px) {
             .oficios-faltantes-search { max-width: 100%; }

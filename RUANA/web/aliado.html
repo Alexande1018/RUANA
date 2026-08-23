@@ -531,21 +531,6 @@
                         <span class="detail-label">Oficios representados</span>
                         <span class="detail-value" id="grupo-num-oficios">0</span>
                     </div>
-                    <div class="detail-item detail-item-fullwidth" id="grupo-oficios-faltantes-wrap">
-                        <span class="detail-label">Oficios faltantes (catálogo RUANA)</span>
-                        <div class="oficios-faltantes-container">
-                            <div class="oficios-faltantes-preview" id="oficios-faltantes-preview">
-                                <div class="oficios-faltantes-tags" id="oficios-faltantes-short"></div>
-                                <button type="button" class="btn-ver-todos-oficios" id="btn-ver-todos-oficios" style="display: none;">+ Ver todos</button>
-                            </div>
-                            <div class="oficios-faltantes-expanded" id="oficios-faltantes-expanded" style="display: none;">
-                                <input type="text" class="oficios-faltantes-search" id="oficios-faltantes-search" placeholder="Buscar oficio..." autocomplete="off" />
-                                <div class="oficios-faltantes-full-list" id="oficios-faltantes-full-list"></div>
-                                <button type="button" class="btn-ocultar-oficios" id="btn-ocultar-oficios">− Ocultar</button>
-                            </div>
-                            <div class="oficios-faltantes-empty" id="oficios-faltantes-empty" style="display: none;">Ninguno</div>
-                        </div>
-                    </div>
                 </div>
                 <div id="grupo-crecimiento-card" class="grupo-crecimiento-card" style="display: none;" aria-live="polite">
                     <p class="grupo-crecimiento-lead">Este grupo todavía está creciendo.</p>
@@ -660,6 +645,27 @@
                     </div>
                 </div>
             </div>
+            <section class="oficios-faltantes-card" id="oficios-faltantes-card" style="display: none;" aria-labelledby="oficios-faltantes-title">
+                <header class="oficios-faltantes-header">
+                    <h3 class="oficios-faltantes-title" id="oficios-faltantes-title">
+                        <i data-lucide="user-plus-2"></i>
+                        Oficios faltantes en tu grupo
+                    </h3>
+                    <p class="oficios-faltantes-lead">Profesiones del catálogo RUANA que aún no están en tu grupo. Pulsa una para generar un código de invitación.</p>
+                </header>
+                <div class="oficios-faltantes-container" id="grupo-oficios-faltantes-wrap">
+                    <div class="oficios-faltantes-preview" id="oficios-faltantes-preview">
+                        <div class="oficios-faltantes-tags" id="oficios-faltantes-short"></div>
+                        <button type="button" class="btn-ver-todos-oficios" id="btn-ver-todos-oficios" style="display: none;">+ Ver todos</button>
+                    </div>
+                    <div class="oficios-faltantes-expanded" id="oficios-faltantes-expanded" style="display: none;">
+                        <input type="text" class="oficios-faltantes-search" id="oficios-faltantes-search" placeholder="Buscar oficio..." autocomplete="off" />
+                        <div class="oficios-faltantes-full-list" id="oficios-faltantes-full-list"></div>
+                        <button type="button" class="btn-ocultar-oficios" id="btn-ocultar-oficios">− Ocultar</button>
+                    </div>
+                    <div class="oficios-faltantes-empty" id="oficios-faltantes-empty" style="display: none;">Tu grupo ya cubre todos los oficios del catálogo RUANA.</div>
+                </div>
+            </section>
         </section>
     </div>
 

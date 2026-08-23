@@ -5,6 +5,7 @@ SQL de invitaciones vía InvitacionRepo.
 """
 from __future__ import annotations
 
+import random
 import string
 
 from core.db_constants import RUANA_CODIGO_INVITACION_REGEX

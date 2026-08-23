@@ -819,6 +819,11 @@ body.aliado-app > .ruana-brand-watermark {
     width: 100%;
 }
 
+#module-conexiones .oficios-faltantes-card {
+    backdrop-filter: blur(28px) saturate(170%);
+    -webkit-backdrop-filter: blur(28px) saturate(170%);
+}
+
 #module-perfil .perfil-block {
     margin-bottom: 0;
 }

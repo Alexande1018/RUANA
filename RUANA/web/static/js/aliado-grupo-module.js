@@ -96,6 +96,8 @@
 
     if (!grupoInfo) {
         if (block) block.style.display = 'none';
+        const oficiosCard = document.getElementById('oficios-faltantes-card');
+        if (oficiosCard) oficiosCard.style.display = 'none';
         const nombreEl = document.getElementById('grupo-nombre');
         if (nombreEl) nombreEl.textContent = '---';
         ocultarTarjetasCrecimiento();
@@ -130,6 +132,7 @@
 
     const faltantes = Array.isArray(grupoInfo.oficios_faltantes) ? [...grupoInfo.oficios_faltantes] : [];
     const LIMIT_PREVIEW = 5;
+    const oficiosCard = document.getElementById('oficios-faltantes-card');
     const container = document.getElementById('grupo-oficios-faltantes-wrap');
     const preview = document.getElementById('oficios-faltantes-preview');
     const shortList = document.getElementById('oficios-faltantes-short');
@@ -140,6 +143,8 @@
     const emptyMsg = document.getElementById('oficios-faltantes-empty');
 
     if (!container) return;
+
+    if (oficiosCard) oficiosCard.style.display = 'block';
 
     if (faltantes.length === 0) {
         if (preview) preview.style.display = 'none';
@@ -167,6 +172,11 @@
     if (expanded) expanded.style.display = 'none';
     if (searchInput) searchInput.value = '';
     host.renderOficiosFaltantesFullList(faltantes);
+
+    if (typeof global.RuanaUI !== 'undefined' && typeof global.RuanaUI.initIcons === 'function') {
+      const iconRoot = oficiosCard || container;
+      if (iconRoot) global.RuanaUI.initIcons(iconRoot);
+    }
   }
 
   function ocultarTarjetasCrecimiento() {
