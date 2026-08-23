@@ -1192,10 +1192,21 @@ def preparar_actividad_cinta(
             grupo_id = ctx.get("grupo_id")
             cp = str(ctx.get("codigo_postal") or "").strip()
 
-            items.extend(
-                _recolectar_desde_tablas(cursor, codigo_norm, grupo_id, cp)
-            )
-            items.extend(_recolectar_metricas(cursor, grupo_id, cp))
+            try:
+                items.extend(_recolectar_metricas(cursor, grupo_id, cp))
+            except Exception:
+                logging.getLogger(__name__).exception(
+                    "Error métricas actividad cinta para %s", codigo_norm
+                )
+
+            try:
+                items.extend(
+                    _recolectar_desde_tablas(cursor, codigo_norm, grupo_id, cp)
+                )
+            except Exception:
+                logging.getLogger(__name__).exception(
+                    "Error tablas actividad cinta para %s", codigo_norm
+                )
         except Exception:
             logging.getLogger(__name__).exception(
                 "Error preparando actividad cinta para %s", codigo_norm

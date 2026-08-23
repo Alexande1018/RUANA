@@ -149,6 +149,12 @@ def _translate_sql(sql: str) -> str:
         flags=re.IGNORECASE,
     )
     translated = re.sub(
+        r"strftime\('%Y-%m',\s*([^)]+)\)",
+        r"to_char(\1::timestamp, 'YYYY-MM')",
+        translated,
+        flags=re.IGNORECASE,
+    )
+    translated = re.sub(
         r"julianday\('now'\)\s*-\s*julianday\(([^)]+)\)",
         r"(extract(epoch from (now() - \1)) / 86400.0)",
         translated,

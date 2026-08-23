@@ -44,11 +44,11 @@ class ActividadRepo:
             SELECT id, solicitante_codigo, solicitante_nombre, oficio, created_at AS creado_en
             FROM solicitudes
             WHERE grupo_id = ?
-              AND created_at >= datetime('now', ?)
+              AND created_at >= datetime('now', '-30 days')
             ORDER BY created_at DESC
             LIMIT 25
             """,
-            (int(grupo_id), self._ventana_sql()),
+            (int(grupo_id),),
         )
         return [dict(r) for r in cursor.fetchall()]
 
@@ -62,11 +62,11 @@ class ActividadRepo:
             WHERE grupo_id = ?
               AND estado = 'atendida'
               AND atendido_at IS NOT NULL
-              AND atendido_at >= datetime('now', ?)
+              AND atendido_at >= datetime('now', '-30 days')
             ORDER BY atendido_at DESC
             LIMIT 25
             """,
-            (int(grupo_id), self._ventana_sql()),
+            (int(grupo_id),),
         )
         return [dict(r) for r in cursor.fetchall()]
 
@@ -80,11 +80,11 @@ class ActividadRepo:
             WHERE grupo_id = ?
               AND asignada_a_codigo IS NOT NULL
               AND TRIM(asignada_a_codigo) != ''
-              AND candidato_at >= datetime('now', ?)
+              AND candidato_at >= datetime('now', '-30 days')
             ORDER BY candidato_at DESC
             LIMIT 25
             """,
-            (int(grupo_id), self._ventana_sql()),
+            (int(grupo_id),),
         )
         return [dict(r) for r in cursor.fetchall()]
 
@@ -97,11 +97,11 @@ class ActividadRepo:
             WHERE grupo_id = ?
               AND estado = 'candidato_pendiente'
               AND candidato_por_codigo IS NOT NULL
-              AND candidato_at >= datetime('now', ?)
+              AND candidato_at >= datetime('now', '-30 days')
             ORDER BY candidato_at DESC
             LIMIT 25
             """,
-            (int(grupo_id), self._ventana_sql()),
+            (int(grupo_id),),
         )
         return [dict(r) for r in cursor.fetchall()]
 
@@ -120,11 +120,11 @@ class ActividadRepo:
             INNER JOIN aliados pro ON pro.codigo = c.profesional_codigo
             WHERE sol.grupo_id = ?
               AND pro.grupo_id = ?
-              AND c.creado_en >= datetime('now', ?)
+              AND c.creado_en >= datetime('now', '-30 days')
             ORDER BY c.creado_en DESC
             LIMIT 25
             """,
-            (int(grupo_id), int(grupo_id), self._ventana_sql()),
+            (int(grupo_id), int(grupo_id)),
         )
         return [dict(r) for r in cursor.fetchall()]
 
@@ -144,11 +144,11 @@ class ActividadRepo:
               AND pro.grupo_id = ?
               AND c.estado IN ('acuerdo_alcanzado', 'pendiente_de_pago', 'trabajo_en_progreso', 'trabajo_cerrado')
               AND c.acuerdo_alcanzado_en IS NOT NULL
-              AND c.acuerdo_alcanzado_en >= datetime('now', ?)
+              AND c.acuerdo_alcanzado_en >= datetime('now', '-30 days')
             ORDER BY c.acuerdo_alcanzado_en DESC
             LIMIT 25
             """,
-            (int(grupo_id), int(grupo_id), self._ventana_sql()),
+            (int(grupo_id), int(grupo_id)),
         )
         return [dict(r) for r in cursor.fetchall()]
 
@@ -168,11 +168,11 @@ class ActividadRepo:
               AND pro.grupo_id = ?
               AND c.estado = 'trabajo_cerrado'
               AND c.fecha_cierre IS NOT NULL
-              AND c.fecha_cierre >= datetime('now', ?)
+              AND c.fecha_cierre >= datetime('now', '-30 days')
             ORDER BY c.fecha_cierre DESC
             LIMIT 25
             """,
-            (int(grupo_id), int(grupo_id), self._ventana_sql()),
+            (int(grupo_id), int(grupo_id)),
         )
         return [dict(r) for r in cursor.fetchall()]
 
@@ -186,11 +186,11 @@ class ActividadRepo:
             WHERE grupo_id = ?
               AND estado = 'activo'
               AND TRIM(CAST(codigo AS TEXT)) != ?
-              AND creado_en >= datetime('now', ?)
+              AND creado_en >= datetime('now', '-30 days')
             ORDER BY creado_en DESC
             LIMIT 25
             """,
-            (int(grupo_id), excluir_codigo.strip(), self._ventana_sql()),
+            (int(grupo_id), excluir_codigo.strip()),
         )
         return [dict(r) for r in cursor.fetchall()]
 
@@ -208,11 +208,11 @@ class ActividadRepo:
             LEFT JOIN aliados ref ON ref.codigo = rf.codigo_referido
             LEFT JOIN referidos r ON r.codigo_invitador = inv.codigo
             WHERE inv.grupo_id = ?
-              AND i.creado_en >= datetime('now', ?)
+              AND i.creado_en >= datetime('now', '-30 days')
             ORDER BY i.creado_en DESC
             LIMIT 25
             """,
-            (int(grupo_id), self._ventana_sql()),
+            (int(grupo_id),),
         )
         return [dict(r) for r in cursor.fetchall()]
 
@@ -228,11 +228,11 @@ class ActividadRepo:
             INNER JOIN aliados ref ON ref.codigo = r.codigo_referido
             WHERE inv.grupo_id = ?
               AND ref.grupo_id = ?
-              AND r.creado_en >= datetime('now', ?)
+              AND r.creado_en >= datetime('now', '-30 days')
             ORDER BY r.creado_en DESC
             LIMIT 25
             """,
-            (int(grupo_id), int(grupo_id), self._ventana_sql()),
+            (int(grupo_id), int(grupo_id)),
         )
         return [dict(r) for r in cursor.fetchall()]
 
@@ -246,13 +246,13 @@ class ActividadRepo:
             INNER JOIN aliados a ON a.codigo = c.aliado_codigo
             WHERE a.grupo_id = ?
               AND TRIM(CAST(a.codigo AS TEXT)) != ?
-              AND c.actualizado_en >= datetime('now', ?)
+              AND c.actualizado_en >= datetime('now', '-30 days')
               AND TRIM(COALESCE(c.descripcion, '')) != ''
             GROUP BY c.aliado_codigo, a.nombre
             ORDER BY creado_en DESC
             LIMIT 15
             """,
-            (int(grupo_id), excluir_codigo.strip(), self._ventana_sql()),
+            (int(grupo_id), excluir_codigo.strip()),
         )
         return [dict(r) for r in cursor.fetchall()]
 
@@ -268,11 +268,11 @@ class ActividadRepo:
               AND TRIM(CAST(codigo AS TEXT)) != ?
               AND foto_perfil_url IS NOT NULL
               AND TRIM(foto_perfil_url) != ''
-              AND actualizado_en >= datetime('now', ?)
+              AND actualizado_en >= datetime('now', '-30 days')
             ORDER BY actualizado_en DESC
             LIMIT 15
             """,
-            (int(grupo_id), excluir_codigo.strip(), self._ventana_sql()),
+            (int(grupo_id), excluir_codigo.strip()),
         )
         return [dict(r) for r in cursor.fetchall()]
 
@@ -283,11 +283,11 @@ class ActividadRepo:
             FROM grupos
             WHERE TRIM(codigo_postal) = ?
               AND estado = 'activo'
-              AND fecha_creacion >= datetime('now', ?)
+              AND fecha_creacion >= datetime('now', '-30 days')
             ORDER BY fecha_creacion DESC
             LIMIT 10
             """,
-            (codigo_postal.strip(), self._ventana_sql()),
+            (codigo_postal.strip(),),
         )
         return [dict(r) for r in cursor.fetchall()]
 
@@ -305,11 +305,11 @@ class ActividadRepo:
             LEFT JOIN aliados ret ON ret.codigo = c.retador_codigo
             LEFT JOIN aliados gan ON gan.codigo = c.ganador_codigo
             WHERE c.grupo_id = ?
-              AND c.fecha_inicio >= datetime('now', ?)
+              AND c.fecha_inicio >= datetime('now', '-30 days')
             ORDER BY c.fecha_inicio DESC
             LIMIT 20
             """,
-            (int(grupo_id), self._ventana_sql()),
+            (int(grupo_id),),
         )
         return [dict(r) for r in cursor.fetchall()]
 
@@ -323,11 +323,11 @@ class ActividadRepo:
             INNER JOIN aliados a ON a.codigo = sm.codigo_aliado
             WHERE a.grupo_id = ?
               AND TRIM(CAST(sm.codigo_aliado AS TEXT)) != ?
-              AND sm.creado_en >= datetime('now', ?)
+              AND sm.creado_en >= datetime('now', '-30 days')
             ORDER BY sm.creado_en DESC
             LIMIT 20
             """,
-            (int(grupo_id), excluir_codigo.strip(), self._ventana_sql()),
+            (int(grupo_id), excluir_codigo.strip()),
         )
         return [dict(r) for r in cursor.fetchall()]
 
@@ -341,11 +341,11 @@ class ActividadRepo:
             INNER JOIN grupos g ON g.id = a.grupo_id
             WHERE TRIM(g.codigo_postal) = ?
               AND a.estado = 'en_competencia'
-              AND a.actualizado_en >= datetime('now', ?)
+              AND a.actualizado_en >= datetime('now', '-30 days')
             ORDER BY a.actualizado_en DESC
             LIMIT 15
             """,
-            (codigo_postal.strip(), self._ventana_sql()),
+            (codigo_postal.strip(),),
         )
         return [dict(r) for r in cursor.fetchall()]
 
@@ -454,7 +454,7 @@ class ActividadRepo:
             WHERE TRIM(g.codigo_postal) = ?
               AND a.oficio IS NOT NULL AND TRIM(a.oficio) != ''
               AND a.estado IN ('en_competencia', 'en_espera', 'expulsado')
-              AND a.actualizado_en >= datetime('now', ?)
+              AND a.actualizado_en >= datetime('now', '-30 days')
               AND NOT EXISTS (
                   SELECT 1 FROM aliados ax
                   WHERE ax.grupo_id = a.grupo_id
@@ -468,7 +468,7 @@ class ActividadRepo:
             ORDER BY a.actualizado_en DESC
             LIMIT 15
             """,
-            (codigo_postal.strip(), self._ventana_sql()),
+            (codigo_postal.strip(),),
         )
         return [dict(r) for r in cursor.fetchall()]
 
