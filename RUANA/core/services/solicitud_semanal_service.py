@@ -114,6 +114,9 @@ def _enriquecer_con_respuestas(
         resp = _repo.select_respuesta(cursor, int(s["id"]), codigo)
         item["mi_respuesta"] = resp.get("tipo_respuesta") if resp else None
         item["interesados_count"] = _repo.contar_interesados(cursor, int(s["id"]))
+        item["recomendaciones_count"] = _repo.contar_recomendaciones(
+            cursor, int(s["id"])
+        )
         out.append(item)
     return out
 
@@ -461,6 +464,7 @@ def responder_no_puedo_ayudar(
     with db._lock:
         try:
             conn = db._connect()
+            conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             sol = _validar_acceso_solicitud(cursor, solicitud_id, codigo)
             if not sol:
@@ -507,6 +511,7 @@ def responder_conozco_alguien(
     with db._lock:
         try:
             conn = db._connect()
+            conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             sol = _validar_acceso_solicitud(cursor, solicitud_id, codigo)
             if not sol:

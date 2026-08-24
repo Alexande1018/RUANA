@@ -285,16 +285,38 @@
   margin: 8px 0 0;
 }
 
-.sol-sem-actions .btn-sol-sem-ayudar {
+.sol-sem-ya-respondido {
+  margin: 10px 0 0;
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.sol-sem-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-top: 10px;
+}
+
+.sol-sem-actions .btn-sol-sem-ayudar,
+.sol-sem-actions .btn-sol-sem-conozco {
   padding: 8px 14px;
   border-radius: 8px;
-  border: 1px solid rgba(120, 180, 255, 0.4);
-  background: rgba(60, 120, 220, 0.2);
-  color: #a8c8ff;
   cursor: pointer;
   font-weight: 600;
   font-size: 0.85rem;
+}
+
+.sol-sem-actions .btn-sol-sem-ayudar {
+  border: 1px solid rgba(120, 180, 255, 0.4);
+  background: rgba(60, 120, 220, 0.2);
+  color: #a8c8ff;
+}
+
+.sol-sem-actions .btn-sol-sem-conozco {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .sol-sem-propia-card {

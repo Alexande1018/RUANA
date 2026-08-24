@@ -477,3 +477,26 @@ def test_solicitudes_semanales_recuadro_inicio_panel():
     assert "function asegurarPromptCerradoSiPublicada(host)" in sem_js
     assert "ocultarPromptCrear(host)" in sem_js
     assert "limpiarFormularioPrompt()" in sem_js
+
+
+def test_solicitudes_semanales_botones_activos_si_sigue_sin_ayuda():
+    """Tras 'Ya respondiste', si nadie ayuda ni recomienda, los botones de resolver siguen activos."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    sem_js = (
+        root / "static" / "js" / "aliado-solicitudes-semanales-module.js"
+    ).read_text(encoding="utf-8")
+    css = (root / "static" / "css" / "aliado-solicitudes-semanales.css").read_text(
+        encoding="utf-8"
+    )
+
+    assert "function solicitudSigueSinAyuda(s)" in sem_js
+    assert "function aliadoYaResolvio(s)" in sem_js
+    assert "function debeMostrarBotonesResolver(s)" in sem_js
+    assert "function htmlBotonesResolver(s)" in sem_js
+    assert "function bindCardActions(root, host)" in sem_js
+    assert "Ya respondiste a esta solicitud." in sem_js
+    assert "btn-sol-sem-conozco" in sem_js
+    assert "data-direct" in sem_js
+    assert "recomendaciones_count" in sem_js
+    assert ".sol-sem-ya-respondido" in css
+    assert ".btn-sol-sem-conozco" in css
