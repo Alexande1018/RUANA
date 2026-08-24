@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import os
+import re
+import time
 from functools import lru_cache
 from typing import Any, Dict, Optional
 
 from core.settings import get_settings
 from core.runtime_environment import is_test_context
+from core.startup_validation import StartupConfigurationError
 
 DEFAULT_STRIPE_API_VERSION = "2024-11-20.acacia"
 
@@ -161,16 +164,107 @@ def create_account_link(*, account_id: str, refresh_url: str, return_url: str) -
     return dict(link)
 
 
+_SECRET_PATTERN = re.compile(
+    r"(whsec_|sk_test_|sk_live_|rk_test_|rk_live_|pk_test_|pk_live_)[A-Za-z0-9_]+"
+)
+
+
+def _sanitize_webhook_diag_message(message: str) -> str:
+    text = (message or "").strip()
+    if not text:
+        return ""
+    return _SECRET_PATTERN.sub("[REDACTED]", text)[:500]
+
+
+def _webhook_sig_header_meta(sig_header: str) -> Dict[str, Any]:
+    """Metadatos de Stripe-Signature sin exponer valores v1."""
+    header = (sig_header or "").strip()
+    meta: Dict[str, Any] = {"present": bool(header), "v1_count": 0, "timestamp": None}
+    if not header:
+        return meta
+    for part in header.split(","):
+        piece = part.strip()
+        if piece.startswith("t="):
+            raw_ts = piece[2:].strip()
+            try:
+                meta["timestamp"] = int(raw_ts)
+            except (TypeError, ValueError):
+                meta["timestamp"] = "invalid"
+        elif piece.startswith("v1="):
+            meta["v1_count"] += 1
+    ts = meta.get("timestamp")
+    if isinstance(ts, int):
+        meta["timestamp_skew_sec"] = int(time.time()) - ts
+    return meta
+
+
+def _webhook_exception_kind(exc: BaseException) -> str:
+    from stripe import SignatureVerificationError
+
+    if isinstance(exc, SignatureVerificationError):
+        msg = str(exc).lower()
+        if "tolerance" in msg or "timestamp outside" in msg:
+            return "SignatureVerificationError:timestamp_tolerance"
+        if "no signatures found" in msg:
+            return "SignatureVerificationError:signature_mismatch"
+        return "SignatureVerificationError:other"
+    if isinstance(exc, StartupConfigurationError):
+        return "StartupConfigurationError"
+    if isinstance(exc, RuntimeError):
+        return "RuntimeError"
+    return type(exc).__name__
+
+
+def _log_webhook_construct_diag(
+    phase: str,
+    exc: BaseException,
+    *,
+    payload_len: int,
+    sig_meta: Dict[str, Any],
+) -> None:
+    """Diagnóstico temporal: tipo de fallo sin secretos ni payload completo."""
+    print(
+        "[RUANA][WEBHOOK_DIAG] "
+        f"phase={phase} "
+        f"kind={_webhook_exception_kind(exc)} "
+        f"exc_type={type(exc).__name__} "
+        f"payload_len={payload_len} "
+        f"sig_meta={sig_meta} "
+        f"message={_sanitize_webhook_diag_message(str(exc))}"
+    )
+
+
 def construct_webhook_event(payload: bytes, sig_header: str) -> Any:
-    stripe = configure_stripe()
+    payload_len = len(payload) if payload is not None else 0
+    sig_meta = _webhook_sig_header_meta(sig_header)
+
+    try:
+        stripe = configure_stripe()
+    except Exception as exc:
+        _log_webhook_construct_diag(
+            "configure_stripe", exc, payload_len=payload_len, sig_meta=sig_meta,
+        )
+        raise
+
     settings = get_settings()
     if stripe is None or not settings.stripe_webhook_secret:
-        raise RuntimeError("Stripe webhook no configurado")
-    return stripe.Webhook.construct_event(
-        payload,
-        sig_header,
-        settings.stripe_webhook_secret,
-    )
+        err = RuntimeError("Stripe webhook no configurado")
+        _log_webhook_construct_diag(
+            "pre_construct_config", err, payload_len=payload_len, sig_meta=sig_meta,
+        )
+        raise err
+
+    try:
+        return stripe.Webhook.construct_event(
+            payload,
+            sig_header,
+            settings.stripe_webhook_secret,
+        )
+    except Exception as exc:
+        _log_webhook_construct_diag(
+            "construct_event", exc, payload_len=payload_len, sig_meta=sig_meta,
+        )
+        raise
 
 
 def retrieve_transfer(transfer_id: str) -> Dict[str, Any]:
