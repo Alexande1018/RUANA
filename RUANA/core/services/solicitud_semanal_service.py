@@ -464,6 +464,7 @@ def responder_no_puedo_ayudar(
     with db._lock:
         try:
             conn = db._connect()
+            conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             sol = _validar_acceso_solicitud(cursor, solicitud_id, codigo)
             if not sol:
@@ -510,6 +511,7 @@ def responder_conozco_alguien(
     with db._lock:
         try:
             conn = db._connect()
+            conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             sol = _validar_acceso_solicitud(cursor, solicitud_id, codigo)
             if not sol:
