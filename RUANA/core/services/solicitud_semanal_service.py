@@ -605,6 +605,71 @@ def listar_interesados(
             conn.close()
 
 
+def listar_admin(db, limite: int = 300) -> Dict[str, Any]:
+    """Listado global para el panel administrador."""
+    semana = _semana_inicio_str()
+    limite = max(1, min(int(limite or 300), 1000))
+    with db._lock:
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            try:
+                _asegurar_esquema_sol_sem(db, conn, cursor)
+            except Exception:
+                pass
+            _expirar_vencidas(db, cursor)
+            conn.commit()
+
+            rows = _json_safe_rows(_repo.listar_todas_admin(cursor, limite))
+            ids = [int(r["id"]) for r in rows if r.get("id") is not None]
+            respuestas = _json_safe_rows(
+                _repo.listar_respuestas_para_ids(cursor, ids)
+            )
+            por_solicitud: Dict[int, List[Dict[str, Any]]] = {}
+            for resp in respuestas:
+                sid = int(resp.get("solicitud_semanal_id") or 0)
+                por_solicitud.setdefault(sid, []).append(resp)
+
+            for item in rows:
+                resps = por_solicitud.get(int(item["id"]), [])
+                item["respuestas"] = resps
+                item["interesados_count"] = sum(
+                    1 for x in resps if x.get("tipo_respuesta") == "puedo_ayudar"
+                )
+                item["recomendaciones_count"] = sum(
+                    1
+                    for x in resps
+                    if x.get("tipo_respuesta") == "conozco_alguien"
+                )
+                item["no_pueden_count"] = sum(
+                    1
+                    for x in resps
+                    if x.get("tipo_respuesta") == "no_puedo_ayudar"
+                )
+                item["es_semana_actual"] = str(item.get("semana_inicio") or "") == semana
+
+            activas_semana = [
+                r
+                for r in rows
+                if r.get("estado") == "activa" and r.get("es_semana_actual")
+            ]
+            return {
+                "status": "success",
+                "semana_inicio": semana,
+                "solicitudes": rows,
+                "activas_semana_count": len(activas_semana),
+            }
+        except Exception as e:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            return {"status": "error", "message": str(e)}
+        finally:
+            conn.close()
+
+
 def expirar_solicitudes_vencidas(db) -> Dict[str, Any]:
     """Marca solicitudes de semanas anteriores como expiradas (cron/manual)."""
     with db._lock:

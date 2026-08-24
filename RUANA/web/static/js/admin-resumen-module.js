@@ -253,7 +253,8 @@
               fetch('/api/admin/suplentes-espera', fetchOpts),
               fetch('/api/admin/centro-comunicacion?limite=120', fetchOpts),
               fetch('/api/admin/aliados-eliminados', fetchOpts),
-              fetch('/api/admin/solicitudes-baja', fetchOpts)
+              fetch('/api/admin/solicitudes-baja', fetchOpts),
+              fetch('/api/admin/solicitudes-semanales', fetchOpts)
           ];
           const settled = await Promise.allSettled(fetchPromises);
           const responses = settled.map((r, i) => (r.status === 'fulfilled' ? r.value : null));
@@ -271,7 +272,7 @@
               return r.json().catch(() => null);
           }
           const idx16 = responses[16];
-          const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, stripeResumenData, solicitudesData, chatsData, contactosChatData, competenciasData, competenciasPendientesData, competenciasHistorialData, stats24hData, invitacionesRecData, campanasData, metodosPagoData, suplentesEsperaData, centroComData, eliminadosData, solicitudesBajaData] = await Promise.all([
+          const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, stripeResumenData, solicitudesData, chatsData, contactosChatData, competenciasData, competenciasPendientesData, competenciasHistorialData, stats24hData, invitacionesRecData, campanasData, metodosPagoData, suplentesEsperaData, centroComData, eliminadosData, solicitudesBajaData, solicitudesSemanalesData] = await Promise.all([
               parseResponse(responses[0], false),
               parseResponse(responses[1], false),
               parseResponse(responses[2], false),
@@ -295,7 +296,8 @@
               parseResponse(responses[20], false),
               parseResponse(responses[21], false),
               parseResponse(responses[22], false),
-              parseResponse(responses[23], false)
+              parseResponse(responses[23], false),
+              parseResponse(responses[24], false)
           ]);
 
           // Pendientes de validación (unir API + lista por código)
@@ -373,6 +375,13 @@
           host.renderPagosEnRevision((pagosEnRevisionData && pagosEnRevisionData.status === 'success' && Array.isArray(pagosEnRevisionData.pagos)) ? pagosEnRevisionData.pagos : []);
           host.renderStripeResumen(stripeResumenData && stripeResumenData.status === 'success' ? stripeResumenData : null);
           host.renderSolicitudesAdmin(Array.isArray(solicitudesData) ? solicitudesData : (solicitudesData && Array.isArray(solicitudesData.solicitudes) ? solicitudesData.solicitudes : []));
+          if (typeof host.renderSolicitudesSemanalesAdmin === 'function') {
+              host.renderSolicitudesSemanalesAdmin(
+                  solicitudesSemanalesData && solicitudesSemanalesData.status === 'success'
+                      ? solicitudesSemanalesData
+                      : { solicitudes: [] }
+              );
+          }
           host.renderInvitacionesRecientes(invitacionesRecData && invitacionesRecData.status === 'success' && Array.isArray(invitacionesRecData.invitaciones) ? invitacionesRecData.invitaciones : []);
           host.renderCampanasInvitacion(campanasData && campanasData.status === 'success' && Array.isArray(campanasData.campanas) ? campanasData.campanas : []);
           host.renderMetodosPago((metodosPagoData && metodosPagoData.status === 'success' && metodosPagoData.metodos) ? metodosPagoData.metodos : null);
@@ -397,6 +406,9 @@
               indicadores: indicadores,
               conflictos: (conflictosData && conflictosData.status === 'success' && Array.isArray(conflictosData.conflictos)) ? conflictosData.conflictos.length : 0,
               solicitudes: Array.isArray(solicitudesData) ? solicitudesData : (solicitudesData && Array.isArray(solicitudesData.solicitudes) ? solicitudesData.solicitudes : []),
+              solicitudesSemanales: (solicitudesSemanalesData && solicitudesSemanalesData.status === 'success' && Array.isArray(solicitudesSemanalesData.solicitudes))
+                  ? solicitudesSemanalesData.solicitudes.filter(function (s) { return s.es_semana_actual && s.estado === 'activa'; })
+                  : [],
               eventos: (eventosData && eventosData.status === 'success' && Array.isArray(eventosData.eventos)) ? eventosData.eventos.map(function (ev) {
                   return { fecha: ev.fecha || ev.creado_en, descripcion: ev.descripcion, tipo: ev.tipo };
               }) : [],
@@ -610,6 +622,15 @@ function setupEventListeners(host) {
 
       const btnFiltrarSolicitudes = document.getElementById('btn-filtrar-solicitudes');
       if (btnFiltrarSolicitudes) btnFiltrarSolicitudes.addEventListener('click', () => host.cargarSolicitudesAdminConFiltros());
+      const btnFiltrarSolSem = document.getElementById('btn-filtrar-solicitudes-semanales');
+      const selSolSem = document.getElementById('filtro-solicitudes-semanales-alcance');
+      const rerenderSolSem = () => {
+          if (typeof host.renderSolicitudesSemanalesAdmin === 'function') {
+              host.renderSolicitudesSemanalesAdmin(host._solicitudesSemanalesAdmin || { solicitudes: [] });
+          }
+      };
+      if (btnFiltrarSolSem) btnFiltrarSolSem.addEventListener('click', rerenderSolSem);
+      if (selSolSem) selSolSem.addEventListener('change', rerenderSolSem);
 
       const modalVerChat = document.getElementById('modal-ver-chat');
       const btnCerrarVerChat = document.getElementById('btn-cerrar-ver-chat');

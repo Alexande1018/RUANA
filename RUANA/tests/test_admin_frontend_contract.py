@@ -57,6 +57,8 @@ def test_admin_fetch_response_destructuring_matches_fetch_order():
         "conflictosData, pagosApoyoData, pagosEnRevisionData, stripeResumenData, solicitudesData"
         in text
     )
+    assert "fetch('/api/admin/solicitudes-semanales', fetchOpts)" in text
+    assert "solicitudesSemanalesData" in text
 
 
 def test_readonly_admin_disables_all_write_actions():
@@ -306,3 +308,29 @@ def test_admin_score_bands_match_motor_ruana():
     assert "s >= 250" not in cc
     assert "RuanaAdminScoreBands" in red_ex
     assert "RuanaAdminScoreBands" in cc
+
+
+def test_admin_muestra_solicitudes_semanales():
+    """El panel admin lista las solicitudes de esta semana con respuestas."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    admin_html = (root / "admin.html").read_text(encoding="utf-8")
+    sistema_js = (root / "static" / "js" / "admin-sistema-module.js").read_text(
+        encoding="utf-8"
+    )
+    resumen_js = (root / "static" / "js" / "admin-resumen-module.js").read_text(
+        encoding="utf-8"
+    )
+    shell_js = (root / "static" / "js" / "admin-shell.js").read_text(encoding="utf-8")
+    cc_js = (root / "static" / "js" / "admin-command-center-module.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'id="solicitudes-semanales-admin-wrap"' in admin_html
+    assert 'id="tbody-solicitudes-semanales-admin"' in admin_html
+    assert "Solicitudes de esta semana" in admin_html
+    assert "function renderSolicitudesSemanalesAdmin(host, payload)" in sistema_js
+    assert "renderSolicitudesSemanalesAdmin: renderSolicitudesSemanalesAdmin" in sistema_js
+    assert "fetch('/api/admin/solicitudes-semanales', fetchOpts)" in resumen_js
+    assert "host.renderSolicitudesSemanalesAdmin" in resumen_js
+    assert "#solicitudes-semanales-admin-wrap" in shell_js
+    assert "Solicitudes de esta semana" in cc_js

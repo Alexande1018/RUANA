@@ -467,3 +467,70 @@ def test_init_postgres_schema_incluye_solicitudes_semanales():
 
     source = inspect.getsource(schema_service._init_postgres_schema)
     assert "_migrar_solicitudes_semanales" in source
+
+
+def test_listar_admin_incluye_grupo_y_respuestas(sqlite_db):
+    _crear_grupo(
+        sqlite_db,
+        "Grupo admin sem",
+        "03014",
+        [
+            ("JAIME", "Jaime", "Electricidad"),
+            ("MARTA", "Marta", "Fontanería y fontanería-gas"),
+        ],
+    )
+    creada = solicitud_semanal_service.crear_solicitud_semanal(
+        sqlite_db, "JAIME", "Electricidad", "Necesito revisión", False
+    )
+    sid = creada["id"]
+    r_no = solicitud_semanal_service.responder_no_puedo_ayudar(sqlite_db, sid, "MARTA")
+    assert r_no["status"] == "success"
+
+    panel = solicitud_semanal_service.listar_admin(sqlite_db)
+    assert panel["status"] == "success"
+    assert panel["activas_semana_count"] == 1
+    assert len(panel["solicitudes"]) == 1
+    item = panel["solicitudes"][0]
+    assert item["id"] == sid
+    assert item["solicitante_codigo"] == "JAIME"
+    assert item["grupo_nombre"] == "Grupo admin sem"
+    assert item["es_semana_actual"] is True
+    assert item["no_pueden_count"] == 1
+    assert item["interesados_count"] == 0
+    assert item["recomendaciones_count"] == 0
+    assert item["respuestas"][0]["aliado_codigo"] == "MARTA"
+    assert item["respuestas"][0]["tipo_respuesta"] == "no_puedo_ayudar"
+
+
+def test_api_admin_solicitudes_semanales(client, sqlite_db, monkeypatch, session_headers):
+    from RUANA.web import app as app_module
+
+    _crear_grupo(
+        sqlite_db,
+        "Grupo API admin",
+        "03014",
+        [("JAIME", "Jaime", "Electricidad")],
+    )
+    solicitud_semanal_service.crear_solicitud_semanal(
+        sqlite_db, "JAIME", "Electricidad", "", False
+    )
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+
+    sin_sesion = client.get("/api/admin/solicitudes-semanales")
+    assert sin_sesion.status_code == 401
+
+    aliado = client.get(
+        "/api/admin/solicitudes-semanales",
+        headers=session_headers("aliado", "JAIME"),
+    )
+    assert aliado.status_code == 401
+
+    admin = client.get(
+        "/api/admin/solicitudes-semanales",
+        headers=session_headers("admin", "ADMIN1", permisos=["leer"]),
+    )
+    assert admin.status_code == 200
+    data = admin.get_json()
+    assert data["status"] == "success"
+    assert data["activas_semana_count"] == 1
+    assert data["solicitudes"][0]["solicitante_codigo"] == "JAIME"

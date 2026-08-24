@@ -456,6 +456,58 @@
     });
   }
 
+  function nombresRespuestaSemanal(s, tipo) {
+    return (s.respuestas || [])
+      .filter((r) => (r.tipo_respuesta || '') === tipo)
+      .map((r) => r.aliado_nombre || r.aliado_codigo)
+      .filter(Boolean);
+  }
+
+  function celdaRespuestasSemanales(host, s, tipo, countKey) {
+    const count = Number(s[countKey]) || 0;
+    const names = nombresRespuestaSemanal(s, tipo);
+    if (!count) return '—';
+    const label = names.join(', ');
+    return `<span title="${host.escapeHtml(label)}">${count}${names.length ? ' · ' + host.escapeHtml(label) : ''}</span>`;
+  }
+
+  function renderSolicitudesSemanalesAdmin(host, payload) {
+    const tbody = document.getElementById('tbody-solicitudes-semanales-admin');
+    const emptyEl = document.getElementById('solicitudes-semanales-admin-empty');
+    if (!tbody) return;
+    let data = payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {};
+    if (Array.isArray(payload)) data = { solicitudes: payload };
+    if (payload && Array.isArray(payload.solicitudes)) host._solicitudesSemanalesAdmin = data;
+    const cached = host._solicitudesSemanalesAdmin || data;
+    const alcanceEl = document.getElementById('filtro-solicitudes-semanales-alcance');
+    const alcance = alcanceEl ? alcanceEl.value : 'semana';
+    let list = Array.isArray(cached.solicitudes) ? cached.solicitudes.slice() : [];
+    if (alcance !== 'todas') {
+      list = list.filter((s) => s.es_semana_actual);
+    }
+    tbody.innerHTML = '';
+    if (emptyEl) emptyEl.style.display = list.length ? 'none' : 'block';
+    list.forEach((s) => {
+      const tr = document.createElement('tr');
+      if (s.es_semana_actual) tr.classList.add('is-semana-actual');
+      const desc = s.descripcion || '';
+      const descCorta = desc.substring(0, 60) + (desc.length > 60 ? '…' : '');
+      tr.innerHTML = `
+            <td>${host.escapeHtml(s.semana_inicio || '—')}</td>
+            <td>${host.escapeHtml((s.grupo_nombre || '') || ('#' + (s.grupo_id || '')))}</td>
+            <td>${host.escapeHtml(s.solicitante_nombre || s.solicitante_codigo || '—')}</td>
+            <td>${host.escapeHtml(s.oficio || '—')}</td>
+            <td title="${host.escapeHtml(desc)}">${host.escapeHtml(descCorta || '—')}</td>
+            <td>${host.escapeHtml(s.estado || '—')}</td>
+            <td>${celdaRespuestasSemanales(host, s, 'puedo_ayudar', 'interesados_count')}</td>
+            <td>${celdaRespuestasSemanales(host, s, 'conozco_alguien', 'recomendaciones_count')}</td>
+            <td>${celdaRespuestasSemanales(host, s, 'no_puedo_ayudar', 'no_pueden_count')}</td>
+            <td>${s.created_at ? host.formatearHora(s.created_at) : '—'}</td>
+        `;
+      tbody.appendChild(tr);
+    });
+  }
+
   function renderEventos(host, eventosData) {
     /**
      * Renderiza las últimas acciones relevantes del sistema (trazabilidad).
@@ -833,6 +885,7 @@ modules.sistema = {
     accionForzarSuplencia: accionForzarSuplencia,
     accionAbrirPlaza: accionAbrirPlaza,
     renderSolicitudesAdmin: renderSolicitudesAdmin,
+    renderSolicitudesSemanalesAdmin: renderSolicitudesSemanalesAdmin,
     renderEventos: renderEventos,
     renderCompetenciasActivas: renderCompetenciasActivas,
     renderCompetenciasPendientes: renderCompetenciasPendientes,

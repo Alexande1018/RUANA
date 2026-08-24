@@ -622,6 +622,41 @@
             </div>
         </div>
 
+        <!-- Solicitudes de esta semana (por grupo) -->
+        <div class="solicitudes-admin-wrap" id="solicitudes-semanales-admin-wrap">
+            <h2 class="seccion-titulo">Solicitudes de esta semana</h2>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Necesidades profesionales publicadas en cada grupo. Se renuevan cada lunes. El admin ve todas las respuestas.</p>
+            <div class="filtros-solicitudes-admin admin-filter-row">
+                <select id="filtro-solicitudes-semanales-alcance">
+                    <option value="semana">Esta semana</option>
+                    <option value="todas">Todas las semanas</option>
+                </select>
+                <button type="button" class="btn-admin-action" id="btn-filtrar-solicitudes-semanales">Filtrar</button>
+            </div>
+            <div class="movimiento-24h-tabla-wrap">
+                <div class="movimiento-24h-tabla-scroll">
+                    <table class="movimiento-24h-tabla" id="tabla-solicitudes-semanales-admin">
+                        <thead>
+                            <tr>
+                                <th>Semana</th>
+                                <th>Grupo</th>
+                                <th>Solicitante</th>
+                                <th>Oficio</th>
+                                <th>Descripción</th>
+                                <th>Estado</th>
+                                <th>Pueden ayudar</th>
+                                <th>Recomiendan</th>
+                                <th>No pueden</th>
+                                <th>Publicada</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-solicitudes-semanales-admin"></tbody>
+                    </table>
+                </div>
+            </div>
+            <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="solicitudes-semanales-admin-empty">No hay solicitudes semanales.</p>
+        </div>
+
         <!-- CAPA 3.6c: Solicitudes Nuevas conexiones -->
         <div class="solicitudes-admin-wrap" id="solicitudes-admin-wrap">
             <h2 class="seccion-titulo">Solicitudes (Nuevas conexiones)</h2>
@@ -1774,6 +1809,13 @@
                 const mod = this._sistemaModule();
                 if (mod && typeof mod.renderSolicitudesAdmin === 'function') {
                     return mod.renderSolicitudesAdmin(this, solicitudes);
+                }
+            }
+
+            renderSolicitudesSemanalesAdmin(payload) {
+                const mod = this._sistemaModule();
+                if (mod && typeof mod.renderSolicitudesSemanalesAdmin === 'function') {
+                    return mod.renderSolicitudesSemanalesAdmin(this, payload);
                 }
             }
 

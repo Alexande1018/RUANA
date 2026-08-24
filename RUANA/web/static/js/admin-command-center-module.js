@@ -67,6 +67,7 @@
             { id: 'espera', label: 'Suplentes en espera', value: ind.enEspera != null ? ind.enEspera : '—', nav: '#suplentes-espera-wrap', warn: (ind.enEspera || 0) > 0 },
             { id: 'trabajos', label: 'Trabajos abiertos', value: trabajos, nav: '#conversaciones-ruana-wrap' },
             { id: 'solicitudes', label: 'Solicitudes pendientes', value: ind.solicitudesActivas, nav: '#solicitudes-admin-wrap', warn: (ind.solicitudesActivas || 0) > 0 },
+            { id: 'solicitudes-semana', label: 'Solicitudes de esta semana', value: data.solicitudesSemanalesCount != null ? data.solicitudesSemanalesCount : ((data.solicitudesSemanales || []).length), nav: '#solicitudes-semanales-admin-wrap', warn: ((data.solicitudesSemanales || []).length) > 0 },
             { id: 'conflictos', label: 'Conflictos', value: conflictos, nav: '#conflictos-pago-wrap', warn: conflictos > 0 },
             { id: 'riesgo', label: 'En riesgo', value: ind.enRiesgo != null ? ind.enRiesgo : '—', nav: '#scores-evaluaciones-wrap', warn: (ind.enRiesgo || 0) > 0 }
         ];
@@ -138,6 +139,11 @@
                 esc(c.asunto || c.tipo || 'Incidencia') + '</button></li>';
         }).join('') || '<li class="cc-aside-empty">Sin incidencias abiertas</li>';
 
+        var solSemList = (data.solicitudesSemanales || []).slice(0, 5).map(function (s) {
+            return '<li><button type="button" class="cc-aside-link" data-cc-nav="#solicitudes-semanales-admin-wrap">' +
+                '<span>' + esc(s.solicitante_nombre || s.solicitante_codigo || 'Aliado') + ' · ' + esc(s.oficio || 'profesional') + '</span></button></li>';
+        }).join('') || '<li class="cc-aside-empty">Ninguna esta semana</li>';
+
         return '<section class="cc-aside-block">' +
             '<h3>Alertas importantes</h3><ul class="cc-alerts">' +
             alerts.map(function (a) {
@@ -148,6 +154,7 @@
             '<section class="cc-aside-block"><h3>Aliados en riesgo</h3><ul class="cc-aside-list">' + riesgoList + '</ul></section>' +
             '<section class="cc-aside-block"><h3>Competencias activas</h3><ul class="cc-aside-list">' + compList + '</ul></section>' +
             '<section class="cc-aside-block"><h3>Solicitudes pendientes</h3><ul class="cc-aside-list cc-aside-compact">' + solList + '</ul></section>' +
+            '<section class="cc-aside-block"><h3>Solicitudes de esta semana</h3><ul class="cc-aside-list cc-aside-compact">' + solSemList + '</ul></section>' +
             '<section class="cc-aside-block"><h3>Incidencias</h3><ul class="cc-aside-list">' + incList + '</ul></section>';
     }
 
@@ -167,6 +174,10 @@
             ((data.solicitudes || []).slice(0, 4).map(function (s) {
                 return '<div class="cc-feed-item"><span class="cc-feed-tag">Solicitud</span><p>' + esc(s.oficio || '') + ' · ' + esc(s.descripcion || '').slice(0, 60) + '</p></div>';
             }).join('') || '<p class="cc-aside-empty">Sin solicitudes</p>') + '</div>' +
+            '<div class="cc-card"><h3>Solicitudes de esta semana</h3>' +
+            ((data.solicitudesSemanales || []).slice(0, 4).map(function (s) {
+                return '<div class="cc-feed-item"><span class="cc-feed-tag">Semana</span><p>' + esc(s.solicitante_nombre || s.solicitante_codigo || '') + ' necesita ' + esc(s.oficio || '') + '</p></div>';
+            }).join('') || '<p class="cc-aside-empty">Ninguna esta semana</p>') + '</div>' +
             '<div class="cc-card"><h3>Cambios del sistema</h3>' + eventos + '</div></div>';
     }
 
@@ -203,6 +214,7 @@
         var conflictos = payload && payload.conflictos != null ? payload.conflictos : 0;
         var trabajosCount = payload && payload.trabajos != null ? payload.trabajos : ((host && host._conversacionesList) ? host._conversacionesList.length : 0);
         var solicitudes = payload && payload.solicitudes ? payload.solicitudes : [];
+        var solicitudesSemanales = payload && payload.solicitudesSemanales ? payload.solicitudesSemanales : [];
         var eventos = payload && payload.eventos ? payload.eventos : [];
         var incidencias = payload && payload.incidencias ? payload.incidencias : [];
         var competencias = payload && payload.competencias ? payload.competencias : [];
@@ -216,7 +228,8 @@
             kpiStrip.innerHTML = buildKpis({
                 indicadores: indicadores,
                 conflictos: conflictos,
-                trabajos: trabajosCount
+                trabajos: trabajosCount,
+                solicitudesSemanales: solicitudesSemanales
             });
         }
 
@@ -292,6 +305,7 @@
                 conflictos: conflictos,
                 aliadosEnRiesgo: aliadosEnRiesgo,
                 solicitudes: solicitudes,
+                solicitudesSemanales: solicitudesSemanales,
                 incidencias: incidencias,
                 competencias: competencias
             });
@@ -302,7 +316,8 @@
             feed.innerHTML = buildBottomFeed({
                 eventos: eventos,
                 trabajosRecientes: (host && host._conversacionesList) || [],
-                solicitudes: solicitudes
+                solicitudes: solicitudes,
+                solicitudesSemanales: solicitudesSemanales
             });
         }
 

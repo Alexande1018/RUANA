@@ -290,3 +290,38 @@ class SolicitudSemanalRepo:
                 (grupo_id,),
             )
         return [str(r[0]).strip() for r in cursor.fetchall() if r[0]]
+
+    def listar_todas_admin(self, cursor, limite: int = 300) -> List[Dict[str, Any]]:
+        cursor.execute(
+            """
+            SELECT s.id, s.grupo_id, s.solicitante_codigo, s.solicitante_nombre,
+                   s.oficio, s.descripcion, s.es_oficio_personalizado,
+                   s.semana_inicio, s.estado, s.created_at, s.expira_at,
+                   g.nombre AS grupo_nombre
+            FROM solicitudes_semanales s
+            LEFT JOIN grupos g ON g.id = s.grupo_id
+            ORDER BY s.semana_inicio DESC, s.created_at DESC
+            LIMIT ?
+            """,
+            (int(limite),),
+        )
+        return [dict(r) for r in cursor.fetchall()]
+
+    def listar_respuestas_para_ids(
+        self, cursor, solicitud_ids: List[int]
+    ) -> List[Dict[str, Any]]:
+        ids = [int(i) for i in (solicitud_ids or []) if i is not None]
+        if not ids:
+            return []
+        placeholders = ",".join("?" * len(ids))
+        cursor.execute(
+            f"""
+            SELECT solicitud_semanal_id, aliado_codigo, aliado_nombre,
+                   tipo_respuesta, contacto_id, invitacion_codigo, created_at
+            FROM solicitudes_semanales_respuestas
+            WHERE solicitud_semanal_id IN ({placeholders})
+            ORDER BY created_at ASC
+            """,
+            tuple(ids),
+        )
+        return [dict(r) for r in cursor.fetchall()]

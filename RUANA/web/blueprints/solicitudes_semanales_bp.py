@@ -6,7 +6,12 @@ from flask import Blueprint, jsonify, request
 
 from core import db_manager as db_manager_mod
 from core.services import solicitud_semanal_service
-from web.auth_decorators import _aliado_codigo, require_admin_or_cron, require_aliado
+from web.auth_decorators import (
+    _aliado_codigo,
+    require_admin,
+    require_admin_or_cron,
+    require_aliado,
+)
 from web.blueprints.invitacion_bp import _generar_codigo_invitacion
 
 solicitudes_semanales_bp = Blueprint("solicitudes_semanales", __name__)
@@ -172,6 +177,19 @@ def interesados_solicitud_semanal(solicitud_id):
     result = solicitud_semanal_service.listar_interesados(db, solicitud_id, codigo)
     if result.get("status") != "success":
         return jsonify({"error": result.get("message")}), 403
+    return jsonify(result)
+
+
+@solicitudes_semanales_bp.route(
+    "/api/admin/solicitudes-semanales", methods=["GET"]
+)
+@require_admin
+def admin_solicitudes_semanales():
+    db = get_db()
+    limite = request.args.get("limite", 300, type=int)
+    result = solicitud_semanal_service.listar_admin(db, limite=limite)
+    if result.get("status") != "success":
+        return jsonify({"error": result.get("message")}), 500
     return jsonify(result)
 
 
