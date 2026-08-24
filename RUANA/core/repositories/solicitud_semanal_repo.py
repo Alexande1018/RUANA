@@ -239,15 +239,23 @@ class SolicitudSemanalRepo:
             )
         return [dict(r) for r in cursor.fetchall()]
 
-    def contar_interesados(self, cursor, solicitud_id: int) -> int:
+    def contar_respuestas_tipo(
+        self, cursor, solicitud_id: int, tipo: str
+    ) -> int:
         cursor.execute(
             """
             SELECT COUNT(*) FROM solicitudes_semanales_respuestas
-            WHERE solicitud_semanal_id = ? AND tipo_respuesta = 'puedo_ayudar'
+            WHERE solicitud_semanal_id = ? AND tipo_respuesta = ?
             """,
-            (int(solicitud_id),),
+            (int(solicitud_id), tipo),
         )
         return cursor.fetchone()[0] or 0
+
+    def contar_interesados(self, cursor, solicitud_id: int) -> int:
+        return self.contar_respuestas_tipo(cursor, solicitud_id, "puedo_ayudar")
+
+    def contar_recomendaciones(self, cursor, solicitud_id: int) -> int:
+        return self.contar_respuestas_tipo(cursor, solicitud_id, "conozco_alguien")
 
     def listar_oficios_grupo_activos(self, cursor, grupo_id: Any) -> List[str]:
         cursor.execute(

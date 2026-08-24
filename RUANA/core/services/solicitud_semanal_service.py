@@ -114,6 +114,9 @@ def _enriquecer_con_respuestas(
         resp = _repo.select_respuesta(cursor, int(s["id"]), codigo)
         item["mi_respuesta"] = resp.get("tipo_respuesta") if resp else None
         item["interesados_count"] = _repo.contar_interesados(cursor, int(s["id"]))
+        item["recomendaciones_count"] = _repo.contar_recomendaciones(
+            cursor, int(s["id"])
+        )
         out.append(item)
     return out
 

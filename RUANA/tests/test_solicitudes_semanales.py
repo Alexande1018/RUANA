@@ -175,6 +175,94 @@ def test_puedo_ayudar_y_listar_interesados(sqlite_db):
     assert denegado["status"] == "error"
 
 
+def test_panel_sin_solucion_tras_no_puedo_ayudar(sqlite_db):
+    """Si solo hay 'no puedo ayudar', la solicitud sigue sin ayuda ni recomendaciones."""
+    _crear_grupo(
+        sqlite_db,
+        "Grupo sin solucion",
+        "03014",
+        [
+            ("JAIME", "Jaime", "Electricidad"),
+            ("MARTA", "Marta", "Fontanería y fontanería-gas"),
+        ],
+    )
+    creada = solicitud_semanal_service.crear_solicitud_semanal(
+        sqlite_db, "JAIME", "Electricidad", "", False
+    )
+    sid = creada["id"]
+    r = solicitud_semanal_service.responder_no_puedo_ayudar(sqlite_db, sid, "MARTA")
+    assert r["status"] == "success"
+
+    panel = solicitud_semanal_service.obtener_panel_por_codigo(sqlite_db, "MARTA")
+    assert panel["status"] == "success"
+    assert len(panel["activas_grupo"]) == 1
+    activa = panel["activas_grupo"][0]
+    assert activa["mi_respuesta"] == "no_puedo_ayudar"
+    assert activa["interesados_count"] == 0
+    assert activa["recomendaciones_count"] == 0
+
+
+def test_panel_recomendaciones_count_despues_conozco(sqlite_db):
+    _crear_grupo(
+        sqlite_db,
+        "Grupo recomiendo",
+        "03014",
+        [
+            ("JAIME", "Jaime", "Electricidad"),
+            ("MARTA", "Marta", "Fontanería y fontanería-gas"),
+        ],
+    )
+    creada = solicitud_semanal_service.crear_solicitud_semanal(
+        sqlite_db, "JAIME", "Fotografía", "", True
+    )
+    sid = creada["id"]
+    n = {"i": 0}
+
+    def _codigo(_db):
+        n["i"] += 1
+        return "INV%05d" % n["i"]
+
+    r = solicitud_semanal_service.responder_conozco_alguien(
+        sqlite_db, sid, "MARTA", _codigo
+    )
+    assert r["status"] == "success"
+    assert r.get("codigo")
+
+    panel = solicitud_semanal_service.obtener_panel_por_codigo(sqlite_db, "MARTA")
+    activa = panel["activas_grupo"][0]
+    assert activa["mi_respuesta"] == "conozco_alguien"
+    assert activa["interesados_count"] == 0
+    assert activa["recomendaciones_count"] == 1
+
+
+def test_panel_otro_aliado_ya_puede_ayudar(sqlite_db):
+    """Si alguien ya puede ayudar, la solicitud deja de estar sin solución."""
+    _crear_grupo(
+        sqlite_db,
+        "Grupo ya ayuda",
+        "03014",
+        [
+            ("JAIME", "Jaime", "Electricidad"),
+            ("MARTA", "Marta", "Fontanería y fontanería-gas"),
+            ("PEDRO", "Pedro", "Electricidad"),
+        ],
+    )
+    creada = solicitud_semanal_service.crear_solicitud_semanal(
+        sqlite_db, "JAIME", "Electricidad", "", False
+    )
+    sid = creada["id"]
+    r_no = solicitud_semanal_service.responder_no_puedo_ayudar(sqlite_db, sid, "MARTA")
+    assert r_no["status"] == "success"
+    r_si = solicitud_semanal_service.responder_puedo_ayudar(sqlite_db, sid, "PEDRO")
+    assert r_si["status"] == "success"
+
+    panel = solicitud_semanal_service.obtener_panel_por_codigo(sqlite_db, "MARTA")
+    activa = panel["activas_grupo"][0]
+    assert activa["mi_respuesta"] == "no_puedo_ayudar"
+    assert activa["interesados_count"] == 1
+    assert activa["recomendaciones_count"] == 0
+
+
 def test_no_puedo_ayudar_otro_grupo_fallido(sqlite_db):
     gid25 = _crear_grupo(
         sqlite_db,

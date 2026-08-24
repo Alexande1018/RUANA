@@ -85,12 +85,49 @@
     return '<strong>' + escapeHtml(solicitanteNombre) + '</strong> necesita un ' + escapeHtml(oficio);
   }
 
-  function bindAyudarButtons(root, host) {
+  function solicitudSigueSinAyuda(s) {
+    var interesados = Number(s && s.interesados_count) || 0;
+    var recomendaciones = Number(s && s.recomendaciones_count) || 0;
+    return interesados <= 0 && recomendaciones <= 0;
+  }
+
+  function aliadoYaResolvio(s) {
+    return s.mi_respuesta === 'puedo_ayudar' || s.mi_respuesta === 'conozco_alguien';
+  }
+
+  function debeMostrarBotonesResolver(s) {
+    return !aliadoYaResolvio(s) && solicitudSigueSinAyuda(s);
+  }
+
+  function htmlBotonesResolver(s) {
+    var id = s.id;
+    if (s.mi_respuesta === 'no_puedo_ayudar') {
+      return '<div class="sol-sem-actions">' +
+        '<button type="button" class="btn-sol-sem-ayudar" data-id="' + id + '" data-direct="1">Puedo ayudar</button>' +
+        '<button type="button" class="btn-sol-sem-conozco" data-id="' + id + '">Conozco a alguien</button>' +
+        '</div>';
+    }
+    return '<div class="sol-sem-actions">' +
+      '<button type="button" class="btn-sol-sem-ayudar" data-id="' + id + '">Puedo ayudar</button>' +
+      '</div>';
+  }
+
+  function bindCardActions(root, host) {
     if (!root) return;
     root.querySelectorAll('.btn-sol-sem-ayudar').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var id = parseInt(btn.getAttribute('data-id'), 10);
-        mostrarModalRespuesta(host, id);
+        if (btn.getAttribute('data-direct') === '1') {
+          iniciarPuedoAyudar(host, id);
+        } else {
+          mostrarModalRespuesta(host, id);
+        }
+      });
+    });
+    root.querySelectorAll('.btn-sol-sem-conozco').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = parseInt(btn.getAttribute('data-id'), 10);
+        iniciarConozco(host, id);
       });
     });
   }
@@ -99,6 +136,7 @@
     var card = document.createElement('article');
     card.className = 'sol-sem-card' + (extraClass ? ' ' + extraClass : '');
     var yaResp = s.mi_respuesta === 'puedo_ayudar' || s.mi_respuesta === 'no_puedo_ayudar' || s.mi_respuesta === 'conozco_alguien';
+    var acciones = debeMostrarBotonesResolver(s) ? htmlBotonesResolver(s) : '';
     card.innerHTML =
       '<div class="sol-sem-card-head">' +
       '<span class="sol-sem-icon">' + iconoOficio(s.oficio) + '</span>' +
@@ -106,11 +144,8 @@
       '</div></div>' +
       (s.descripcion ? '<p class="sol-sem-card-desc">' + escapeHtml(s.descripcion) + '</p>' : '') +
       '<p class="sol-sem-card-meta">Esta semana · ' + escapeHtml(formatoFecha(s.created_at)) + '</p>' +
-      (yaResp
-        ? '<p class="sol-sem-ya-respondido">Ya respondiste a esta solicitud.</p>'
-        : '<div class="sol-sem-actions">' +
-          '<button type="button" class="btn-sol-sem-ayudar" data-id="' + s.id + '">Puedo ayudar</button>' +
-          '</div>');
+      (yaResp ? '<p class="sol-sem-ya-respondido">Ya respondiste a esta solicitud.</p>' : '') +
+      acciones;
     return card;
   }
 
@@ -167,7 +202,7 @@
     activas.forEach(function (s) {
       lista.appendChild(crearCardSolicitud(s, host, 'sol-sem-card--inicio'));
     });
-    bindAyudarButtons(lista, host);
+    bindCardActions(lista, host);
     wrap.hidden = false;
 
     if (global.AliadoShell && typeof global.AliadoShell.refresh === 'function') {
@@ -194,7 +229,7 @@
     activas.forEach(function (s) {
       lista.appendChild(crearCardSolicitud(s, host, ''));
     });
-    bindAyudarButtons(lista, host);
+    bindCardActions(lista, host);
     renderInicioSeccion(host);
   }
 
@@ -543,6 +578,16 @@
   }
 
   var _respuestaPendienteId = null;
+
+  function iniciarPuedoAyudar(host, solicitudId) {
+    _respuestaPendienteId = solicitudId;
+    mostrarConfirmPuedo(host, function () { ejecutarPuedoAyudar(host); });
+  }
+
+  function iniciarConozco(host, solicitudId) {
+    _respuestaPendienteId = solicitudId;
+    mostrarConfirmConozco(function () { ejecutarConozco(host); });
+  }
 
   function mostrarModalRespuesta(host, solicitudId) {
     var snap = host.solicitudesSemanales || {};
