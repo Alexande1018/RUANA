@@ -93,10 +93,16 @@ def test_01_webhook_valido(sqlite_db):
 
 # 2. firma inválida
 def test_02_firma_invalida(sqlite_db):
-    with patch("core.stripe_client.construct_webhook_event", side_effect=ValueError("bad sig")):
+    from stripe import SignatureVerificationError
+
+    with patch(
+        "core.stripe_client.construct_webhook_event",
+        side_effect=SignatureVerificationError("bad sig", sig_header="bad"),
+    ):
         res = stripe_webhook_service.procesar_webhook(sqlite_db, b"{}", "bad")
     assert res["status"] == "error"
-    assert "firma" in res["message"].lower()
+    assert res.get("code") == "signature_invalid"
+    assert res["message"] == "Firma webhook inválida"
 
 
 # 3. webhook duplicado
@@ -417,6 +423,7 @@ def test_26_fallo_procesamiento_no_marca_completado(sqlite_db):
         ):
             res = stripe_webhook_service.procesar_webhook(sqlite_db, b"{}", "sig")
     assert res["status"] == "error"
+    assert res.get("code") == "processing_error"
     conn = sqlite_db._connect()
     row = conn.execute(
         "SELECT estado_procesamiento FROM stripe_webhook_events WHERE stripe_event_id='evt_fail'"

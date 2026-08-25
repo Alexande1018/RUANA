@@ -5,7 +5,11 @@ import json
 import sqlite3
 from typing import Any, Dict, Optional, Tuple
 
+from stripe import SignatureVerificationError
+
 from core import stripe_client
+from core.startup_validation import StartupConfigurationError
+from core.stripe_webhook_logging import log_stripe_webhook
 from core.financial.discrepancia import TipoDiscrepancia
 from core.financial.estados import EstadoFinanciero, EstadoTransferencia
 from core.financial.state_machine import FinancialStateMachine
@@ -41,27 +45,125 @@ _ESTADOS_TERMINALES_TRANSFER = frozenset({
 })
 
 
-def procesar_webhook(db, payload: bytes, sig_header: str) -> Dict[str, Any]:
+def _processing_error_response(
+    db,
+    *,
+    log_kwargs: Dict[str, Any],
+    error_kind: str,
+    event_id: str = "",
+    event_type: str = "",
+) -> Dict[str, Any]:
+    log_stripe_webhook(
+        resultado="processing_error",
+        event_id=event_id,
+        event_type=event_type,
+        error_kind=error_kind,
+        **log_kwargs,
+    )
+    return {
+        "status": "error",
+        "message": "Error interno del servidor",
+        "code": "processing_error",
+        "retry": True,
+    }
+
+
+def procesar_webhook(
+    db,
+    payload: bytes,
+    sig_header: str,
+    *,
+    log_kwargs: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     """Punto de entrada: valida firma, reclama evento atómicamente y despacha."""
+    base_log = dict(log_kwargs or {})
+    payload_len = len(payload) if payload is not None else 0
+
     try:
         event = stripe_client.construct_webhook_event(payload, sig_header)
-    except Exception as e:
-        _log_incidente_firma(db, str(e))
-        return {"status": "error", "message": f"firma webhook inválida: {e}"}
+    except SignatureVerificationError:
+        _log_incidente_firma(db, "signature_rejected")
+        log_stripe_webhook(
+            resultado="signature_rejected",
+            payload_len=payload_len,
+            has_stripe_signature=bool((sig_header or "").strip()),
+            error_kind="SignatureVerificationError",
+            **base_log,
+        )
+        return {
+            "status": "error",
+            "message": "Firma webhook inválida",
+            "code": "signature_invalid",
+        }
+    except (StartupConfigurationError, RuntimeError) as exc:
+        _log_incidente_firma(db, type(exc).__name__)
+        return _processing_error_response(
+            db,
+            log_kwargs={**base_log, "payload_len": payload_len, "has_stripe_signature": True},
+            error_kind=type(exc).__name__,
+        )
+    except Exception as exc:
+        _log_incidente_firma(db, type(exc).__name__)
+        return _processing_error_response(
+            db,
+            log_kwargs={**base_log, "payload_len": payload_len, "has_stripe_signature": True},
+            error_kind=type(exc).__name__,
+        )
 
     event_id, event_type, obj = _extraer_evento(event)
+    log_stripe_webhook(
+        resultado="signature_verified",
+        payload_len=payload_len,
+        has_stripe_signature=True,
+        event_id=event_id,
+        event_type=event_type,
+        **base_log,
+    )
+
     if not event_id or not event_type:
-        return {"status": "error", "message": "evento incompleto"}
+        log_stripe_webhook(
+            resultado="processing_error",
+            payload_len=payload_len,
+            has_stripe_signature=True,
+            event_id=event_id,
+            event_type=event_type,
+            error_kind="invalid_event",
+            **base_log,
+        )
+        return {
+            "status": "error",
+            "message": "evento incompleto",
+            "code": "invalid_event",
+        }
 
     from core.stripe_mode_guard import registrar_alerta_livemode, validate_event_livemode
 
-    mode_check = validate_event_livemode(event)
+    try:
+        mode_check = validate_event_livemode(event)
+    except Exception as exc:
+        return _processing_error_response(
+            db,
+            log_kwargs={**base_log, "payload_len": payload_len, "has_stripe_signature": True},
+            error_kind=type(exc).__name__,
+            event_id=event_id,
+            event_type=event_type,
+        )
+
     if mode_check.get("status") == "error":
         registrar_alerta_livemode(
             db,
             event_id=mode_check.get("event_id") or event_id,
             expected_mode=mode_check.get("expected_mode") or "",
             event_livemode=bool(mode_check.get("event_livemode")),
+        )
+        log_stripe_webhook(
+            resultado="processing_error",
+            payload_len=payload_len,
+            has_stripe_signature=True,
+            event_id=event_id,
+            event_type=event_type,
+            error_kind="stripe_livemode_mismatch",
+            **base_log,
         )
         return {
             "status": "error",
@@ -70,76 +172,128 @@ def procesar_webhook(db, payload: bytes, sig_header: str) -> Dict[str, Any]:
             "retry": False,
         }
 
-    with db._lock:
-        conn = None
-        try:
-            conn = db._connect()
-            cursor = conn.cursor()
-            claim = _wh_repo.reclamar_evento(cursor, event_id, event_type)
-            if claim == "duplicate_ok":
+    try:
+        with db._lock:
+            conn = None
+            try:
+                conn = db._connect()
+                cursor = conn.cursor()
+                claim = _wh_repo.reclamar_evento(cursor, event_id, event_type)
+                if claim == "duplicate_ok":
+                    conn.commit()
+                    log_stripe_webhook(
+                        resultado="processed",
+                        payload_len=payload_len,
+                        has_stripe_signature=True,
+                        event_id=event_id,
+                        event_type=event_type,
+                        **base_log,
+                    )
+                    return {"status": "success", "message": "evento ya procesado", "duplicate": True}
+                if claim == "duplicate_processing":
+                    conn.commit()
+                    log_stripe_webhook(
+                        resultado="processed",
+                        payload_len=payload_len,
+                        has_stripe_signature=True,
+                        event_id=event_id,
+                        event_type=event_type,
+                        **base_log,
+                    )
+                    return {"status": "success", "message": "evento en procesamiento", "duplicate": True}
                 conn.commit()
-                conn.close()
-                return {"status": "success", "message": "evento ya procesado", "duplicate": True}
-            if claim == "duplicate_processing":
-                conn.commit()
-                conn.close()
-                return {"status": "success", "message": "evento en procesamiento", "duplicate": True}
-            conn.commit()
-        finally:
-            if conn:
-                conn.close()
+            finally:
+                if conn:
+                    conn.close()
+    except Exception as exc:
+        return _processing_error_response(
+            db,
+            log_kwargs={**base_log, "payload_len": payload_len, "has_stripe_signature": True},
+            error_kind=f"claim:{type(exc).__name__}",
+            event_id=event_id,
+            event_type=event_type,
+        )
 
     contacto_id: Optional[int] = None
     estado_anterior = ""
     estado_nuevo = ""
     object_id = _object_id(obj)
     resultado = "ignorado"
+    is_unknown = event_type not in _HANDLERS
 
     try:
         handler = _HANDLERS.get(event_type, _handle_desconocido)
         contacto_id, resultado, estado_anterior, estado_nuevo = handler(db, obj, event_id)
-    except Exception as e:
-        with db._lock:
-            conn = db._connect()
-            cursor = conn.cursor()
-            _wh_repo.marcar_evento_fallido(cursor, event_id, str(e))
-            conn.commit()
-            conn.close()
-        return {"status": "error", "message": str(e), "retry": True}
-
-    with db._lock:
-        conn = None
+    except Exception as exc:
         try:
-            conn = db._connect()
-            cursor = conn.cursor()
-            _wh_repo.finalizar_evento(
-                cursor,
-                event_id,
-                resultado,
-                contacto_id=contacto_id,
-                object_id=object_id,
-                estado_anterior=estado_anterior,
-                estado_nuevo=estado_nuevo,
-            )
-            if contacto_id and estado_anterior != estado_nuevo:
-                _wh_repo.audit_webhook(
-                    db,
-                    cursor,
-                    contacto_id,
-                    "stripe_webhook_procesado",
-                    {
-                        "event_id": event_id,
-                        "event_type": event_type,
-                        "object_id": object_id,
-                        "estado_anterior": estado_anterior,
-                        "estado_nuevo": estado_nuevo,
-                        "resultado": resultado,
-                    },
-                )
-            conn.commit()
-        finally:
-            if conn:
+            with db._lock:
+                conn = db._connect()
+                cursor = conn.cursor()
+                _wh_repo.marcar_evento_fallido(cursor, event_id, type(exc).__name__)
+                conn.commit()
                 conn.close()
+        except Exception:
+            pass
+        return _processing_error_response(
+            db,
+            log_kwargs={**base_log, "payload_len": payload_len, "has_stripe_signature": True},
+            error_kind=f"handler:{type(exc).__name__}",
+            event_id=event_id,
+            event_type=event_type,
+        )
+
+    try:
+        with db._lock:
+            conn = None
+            try:
+                conn = db._connect()
+                cursor = conn.cursor()
+                _wh_repo.finalizar_evento(
+                    cursor,
+                    event_id,
+                    resultado,
+                    contacto_id=contacto_id,
+                    object_id=object_id,
+                    estado_anterior=estado_anterior,
+                    estado_nuevo=estado_nuevo,
+                )
+                if contacto_id and estado_anterior != estado_nuevo:
+                    _wh_repo.audit_webhook(
+                        db,
+                        cursor,
+                        contacto_id,
+                        "stripe_webhook_procesado",
+                        {
+                            "event_id": event_id,
+                            "event_type": event_type,
+                            "object_id": object_id,
+                            "estado_anterior": estado_anterior,
+                            "estado_nuevo": estado_nuevo,
+                            "resultado": resultado,
+                        },
+                    )
+                conn.commit()
+            finally:
+                if conn:
+                    conn.close()
+    except Exception as exc:
+        return _processing_error_response(
+            db,
+            log_kwargs={**base_log, "payload_len": payload_len, "has_stripe_signature": True},
+            error_kind=f"finalize:{type(exc).__name__}",
+            event_id=event_id,
+            event_type=event_type,
+        )
+
+    log_resultado = "unsupported_event" if is_unknown or resultado == "ignored_unknown" else "processed"
+    log_stripe_webhook(
+        resultado=log_resultado,
+        payload_len=payload_len,
+        has_stripe_signature=True,
+        event_id=event_id,
+        event_type=event_type,
+        **base_log,
+    )
 
     return {
         "status": "success",

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import time
 from functools import lru_cache
 from typing import Any, Dict, Optional
+
+_webhook_logger = logging.getLogger("ruana.stripe_webhook")
 
 from core.settings import get_settings
 from core.runtime_environment import is_test_context
@@ -222,15 +225,18 @@ def _log_webhook_construct_diag(
     payload_len: int,
     sig_meta: Dict[str, Any],
 ) -> None:
-    """Diagnóstico temporal: tipo de fallo sin secretos ni payload completo."""
-    print(
-        "[RUANA][WEBHOOK_DIAG] "
-        f"phase={phase} "
-        f"kind={_webhook_exception_kind(exc)} "
-        f"exc_type={type(exc).__name__} "
-        f"payload_len={payload_len} "
-        f"sig_meta={sig_meta} "
-        f"message={_sanitize_webhook_diag_message(str(exc))}"
+    """Diagnóstico seguro: tipo de fallo sin secretos ni payload completo."""
+    _webhook_logger.info(
+        "construct_webhook_event phase=%s kind=%s exc_type=%s payload_len=%s "
+        "sig_present=%s v1_count=%s timestamp_skew_sec=%s message=%s",
+        phase,
+        _webhook_exception_kind(exc),
+        type(exc).__name__,
+        payload_len,
+        sig_meta.get("present"),
+        sig_meta.get("v1_count"),
+        sig_meta.get("timestamp_skew_sec"),
+        _sanitize_webhook_diag_message(str(exc)),
     )
 
 

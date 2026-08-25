@@ -91,5 +91,5 @@ def get_settings() -> Settings:
         smtp_from_email=smtp_from,
         stripe_secret_key=os.environ.get("STRIPE_SECRET_KEY", ""),
         stripe_publishable_key=os.environ.get("STRIPE_PUBLISHABLE_KEY", ""),
-        stripe_webhook_secret=os.environ.get("STRIPE_WEBHOOK_SECRET", ""),
+        stripe_webhook_secret=(os.environ.get("STRIPE_WEBHOOK_SECRET", "") or "").strip(),
     )

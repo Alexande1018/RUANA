@@ -1059,10 +1059,18 @@ def _procesar_pago_confirmado(
                 conn.close()
 
 
-def procesar_webhook_stripe(db, payload: bytes, sig_header: str) -> Dict[str, Any]:
+def procesar_webhook_stripe(
+    db,
+    payload: bytes,
+    sig_header: str,
+    *,
+    log_kwargs: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     """Verifica firma e idempotencia; procesa eventos Stripe (FASE 02 → stripe_webhook_service)."""
     from core.services import stripe_webhook_service
-    return stripe_webhook_service.procesar_webhook(db, payload, sig_header)
+    return stripe_webhook_service.procesar_webhook(
+        db, payload, sig_header, log_kwargs=log_kwargs,
+    )
 
 
 def procesar_timeouts_sin_confirmacion_stripe(db) -> int:
