@@ -845,6 +845,52 @@ def _migrar_payment_conflicts(db, conn, cursor) -> None:
     _repo.execute(cursor, "CREATE INDEX IF NOT EXISTS idx_payment_conflicts_trabajo ON payment_conflicts(trabajo_id)")
     _repo.execute(cursor, "CREATE INDEX IF NOT EXISTS idx_payment_conflicts_created ON payment_conflicts(created_at DESC)")
 
+
+def _asegurar_stripe_webhook_events_id_serial_postgres(db, cursor) -> None:
+    """
+    Postgres: tablas creadas con INTEGER PRIMARY KEY (sin SERIAL) no auto-generan id.
+    Añade secuencia + DEFAULT nextval sin relajar NOT NULL ni la PK.
+    """
+    if db.backend != "postgres":
+        return
+    if not _repo.tabla_existe(cursor, "stripe_webhook_events"):
+        return
+    cursor.execute(
+        """
+        SELECT column_default
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'stripe_webhook_events'
+          AND column_name = 'id'
+        """
+    )
+    row = cursor.fetchone()
+    if row is None:
+        return
+    default = row[0] if not hasattr(row, "keys") else row.get("column_default")
+    if default and "nextval" in str(default):
+        return
+    cursor.execute("CREATE SEQUENCE IF NOT EXISTS stripe_webhook_events_id_seq")
+    cursor.execute(
+        """
+        SELECT setval(
+            'stripe_webhook_events_id_seq',
+            COALESCE((SELECT MAX(id) FROM stripe_webhook_events), 0) + 1,
+            false
+        )
+        """
+    )
+    cursor.execute(
+        """
+        ALTER TABLE stripe_webhook_events
+        ALTER COLUMN id SET DEFAULT nextval('stripe_webhook_events_id_seq')
+        """
+    )
+    cursor.execute(
+        "ALTER SEQUENCE stripe_webhook_events_id_seq OWNED BY stripe_webhook_events.id"
+    )
+
+
 def _migrar_stripe_pagos(db, conn, cursor) -> None:
     """Columnas y tablas para pagos Stripe Connect (separate charges and transfers)."""
     contacto_cols_sqlite = [
@@ -882,9 +928,16 @@ def _migrar_stripe_pagos(db, conn, cursor) -> None:
     if columnas_pc and "stripe_payment_intent_id" not in columnas_pc:
         _repo.execute(cursor, "ALTER TABLE payment_conflicts ADD COLUMN stripe_payment_intent_id TEXT")
 
-    _repo.execute(cursor, """
+    wh_id_col = (
+        "SERIAL PRIMARY KEY"
+        if db.backend == "postgres"
+        else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    )
+    _repo.execute(
+        cursor,
+        f"""
         CREATE TABLE IF NOT EXISTS stripe_webhook_events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {wh_id_col},
             stripe_event_id TEXT NOT NULL UNIQUE,
             tipo TEXT NOT NULL,
             contacto_id INTEGER,
@@ -892,8 +945,10 @@ def _migrar_stripe_pagos(db, conn, cursor) -> None:
             resultado TEXT,
             FOREIGN KEY (contacto_id) REFERENCES contactos_ruana(id)
         )
-    """)
+        """,
+    )
     _repo.execute(cursor, "CREATE INDEX IF NOT EXISTS idx_stripe_webhook_contacto ON stripe_webhook_events(contacto_id)")
+    _asegurar_stripe_webhook_events_id_serial_postgres(db, cursor)
 
 
 def _migrar_estado_financiero(db, conn, cursor) -> None:
