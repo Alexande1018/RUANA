@@ -51,6 +51,20 @@ def test_reclamar_evento_idempotencia_sqlite(sqlite_db):
     assert count == 1
 
 
+def test_reclamar_evento_failed_retry_sqlite(sqlite_db):
+    repo = StripeWebhookRepo()
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    assert repo.reclamar_evento(cur, "evt_fail_retry", "charge.dispute.created") == "claimed"
+    conn.commit()
+    repo.marcar_evento_fallido(cur, "evt_fail_retry", "err")
+    conn.commit()
+    retry = repo.reclamar_evento(cur, "evt_fail_retry", "charge.dispute.created")
+    conn.commit()
+    conn.close()
+    assert retry == "claimed"
+
+
 def test_migrar_stripe_pagos_postgres_create_uses_serial_primary_key():
     db = MagicMock()
     db.backend = "postgres"

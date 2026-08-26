@@ -13,8 +13,8 @@ class StripeWebhookRepo:
         Intenta reclamar un evento de forma atómica.
 
         Returns:
-            'claimed' — este proceso debe procesarlo.
-            'duplicate_ok' — ya procesado correctamente.
+            'claimed' — este proceso debe procesarlo (nuevo o reintento tras failed).
+            'duplicate_ok' — ya procesado correctamente (completed).
             'duplicate_processing' — otro proceso lo está procesando.
         """
         cursor.execute(
@@ -27,6 +27,22 @@ class StripeWebhookRepo:
         )
         if cursor.rowcount > 0:
             return "claimed"
+
+        cursor.execute(
+            """
+            UPDATE stripe_webhook_events
+            SET resultado = 'processing',
+                estado_procesamiento = 'processing',
+                error_message = NULL,
+                tipo = ?
+            WHERE stripe_event_id = ?
+              AND estado_procesamiento = 'failed'
+            """,
+            (event_type, event_id),
+        )
+        if cursor.rowcount > 0:
+            return "claimed"
+
         cursor.execute(
             """
             SELECT resultado, estado_procesamiento
