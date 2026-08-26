@@ -43,6 +43,7 @@ module.exports = defineConfig({
           RUANA_DB_PATH: qaDbPath,
           RUANA_ADMIN_CREDENTIALS_PATH: path.join(__dirname, 'RUANA/config/admin_credentials.qa.json'),
           RUANA_ALLOW_LOCAL_UPLOADS: '1',
+          RUANA_DISABLE_RATE_LIMIT: '1',
           DATABASE_URL: '',
           SUPABASE_URL: '',
           SUPABASE_SERVICE_ROLE_KEY: '',
