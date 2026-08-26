@@ -393,7 +393,7 @@ test.describe('RUANA QA critica con video human-readable', () => {
     await loginAdminAsUser(page, scenario);
 
     const sections = [
-      ['.estado-global', 'Estado global', 'El admin revisa KPIs, aliados activos, suplentes, riesgo y solicitudes.'],
+      ['#command-center-wrap', 'Estado global', 'El admin revisa KPIs del Command Center, aliados activos, suplentes, riesgo y solicitudes.'],
       ['#movimiento-grid', 'Movimiento 24h', 'El admin revisa solicitudes, invitaciones recientes y actividad por hora.'],
       ['.metricas-salud', 'Metricas clave', 'El admin revisa ratios de salud y disponibilidad de oficios.'],
       ['#pendientes-validacion-wrap', 'Aliados pendientes', 'El admin revisa altas pendientes y estados de registro.'],
@@ -401,6 +401,7 @@ test.describe('RUANA QA critica con video human-readable', () => {
       ['#pagos-apoyo-wrap', 'Pagos Apoyo RUANA', 'El admin revisa trabajos cerrados y acciones de pago.'],
       ['#pagos-en-revision-wrap', 'Pagos en revision', 'El admin revisa comprobantes enviados.'],
       ['#solicitudes-admin-wrap', 'Solicitudes', 'El admin revisa filtros y registros de nuevas conexiones.'],
+      ['#solicitudes-semanales-admin-wrap', 'Solicitudes semanales', 'El admin revisa necesidades de grupo y respuestas de la semana.'],
       ['#competencias-activas-wrap', 'Competencias activas', 'El admin revisa score, suplencias y competencias.'],
       ['#conversaciones-ruana-wrap', 'Registro de chats', 'El admin revisa conversaciones entre solicitante y profesional.'],
     ];
