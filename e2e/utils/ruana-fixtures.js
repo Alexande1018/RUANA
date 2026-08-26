@@ -2,6 +2,7 @@ const { expect } = require('@playwright/test');
 
 const ADMIN_CODE = process.env.RUANA_QA_ADMIN_CODE || 'ADMIN001';
 const ADMIN_PASSWORD = process.env.RUANA_QA_ADMIN_PASSWORD || ADMIN_CODE;
+const DEFAULT_ALIADO_PIN = process.env.RUANA_QA_ALIADO_PIN || '1234';
 
 function uniqueId(prefix) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
@@ -90,16 +91,37 @@ async function registerAliado(request, overrides = {}) {
   return body;
 }
 
-async function aliadoLogin(request, codigo) {
+async function aliadoLogin(request, codigo, pin = DEFAULT_ALIADO_PIN) {
   const response = await request.post('/api/aliado/login', {
-    data: { codigo },
+    data: { codigo, pin },
   });
-  const body = await expectOk(response, `aliado login ${codigo}`);
-  expect(body.session_id).toBeTruthy();
+  const body = await response.json().catch(() => ({}));
+
+  if (body.pin_setup_required && body.setup_token) {
+    const pinResp = await request.post('/api/aliado/pin/crear', {
+      data: {
+        setup_token: body.setup_token,
+        pin,
+        pin_confirmacion: pin,
+      },
+    });
+    const pinBody = await expectOk(pinResp, `aliado pin setup ${codigo}`);
+    expect(pinBody.session_id).toBeTruthy();
+    return {
+      codigo,
+      sessionId: pinBody.session_id,
+      headers: { 'X-Ruana-Session-Id': pinBody.session_id },
+      pin,
+    };
+  }
+
+  const okBody = await expectOk(response, `aliado login ${codigo}`);
+  expect(okBody.session_id).toBeTruthy();
   return {
     codigo,
-    sessionId: body.session_id,
-    headers: { 'X-Ruana-Session-Id': body.session_id },
+    sessionId: okBody.session_id,
+    headers: { 'X-Ruana-Session-Id': okBody.session_id },
+    pin,
   };
 }
 
@@ -166,6 +188,7 @@ async function aceptarNegociacionCampo(request, session, contactoId, campo) {
 module.exports = {
   ADMIN_CODE,
   ADMIN_PASSWORD,
+  DEFAULT_ALIADO_PIN,
   adminLogin,
   aliadoLogin,
   buildAliadoData,
