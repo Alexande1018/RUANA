@@ -36,6 +36,7 @@ function buildAliadoData(overrides = {}) {
     telefono: overrides.telefono || uniquePhone(),
     descripcion: overrides.descripcion || 'Servicio de prueba QA automatizada',
     codigo_invitacion: overrides.codigo_invitacion || '',
+    acepta_privacidad_y_terminos: overrides.acepta_privacidad_y_terminos ?? true,
   };
 }
 
