@@ -119,19 +119,21 @@ def test_03_webhook_duplicado(sqlite_db):
 def test_04_concurrencia_mismo_event_id(sqlite_db):
     cid = _seed_stripe(sqlite_db)
     obj = {"payment_status": "paid", "payment_intent": "pi_conc", "metadata": {"contacto_id": str(cid)}, "id": "cs"}
+    event = _mock_event("evt_conc", "checkout.session.completed", obj)
     results = []
     barrier = threading.Barrier(2)
 
     def run():
         barrier.wait()
-        results.append(_procesar(sqlite_db, "evt_conc", "checkout.session.completed", obj))
+        results.append(stripe_webhook_service.procesar_webhook(sqlite_db, b"{}", "sig_valid"))
 
-    t1 = threading.Thread(target=run)
-    t2 = threading.Thread(target=run)
-    t1.start()
-    t2.start()
-    t1.join()
-    t2.join()
+    with patch("core.stripe_client.construct_webhook_event", return_value=event):
+        t1 = threading.Thread(target=run)
+        t2 = threading.Thread(target=run)
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
     success = sum(1 for r in results if r.get("status") == "success" and not r.get("duplicate"))
     duplicates = sum(1 for r in results if r.get("duplicate"))
     assert success + duplicates == 2

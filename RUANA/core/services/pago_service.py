@@ -982,11 +982,20 @@ def _procesar_pago_confirmado(
             if not row:
                 return {"status": "ignored", "message": "contacto no encontrado"}
             contacto = dict(row)
-            if contacto.get("stripe_payment_intent_id"):
-                return {"status": "ignored", "message": "ya procesado"}
             importe_cents = importe_bd_a_cents(
                 contacto.get("importe_acordado") or contacto.get("importe_final")
             )
+            pi_existente = str(contacto.get("stripe_payment_intent_id") or "").strip()
+            if pi_existente and contacto.get("estado_pago") == "cobro_confirmado":
+                if importe_cents > 0:
+                    from core.services.financial_ledger_hooks import on_pago_confirmado
+                    on_pago_confirmado(
+                        db,
+                        contacto_id=contacto_id,
+                        payment_intent_id=payment_intent_id,
+                        importe_bruto_cents=importe_cents,
+                    )
+                return {"status": "ignored", "message": "ya procesado"}
             if importe_cents <= 0:
                 return {"status": "error", "message": "sin importe"}
             bruto_c, apoyo_c, neto_c, comision_pct = _calcular_importes_stripe(importe_cents, db)
@@ -1051,6 +1060,10 @@ def _procesar_pago_confirmado(
             )
             return {"status": "success", "contacto_id": contacto_id}
         except Exception as e:
+            from core.services.financial_ledger_hooks import LedgerHookError
+
+            if isinstance(e, LedgerHookError):
+                raise
             if conn:
                 conn.rollback()
             return {"status": "error", "message": str(e)}

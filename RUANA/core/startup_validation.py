@@ -111,13 +111,10 @@ def validate_startup_configuration(settings) -> None:
         production=production,
     )
     if production and stripe_mode and settings.stripe_secret_key:
-        try:
-            validate_stripe_key_prefix_at_runtime(
-                stripe_mode=stripe_mode,
-                stripe_secret_key=settings.stripe_secret_key,
-            )
-        except StartupConfigurationError as e:
-            print(f"[RUANA][BOOT][WARN] Stripe modo/clave: {e} (pagos Stripe bloqueados hasta corregir)")
+        validate_stripe_key_prefix_at_runtime(
+            stripe_mode=stripe_mode,
+            stripe_secret_key=settings.stripe_secret_key,
+        )
     validate_secrets(
         flask_secret_key=settings.flask_secret_key,
         stripe_secret_key=settings.stripe_secret_key,

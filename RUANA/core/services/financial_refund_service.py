@@ -529,6 +529,163 @@ def procesar_webhook_refund(
                 {"event_id": event_id, "status": status},
             )
             conn.commit()
-            return {"status": "success", "refund_id": refund_id, "estado": estado}
+            contacto_id_row = int(row.get("contacto_id") or 0)
+            if estado == EstadoRefund.SUCCEEDED.value and contacto_id_row:
+                from core.services.financial_ledger_hooks import on_refund_succeeded
+                idem = (row.get("idempotency_key") or f"refund-webhook-{contacto_id_row}-{stripe_refund_id}")
+                on_refund_succeeded(
+                    db,
+                    contacto_id=contacto_id_row,
+                    refund_id=stripe_refund_id,
+                    importe_cents=amount_cents,
+                    comision_devuelta_cents=int(row.get("comision_devuelta_cents") or 0),
+                    idempotency_key=f"ledger-{idem}",
+                )
+            return {
+                "status": "success",
+                "refund_id": refund_id,
+                "estado": estado,
+                "contacto_id": contacto_id_row,
+            }
         finally:
             conn.close()
+
+
+def asegurar_refund_financiero_webhook(
+    db,
+    *,
+    contacto_id: int,
+    stripe_refund_id: str,
+    amount_cents: int,
+    status: str,
+    charge_id: str = "",
+    payment_intent_id: str = "",
+    event_id: str = "",
+) -> Dict[str, Any]:
+    """Crea o actualiza financial_refunds desde webhook y registra ledger (B7)."""
+    stripe_refund_id = (stripe_refund_id or "").strip()
+    if not stripe_refund_id or amount_cents <= 0:
+        return {"status": "error", "message": "refund webhook inválido"}
+
+    idempotency_key = f"refund-webhook-{contacto_id}-{stripe_refund_id}"
+    with db._lock:
+        conn = db._connect()
+        try:
+            cursor = conn.cursor()
+            existing = _refund_repo.select_por_stripe_refund_id(cursor, stripe_refund_id)
+            if not existing:
+                _refund_repo.reclamar_refund(
+                    cursor,
+                    contacto_id=contacto_id,
+                    idempotency_key=idempotency_key,
+                    importe_solicitado_cents=amount_cents,
+                    moneda="eur",
+                    causa_ruana=CausaReembolso.ERROR_RUANA.value,
+                    actor_codigo="stripe_webhook",
+                    permiso_usado="sistema",
+                    payment_intent_id=payment_intent_id,
+                    charge_id=charge_id,
+                    conflicto_id=None,
+                    comision_total_cents=0,
+                    comision_conservada_cents=0,
+                    comision_devuelta_cents=0,
+                    parte_ejecutada_cents=0,
+                    parte_no_ejecutada_cents=0,
+                    motivo_stripe="webhook",
+                    metadata={"origen": "stripe_webhook", "event_id": event_id},
+                )
+            conn.commit()
+        finally:
+            conn.close()
+
+    return procesar_webhook_refund(
+        db,
+        stripe_refund_id=stripe_refund_id,
+        amount_cents=amount_cents,
+        status=status,
+        charge_id=charge_id,
+        payment_intent_id=payment_intent_id,
+        event_id=event_id,
+    )
+
+
+def procesar_charge_refunded_unificado(
+    db,
+    *,
+    contacto_id: int,
+    charge_id: str,
+    payment_intent_id: str,
+    refunds: list,
+    amount_refunded_cents: int,
+    currency: str,
+    event_id: str,
+    importe_bruto_cents: int,
+) -> Dict[str, Any]:
+    """
+    Unifica charge.refunded: stripe_refunds (auditoría) + financial_refunds + ledger.
+    """
+    from core.financial.money import cents_a_importe_bd
+    from core.repositories.stripe_webhook_repo import StripeWebhookRepo
+
+    wh_repo = StripeWebhookRepo()
+    amount_eur = cents_a_importe_bd(amount_refunded_cents)
+    es_total = amount_refunded_cents >= importe_bruto_cents if importe_bruto_cents > 0 else False
+
+    items = refunds or []
+    if not items and amount_refunded_cents > 0:
+        items = [{
+            "id": f"re_{charge_id}_{event_id}"[:80],
+            "amount": amount_refunded_cents,
+            "status": "succeeded",
+            "charge": charge_id,
+            "payment_intent": payment_intent_id,
+        }]
+
+    ledger_ok = True
+    for item in items:
+        rid = str(item.get("id") or "").strip()
+        if not rid:
+            continue
+        amt = int(item.get("amount") or 0)
+        st = str(item.get("status") or "succeeded").lower()
+        res = asegurar_refund_financiero_webhook(
+            db,
+            contacto_id=contacto_id,
+            stripe_refund_id=rid,
+            amount_cents=amt,
+            status=st,
+            charge_id=charge_id or str(item.get("charge") or ""),
+            payment_intent_id=payment_intent_id or str(item.get("payment_intent") or ""),
+            event_id=event_id,
+        )
+        if res.get("status") != "success":
+            ledger_ok = False
+
+    with db._lock:
+        conn = db._connect()
+        cursor = conn.cursor()
+        wh_repo.actualizar_stripe_charge_id(cursor, contacto_id, charge_id)
+        inserted = False
+        for item in items:
+            rid = str(item.get("id") or "").strip()
+            if not rid:
+                continue
+            if wh_repo.insertar_refund(
+                cursor,
+                contacto_id,
+                rid,
+                charge_id,
+                cents_a_importe_bd(int(item.get("amount") or 0)),
+                currency,
+                event_id,
+                es_total,
+            ):
+                inserted = True
+        conn.commit()
+        conn.close()
+
+    return {
+        "status": "success" if ledger_ok else "error",
+        "inserted_legacy": inserted,
+        "refunds_procesados": len(items),
+    }

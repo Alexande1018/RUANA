@@ -602,12 +602,12 @@ class PagoRepo:
                 fecha_trabajo_en_progreso = COALESCE(fecha_trabajo_en_progreso, CURRENT_TIMESTAMP),
                 actualizado_en = CURRENT_TIMESTAMP
             WHERE id = ? AND modo_pago = 'stripe'
-              AND stripe_payment_intent_id IS NULL
+              AND (stripe_payment_intent_id IS NULL OR stripe_payment_intent_id = ?)
               AND estado_pago IN ('esperando_cobro_cliente', 'checkout_activo')
             """,
             (
                 importe, apoyo, comision_pct, apoyo, neto_profesional,
-                payment_intent_id, contacto_id,
+                payment_intent_id, contacto_id, payment_intent_id,
             ),
         )
         return cursor.rowcount

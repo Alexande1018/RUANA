@@ -2,7 +2,17 @@
 from __future__ import annotations
 
 import json
+import os
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
+
+
+def _processing_stuck_threshold_iso() -> str:
+    """Umbral para reclaim de eventos atascados en processing (B2)."""
+    minutes = int(os.environ.get("RUANA_WEBHOOK_PROCESSING_STUCK_MINUTES", "120"))
+    return (
+        datetime.now(timezone.utc) - timedelta(minutes=minutes)
+    ).strftime("%Y-%m-%d %H:%M:%S")
 
 
 class StripeWebhookRepo:
@@ -13,9 +23,9 @@ class StripeWebhookRepo:
         Intenta reclamar un evento de forma atómica.
 
         Returns:
-            'claimed' — este proceso debe procesarlo (nuevo o reintento tras failed).
+            'claimed' — este proceso debe procesarlo (nuevo, retry tras failed o reclaim stuck).
             'duplicate_ok' — ya procesado correctamente (completed).
-            'duplicate_processing' — otro proceso lo está procesando.
+            'duplicate_processing' — otro proceso lo está procesando o reclaim concurrente falló.
         """
         cursor.execute(
             """
@@ -24,21 +34,6 @@ class StripeWebhookRepo:
             ) VALUES (?, ?, 'processing', 'processing')
             """,
             (event_id, event_type),
-        )
-        if cursor.rowcount > 0:
-            return "claimed"
-
-        cursor.execute(
-            """
-            UPDATE stripe_webhook_events
-            SET resultado = 'processing',
-                estado_procesamiento = 'processing',
-                error_message = NULL,
-                tipo = ?
-            WHERE stripe_event_id = ?
-              AND estado_procesamiento = 'failed'
-            """,
-            (event_type, event_id),
         )
         if cursor.rowcount > 0:
             return "claimed"
@@ -54,10 +49,45 @@ class StripeWebhookRepo:
         row = cursor.fetchone()
         if not row:
             return "duplicate_processing"
+
         resultado = row[0] if not hasattr(row, "keys") else row["resultado"]
         estado = row[1] if not hasattr(row, "keys") else row["estado_procesamiento"]
+
+        if estado == "completed":
+            return "duplicate_ok"
+
         if estado == "processing" or resultado == "processing":
+            stuck_before = _processing_stuck_threshold_iso()
+            cursor.execute(
+                """
+                UPDATE stripe_webhook_events
+                SET resultado = 'processing', estado_procesamiento = 'processing',
+                    error_message = NULL, procesado_en = CURRENT_TIMESTAMP
+                WHERE stripe_event_id = ?
+                  AND estado_procesamiento = 'processing'
+                  AND procesado_en < ?
+                """,
+                (event_id, stuck_before),
+            )
+            if cursor.rowcount > 0:
+                return "claimed"
             return "duplicate_processing"
+
+        if estado == "failed":
+            cursor.execute(
+                """
+                UPDATE stripe_webhook_events
+                SET resultado = 'processing', estado_procesamiento = 'processing',
+                    error_message = NULL, procesado_en = CURRENT_TIMESTAMP
+                WHERE stripe_event_id = ?
+                  AND estado_procesamiento = 'failed'
+                """,
+                (event_id,),
+            )
+            if cursor.rowcount > 0:
+                return "claimed"
+            return "duplicate_processing"
+
         return "duplicate_ok"
 
     def finalizar_evento(

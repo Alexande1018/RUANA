@@ -436,6 +436,8 @@ def _procesar_cobro(
     ant_val = ant_antes.value if ant_antes else ""
     res = pago_service._procesar_pago_confirmado(db, contacto_id, payment_intent_id)
     status = res.get("status", "error")
+    if status == "error":
+        raise RuntimeError(res.get("message") or "error procesando pago confirmado")
     if status == "success":
         fts.sincronizar_tras_cobro_confirmado(db, contacto_id, payment_intent_id)
     elif status == "ignored":
@@ -677,13 +679,14 @@ def _sincronizar_financial_refunds_webhook(
 def _handle_charge_refunded(
     db, obj, event_id: str
 ) -> Tuple[Optional[int], str, str, str]:
+    from core.services import financial_refund_service as frs
+
     charge_id = _object_id(obj)
     payment_intent_id = str(_get(obj, "payment_intent") or "")
     raw_refunded = _get(obj, "amount_refunded") or _get(obj, "amount") or 0
     amount_refunded_cents = int(raw_refunded or 0)
     currency = str(_get(obj, "currency") or "eur").lower()
-    from core.financial.money import cents_a_importe_bd, importe_bd_a_cents
-    amount_eur = cents_a_importe_bd(amount_refunded_cents)
+    from core.financial.money import importe_bd_a_cents
 
     contacto_id = None
     with db._lock:
@@ -702,52 +705,43 @@ def _handle_charge_refunded(
     importe_bruto_cents = importe_bd_a_cents(
         row.get("importe_acordado") or row.get("importe_final")
     )
-    es_total = amount_refunded_cents >= importe_bruto_cents if importe_bruto_cents > 0 else False
-    refund_id = f"re_{charge_id}_{event_id}"[:80]
 
-    with db._lock:
-        conn = db._connect()
-        cursor = conn.cursor()
-        _wh_repo.actualizar_stripe_charge_id(cursor, contacto_id, charge_id)
-        inserted = _wh_repo.insertar_refund(
-            cursor, contacto_id, refund_id, charge_id,
-            amount_eur, currency, event_id, es_total,
-        )
-        total_reembolsado = _wh_repo.sumar_reembolsos_contacto(cursor, contacto_id)
-        conn.commit()
-        conn.close()
+    sync = frs.procesar_charge_refunded_unificado(
+        db,
+        contacto_id=contacto_id,
+        charge_id=charge_id,
+        payment_intent_id=payment_intent_id,
+        refunds=_extraer_refunds_del_objeto(obj),
+        amount_refunded_cents=amount_refunded_cents,
+        currency=currency,
+        event_id=event_id,
+        importe_bruto_cents=importe_bruto_cents,
+    )
+    if sync.get("status") != "success":
+        return contacto_id, "error_ledger_refund", "", ""
 
     estado = fts.obtener_estado_financiero(db, contacto_id)
     ant_val = estado.value if estado else ""
+    es_total = amount_refunded_cents >= importe_bruto_cents if importe_bruto_cents > 0 else False
 
-    if inserted:
-        objetivo = EstadoFinanciero.REEMBOLSADO if es_total else EstadoFinanciero.REEMBOLSO_PENDIENTE
-        if estado and estado not in (EstadoFinanciero.REEMBOLSADO, EstadoFinanciero.REEMBOLSO_PENDIENTE):
-            if _sm.puede_transicionar(estado, EstadoFinanciero.REEMBOLSO_PENDIENTE):
+    if estado and estado not in (EstadoFinanciero.REEMBOLSADO, EstadoFinanciero.REEMBOLSO_PENDIENTE):
+        if _sm.puede_transicionar(estado, EstadoFinanciero.REEMBOLSO_PENDIENTE):
+            _, nuevo_val, res = _transicion_si_valida(
+                db, contacto_id, EstadoFinanciero.REEMBOLSO_PENDIENTE,
+                motivo=f"charge.refunded parcial={not es_total}",
+                stripe_ref=event_id,
+            )
+            if es_total and _sm.puede_transicionar(
+                fts.obtener_estado_financiero(db, contacto_id) or estado,
+                EstadoFinanciero.REEMBOLSADO,
+            ):
                 _, nuevo_val, res = _transicion_si_valida(
-                    db, contacto_id, EstadoFinanciero.REEMBOLSO_PENDIENTE,
-                    motivo=f"charge.refunded parcial={not es_total} total={total_reembolsado}",
-                    stripe_ref=event_id,
+                    db, contacto_id, EstadoFinanciero.REEMBOLSADO,
+                    motivo="charge.refunded total", stripe_ref=event_id,
                 )
-                if es_total and _sm.puede_transicionar(
-                    fts.obtener_estado_financiero(db, contacto_id) or estado,
-                    EstadoFinanciero.REEMBOLSADO,
-                ):
-                    _, nuevo_val, res = _transicion_si_valida(
-                        db, contacto_id, EstadoFinanciero.REEMBOLSADO,
-                        motivo="charge.refunded total", stripe_ref=event_id,
-                    )
-                return contacto_id, res, ant_val, nuevo_val
+            return contacto_id, res, ant_val, nuevo_val
 
-    _sincronizar_financial_refunds_webhook(
-        db,
-        refunds=_extraer_refunds_del_objeto(obj),
-        charge_id=charge_id,
-        payment_intent_id=payment_intent_id,
-        event_id=event_id,
-    )
-
-    return contacto_id, "registrado" if inserted else "idempotent", ant_val, ant_val
+    return contacto_id, "registrado", ant_val, ant_val
 
 
 def _handle_refund_updated(
