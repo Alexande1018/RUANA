@@ -8,6 +8,16 @@ from typing import Any, Dict, List, Optional, Tuple
 from core.financial_schema_health import tabla_existe as _tabla_existe
 
 
+def _json_default(val: Any) -> str:
+    if isinstance(val, datetime):
+        return val.replace(microsecond=0).isoformat()
+    return str(val)
+
+
+def _json_dumps(payload: Any) -> str:
+    return json.dumps(payload or {}, ensure_ascii=False, default=_json_default)
+
+
 class FinancialAutomationRepo:
     MAX_LIMIT = 200
 
@@ -98,11 +108,11 @@ class FinancialAutomationRepo:
             """,
             (
                 estado,
-                json.dumps(metricas or {}, ensure_ascii=False),
+                _json_dumps(metricas),
                 json.dumps(errores or [], ensure_ascii=False),
                 int(alertas_nuevas),
                 int(alertas_actualizadas),
-                json.dumps(detalle or {}, ensure_ascii=False),
+                _json_dumps(detalle),
                 run_id,
             ),
         )
@@ -155,7 +165,9 @@ class FinancialAutomationRepo:
     ) -> Tuple[bool, int]:
         """Inserta o actualiza alerta. Devuelve (es_nueva, antiguedad_horas)."""
         now = fecha_evento or self._now_iso()
-        meta = json.dumps(metadata or {}, ensure_ascii=False)
+        if isinstance(now, datetime):
+            now = now.replace(microsecond=0).isoformat()
+        meta = _json_dumps(metadata)
         cursor.execute("SELECT id, estado, fecha_primera_deteccion FROM financial_alerts WHERE alert_key = ?", (alert_key,))
         row = cursor.fetchone()
         if row:
@@ -282,6 +294,8 @@ class FinancialAutomationRepo:
         if row is None:
             return None
         if hasattr(row, "keys"):
-            return dict(row)
-        names = [c[0] for c in cursor.description]
-        return {names[i]: row[i] for i in range(len(row))}
+            data = dict(row)
+        else:
+            names = [c[0] for c in cursor.description]
+            data = {names[i]: row[i] for i in range(len(row))}
+        return {k: _json_default(v) if isinstance(v, datetime) else v for k, v in data.items()}

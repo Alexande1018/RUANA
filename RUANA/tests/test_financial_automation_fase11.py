@@ -231,3 +231,49 @@ def test_12_listar_ejecuciones(client, sqlite_db, monkeypatch, session_headers):
     assert resp.status_code == 200
     items = resp.get_json().get("items") or []
     assert len(items) >= 1
+
+
+def test_13_finalizar_run_serializa_datetime_postgres_like(sqlite_db):
+    """Regresión B6: metricas con datetime (Postgres/psycopg) no deben romper el ciclo."""
+    from datetime import datetime, timezone
+
+    repo = FinancialAutomationRepo()
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    repo.insertar_run(cur, run_id="run_dt13", job_name=fas.JOB_MONITORING_CYCLE, actor="cron")
+    conn.commit()
+    metricas = {
+        "ultima_ejecucion": {
+            "run_id": "run_dt13",
+            "iniciado_en": datetime(2026, 8, 27, 9, 0, tzinfo=timezone.utc),
+        }
+    }
+    repo.finalizar_run(cur, "run_dt13", estado="SUCCESS", metricas=metricas)
+    conn.commit()
+    row = cur.execute(
+        "SELECT metricas_json FROM financial_automation_runs WHERE run_id = ?",
+        ("run_dt13",),
+    ).fetchone()
+    conn.close()
+    assert row is not None
+    assert "2026-08-27" in row[0]
+
+
+def test_14_cron_ejecutar_ciclo_con_metricas_datetime(client, sqlite_db, monkeypatch):
+    """HTTP 500 en prod: calcular_metricas + finalizar_run con datetimes."""
+    from datetime import datetime, timezone
+
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    fake_ultimo = {
+        "run_id": "prev",
+        "iniciado_en": datetime(2026, 8, 27, 8, 0, tzinfo=timezone.utc),
+    }
+    with patch.object(fas, "calcular_metricas", return_value={"ultima_ejecucion": fake_ultimo}), \
+         patch.object(fas, "ejecutar_reconciliacion_periodica", return_value={"status": "success", "metricas": {}}):
+        resp = client.post(
+            "/api/admin/financial-automation/ejecutar-ciclo",
+            json={"incluir_reconciliacion": False},
+            headers=_cron_headers(monkeypatch),
+        )
+    assert resp.status_code == 200
+    assert resp.get_json().get("status") == "success"

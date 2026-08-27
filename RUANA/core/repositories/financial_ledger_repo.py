@@ -226,7 +226,7 @@ class FinancialLedgerRepo:
             JOIN ledger_entries e ON e.ledger_transaction_id = t.id
             WHERE t.estado = 'POSTED'
             GROUP BY t.id
-            HAVING debit_sum != credit_sum
+            HAVING COALESCE(SUM(e.debit_cents), 0) != COALESCE(SUM(e.credit_cents), 0)
             LIMIT ?
             """,
             (limit,),
