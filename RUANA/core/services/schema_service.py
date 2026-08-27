@@ -846,23 +846,25 @@ def _migrar_payment_conflicts(db, conn, cursor) -> None:
     _repo.execute(cursor, "CREATE INDEX IF NOT EXISTS idx_payment_conflicts_created ON payment_conflicts(created_at DESC)")
 
 
-def _asegurar_stripe_webhook_events_id_serial_postgres(db, cursor) -> None:
+def _asegurar_tabla_id_serial_postgres(db, cursor, tabla: str) -> None:
     """
     Postgres: tablas creadas con INTEGER PRIMARY KEY (sin SERIAL) no auto-generan id.
     Añade secuencia + DEFAULT nextval sin relajar NOT NULL ni la PK.
     """
     if db.backend != "postgres":
         return
-    if not _repo.tabla_existe(cursor, "stripe_webhook_events"):
+    if not _repo.tabla_existe(cursor, tabla):
         return
+    seq = f"{tabla}_id_seq"
     cursor.execute(
         """
         SELECT column_default
         FROM information_schema.columns
         WHERE table_schema = 'public'
-          AND table_name = 'stripe_webhook_events'
+          AND table_name = %s
           AND column_name = 'id'
-        """
+        """,
+        (tabla,),
     )
     row = cursor.fetchone()
     if row is None:
@@ -870,25 +872,27 @@ def _asegurar_stripe_webhook_events_id_serial_postgres(db, cursor) -> None:
     default = row[0] if not hasattr(row, "keys") else row.get("column_default")
     if default and "nextval" in str(default):
         return
-    cursor.execute("CREATE SEQUENCE IF NOT EXISTS stripe_webhook_events_id_seq")
+    cursor.execute(f"CREATE SEQUENCE IF NOT EXISTS {seq}")
     cursor.execute(
-        """
+        f"""
         SELECT setval(
-            'stripe_webhook_events_id_seq',
-            COALESCE((SELECT MAX(id) FROM stripe_webhook_events), 0) + 1,
+            '{seq}',
+            COALESCE((SELECT MAX(id) FROM {tabla}), 0) + 1,
             false
         )
         """
     )
     cursor.execute(
-        """
-        ALTER TABLE stripe_webhook_events
-        ALTER COLUMN id SET DEFAULT nextval('stripe_webhook_events_id_seq')
+        f"""
+        ALTER TABLE {tabla}
+        ALTER COLUMN id SET DEFAULT nextval('{seq}')
         """
     )
-    cursor.execute(
-        "ALTER SEQUENCE stripe_webhook_events_id_seq OWNED BY stripe_webhook_events.id"
-    )
+    cursor.execute(f"ALTER SEQUENCE {seq} OWNED BY {tabla}.id")
+
+
+def _asegurar_stripe_webhook_events_id_serial_postgres(db, cursor) -> None:
+    _asegurar_tabla_id_serial_postgres(db, cursor, "stripe_webhook_events")
 
 
 def _migrar_stripe_pagos(db, conn, cursor) -> None:
@@ -1696,9 +1700,10 @@ def _migrar_financial_fase09_admin_panel(db, conn, cursor) -> None:
 
 def _migrar_financial_fase10_security(db, conn, cursor) -> None:
     """FASE 10: aprobaciones de acciones sensibles + auditoría financiera unificada."""
-    _repo.execute(cursor, """
+    id_col = "SERIAL PRIMARY KEY" if db.backend == "postgres" else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    _repo.execute(cursor, f"""
         CREATE TABLE IF NOT EXISTS financial_action_approvals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {id_col},
             action_id TEXT NOT NULL,
             action_type TEXT NOT NULL,
             contacto_id INTEGER,
@@ -1731,9 +1736,9 @@ def _migrar_financial_fase10_security(db, conn, cursor) -> None:
         CREATE INDEX IF NOT EXISTS idx_fin_approval_idem
         ON financial_action_approvals(idempotency_key)
     """)
-    _repo.execute(cursor, """
+    _repo.execute(cursor, f"""
         CREATE TABLE IF NOT EXISTS financial_audit_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {id_col},
             request_id TEXT NOT NULL,
             actor_codigo TEXT NOT NULL,
             permiso_usado TEXT,
@@ -1762,10 +1767,13 @@ def _migrar_financial_fase10_security(db, conn, cursor) -> None:
     _repo.execute(cursor, """
         CREATE INDEX IF NOT EXISTS idx_fin_audit_created ON financial_audit_log(created_at DESC)
     """)
+    _asegurar_tabla_id_serial_postgres(db, cursor, "financial_action_approvals")
+    _asegurar_tabla_id_serial_postgres(db, cursor, "financial_audit_log")
 
 
 def _migrar_financial_fase11_automation(db, conn, cursor) -> None:
     """FASE 11: leases persistentes, ejecuciones de automatización y alertas financieras."""
+    id_col = "SERIAL PRIMARY KEY" if db.backend == "postgres" else "INTEGER PRIMARY KEY AUTOINCREMENT"
     _repo.execute(cursor, """
         CREATE TABLE IF NOT EXISTS financial_job_leases (
             job_name TEXT PRIMARY KEY,
@@ -1775,9 +1783,9 @@ def _migrar_financial_fase11_automation(db, conn, cursor) -> None:
             metadata_json TEXT
         )
     """)
-    _repo.execute(cursor, """
+    _repo.execute(cursor, f"""
         CREATE TABLE IF NOT EXISTS financial_automation_runs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {id_col},
             run_id TEXT NOT NULL UNIQUE,
             job_name TEXT NOT NULL,
             estado TEXT NOT NULL DEFAULT 'RUNNING',
@@ -1799,9 +1807,9 @@ def _migrar_financial_fase11_automation(db, conn, cursor) -> None:
         CREATE INDEX IF NOT EXISTS idx_fin_auto_runs_estado
         ON financial_automation_runs(estado)
     """)
-    _repo.execute(cursor, """
+    _repo.execute(cursor, f"""
         CREATE TABLE IF NOT EXISTS financial_alerts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {id_col},
             alert_key TEXT NOT NULL UNIQUE,
             tipo TEXT NOT NULL,
             severidad TEXT NOT NULL,
@@ -1830,6 +1838,8 @@ def _migrar_financial_fase11_automation(db, conn, cursor) -> None:
     _repo.execute(cursor, """
         CREATE INDEX IF NOT EXISTS idx_fin_alerts_contacto ON financial_alerts(contacto_id)
     """)
+    _asegurar_tabla_id_serial_postgres(db, cursor, "financial_automation_runs")
+    _asegurar_tabla_id_serial_postgres(db, cursor, "financial_alerts")
 
 
 def _migrar_financial_fase13_p0_ledger_immutability(db, conn, cursor) -> None:

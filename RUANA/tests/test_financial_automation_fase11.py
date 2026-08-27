@@ -277,3 +277,102 @@ def test_14_cron_ejecutar_ciclo_con_metricas_datetime(client, sqlite_db, monkeyp
         )
     assert resp.status_code == 200
     assert resp.get_json().get("status") == "success"
+
+
+def test_15_migrar_fase11_postgres_usa_serial_primary_key():
+    """Postgres: financial_automation_runs/alerts deben crearse con SERIAL, no AUTOINCREMENT."""
+    from unittest.mock import MagicMock
+
+    from core.services import schema_service
+
+    db = MagicMock()
+    db.backend = "postgres"
+    conn = MagicMock()
+    cursor = MagicMock()
+    executed: list[str] = []
+
+    def record_execute(sql, params=()):
+        executed.append(str(sql))
+        return cursor
+
+    cursor.execute = record_execute
+
+    schema_service._migrar_financial_fase11_automation(db, conn, cursor)
+
+    runs_sql = next(s for s in executed if "CREATE TABLE IF NOT EXISTS financial_automation_runs" in s)
+    alerts_sql = next(s for s in executed if "CREATE TABLE IF NOT EXISTS financial_alerts" in s)
+    assert "SERIAL PRIMARY KEY" in runs_sql
+    assert "SERIAL PRIMARY KEY" in alerts_sql
+    assert "AUTOINCREMENT" not in runs_sql.upper()
+    assert any("financial_automation_runs_id_seq" in s for s in executed)
+    assert any("financial_alerts_id_seq" in s for s in executed)
+
+
+def test_16_asegurar_financial_automation_runs_repairs_missing_serial():
+    """Regresión prod: reparar id sin DEFAULT en financial_automation_runs (Postgres)."""
+    from unittest.mock import MagicMock, patch
+
+    from core.services import schema_service
+
+    db = MagicMock()
+    db.backend = "postgres"
+    cursor = MagicMock()
+    executed: list[str] = []
+
+    def record_execute(sql, params=()):
+        executed.append(str(sql))
+        return cursor
+
+    cursor.execute = record_execute
+    cursor.fetchone.return_value = (None,)
+
+    with patch.object(schema_service._repo, "tabla_existe", return_value=True):
+        schema_service._asegurar_tabla_id_serial_postgres(db, cursor, "financial_automation_runs")
+
+    assert any("CREATE SEQUENCE IF NOT EXISTS financial_automation_runs_id_seq" in s for s in executed)
+    assert any("ALTER COLUMN id SET DEFAULT nextval" in s for s in executed)
+    assert any("OWNED BY financial_automation_runs.id" in s for s in executed)
+
+
+def test_17_detectar_webhooks_usa_procesado_en(sqlite_db):
+    """stripe_webhook_events usa procesado_en (no creado_en inexistente)."""
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO stripe_webhook_events (
+            stripe_event_id, tipo, estado_procesamiento, resultado, procesado_en
+        ) VALUES (?, ?, ?, ?, datetime('now', '-3 hours'))
+        """,
+        ("evt_f11", "payment_intent.succeeded", "failed", "error"),
+    )
+    conn.commit()
+    stats = fas._detectar_webhooks(cur, "run_wh")
+    conn.close()
+    assert stats["nuevas"] >= 1
+
+
+def test_18_cron_ejecutar_ciclo_con_webhook_fallido(client, sqlite_db, monkeypatch):
+    """El cron no devuelve 500 aunque existan webhooks fallidos en el esquema real."""
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO stripe_webhook_events (
+            stripe_event_id, tipo, estado_procesamiento, resultado, procesado_en
+        ) VALUES (?, ?, ?, ?, datetime('now', '-3 hours'))
+        """,
+        ("evt_cron_f11", "payment_intent.succeeded", "failed", "error"),
+    )
+    conn.commit()
+    conn.close()
+
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    with patch.object(fas, "ejecutar_reconciliacion_periodica", return_value={"status": "success", "metricas": {}}):
+        resp = client.post(
+            "/api/admin/financial-automation/ejecutar-ciclo",
+            json={"incluir_reconciliacion": False},
+            headers=_cron_headers(monkeypatch),
+        )
+    assert resp.status_code == 200
+    assert resp.get_json().get("status") == "success"

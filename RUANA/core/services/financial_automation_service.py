@@ -104,23 +104,38 @@ def _detectar_webhooks(cursor, run_id: str) -> Dict[str, int]:
     stats = {"nuevas": 0, "actualizadas": 0}
     if not _admin_repo.tabla_existe(cursor, "stripe_webhook_events"):
         return stats
-    cols = {c[1] for c in cursor.execute("PRAGMA table_info(stripe_webhook_events)").fetchall()}
+    cols = _admin_repo.columnas_tabla(cursor, "stripe_webhook_events")
+    ts_col = "procesado_en" if "procesado_en" in cols else None
+    if not ts_col:
+        return stats
     stuck_before = _iso_hours_ago(_WEBHOOK_STUCK_HOURS)
     if "estado_procesamiento" in cols:
-        wh_fail = "estado_procesamiento != 'completed' OR error_message IS NOT NULL"
-        wh_stuck = f"({wh_fail}) AND creado_en < ?"
+        wh_fail = "estado_procesamiento = 'failed'"
+        wh_stuck = f"estado_procesamiento = 'processing' AND {ts_col} < ?"
     elif "procesado" in cols:
         wh_fail = "procesado = 0 OR estado = 'error'"
-        wh_stuck = f"({wh_fail}) AND creado_en < ?"
+        wh_stuck = f"({wh_fail}) AND {ts_col} < ?"
     else:
         wh_fail = "resultado IS NOT NULL AND resultado != 'ok'"
-        wh_stuck = f"({wh_fail}) AND creado_en < ?"
+        wh_stuck = f"({wh_fail}) AND {ts_col} < ?"
 
-    for sql, tipo, sev in (
-        (f"SELECT id, stripe_event_id, tipo, contacto_id, creado_en, resultado FROM stripe_webhook_events WHERE {wh_fail} ORDER BY id DESC LIMIT 100", "webhook_fallido", "high"),
-        (f"SELECT id, stripe_event_id, tipo, contacto_id, creado_en, resultado FROM stripe_webhook_events WHERE {wh_stuck} ORDER BY id DESC LIMIT 100", "webhook_atascado", "critical"),
-    ):
-        params: tuple = () if tipo == "webhook_fallido" else (stuck_before,)
+    queries = (
+        (
+            f"SELECT id, stripe_event_id, tipo, contacto_id, {ts_col}, resultado "
+            f"FROM stripe_webhook_events WHERE {wh_fail} ORDER BY id DESC LIMIT 100",
+            "webhook_fallido",
+            "high",
+            (),
+        ),
+        (
+            f"SELECT id, stripe_event_id, tipo, contacto_id, {ts_col}, resultado "
+            f"FROM stripe_webhook_events WHERE {wh_stuck} ORDER BY id DESC LIMIT 100",
+            "webhook_atascado",
+            "critical",
+            (stuck_before,),
+        ),
+    )
+    for sql, tipo, sev, params in queries:
         cursor.execute(sql, params)
         for row in _admin_repo._rows(cursor):
             key = f"webhook:{row.get('id')}"
@@ -130,7 +145,7 @@ def _detectar_webhooks(cursor, run_id: str) -> Dict[str, int]:
                 contacto_id=row.get("contacto_id"),
                 accion_recomendada="Revisar evento webhook y reprocesar si procede",
                 accion_disponible=None, fuente="stripe_webhook_events",
-                metadata=meta, fecha_evento=row.get("creado_en"),
+                metadata=meta, fecha_evento=row.get(ts_col),
             )
             stats["nuevas"] += int(n)
             stats["actualizadas"] += int(u)
