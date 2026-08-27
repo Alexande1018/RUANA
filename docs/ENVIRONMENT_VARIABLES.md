@@ -126,7 +126,7 @@ Sin password configurado, el correo de bienvenida no se envía (fallo silencioso
 
 Validación: prefijo clave debe coincidir con modo (`startup_validation.py`, `stripe_mode_guard.py`).
 
-**Prod deploy workflow:** fija `RUANA_STRIPE_MODE=test` — revisar antes de live.
+**Prod deploy workflow:** resuelve `RUANA_STRIPE_MODE` vía `vars.RUANA_STRIPE_MODE` (default `test`), input `workflow_dispatch`, y valida coherencia con `STRIPE_SECRET_KEY`. Live en push automático requiere `vars.RUANA_STRIPE_ALLOW_LIVE_PUSH=true`.
 
 ---
 

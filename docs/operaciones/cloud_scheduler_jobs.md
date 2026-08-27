@@ -61,6 +61,39 @@ Base URL de producción: sustituye `https://<tu-servicio>-<hash>-ew.a.run.app` p
 
 ---
 
+## Job 4 — Automatización financiera (FASE 11)
+
+| Campo | Valor |
+| --- | --- |
+| Nombre sugerido | `ruana-financial-automation-cycle` |
+| Frecuencia | `0 */6 * * *` (cada 6 h) o `0 7 * * *` (diario 07:00 UTC) |
+| URL | `https://<CLOUD_RUN_URL>/api/admin/financial-automation/ejecutar-ciclo` |
+| Método | `POST` |
+| Headers | `X-Ruana-Cron-Secret: <RUANA_CRON_SECRET>` |
+| Body | vacío o `{"incluir_reconciliacion": true}` |
+
+Ejecuta el ciclo de monitorización financiera (`financial_monitoring_cycle`): detección de webhooks atascados/fallidos, alertas, reconciliación opcional. Requiere `RUANA_CRON_SECRET` en Cloud Run (sincronizado por el workflow de deploy).
+
+---
+
+## Provisionamiento idempotente (script)
+
+Tras desplegar Cloud Run y configurar `RUANA_CRON_SECRET`:
+
+```bash
+export PROJECT_ID=ruana-4293f
+export CLOUD_RUN_URL=https://<tu-servicio>.run.app
+export RUANA_CRON_SECRET=<mismo-valor-que-GitHub-Secret>
+# Opcional (recomendado si Cloud Run exige IAM):
+export SCHEDULER_OIDC_SERVICE_ACCOUNT=ruana-runner@ruana-4293f.iam.gserviceaccount.com
+
+bash .github/scripts/provision-cloud-scheduler-jobs.sh
+```
+
+El script crea o actualiza los **cuatro** jobs anteriores.
+
+---
+
 ## Creación en GCP (ejemplo gcloud)
 
 ```bash

@@ -456,7 +456,18 @@ def admin_cron_status():
         for tipo in tipos:
             match = next((e for e in eventos if e.get('tipo') == tipo), None)
             ultimos[tipo] = match
-        return jsonify({'status': 'success', 'ultimos': ultimos})
+        fin_auto = None
+        try:
+            from core.services import financial_automation_service as fas
+            resumen = fas.obtener_resumen(db)
+            fin_auto = resumen.get('ultima_ejecucion')
+        except Exception:
+            fin_auto = None
+        return jsonify({
+            'status': 'success',
+            'ultimos': ultimos,
+            'financial_automation': fin_auto,
+        })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 

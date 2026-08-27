@@ -12,21 +12,25 @@
 | Transferencias Live reales | **No ejecutadas** en esta fase |
 | Reembolsos Live reales | **No ejecutados** en esta fase |
 
-## Evidencia de configuración
+## Configuración de modo (B5 — sin hardcode en workflow)
 
-En `.github/workflows/deploy-firebase.yml`, el despliegue Cloud Run incluye:
+El despliegue **no** fija `RUANA_STRIPE_MODE=test` en el workflow. Se resuelve así:
 
-```text
-RUANA_STRIPE_MODE=test
-```
+| Origen | Prioridad |
+|--------|-----------|
+| Input `ruana_stripe_mode` en `workflow_dispatch` | 1 |
+| Variable de repositorio `vars.RUANA_STRIPE_MODE` | 2 |
+| Default `test` | 3 |
 
-La barrera `core/stripe_mode_guard.py` rechaza eventos webhook cuyo `livemode` no coincide con `RUANA_STRIPE_MODE`. Con `test`, cualquier evento Live sería rechazado con `stripe_livemode_mismatch`.
+Antes de desplegar, `.github/scripts/validate-stripe-deploy-mode.sh` exige coherencia modo ↔ prefijo de `STRIPE_SECRET_KEY`.
+
+**Salvaguarda:** `RUANA_STRIPE_MODE=live` en push automático a `main` falla salvo `vars.RUANA_STRIPE_ALLOW_LIVE_PUSH=true`.
 
 ## Cómo activar Live (fuera de alcance FASE 14)
 
 1. Completar checklist de negocio y compliance Stripe.
 2. Configurar secrets Live en GitHub (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, etc.).
-3. Cambiar `RUANA_STRIPE_MODE=live` en el workflow de despliegue.
+3. Ejecutar deploy con `workflow_dispatch` y `ruana_stripe_mode=live` (o definir `vars.RUANA_STRIPE_MODE=live` + `vars.RUANA_STRIPE_ALLOW_LIVE_PUSH=true` si se desea en push).
 4. Registrar endpoint webhook Live en Stripe Dashboard apuntando a `/api/stripe/webhook`.
 5. Ejecutar smoke tests en Test antes de conmutar.
 6. Documentar fecha de activación y primera transacción Live supervisada.

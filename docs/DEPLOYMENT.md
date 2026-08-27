@@ -73,11 +73,11 @@ RUANA_PUBLIC_APP_URL=https://ruana-4293f.web.app
 RUANA_STRIPE_PAYMENTS_ENABLED=1
 STRIPE_API_VERSION=2024-11-20.acacia
 RUANA_ENV=production
-RUANA_STRIPE_MODE=test
+RUANA_STRIPE_MODE=<resuelto: vars.RUANA_STRIPE_MODE o default test>
 RUANA_SESSION_COOKIE_SECURE=true
 ```
 
-**Atención:** `RUANA_STRIPE_MODE=test` implica claves Stripe de test en producción salvo cambio manual post-deploy — confirmar antes de cobros reales.
+**Atención:** por defecto el deploy usa `test` si no hay variable de repositorio. Para Live: `workflow_dispatch` con `ruana_stripe_mode=live` y secrets `sk_live_` / `whsec_` de Live.
 
 ### Imagen Docker
 
@@ -163,7 +163,7 @@ Endpoints principales:
 
 Header requerido: `X-Ruana-Cron-Secret: <RUANA_CRON_SECRET>`
 
-**Estado despliegue scheduler:** No verificado en esta auditoría.
+**Estado despliegue scheduler:** Código y script `provision-cloud-scheduler-jobs.sh` listos; **creación en GCP no verificada** (ejecutar script manualmente).
 
 ---
 

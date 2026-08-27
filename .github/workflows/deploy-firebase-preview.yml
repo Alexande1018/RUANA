@@ -71,6 +71,17 @@ jobs:
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
         run: bash .github/scripts/sync-stripe-secrets-gcp.sh
 
+      - name: Sync cron secret to Secret Manager
+        env:
+          RUANA_CRON_SECRET: ${{ secrets.RUANA_CRON_SECRET }}
+        run: bash .github/scripts/sync-cron-secret-gcp.sh
+
+      - name: Validar coherencia modo Stripe preview (siempre test)
+        env:
+          RUANA_STRIPE_MODE: test
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+        run: bash .github/scripts/validate-stripe-deploy-mode.sh
+
       - name: Build and push container image
         run: |
           DEPLOY_SHA=$(git rev-parse HEAD)
