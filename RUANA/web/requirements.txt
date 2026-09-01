@@ -10,3 +10,4 @@ supabase==2.16.0
 Pillow>=10.0.0,<13.0.0
 stripe>=11.0.0,<13.0.0
 Flask-Limiter>=3.9.0,<4.0.0
+google-auth>=2.30.0,<3.0.0
