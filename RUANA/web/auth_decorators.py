@@ -5,11 +5,14 @@ Permite que los Blueprints usen require_aliado / require_admin sin importar app.
 
 from __future__ import annotations
 
+import os
 import time
 from functools import wraps
 
 import jwt
 from flask import jsonify, request
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
 
 from core.auth_session import _get_ruana_session, _resolve_session_secret
 
@@ -74,8 +77,23 @@ def _admin_codigo():
     return (payload.get("admin_codigo") or "") if payload else ""
 
 
+_google_auth_request = google_requests.Request()
+_SCHEDULER_SA = os.environ.get("RUANA_SCHEDULER_SA", "").strip()
+
+def _cron_oidc_valid() -> bool:
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer ") or not _SCHEDULER_SA:
+        return False
+    try:
+        claims = id_token.verify_oauth2_token(auth[7:].strip(), _google_auth_request)
+    except Exception:
+        return False
+    return claims.get("email") == _SCHEDULER_SA and bool(claims.get("email_verified"))
+
+
 def _cron_secret_valid() -> bool:
-    import os
+    if _cron_oidc_valid():
+        return True
     expected = os.environ.get("RUANA_CRON_SECRET", "").strip()
     if not expected:
         return False

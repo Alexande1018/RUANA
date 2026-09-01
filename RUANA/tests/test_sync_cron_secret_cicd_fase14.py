@@ -24,6 +24,7 @@ def test_deploy_workflow_references_cron_secret_sync():
     assert "sync-cron-secret-gcp.sh" in content
     assert "ruana-cron-secret" in content
     assert "RUANA_CRON_SECRET" in content
+    assert "RUANA_SCHEDULER_SA=ruana-scheduler-invoker@ruana-4293f.iam.gserviceaccount.com" in content
     assert "CLOUD_RUN_URL" in content
     assert "HTTP 429" in content
     assert "--retry 8" not in content
