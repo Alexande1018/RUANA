@@ -30,10 +30,14 @@ def test_deploy_workflow_references_cron_secret_sync():
     assert "--retry 8" not in content
 
 
-def test_deploy_mantiene_stripe_mode_test():
+def test_deploy_mantiene_stripe_mode_live():
     content = DEPLOY_WORKFLOW.read_text(encoding="utf-8")
-    assert "RUANA_STRIPE_MODE=test" in content
-    assert "RUANA_STRIPE_MODE=live" not in content
+    assert "RUANA_STRIPE_MODE=live" in content
+    assert "RUANA_STRIPE_MODE=test" not in content
+    assert "sync-stripe-secrets-gcp.sh" in content
+    assert "secrets.STRIPE_SECRET_KEY" in content
+    assert "secrets.STRIPE_PUBLISHABLE_KEY" in content
+    assert "secrets.STRIPE_WEBHOOK_SECRET" in content
 
 
 def test_sync_cron_secret_script_creates_bootstrap_path():
