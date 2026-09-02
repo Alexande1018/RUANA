@@ -72,6 +72,17 @@ html.admin-shell-enabled .admin-app {
     z-index: auto !important;
 }
 
+/* Fuera de @layer: el reset global (* { margin: 0 }) anula reglas en capa de admin-shell.css */
+html.admin-shell-enabled .admin-main {
+    margin-left: var(--admin-sidebar-w, 252px);
+}
+
+@media (max-width: 960px) {
+    html.admin-shell-enabled .admin-main {
+        margin-left: 0;
+    }
+}
+
 html.admin-shell-enabled .admin-sidebar {
     background: linear-gradient(
         180deg,

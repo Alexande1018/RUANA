@@ -111,7 +111,11 @@ def test_admin_shell_sidebar_does_not_overlay_desktop():
     """En escritorio el menú reserva columna y no se superpone al contenido."""
     root = Path(__file__).resolve().parents[1] / "web"
     css = (root / "static" / "css" / "admin-shell.css").read_text(encoding="utf-8")
+    ops_css = (root / "static" / "css" / "admin-ops-identity.css").read_text(encoding="utf-8")
     js = (root / "static" / "js" / "admin-shell.js").read_text(encoding="utf-8")
+
+    assert "html.admin-shell-enabled .admin-main" in ops_css
+    assert "margin-left: var(--admin-sidebar-w" in ops_css
 
     main_block = css[css.index(".admin-main {") : css.index("}", css.index(".admin-main {"))]
     assert "margin-left: var(--admin-sidebar-w)" in main_block
