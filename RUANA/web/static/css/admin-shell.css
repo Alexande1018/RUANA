@@ -32,6 +32,8 @@ html.admin-shell-enabled body {
     color: var(--admin-text);
     font-family: var(--admin-font);
     overflow-x: hidden;
+    scroll-padding-top: calc(var(--admin-topbar-h) + 12px);
+    scroll-padding-left: calc(var(--admin-sidebar-w) + 12px);
 }
 
 .admin-app {
@@ -309,6 +311,11 @@ html.admin-sidebar-open .admin-sidebar-backdrop.is-visible {
     flex: 1;
     margin-left: var(--admin-sidebar-w);
     min-width: 0;
+}
+
+html.admin-shell-enabled .admin-main * {
+    scroll-margin-left: calc(var(--admin-sidebar-w) + 16px);
+    scroll-margin-top: calc(var(--admin-topbar-h) + 16px);
 }
 
 html.admin-shell-enabled .admin-header {

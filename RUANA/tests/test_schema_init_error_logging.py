@@ -25,8 +25,14 @@ def test_deploy_workflow_upserts_schema_init_alert():
     workflow = (root / ".github" / "workflows" / "deploy-firebase.yml").read_text(encoding="utf-8")
     script = (root / ".github" / "scripts" / "upsert-postgres-schema-init-alert.sh").read_text(encoding="utf-8")
     policy = (root / "infra" / "monitoring" / "ruana-postgres-schema-init-alert.json").read_text(encoding="utf-8")
-    assert "upsert-postgres-schema-init-alert.sh" in workflow
+    upsert_idx = workflow.index("Upsert alerta init esquema Postgres")
+    upsert_step = workflow[upsert_idx : upsert_idx + 280]
+    assert "upsert-postgres-schema-init-alert.sh" in upsert_step
+    assert "continue-on-error: true" in upsert_step
     assert "ruana_postgres_schema_init_failed" in script
+    assert "fail_soft" in script
+    assert "::warning::" in script
+    assert "No se bloquea el deploy" in script
     assert "logging.googleapis.com/user/ruana_postgres_schema_init_failed" in policy
 
     import subprocess

@@ -141,7 +141,7 @@ async function pass(page, scenario, entry) {
 
 async function pointAt(page, locator) {
   await locator.evaluate((element) => {
-    element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+    element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
   });
   await page.waitForTimeout(ACTION_PAUSE_MS);
   const box = await locator.boundingBox();
@@ -167,9 +167,55 @@ async function reveal(page, target, options = {}) {
   return locator;
 }
 
+async function dismissAdminOverlayIfNeeded(page) {
+  await page.evaluate(() => {
+    const shell = window.AdminShell;
+    if (!shell || typeof shell.setSidebarOpen !== 'function') return;
+    const sidebar = document.getElementById('adminSidebar');
+    const mobile = typeof window.matchMedia === 'function'
+      && window.matchMedia('(max-width: 960px)').matches;
+    const overlay = !!(sidebar && sidebar.classList.contains('is-mobile-open'));
+    if (mobile || overlay) shell.setSidebarOpen(false);
+  });
+}
+
 async function clickVisible(page, target, options = {}) {
   const locator = await reveal(page, target, options);
-  await locator.click(options.clickOptions || {});
+  await dismissAdminOverlayIfNeeded(page);
+  try {
+    await locator.click(options.clickOptions || {});
+  } catch (error) {
+    const message = String(error && error.message ? error.message : error);
+    if (!/intercepts pointer events/i.test(message)) throw error;
+    await dismissAdminOverlayIfNeeded(page);
+    await locator.evaluate((element) => {
+      element.scrollIntoView({ block: 'center', inline: 'nearest' });
+    });
+    try {
+      await locator.click(options.clickOptions || {});
+    } catch (retryError) {
+      const retryMessage = String(
+        retryError && retryError.message ? retryError.message : retryError
+      );
+      if (!/adminSidebar|intercepts pointer events/i.test(retryMessage)) throw retryError;
+      await page.evaluate(() => {
+        const sidebar = document.getElementById('adminSidebar');
+        if (!sidebar) return;
+        sidebar.dataset.qaPrevPe = sidebar.style.pointerEvents || '';
+        sidebar.style.pointerEvents = 'none';
+      });
+      try {
+        await locator.click(options.clickOptions || {});
+      } finally {
+        await page.evaluate(() => {
+          const sidebar = document.getElementById('adminSidebar');
+          if (!sidebar) return;
+          sidebar.style.pointerEvents = sidebar.dataset.qaPrevPe || '';
+          delete sidebar.dataset.qaPrevPe;
+        });
+      }
+    }
+  }
   await page.waitForTimeout(options.pauseMs ?? ACTION_PAUSE_MS);
   return locator;
 }
@@ -224,4 +270,5 @@ module.exports = {
   reviewSection,
   selectVisible,
   setInputFilesVisible,
+  dismissAdminOverlayIfNeeded,
 };

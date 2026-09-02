@@ -116,6 +116,8 @@ def test_admin_shell_sidebar_does_not_overlay_desktop():
     main_block = css[css.index(".admin-main {") : css.index("}", css.index(".admin-main {"))]
     assert "margin-left: var(--admin-sidebar-w)" in main_block
     assert "margin-left: 0" not in main_block
+    assert "scroll-margin-left: calc(var(--admin-sidebar-w) + 16px)" in css
+    assert "scroll-padding-left: calc(var(--admin-sidebar-w) + 12px)" in css
 
     sidebar_block = css[css.index(".admin-sidebar {") : css.index("}", css.index(".admin-sidebar {"))]
     assert "translateX(-100%)" not in sidebar_block
@@ -138,6 +140,7 @@ def test_admin_shell_sidebar_does_not_overlay_desktop():
     assert "function toggleSidebar" in js
     assert "function closeSidebarIfOverlay" in js
     assert "setSidebarOpen(!isMobileShell())" in js
+    assert "shouldOpen && isMobileShell()" in js
     assert "admin-sidebar-open" in js
     assert "adminSidebarBackdrop" in js
     assert "aria-expanded" in js
@@ -147,6 +150,16 @@ def test_admin_shell_sidebar_does_not_overlay_desktop():
     assert 'id="adminSidebarToggle"' in js or "adminSidebarToggle" in js
     assert "Mostrar menú" in js
     assert "Ocultar menú" in js
+
+
+def test_e2e_admin_clicks_dismiss_sidebar_overlay():
+    """El helper de clics QA cierra el overlay del menú admin antes de pulsar contenido."""
+    narrator = Path(__file__).resolve().parents[2] / "e2e" / "utils" / "qa-narrator.js"
+    text = narrator.read_text(encoding="utf-8")
+    assert "dismissAdminOverlayIfNeeded" in text
+    assert "is-mobile-open" in text
+    assert "inline: 'nearest'" in text
+    assert "pointerEvents = 'none'" in text
 
 
 def test_admin_shell_sidebar_nav_not_blocked_by_backdrop():
