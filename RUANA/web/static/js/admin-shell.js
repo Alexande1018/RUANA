@@ -350,7 +350,7 @@
         document.documentElement.classList.toggle('admin-sidebar-open', shouldOpen);
 
         if (backdrop) {
-            const showBackdrop = shouldOpen && isMobileShell();
+            const showBackdrop = shouldOpen;
             backdrop.hidden = !showBackdrop;
             backdrop.classList.toggle('is-visible', showBackdrop);
             backdrop.setAttribute('aria-hidden', showBackdrop ? 'false' : 'true');
@@ -376,11 +376,20 @@
     }
 
     function closeSidebarIfOverlay() {
-        if (isMobileShell()) setSidebarOpen(false);
+        setSidebarOpen(false);
     }
 
     function syncSidebarForViewport() {
-        setSidebarOpen(!isMobileShell());
+        setSidebarOpen(isSidebarOpen());
+    }
+
+    function onDocumentClickCloseSidebar(e) {
+        if (!isSidebarOpen()) return;
+        const sidebar = document.getElementById('adminSidebar');
+        const toggle = document.getElementById('adminSidebarToggle');
+        if (sidebar && sidebar.contains(e.target)) return;
+        if (toggle && toggle.contains(e.target)) return;
+        setSidebarOpen(false);
     }
 
     async function apiRechazarAliado(panel, codigo) {
@@ -1719,6 +1728,7 @@
             actions.insertBefore(toggle, actions.firstChild);
         }
         toggle.addEventListener('click', toggleSidebar);
+        document.addEventListener('click', onDocumentClickCloseSidebar);
 
         document.addEventListener('keydown', (e) => {
             if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'a') {
@@ -1728,7 +1738,7 @@
             if (e.key === 'Escape') {
                 closeDangerModal();
                 toggleAudit(false);
-                if (isMobileShell()) setSidebarOpen(false);
+                setSidebarOpen(false);
             }
         });
 
@@ -1751,7 +1761,7 @@
         setupTopbarExtras();
         setupAdminNavButtons();
         observeMutations();
-        setSidebarOpen(!isMobileShell());
+        setSidebarOpen(false);
 
         if (window.RuanaAdminModules && window.RuanaAdminModules.commandCenter) {
             window.RuanaAdminModules.commandCenter.setup();
