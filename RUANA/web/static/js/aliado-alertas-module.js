@@ -237,8 +237,10 @@
                     'Contacto <strong>#' + c.id + '</strong> · ' + servicio +
                     ' · Apoyo: <strong>' + apoyo + '</strong>' +
                 '</div>' +
-                '<div class="ruana-alert-detail-item__actions">' +
-                    '<button type="button" class="ruana-alert-detail-btn ruana-alert-detail-btn--primary btn-aceptar-pagar">Aceptar y pagar</button>' +
+                    '<div class="ruana-alert-detail-item__actions">' +
+                    (host.metodosPagoRuana && host.metodosPagoRuana.habilitado
+                        ? '<button type="button" class="ruana-alert-detail-btn ruana-alert-detail-btn--primary btn-aceptar-pagar">Aceptar y pagar</button>'
+                        : '') +
                     '<button type="button" class="ruana-alert-detail-btn btn-impugnar-apoyo">Reclamar</button>' +
                     '<button type="button" class="ruana-alert-detail-btn btn-enviar-comprobante">Comprobante</button>' +
                 '</div>';
@@ -339,7 +341,10 @@
         const data = await resp.json();
         if (data.status === 'success' && data.metodos) {
             host.metodosPagoRuana = {
-                ...host.metodosPagoRuana,
+                habilitado: false,
+                bizum_num: null,
+                iban: null,
+                qr_revolut_path: null,
                 ...data.metodos
             };
         }
@@ -478,9 +483,12 @@
     const importeStr = importe != null ? importe.toFixed(2) + ' EUR' : 'Pendiente de calculo';
     const concepto = `RUANA contacto #${contactoId}`;
     const metodos = host.metodosPagoRuana || {};
-    const bizumNum = metodos.bizum_num || window.RUANA_BIZUM_NUM || '642868261';
-    const iban = metodos.iban || window.RUANA_IBAN || 'ES8915830001119028625152';
-    const qrRevolut = metodos.qr_revolut_path || window.RUANA_QR_REVOLUT_PATH || '/static/images/PayPal.png';
+    if (!metodos.habilitado) {
+        return;
+    }
+    const bizumNum = metodos.bizum_num || '';
+    const iban = metodos.iban || '';
+    const qrRevolut = metodos.qr_revolut_path || '';
 
     host._contactoIdPagoActual = contactoId;
     infoEl.textContent = `Contacto #${contactoId} - ${servicio || 'Contacto'} - Apoyo RUANA: ${importeStr}`;

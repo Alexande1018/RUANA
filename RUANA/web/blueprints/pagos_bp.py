@@ -17,6 +17,7 @@ from core.conflict_authorization import CONFLICT_RESOLVE
 from web.auth_decorators import (
     _admin_codigo,
     _aliado_codigo,
+    require_admin,
     require_admin_escritura,
     require_aliado,
     require_conflict_permission,
@@ -62,7 +63,11 @@ def metodos_pago_ruana():
     """Devuelve los metodos de pago RUANA visibles para aliados autenticados."""
     try:
         db = get_db()
-        return jsonify({"status": "success", "metodos": pago_service.obtener_metodos_pago_ruana(db)}), 200
+        codigo = _aliado_codigo()
+        return jsonify({
+            "status": "success",
+            "metodos": pago_service.obtener_metodos_pago_ruana(db, aliado_codigo=codigo),
+        }), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -84,6 +89,48 @@ def admin_actualizar_metodos_pago():
             valores["iban"] = iban_limpio
         db = get_db()
         result = pago_service.actualizar_metodos_pago_ruana(db, valores, admin_codigo=_admin_codigo() or None)
+        status_code = 200 if result.get("status") == "success" else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@pagos_bp.route("/api/admin/metodos-pago/aliados", methods=["GET"])
+@require_admin
+def admin_listar_aliados_pago_manual():
+    """Allowlist de aliados con pago manual visible."""
+    try:
+        db = get_db()
+        return jsonify({
+            "status": "success",
+            "aliados": pago_service.listar_aliados_con_pago_manual(db),
+        }), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@pagos_bp.route("/api/admin/metodos-pago/aliados/<aliado_codigo>/habilitar", methods=["POST"])
+@require_admin_escritura
+def admin_habilitar_pago_manual_aliado(aliado_codigo):
+    """Incluye a un aliado en la allowlist de pago manual."""
+    try:
+        db = get_db()
+        admin_codigo = _admin_codigo() or None
+        result = pago_service.habilitar_pago_manual_aliado(db, aliado_codigo, admin_codigo)
+        status_code = 200 if result.get("status") == "success" else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@pagos_bp.route("/api/admin/metodos-pago/aliados/<aliado_codigo>/deshabilitar", methods=["POST"])
+@require_admin_escritura
+def admin_deshabilitar_pago_manual_aliado(aliado_codigo):
+    """Quita a un aliado de la allowlist de pago manual."""
+    try:
+        db = get_db()
+        admin_codigo = _admin_codigo() or None
+        result = pago_service.deshabilitar_pago_manual_aliado(db, aliado_codigo, admin_codigo)
         status_code = 200 if result.get("status") == "success" else 400
         return jsonify(result), status_code
     except Exception as e:

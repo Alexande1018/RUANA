@@ -77,10 +77,14 @@ def test_admin_has_payment_methods_management_contract():
 
     assert 'id="metodos-pago-admin-wrap"' in admin_html
     assert 'data-action="editar-metodos-pago"' in admin_html
+    assert 'id="admin-pago-manual-buscar"' in admin_html
+    assert 'id="btn-habilitar-pago-manual"' in admin_html
     assert "fetch('/api/admin/metodos-pago', fetchOpts)" in resumen_js
     assert "accionEditarMetodosPago" in admin_html
     assert "accionEditarMetodosPago" in sistema_js
     assert "/api/admin/metodos-pago/qr-revolut" in sistema_js
+    assert "/api/admin/metodos-pago/aliados" in sistema_js
+    assert "apagado por defecto" in admin_html
 
 
 def test_admin_qr_upload_does_not_send_json_content_type():

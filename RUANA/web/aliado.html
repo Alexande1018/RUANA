@@ -990,7 +990,7 @@
                     <button type="button" id="btn-pago-apoyo-tab-transferencia" class="modal-contacto-btn cancel" style="flex:1; min-width:120px;">Transferencia</button>
                 </div>
                 <div id="pago-apoyo-bizum-panel">
-                    <p><strong>Numero Bizum:</strong> <span id="pago-apoyo-bizum-numero" style="font-size:1.2rem; font-weight:bold; color:#22c55e;">642868261</span></p>
+                    <p><strong>Numero Bizum:</strong> <span id="pago-apoyo-bizum-numero" style="font-size:1.2rem; font-weight:bold; color:#22c55e;">-</span></p>
                     <p style="margin-top:8px;"><strong>Importe exacto:</strong> <span id="pago-apoyo-bizum-importe" style="font-size:1.1rem; font-weight:bold;">-</span></p>
                     <p style="margin-top:8px;"><strong>Concepto:</strong> <span id="pago-apoyo-concepto">-</span></p>
                     <p style="margin-top:14px; padding:10px; background:rgba(34,197,94,0.1); border-radius:8px; font-size:0.9rem;">
@@ -1006,7 +1006,7 @@
                     </p>
                 </div>
                 <div id="pago-apoyo-transferencia-panel" style="display:none;">
-                    <p><strong>IBAN:</strong> <span id="pago-apoyo-iban" style="font-size:1.05rem; font-weight:bold; color:#22c55e; word-break:break-all;">ES8915830001119028625152</span></p>
+                    <p><strong>IBAN:</strong> <span id="pago-apoyo-iban" style="font-size:1.05rem; font-weight:bold; color:#22c55e; word-break:break-all;">-</span></p>
                     <p style="margin-top:8px;"><strong>Importe exacto:</strong> <span id="pago-apoyo-transferencia-importe" style="font-size:1.1rem; font-weight:bold;">-</span></p>
                     <p style="margin-top:8px;"><strong>Concepto:</strong> <span id="pago-apoyo-transferencia-concepto">-</span></p>
                     <p style="margin-top:14px; padding:10px; background:rgba(34,197,94,0.1); border-radius:8px; font-size:0.9rem;">
@@ -1055,15 +1055,6 @@
         if (typeof window.RUANA_API_BASE === 'undefined') {
             // Por defecto, usa el mismo origen del panel para evitar desajustes (ej. panel en :5001 → API en :5001).
             window.RUANA_API_BASE = window.location.origin;
-        }
-        if (typeof window.RUANA_BIZUM_NUM === 'undefined') {
-            window.RUANA_BIZUM_NUM = '642868261';
-        }
-        if (typeof window.RUANA_IBAN === 'undefined') {
-            window.RUANA_IBAN = 'ES8915830001119028625152';
-        }
-        if (typeof window.RUANA_QR_REVOLUT_PATH === 'undefined') {
-            window.RUANA_QR_REVOLUT_PATH = '/static/images/PayPal.png';
         }
 
         function getApiBase() {

@@ -1143,6 +1143,11 @@
         <!-- CAPA 6: Acciones de Administrador -->
         <div class="acciones-admin" id="metodos-pago-admin-wrap">
             <h2 class="seccion-titulo">Metodos de Pago RUANA</h2>
+            <p class="admin-subtitle" style="margin-bottom:12px; color:#999;">
+                Stripe es el único método visible para los aliados. El pago manual (IBAN / Bizum / QR) está
+                <strong>apagado por defecto</strong>. Guardar Bizum/IBAN/QR no lo activa: hay que habilitar
+                aliado por aliado en la lista de abajo.
+            </p>
             <div class="acciones-grid">
                 <div class="stat-card">
                     <span class="stat-label">Bizum</span>
@@ -1155,6 +1160,24 @@
                 <div class="stat-card">
                     <span class="stat-label">QR Revolut</span>
                     <span class="stat-value" id="admin-metodo-qr">-</span>
+                </div>
+            </div>
+            <div class="movimiento-card" style="margin-top:16px;">
+                <h4 style="margin-bottom:8px;">Allowlist pago manual</h4>
+                <p class="admin-subtitle" style="margin-bottom:12px; color:#999;">
+                    Busca por código o nombre. Solo los aliados de esta tabla ven IBAN/Bizum/QR.
+                </p>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px;">
+                    <input type="text" id="admin-pago-manual-buscar" placeholder="Código o nombre del aliado" style="flex:1; min-width:180px; padding:8px; box-sizing:border-box;" />
+                    <button type="button" class="btn-admin-action" id="btn-habilitar-pago-manual">Habilitar pago manual</button>
+                </div>
+                <div class="movimiento-24h-tabla-scroll" style="max-height:280px;">
+                    <table class="movimiento-24h-tabla">
+                        <thead>
+                            <tr><th>Código</th><th>Nombre</th><th>Habilitado por</th><th></th></tr>
+                        </thead>
+                        <tbody id="admin-pago-manual-aliados-tbody"></tbody>
+                    </table>
                 </div>
             </div>
         </div>
