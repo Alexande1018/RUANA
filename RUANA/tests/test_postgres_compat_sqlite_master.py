@@ -97,6 +97,25 @@ def test_select_name_sqlite_master_index_uses_pg_indexes():
     assert "pg_indexes" in sql
 
 
+def test_regression_encargo72_select_name_sqlite_master_placeholder():
+    """Reproduce el bug original: SELECT name FROM sqlite_master ... name=? iba a Postgres.
+
+    Sin el traductor, inner.execute recibe sqlite_master (init abortado → webhook 500).
+    Con el fix, se reescribe a information_schema.tables.
+    """
+    cur, inner = _compat_cursor()
+    inner.fetchone.return_value = {"name": "stripe_webhook_events"}
+    original_sql = "SELECT name FROM sqlite_master WHERE type='table' AND name=?"
+
+    cur.execute(original_sql, ("stripe_webhook_events",))
+
+    sent = inner.execute.call_args[0][0]
+    assert "sqlite_master" not in sent
+    assert "information_schema.tables" in sent
+    assert inner.execute.call_args[0][1] == ("stripe_webhook_events",)
+    assert cur.fetchone() == ("stripe_webhook_events",)
+
+
 def test_insert_or_ignore_skips_lastval_probe():
     cur, inner = _compat_cursor()
     inner.execute.return_value = None

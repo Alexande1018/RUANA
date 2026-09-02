@@ -129,6 +129,9 @@ jobs:
             --set-env-vars "FIREBASE_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_REGION=$REGION,SUPABASE_URL=$SUPABASE_URL,RUANA_PUBLIC_APP_URL=$FIREBASE_HOSTING_URL,RUANA_STRIPE_PAYMENTS_ENABLED=1,STRIPE_API_VERSION=2024-11-20.acacia,RUANA_ENV=production,RUANA_STRIPE_MODE=${{ steps.stripe_mode.outputs.mode }},RUANA_SESSION_COOKIE_SECURE=true,RUANA_SCHEDULER_SA=ruana-scheduler-invoker@ruana-4293f.iam.gserviceaccount.com" \
             --set-secrets "DATABASE_URL=ruana-database-url:latest,SUPABASE_SERVICE_ROLE_KEY=ruana-supabase-service-role-key:latest,SUPABASE_ANON_KEY=ruana-supabase-anon-key:latest,FLASK_SECRET_KEY=ruana-flask-secret-key:latest,RUANA_ADMIN_CREDENTIALS_JSON=ruana-admin-credentials:latest,RUANA_SMTP_PASSWORD=ruana-smtp-password:latest,STRIPE_SECRET_KEY=ruana-stripe-secret-key:latest,STRIPE_PUBLISHABLE_KEY=ruana-stripe-publishable-key:latest,STRIPE_WEBHOOK_SECRET=ruana-stripe-webhook-secret:latest,RUANA_CRON_SECRET=ruana-cron-secret:latest"
 
+      - name: Upsert alerta init esquema Postgres
+        run: bash .github/scripts/upsert-postgres-schema-init-alert.sh
+
       - name: Deploy Firebase Hosting
         run: npx firebase-tools@15.18.0 deploy --project "$PROJECT_ID" --only hosting --non-interactive
 

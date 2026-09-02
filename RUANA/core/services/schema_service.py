@@ -9,6 +9,7 @@ from __future__ import annotations
 from core.db_constants import RUANA_ROOT, ALIADO_FOTO_PERFIL_COLUMN, ESTADOS_GRUPO
 
 import json
+import logging
 import sqlite3
 import os
 from pathlib import Path
@@ -19,6 +20,8 @@ from core.db_constants import ALIADO_FOTO_PERFIL_COLUMN, ESTADOS_GRUPO
 from core.repositories.schema_repo import SchemaRepo
 
 _repo = SchemaRepo()
+_schema_logger = logging.getLogger("ruana.db.schema")
+SCHEMA_INIT_FAIL_MARKER = "ruana_postgres_schema_init_failed"
 
 # --- Extraído de DBManager (schema) ---
 # NOTA: el DDL de _init_db y las migraciones *_si_procede se ejecutan vía
@@ -2634,8 +2637,24 @@ def _init_postgres_schema(db):
         conn.commit()
         print("[RUANA][DB] Esquema Postgres verificado (core + triggers ledger FASE 13A)")
     except Exception as e:
-        print(f"[RUANA][DB] Error inicializando esquema Postgres: {e}")
+        _log_schema_init_failed(e)
     finally:
         if conn:
             conn.close()
+
+
+def _log_schema_init_failed(exc: BaseException) -> None:
+    """ERROR estable para Cloud Logging + alerta de Monitoring (encargo #72)."""
+    payload = {
+        "component": "postgres_schema",
+        "event": SCHEMA_INIT_FAIL_MARKER,
+        "error_type": type(exc).__name__,
+        "message": str(exc)[:500],
+    }
+    line = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    try:
+        _schema_logger.error(line)
+    except Exception:
+        pass
+    print(f"[RUANA][DB] {SCHEMA_INIT_FAIL_MARKER} Error inicializando esquema Postgres: {exc}")
 
