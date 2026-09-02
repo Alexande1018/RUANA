@@ -179,42 +179,57 @@ async function dismissAdminOverlayIfNeeded(page) {
   });
 }
 
+async function uncoverAdminSidebarForClick(page, locator) {
+  await dismissAdminOverlayIfNeeded(page);
+  await locator.evaluate((element) => {
+    element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  });
+  const covered = await locator.evaluate((element) => {
+    const sidebar = document.getElementById('adminSidebar');
+    if (!sidebar) return false;
+    const sb = sidebar.getBoundingClientRect();
+    const box = element.getBoundingClientRect();
+    return box.left < sb.right - 2 && box.right > sb.left + 2
+      && box.top < sb.bottom - 2 && box.bottom > sb.top + 2;
+  });
+  if (!covered) return false;
+  await page.evaluate(() => {
+    const sidebar = document.getElementById('adminSidebar');
+    if (!sidebar) return;
+    sidebar.dataset.qaPrevPe = sidebar.style.pointerEvents || '';
+    sidebar.style.pointerEvents = 'none';
+  });
+  return true;
+}
+
+async function restoreAdminSidebarPointerEvents(page) {
+  await page.evaluate(() => {
+    const sidebar = document.getElementById('adminSidebar');
+    if (!sidebar || sidebar.dataset.qaPrevPe === undefined) return;
+    sidebar.style.pointerEvents = sidebar.dataset.qaPrevPe || '';
+    delete sidebar.dataset.qaPrevPe;
+  });
+}
+
 async function clickVisible(page, target, options = {}) {
   const locator = await reveal(page, target, options);
-  await dismissAdminOverlayIfNeeded(page);
+  const clickOpts = { timeout: 4000, ...(options.clickOptions || {}) };
+  let disabledSidebar = false;
   try {
-    await locator.click(options.clickOptions || {});
+    disabledSidebar = await uncoverAdminSidebarForClick(page, locator);
+    await locator.click(clickOpts);
   } catch (error) {
     const message = String(error && error.message ? error.message : error);
     if (!/intercepts pointer events/i.test(message)) throw error;
-    await dismissAdminOverlayIfNeeded(page);
-    await locator.evaluate((element) => {
-      element.scrollIntoView({ block: 'center', inline: 'nearest' });
+    disabledSidebar = await uncoverAdminSidebarForClick(page, locator) || disabledSidebar;
+    await page.evaluate(() => {
+      const sidebar = document.getElementById('adminSidebar');
+      if (sidebar) sidebar.style.pointerEvents = 'none';
     });
-    try {
-      await locator.click(options.clickOptions || {});
-    } catch (retryError) {
-      const retryMessage = String(
-        retryError && retryError.message ? retryError.message : retryError
-      );
-      if (!/adminSidebar|intercepts pointer events/i.test(retryMessage)) throw retryError;
-      await page.evaluate(() => {
-        const sidebar = document.getElementById('adminSidebar');
-        if (!sidebar) return;
-        sidebar.dataset.qaPrevPe = sidebar.style.pointerEvents || '';
-        sidebar.style.pointerEvents = 'none';
-      });
-      try {
-        await locator.click(options.clickOptions || {});
-      } finally {
-        await page.evaluate(() => {
-          const sidebar = document.getElementById('adminSidebar');
-          if (!sidebar) return;
-          sidebar.style.pointerEvents = sidebar.dataset.qaPrevPe || '';
-          delete sidebar.dataset.qaPrevPe;
-        });
-      }
-    }
+    disabledSidebar = true;
+    await locator.click(clickOpts);
+  } finally {
+    if (disabledSidebar) await restoreAdminSidebarPointerEvents(page);
   }
   await page.waitForTimeout(options.pauseMs ?? ACTION_PAUSE_MS);
   return locator;
