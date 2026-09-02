@@ -156,3 +156,26 @@ def test_admin_shell_sidebar_nav_not_blocked_by_backdrop():
 
     assert "admin-sidebar-open .admin-app" not in ops_css
     assert ops_css.index(".admin-sidebar {") < ops_css.index("z-index: 140")
+
+
+def test_admin_ops_identity_restores_dark_ruana_look():
+    """El panel admin recupera lima, fondo oscuro y árbol; no fuerza el tema claro."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    ops_css = (root / "static" / "css" / "admin-ops-identity.css").read_text(encoding="utf-8")
+    admin_html = (root / "admin.html").read_text(encoding="utf-8")
+    shell_js = (root / "static" / "js" / "admin-shell.js").read_text(encoding="utf-8")
+    cc_js = (root / "static" / "js" / "admin-command-center-module.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "--mod-resumen-accent: #a2ff00" in ops_css
+    assert "#eef1f6" not in ops_css
+    assert "#ffffff" not in ops_css
+    assert ".ruana-atmosphere" not in ops_css
+    assert "background-image: none !important" not in ops_css
+    assert "referidos-tree-panel" in ops_css
+    assert "red-explorer-tabs" in ops_css
+    assert 'href="/static/css/referidos-tree.css"' in admin_html
+    assert 'id="red-view-referidos"' in admin_html
+    assert "Árbol genealógico" in shell_js
+    assert "Sala de control" in cc_js
