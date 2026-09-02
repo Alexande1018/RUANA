@@ -221,17 +221,15 @@ async function uploadComprobanteViaUi(page, scenario) {
       result: 'El hub de alertas muestra el pago pendiente.',
     });
     await clickVisible(page, '[data-alert-action="apoyo-pago"]');
-    await clickVisible(page, '.btn-aceptar-pagar');
-    await expect(page.locator('#modal-pago-apoyo')).toHaveClass(/show/);
-    await expect(page.locator('#modal-pago-apoyo')).toContainText('Bizum');
-    await expect(page.locator('#btn-pago-apoyo-comprobante')).toBeVisible();
-    await pass(page, scenario, {
-      step: 'Modal de pago Apoyo visible',
-      action: 'El profesional pulsa Aceptar y pagar y ve metodos de cobro.',
-      result: 'RUANA muestra Bizum/Revolut/Transferencia y la accion de comprobante.',
-    });
-    await clickVisible(page, '#btn-pago-apoyo-comprobante');
+    // Pago manual (Bizum/IBAN) está off salvo allowlist; el comprobante sigue disponible.
+    await clickVisible(page, '.btn-enviar-comprobante');
     await expect(page.locator('#modal-comprobante-apoyo')).toHaveClass(/show/);
+    await expect(page.locator('#modal-pago-apoyo')).not.toHaveClass(/show/);
+    await pass(page, scenario, {
+      step: 'Modal de comprobante Apoyo visible',
+      action: 'El profesional pulsa Comprobante en el detalle de Apoyo RUANA.',
+      result: 'RUANA abre la subida de comprobante sin mostrar pago manual.',
+    });
     await setInputFilesVisible(page, '#input-comprobante-apoyo', {
       name: 'comprobante-qa.png',
       mimeType: 'image/png',
@@ -954,6 +952,168 @@ test.describe('RUANA QA critica con video human-readable', () => {
         action: 'La cola de conflictos muestra el contacto reclamado.',
         result: `Contacto ${contactoId} visible; verificacion tecnica HTTP ${conflicts.status()}.`,
       });
+    });
+  });
+
+  test('pago manual oculto si el aliado no esta en la allowlist', async ({ page, request }) => {
+    const scenario = 'Aliado sin allowlist no ve pago manual';
+    const bizumFake = '600000000';
+    const ibanFake = 'ES0000000000000000000000';
+    const flow = await createContactPrecondition(
+      page,
+      request,
+      scenario,
+      {
+        nombre: 'Solicitante QA Manual Off',
+        oficio: 'Fontaner\u00eda y fontaner\u00eda-gas',
+        oficio_principal: 'Fontaner\u00eda y fontaner\u00eda-gas',
+        especializacion: 'Reparaci\u00f3n de fugas y grifos',
+        codigo_postal: '28110',
+      },
+      {
+        nombre: 'Profesional QA Manual Off',
+        oficio: 'Electricidad',
+        oficio_principal: 'Electricidad',
+        especializacion: 'Aver\u00edas y reparaciones el\u00e9ctricas',
+        codigo_postal: '28111',
+      }
+    );
+    const admin = await adminLogin(request);
+    const saved = await request.post('/api/admin/metodos-pago', {
+      headers: admin.headers,
+      data: { bizum_num: bizumFake, iban: ibanFake },
+    });
+    await expectOk(saved, 'guardar metodos pago');
+
+    await openAliadoPanel(page, flow.solicitanteSession, scenario, 'Solicitante');
+    await confirmImporteViaUi(
+      page,
+      request,
+      scenario,
+      flow.solicitanteSession,
+      flow.contactoId,
+      120,
+      'Solicitante'
+    );
+    await openAliadoPanel(page, flow.profesionalSession, scenario, 'Profesional sin pago manual');
+    const metodos = await request.get('/api/metodos-pago', { headers: flow.profesionalSession.headers });
+    const metodosBody = await expectOk(metodos, 'metodos pago aliado no habilitado');
+    expect(metodosBody.metodos.habilitado).toBe(false);
+    expect(metodosBody.metodos.bizum_num).toBeNull();
+    expect(metodosBody.metodos.iban).toBeNull();
+
+    await clickVisible(page, '[data-alert-action="apoyo-pago"]');
+    await expect(page.locator('.btn-aceptar-pagar')).toHaveCount(0);
+    await expect(page.locator('#modal-pago-apoyo')).not.toHaveClass(/show/);
+    await expect(page.locator('#ruana-alert-hub')).not.toContainText(ibanFake);
+    await expect(page.locator('#ruana-alert-hub')).not.toContainText(bizumFake);
+    await pass(page, scenario, {
+      step: 'Pago manual ausente en cobro',
+      action: 'El profesional abre Apoyo RUANA sin estar en la allowlist.',
+      result: 'No aparece Aceptar y pagar ni IBAN/Bizum reales en el flujo de cobro.',
+    });
+  });
+
+  test('admin habilita y deshabilita pago manual aliado desde el panel', async ({ page, request }) => {
+    const scenario = 'Allowlist pago manual desde admin';
+    const bizumFake = '600000000';
+    const ibanFake = 'ES0000000000000000000000';
+    const flow = await createContactPrecondition(
+      page,
+      request,
+      scenario,
+      {
+        nombre: 'Solicitante QA Manual On',
+        oficio: 'Fontaner\u00eda y fontaner\u00eda-gas',
+        oficio_principal: 'Fontaner\u00eda y fontaner\u00eda-gas',
+        especializacion: 'Reparaci\u00f3n de fugas y grifos',
+        codigo_postal: '28120',
+      },
+      {
+        nombre: 'Profesional QA Manual On',
+        oficio: 'Electricidad',
+        oficio_principal: 'Electricidad',
+        especializacion: 'Aver\u00edas y reparaciones el\u00e9ctricas',
+        codigo_postal: '28121',
+      }
+    );
+
+    await openAliadoPanel(page, flow.solicitanteSession, scenario, 'Solicitante');
+    await confirmImporteViaUi(
+      page,
+      request,
+      scenario,
+      flow.solicitanteSession,
+      flow.contactoId,
+      140,
+      'Solicitante'
+    );
+
+    await loginAdminAsUser(page, scenario);
+    await goAdminSection(page, '#metodos-pago-admin-wrap');
+    await page.waitForFunction((codigo) => {
+      const panel = window._ruanaAdminPanel;
+      return Boolean(
+        panel &&
+          Array.isArray(panel._aliadosData) &&
+          panel._aliadosData.some((a) => a && a.codigo === codigo)
+      );
+    }, flow.profesional.codigo, { timeout: 20000 });
+
+    await clickVisible(page, 'button[data-action="editar-metodos-pago"]');
+    await expect(page.locator('#modal-accion-admin')).toBeVisible();
+    await fillVisible(page, '#accion-mp-bizum', bizumFake);
+    await fillVisible(page, '#accion-mp-iban', ibanFake);
+    await clickVisible(page, '#modal-accion-confirmar');
+    await clickVisible(page, '#modal-accion-confirmar');
+    await expect(page.locator('#admin-metodo-bizum')).toHaveText(bizumFake, { timeout: 15000 });
+    await expect(page.locator('#admin-metodo-iban')).toHaveText(ibanFake);
+
+    await fillVisible(page, '#admin-pago-manual-buscar', flow.profesional.codigo);
+    await clickVisible(page, '#btn-habilitar-pago-manual');
+    await expect(page.locator('#admin-pago-manual-aliados-tbody')).toContainText(flow.profesional.codigo, {
+      timeout: 15000,
+    });
+    await pass(page, scenario, {
+      step: 'Admin habilita pago manual',
+      action: 'Se guardan Bizum/IBAN de prueba y se habilita al profesional.',
+      result: `Aliado ${flow.profesional.codigo} aparece en la allowlist.`,
+    });
+
+    await openAliadoPanel(page, flow.profesionalSession, scenario, 'Profesional con pago manual');
+    await clickVisible(page, '[data-alert-action="apoyo-pago"]');
+    await expect(page.locator('.btn-aceptar-pagar')).toBeVisible();
+    await clickVisible(page, '.btn-aceptar-pagar');
+    await expect(page.locator('#modal-pago-apoyo')).toHaveClass(/show/);
+    await expect(page.locator('#pago-apoyo-bizum-numero')).toHaveText(bizumFake);
+    await expect(page.locator('#pago-apoyo-iban')).toHaveText(ibanFake);
+    await pass(page, scenario, {
+      step: 'Pago manual visible con datos reales',
+      action: 'El profesional recarga el panel con la misma sesion y abre Aceptar y pagar.',
+      result: 'Ve Bizum e IBAN de prueba.',
+    });
+
+    await loginAdminAsUser(page, scenario);
+    await goAdminSection(page, '#metodos-pago-admin-wrap');
+    await clickVisible(
+      page,
+      `#admin-pago-manual-aliados-tbody [data-deshabilitar-pago="${flow.profesional.codigo}"]`
+    );
+    await expect(page.locator('#admin-pago-manual-aliados-tbody')).not.toContainText(flow.profesional.codigo);
+
+    await page.goto('/aliado');
+    await page.evaluate((sessionId) => {
+      sessionStorage.setItem('ruana_session_id', sessionId);
+    }, flow.profesionalSession.sessionId);
+    await page.goto('/aliado');
+    await expect(page.locator('#metric-score')).toBeVisible();
+    await clickVisible(page, '[data-alert-action="apoyo-pago"]');
+    await expect(page.locator('.btn-aceptar-pagar')).toHaveCount(0);
+    await expect(page.locator('#modal-pago-apoyo')).not.toHaveClass(/show/);
+    await pass(page, scenario, {
+      step: 'Pago manual desaparece sin nuevo login',
+      action: 'El admin quita al aliado; el profesional recarga con la misma sesion.',
+      result: 'Aceptar y pagar ya no aparece; no se pidieron credenciales nuevas.',
     });
   });
 });
