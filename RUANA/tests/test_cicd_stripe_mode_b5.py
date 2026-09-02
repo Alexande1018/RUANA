@@ -15,10 +15,21 @@ RESOLVE_SCRIPT = ROOT / ".github" / "scripts" / "resolve-stripe-mode.sh"
 VALIDATE_SCRIPT = ROOT / ".github" / "scripts" / "validate-stripe-deploy-mode.sh"
 
 
-def _run_resolve(event: str, input_mode: str = "", vars_mode: str = "", *, allow_live_push: str = ""):
+def _run_resolve(
+    event: str,
+    input_mode: str = "",
+    vars_mode: str = "",
+    *,
+    allow_live_push: str = "",
+    secret_key: str | None = None,
+):
     env = os.environ.copy()
     env["GITHUB_OUTPUT"] = str(ROOT / ".pytest-tmp-stripe-mode-out")
     env["RUANA_STRIPE_ALLOW_LIVE_PUSH"] = allow_live_push
+    if secret_key is None:
+        env.pop("STRIPE_SECRET_KEY", None)
+    else:
+        env["STRIPE_SECRET_KEY"] = secret_key
     env_path = Path(env["GITHUB_OUTPUT"])
     env_path.parent.mkdir(parents=True, exist_ok=True)
     env_path.write_text("", encoding="utf-8")
@@ -57,17 +68,25 @@ def test_deploy_workflow_no_hardcoded_stripe_mode_test():
     assert "ruana_stripe_mode" in content
 
 
-def test_preview_workflow_fija_test_y_valida():
+def test_preview_workflow_resuelve_y_valida_modo():
     content = PREVIEW_WORKFLOW.read_text(encoding="utf-8")
-    assert "RUANA_STRIPE_MODE=test" in content
+    assert "RUANA_STRIPE_MODE=test" not in content
+    assert "resolve-stripe-mode.sh" in content
     assert "validate-stripe-deploy-mode.sh" in content
     assert "sync-cron-secret-gcp.sh" in content
+    assert "steps.stripe_mode.outputs.mode" in content
 
 
 def test_resolve_default_test_on_push():
     result, mode = _run_resolve("push", "", "")
     assert result.returncode == 0, result.stderr
     assert mode == "test"
+
+
+def test_resolve_infers_live_from_secret_key_on_push():
+    result, mode = _run_resolve("push", "", "", secret_key="sk_live_abc")
+    assert result.returncode == 0, result.stderr
+    assert mode == "live"
 
 
 def test_resolve_workflow_dispatch_input_live():

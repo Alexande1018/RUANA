@@ -40,6 +40,22 @@ class StripeWebhookRepo:
 
         cursor.execute(
             """
+            UPDATE stripe_webhook_events
+            SET resultado = 'processing',
+                estado_procesamiento = 'processing',
+                error_message = NULL,
+                tipo = ?,
+                procesado_en = CURRENT_TIMESTAMP
+            WHERE stripe_event_id = ?
+              AND estado_procesamiento = 'failed'
+            """,
+            (event_type, event_id),
+        )
+        if cursor.rowcount > 0:
+            return "claimed"
+
+        cursor.execute(
+            """
             SELECT resultado, estado_procesamiento
             FROM stripe_webhook_events
             WHERE stripe_event_id = ?

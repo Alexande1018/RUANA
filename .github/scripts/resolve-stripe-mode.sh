@@ -1,13 +1,25 @@
 #!/usr/bin/env bash
 # Resuelve RUANA_STRIPE_MODE para despliegue Cloud Run (B5).
-# Prioridad: workflow_dispatch input > repo variable > default test.
-# Bloquea live en push automático salvo vars.RUANA_STRIPE_ALLOW_LIVE_PUSH=true.
+# Prioridad: workflow_dispatch input > repo variable > prefijo de STRIPE_SECRET_KEY > default test.
+# Live en push automático: permitido si vars.RUANA_STRIPE_ALLOW_LIVE_PUSH=true o la clave es sk_live_.
 set -euo pipefail
 
 EVENT_NAME="${1:-}"
 INPUT_MODE="${2:-}"
 VARS_MODE="${3:-}"
 ALLOW_LIVE_PUSH="${RUANA_STRIPE_ALLOW_LIVE_PUSH:-}"
+SECRET_KEY="${STRIPE_SECRET_KEY:-}"
+
+infer_from_key() {
+  local key="$1"
+  if [[ "$key" == sk_live_* ]]; then
+    echo "live"
+  elif [[ "$key" == sk_test_* ]]; then
+    echo "test"
+  else
+    echo ""
+  fi
+}
 
 MODE=""
 if [[ "$EVENT_NAME" == "workflow_dispatch" && -n "$INPUT_MODE" ]]; then
@@ -15,7 +27,10 @@ if [[ "$EVENT_NAME" == "workflow_dispatch" && -n "$INPUT_MODE" ]]; then
 elif [[ -n "$VARS_MODE" ]]; then
   MODE="$VARS_MODE"
 else
-  MODE="test"
+  MODE="$(infer_from_key "$SECRET_KEY")"
+  if [[ -z "$MODE" ]]; then
+    MODE="test"
+  fi
 fi
 
 MODE="${MODE,,}"
@@ -25,8 +40,8 @@ if [[ "$MODE" != "test" && "$MODE" != "live" ]]; then
 fi
 
 if [[ "$MODE" == "live" && "$EVENT_NAME" == "push" ]]; then
-  if [[ "$ALLOW_LIVE_PUSH" != "true" && "$ALLOW_LIVE_PUSH" != "1" ]]; then
-    echo "::error::Deploy LIVE en push automático bloqueado. Usa workflow_dispatch o define vars.RUANA_STRIPE_ALLOW_LIVE_PUSH=true."
+  if [[ "$ALLOW_LIVE_PUSH" != "true" && "$ALLOW_LIVE_PUSH" != "1" && "$SECRET_KEY" != sk_live_* ]]; then
+    echo "::error::Deploy LIVE en push automático bloqueado. Usa workflow_dispatch, vars.RUANA_STRIPE_ALLOW_LIVE_PUSH=true o una STRIPE_SECRET_KEY sk_live_."
     exit 1
   fi
 fi
