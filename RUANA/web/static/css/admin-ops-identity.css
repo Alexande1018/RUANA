@@ -80,31 +80,19 @@ html.admin-shell-enabled .admin-sidebar {
     );
     border-right: 1px solid rgba(201, 184, 150, 0.1);
     box-shadow: 4px 0 32px rgba(0, 0, 0, 0.25);
-    z-index: 140;
+    z-index: 100;
 }
 
-html.admin-shell-enabled .admin-sidebar.is-open,
-html.admin-shell-enabled .admin-sidebar.is-mobile-open {
-    pointer-events: auto !important;
-}
+@media (max-width: 960px) {
+    html.admin-shell-enabled .admin-sidebar.is-open,
+    html.admin-shell-enabled .admin-sidebar.is-mobile-open {
+        z-index: 140;
+        pointer-events: auto !important;
+    }
 
-html.admin-shell-enabled .admin-sidebar:not(.is-open):not(.is-mobile-open) {
-    pointer-events: none !important;
-}
-
-html.admin-shell-enabled .admin-sidebar-nav,
-html.admin-shell-enabled .admin-sidebar-footer,
-html.admin-shell-enabled .admin-module-switcher {
-    position: relative;
-    z-index: 2;
-    pointer-events: auto !important;
-}
-
-html.admin-shell-enabled .admin-nav-item,
-html.admin-shell-enabled .admin-module-chip,
-html.admin-shell-enabled .admin-sidebar-footer button {
-    pointer-events: auto !important;
-    cursor: pointer !important;
+    html.admin-shell-enabled .admin-sidebar:not(.is-open):not(.is-mobile-open) {
+        pointer-events: none !important;
+    }
 }
 
 html.admin-shell-enabled .admin-sidebar-brand {

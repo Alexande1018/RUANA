@@ -107,33 +107,37 @@ def test_admin_shell_operaciones_module_aligned_with_module_defs():
     assert "_operacionesModule" in admin
 
 
-def test_admin_shell_sidebar_is_collapsible():
-    """El menú lateral se pliega por defecto y no reserva espacio ni cubre el contenido."""
+def test_admin_shell_sidebar_does_not_overlay_desktop():
+    """En escritorio el menú reserva columna y no se superpone al contenido."""
     root = Path(__file__).resolve().parents[1] / "web"
     css = (root / "static" / "css" / "admin-shell.css").read_text(encoding="utf-8")
     js = (root / "static" / "js" / "admin-shell.js").read_text(encoding="utf-8")
 
     main_block = css[css.index(".admin-main {") : css.index("}", css.index(".admin-main {"))]
-    assert "margin-left: 0" in main_block
+    assert "margin-left: var(--admin-sidebar-w)" in main_block
+    assert "margin-left: 0" not in main_block
 
     sidebar_block = css[css.index(".admin-sidebar {") : css.index("}", css.index(".admin-sidebar {"))]
-    assert "translateX(-100%)" in sidebar_block
+    assert "translateX(-100%)" not in sidebar_block
+    assert "visibility: visible" in sidebar_block
 
     toggle_block = css[
         css.index(".admin-sidebar-toggle {") : css.index("}", css.index(".admin-sidebar-toggle {"))
     ]
-    assert "display: inline-flex" in toggle_block
-    assert "display: none" not in toggle_block
+    assert "display: none" in toggle_block
 
-    assert ".admin-sidebar.is-open" in css
-    assert "html.admin-sidebar-open .admin-main" in css
-    assert "margin-left: var(--admin-sidebar-w)" in css
+    mobile_idx = css.index("@media (max-width: 960px)")
+    mobile_css = css[mobile_idx:]
+    assert "translateX(-100%)" in mobile_css
+    assert "display: inline-flex" in mobile_css
+    assert "margin-left: 0" in mobile_css
+
     assert ".admin-sidebar-backdrop" in css
     assert ".admin-sidebar-toggle-label" in css
-
     assert "function setSidebarOpen" in js
     assert "function toggleSidebar" in js
     assert "function closeSidebarIfOverlay" in js
+    assert "setSidebarOpen(!isMobileShell())" in js
     assert "admin-sidebar-open" in js
     assert "adminSidebarBackdrop" in js
     assert "aria-expanded" in js
