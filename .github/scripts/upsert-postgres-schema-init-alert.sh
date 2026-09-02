@@ -4,6 +4,7 @@
 # Requiere en la SA de deploy (ruana-firebase-deployer):
 #   roles/logging.configWriter
 #   roles/monitoring.alertPolicyEditor
+# Si faltan permisos IAM, el script avisa y termina en 0 para no bloquear el deploy.
 set -euo pipefail
 
 PROJECT_ID="${PROJECT_ID:?PROJECT_ID requerido}"
@@ -19,23 +20,38 @@ iam_hint() {
   echo "::error::  roles/monitoring.alertPolicyEditor (monitoring.alertPolicies.create)"
 }
 
+is_iam_denied() {
+  local err_file="$1"
+  grep -qE 'IAM_PERMISSION_DENIED|Permission .+ denied' "$err_file"
+}
+
+run_gcloud_or_warn() {
+  local err
+  err="$(mktemp)"
+  if ! "$@" 2>"$err"; then
+    if is_iam_denied "$err"; then
+      cat "$err" >&2
+      iam_hint
+      echo "::warning::Deploy continúa sin métrica/alerta de init Postgres hasta conceder los roles IAM anteriores."
+      exit 0
+    fi
+    cat "$err" >&2
+    return 1
+  fi
+  rm -f "$err"
+}
+
 if gcloud logging metrics describe "$METRIC_NAME" --project="$PROJECT_ID" >/dev/null 2>&1; then
-  if ! gcloud logging metrics update "$METRIC_NAME" \
+  run_gcloud_or_warn gcloud logging metrics update "$METRIC_NAME" \
     --project="$PROJECT_ID" \
     --description="Init de esquema Postgres abortado (sqlite_master / migraciones)." \
-    --log-filter="$FILTER"; then
-    iam_hint
-    exit 1
-  fi
+    --log-filter="$FILTER"
   echo "Métrica de log actualizada: $METRIC_NAME"
 else
-  if ! gcloud logging metrics create "$METRIC_NAME" \
+  run_gcloud_or_warn gcloud logging metrics create "$METRIC_NAME" \
     --project="$PROJECT_ID" \
     --description="Init de esquema Postgres abortado (sqlite_master / migraciones)." \
-    --log-filter="$FILTER"; then
-    iam_hint
-    exit 1
-  fi
+    --log-filter="$FILTER"
   echo "Métrica de log creada: $METRIC_NAME"
 fi
 
@@ -45,19 +61,13 @@ EXISTING="$(gcloud alpha monitoring policies list \
   --format="value(name)" 2>/dev/null | head -n 1 || true)"
 
 if [[ -n "$EXISTING" ]]; then
-  if ! gcloud alpha monitoring policies update "$EXISTING" \
+  run_gcloud_or_warn gcloud alpha monitoring policies update "$EXISTING" \
     --project="$PROJECT_ID" \
-    --policy-from-file="$POLICY_FILE"; then
-    iam_hint
-    exit 1
-  fi
+    --policy-from-file="$POLICY_FILE"
   echo "Alerta actualizada: $EXISTING"
 else
-  if ! gcloud alpha monitoring policies create \
+  run_gcloud_or_warn gcloud alpha monitoring policies create \
     --project="$PROJECT_ID" \
-    --policy-from-file="$POLICY_FILE"; then
-    iam_hint
-    exit 1
-  fi
+    --policy-from-file="$POLICY_FILE"
   echo "Alerta creada: $DISPLAY_NAME"
 fi

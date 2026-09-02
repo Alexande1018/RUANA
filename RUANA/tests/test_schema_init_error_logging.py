@@ -28,6 +28,7 @@ def test_deploy_workflow_upserts_schema_init_alert():
     assert "upsert-postgres-schema-init-alert.sh" in workflow
     assert "ruana_postgres_schema_init_failed" in script
     assert "logging.googleapis.com/user/ruana_postgres_schema_init_failed" in policy
+    assert "Deploy continúa sin métrica/alerta de init Postgres" in script
 
     import subprocess
     syntax = subprocess.run(
