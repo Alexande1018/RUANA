@@ -853,8 +853,6 @@ def _asegurar_tabla_id_serial_postgres(db, cursor, tabla: str) -> None:
     """
     if db.backend != "postgres":
         return
-    if not _repo.tabla_existe(cursor, tabla):
-        return
     seq = f"{tabla}_id_seq"
     cursor.execute(
         """
