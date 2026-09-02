@@ -305,9 +305,10 @@
     let btnPrincipal = 'Abrir negociación';
     let requiereRespuesta = !!contacto.negociacion_requiere_mi_respuesta;
     if (contacto.es_urgente) estadoLabel = 'Encargo urgente';
+    const cobroConfirmado = String(contacto.estado_pago || '').trim() === 'cobro_confirmado';
     if (
-        estado === 'pendiente_de_pago'
-        || (contacto.modo_pago === 'stripe' && estado === 'trabajo_en_progreso')
+        (estado === 'pendiente_de_pago' && !cobroConfirmado)
+        || (contacto.modo_pago === 'stripe' && estado === 'trabajo_en_progreso' && !cobroConfirmado)
     ) {
         estadoLabel = contacto.modo_pago === 'stripe' ? 'Pago Stripe pendiente' : estadoLabel;
         if (contacto.modo_pago === 'stripe') {

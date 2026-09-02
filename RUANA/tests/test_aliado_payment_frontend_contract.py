@@ -59,6 +59,24 @@ def test_conflict_proof_upload_refreshes_alert_state():
     assert "await host.actualizarEstadoAlertas()" in snippet
 
 
+def test_stripe_pending_label_not_shown_when_cobro_confirmado():
+    """Encargo pagado (trabajo_en_progreso + cobro_confirmado) no debe parecer pendiente."""
+    contactos_js = (
+        Path(__file__).resolve().parents[1]
+        / "web"
+        / "static"
+        / "js"
+        / "aliado-contactos-module.js"
+    )
+    text = contactos_js.read_text(encoding="utf-8")
+    start = text.index("const cobroConfirmado")
+    snippet = text[start : start + 900]
+    assert "estado_pago" in snippet
+    assert "cobro_confirmado" in snippet
+    assert "&& !cobroConfirmado" in snippet
+    assert "Pago Stripe pendiente" in snippet
+
+
 def test_dispute_support_uses_ruana_modal_instead_of_browser_dialogs():
     root = Path(__file__).resolve().parents[1] / "web"
     aliado_html = (root / "aliado.html").read_text(encoding="utf-8")
