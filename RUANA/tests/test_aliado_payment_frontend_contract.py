@@ -42,6 +42,7 @@ def test_aceptar_y_pagar_opens_manual_payment_modal_with_bizum_first():
     assert "host.setPagoApoyoMetodo('transferencia')" in events_js
     assert "host.setPagoApoyoMetodo('bizum')" in alertas_js
     assert "/api/metodos-pago" in alertas_js
+    assert "dismissPulsePanelIfOpen" in alertas_js
 
 
 def test_conflict_proof_upload_refreshes_alert_state():

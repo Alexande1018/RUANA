@@ -234,7 +234,7 @@ async function uploadComprobanteViaUi(page, scenario) {
     });
     await openPulseActivityPanel(page, scenario);
     await clickVisible(page, '[data-pulse-action="apoyo-pago"]');
-    await clickVisible(page, '.btn-aceptar-pagar');
+    await clickVisible(page, '#ruana-pulse-detail-body .btn-aceptar-pagar');
     await expect(page.locator('#modal-pago-apoyo')).toHaveClass(/show/);
     await expect(page.locator('#modal-pago-apoyo')).toContainText('Bizum');
     await expect(page.locator('#btn-pago-apoyo-comprobante')).toBeVisible();
@@ -930,7 +930,7 @@ test.describe('RUANA QA critica con video human-readable', () => {
       });
       await openPulseActivityPanel(page, scenario);
       await clickVisible(page, '[data-pulse-action="apoyo-pago"]');
-      await clickVisible(page, '.btn-impugnar-apoyo');
+      await clickVisible(page, '#ruana-pulse-detail-body .btn-impugnar-apoyo');
       await expect(page.locator('#modal-impugnar-apoyo')).toHaveClass(/show/);
       await fillVisible(
         page,
