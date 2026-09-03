@@ -20,6 +20,7 @@
     <link rel="stylesheet" href="/static/css/ruana-identity.css">
     <link rel="stylesheet" href="/static/css/ruana-legal.css">
     <link rel="stylesheet" href="/static/css/ruana-actividad-cinta.css">
+    <link rel="stylesheet" href="/static/css/ruana-pulse.css">
     <link rel="stylesheet" href="/static/css/referidos-tree.css">
     <link rel="stylesheet" href="/static/css/aliado-solicitudes-semanales.css?v=20260822a">
     <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
@@ -27,6 +28,7 @@
     <script src="/static/js/ruana-ui.js" defer></script>
     <script src="/static/js/ruana-legal-footer.js" defer></script>
     <script src="/static/js/ruana-alert-hub.js" defer></script>
+    <script src="/static/js/ruana-pulse.js" defer></script>
     <script src="/static/js/ruana-api-client.js" defer></script>
     <script src="/static/js/aliado-modules.js" defer></script>
     <script src="/static/js/aliado-inicio-module.js" defer></script>
@@ -161,7 +163,7 @@
         <div class="aliado-shell-alerts" id="aliado-shell-alerts">
         <div id="stripe-onboarding-banner" class="stripe-onboarding-banner" style="display:none;" role="alert" aria-live="polite"></div>
         <!-- Hub compacto: Apoyo RUANA, pagos pendientes, mensajes RUANA -->
-        <div id="ruana-alert-hub" class="ruana-alert-hub" hidden>
+        <div id="ruana-alert-hub" class="ruana-alert-hub ruana-alert-hub--offscreen" hidden aria-hidden="true">
             <header class="ruana-alert-hub__header">
                 <p class="ruana-alert-hub__kicker">Centro de avisos</p>
                 <h2 class="ruana-alert-hub__title">Tu bandeja RUANA</h2>
@@ -242,8 +244,16 @@
                     </button>
                 </div>
 
+                <div class="ruana-pulse-trigger-wrap" id="ruana-pulse-trigger-wrap">
+                    <button type="button" class="ruana-pulse-trigger" id="ruana-pulse-trigger" aria-expanded="false" aria-controls="ruana-pulse-panel">
+                        <span class="ruana-pulse-trigger__spark" aria-hidden="true">✦</span>
+                        <span class="ruana-pulse-trigger__label">Actividad</span>
+                        <span class="ruana-pulse-trigger__badge" hidden aria-label="Novedades pendientes"></span>
+                    </button>
+                </div>
+
                 <div
-                    class="ruana-actividad-cinta"
+                    class="ruana-actividad-cinta ruana-actividad-cinta--in-pulse"
                     id="inicio-actividad-cinta"
                     role="region"
                     aria-label="Noticias de actividad RUANA"

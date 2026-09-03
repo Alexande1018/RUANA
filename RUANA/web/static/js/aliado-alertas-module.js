@@ -221,7 +221,19 @@
     };
     const body = hub.renderDetailHeader(detailEl, titles[detailId] || 'Detalle', function () {
         host._alertHubState.expandedDetailId = null;
-        renderAlertHub(host);
+        if (global.RuanaPulse && typeof global.RuanaPulse.isOpen === 'function' && global.RuanaPulse.isOpen()) {
+            var detail = document.getElementById('ruana-pulse-detail');
+            var detailBody = document.getElementById('ruana-pulse-detail-body');
+            var main = document.querySelector('.ruana-pulse-panel__main');
+            if (detail) {
+                detail.hidden = true;
+                detail.classList.remove('is-active');
+            }
+            if (detailBody) detailBody.innerHTML = '';
+            if (main) main.style.display = '';
+        } else {
+            renderAlertHub(host);
+        }
     });
 
     if (detailId === 'apoyo-pago') {
@@ -287,19 +299,25 @@
   }
 
   function renderAlertHub(host) {
-    const hubEl = document.getElementById('ruana-alert-hub');
-    if (!hubEl || typeof RuanaAlertHub === 'undefined') return;
-    const items = host.buildAlertItems();
-
     if (!host._alertHubState) {
         host._alertHubState = { showAll: false, expandedDetailId: null };
     }
+
+    const items = host.buildAlertItems();
     if (items.length === 0) {
         host._alertHubState = { showAll: false, expandedDetailId: null };
     } else if (host._alertHubState.expandedDetailId &&
         !items.some(i => i.id === host._alertHubState.expandedDetailId)) {
         host._alertHubState.expandedDetailId = null;
     }
+
+    if (global.RuanaPulse && typeof global.RuanaPulse.render === 'function') {
+        global.RuanaPulse.render(host);
+        return;
+    }
+
+    const hubEl = document.getElementById('ruana-alert-hub');
+    if (!hubEl || typeof RuanaAlertHub === 'undefined') return;
 
     RuanaAlertHub.render(hubEl, items, host._alertHubState, {
         onAction: function (item) {

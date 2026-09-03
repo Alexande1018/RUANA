@@ -26,6 +26,16 @@ const {
   setInputFilesVisible,
 } = require('./utils/qa-narrator');
 
+async function openPulseActivityPanel(page, scenario) {
+  await clickVisible(page, '#ruana-pulse-trigger');
+  await expect(page.locator('#ruana-pulse-panel.is-open')).toBeVisible();
+  await pass(page, scenario, {
+    step: 'Centro de Actividad abierto',
+    action: 'El usuario pulsa el trigger de Actividad en Inicio.',
+    result: 'Se abre el panel flotante RUANA Pulse.',
+  });
+}
+
 async function openAliadoPanel(page, session, scenario, label) {
   await test.step(`${label} abre su panel de aliado`, async () => {
     await page.goto('/');
@@ -216,13 +226,14 @@ async function closeNoWorkViaUi(page, scenario, roleLabel) {
 
 async function uploadComprobanteViaUi(page, scenario) {
   await test.step('Profesional sube comprobante desde el panel', async () => {
-    await reviewSection(page, scenario, '#ruana-alert-hub', {
+    await reviewSection(page, scenario, '#ruana-pulse-trigger', {
       step: 'Revisar Apoyo RUANA pendiente',
-      action: 'El profesional revisa el aviso compacto de Apoyo RUANA.',
-      expected: 'Debe aparecer la tarjeta con accion Gestionar.',
-      result: 'El hub de alertas muestra el pago pendiente.',
+      action: 'El profesional abre el Centro de Actividad.',
+      expected: 'Debe aparecer el aviso con accion Gestionar.',
+      result: 'El Centro de Actividad muestra el pago pendiente.',
     });
-    await clickVisible(page, '[data-alert-action="apoyo-pago"]');
+    await openPulseActivityPanel(page, scenario);
+    await clickVisible(page, '[data-pulse-action="apoyo-pago"]');
     await clickVisible(page, '.btn-aceptar-pagar');
     await expect(page.locator('#modal-pago-apoyo')).toHaveClass(/show/);
     await expect(page.locator('#modal-pago-apoyo')).toContainText('Bizum');
@@ -771,19 +782,15 @@ test.describe('RUANA QA critica con video human-readable', () => {
     await loginAdminAsUser(page, scenario);
     await adminRejectPaymentViaUi(page, scenario, pagoRechazar.contactoId);
     await openAliadoPanel(page, pagoRechazar.profesionalSession, scenario, 'Profesional con pago rechazado');
-    await reviewSection(page, scenario, '#ruana-alert-hub', {
+    await reviewSection(page, scenario, '#ruana-pulse-trigger', {
       step: 'Profesional recibe mensaje de RUANA',
-      action: 'Tras el rechazo, el profesional revisa el hub de alertas.',
+      action: 'Tras el rechazo, el profesional abre el Centro de Actividad.',
       expected: 'Debe ver una notificacion con el motivo del rechazo.',
-      result: 'La tarjeta de mensajes de RUANA queda visible.',
+      result: 'El aviso de mensajes de RUANA queda visible.',
     });
-    // El hub colapsa a 1 aviso (pago pendiente); hay que expandir para ver mensajes.
-    const moreAlerts = page.locator('.ruana-alert-hub__more');
-    if (await moreAlerts.isVisible().catch(() => false)) {
-      await clickVisible(page, '.ruana-alert-hub__more');
-    }
-    await clickVisible(page, '[data-alert-action="mensajes-ruana"]');
-    await expect(page.locator('#ruana-alert-hub')).toContainText('Comprobante ilegible');
+    await openPulseActivityPanel(page, scenario);
+    await clickVisible(page, '[data-pulse-action="mensajes-ruana"]');
+    await expect(page.locator('#ruana-pulse-detail-body')).toContainText('Comprobante ilegible');
     await pass(page, scenario, {
       step: 'Notificacion de rechazo visible',
       action: 'El profesional ve el motivo enviado por admin.',
@@ -915,13 +922,14 @@ test.describe('RUANA QA critica con video human-readable', () => {
         action: 'El profesional baja a Apoyo RUANA y reclama el importe declarado.',
         expected: 'RUANA debe abrir un conflicto pendiente de prueba.',
       });
-      await reviewSection(page, scenario, '#ruana-alert-hub', {
+      await reviewSection(page, scenario, '#ruana-pulse-trigger', {
         step: 'Ver pago reclamable',
-        action: 'El profesional abre el detalle del Apoyo RUANA pendiente.',
+        action: 'El profesional abre el Centro de Actividad y el detalle del Apoyo RUANA.',
         expected: 'Debe aparecer Reclamar.',
-        result: 'El hub de Apoyo RUANA queda visible.',
+        result: 'El aviso de Apoyo RUANA queda visible.',
       });
-      await clickVisible(page, '[data-alert-action="apoyo-pago"]');
+      await openPulseActivityPanel(page, scenario);
+      await clickVisible(page, '[data-pulse-action="apoyo-pago"]');
       await clickVisible(page, '.btn-impugnar-apoyo');
       await expect(page.locator('#modal-impugnar-apoyo')).toHaveClass(/show/);
       await fillVisible(

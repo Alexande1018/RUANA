@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RUANA Pulse — Preview</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+  <link rel="stylesheet" href="/static/css/ruana-alert-hub.css">
+  <link rel="stylesheet" href="/static/css/ruana-pulse.css">
+  <link rel="stylesheet" href="/static/css/aliado-shell.css">
+  <style>
+    body { background: #080a0c; color: #e8ece6; padding: 24px; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+    .preview-wrap { max-width: 480px; margin: 0 auto; }
+    .preview-label { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.4); margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <div class="preview-wrap">
+    <p class="preview-label">Preview — Centro de Actividad RUANA Pulse</p>
+    <div class="ruana-pulse-trigger-wrap" id="ruana-pulse-trigger-wrap">
+      <button type="button" class="ruana-pulse-trigger has-pending" id="ruana-pulse-trigger" aria-expanded="false" aria-controls="ruana-pulse-panel">
+        <span class="ruana-pulse-trigger__spark" aria-hidden="true">✦</span>
+        <span class="ruana-pulse-trigger__label">Actividad</span>
+        <span class="ruana-pulse-trigger__badge">3</span>
+      </button>
+    </div>
+  </div>
+  <script src="/static/js/ruana-alert-hub.js"></script>
+  <script src="/static/js/ruana-pulse.js"></script>
+  <script>
+    (function () {
+      var mockHost = {
+        notificaciones: [{ id: 1, titulo: 'Mensaje RUANA', mensaje: 'Comunicación sin leer', leida: 0, creado_en: new Date().toISOString() }],
+        contactosPagoPendiente: [
+          { id: 42, servicio: 'Fontanería', apoyo_ruana: 24.5, cerrado_en: new Date().toISOString() },
+          { id: 43, servicio: 'Electricidad', apoyo_ruana: 18, cerrado_en: new Date(Date.now() - 86400000).toISOString() }
+        ],
+        aliado: { score: 72, competencia_info: null },
+        actividadCinta: [
+          { texto: 'Acuerdo confirmado correctamente.', creado_en: new Date(Date.now() - 86400000).toISOString() },
+          { texto: 'Nuevo aliado en tu grupo.', creado_en: new Date(Date.now() - 172800000).toISOString() }
+        ],
+        _alertHubState: { showAll: true, expandedDetailId: null },
+        buildAlertItems: function () {
+          return [
+            { id: 'apoyo-pago', type: 'payment', tone: 'prioritario', priority: 200, title: '3 apoyos RUANA pendientes', description: 'Regulariza el 12% de tus encargos.', actionLabel: 'Gestionar', hasDetail: true, createdAt: Date.now() },
+            { id: 'pagos-restriccion', type: 'info', tone: 'thread', priority: 120, title: 'Nuevos trabajos limitados', description: 'Regulariza tus pagos de Apoyo RUANA para aceptar nuevos encargos.', createdAt: Date.now() },
+            { id: 'mensajes-ruana', type: 'message', tone: 'estable', priority: 180, title: '1 mensaje de RUANA', description: 'Comunicación sin leer del equipo RUANA', actionLabel: 'Ver', hasDetail: true, createdAt: Date.now() }
+          ];
+        },
+        renderAlertDetailPanel: function () {},
+        formatApoyoRuana: function (v) { return Number(v).toFixed(2) + ' €'; },
+        escapeHtml: function (s) { return String(s || ''); }
+      };
+      window.PrivatePanel = mockHost;
+      RuanaPulse.render(mockHost);
+      setTimeout(function () { RuanaPulse.open(mockHost); }, 400);
+    })();
+  </script>
+</body>
+</html>

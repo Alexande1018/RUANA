@@ -253,11 +253,22 @@
 
         const tasks = [];
 
-        const pagosHub = document.getElementById('ruana-alert-hub');
-        const hayAlertasHub = pagosHub && !pagosHub.hidden;
-        const hubSummaries = (hayAlertasHub && global.RuanaAlertHub && typeof global.RuanaAlertHub.getVisibleAlertSummaries === 'function')
-            ? global.RuanaAlertHub.getVisibleAlertSummaries(pagosHub)
-            : [];
+        const panel = global.PrivatePanel;
+        const hayAlertasHub = global.RuanaPulse && typeof global.RuanaPulse.hasPendingActivity === 'function'
+            ? global.RuanaPulse.hasPendingActivity(panel)
+            : (function () {
+                const pagosHub = document.getElementById('ruana-alert-hub');
+                return pagosHub && !pagosHub.hidden;
+            }());
+        const hubSummaries = (hayAlertasHub && global.RuanaPulse && typeof global.RuanaPulse.getSummaries === 'function')
+            ? global.RuanaPulse.getSummaries(panel)
+            : (function () {
+                const pagosHub = document.getElementById('ruana-alert-hub');
+                if (!pagosHub || pagosHub.hidden || !global.RuanaAlertHub) return [];
+                return typeof global.RuanaAlertHub.getVisibleAlertSummaries === 'function'
+                    ? global.RuanaAlertHub.getVisibleAlertSummaries(pagosHub)
+                    : [];
+            }());
 
         const contacto = document.getElementById('contacto-aviso-persistente');
         if (contacto && isVisible(contacto)) {
@@ -321,7 +332,6 @@
             });
         }
 
-        const panel = global.PrivatePanel;
         if (panel && panel.solicitudesSemanales && Array.isArray(panel.solicitudesSemanales.activas_grupo)) {
             const pendientesSem = panel.solicitudesSemanales.activas_grupo.filter(function (s) {
                 return !s.mi_respuesta;
@@ -363,8 +373,12 @@
                     return;
                 }
                 if (task.scrollAlerts) {
-                    const alerts = qs('.aliado-shell-alerts');
-                    if (alerts) alerts.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    if (global.RuanaPulse && typeof global.RuanaPulse.open === 'function') {
+                        global.RuanaPulse.open(panel);
+                    } else {
+                        const alerts = qs('.aliado-shell-alerts');
+                        if (alerts) alerts.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
                 }
             });
             li.appendChild(span);
