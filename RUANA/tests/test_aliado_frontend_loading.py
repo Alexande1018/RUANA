@@ -381,6 +381,14 @@ def test_aliado_alertas_module_is_wired():
     assert "Centro de Actividad" in pulse_js
     assert "renderAlertHub(host)" in alertas_js
     assert "renderAlertDetailPanel(host, detailEl, detailId)" in alertas_js
+    assert "host.renderAlertDetailPanel(wrapper, detailId)" in pulse_js
+    assert "host.renderAlertDetailPanel(host, wrapper, detailId)" not in pulse_js
+    assert "if (!Array.isArray(buildItems)) buildItems = []" in pulse_js
+    assert "function closePulseIfOpen(" in alertas_js
+    assert "closePulseIfOpen()" in alertas_js
+    assert "html.ruana-pulse-enabled .modal-contacto-overlay" in (
+        Path(__file__).resolve().parents[1] / "web" / "static" / "css" / "ruana-pulse.css"
+    ).read_text(encoding="utf-8")
     assert "const self = this" not in alertas_js
     assert 'id="modal-pago-apoyo"' in aliado
     assert 'id="modal-impugnar-apoyo"' in aliado

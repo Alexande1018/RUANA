@@ -27,6 +27,17 @@ const {
 } = require('./utils/qa-narrator');
 
 async function openPulseActivityPanel(page, scenario) {
+  await page.waitForFunction(() => {
+    const pulse = window.RuanaPulse;
+    const panel = window.__ruanaPanel;
+    if (!pulse || !panel) return false;
+    if (typeof pulse.render === 'function') pulse.render(panel);
+    if (typeof pulse.hasPendingActivity === 'function') {
+      return pulse.hasPendingActivity(panel);
+    }
+    const trigger = document.getElementById('ruana-pulse-trigger');
+    return !!(trigger && trigger.classList.contains('has-pending'));
+  }, null, { timeout: 15000 });
   await clickVisible(page, '#ruana-pulse-trigger');
   await expect(page.locator('#ruana-pulse-panel.is-open')).toBeVisible();
   await pass(page, scenario, {
