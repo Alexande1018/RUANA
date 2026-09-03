@@ -36,6 +36,12 @@ async function openPulseActivityPanel(page, scenario) {
   });
 }
 
+async function openPulseDetailAction(page, scenario, actionId) {
+  await openPulseActivityPanel(page, scenario);
+  await clickVisible(page, `[data-pulse-action="${actionId}"]`);
+  await expect(page.locator('#ruana-pulse-detail.is-active')).toBeVisible();
+}
+
 async function openAliadoPanel(page, session, scenario, label) {
   await test.step(`${label} abre su panel de aliado`, async () => {
     await page.goto('/');
@@ -232,9 +238,8 @@ async function uploadComprobanteViaUi(page, scenario) {
       expected: 'Debe aparecer el aviso con accion Gestionar.',
       result: 'El Centro de Actividad muestra el pago pendiente.',
     });
-    await openPulseActivityPanel(page, scenario);
-    await clickVisible(page, '[data-pulse-action="apoyo-pago"]');
-    await clickVisible(page, '.btn-aceptar-pagar');
+    await openPulseDetailAction(page, scenario, 'apoyo-pago');
+    await clickVisible(page, '#ruana-pulse-detail-body .btn-aceptar-pagar');
     await expect(page.locator('#modal-pago-apoyo')).toHaveClass(/show/);
     await expect(page.locator('#modal-pago-apoyo')).toContainText('Bizum');
     await expect(page.locator('#btn-pago-apoyo-comprobante')).toBeVisible();
@@ -788,8 +793,7 @@ test.describe('RUANA QA critica con video human-readable', () => {
       expected: 'Debe ver una notificacion con el motivo del rechazo.',
       result: 'El aviso de mensajes de RUANA queda visible.',
     });
-    await openPulseActivityPanel(page, scenario);
-    await clickVisible(page, '[data-pulse-action="mensajes-ruana"]');
+    await openPulseDetailAction(page, scenario, 'mensajes-ruana');
     await expect(page.locator('#ruana-pulse-detail-body')).toContainText('Comprobante ilegible');
     await pass(page, scenario, {
       step: 'Notificacion de rechazo visible',
@@ -928,9 +932,8 @@ test.describe('RUANA QA critica con video human-readable', () => {
         expected: 'Debe aparecer Reclamar.',
         result: 'El aviso de Apoyo RUANA queda visible.',
       });
-      await openPulseActivityPanel(page, scenario);
-      await clickVisible(page, '[data-pulse-action="apoyo-pago"]');
-      await clickVisible(page, '.btn-impugnar-apoyo');
+      await openPulseDetailAction(page, scenario, 'apoyo-pago');
+      await clickVisible(page, '#ruana-pulse-detail-body .btn-impugnar-apoyo');
       await expect(page.locator('#modal-impugnar-apoyo')).toHaveClass(/show/);
       await fillVisible(
         page,

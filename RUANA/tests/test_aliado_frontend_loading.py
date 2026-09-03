@@ -376,6 +376,8 @@ def test_aliado_alertas_module_is_wired():
     assert 'ruana-pulse.js' in aliado
     pulse_js = (root / "static" / "js" / "ruana-pulse.js").read_text(encoding="utf-8")
     assert "RuanaPulse" in pulse_js
+    assert "resolvePanelHost" in pulse_js
+    assert "__ruanaPanel" in pulse_js
     assert "Centro de Actividad" in pulse_js
     assert "renderAlertHub(host)" in alertas_js
     assert "renderAlertDetailPanel(host, detailEl, detailId)" in alertas_js

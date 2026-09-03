@@ -253,7 +253,7 @@
 
         const tasks = [];
 
-        const panel = global.PrivatePanel;
+        const panel = global.__ruanaPanel || null;
         const hayAlertasHub = global.RuanaPulse && typeof global.RuanaPulse.hasPendingActivity === 'function'
             ? global.RuanaPulse.hasPendingActivity(panel)
             : (function () {
@@ -388,7 +388,7 @@
     }
 
     function countMensajesPendientes() {
-        const panel = global.PrivatePanel;
+        const panel = global.__ruanaPanel || null;
         if (panel && Array.isArray(panel.contactosAbiertos)) {
             const ui = global.RuanaConversacionUI;
             if (ui && typeof ui.countMensajesPendientes === 'function') {
