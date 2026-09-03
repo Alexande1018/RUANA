@@ -41,8 +41,10 @@ def _mapear_stripe(
     payment_intent: str,
     contacto: Dict[str, Any],
 ) -> EstadoFinanciero:
-    if transfer_id or estado_pago == "transferido":
+    if estado_pago == "transferido":
         return EstadoFinanciero.TRANSFERIDO
+    if estado_pago == "transfer_pendiente" or transfer_id:
+        return EstadoFinanciero.TRANSFERENCIA_ENVIADA
     if estado_pago == "revision_admin":
         return EstadoFinanciero.CONFLICTO_ABIERTO
     if estado_pago in ("esperando_cobro_cliente", "checkout_activo"):
@@ -78,6 +80,8 @@ _MAPEO_INVERSO_STRIPE = {
     EstadoFinanciero.PAGO_CONFIRMADO: "cobro_confirmado",
     EstadoFinanciero.ESPERANDO_CONFIRMACION: "cobro_confirmado",
     EstadoFinanciero.TRABAJO_EN_CURSO: "cobro_confirmado",
+    EstadoFinanciero.TRANSFERENCIA_ENVIADA: "transfer_pendiente",
+    EstadoFinanciero.TRANSFERENCIA_PENDIENTE: "transfer_pendiente",
     EstadoFinanciero.TRANSFERIDO: "transferido",
     EstadoFinanciero.CONFLICTO_ABIERTO: "revision_admin",
 }
