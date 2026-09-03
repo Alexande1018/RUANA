@@ -77,6 +77,25 @@ def test_stripe_pending_label_not_shown_when_cobro_confirmado():
     assert "Pago Stripe pendiente" in snippet
 
 
+def test_contratante_cobro_confirmado_not_told_to_pay_again():
+    """Con cobro_confirmado no debe pedir «Pagar ahora» en la tarjeta de acuerdo."""
+    contactos_js = (
+        Path(__file__).resolve().parents[1]
+        / "web"
+        / "static"
+        / "js"
+        / "aliado-contactos-module.js"
+    )
+    text = contactos_js.read_text(encoding="utf-8")
+    start = text.index("else if (estado === 'acuerdo_alcanzado' || contacto.negociacion_completa)")
+    snippet = text[start : start + 1600]
+    assert "modoStripe && cobroConfirmado && esContratante" in snippet
+    assert "Confirma que el trabajo quedó hecho" in snippet
+    confirm_idx = snippet.index("modoStripe && cobroConfirmado && esContratante")
+    pay_idx = snippet.index("Completa el pago con «Pagar ahora»")
+    assert confirm_idx < pay_idx
+
+
 def test_dispute_support_uses_ruana_modal_instead_of_browser_dialogs():
     root = Path(__file__).resolve().parents[1] / "web"
     aliado_html = (root / "aliado.html").read_text(encoding="utf-8")
