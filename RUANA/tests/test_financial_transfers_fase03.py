@@ -394,3 +394,30 @@ def test_16_no_marca_transferido_sin_webhook(mock_transfer, sqlite_db):
     ).fetchone()[0]
     conn.close()
     assert estado_pago == "cobro_confirmado"
+
+
+@patch("core.services.financial_transfer_service._validar_precondiciones")
+@patch("core.services.financial_transfer_service.schema_service.asegurar_tabla_id_serial_postgres")
+def test_liberacion_asegura_serial_financial_transfers_en_postgres(mock_asegurar, mock_validar):
+    """En Postgres repara id sin DEFAULT justo antes de reclamar la transferencia."""
+    import threading
+
+    db = MagicMock()
+    db.backend = "postgres"
+    db._lock = threading.RLock()
+    conn = MagicMock()
+    cursor = MagicMock()
+    db._connect.return_value = conn
+    conn.cursor.return_value = cursor
+    mock_validar.return_value = {"status": "error", "message": "test"}
+
+    result = transfer_svc.ejecutar_liberacion_y_transferencia(db, 72, "SOL")
+
+    mock_asegurar.assert_called_once_with(db, cursor, "financial_transfers")
+    assert result["status"] == "error"
+
+
+@patch("core.services.financial_transfer_service.schema_service.asegurar_tabla_id_serial_postgres")
+def test_liberacion_no_asegura_serial_en_sqlite(mock_asegurar, sqlite_db):
+    transfer_svc.ejecutar_liberacion_y_transferencia(sqlite_db, 999, "")
+    mock_asegurar.assert_not_called()
