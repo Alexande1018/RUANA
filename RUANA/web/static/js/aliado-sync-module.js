@@ -724,9 +724,10 @@
     host._contactoIdImpugnarApoyo = null;
     host._alertHubState = { showAll: false, expandedDetailId: null };
     host.metodosPagoRuana = {
-        bizum_num: window.RUANA_BIZUM_NUM || '642868261',
-        iban: window.RUANA_IBAN || 'ES8915830001119028625152',
-        qr_revolut_path: window.RUANA_QR_REVOLUT_PATH || '/static/images/PayPal.png'
+        habilitado: false,
+        bizum_num: null,
+        iban: null,
+        qr_revolut_path: null
     };
   }
 

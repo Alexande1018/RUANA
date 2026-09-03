@@ -812,3 +812,101 @@ class PagoRepo:
             (int(limite),),
         )
         return cursor.fetchall()
+
+    def select_metodos_pago_manual(self, cursor) -> Optional[Any]:
+        cursor.execute(
+            """
+            SELECT bizum_num, iban, qr_revolut_path
+            FROM ruana_metodos_pago_manual
+            ORDER BY id
+            LIMIT 1
+            """
+        )
+        return cursor.fetchone()
+
+    def upsert_metodos_pago_manual(
+        self,
+        cursor,
+        bizum_num: Optional[str],
+        iban: Optional[str],
+        qr_revolut_path: Optional[str],
+        actualizado_por: Optional[str],
+    ) -> None:
+        cursor.execute(
+            "SELECT id FROM ruana_metodos_pago_manual ORDER BY id LIMIT 1"
+        )
+        row = cursor.fetchone()
+        if row:
+            row_id = row[0] if not hasattr(row, "keys") else row["id"]
+            cursor.execute(
+                """
+                UPDATE ruana_metodos_pago_manual
+                SET bizum_num = ?, iban = ?, qr_revolut_path = ?,
+                    actualizado_por = ?, actualizado_en = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (bizum_num, iban, qr_revolut_path, actualizado_por, row_id),
+            )
+            return
+        cursor.execute(
+            """
+            INSERT INTO ruana_metodos_pago_manual (
+                bizum_num, iban, qr_revolut_path, actualizado_por
+            ) VALUES (?, ?, ?, ?)
+            """,
+            (bizum_num, iban, qr_revolut_path, actualizado_por),
+        )
+
+    def aliado_pago_manual_habilitado(self, cursor, aliado_codigo: str) -> bool:
+        cursor.execute(
+            """
+            SELECT 1 FROM ruana_pago_manual_aliados_habilitados
+            WHERE aliado_codigo = ?
+            LIMIT 1
+            """,
+            (aliado_codigo,),
+        )
+        return cursor.fetchone() is not None
+
+    def insertar_pago_manual_aliado(
+        self, cursor, aliado_codigo: str, habilitado_por: Optional[str]
+    ) -> None:
+        if self.aliado_pago_manual_habilitado(cursor, aliado_codigo):
+            cursor.execute(
+                """
+                UPDATE ruana_pago_manual_aliados_habilitados
+                SET habilitado_por = ?, habilitado_en = CURRENT_TIMESTAMP
+                WHERE aliado_codigo = ?
+                """,
+                (habilitado_por, aliado_codigo),
+            )
+            return
+        cursor.execute(
+            """
+            INSERT INTO ruana_pago_manual_aliados_habilitados (
+                aliado_codigo, habilitado_por
+            ) VALUES (?, ?)
+            """,
+            (aliado_codigo, habilitado_por),
+        )
+
+    def borrar_pago_manual_aliado(self, cursor, aliado_codigo: str) -> int:
+        cursor.execute(
+            """
+            DELETE FROM ruana_pago_manual_aliados_habilitados
+            WHERE aliado_codigo = ?
+            """,
+            (aliado_codigo,),
+        )
+        return int(cursor.rowcount or 0)
+
+    def listar_pago_manual_aliados(self, cursor) -> List[Any]:
+        cursor.execute(
+            """
+            SELECT h.aliado_codigo, h.habilitado_por, h.habilitado_en, a.nombre
+            FROM ruana_pago_manual_aliados_habilitados h
+            LEFT JOIN aliados a ON a.codigo = h.aliado_codigo
+            ORDER BY h.habilitado_en DESC
+            """
+        )
+        return cursor.fetchall()

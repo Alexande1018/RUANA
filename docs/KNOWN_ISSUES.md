@@ -35,11 +35,11 @@ Toda autorización debe implementarse en Flask (`@require_aliado`, `@require_adm
 
 ### K-03 — Datos de cobro manual en repositorio
 
-**Estado:** Abierto  
+**Estado:** Cerrado (código) en [#195](https://github.com/Alexande1018/RUANA/pull/195) — historial git pendiente de purga manual  
 **Severidad:** Alta (privacidad / compliance)  
-**Verificado:** `RUANA/config/ruana_reglas_v1.json`
+**Verificado:** `docs/seguridad/pago-manual-allowlist.md`
 
-Contiene IBAN, número Bizum y URLs de QR en historial git. No rotar automáticamente si se filtran.
+Los datos de cobro salieron de `ruana_reglas_v1.json` y del código. Viven en `ruana_metodos_pago_manual` y solo se muestran a aliados de `ruana_pago_manual_aliados_habilitados`. **Sigue haciendo falta rotar IBAN/Bizum reales y purgar el historial** (`git filter-repo` / BFG); eso queda fuera de #195.
 
 ---
 

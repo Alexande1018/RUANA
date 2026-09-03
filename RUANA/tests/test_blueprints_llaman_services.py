@@ -390,9 +390,10 @@ def test_negociacion_bp_obtener_llama_service(monkeypatch, session_headers, clie
 def test_pagos_bp_metodos_llama_service(monkeypatch, session_headers, client):
     called = {}
 
-    def _fake(db):
+    def _fake(db, aliado_codigo=None):
         called["ok"] = True
-        return {"bizum_num": "600000000", "iban": ""}
+        called["aliado_codigo"] = aliado_codigo
+        return {"habilitado": False, "bizum_num": None, "iban": None, "qr_revolut_path": None}
 
     class _FakeDb:
         def obtener_metodos_pago_ruana(self, *a, **k):
@@ -406,7 +407,9 @@ def test_pagos_bp_metodos_llama_service(monkeypatch, session_headers, client):
     data = resp.get_json()
     assert resp.status_code == 200, data
     assert called.get("ok") is True
-    assert data["metodos"]["bizum_num"] == "600000000"
+    assert called.get("aliado_codigo") == "81001"
+    assert data["metodos"]["habilitado"] is False
+    assert data["metodos"]["bizum_num"] is None
 
 
 def test_services_exportados_disponibles():

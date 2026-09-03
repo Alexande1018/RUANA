@@ -53,54 +53,222 @@ def _get_ruana_pago_defaults(db) -> Tuple[Optional[str], Optional[str]]:
         pass
     return (None, None)
 
-def obtener_metodos_pago_ruana(db) -> Dict[str, Any]:
-    """Devuelve los metodos de pago configurados para cobrar Apoyo RUANA."""
-    defaults = {
-        'bizum_num': '642868261',
-        'iban': 'ES8915830001119028625152',
-        'qr_revolut_path': '',
+def _metodos_pago_ocultos() -> Dict[str, Any]:
+    return {
+        "habilitado": False,
+        "bizum_num": None,
+        "iban": None,
+        "qr_revolut_path": None,
     }
-    try:
-        config_path = RUANA_ROOT / 'config' / 'ruana_reglas_v1.json'
-        if config_path.exists():
-            with open(config_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            defaults['bizum_num'] = (data.get('bizum_num') or defaults['bizum_num']).strip()
-            defaults['iban'] = (data.get('iban') or defaults['iban']).strip()
-            defaults['qr_revolut_path'] = (data.get('qr_revolut_path') or data.get('qr_paypal_path') or '').strip()
-    except Exception:
-        pass
-    return defaults
+
+
+def _fila_metodos_pago(row: Any) -> Dict[str, Any]:
+    if not row:
+        return {"bizum_num": None, "iban": None, "qr_revolut_path": None}
+    if hasattr(row, "keys"):
+        bizum = row["bizum_num"]
+        iban = row["iban"]
+        qr = row["qr_revolut_path"]
+    else:
+        bizum, iban, qr = row[0], row[1], row[2]
+    return {
+        "bizum_num": (str(bizum).strip() if bizum else None) or None,
+        "iban": (str(iban).strip() if iban else None) or None,
+        "qr_revolut_path": (str(qr).strip() if qr else None) or None,
+    }
+
+
+def obtener_config_pago_manual(db) -> Dict[str, Any]:
+    """Datos de cobro almacenados (solo para admin). No implica allowlist."""
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            return _fila_metodos_pago(_repo.select_metodos_pago_manual(cursor))
+        except Exception:
+            return {"bizum_num": None, "iban": None, "qr_revolut_path": None}
+        finally:
+            conn.close()
+
+
+def obtener_metodos_pago_ruana(db, aliado_codigo: Optional[str] = None) -> Dict[str, Any]:
+    """Métodos de pago manual visibles para un aliado. Off por defecto."""
+    codigo = (aliado_codigo or "").strip()
+    if not codigo:
+        return _metodos_pago_ocultos()
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            if not _repo.aliado_pago_manual_habilitado(cursor, codigo):
+                return _metodos_pago_ocultos()
+            datos = _fila_metodos_pago(_repo.select_metodos_pago_manual(cursor))
+            datos["habilitado"] = True
+            return datos
+        except Exception:
+            return _metodos_pago_ocultos()
+        finally:
+            conn.close()
+
 
 def actualizar_metodos_pago_ruana(db, valores: Dict[str, Any], admin_codigo: Optional[str] = None) -> Dict[str, Any]:
-    """Actualiza Bizum, IBAN y/o QR Revolut en config/ruana_reglas_v1.json."""
-    permitidas = {'bizum_num', 'iban', 'qr_revolut_path'}
-    cambios = {k: (v or '').strip() for k, v in (valores or {}).items() if k in permitidas}
+    """Actualiza Bizum, IBAN y/o QR Revolut en ruana_metodos_pago_manual. No toca la allowlist."""
+    permitidas = {"bizum_num", "iban", "qr_revolut_path"}
+    cambios = {k: (v or "").strip() for k, v in (valores or {}).items() if k in permitidas}
     if not cambios:
-        return {'status': 'error', 'message': 'No hay metodos de pago validos para actualizar'}
-    try:
-        config_path = RUANA_ROOT / 'config' / 'ruana_reglas_v1.json'
-        if not config_path.exists():
-            return {'status': 'error', 'message': 'Archivo de reglas no encontrado'}
-        with open(config_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        data.update(cambios)
-        with open(config_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        db.registrar_evento_sistema(
-            'actualizar_metodos_pago',
-            'Metodos de pago RUANA actualizados',
-            actor_tipo='admin',
-            actor_codigo=admin_codigo,
-            metadata={'claves': sorted(cambios.keys())},
-        )
-        return {'status': 'success', 'message': 'Metodos de pago actualizados', 'metodos': db.obtener_metodos_pago_ruana()}
-    except Exception as e:
-        return {'status': 'error', 'message': str(e)}
+        return {"status": "error", "message": "No hay metodos de pago validos para actualizar"}
+    if "iban" in cambios and cambios["iban"]:
+        iban_limpio = cambios["iban"].replace(" ", "").upper()
+        if not iban_limpio.startswith("ES") or len(iban_limpio) != 24:
+            return {"status": "error", "message": "IBAN espanol no valido"}
+        cambios["iban"] = iban_limpio
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            actual = _fila_metodos_pago(_repo.select_metodos_pago_manual(cursor))
+            actual.update({k: (cambios[k] or None) for k in cambios})
+            _repo.upsert_metodos_pago_manual(
+                cursor,
+                actual.get("bizum_num"),
+                actual.get("iban"),
+                actual.get("qr_revolut_path"),
+                admin_codigo,
+            )
+            db._insert_evento_sistema(
+                cursor,
+                "actualizar_metodos_pago",
+                "Metodos de pago RUANA actualizados",
+                actor_tipo="admin",
+                actor_codigo=admin_codigo,
+                metadata={"claves": sorted(cambios.keys())},
+            )
+            conn.commit()
+            return {
+                "status": "success",
+                "message": "Metodos de pago actualizados",
+                "metodos": _fila_metodos_pago(_repo.select_metodos_pago_manual(cursor)),
+            }
+        except Exception as e:
+            conn.rollback()
+            return {"status": "error", "message": str(e)}
+        finally:
+            conn.close()
+
+
+def habilitar_pago_manual_aliado(db, aliado_codigo: str, admin_codigo: Optional[str] = None) -> Dict[str, Any]:
+    """Incluye al aliado en la allowlist de pago manual."""
+    codigo = (aliado_codigo or "").strip()
+    if not codigo:
+        return {"status": "error", "message": "Codigo de aliado requerido"}
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            if _repo.select_aliado_id_por_codigo(cursor, codigo) is None:
+                return {"status": "error", "message": "Aliado no encontrado"}
+            datos = _fila_metodos_pago(_repo.select_metodos_pago_manual(cursor))
+            if not datos.get("iban") and not datos.get("bizum_num"):
+                return {
+                    "status": "error",
+                    "message": "Configura IBAN o Bizum antes de habilitar el pago manual a un aliado",
+                }
+            _repo.insertar_pago_manual_aliado(cursor, codigo, admin_codigo)
+            db._insert_evento_sistema(
+                cursor,
+                "habilitar_pago_manual_aliado",
+                f"Pago manual habilitado para {codigo}",
+                actor_tipo="admin",
+                actor_codigo=admin_codigo,
+                metadata={"aliado_codigo": codigo},
+            )
+            conn.commit()
+            return {"status": "success", "message": f"Pago manual habilitado para {codigo}", "aliado_codigo": codigo}
+        except Exception as e:
+            conn.rollback()
+            return {"status": "error", "message": str(e)}
+        finally:
+            conn.close()
+
+
+def deshabilitar_pago_manual_aliado(db, aliado_codigo: str, admin_codigo: Optional[str] = None) -> Dict[str, Any]:
+    """Quita al aliado de la allowlist de pago manual."""
+    codigo = (aliado_codigo or "").strip()
+    if not codigo:
+        return {"status": "error", "message": "Codigo de aliado requerido"}
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            _repo.borrar_pago_manual_aliado(cursor, codigo)
+            db._insert_evento_sistema(
+                cursor,
+                "deshabilitar_pago_manual_aliado",
+                f"Pago manual deshabilitado para {codigo}",
+                actor_tipo="admin",
+                actor_codigo=admin_codigo,
+                metadata={"aliado_codigo": codigo},
+            )
+            conn.commit()
+            return {
+                "status": "success",
+                "message": f"Pago manual deshabilitado para {codigo}",
+                "aliado_codigo": codigo,
+            }
+        except Exception as e:
+            conn.rollback()
+            return {"status": "error", "message": str(e)}
+        finally:
+            conn.close()
+
+
+def listar_aliados_con_pago_manual(db) -> List[Dict[str, Any]]:
+    """Aliados actualmente en la allowlist de pago manual."""
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            filas = []
+            for row in _repo.listar_pago_manual_aliados(cursor):
+                if hasattr(row, "keys"):
+                    filas.append(
+                        {
+                            "aliado_codigo": row["aliado_codigo"],
+                            "habilitado_por": row["habilitado_por"],
+                            "habilitado_en": row["habilitado_en"],
+                            "nombre": row["nombre"],
+                        }
+                    )
+                else:
+                    filas.append(
+                        {
+                            "aliado_codigo": row[0],
+                            "habilitado_por": row[1],
+                            "habilitado_en": row[2],
+                            "nombre": row[3],
+                        }
+                    )
+            return filas
+        except Exception:
+            return []
+        finally:
+            conn.close()
 
 def listar_contactos_conflicto_pago(db) -> List[Dict[str, Any]]:
     """Lista contactos donde importe_A != importe_B (estado importe_en_disputa)."""
     with db._lock:
+        conn = None
         try:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
@@ -114,6 +282,7 @@ def listar_contactos_conflicto_pago(db) -> List[Dict[str, Any]]:
 def listar_payment_conflicts_admin(db) -> List[Dict[str, Any]]:
     """Lista conflictos de payment_conflicts con nombres, orden created_at DESC."""
     with db._lock:
+        conn = None
         try:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
@@ -131,6 +300,7 @@ def listar_payment_conflicts_admin(db) -> List[Dict[str, Any]]:
 def obtener_payment_conflict_por_trabajo(db, trabajo_id: int, codigo_aliado: str) -> Optional[Dict[str, Any]]:
     """Obtiene el conflicto abierto para un trabajo; codigo_aliado debe ser contratante o profesional."""
     with db._lock:
+        conn = None
         try:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
@@ -152,6 +322,7 @@ def obtener_payment_conflict_por_trabajo(db, trabajo_id: int, codigo_aliado: str
 def obtener_payment_conflict(db, conflict_id: int) -> Optional[Dict[str, Any]]:
     """Detalle de un conflicto por id."""
     with db._lock:
+        conn = None
         try:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
@@ -179,6 +350,7 @@ def resolver_payment_conflict_admin(db, conflict_id: int, decision: str, comenta
     decision_penal_disputa: Optional[str] = None
     contacto_penal_disputa: Optional[int] = None
     with db._lock:
+        conn = None
         try:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
@@ -288,6 +460,7 @@ def resolver_conflicto_pago(db, contacto_id: int, importe_valido: float,
     """
     imp = apoyo = 0.0
     with db._lock:
+        conn = None
         try:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
@@ -350,6 +523,7 @@ def resolver_conflicto_pago(db, contacto_id: int, importe_valido: float,
 def listar_contactos_pagos_apoyo(db) -> List[Dict[str, Any]]:
     """Lista contactos con trabajo_cerrado e importe_final (Apoyo RUANA generado) para gestión de estado de pago."""
     with db._lock:
+        conn = None
         try:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
@@ -372,6 +546,7 @@ def listar_contactos_pagos_apoyo(db) -> List[Dict[str, Any]]:
 def listar_contactos_pagos_en_revision(db) -> List[Dict[str, Any]]:
     """Lista contactos con estado_pago = 'en_revision' (comprobante subido, pendiente de aprobar/rechazar)."""
     with db._lock:
+        conn = None
         try:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
@@ -414,6 +589,7 @@ def actualizar_estado_pago_contacto(db, contacto_id: int, nuevo_estado: str,
     participantes_regla2: List[str] = []
     resultado = {'status': 'error', 'message': 'unknown'}
     with db._lock:
+        conn = None
         try:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
@@ -505,6 +681,7 @@ def tiene_pagos_ruana_pendientes(db, codigo_profesional: str) -> bool:
     if not (codigo_profesional or "").strip():
         return False
     with db._lock:
+        conn = None
         try:
             conn = db._connect()
             cursor = conn.cursor()
@@ -521,6 +698,7 @@ def impugnar_apoyo_ruana(db, contacto_id: int, profesional_codigo: str,
     if not prof_norm:
         return {'status': 'error', 'message': 'Código de profesional requerido'}
     with db._lock:
+        conn = None
         try:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
@@ -590,6 +768,7 @@ def listar_contactos_pago_pendiente_profesional(db, codigo_aliado: str) -> List[
     if not codigo_norm:
         return []
     with db._lock:
+        conn = None
         try:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
@@ -617,6 +796,7 @@ def subir_comprobante_apoyo_ruana(db, contacto_id: int, profesional_codigo: str,
     Notifica al administrador vía eventos_sistema.
     """
     with db._lock:
+        conn = None
         try:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
@@ -653,6 +833,7 @@ def subir_comprobante_apoyo_ruana(db, contacto_id: int, profesional_codigo: str,
 def subir_prueba_conflicto(db, conflict_id: int, contratante_codigo: str, prueba_url: str) -> Dict[str, Any]:
     """Solo contratante: guarda prueba_url y pasa estado a EN_REVISION."""
     with db._lock:
+        conn = None
         try:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
@@ -729,6 +910,7 @@ def profesional_stripe_listo(db, codigo_profesional: str) -> bool:
     if not codigo:
         return False
     with db._lock:
+        conn = None
         try:
             conn = db._connect()
             cursor = conn.cursor()
@@ -1178,6 +1360,7 @@ def estado_pago_stripe_contacto(db, contacto_id: int, codigo_aliado: str) -> Dic
     """Estado de pago Stripe visible para participantes del contacto."""
     codigo = (codigo_aliado or "").strip()
     with db._lock:
+        conn = None
         try:
             conn = db._connect()
             conn.row_factory = sqlite3.Row

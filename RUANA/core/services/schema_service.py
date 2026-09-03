@@ -439,6 +439,7 @@ def _init_db(db):
             db._migrar_financial_fase10_security(conn, cursor)
             db._migrar_financial_fase11_automation(conn, cursor)
             db._migrar_financial_fase13_p0_ledger_immutability(conn, cursor)
+            db._migrar_pago_manual_allowlist(conn, cursor)
             _asegurar_ids_serial_tablas_financieras(db, cursor)
 
             conn.commit()
@@ -2471,6 +2472,59 @@ def _migrar_solicitudes_semanales(db, conn, cursor) -> None:
     except Exception as ex:
         print(f"[RUANA][DB] Aviso migrar solicitudes_semanales: {ex}")
 
+
+def _migrar_pago_manual_allowlist(db, conn, cursor) -> None:
+    """Tablas de cobro manual y allowlist por aliado."""
+    try:
+        if getattr(db, "backend", None) == "postgres":
+            _repo.execute(cursor, """
+                CREATE TABLE IF NOT EXISTS ruana_metodos_pago_manual (
+                    id BIGSERIAL PRIMARY KEY,
+                    bizum_num TEXT,
+                    iban TEXT,
+                    qr_revolut_path TEXT,
+                    actualizado_por TEXT,
+                    actualizado_en TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            _repo.execute(cursor, """
+                CREATE TABLE IF NOT EXISTS ruana_pago_manual_aliados_habilitados (
+                    id BIGSERIAL PRIMARY KEY,
+                    aliado_codigo TEXT NOT NULL UNIQUE,
+                    habilitado_por TEXT,
+                    habilitado_en TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+        else:
+            _repo.execute(cursor, """
+                CREATE TABLE IF NOT EXISTS ruana_metodos_pago_manual (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    bizum_num TEXT,
+                    iban TEXT,
+                    qr_revolut_path TEXT,
+                    actualizado_por TEXT,
+                    actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            _repo.execute(cursor, """
+                CREATE TABLE IF NOT EXISTS ruana_pago_manual_aliados_habilitados (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    aliado_codigo TEXT NOT NULL UNIQUE,
+                    habilitado_por TEXT,
+                    habilitado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+        _repo.execute(
+            cursor,
+            """
+            CREATE INDEX IF NOT EXISTS idx_pago_manual_aliados_codigo
+            ON ruana_pago_manual_aliados_habilitados(aliado_codigo)
+            """,
+        )
+    except Exception as ex:
+        print(f"[RUANA][DB] Aviso migrar pago_manual_allowlist: {ex}")
+
+
 def _aplicar_esquema_pin_personal(db, cursor) -> None:
     """DDL de PIN personal en aliados y tabla de recuperación (sin capturar errores)."""
     if db.backend == "postgres":
@@ -2670,6 +2724,7 @@ def _init_postgres_schema(db):
         db._migrar_financial_fase10_security(conn, cursor)
         db._migrar_financial_fase11_automation(conn, cursor)
         db._migrar_financial_fase13_p0_ledger_immutability(conn, cursor)
+        db._migrar_pago_manual_allowlist(conn, cursor)
         _asegurar_ids_serial_tablas_financieras(db, cursor)
         conn.commit()
         print("[RUANA][DB] Esquema Postgres verificado (core + triggers ledger FASE 13A)")

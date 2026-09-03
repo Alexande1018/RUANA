@@ -196,7 +196,7 @@ def admin_obtener_metodos_pago():
     """Admin lee la configuracion actual de metodos de pago."""
     try:
         db = get_db()
-        return jsonify({'status': 'success', 'metodos': pago_service.obtener_metodos_pago_ruana(db)}), 200
+        return jsonify({'status': 'success', 'metodos': pago_service.obtener_config_pago_manual(db)}), 200
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 

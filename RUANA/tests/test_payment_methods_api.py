@@ -2,19 +2,26 @@ from io import BytesIO
 
 from tests.service_forwarders import install_service_db_forwarders
 
+_IBAN_FAKE = "ES0000000000000000000000"
+
 
 class PaymentMethodsFakeDB:
     def __init__(self):
         self.metodos = {
-            "bizum_num": "642868261",
-            "iban": "ES8915830001119028625152",
+            "bizum_num": "600000000",
+            "iban": _IBAN_FAKE,
             "qr_revolut_path": "https://storage.example/qr/revolut.png",
         }
         self.calls = []
 
-    def obtener_metodos_pago_ruana(self):
-        self.calls.append(("obtener_metodos_pago_ruana",))
-        return dict(self.metodos)
+    def obtener_metodos_pago_ruana(self, aliado_codigo=None):
+        self.calls.append(("obtener_metodos_pago_ruana", aliado_codigo))
+        return {
+            "habilitado": False,
+            "bizum_num": None,
+            "iban": None,
+            "qr_revolut_path": None,
+        }
 
     def actualizar_metodos_pago_ruana(self, valores, admin_codigo=None):
         self.calls.append(("actualizar_metodos_pago_ruana", valores, admin_codigo))
@@ -34,8 +41,9 @@ def test_aliado_can_read_payment_methods(client, fake_db, monkeypatch, session_h
     assert response.status_code == 200
     data = response.get_json()
     assert data["status"] == "success"
-    assert data["metodos"]["iban"] == "ES8915830001119028625152"
-    assert data["metodos"]["qr_revolut_path"] == "https://storage.example/qr/revolut.png"
+    assert data["metodos"]["habilitado"] is False
+    assert data["metodos"]["iban"] is None
+    assert data["metodos"]["bizum_num"] is None
 
 
 def test_admin_can_update_payment_methods(client, monkeypatch, session_headers):
@@ -50,14 +58,14 @@ def test_admin_can_update_payment_methods(client, monkeypatch, session_headers):
         headers=session_headers("admin", "ADMIN001", permisos=["leer", "configurar"]),
         json={
             "bizum_num": "600111222",
-            "iban": "ES8915830001119028625152",
+            "iban": _IBAN_FAKE,
         },
     )
 
     assert response.status_code == 200
     assert db.calls[-1] == (
         "actualizar_metodos_pago_ruana",
-        {"bizum_num": "600111222", "iban": "ES8915830001119028625152"},
+        {"bizum_num": "600111222", "iban": _IBAN_FAKE},
         "ADMIN001",
     )
 

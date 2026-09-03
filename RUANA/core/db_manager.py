@@ -269,6 +269,10 @@ class DBManager:
         """Fachada Campamento Base → schema_service._migrar_financial_fase13_p0_ledger_immutability."""
         return schema_service._migrar_financial_fase13_p0_ledger_immutability(self, conn, cursor)
 
+    def _migrar_pago_manual_allowlist(self, conn, cursor) -> None:
+        """Fachada Campamento Base → schema_service._migrar_pago_manual_allowlist."""
+        return schema_service._migrar_pago_manual_allowlist(self, conn, cursor)
+
     def _migrar_contactos_validacion_pago(self, conn, cursor) -> None:
         """Fachada Campamento Base → schema_service._migrar_contactos_validacion_pago."""
         return schema_service._migrar_contactos_validacion_pago(self, conn, cursor)
@@ -726,13 +730,29 @@ class DBManager:
         """Fachada Campamento Base → pago_service._get_ruana_pago_defaults."""
         return pago_service._get_ruana_pago_defaults(self)
 
-    def obtener_metodos_pago_ruana(self) -> Dict[str, Any]:
+    def obtener_metodos_pago_ruana(self, aliado_codigo: Optional[str] = None) -> Dict[str, Any]:
         """Fachada Campamento Base → pago_service.obtener_metodos_pago_ruana."""
-        return pago_service.obtener_metodos_pago_ruana(self)
+        return pago_service.obtener_metodos_pago_ruana(self, aliado_codigo=aliado_codigo)
 
     def actualizar_metodos_pago_ruana(self, valores: Dict[str, Any], admin_codigo: Optional[str] = None) -> Dict[str, Any]:
         """Fachada Campamento Base → pago_service.actualizar_metodos_pago_ruana."""
         return pago_service.actualizar_metodos_pago_ruana(self, valores, admin_codigo)
+
+    def habilitar_pago_manual_aliado(self, aliado_codigo: str, admin_codigo: Optional[str] = None) -> Dict[str, Any]:
+        """Fachada Campamento Base → pago_service.habilitar_pago_manual_aliado."""
+        return pago_service.habilitar_pago_manual_aliado(self, aliado_codigo, admin_codigo)
+
+    def deshabilitar_pago_manual_aliado(self, aliado_codigo: str, admin_codigo: Optional[str] = None) -> Dict[str, Any]:
+        """Fachada Campamento Base → pago_service.deshabilitar_pago_manual_aliado."""
+        return pago_service.deshabilitar_pago_manual_aliado(self, aliado_codigo, admin_codigo)
+
+    def listar_aliados_con_pago_manual(self) -> List[Dict[str, Any]]:
+        """Fachada Campamento Base → pago_service.listar_aliados_con_pago_manual."""
+        return pago_service.listar_aliados_con_pago_manual(self)
+
+    def obtener_config_pago_manual(self) -> Dict[str, Any]:
+        """Fachada Campamento Base → pago_service.obtener_config_pago_manual."""
+        return pago_service.obtener_config_pago_manual(self)
 
     def _get_posponer_horas(self) -> int:
         """Fachada Campamento Base → contacto_service._get_posponer_horas."""
