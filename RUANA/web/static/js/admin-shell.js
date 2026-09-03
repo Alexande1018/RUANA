@@ -336,7 +336,7 @@
         if (!sidebar) return;
 
         sidebar.classList.toggle('is-open', shouldOpen);
-        sidebar.classList.toggle('is-mobile-open', shouldOpen);
+        sidebar.classList.toggle('is-mobile-open', shouldOpen && isMobileShell());
         sidebar.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
         if ('inert' in sidebar) {
             if (shouldOpen) {

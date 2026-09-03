@@ -72,6 +72,22 @@ html.admin-shell-enabled .admin-app {
     z-index: auto !important;
 }
 
+/* Fuera de @layer: gana a admin-shell.css y reserva columna en escritorio. */
+html.admin-shell-enabled .admin-main {
+    margin-left: var(--admin-sidebar-w) !important;
+}
+
+html.admin-shell-enabled,
+html.admin-shell-enabled body {
+    scroll-padding-top: calc(var(--admin-topbar-h) + 12px);
+    scroll-padding-left: calc(var(--admin-sidebar-w) + 12px);
+}
+
+html.admin-shell-enabled .admin-main * {
+    scroll-margin-left: calc(var(--admin-sidebar-w) + 16px);
+    scroll-margin-top: calc(var(--admin-topbar-h) + 16px);
+}
+
 html.admin-shell-enabled .admin-sidebar {
     background: linear-gradient(
         180deg,
@@ -84,6 +100,19 @@ html.admin-shell-enabled .admin-sidebar {
 }
 
 @media (max-width: 960px) {
+    html.admin-shell-enabled .admin-main {
+        margin-left: 0 !important;
+    }
+
+    html.admin-shell-enabled,
+    html.admin-shell-enabled body {
+        scroll-padding-left: 12px;
+    }
+
+    html.admin-shell-enabled .admin-main * {
+        scroll-margin-left: 12px;
+    }
+
     html.admin-shell-enabled .admin-sidebar.is-open,
     html.admin-shell-enabled .admin-sidebar.is-mobile-open {
         z-index: 140;
