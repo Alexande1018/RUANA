@@ -46,11 +46,33 @@ WHERE c.id = %s
 """
 
 AUDIT_SQL = """
-SELECT accion, actor_tipo, actor_id, detalles, creado_en
+SELECT accion, actor_tipo, actor_codigo, detalles, creado_en
 FROM audit_log
 WHERE entidad = 'contacto' AND entidad_id = %s
 ORDER BY creado_en DESC
 LIMIT 15
+"""
+
+FT_SQL = """
+SELECT id, contacto_id, estado, stripe_transfer_id, amount_cents,
+       destination_account_id, professional_codigo, error_message,
+       creado_en, actualizado_en
+FROM financial_transfers
+WHERE contacto_id = %s
+ORDER BY id DESC
+LIMIT 5
+"""
+
+# Cuenta Connect de prueba (cacero1018@hotmail.com) vinculada por error a Andrea 50009.
+DEV_STRIPE_ACCOUNT = "acct_1U4nS02OQ4mXrlA3"
+
+CLEAR_DEV_STRIPE_SQL = """
+UPDATE aliados
+SET stripe_account_id = NULL,
+    stripe_charges_enabled = 0,
+    stripe_payouts_enabled = 0
+WHERE codigo = %s
+  AND stripe_account_id = %s
 """
 
 RESYNC_SQL = """
@@ -89,6 +111,7 @@ def main() -> int:
 
     dry_run = os.environ.get("ENCARGO_72_DRY_RUN", "0").strip().lower() in ("1", "true", "yes")
     allow_resync = os.environ.get("ENCARGO_72_ALLOW_RESYNC", "1").strip().lower() in ("1", "true", "yes")
+    clear_dev_stripe = os.environ.get("ENCARGO_72_CLEAR_DEV_STRIPE", "0").strip().lower() in ("1", "true", "yes")
 
     with psycopg.connect(url) as conn:
         with conn.cursor() as cur:
@@ -106,7 +129,13 @@ def main() -> int:
             print("\n=== AUDIT LOG (ultimos 15) ===")
             print(json.dumps(audit, ensure_ascii=False, indent=2, default=str))
 
+            cur.execute(FT_SQL, (CONTACTO_ID,))
+            ft_rows = [_row_to_dict(cur, r) for r in cur.fetchall()]
+            print("\n=== FINANCIAL_TRANSFERS ===")
+            print(json.dumps(ft_rows, ensure_ascii=False, indent=2, default=str))
+
             estado_pago = (diag.get("estado_pago") or "").strip()
+            prof_codigo = (diag.get("profesional_codigo") or "").strip()
             prof_acct = (diag.get("stripe_account_id") or "").strip()
             prof_charges = int(diag.get("stripe_charges_enabled") or 0)
 
@@ -118,7 +147,12 @@ def main() -> int:
             else:
                 print(f"COBRO: estado_pago={estado_pago!r}")
 
-            if prof_acct and prof_charges == 1:
+            if prof_acct == DEV_STRIPE_ACCOUNT:
+                print(
+                    f"STRIPE PROF: cuenta DEV de prueba vinculada por error ({prof_acct}) "
+                    f"— NO es Connect real de {diag.get('profesional_nombre')}"
+                )
+            elif prof_acct and prof_charges == 1:
                 print(f"STRIPE PROF: flags listos en BD ({prof_acct})")
             else:
                 print(
@@ -128,7 +162,16 @@ def main() -> int:
             if diag.get("stripe_transfer_id"):
                 print(f"TRANSFER: ya registrado {diag['stripe_transfer_id']}")
             else:
-                print("TRANSFER: pendiente (sin stripe_transfer_id)")
+                print("TRANSFER: pendiente (sin stripe_transfer_id en contacto)")
+
+            if clear_dev_stripe and prof_acct == DEV_STRIPE_ACCOUNT and prof_codigo:
+                if dry_run:
+                    print(f"\n=== CLEAR DEV STRIPE (dry-run): resetearia aliado {prof_codigo} ===")
+                else:
+                    cur.execute(CLEAR_DEV_STRIPE_SQL, (prof_codigo, DEV_STRIPE_ACCOUNT))
+                    cleared = cur.rowcount
+                    conn.commit()
+                    print(f"\n=== CLEAR DEV STRIPE: {cleared} fila(s) — Andrea debe re-onboardear ===")
 
             resync_rows = 0
             if allow_resync and estado_pago in ("esperando_cobro_cliente", "checkout_activo"):

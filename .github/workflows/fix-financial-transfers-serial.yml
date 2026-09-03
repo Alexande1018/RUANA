@@ -41,6 +41,10 @@ jobs:
         run: python3 -m pip install --quiet psycopg[binary]
 
       - name: Diagnóstico y resync encargo #72
+        env:
+          ENCARGO_72_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '0' }}
+          ENCARGO_72_ALLOW_RESYNC: "1"
+          ENCARGO_72_CLEAR_DEV_STRIPE: "1"
         run: |
           export DATABASE_URL="$(gcloud secrets versions access latest --secret=ruana-database-url --project="$PROJECT_ID")"
           python3 .github/scripts/encargo_72_ops.py | tee encargo-72-report.txt
