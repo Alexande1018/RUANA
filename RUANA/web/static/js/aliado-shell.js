@@ -509,6 +509,9 @@
         showModule(readHashModule(), { skipHash: false, instant: true });
         startMirrorObserver();
         refreshInicioSurface();
+        if (global.RuanaPulse && typeof global.RuanaPulse.render === 'function') {
+            global.RuanaPulse.render(global.PrivatePanel || null);
+        }
 
         window.addEventListener('hashchange', () => {
             showModule(readHashModule(), { skipHash: true });

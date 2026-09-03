@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="/static/css/ruana-identity.css">
     <link rel="stylesheet" href="/static/css/ruana-legal.css">
     <link rel="stylesheet" href="/static/css/ruana-actividad-cinta.css">
-    <link rel="stylesheet" href="/static/css/ruana-pulse.css">
+    <link rel="stylesheet" href="/static/css/ruana-pulse.css?v=20260903b">
     <link rel="stylesheet" href="/static/css/referidos-tree.css">
     <link rel="stylesheet" href="/static/css/aliado-solicitudes-semanales.css?v=20260822a">
     <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
@@ -28,7 +28,7 @@
     <script src="/static/js/ruana-ui.js" defer></script>
     <script src="/static/js/ruana-legal-footer.js" defer></script>
     <script src="/static/js/ruana-alert-hub.js" defer></script>
-    <script src="/static/js/ruana-pulse.js" defer></script>
+    <script src="/static/js/ruana-pulse.js?v=20260903b" defer></script>
     <script src="/static/js/ruana-api-client.js" defer></script>
     <script src="/static/js/aliado-modules.js" defer></script>
     <script src="/static/js/aliado-inicio-module.js" defer></script>
@@ -216,9 +216,20 @@
 
         <!-- MÓDULO: Inicio (centro operativo) -->
         <section class="aliado-module is-active" id="module-inicio" data-aliado-module="inicio" aria-hidden="false">
-            <header class="aliado-module-header">
-                <p class="aliado-module-kicker">Centro operativo</p>
-                <h2 class="aliado-module-title">Inicio</h2>
+            <header class="aliado-module-header inicio-module-header">
+                <div class="aliado-module-header-top">
+                    <div class="aliado-module-header-copy">
+                        <p class="aliado-module-kicker">Centro operativo</p>
+                        <h2 class="aliado-module-title">Inicio</h2>
+                    </div>
+                    <div class="ruana-pulse-trigger-wrap" id="ruana-pulse-trigger-wrap">
+                        <button type="button" class="ruana-pulse-trigger" id="ruana-pulse-trigger" aria-expanded="false" aria-controls="ruana-pulse-panel" aria-label="Abrir Centro de Actividad RUANA">
+                            <span class="ruana-pulse-trigger__spark" aria-hidden="true">✦</span>
+                            <span class="ruana-pulse-trigger__label">Actividad</span>
+                            <span class="ruana-pulse-trigger__badge" hidden aria-label="Novedades pendientes"></span>
+                        </button>
+                    </div>
+                </div>
                 <p class="aliado-module-subtitle">Estado de tu cuenta, métricas y accesos rápidos para empezar a trabajar.</p>
             </header>
             <div class="inicio-ops">
@@ -241,14 +252,6 @@
                     <button type="button" class="inicio-score-pill" id="inicio-score-pill" title="Ver detalle del Score RUANA" aria-label="Score RUANA">
                         <span class="inicio-score-pill-label">Score RUANA</span>
                         <strong id="inicio-score">0</strong>
-                    </button>
-                </div>
-
-                <div class="ruana-pulse-trigger-wrap" id="ruana-pulse-trigger-wrap">
-                    <button type="button" class="ruana-pulse-trigger" id="ruana-pulse-trigger" aria-expanded="false" aria-controls="ruana-pulse-panel">
-                        <span class="ruana-pulse-trigger__spark" aria-hidden="true">✦</span>
-                        <span class="ruana-pulse-trigger__label">Actividad</span>
-                        <span class="ruana-pulse-trigger__badge" hidden aria-label="Novedades pendientes"></span>
                     </button>
                 </div>
 

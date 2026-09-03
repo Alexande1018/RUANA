@@ -182,19 +182,20 @@
         var trigger = document.getElementById('ruana-pulse-trigger');
         var backdrop = document.getElementById('ruana-pulse-backdrop');
         var panel = document.getElementById('ruana-pulse-panel');
-        if (trigger && backdrop && panel) return { trigger: trigger, backdrop: backdrop, panel: panel };
-
         var wrap = document.getElementById('ruana-pulse-trigger-wrap');
+
         if (!wrap) {
             wrap = document.createElement('div');
             wrap.id = 'ruana-pulse-trigger-wrap';
             wrap.className = 'ruana-pulse-trigger-wrap';
-            var anchor = document.querySelector('.inicio-identity');
-            if (anchor && anchor.parentNode) {
-                anchor.parentNode.insertBefore(wrap, anchor.nextSibling);
+            var headerTop = document.querySelector('.inicio-module-header .aliado-module-header-top');
+            if (headerTop) {
+                headerTop.appendChild(wrap);
             } else {
-                var inicio = document.getElementById('module-inicio');
-                if (inicio) inicio.insertBefore(wrap, inicio.firstChild);
+                var anchor = document.querySelector('.inicio-identity');
+                if (anchor && anchor.parentNode) {
+                    anchor.parentNode.insertBefore(wrap, anchor.nextSibling);
+                }
             }
         }
 
@@ -205,12 +206,16 @@
             trigger.className = 'ruana-pulse-trigger';
             trigger.setAttribute('aria-expanded', 'false');
             trigger.setAttribute('aria-controls', 'ruana-pulse-panel');
+            trigger.setAttribute('aria-label', 'Abrir Centro de Actividad RUANA');
             trigger.innerHTML =
                 '<span class="ruana-pulse-trigger__spark" aria-hidden="true">✦</span>' +
                 '<span class="ruana-pulse-trigger__label">Actividad</span>' +
                 '<span class="ruana-pulse-trigger__badge" hidden aria-label="Novedades pendientes"></span>';
             wrap.appendChild(trigger);
         }
+
+        wrap.hidden = false;
+        trigger.hidden = false;
 
         if (!backdrop) {
             backdrop = document.createElement('div');
@@ -537,10 +542,12 @@
         if (state.isOpen && !state.expandedDetailId) {
             renderTimeline(host, entries);
         }
+    }
 
-        if (global.AliadoShell && typeof global.AliadoShell.refresh === 'function') {
-            global.AliadoShell.refresh();
-        }
+    function init() {
+        document.documentElement.classList.add('ruana-pulse-enabled');
+        ensureDom();
+        render(global.PrivatePanel || null);
     }
 
     function getPendingCount(host) {
@@ -564,10 +571,17 @@
         open: open,
         close: close,
         toggle: toggle,
+        init: init,
         isOpen: function () { return state.isOpen; },
         getPendingCount: getPendingCount,
         getSummaries: getSummaries,
         hasPendingActivity: hasPendingActivity,
         buildTimelineEntries: buildTimelineEntries
     };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
 })(typeof window !== 'undefined' ? window : globalThis);
