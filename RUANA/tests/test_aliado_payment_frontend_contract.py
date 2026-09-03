@@ -24,6 +24,8 @@ def test_aceptar_y_pagar_opens_manual_payment_modal_with_bizum_first():
     # El CTA vive en el hub de alertas (markup dinámico), no en una clase legacy fija.
     assert "btn-aceptar-pagar" in alertas_js
     assert "abrirModalPagoApoyo(" in alertas_js
+    assert "dismissPulsePanelIfOpen" in alertas_js
+    assert "RuanaPulse.close" in alertas_js
     assert "Aceptar y pagar" in alertas_js
 
     bind_start = alertas_js.index("btn-aceptar-pagar")

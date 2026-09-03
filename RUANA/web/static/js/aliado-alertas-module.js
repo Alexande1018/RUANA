@@ -32,6 +32,13 @@
     return extra || {};
   }
 
+  function dismissPulsePanelIfOpen() {
+    if (global.RuanaPulse && typeof global.RuanaPulse.isOpen === 'function' && global.RuanaPulse.isOpen()
+        && typeof global.RuanaPulse.close === 'function') {
+      global.RuanaPulse.close();
+    }
+  }
+
   function formatApoyoRuana(host, raw) {
     const apoyoNum = (raw != null && raw !== '' && !Number.isNaN(Number(raw))) ? Number(raw) : null;
     if (apoyoNum != null && Number.isFinite(apoyoNum) && apoyoNum > 0) {
@@ -468,6 +475,7 @@
     if (comentario) comentario.value = '';
     if (resultado) resultado.textContent = '';
     if (nombreEl) nombreEl.textContent = '';
+    dismissPulsePanelIfOpen();
     if (modal) modal.classList.add('show');
     // Abrir el selector de archivos del sistema en el mismo gesto de usuario (tras pintar el modal)
     if (input) {
@@ -511,6 +519,7 @@
     transferenciaImporteEl.textContent = importeStr;
     transferenciaConceptoEl.textContent = concepto;
     host.setPagoApoyoMetodo('bizum');
+    dismissPulsePanelIfOpen();
     modal.classList.add('show');
   }
 
@@ -635,6 +644,7 @@
         btn.disabled = false;
         btn.textContent = 'Enviar reclamacion';
     }
+    dismissPulsePanelIfOpen();
     modal.classList.add('show');
     if (input) input.focus();
   }
