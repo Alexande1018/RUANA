@@ -410,7 +410,7 @@
         host._alertHubState = host._alertHubState || { showAll: true, expandedDetailId: null };
         host._alertHubState.expandedDetailId = detailId;
 
-        host.renderAlertDetailPanel(host, wrapper, detailId);
+        host.renderAlertDetailPanel(wrapper, detailId);
 
         var closeBtn = wrapper.querySelector('.ruana-alert-hub__detail-close');
         if (closeBtn) {

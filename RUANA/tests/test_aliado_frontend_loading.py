@@ -377,6 +377,7 @@ def test_aliado_alertas_module_is_wired():
     pulse_js = (root / "static" / "js" / "ruana-pulse.js").read_text(encoding="utf-8")
     assert "RuanaPulse" in pulse_js
     assert "Centro de Actividad" in pulse_js
+    assert "host.renderAlertDetailPanel(wrapper, detailId)" in pulse_js
     assert "renderAlertHub(host)" in alertas_js
     assert "renderAlertDetailPanel(host, detailEl, detailId)" in alertas_js
     assert "const self = this" not in alertas_js
