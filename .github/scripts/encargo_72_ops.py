@@ -75,6 +75,17 @@ WHERE codigo = %s
   AND stripe_account_id = %s
 """
 
+RESET_STUCK_TRANSFER_SQL = """
+UPDATE financial_transfers
+SET estado = 'RECLAMADA',
+    stripe_transfer_id = NULL,
+    error_message = NULL,
+    actualizado_en = CURRENT_TIMESTAMP
+WHERE contacto_id = %s
+  AND estado = 'STRIPE_EN_PROCESO'
+  AND stripe_transfer_id IS NULL
+"""
+
 RESYNC_SQL = """
 UPDATE contactos_ruana
 SET estado = 'trabajo_en_progreso',
@@ -112,6 +123,7 @@ def main() -> int:
     dry_run = os.environ.get("ENCARGO_72_DRY_RUN", "0").strip().lower() in ("1", "true", "yes")
     allow_resync = os.environ.get("ENCARGO_72_ALLOW_RESYNC", "1").strip().lower() in ("1", "true", "yes")
     clear_dev_stripe = os.environ.get("ENCARGO_72_CLEAR_DEV_STRIPE", "0").strip().lower() in ("1", "true", "yes")
+    reset_stuck_transfer = os.environ.get("ENCARGO_72_RESET_STUCK_TRANSFER", "0").strip().lower() in ("1", "true", "yes")
 
     with psycopg.connect(url) as conn:
         with conn.cursor() as cur:
@@ -172,6 +184,15 @@ def main() -> int:
                     cleared = cur.rowcount
                     conn.commit()
                     print(f"\n=== CLEAR DEV STRIPE: {cleared} fila(s) — Andrea debe re-onboardear ===")
+
+            if reset_stuck_transfer:
+                if dry_run:
+                    print("\n=== RESET STUCK TRANSFER (dry-run) ===")
+                else:
+                    cur.execute(RESET_STUCK_TRANSFER_SQL, (CONTACTO_ID,))
+                    reset = cur.rowcount
+                    conn.commit()
+                    print(f"\n=== RESET STUCK TRANSFER: {reset} fila(s) STRIPE_EN_PROCESO → RECLAMADA ===")
 
             resync_rows = 0
             if allow_resync and estado_pago in ("esperando_cobro_cliente", "checkout_activo"):
