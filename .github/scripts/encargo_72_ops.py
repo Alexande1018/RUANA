@@ -25,7 +25,6 @@ SELECT
   pro.stripe_account_id,
   pro.stripe_charges_enabled,
   pro.stripe_payouts_enabled,
-  pro.stripe_details_submitted,
   c.estado,
   c.estado_pago,
   c.estado_financiero,
