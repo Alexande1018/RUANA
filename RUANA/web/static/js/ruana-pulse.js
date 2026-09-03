@@ -28,11 +28,14 @@
         bound: false
     };
 
+    function isLivePanel(host) {
+        return !!(host && typeof host === 'object' && typeof host.buildAlertItems === 'function');
+    }
+
     function resolvePanelHost(host) {
-        if (host && typeof host.buildAlertItems === 'function') return host;
-        if (global.__ruanaPanel && typeof global.__ruanaPanel.buildAlertItems === 'function') {
-            return global.__ruanaPanel;
-        }
+        if (isLivePanel(host)) return host;
+        if (isLivePanel(global.__ruanaPanel)) return global.__ruanaPanel;
+        if (isLivePanel(global.PrivatePanel)) return global.PrivatePanel;
         return null;
     }
 
@@ -130,9 +133,11 @@
 
     function buildTimelineEntries(host) {
         var entries = [];
+        host = resolvePanelHost(host);
         var buildItems = host && typeof host.buildAlertItems === 'function'
             ? host.buildAlertItems()
             : [];
+        if (!Array.isArray(buildItems)) buildItems = [];
 
         buildItems.forEach(function (item) {
             if (shouldSkipAlertItem(item)) return;
@@ -419,7 +424,7 @@
         host._alertHubState = host._alertHubState || { showAll: true, expandedDetailId: null };
         host._alertHubState.expandedDetailId = detailId;
 
-        host.renderAlertDetailPanel(host, wrapper, detailId);
+        host.renderAlertDetailPanel(wrapper, detailId);
 
         var closeBtn = wrapper.querySelector('.ruana-alert-hub__detail-close');
         if (closeBtn) {
@@ -455,6 +460,7 @@
         }
 
         var items = typeof host.buildAlertItems === 'function' ? host.buildAlertItems() : [];
+        if (!Array.isArray(items)) items = [];
         var item = items.find(function (i) { return i.id === itemId; });
         if (item && item.hasDetail) {
             openDetail(host, itemId);

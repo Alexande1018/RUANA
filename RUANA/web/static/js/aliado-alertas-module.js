@@ -457,7 +457,14 @@
     }
   }
 
+  function closePulseIfOpen() {
+    if (global.RuanaPulse && typeof global.RuanaPulse.close === 'function') {
+      global.RuanaPulse.close();
+    }
+  }
+
   function abrirModalComprobanteApoyo(host, contactoId) {
+    closePulseIfOpen();
     host._contactoIdComprobante = contactoId;
     const modal = document.getElementById('modal-comprobante-apoyo');
     const input = document.getElementById('input-comprobante-apoyo');
@@ -479,6 +486,7 @@
   }
 
   function abrirModalPagoApoyo(host, contactoId, apoyoRuana, servicio) {
+    closePulseIfOpen();
     const modal = document.getElementById('modal-pago-apoyo');
     const infoEl = document.getElementById('pago-apoyo-info');
     const bizumEl = document.getElementById('pago-apoyo-bizum-numero');
@@ -618,6 +626,7 @@
   }
 
   function abrirModalImpugnarApoyo(host, contactoId) {
+    closePulseIfOpen();
     const modal = document.getElementById('modal-impugnar-apoyo');
     const infoEl = document.getElementById('impugnar-apoyo-info');
     const input = document.getElementById('input-motivo-impugnar-apoyo');

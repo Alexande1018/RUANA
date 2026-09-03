@@ -611,6 +611,12 @@ body.ruana-pulse-open .ruana-pulse-backdrop {
     filter: none;
 }
 
+/* Modales de aliado por encima de Pulse (backdrop 10100 / panel 10110). */
+html.ruana-pulse-enabled .modal-contacto-overlay,
+html.ruana-pulse-enabled .modal-importe-overlay {
+    z-index: 10220;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .ruana-pulse-backdrop,
     .ruana-pulse-panel,
