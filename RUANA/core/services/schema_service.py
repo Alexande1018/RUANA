@@ -439,6 +439,7 @@ def _init_db(db):
             db._migrar_financial_fase10_security(conn, cursor)
             db._migrar_financial_fase11_automation(conn, cursor)
             db._migrar_financial_fase13_p0_ledger_immutability(conn, cursor)
+            _asegurar_ids_serial_tablas_financieras(db, cursor)
 
             conn.commit()
             print(f"[RUANA][DB] Base de datos inicializada en: {db.db_path}")
@@ -890,6 +891,41 @@ def _asegurar_tabla_id_serial_postgres(db, cursor, tabla: str) -> None:
         """
     )
     cursor.execute(f"ALTER SEQUENCE {seq} OWNED BY {tabla}.id")
+
+
+# Tablas financieras creadas con INTEGER PRIMARY KEY (AUTOINCREMENT se recorta
+# en Postgres). Sin DEFAULT nextval el INSERT no envía id → NOT NULL (encargo #72,
+# confirmar trabajo / liberar pago).
+_FINANCIAL_TABLES_ID_SERIAL = (
+    "payment_conflicts",
+    "financial_transfers",
+    "financial_transfer_attempts",
+    "financial_transfer_snapshots",
+    "financial_refunds",
+    "financial_refund_attempts",
+    "financial_disputes",
+    "financial_dispute_evidence",
+    "financial_dispute_attempts",
+    "financial_reconciliation",
+    "financial_reconciliation_executions",
+    "financial_reconciliation_snapshots",
+    "financial_reconciliation_resource_results",
+    "ledger_transactions",
+    "ledger_entries",
+    "ledger_event_links",
+    "financial_idempotency_keys",
+    "financial_admin_alert_actions",
+    "financial_action_approvals",
+    "financial_audit_log",
+    "financial_job_leases",
+    "financial_automation_runs",
+    "financial_alerts",
+)
+
+
+def _asegurar_ids_serial_tablas_financieras(db, cursor) -> None:
+    for tabla in _FINANCIAL_TABLES_ID_SERIAL:
+        _asegurar_tabla_id_serial_postgres(db, cursor, tabla)
 
 
 def _asegurar_stripe_webhook_events_id_serial_postgres(db, cursor) -> None:
@@ -2634,6 +2670,7 @@ def _init_postgres_schema(db):
         db._migrar_financial_fase10_security(conn, cursor)
         db._migrar_financial_fase11_automation(conn, cursor)
         db._migrar_financial_fase13_p0_ledger_immutability(conn, cursor)
+        _asegurar_ids_serial_tablas_financieras(db, cursor)
         conn.commit()
         print("[RUANA][DB] Esquema Postgres verificado (core + triggers ledger FASE 13A)")
     except Exception as e:

@@ -332,7 +332,11 @@
         estadoLabel = 'Acuerdo alcanzado';
         contexto = 'Todos los puntos del encargo están confirmados.';
         pasoTxt = '';
-        if (modoStripe && esProfesional) {
+        if (modoStripe && cobroConfirmado && esProfesional) {
+            accionTxt = 'El contratante ya pagó. Tu importe está retenido y se liberará cuando confirme que el trabajo quedó hecho.';
+        } else if (modoStripe && cobroConfirmado && esContratante) {
+            accionTxt = 'Pago realizado. Confirma que el trabajo quedó hecho para liberar el importe al profesional.';
+        } else if (modoStripe && esProfesional) {
             accionTxt = 'Acuerdo confirmado. Tu pago está reservado y se desbloqueará automáticamente en cuanto el contratante confirme que el trabajo quedó hecho.';
         } else if (modoStripe && esContratante) {
             accionTxt = 'El importe acordado está congelado. Completa el pago con «Pagar ahora» para reservar el encargo.';
