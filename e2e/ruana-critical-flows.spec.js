@@ -17,6 +17,7 @@ const {
 const {
   checkVisible,
   clickVisible,
+  dismissAdminOverlayIfNeeded,
   fillVisible,
   narrate,
   pass,
@@ -63,6 +64,7 @@ async function goAdminSection(page, selector) {
     window.AdminShell.navigateTo(sel);
   }, selector);
   await expect(page.locator(selector).first()).toBeVisible({ timeout: 15000 });
+  await dismissAdminOverlayIfNeeded(page);
 }
 
 async function loginAdminAsUser(page, scenario, code = ADMIN_CODE, label = 'admin') {

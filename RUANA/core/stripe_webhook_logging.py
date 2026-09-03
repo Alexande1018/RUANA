@@ -44,14 +44,19 @@ def log_stripe_webhook(
         payload["correlation_id"] = str(correlation_id)[:128]
     if error_kind:
         payload["error_kind"] = str(error_kind)[:64]
+    line = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     try:
-        logger.info(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+        if resultado in ("processing_error", "signature_rejected"):
+            logger.error(line)
+        else:
+            logger.info(line)
     except Exception:
-        logger.info(
-            "stripe_webhook resultado=%s path=%s payload_len=%s",
+        logger.error(
+            "stripe_webhook resultado=%s path=%s payload_len=%s error_kind=%s",
             resultado,
             path,
             payload_len,
+            error_kind,
         )
 
 

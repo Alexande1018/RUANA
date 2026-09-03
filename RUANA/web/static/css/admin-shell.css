@@ -32,6 +32,8 @@ html.admin-shell-enabled body {
     color: var(--admin-text);
     font-family: var(--admin-font);
     overflow-x: hidden;
+    scroll-padding-top: calc(var(--admin-topbar-h) + 12px);
+    scroll-padding-left: calc(var(--admin-sidebar-w) + 12px);
 }
 
 .admin-app {
@@ -40,7 +42,7 @@ html.admin-shell-enabled body {
     padding-top: var(--admin-topbar-h);
 }
 
-/* Sidebar — plegado por defecto: no ocupa espacio ni cubre el contenido */
+/* Sidebar — en escritorio reserva columna y no se superpone al contenido */
 .admin-sidebar {
     position: fixed;
     top: var(--admin-topbar-h);
@@ -55,19 +57,9 @@ html.admin-shell-enabled body {
     flex-direction: column;
     z-index: 100;
     overflow: hidden;
-    transform: translateX(-100%);
-    visibility: hidden;
-    pointer-events: none;
-    transition: transform 220ms ease, visibility 0s linear 220ms;
-}
-
-.admin-sidebar.is-open,
-.admin-sidebar.is-mobile-open {
-    transform: translateX(0);
+    transform: none;
     visibility: visible;
     pointer-events: auto;
-    z-index: 140;
-    transition: transform 220ms ease, visibility 0s linear 0s;
 }
 
 .admin-sidebar-backdrop {
@@ -314,16 +306,16 @@ html.admin-sidebar-open .admin-sidebar-backdrop.is-visible {
     color: var(--admin-text);
 }
 
-/* Main area — el margen solo se reserva cuando el menú está desplegado en escritorio */
+/* Main area — el menú reserva su columna; el contenido no queda debajo */
 .admin-main {
     flex: 1;
-    margin-left: 0;
+    margin-left: var(--admin-sidebar-w);
     min-width: 0;
-    transition: margin-left 220ms ease;
 }
 
-html.admin-sidebar-open .admin-main {
-    margin-left: var(--admin-sidebar-w);
+html.admin-shell-enabled .admin-main * {
+    scroll-margin-left: calc(var(--admin-sidebar-w) + 16px);
+    scroll-margin-top: calc(var(--admin-topbar-h) + 16px);
 }
 
 html.admin-shell-enabled .admin-header {
@@ -803,7 +795,7 @@ html.admin-shell-enabled table tbody tr {
 }
 
 .admin-sidebar-toggle {
-    display: inline-flex;
+    display: none;
     align-items: center;
     justify-content: center;
     gap: 8px;
@@ -853,11 +845,28 @@ html.admin-shell-enabled table tbody tr {
     display: block;
 }
 
-/* Mobile — overlay: el contenido no se comprime; el fondo cierra el menú */
+/* Mobile — overlay: el contenido usa todo el ancho; el menú se superpone solo al abrirlo */
 @media (max-width: 960px) {
     .admin-sidebar {
+        transform: translateX(-100%);
+        visibility: hidden;
+        pointer-events: none;
+        z-index: 140;
         box-shadow: var(--admin-shadow);
         bottom: 64px;
+        transition: transform 220ms ease, visibility 0s linear 220ms;
+    }
+
+    .admin-sidebar.is-open,
+    .admin-sidebar.is-mobile-open {
+        transform: translateX(0);
+        visibility: visible;
+        pointer-events: auto;
+        transition: transform 220ms ease, visibility 0s linear 0s;
+    }
+
+    .admin-main {
+        margin-left: 0;
     }
 
     html.admin-sidebar-open .admin-main {
@@ -881,13 +890,14 @@ html.admin-shell-enabled table tbody tr {
         display: none;
     }
 
-    .admin-sidebar-toggle-label {
-        display: none;
-    }
-
     .admin-sidebar-toggle {
+        display: inline-flex;
         width: 38px;
         padding: 0;
+    }
+
+    .admin-sidebar-toggle-label {
+        display: none;
     }
 }
 

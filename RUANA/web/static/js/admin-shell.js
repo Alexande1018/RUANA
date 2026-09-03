@@ -336,7 +336,7 @@
         if (!sidebar) return;
 
         sidebar.classList.toggle('is-open', shouldOpen);
-        sidebar.classList.toggle('is-mobile-open', shouldOpen);
+        sidebar.classList.toggle('is-mobile-open', shouldOpen && isMobileShell());
         sidebar.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
         if ('inert' in sidebar) {
             if (shouldOpen) {
@@ -380,11 +380,7 @@
     }
 
     function syncSidebarForViewport() {
-        if (!isSidebarOpen()) {
-            setSidebarOpen(false);
-            return;
-        }
-        setSidebarOpen(true);
+        setSidebarOpen(!isMobileShell());
     }
 
     async function apiRechazarAliado(panel, codigo) {
@@ -1732,7 +1728,7 @@
             if (e.key === 'Escape') {
                 closeDangerModal();
                 toggleAudit(false);
-                setSidebarOpen(false);
+                if (isMobileShell()) setSidebarOpen(false);
             }
         });
 
@@ -1755,6 +1751,7 @@
         setupTopbarExtras();
         setupAdminNavButtons();
         observeMutations();
+        setSidebarOpen(!isMobileShell());
 
         if (window.RuanaAdminModules && window.RuanaAdminModules.commandCenter) {
             window.RuanaAdminModules.commandCenter.setup();

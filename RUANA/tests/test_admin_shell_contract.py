@@ -107,33 +107,43 @@ def test_admin_shell_operaciones_module_aligned_with_module_defs():
     assert "_operacionesModule" in admin
 
 
-def test_admin_shell_sidebar_is_collapsible():
-    """El menú lateral se pliega por defecto y no reserva espacio ni cubre el contenido."""
+def test_admin_shell_sidebar_does_not_overlay_desktop():
+    """En escritorio el menú reserva columna y no se superpone al contenido."""
     root = Path(__file__).resolve().parents[1] / "web"
     css = (root / "static" / "css" / "admin-shell.css").read_text(encoding="utf-8")
     js = (root / "static" / "js" / "admin-shell.js").read_text(encoding="utf-8")
 
     main_block = css[css.index(".admin-main {") : css.index("}", css.index(".admin-main {"))]
-    assert "margin-left: 0" in main_block
+    assert "margin-left: var(--admin-sidebar-w)" in main_block
+    assert "margin-left: 0" not in main_block
+    assert "scroll-margin-left: calc(var(--admin-sidebar-w) + 16px)" in css
+    assert "scroll-padding-left: calc(var(--admin-sidebar-w) + 12px)" in css
+    ops = (root / "static" / "css" / "admin-ops-identity.css").read_text(encoding="utf-8")
+    assert "margin-left: var(--admin-sidebar-w) !important" in ops
+    assert "margin-left: 0 !important" in ops
 
     sidebar_block = css[css.index(".admin-sidebar {") : css.index("}", css.index(".admin-sidebar {"))]
-    assert "translateX(-100%)" in sidebar_block
+    assert "translateX(-100%)" not in sidebar_block
+    assert "visibility: visible" in sidebar_block
 
     toggle_block = css[
         css.index(".admin-sidebar-toggle {") : css.index("}", css.index(".admin-sidebar-toggle {"))
     ]
-    assert "display: inline-flex" in toggle_block
-    assert "display: none" not in toggle_block
+    assert "display: none" in toggle_block
 
-    assert ".admin-sidebar.is-open" in css
-    assert "html.admin-sidebar-open .admin-main" in css
-    assert "margin-left: var(--admin-sidebar-w)" in css
+    mobile_idx = css.index("@media (max-width: 960px)")
+    mobile_css = css[mobile_idx:]
+    assert "translateX(-100%)" in mobile_css
+    assert "display: inline-flex" in mobile_css
+    assert "margin-left: 0" in mobile_css
+
     assert ".admin-sidebar-backdrop" in css
     assert ".admin-sidebar-toggle-label" in css
-
     assert "function setSidebarOpen" in js
     assert "function toggleSidebar" in js
     assert "function closeSidebarIfOverlay" in js
+    assert "setSidebarOpen(!isMobileShell())" in js
+    assert "shouldOpen && isMobileShell()" in js
     assert "admin-sidebar-open" in js
     assert "adminSidebarBackdrop" in js
     assert "aria-expanded" in js
@@ -143,6 +153,17 @@ def test_admin_shell_sidebar_is_collapsible():
     assert 'id="adminSidebarToggle"' in js or "adminSidebarToggle" in js
     assert "Mostrar menú" in js
     assert "Ocultar menú" in js
+
+
+def test_e2e_admin_clicks_dismiss_sidebar_overlay():
+    """El helper de clics QA cierra el overlay del menú admin antes de pulsar contenido."""
+    narrator = Path(__file__).resolve().parents[2] / "e2e" / "utils" / "qa-narrator.js"
+    text = narrator.read_text(encoding="utf-8")
+    assert "dismissAdminOverlayIfNeeded" in text
+    assert "uncoverAdminSidebarForClick" in text
+    assert "is-mobile-open" in text
+    assert "inline: 'nearest'" in text
+    assert "pointerEvents = 'none'" in text
 
 
 def test_admin_shell_sidebar_nav_not_blocked_by_backdrop():
@@ -156,3 +177,26 @@ def test_admin_shell_sidebar_nav_not_blocked_by_backdrop():
 
     assert "admin-sidebar-open .admin-app" not in ops_css
     assert ops_css.index(".admin-sidebar {") < ops_css.index("z-index: 140")
+
+
+def test_admin_ops_identity_restores_dark_ruana_look():
+    """El panel admin recupera lima, fondo oscuro y árbol; no fuerza el tema claro."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    ops_css = (root / "static" / "css" / "admin-ops-identity.css").read_text(encoding="utf-8")
+    admin_html = (root / "admin.html").read_text(encoding="utf-8")
+    shell_js = (root / "static" / "js" / "admin-shell.js").read_text(encoding="utf-8")
+    cc_js = (root / "static" / "js" / "admin-command-center-module.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "--mod-resumen-accent: #a2ff00" in ops_css
+    assert "#eef1f6" not in ops_css
+    assert "#ffffff" not in ops_css
+    assert ".ruana-atmosphere" not in ops_css
+    assert "background-image: none !important" not in ops_css
+    assert "referidos-tree-panel" in ops_css
+    assert "red-explorer-tabs" in ops_css
+    assert 'href="/static/css/referidos-tree.css"' in admin_html
+    assert 'id="red-view-referidos"' in admin_html
+    assert "Árbol genealógico" in shell_js
+    assert "Sala de control" in cc_js
