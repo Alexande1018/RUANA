@@ -2,6 +2,13 @@ name: Fix financial_transfers SERIAL
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/scripts/encargo_72_ops.py
+      - .github/scripts/fix_financial_transfers_serial.py
+      - .github/workflows/fix-financial-transfers-serial.yml
 
 permissions:
   id-token: write
@@ -32,6 +39,11 @@ jobs:
 
       - name: Instalar psycopg
         run: python3 -m pip install --quiet psycopg[binary]
+
+      - name: Diagnóstico y resync encargo #72
+        run: |
+          export DATABASE_URL="$(gcloud secrets versions access latest --secret=ruana-database-url --project="$PROJECT_ID")"
+          python3 .github/scripts/encargo_72_ops.py | tee encargo-72-report.txt
 
       - name: Ejecutar SQL en Postgres (Supabase)
         run: |
