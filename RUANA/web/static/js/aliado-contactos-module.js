@@ -306,9 +306,21 @@
     let requiereRespuesta = !!contacto.negociacion_requiere_mi_respuesta;
     if (contacto.es_urgente) estadoLabel = 'Encargo urgente';
     const cobroConfirmado = String(contacto.estado_pago || '').trim() === 'cobro_confirmado';
+    const transferPendiente = String(contacto.estado_pago || '').trim() === 'transfer_pendiente'
+        || String(contacto.estado_financiero || '').trim() === 'TRANSFERENCIA_ENVIADA'
+        || !!(contacto.stripe_transfer_id && contacto.fecha_confirmacion_trabajo);
+    const transferido = String(contacto.estado_pago || '').trim() === 'transferido'
+        || String(contacto.estado_financiero || '').trim() === 'TRANSFERIDO'
+        || estado === 'trabajo_cerrado';
+    const netoTxt = contacto.importe_neto_profesional != null && !Number.isNaN(Number(contacto.importe_neto_profesional))
+        ? `${Number(contacto.importe_neto_profesional).toFixed(2)} €`
+        : '';
+    const apoyoTxt = contacto.apoyo_ruana != null && !Number.isNaN(Number(contacto.apoyo_ruana))
+        ? `${Number(contacto.apoyo_ruana).toFixed(2)} €`
+        : '';
     if (
-        (estado === 'pendiente_de_pago' && !cobroConfirmado)
-        || (contacto.modo_pago === 'stripe' && estado === 'trabajo_en_progreso' && !cobroConfirmado)
+        (estado === 'pendiente_de_pago' && !cobroConfirmado && !transferPendiente && !transferido)
+        || (contacto.modo_pago === 'stripe' && estado === 'trabajo_en_progreso' && !cobroConfirmado && !transferPendiente && !transferido)
     ) {
         estadoLabel = contacto.modo_pago === 'stripe' ? 'Pago Stripe pendiente' : estadoLabel;
         if (contacto.modo_pago === 'stripe') {
@@ -328,6 +340,32 @@
             }
             btnPrincipal = 'Ver encargo';
         }
+    } else if (modoStripe && transferido) {
+        estadoLabel = 'Pago transferido';
+        contexto = 'El encargo quedó cerrado y el pago Stripe se completó.';
+        pasoTxt = '';
+        if (esProfesional) {
+            accionTxt = netoTxt
+                ? `RUANA transfirió ${netoTxt} a tu cuenta Stripe Connect.`
+                : 'RUANA transfirió tu importe neto a tu cuenta Stripe Connect.';
+            if (apoyoTxt) accionTxt += ` Comisión RUANA (12%): ${apoyoTxt} (ya descontada).`;
+        } else if (esContratante) {
+            accionTxt = 'Confirmaste la entrega y el pago al profesional se completó.';
+        }
+        btnPrincipal = 'Ver detalle';
+    } else if (modoStripe && transferPendiente) {
+        estadoLabel = 'Pago en transferencia';
+        contexto = 'El contratante confirmó el trabajo; RUANA está transfiriendo el importe.';
+        pasoTxt = '';
+        if (esProfesional) {
+            accionTxt = netoTxt
+                ? `Se está transfiriendo ${netoTxt} a tu cuenta Stripe Connect.`
+                : 'Se está transfiriendo tu importe neto a tu cuenta Stripe Connect.';
+            if (apoyoTxt) accionTxt += ` Comisión RUANA (12%): ${apoyoTxt} (retenida en el cobro).`;
+        } else if (esContratante) {
+            accionTxt = 'Confirmaste la entrega. El pago al profesional está en proceso.';
+        }
+        btnPrincipal = 'Ver encargo';
     } else if (estado === 'acuerdo_alcanzado' || contacto.negociacion_completa) {
         estadoLabel = 'Acuerdo alcanzado';
         contexto = 'Todos los puntos del encargo están confirmados.';

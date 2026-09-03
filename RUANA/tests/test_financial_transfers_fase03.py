@@ -97,6 +97,7 @@ def test_01_flujo_normal_hasta_transferido(mock_transfer, sqlite_db):
     res = pago_service.confirmar_trabajo_y_transferir(sqlite_db, cid, "SOL")
     assert res["status"] == "success"
     assert res["estado_financiero"] == EstadoFinanciero.TRANSFERENCIA_ENVIADA.value
+    assert res["estado_pago"] == "transfer_pendiente"
     assert fts.obtener_estado_financiero(sqlite_db, cid) == EstadoFinanciero.TRANSFERENCIA_ENVIADA
     assert mock_transfer.call_count == 1
 
@@ -393,7 +394,7 @@ def test_16_no_marca_transferido_sin_webhook(mock_transfer, sqlite_db):
         "SELECT estado_pago FROM contactos_ruana WHERE id=?", (cid,)
     ).fetchone()[0]
     conn.close()
-    assert estado_pago == "cobro_confirmado"
+    assert estado_pago == "transfer_pendiente"
 
 
 @patch("core.services.financial_transfer_service._validar_precondiciones")

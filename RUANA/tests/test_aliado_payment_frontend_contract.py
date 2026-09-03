@@ -70,11 +70,12 @@ def test_stripe_pending_label_not_shown_when_cobro_confirmado():
     )
     text = contactos_js.read_text(encoding="utf-8")
     start = text.index("const cobroConfirmado")
-    snippet = text[start : start + 900]
+    snippet = text[start : start + 1200]
     assert "estado_pago" in snippet
     assert "cobro_confirmado" in snippet
-    assert "&& !cobroConfirmado" in snippet
-    assert "Pago Stripe pendiente" in snippet
+    assert "transferPendiente" in snippet
+    assert "&& !transferPendiente" in snippet
+    assert "Pago Stripe pendiente" in text
 
 
 def test_contratante_cobro_confirmado_not_told_to_pay_again():
@@ -94,6 +95,33 @@ def test_contratante_cobro_confirmado_not_told_to_pay_again():
     confirm_idx = snippet.index("modoStripe && cobroConfirmado && esContratante")
     pay_idx = snippet.index("Completa el pago con «Pagar ahora»")
     assert confirm_idx < pay_idx
+
+
+def test_stripe_transfer_pendiente_muestra_importe_y_comision():
+    """Tras liberar pago el profesional ve neto y comisión RUANA en el panel."""
+    contactos_js = (
+        Path(__file__).resolve().parents[1]
+        / "web"
+        / "static"
+        / "js"
+        / "aliado-contactos-module.js"
+    )
+    stripe_js = (
+        Path(__file__).resolve().parents[1]
+        / "web"
+        / "static"
+        / "js"
+        / "aliado-stripe-pagos-module.js"
+    )
+    contactos = contactos_js.read_text(encoding="utf-8")
+    stripe = stripe_js.read_text(encoding="utf-8")
+    assert "transferPendiente" in contactos
+    assert "Comisión RUANA (12%)" in contactos
+    assert "importe_neto_profesional" in contactos
+    assert "transferenciaStripeEnCurso" in stripe
+    assert "desgloseStripeHtml" in stripe
+    assert "transfer_pendiente" in stripe
+    assert "Comisión RUANA" in stripe
 
 
 def test_dispute_support_uses_ruana_modal_instead_of_browser_dialogs():

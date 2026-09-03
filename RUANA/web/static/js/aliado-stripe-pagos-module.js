@@ -50,6 +50,58 @@
     global.location.href = data.checkout_url;
   }
 
+  function formatEuros(val) {
+    const n = Number(val);
+    if (Number.isNaN(n) || n <= 0) return '';
+    return `${n.toFixed(2)} €`;
+  }
+
+  function pctRuanaLabel(contacto) {
+    const pct = Number(contacto.comision_porcentaje);
+    if (!Number.isNaN(pct) && pct > 0) {
+      return pct <= 1 ? `${Math.round(pct * 100)}%` : `${Math.round(pct)}%`;
+    }
+    return '12%';
+  }
+
+  function desgloseStripeHtml(contacto) {
+    const bruto = Number(contacto.importe_acordado ?? contacto.importe_final);
+    const neto = Number(contacto.importe_neto_profesional);
+    const apoyo = Number(contacto.apoyo_ruana ?? contacto.comision);
+    const pctTxt = pctRuanaLabel(contacto);
+    const items = [];
+    if (!Number.isNaN(bruto) && bruto > 0) {
+      items.push(`Total pagado por el cliente: <strong>${escapeHtml(formatEuros(bruto))}</strong>`);
+    }
+    if (!Number.isNaN(apoyo) && apoyo > 0) {
+      items.push(
+        `Comisión RUANA (${pctTxt}): <strong>${escapeHtml(formatEuros(apoyo))}</strong> `
+        + '(retenida en el cobro; no debes pagarla aparte)'
+      );
+    }
+    if (!Number.isNaN(neto) && neto > 0) {
+      items.push(`Tu importe neto: <strong>${escapeHtml(formatEuros(neto))}</strong>`);
+    }
+    if (!items.length) return '';
+    return `<ul class="stripe-desglose-list">${items.map((t) => `<li>${t}</li>`).join('')}</ul>`;
+  }
+
+  function transferenciaStripeEnCurso(contacto) {
+    const estadoPago = String(contacto.estado_pago || '').trim();
+    const estadoFin = String(contacto.estado_financiero || '').trim();
+    if (estadoPago === 'transfer_pendiente') return true;
+    if (estadoFin === 'TRANSFERENCIA_ENVIADA' || estadoFin === 'TRANSFERENCIA_PENDIENTE') return true;
+    if (contacto.stripe_transfer_id && contacto.fecha_confirmacion_trabajo) return true;
+    return false;
+  }
+
+  function transferenciaStripeCompletada(contacto) {
+    const estadoPago = String(contacto.estado_pago || '').trim();
+    const estadoFin = String(contacto.estado_financiero || '').trim();
+    return estadoPago === 'transferido' || estadoFin === 'TRANSFERIDO'
+      || String(contacto.estado || '').trim() === 'trabajo_cerrado';
+  }
+
   async function confirmarTrabajoStripe(host, contactoId) {
     if (!global.confirm('¿Confirmas que el trabajo se realizó correctamente? Se liberará el pago al profesional.')) {
       return;
@@ -66,7 +118,16 @@
     if (host && typeof host.refreshAfterAction === 'function') {
       await host.refreshAfterAction(['contactos', 'alertas', 'metricas']);
     }
-    alert('Trabajo confirmado. El pago al profesional ha sido liberado.');
+    const neto = data.importe_neto_profesional != null ? Number(data.importe_neto_profesional) : NaN;
+    const netoTxt = !Number.isNaN(neto) && neto > 0 ? `${neto.toFixed(2)} €` : 'tu importe neto';
+    const msg = data.estado_pago === 'transferido'
+      ? `Pago completado. Se transfirieron ${netoTxt} a la cuenta del profesional.`
+      : `Trabajo confirmado. RUANA está transfiriendo ${netoTxt} a la cuenta Stripe del profesional.`;
+    if (typeof global.RuanaUI !== 'undefined' && global.RuanaUI.success) {
+      global.RuanaUI.success(msg);
+    } else {
+      alert(msg);
+    }
   }
 
   async function iniciarOnboardingStripe() {
@@ -200,6 +261,9 @@
       ? `${importeVal.toFixed(2)} €`
       : '';
     const parts = [];
+    const desglose = desgloseStripeHtml(contacto);
+    const enTransferencia = transferenciaStripeEnCurso(contacto);
+    const transferido = transferenciaStripeCompletada(contacto);
 
     if (esProfesional) {
       if (['esperando_cobro_cliente', 'checkout_activo', 'no_generado'].includes(estadoPago)) {
@@ -208,21 +272,37 @@
           + 'Tu pago quedará retenido hasta que el contratante pague. '
           + 'Después se liberará cuando confirme que el trabajo quedó hecho.</p>'
         );
+      } else if (transferido) {
+        const netoTxt = formatEuros(contacto.importe_neto_profesional) || 'tu importe neto';
+        parts.push(
+          '<p class="stripe-estado-msg stripe-estado-msg--ok">'
+          + `Pago transferido a tu cuenta Stripe (${escapeHtml(netoTxt)}). `
+          + 'Puede tardar 1–2 días hábiles en verse en tu banco.</p>'
+        );
+        if (desglose) parts.push(desglose);
+      } else if (enTransferencia || estadoPago === 'transfer_pendiente') {
+        const netoTxt = formatEuros(contacto.importe_neto_profesional) || 'tu importe neto';
+        parts.push(
+          '<p class="stripe-estado-msg stripe-estado-msg--ok">'
+          + 'El contratante confirmó el trabajo. RUANA está transfiriendo '
+          + `<strong>${escapeHtml(netoTxt)}</strong> a tu cuenta Stripe Connect.</p>`
+        );
+        if (desglose) parts.push(desglose);
       } else if (estadoPago === 'cobro_confirmado') {
         parts.push(
           '<p class="stripe-estado-msg stripe-estado-msg--pro">'
           + 'El contratante ya pagó. Tu importe está retenido y se liberará '
           + 'cuando confirme que el trabajo quedó hecho.</p>'
         );
-      } else if (estadoPago === 'transferido') {
-        parts.push('<p class="stripe-estado-msg stripe-estado-msg--ok">Pago transferido a tu cuenta.</p>');
+        if (desglose) parts.push(desglose);
       }
     }
 
     if (esContratante) {
       const contactoEstado = String(contacto.estado || '').trim();
       const puedeIniciarPago = ['esperando_cobro_cliente', 'checkout_activo', 'no_generado', ''].includes(estadoPago)
-        || contactoEstado === 'pendiente_de_pago';
+        && !enTransferencia && !transferido
+        && contactoEstado === 'pendiente_de_pago';
       if (puedeIniciarPago) {
         parts.push(
           `<p class="stripe-estado-msg">${importeTxt
@@ -230,6 +310,18 @@
             : ''}Completa el pago para reservar el encargo.</p>`
           + '<button type="button" class="encargo-card-btn stripe-pagar-btn">Ir a pagar</button>'
         );
+      } else if (transferido) {
+        parts.push(
+          '<p class="stripe-estado-msg stripe-estado-msg--ok">'
+          + 'Confirmaste la entrega y el pago al profesional se completó.</p>'
+        );
+        if (desglose) parts.push(desglose);
+      } else if (enTransferencia || estadoPago === 'transfer_pendiente') {
+        parts.push(
+          '<p class="stripe-estado-msg stripe-estado-msg--ok">'
+          + 'Confirmaste la entrega. El pago al profesional está en proceso en Stripe.</p>'
+        );
+        if (desglose) parts.push(desglose);
       } else if (estadoPago === 'cobro_confirmado') {
         parts.push(
           '<p class="stripe-estado-msg">Pago realizado. Confirma que el trabajo quedó hecho '
@@ -237,6 +329,7 @@
           + '<button type="button" class="encargo-card-btn stripe-confirmar-btn">'
           + 'Confirmar trabajo y liberar pago</button>'
         );
+        if (desglose) parts.push(desglose);
       }
     }
 

@@ -25,9 +25,24 @@ def main() -> int:
     if not url:
         print("DATABASE_URL no configurada", file=sys.stderr)
         return 1
+    backfill = 0
     with psycopg.connect(url, autocommit=True) as conn:
         with conn.cursor() as cur:
             cur.execute(SQL)
+            cur.execute(
+                """
+                UPDATE contactos_ruana
+                SET estado_pago = 'transfer_pendiente'
+                WHERE modo_pago = 'stripe'
+                  AND stripe_transfer_id IS NOT NULL
+                  AND fecha_confirmacion_trabajo IS NOT NULL
+                  AND COALESCE(estado_pago, '') = 'cobro_confirmado'
+                  AND COALESCE(estado_financiero, '') IN (
+                      'TRANSFERENCIA_ENVIADA', 'LIBERACION_AUTORIZADA', 'TRANSFERENCIA_PENDIENTE'
+                  )
+                """
+            )
+            backfill = cur.rowcount
             cur.execute(
                 """
                 SELECT column_default
@@ -40,6 +55,8 @@ def main() -> int:
             row = cur.fetchone()
             default = row[0] if row else None
     print(f"financial_transfers.id column_default={default!r}")
+    if backfill:
+        print(f"OK: {backfill} contacto(s) Stripe pasaron a estado_pago=transfer_pendiente")
     if not default or "nextval" not in str(default):
         print("ERROR: id sigue sin DEFAULT nextval", file=sys.stderr)
         return 1

@@ -620,6 +620,10 @@ class PagoRepo:
             """
             UPDATE contactos_ruana
             SET stripe_transfer_id = COALESCE(stripe_transfer_id, ?),
+                estado_pago = CASE
+                    WHEN COALESCE(estado_pago, '') = 'transferido' THEN estado_pago
+                    ELSE 'transfer_pendiente'
+                END,
                 actualizado_en = CURRENT_TIMESTAMP
             WHERE id = ? AND modo_pago = 'stripe'
             """,
