@@ -32,6 +32,12 @@
     return extra || {};
   }
 
+  function dismissPulsePanelIfOpen() {
+    if (global.RuanaPulse && typeof global.RuanaPulse.close === 'function') {
+      global.RuanaPulse.close();
+    }
+  }
+
   function formatApoyoRuana(host, raw) {
     const apoyoNum = (raw != null && raw !== '' && !Number.isNaN(Number(raw))) ? Number(raw) : null;
     if (apoyoNum != null && Number.isFinite(apoyoNum) && apoyoNum > 0) {
@@ -458,6 +464,7 @@
   }
 
   function abrirModalComprobanteApoyo(host, contactoId) {
+    dismissPulsePanelIfOpen();
     host._contactoIdComprobante = contactoId;
     const modal = document.getElementById('modal-comprobante-apoyo');
     const input = document.getElementById('input-comprobante-apoyo');
@@ -479,6 +486,7 @@
   }
 
   function abrirModalPagoApoyo(host, contactoId, apoyoRuana, servicio) {
+    dismissPulsePanelIfOpen();
     const modal = document.getElementById('modal-pago-apoyo');
     const infoEl = document.getElementById('pago-apoyo-info');
     const bizumEl = document.getElementById('pago-apoyo-bizum-numero');
@@ -618,6 +626,7 @@
   }
 
   function abrirModalImpugnarApoyo(host, contactoId) {
+    dismissPulsePanelIfOpen();
     const modal = document.getElementById('modal-impugnar-apoyo');
     const infoEl = document.getElementById('impugnar-apoyo-info');
     const input = document.getElementById('input-motivo-impugnar-apoyo');
