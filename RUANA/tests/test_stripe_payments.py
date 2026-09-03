@@ -120,7 +120,7 @@ def test_confirmar_trabajo_solo_contratante_transfiere(mock_transfer, sqlite_db)
     mock_transfer.return_value = {"id": "tr_test_789"}
     res = pago_service.confirmar_trabajo_y_transferir(sqlite_db, contacto_id, "SOL")
     assert res["status"] == "success"
-    assert res["estado_pago"] == "cobro_confirmado"
+    assert res["estado_pago"] == "transfer_pendiente"
     assert res["estado_financiero"] == "TRANSFERENCIA_ENVIADA"
     mock_transfer.assert_called_once()
     assert mock_transfer.call_args.kwargs["amount_cents"] == 44000
