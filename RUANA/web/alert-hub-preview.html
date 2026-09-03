@@ -1,54 +1,182 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="aliado-shell-enabled">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RUANA Alert Hub Preview</title>
+  <title>RUANA Pulse — Centro de Actividad</title>
   <link rel="stylesheet" href="/static/css/styles.css">
   <link rel="stylesheet" href="/static/css/ruana-feedback.css">
+  <link rel="stylesheet" href="/static/css/ruana-identity.css">
+  <link rel="stylesheet" href="/static/css/aliado-shell.css">
+  <link rel="stylesheet" href="/static/css/encargo-seguimiento.css">
+  <link rel="stylesheet" href="/static/css/ruana-actividad-cinta.css">
   <link rel="stylesheet" href="/static/css/ruana-alert-hub.css">
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    body { background: #07090f; padding: 32px; font-family: 'Plus Jakarta Sans', sans-serif; max-width: 720px; margin: 0 auto; }
-    h1 { color: #f8fafc; font-size: 1.1rem; margin-bottom: 24px; font-weight: 600; }
-    .section { margin-bottom: 32px; }
-    .section h2 { color: #6b7280; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 12px; }
+    body { margin: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    .preview-note {
+      position: fixed; left: 16px; bottom: 16px; z-index: 50;
+      font-size: 0.72rem; color: rgba(255,255,255,.45); pointer-events: none;
+    }
   </style>
 </head>
-<body>
-  <h1>Hub de alertas compactas — Apoyo RUANA, pagos, mensajes</h1>
-  <div class="section" id="preview-collapsed"></div>
-  <div class="section" id="preview-expanded"></div>
-  <div class="section" id="preview-detail"></div>
+<body class="aliado-app">
+  <nav class="aliado-shell-nav" aria-label="Navegación">
+    <a href="#" class="aliado-shell-nav-brand ruana-brand">
+      <span class="aliado-shell-nav-brand-text">
+        <span class="aliado-shell-nav-brand-name">RUANA</span>
+        <span class="aliado-shell-nav-brand-sub">Panel del aliado</span>
+      </span>
+    </a>
+    <div class="aliado-shell-nav-list">
+      <button type="button" class="aliado-shell-nav-item is-active">Inicio</button>
+      <button type="button" class="aliado-shell-nav-item">Directorio</button>
+      <button type="button" class="aliado-shell-nav-item">Solicitudes</button>
+    </div>
+  </nav>
+  <nav class="aliado-shell-bottom">
+    <button type="button" class="aliado-shell-bottom-item is-active"><span>Inicio</span></button>
+    <button type="button" class="aliado-shell-bottom-item"><span>Directorio</span></button>
+    <button type="button" class="aliado-shell-bottom-item"><span>Solicitudes</span></button>
+    <button type="button" class="aliado-shell-bottom-item"><span>Conexiones</span></button>
+    <button type="button" class="aliado-shell-bottom-item"><span>Perfil</span></button>
+  </nav>
+
+  <div class="panel-container">
+    <div class="aliado-shell-alerts">
+      <div id="contacto-aviso-persistente" class="encargo-seguimiento-card ruana-surface" style="display:block;">
+        <header class="encargo-seguimiento-header">
+          <p class="encargo-seguimiento-kicker">Encargo en curso</p>
+          <div class="encargo-seguimiento-top">
+            <span class="encargo-seguimiento-estado">Negociación activa</span>
+          </div>
+        </header>
+        <p class="encargo-seguimiento-contexto">Contacto con Ana García · Fontanería</p>
+        <p class="encargo-seguimiento-paso">Confirma el trabajo para liberar el pago al profesional.</p>
+        <p class="encargo-seguimiento-accion">La confirmación vive en el encargo, no como aviso duplicado.</p>
+      </div>
+    </div>
+
+    <section class="aliado-module is-active" data-aliado-module="inicio">
+      <header class="aliado-module-header inicio-module-header">
+        <div class="inicio-module-header__copy">
+          <p class="aliado-module-kicker">Centro operativo</p>
+          <h2 class="aliado-module-title">Inicio</h2>
+          <p class="aliado-module-subtitle">Estado de tu cuenta, métricas y accesos rápidos para empezar a trabajar.</p>
+        </div>
+        <button type="button" class="ruana-pulse-trigger" id="ruana-pulse-trigger" aria-haspopup="dialog" aria-controls="ruana-alert-hub" aria-expanded="false">
+          <span class="ruana-pulse-trigger__mark" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 0.6 9.1 5.4 14 6.6 9.1 7.8 8 12.6 6.9 7.8 2 6.6 6.9 5.4z"/>
+            </svg>
+          </span>
+          <span class="ruana-pulse-trigger__label">Actividad</span>
+          <span class="ruana-pulse-trigger__badge" hidden></span>
+        </button>
+      </header>
+      <div class="inicio-ops">
+        <div class="inicio-identity">
+          <div class="inicio-identity-avatar"><span>CM</span></div>
+          <div class="inicio-identity-copy">
+            <h1>Carlos Mendoza</h1>
+            <p class="inicio-identity-marca">Carpintería Mendoza</p>
+            <div class="inicio-identity-meta">
+              <span class="inicio-status-chip" data-status="destacado"><span class="inicio-status-label">Destacado</span></span>
+            </div>
+          </div>
+          <button type="button" class="inicio-score-pill">
+            <span class="inicio-score-pill-label">Score RUANA</span>
+            <strong>92</strong>
+          </button>
+        </div>
+        <div class="ruana-actividad-cinta" id="inicio-actividad-cinta">
+          <div class="ruana-actividad-cinta__badge">
+            <span class="ruana-actividad-cinta__pulse"></span>
+            <span class="ruana-actividad-cinta__label ruana-actividad-cinta__label--full">Noticias RUANA</span>
+            <span class="ruana-actividad-cinta__label ruana-actividad-cinta__label--short">Noticias</span>
+          </div>
+          <div class="ruana-actividad-cinta__viewport">
+            <div class="ruana-actividad-cinta__marquee ruana-actividad-cinta--static">
+              <div class="ruana-actividad-cinta__track">
+                <span class="ruana-actividad-cinta__item">Acuerdo confirmado con Ana García<span class="ruana-actividad-cinta__item-time">Ayer</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="inicio-quick-grid">
+          <button type="button" class="inicio-quick-btn"><span>Directorio</span><small>Encontrar profesionales</small></button>
+          <button type="button" class="inicio-quick-btn"><span>Solicitudes</span><small>Bandeja de trabajo</small></button>
+          <button type="button" class="inicio-quick-btn"><span>Nueva conexión</span><small>Crear solicitud</small></button>
+          <button type="button" class="inicio-quick-btn"><span>Mi perfil</span><small>Identidad y cuenta</small></button>
+        </div>
+        <div class="inicio-tasks">
+          <h3 class="inicio-tasks-title">Tareas pendientes</h3>
+          <ul class="inicio-tasks-list">
+            <li><span>Tienes un contacto activo pendiente de cierre</span><button type="button">Revisar</button></li>
+            <li><span>3 avisos en el Centro de Actividad</span><button type="button" id="preview-open-tasks">Ver actividad</button></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="ruana-pulse" class="ruana-pulse" hidden aria-hidden="true">
+    <div class="ruana-pulse__backdrop" data-ruana-pulse-dismiss></div>
+    <section id="ruana-alert-hub" class="ruana-alert-hub ruana-pulse__panel" role="dialog" aria-modal="true" aria-labelledby="ruana-pulse-title">
+      <header class="ruana-pulse__header">
+        <div class="ruana-pulse__heading">
+          <p class="ruana-pulse__kicker">RUANA Pulse</p>
+          <h2 class="ruana-pulse__title" id="ruana-pulse-title">Centro de Actividad</h2>
+        </div>
+        <button type="button" class="ruana-pulse__close" aria-label="Cerrar centro de actividad">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </header>
+      <div class="ruana-pulse__body">
+        <div class="ruana-alert-hub__pinned" hidden></div>
+        <div class="ruana-alert-hub__cards ruana-pulse__timeline"></div>
+        <button type="button" class="ruana-alert-hub__more" hidden>Ver todos los avisos</button>
+        <div class="ruana-alert-hub__detail" hidden></div>
+      </div>
+    </section>
+  </div>
+
+  <p class="preview-note">Preview estático · RUANA Pulse</p>
   <script src="/static/js/ruana-alert-hub.js"></script>
   <script>
+    const yesterday = Date.now() - 26 * 60 * 60 * 1000;
     const items = [
-      { id: 'apoyo-pago', type: 'payment', priority: 100, title: 'Apoyo RUANA (12%) pendiente', description: 'Fontanería · 24,50 €', actionLabel: 'Gestionar', hasDetail: true },
-      { id: 'mensajes-ruana', type: 'message', priority: 90, title: '2 mensajes de RUANA', description: 'Comunicaciones sin leer del equipo RUANA', actionLabel: 'Ver', hasDetail: true },
-      { id: 'pagos-restriccion', type: 'info', priority: 70, title: 'Nuevos trabajos limitados', description: 'Regulariza tus pagos para aceptar encargos', actionLabel: null, hasDetail: false }
+      { id: 'apoyo-pago', type: 'payment', priority: 200, title: '3 apoyos RUANA pendientes', description: 'Regulariza el 12% de tus encargos.', actionLabel: 'Gestionar', hasDetail: true, createdAt: Date.now() - 7200000 },
+      { id: 'mensajes-ruana', type: 'message', priority: 180, title: '2 mensajes de RUANA', description: 'Comunicaciones sin leer del equipo RUANA', actionLabel: 'Ver', hasDetail: true, createdAt: Date.now() - 3600000 },
+      { id: 'pagos-restriccion', type: 'info', priority: 120, title: 'Nuevos trabajos limitados', description: 'Regulariza tus pagos de Apoyo RUANA para aceptar nuevos encargos.', createdAt: Date.now() - 5400000 },
+      { id: 'acuerdo-ok', type: 'info', visualPriority: 'done', completed: true, priority: 40, title: 'Acuerdo confirmado correctamente.', description: 'El encargo quedó registrado en tu actividad.', createdAt: yesterday }
     ];
-
-    function mount(targetId, state, label) {
-      const wrap = document.createElement('div');
-      wrap.innerHTML = '<h2>' + label + '</h2>';
-      const hub = document.createElement('div');
-      hub.className = 'ruana-alert-hub';
-      hub.innerHTML = '<div class="ruana-alert-hub__cards"></div><button type="button" class="ruana-alert-hub__more" hidden></button><div class="ruana-alert-hub__detail" hidden></div>';
-      wrap.appendChild(hub);
-      document.getElementById(targetId).appendChild(wrap);
-      RuanaAlertHub.render(hub, items, state, {
-        onAction: function(item) { if (item.hasDetail) state.expandedDetailId = item.id; RuanaAlertHub.render(hub, items, state, arguments.callee._cb); },
-        onShowAll: function() { state.showAll = true; RuanaAlertHub.render(hub, items, state, arguments.callee._cb); },
-        renderDetail: function(el, id) {
-          const body = RuanaAlertHub.renderDetailHeader(el, 'Apoyo RUANA pendiente', () => { state.expandedDetailId = null; RuanaAlertHub.render(hub, items, state, arguments.callee._cb); });
-          body.innerHTML += '<div class="ruana-alert-detail-item"><div class="ruana-alert-detail-item__text">Contacto <strong>#42</strong> · Fontanería · Apoyo: <strong>24,50 €</strong></div><div class="ruana-alert-detail-item__actions"><button class="ruana-alert-detail-btn ruana-alert-detail-btn--primary">Aceptar y pagar</button><button class="ruana-alert-detail-btn">Comprobante</button></div></div>';
+    const state = { showAll: true, expandedDetailId: null };
+    const hub = document.getElementById('ruana-alert-hub');
+    const callbacks = {
+      onAction: function (item) {
+        if (item.hasDetail) state.expandedDetailId = state.expandedDetailId === item.id ? null : item.id;
+        RuanaAlertHub.render(hub, items, state, callbacks);
+      },
+      renderDetail: function (el, id) {
+        const body = RuanaAlertHub.renderDetailHeader(el, id === 'mensajes-ruana' ? 'Mensajes de RUANA' : 'Apoyo RUANA pendiente', function () {
+          state.expandedDetailId = null;
+          RuanaAlertHub.render(hub, items, state, callbacks);
+        });
+        if (id === 'apoyo-pago') {
+          body.innerHTML += '<div class="ruana-alert-detail-item"><div class="ruana-alert-detail-item__text">Contacto <strong>#42</strong> · Fontanería · Apoyo: <strong>24,50 €</strong></div><div class="ruana-alert-detail-item__actions"><button type="button" class="ruana-alert-detail-btn ruana-alert-detail-btn--primary btn-aceptar-pagar">Aceptar y pagar</button><button type="button" class="ruana-alert-detail-btn btn-impugnar-apoyo">Reclamar</button><button type="button" class="ruana-alert-detail-btn">Comprobante</button></div></div>';
+        } else {
+          body.innerHTML += '<div class="ruana-alert-notif is-unread"><div class="ruana-alert-notif__head"><span class="ruana-alert-notif__title">Comprobante ilegible</span><span class="ruana-alert-notif__date">hoy</span></div><div class="ruana-alert-notif__body">El archivo no permite verificar el pago. Sube una imagen nítida.</div></div>';
         }
-      });
+      }
+    };
+    RuanaAlertHub.render(hub, items, state, callbacks);
+    document.getElementById('preview-open-tasks').addEventListener('click', function () {
+      RuanaAlertHub.open();
+    });
+    if (/[?&]open=1\b/.test(location.search)) {
+      RuanaAlertHub.open();
     }
-
-    mount('preview-collapsed', { showAll: false, expandedDetailId: null }, 'Colapsado (prioridad)');
-    mount('preview-expanded', { showAll: true, expandedDetailId: null }, 'Todos visibles');
-    mount('preview-detail', { showAll: true, expandedDetailId: 'apoyo-pago' }, 'Detalle expandido');
   </script>
 </body>
 </html>

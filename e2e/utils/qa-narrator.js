@@ -264,6 +264,16 @@ async function setInputFilesVisible(page, target, files, options = {}) {
   return locator;
 }
 
+async function openRuanaPulse(page) {
+  const panel = page.locator('#ruana-alert-hub');
+  if (await panel.isVisible().catch(() => false)) return panel;
+  const trigger = page.locator('#ruana-pulse-trigger');
+  await trigger.waitFor({ state: 'visible', timeout: 15000 });
+  await clickVisible(page, '#ruana-pulse-trigger');
+  await panel.waitFor({ state: 'visible', timeout: 12000 });
+  return panel;
+}
+
 async function reviewSection(page, scenario, target, entry) {
   await narrate(page, scenario, entry);
   await reveal(page, target, { timeout: entry.timeout || 15000 });
@@ -280,6 +290,7 @@ module.exports = {
   ensureNarrator,
   fillVisible,
   narrate,
+  openRuanaPulse,
   pass,
   reveal,
   reviewSection,

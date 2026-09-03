@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="/static/css/panel-premium.css">
   <link rel="stylesheet" href="/static/css/auth-premium.css">
   <link rel="stylesheet" href="/static/css/aliado-shell.css">
-  <link rel="stylesheet" href="/static/css/ruana-actividad-cinta.css">
+  <link rel="stylesheet" href="/static/css/ruana-alert-hub.css">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
   <script src="/static/js/aliado-shell.js" defer></script>
@@ -79,10 +79,17 @@
     </div>
 
     <section class="aliado-module is-active" data-aliado-module="inicio">
-      <header class="aliado-module-header">
-        <p class="aliado-module-kicker">Centro operativo</p>
-        <h2 class="aliado-module-title">Inicio</h2>
-        <p class="aliado-module-subtitle">Estado de tu cuenta, métricas y accesos rápidos para empezar a trabajar.</p>
+      <header class="aliado-module-header inicio-module-header">
+        <div class="inicio-module-header__copy">
+          <p class="aliado-module-kicker">Centro operativo</p>
+          <h2 class="aliado-module-title">Inicio</h2>
+          <p class="aliado-module-subtitle">Estado de tu cuenta, métricas y accesos rápidos para empezar a trabajar.</p>
+        </div>
+        <button type="button" class="ruana-pulse-trigger" id="ruana-pulse-trigger" aria-haspopup="dialog" aria-expanded="false">
+          <span class="ruana-pulse-trigger__mark" aria-hidden="true">✦</span>
+          <span class="ruana-pulse-trigger__label">Actividad</span>
+          <span class="ruana-pulse-trigger__badge">3</span>
+        </button>
       </header>
       <div class="inicio-ops">
         <div class="inicio-identity">

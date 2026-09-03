@@ -370,6 +370,8 @@ def test_aliado_alertas_module_is_wired():
     assert "mod.renderAlertHub(this)" in aliado
     assert "mod.abrirModalPagoApoyo(this, contactoId, apoyoRuana, servicio)" in aliado
     assert 'id="ruana-alert-hub"' in aliado
+    assert 'id="ruana-pulse-trigger"' in aliado
+    assert 'id="ruana-pulse"' in aliado
     assert "renderAlertHub(host)" in alertas_js
     assert "renderAlertDetailPanel(host, detailEl, detailId)" in alertas_js
     assert "const self = this" not in alertas_js

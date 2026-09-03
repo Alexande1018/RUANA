@@ -29,6 +29,7 @@ body.panel-loading .aliado-shell-nav,
 body.panel-loading .aliado-shell-bottom,
 body.panel-loading #btn-logout,
 body.panel-loading #btn-invitar-global,
+body.panel-loading #ruana-pulse,
 body.panel-loading .panel-container > :not(#error-bootstrap):not(#panel-loading) {
     display: none !important;
 }

@@ -11,7 +11,7 @@
  * `conexiones` → aliado-conexiones-module.js
  * `centroComunicacion` → aliado-centro-comunicacion-module.js
  * `invitaciones` → aliado-invitaciones-module.js
- * `alertas` → aliado-alertas-module.js (hub + pagos Apoyo + impugnación)
+ * `alertas` → aliado-alertas-module.js (RUANA Pulse + pagos Apoyo + impugnación)
  * `catalogo` → aliado-catalogo-module.js
  * `contactos` → aliado-contactos-module.js
  * `grupo` → aliado-grupo-module.js

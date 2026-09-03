@@ -20,6 +20,7 @@ const {
   dismissAdminOverlayIfNeeded,
   fillVisible,
   narrate,
+  openRuanaPulse,
   pass,
   reviewSection,
   selectVisible,
@@ -216,11 +217,12 @@ async function closeNoWorkViaUi(page, scenario, roleLabel) {
 
 async function uploadComprobanteViaUi(page, scenario) {
   await test.step('Profesional sube comprobante desde el panel', async () => {
+    await openRuanaPulse(page);
     await reviewSection(page, scenario, '#ruana-alert-hub', {
       step: 'Revisar Apoyo RUANA pendiente',
-      action: 'El profesional revisa el aviso compacto de Apoyo RUANA.',
-      expected: 'Debe aparecer la tarjeta con accion Gestionar.',
-      result: 'El hub de alertas muestra el pago pendiente.',
+      action: 'El profesional abre el Centro de Actividad y revisa el aviso de Apoyo RUANA.',
+      expected: 'Debe aparecer la actividad con accion Gestionar.',
+      result: 'El Centro de Actividad muestra el pago pendiente.',
     });
     await clickVisible(page, '[data-alert-action="apoyo-pago"]');
     await clickVisible(page, '.btn-aceptar-pagar');
@@ -771,11 +773,12 @@ test.describe('RUANA QA critica con video human-readable', () => {
     await loginAdminAsUser(page, scenario);
     await adminRejectPaymentViaUi(page, scenario, pagoRechazar.contactoId);
     await openAliadoPanel(page, pagoRechazar.profesionalSession, scenario, 'Profesional con pago rechazado');
+    await openRuanaPulse(page);
     await reviewSection(page, scenario, '#ruana-alert-hub', {
       step: 'Profesional recibe mensaje de RUANA',
-      action: 'Tras el rechazo, el profesional revisa el hub de alertas.',
+      action: 'Tras el rechazo, el profesional abre el Centro de Actividad.',
       expected: 'Debe ver una notificacion con el motivo del rechazo.',
-      result: 'La tarjeta de mensajes de RUANA queda visible.',
+      result: 'Los mensajes de RUANA quedan visibles en la actividad.',
     });
     // El hub colapsa a 1 aviso (pago pendiente); hay que expandir para ver mensajes.
     const moreAlerts = page.locator('.ruana-alert-hub__more');
@@ -915,11 +918,12 @@ test.describe('RUANA QA critica con video human-readable', () => {
         action: 'El profesional baja a Apoyo RUANA y reclama el importe declarado.',
         expected: 'RUANA debe abrir un conflicto pendiente de prueba.',
       });
+      await openRuanaPulse(page);
       await reviewSection(page, scenario, '#ruana-alert-hub', {
         step: 'Ver pago reclamable',
-        action: 'El profesional abre el detalle del Apoyo RUANA pendiente.',
+        action: 'El profesional abre el Centro de Actividad y el detalle del Apoyo RUANA pendiente.',
         expected: 'Debe aparecer Reclamar.',
-        result: 'El hub de Apoyo RUANA queda visible.',
+        result: 'El Centro de Actividad muestra el Apoyo RUANA.',
       });
       await clickVisible(page, '[data-alert-action="apoyo-pago"]');
       await clickVisible(page, '.btn-impugnar-apoyo');
