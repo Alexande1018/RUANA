@@ -28,6 +28,14 @@
         bound: false
     };
 
+    function resolvePanelHost(host) {
+        if (host && typeof host.buildAlertItems === 'function') return host;
+        if (global.__ruanaPanel && typeof global.__ruanaPanel.buildAlertItems === 'function') {
+            return global.__ruanaPanel;
+        }
+        return null;
+    }
+
     function prefersReducedMotion() {
         return typeof global.matchMedia === 'function' &&
             global.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -389,6 +397,7 @@
     }
 
     function openDetail(host, detailId) {
+        host = resolvePanelHost(host);
         var detailBody = document.getElementById('ruana-pulse-detail-body');
         var detailTitle = document.getElementById('ruana-pulse-detail-title');
         var sink = document.getElementById('ruana-pulse-detail-sink');
@@ -432,6 +441,7 @@
     }
 
     function handleAction(host, itemId) {
+        host = resolvePanelHost(host);
         if (!itemId || !host) return;
 
         if (itemId === 'stripe-pendiente') {
@@ -453,15 +463,16 @@
     }
 
     function open(host) {
+        host = resolvePanelHost(host);
         var dom = ensureDom();
         if (!dom.panel || state.isOpen) return;
 
-        var entries = buildTimelineEntries(host || global.PrivatePanel);
+        var entries = buildTimelineEntries(host);
         entries.forEach(function (e) {
             if (e.pending) state.seenIds.add(e.id);
         });
 
-        renderTimeline(host || global.PrivatePanel, entries);
+        renderTimeline(host, entries);
         updateTriggerBadge(countPending(entries));
 
         state.isOpen = true;
@@ -500,11 +511,11 @@
         else open(host);
     }
 
-    function bindEvents(host) {
+    function bindEvents() {
         if (state.bound) return;
         var dom = ensureDom();
 
-        dom.trigger.addEventListener('click', function () { toggle(host); });
+        dom.trigger.addEventListener('click', function () { toggle(resolvePanelHost()); });
         dom.backdrop.addEventListener('click', close);
         dom.panel.querySelector('.ruana-pulse-panel__close').addEventListener('click', close);
 
@@ -526,8 +537,8 @@
     }
 
     function render(host) {
-        host = host || global.PrivatePanel;
-        bindEvents(host);
+        host = resolvePanelHost(host);
+        bindEvents();
 
         var hubEl = document.getElementById('ruana-alert-hub');
         if (hubEl) hubEl.classList.add('ruana-alert-hub--offscreen');
@@ -547,15 +558,15 @@
     function init() {
         document.documentElement.classList.add('ruana-pulse-enabled');
         ensureDom();
-        render(global.PrivatePanel || null);
+        render(resolvePanelHost());
     }
 
     function getPendingCount(host) {
-        return countPending(buildTimelineEntries(host || global.PrivatePanel));
+        return countPending(buildTimelineEntries(resolvePanelHost(host)));
     }
 
     function getSummaries(host) {
-        return buildTimelineEntries(host || global.PrivatePanel)
+        return buildTimelineEntries(resolvePanelHost(host))
             .filter(function (e) { return e.pending && e.kind === 'alert'; })
             .map(function (e) {
                 return { id: e.sourceId, title: e.title };
