@@ -64,12 +64,9 @@
     width: 18px;
     height: 18px;
     color: var(--ruana-brand-lime, #b8e86a);
-    opacity: 0.9;
-}
-
-.ruana-pulse-trigger__mark svg {
-    width: 14px;
-    height: 14px;
+    font-size: 0.78rem;
+    line-height: 1;
+    opacity: 0.92;
 }
 
 .ruana-pulse-trigger__label {
