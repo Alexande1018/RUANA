@@ -850,6 +850,16 @@ def _migrar_payment_conflicts(db, conn, cursor) -> None:
     _repo.execute(cursor, "CREATE INDEX IF NOT EXISTS idx_payment_conflicts_created ON payment_conflicts(created_at DESC)")
 
 
+def asegurar_tabla_id_serial_postgres(db, cursor, tabla: str) -> None:
+    """API pública: idempotente; usada en init y antes de INSERT sin id explícito."""
+    _asegurar_tabla_id_serial_postgres(db, cursor, tabla)
+
+
+def asegurar_ids_serial_tablas_financieras(db, cursor) -> None:
+    """API pública: todas las tablas financieras con INTEGER PK sin SERIAL en Postgres."""
+    _asegurar_ids_serial_tablas_financieras(db, cursor)
+
+
 def _asegurar_tabla_id_serial_postgres(db, cursor, tabla: str) -> None:
     """
     Postgres: tablas creadas con INTEGER PRIMARY KEY (sin SERIAL) no auto-generan id.
@@ -2607,6 +2617,17 @@ def _init_postgres_schema(db):
     try:
         conn = db._connect()
         cursor = conn.cursor()
+        # SERIAL en tablas financieras primero (commit aislado): si el resto del init
+        # falla, liberar pago no queda bloqueado por id NULL en financial_transfers.
+        try:
+            _asegurar_ids_serial_tablas_financieras(db, cursor)
+            conn.commit()
+        except Exception as serial_exc:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            _log_schema_init_failed(serial_exc)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS invitacion_campanas (
                 codigo TEXT PRIMARY KEY,

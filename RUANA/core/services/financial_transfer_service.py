@@ -17,6 +17,7 @@ from core.repositories.financial_transaction_repo import FinancialTransactionRep
 from core.repositories.financial_transfer_repo import FinancialTransferRepo
 from core.repositories.pago_repo import PagoRepo
 from core.services import financial_transaction_service as fts
+from core.services import schema_service
 
 _pago_repo = PagoRepo()
 _fin_repo = FinancialTransactionRepo()
@@ -50,6 +51,11 @@ def ejecutar_liberacion_y_transferencia(
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
+
+            if db.backend == "postgres":
+                schema_service.asegurar_tabla_id_serial_postgres(
+                    db, cursor, "financial_transfers"
+                )
 
             validacion = _validar_precondiciones(db, cursor, contacto_id, codigo)
             if validacion.get("status") != "ok":
