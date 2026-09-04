@@ -522,7 +522,12 @@ def responder_conozco_alguien(
 
             oficio_buscar = (sol["oficio"] or "").strip()
             grupo_id = sol["grupo_id"]
-            if db.plaza_ocupada_en_grupo(grupo_id, oficio_buscar):
+            aliado_row = db.obtener_aliado_por_codigo(codigo)
+            cp_aliado = (aliado_row.get("codigo_postal") or "") if aliado_row else ""
+            from core.services import grupo_madre_service
+            if grupo_madre_service.plaza_ocupada_contexto(
+                db, grupo_id, oficio_buscar, cp_aliado, cursor=cursor
+            ):
                 return {
                     "status": "error",
                     "message": "Este profesional ya pertenece al grupo.",

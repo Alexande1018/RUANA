@@ -112,6 +112,13 @@
         if ((data.indicadores.gruposEnCompetencia || 0) > 0) {
             alerts.push({ level: 'info', text: data.indicadores.gruposEnCompetencia + ' grupos en competencia', nav: '#competencias-activas-wrap' });
         }
+        if ((data.indicadores.cpIndependenciaPendientes || 0) > 0) {
+            alerts.push({
+                level: 'warn',
+                text: data.indicadores.cpIndependenciaPendientes + ' CP listos para independización',
+                nav: '#territorio-madre-wrap'
+            });
+        }
         if (!alerts.length) {
             alerts.push({ level: 'ok', text: 'Sin alertas críticas en este momento.', nav: '' });
         }

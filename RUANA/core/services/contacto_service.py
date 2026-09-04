@@ -157,6 +157,13 @@ def aceptar_contacto_ruana(db, contacto_id: int, profesional_codigo: str) -> Dic
             _repo.update_aceptado(cursor, contacto_id)
 
             conn.commit()
+            try:
+                prof = db.obtener_aliado_por_codigo(profesional_codigo)
+                if prof and prof.get('codigo_postal'):
+                    from core.services import grupo_madre_service
+                    grupo_madre_service.actualizar_madurez_cp(db, prof['codigo_postal'])
+            except Exception:
+                pass
             return {
                 'status': 'success',
                 'id': contacto_id,

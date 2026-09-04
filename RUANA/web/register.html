@@ -636,6 +636,7 @@
                         min="0"
                         required
                     >
+                    <p class="oficios-hint" id="cp-ciudad-preview" style="display:none; margin-top:8px;"></p>
                 </div>
 
                 <!-- Oficio principal (obligatorio) - Catálogo jerárquico RUANA -->
@@ -797,8 +798,42 @@
             init() {
                 this.initPhoneInput();
                 this.loadCatalogo();
+                this.initCpPreview();
                 this.form.addEventListener('submit', (e) => this.handleSubmit(e));
                 if (this.oficioPrincipalSelect) this.oficioPrincipalSelect.addEventListener('change', () => this.handleOtroOficio());
+            }
+
+            initCpPreview() {
+                const cpInput = document.getElementById('codigo-postal');
+                const preview = document.getElementById('cp-ciudad-preview');
+                if (!cpInput || !preview) return;
+                let timer = null;
+                const update = async () => {
+                    const cp = (cpInput.value || '').trim();
+                    if (!cp || cp.length < 5) {
+                        preview.style.display = 'none';
+                        preview.textContent = '';
+                        return;
+                    }
+                    try {
+                        const resp = await fetch('/api/territorio/resolver-cp?cp=' + encodeURIComponent(cp));
+                        const data = await resp.json();
+                        if (data && data.status === 'success' && data.resuelto && data.preview) {
+                            preview.textContent = data.preview;
+                            preview.style.display = 'block';
+                        } else {
+                            preview.style.display = 'none';
+                            preview.textContent = '';
+                        }
+                    } catch (_) {
+                        preview.style.display = 'none';
+                    }
+                };
+                cpInput.addEventListener('input', () => {
+                    clearTimeout(timer);
+                    timer = setTimeout(update, 350);
+                });
+                cpInput.addEventListener('blur', update);
             }
 
             initPhoneInput() {

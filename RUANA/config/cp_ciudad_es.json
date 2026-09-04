@@ -1,0 +1,24 @@
+{
+  "version": "1",
+  "description": "Mapeo CP → ciudad/provincia (España). Ampliar según despliegue.",
+  "prefijos": {
+    "03": {"ciudad": "Alicante", "provincia": "Alicante"},
+    "28": {"ciudad": "Madrid", "provincia": "Madrid"},
+    "08": {"ciudad": "Barcelona", "provincia": "Barcelona"},
+    "46": {"ciudad": "Valencia", "provincia": "Valencia"},
+    "41": {"ciudad": "Sevilla", "provincia": "Sevilla"},
+    "29": {"ciudad": "Málaga", "provincia": "Málaga"},
+    "48": {"ciudad": "Bilbao", "provincia": "Vizcaya"},
+    "50": {"ciudad": "Zaragoza", "provincia": "Zaragoza"}
+  },
+  "exactos": {
+    "03001": {"ciudad": "Alicante", "provincia": "Alicante"},
+    "03002": {"ciudad": "Alicante", "provincia": "Alicante"},
+    "03003": {"ciudad": "Alicante", "provincia": "Alicante"},
+    "03004": {"ciudad": "Alicante", "provincia": "Alicante"},
+    "03005": {"ciudad": "Alicante", "provincia": "Alicante"},
+    "28001": {"ciudad": "Madrid", "provincia": "Madrid"},
+    "28002": {"ciudad": "Madrid", "provincia": "Madrid"},
+    "28099": {"ciudad": "Madrid", "provincia": "Madrid"}
+  }
+}

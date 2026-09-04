@@ -41,6 +41,7 @@
     <script src="/static/js/admin-financial-module.js" defer></script>
     <script src="/static/js/referidos-module.js" defer></script>
     <script src="/static/js/admin-red-explorer-module.js" defer></script>
+    <script src="/static/js/admin-territorio-module.js" defer></script>
     <script src="/static/js/admin-shell.js" defer></script>
 </head>
 <body class="admin-is-loading">
@@ -974,6 +975,21 @@
             <h2 class="seccion-titulo">Grupos y códigos postales</h2>
             <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Vista territorial de la red RUANA por CP y grupos.</p>
             <div class="grupos-cp-overview" id="grupos-cp-overview"></div>
+            <div class="control-aliados" id="territorio-madre-wrap" style="margin-top: 20px;">
+                <h3 class="seccion-titulo" style="font-size: 1rem;">Grupo Madre e independización</h3>
+                <p class="admin-subtitle">CPs en incubación y solicitudes listas para grupo territorial propio.</p>
+                <div class="grupos-cp-overview" id="grupos-madre-overview" style="margin-bottom:16px;"></div>
+                <div class="movimiento-24h-tabla-wrap">
+                    <div class="movimiento-24h-tabla-scroll">
+                        <table class="movimiento-24h-tabla">
+                            <thead>
+                                <tr><th>CP</th><th>Ciudad</th><th>Aliados</th><th>Encargos</th><th>Solicitado</th><th>Acciones</th></tr>
+                            </thead>
+                            <tbody id="tbody-independencia-pendientes"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
             <div class="control-aliados" id="grupos-tabla-wrap" style="margin-top: 20px;">
                 <h3 class="seccion-titulo" style="font-size: 1rem;">Tabla de grupos (fuente real)</h3>
                 <button type="button" id="btn-procesar-grupos-no-viables" class="ruana-btn-primario">
@@ -987,7 +1003,7 @@
                     <div class="movimiento-24h-tabla-scroll">
                         <table class="movimiento-24h-tabla">
                             <thead>
-                                <tr><th>ID</th><th>Nombre</th><th>CP</th><th>Estado</th>
+                                <tr><th>ID</th><th>Nombre</th><th>CP</th><th>Tipo</th><th>Estado</th>
                                     <th>Activos</th><th>Total</th><th>Creado</th></tr>
                             </thead>
                             <tbody id="tbody-grupos-admin"></tbody>

@@ -555,6 +555,17 @@
                         <span class="detail-value" id="grupo-num-oficios">0</span>
                     </div>
                 </div>
+                <div id="grupo-madurez-wrap" class="grupo-madurez-wrap" style="display:none;" aria-live="polite">
+                    <p class="grupo-madurez-lead" id="grupo-madurez-lead"></p>
+                    <div class="grupo-madurez-item">
+                        <div class="grupo-madurez-bar"><div class="grupo-madurez-fill" id="grupo-madurez-aliados-bar"></div></div>
+                        <span class="grupo-madurez-text" id="grupo-madurez-aliados-text"></span>
+                    </div>
+                    <div class="grupo-madurez-item">
+                        <div class="grupo-madurez-bar"><div class="grupo-madurez-fill" id="grupo-madurez-encargos-bar"></div></div>
+                        <span class="grupo-madurez-text" id="grupo-madurez-encargos-text"></span>
+                    </div>
+                </div>
                 <div id="grupo-crecimiento-card" class="grupo-crecimiento-card" style="display: none;" aria-live="polite">
                     <p class="grupo-crecimiento-lead">Este grupo todavía está creciendo.</p>
                     <p class="grupo-crecimiento-texto" id="grupo-crecimiento-texto"></p>
@@ -572,7 +583,17 @@
         </section><!-- /module-perfil -->
 
         <!-- Modal: árbol genealógico de referidos -->
-        <div class="modal-overlay" id="modal-linaje-hijos" style="display:none; align-items:center; justify-content:center;">
+    <div class="modal-overlay" id="modal-grupo-madre-aviso" style="display:none; align-items:center; justify-content:center;" role="dialog" aria-modal="true" aria-labelledby="modal-grupo-madre-title">
+        <div class="modal-content">
+            <h3 class="modal-title" id="modal-grupo-madre-title">Bienvenido al Grupo Madre</h3>
+            <p class="modal-text" id="modal-grupo-madre-texto"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn-admin-action" id="btn-grupo-madre-aviso-ok">Entendido</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modal-linaje-hijos" style="display:none; align-items:center; justify-content:center;">
             <div class="modal-content" style="max-width:min(960px, 96vw); width:92%; max-height:90vh; overflow:auto;">
                 <h3 class="modal-title">Mi red de referidos</h3>
                 <p class="modal-text" id="modal-linaje-hijos-meta">Tu linaje de invitaciones</p>

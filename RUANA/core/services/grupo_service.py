@@ -201,12 +201,24 @@ def info_grupo_para_panel(
     info = {
         'nombre': grupo.get('nombre') or '---',
         'estado': grupo.get('estado') or 'activo',
+        'tipo': grupo.get('tipo') or 'territorial',
+        'ciudad': grupo.get('ciudad') or '',
         'num_oficios': len(oficios_en_grupo),
         'oficios_faltantes': oficios_faltantes,
         'num_aliados': num_aliados,
         'en_creacion': en_creacion,
     }
-    if en_creacion and codigo_aliado:
+    if (grupo.get('tipo') or '') == 'madre':
+        from core.services import grupo_madre_service
+        info['en_creacion'] = False
+        cp_aliado = ''
+        if codigo_aliado:
+            a = db.obtener_aliado_por_codigo(codigo_aliado)
+            cp_aliado = (a.get('codigo_postal') or '') if a else ''
+        info['nombre_display'] = f"RUANA {grupo.get('ciudad') or grupo.get('nombre') or ''}".strip()
+        info['madurez_cp'] = grupo_madre_service.info_madurez_cp(db, cp_aliado)
+        info['en_incubacion'] = True
+    if en_creacion and codigo_aliado and (grupo.get('tipo') or 'territorial') != 'madre':
         info['crecimiento'] = grupo_crecimiento_service.info_progreso_invitador(
             db, codigo_aliado
         )
@@ -229,6 +241,9 @@ def procesar_viabilidad_grupo(db, grupo_id: int) -> Dict[str, Any]:
             grupo = db.obtener_grupo_por_id(grupo_id)
             if not grupo:
                 return {'status': 'error', 'message': 'Grupo no encontrado'}
+
+            if (grupo.get('tipo') or '') == 'madre':
+                return {'status': 'ok', 'message': 'Grupo madre: no aplica viabilidad de disolución'}
 
             if grupo.get('estado') == 'disuelto':
                 return {'status': 'ok', 'message': 'Grupo ya disuelto'}
@@ -510,7 +525,11 @@ def obtener_grupo_por_id(db, grupo_id: int) -> Optional[Dict[str, Any]]:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT id, nombre, codigo_postal, ciudad, provincia, estado, fecha_creacion FROM grupos WHERE id = ?",
+                """
+                SELECT id, nombre, codigo_postal, ciudad, provincia, estado, fecha_creacion,
+                       COALESCE(tipo, 'territorial') AS tipo, grupo_madre_id
+                FROM grupos WHERE id = ?
+                """,
                 (grupo_id,),
             )
             row = cursor.fetchone()
@@ -633,13 +652,16 @@ def obtener_grupo_invitador_por_codigo_invitacion(db, codigo_invitacion: str) ->
 def _obtener_grupo_activacion_pendiente(db, cursor, aliado: Dict[str, Any]) -> Optional[int]:
     """
     Resuelve grupo al activar un aliado pendiente_validacion.
-    Prioridad: grupo del invitador (si hay plaza) → otro grupo del CP → nuevo grupo.
+    Usa resolver_asignacion_registro (territorial vs incubación madre).
     """
+    from core.services import grupo_madre_service
+
     oficio = (aliado.get('oficio') or '').strip()
     codigo_postal = (aliado.get('codigo_postal') or '').strip()
     if not oficio or not codigo_postal:
         return None
 
+    grupo_id_invitacion = None
     invitador_codigo = (aliado.get('invitado_por_codigo') or '').strip()
     if invitador_codigo:
         cursor.execute(
@@ -648,32 +670,18 @@ def _obtener_grupo_activacion_pendiente(db, cursor, aliado: Dict[str, Any]) -> O
         )
         inv_row = cursor.fetchone()
         if inv_row and inv_row[0]:
-            grupo_id = int(inv_row[0])
-            cursor.execute("SELECT estado FROM grupos WHERE id = ?", (grupo_id,))
-            g_row = cursor.fetchone()
-            if g_row and (g_row[0] or '').strip().lower() == 'activo':
-                if not db._grupo_tiene_oficio(cursor, grupo_id, oficio):
-                    return grupo_id
+            grupo_id_invitacion = int(inv_row[0])
 
-    cursor.execute(
-        """SELECT id FROM grupos
-           WHERE codigo_postal = ? AND estado = 'activo'
-           ORDER BY id""",
-        (codigo_postal,),
+    g_pref, estado, _ = grupo_madre_service.resolver_asignacion_registro(
+        db, cursor, codigo_postal, oficio, grupo_id_invitacion
     )
-    for row in cursor.fetchall():
-        grupo_id = int(row[0])
-        if not db._grupo_tiene_oficio(cursor, grupo_id, oficio):
-            return grupo_id
-
-    cursor.execute(
-        "SELECT COUNT(*) FROM grupos WHERE codigo_postal = ? AND estado = 'activo'",
-        (codigo_postal,),
-    )
-    n_grupos = cursor.fetchone()[0] or 0
-    if n_grupos < MAX_GRUPOS_POR_CP:
-        gid = _insertar_grupo_nombre_unico(db, cursor, codigo_postal)
-        return gid
+    if g_pref:
+        return g_pref
+    if estado == 'en_espera':
+        return None
+    if grupo_madre_service.cp_en_modo_territorial(db, codigo_postal):
+        if grupo_madre_service.contar_grupos_territoriales_activos_por_cp(db, codigo_postal) < MAX_GRUPOS_POR_CP:
+            return _insertar_grupo_nombre_unico(db, cursor, codigo_postal)
     return None
 
 
@@ -688,6 +696,7 @@ def listar_grupos_admin(db) -> List[Dict[str, Any]]:
             cursor.execute("""
                 SELECT g.id, g.nombre, g.codigo_postal, g.ciudad, g.provincia,
                        g.estado, g.fecha_creacion,
+                       COALESCE(g.tipo, 'territorial') AS tipo,
                        (SELECT COUNT(*) FROM aliados a WHERE a.grupo_id = g.id AND a.estado = 'activo') AS aliados_activos,
                        (SELECT COUNT(*) FROM aliados a WHERE a.grupo_id = g.id) AS aliados_total
                 FROM grupos g
