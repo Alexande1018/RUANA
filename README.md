@@ -14,7 +14,7 @@
 | Fase declarada en roadmap | pre-MVP avanzada (v0.9) |
 | Código fuente principal | `RUANA/` |
 | Hosting público verificado | Firebase Hosting → Cloud Run (`https://ruana-4293f.web.app`) |
-| Tests backend | **108** archivos `test_*.py` en `RUANA/tests/`. Recuento de casos: ver informe 2026-09-04. Histórico 2026-08-19: 784 passed / 11 skipped |
+| Tests backend | **108** archivos `test_*.py`. Suite 2026-09-04: **1004 passed, 11 skipped, 3 failed** (los 3 pasan en aislamiento; ver informe). Histórico 2026-08-19: 784 passed / 11 skipped |
 
 ---
 

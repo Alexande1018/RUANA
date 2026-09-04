@@ -316,10 +316,14 @@ Pendiente de reconciliar sin decisión humana:
 | Campo | Valor |
 |-------|-------|
 | Comando | `python3 -m pytest RUANA/tests -q --tb=no` |
-| Entorno | Cloud Agent, Python 3 + `requirements-dev.txt`, SQLite |
-| Resultado | Se rellena al cerrar la ejecución (ver commit posterior si el recuento no cabe en el primer push) |
+| Entorno | Cloud Agent, Python 3.12 + `requirements-dev.txt`, SQLite |
+| Duración | 602.78 s |
+| Recogidos | 1018 (1004 passed + 3 failed + 11 skipped) |
+| Resultado suite completa | **1004 passed, 11 skipped, 3 failed** |
 
-Histórico de referencia (no sustituye la ejecución de hoy): 2026-08-19 → 784 passed, 11 skipped.
+Los 3 fallos son `test_stripe_webhook_signature_http.py` (`test_http_valid_signature_not_400`, `test_http_altered_body_returns_400`, `test_http_processing_error_after_valid_signature_returns_500`).
+
+**Re-ejecutados en aislamiento** en el mismo entorno: **4 passed** (el archivo completo). Conclusión: no se afirma «suite verde»; el fallo en suite completa es **compatible con contaminación de estado** (settings/app Flask) y **no se diagnosticó más allá** en esta auditoría documental. Histórico 2026-08-19: 784 passed, 11 skipped (más tests desde entonces; no comparable 1:1).
 
 ---
 

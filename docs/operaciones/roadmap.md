@@ -15,7 +15,7 @@ Infra base (Hito 1) desplegable: Docker → Cloud Run, Firebase Hosting rewrite,
 
 **Enfoque activo (inferido de PRs abiertos y commits recientes):** endurecer CORS/RLS (PRs #195, #196, no fusionados), pulir Pulse/Centro de Actividad, operación Stripe (SERIAL, webhooks, modo Live), Hito 2 de permisos.
 
-**Métricas verificadas (2026-09-04):** 21 blueprints, **326** rutas en blueprints + 34 en `app.py`, **37** services, **31** repos, **29** migraciones, 108 archivos `test_*.py`. Recuento de casos pytest: ver informe de auditoría del día. `DBManager` 1969 LOC; `app.py` 546 LOC.
+**Métricas verificadas (2026-09-04):** 21 blueprints, **326** rutas en blueprints + 34 en `app.py`, **37** services, **31** repos, **29** migraciones, 108 archivos `test_*.py`, suite **1004 passed / 11 skipped / 3 failed** (K-27). `DBManager` 1969 LOC; `app.py` 546 LOC.
 
 ## Hitos
 

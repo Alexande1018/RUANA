@@ -6,7 +6,7 @@ Documento para recibir el proyecto como **nuevo desarrollador**, **operador**, *
 |---|---|
 | Fecha | 2026-09-04 |
 | Estado producto | Pre-MVP avanzada (v0.9) — inferido de roadmap interno |
-| Tests backend | Recuento del día: ver [`AUDITORIA_DOCUMENTAL_2026-09-04.md`](exports/AUDITORIA_DOCUMENTAL_2026-09-04.md). Histórico 2026-08-19: 784 passed, 11 skipped |
+| Tests backend | 2026-09-04: **1004 passed, 11 skipped, 3 failed** (firma Stripe HTTP; pasan en aislamiento). Histórico 2026-08-19: 784 passed, 11 skipped |
 
 ---
 

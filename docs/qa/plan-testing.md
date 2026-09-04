@@ -16,7 +16,7 @@ Validar de extremo a extremo funcionalidades críticas y dejar evidencias reprod
 
 ### Pytest (`RUANA/tests/`)
 
-- **108** archivos `test_*.py` en `RUANA/tests/` (contado 2026-09-04). El recuento de *casos* pytest del día está en [`AUDITORIA_DOCUMENTAL_2026-09-04.md`](../exports/AUDITORIA_DOCUMENTAL_2026-09-04.md). Histórico: 383 (2026-08-15) → 784 passed / 11 skipped (2026-08-19).
+- **108** archivos `test_*.py`. Suite 2026-09-04: **1004 passed, 11 skipped, 3 failed** (K-27). Histórico: 383 (2026-08-15) → 784 passed / 11 skipped (2026-08-19).
 - Dominios cubiertos: admin, aliado, auth/PIN/rate-limit, permisos (Hito 2A/2B), invitaciones/campañas, referidos, grupos/plazas/competencia, crecimiento orgánico, solicitudes + semanales, contactos, negociación, chat timestamps, pagos/Stripe, módulo financiero FASE 02–14, score (reglas 3–8), storage, catálogo, actividad cinta / Pulse, blueprints/services.
 
 ### Playwright E2E (`e2e/`)

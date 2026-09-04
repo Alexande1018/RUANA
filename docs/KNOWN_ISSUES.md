@@ -249,6 +249,14 @@ PR abierto #196 (`cursor/rls-public-tables-2cc1`) — título indica «no aplica
 
 ---
 
+### K-27 — Tres tests HTTP de firma Stripe fallan en suite completa
+
+**Estado:** Abierto (flaky / orden)  
+**Severidad:** Media (CI puede ponerse rojo sin regresión funcional)  
+**Verificado:** 2026-09-04 — suite `RUANA/tests` → fallan `test_http_valid_signature_not_400`, `test_http_altered_body_returns_400`, `test_http_processing_error_after_valid_signature_returns_500`. El archivo entero en aislamiento: **4 passed**.
+
+---
+
 ### K-26 — Datos de cobro también en frontend/código (además de JSON)
 
 **Estado:** Abierto (amplía K-03)  
