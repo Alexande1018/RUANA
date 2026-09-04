@@ -136,6 +136,13 @@ jobs:
           export DATABASE_URL="$(gcloud secrets versions access latest --secret=ruana-database-url --project="$PROJECT_ID")"
           python3 .github/scripts/fix_financial_transfers_serial.py
 
+      - name: Aplicar RLS public (idempotente)
+        continue-on-error: true
+        run: |
+          python3 -m pip install --quiet psycopg[binary]
+          export DATABASE_URL="$(gcloud secrets versions access latest --secret=ruana-database-url --project="$PROJECT_ID")"
+          python3 .github/scripts/apply_rls_public_tables.py
+
       - name: Upsert alerta init esquema Postgres
         continue-on-error: true
         run: bash .github/scripts/upsert-postgres-schema-init-alert.sh

@@ -514,6 +514,21 @@ def _handle_account_updated(
             )
             conn.commit()
             conn.close()
+        if charges:
+            try:
+                from core.services import financial_transfer_service as transfer_svc
+
+                transfer_svc.reintentar_transferencias_pendientes_profesional(
+                    db, account_id
+                )
+            except Exception as exc:
+                log_stripe_webhook(
+                    resultado="processing_error",
+                    error_kind=f"retry_transfer:{type(exc).__name__}",
+                    event_id=event_id,
+                    event_type="account.updated",
+                    has_stripe_signature=True,
+                )
     return None, "ok", "", ""
 
 

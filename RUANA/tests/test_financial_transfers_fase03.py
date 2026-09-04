@@ -320,13 +320,41 @@ def test_11_profesional_incorrecto_bloquea(mock_transfer, sqlite_db):
 
 
 @patch("core.services.financial_transfer_service.stripe_client.create_transfer")
-def test_12_cuenta_connect_incorrecta_bloquea(mock_transfer, sqlite_db):
+def test_12_cuenta_connect_obsoleta_se_actualiza_si_no_hay_transfer(mock_transfer, sqlite_db):
+    """Caso Sandra: Connect de prueba/rotada sin Transfer Stripe → se corrige el destino."""
     cid = _seed_listo_transferir(sqlite_db)
     conn = sqlite_db._connect()
     conn.execute(
         "INSERT INTO financial_transfers (contacto_id, idempotency_key, amount_cents, currency, "
         "destination_account_id, professional_codigo, estado) "
         "VALUES (?, ?, ?, 'eur', 'acct_malo', 'PRO', 'RECLAMADA')",
+        (cid, f"transfer-contacto-{cid}", 44000),
+    )
+    conn.commit()
+    conn.close()
+    mock_transfer.return_value = {"id": "tr_destino_ok"}
+    res = pago_service.confirmar_trabajo_y_transferir(sqlite_db, cid, "SOL")
+    assert res["status"] == "success"
+    assert res.get("stripe_transfer_id") == "tr_destino_ok"
+    mock_transfer.assert_called_once()
+    assert mock_transfer.call_args.kwargs["destination_account_id"] == "acct_test"
+    conn = sqlite_db._connect()
+    dest = conn.execute(
+        "SELECT destination_account_id FROM financial_transfers WHERE contacto_id=?",
+        (cid,),
+    ).fetchone()[0]
+    conn.close()
+    assert dest == "acct_test"
+
+
+@patch("core.services.financial_transfer_service.stripe_client.create_transfer")
+def test_12b_cuenta_connect_incorrecta_con_transfer_id_bloquea(mock_transfer, sqlite_db):
+    cid = _seed_listo_transferir(sqlite_db)
+    conn = sqlite_db._connect()
+    conn.execute(
+        "INSERT INTO financial_transfers (contacto_id, idempotency_key, amount_cents, currency, "
+        "destination_account_id, professional_codigo, stripe_transfer_id, estado) "
+        "VALUES (?, ?, ?, 'eur', 'acct_malo', 'PRO', 'tr_ya_creada', 'STRIPE_CREADA')",
         (cid, f"transfer-contacto-{cid}", 44000),
     )
     conn.commit()

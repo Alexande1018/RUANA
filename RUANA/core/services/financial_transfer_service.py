@@ -137,9 +137,16 @@ def ejecutar_liberacion_y_transferencia(
                 if existente:
                     conn.commit()
                     return existente
+                _transfer_repo.intentar_reclaim_stale_stripe_en_proceso(cursor, contacto_id)
                 if _transfer_repo.esta_ejecucion_stripe_en_curso(cursor, contacto_id):
                     conn.commit()
                     return _respuesta_transferencia_en_proceso(contacto_id, estado_actual)
+                if validacion.get("_destino_obsoleto"):
+                    _transfer_repo.actualizar_destino_si_pendiente(
+                        cursor, contacto_id, account_id
+                    )
+                    if transfer_row is not None:
+                        transfer_row["destination_account_id"] = account_id
                 _transfer_repo.intentar_reintentar_stripe(cursor, contacto_id)
                 puede_ejecutar = _transfer_repo.intentar_ejecutar_stripe(cursor, contacto_id)
             else:
@@ -381,12 +388,18 @@ def _validar_coherencia_reclamo(
             "message": "Profesional no coincide con la transferencia registrada",
             "bloqueo": "profesional",
         }
-    if transfer_row.get("destination_account_id") != validacion["account_id"]:
-        return {
-            "status": "error",
-            "message": "Cuenta Connect no coincide con la transferencia registrada",
-            "bloqueo": "connect",
-        }
+    dest = str(transfer_row.get("destination_account_id") or "").strip()
+    actual = str(validacion.get("account_id") or "").strip()
+    if dest != actual:
+        tid = str(transfer_row.get("stripe_transfer_id") or "").strip()
+        if tid:
+            return {
+                "status": "error",
+                "message": "Cuenta Connect no coincide con la transferencia registrada",
+                "bloqueo": "connect",
+            }
+        # Sin Transfer Stripe: destino de prueba/rotado (caso Sandra). Se corrige al reintentar.
+        validacion["_destino_obsoleto"] = dest
     if int(transfer_row.get("amount_cents") or 0) != int(validacion["amount_cents"]):
         return {
             "status": "error",
@@ -496,13 +509,19 @@ def _validar_precondiciones(
     if not account_id:
         return {
             "status": "error",
-            "message": "El profesional no tiene cuenta Stripe Connect activa",
+            "message": (
+                "El profesional no tiene cuenta Stripe Connect activa. "
+                "El cobro del cliente está retenido en RUANA hasta que complete el alta Connect."
+            ),
             "bloqueo": "connect",
         }
     if not aliado.get("stripe_charges_enabled"):
         return {
             "status": "error",
-            "message": "La cuenta Connect del profesional no está habilitada para cobros",
+            "message": (
+                "La cuenta Connect del profesional no está habilitada para cobros. "
+                "El cobro del cliente está retenido hasta que termine el onboarding Stripe."
+            ),
             "bloqueo": "connect",
         }
 
@@ -761,4 +780,57 @@ def validar_invariante_una_transferencia(db, contacto_id: int) -> Dict[str, Any]
         "status": "success" if count <= 1 else "error",
         "transferencias_registradas": count,
         "invariante_ok": count <= 1,
+    }
+
+
+def reintentar_transferencias_pendientes_profesional(
+    db, stripe_account_id: str
+) -> Dict[str, Any]:
+    """Reintenta liberaciones ya confirmadas cuando Connect del profesional queda listo.
+
+    Caso Sandra / encargo #72: cobro live retenido, trabajo confirmado, cuenta Connect
+    de prueba o ausente. Al completar onboarding (account.updated) se reanuda el Transfer.
+    """
+    account_id = (stripe_account_id or "").strip()
+    if not account_id:
+        return {"status": "skipped", "reason": "sin_account_id", "reintentos": []}
+
+    pendientes: list[Dict[str, Any]] = []
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            rows = _pago_repo.listar_contactos_liberacion_pendiente_por_account(
+                cursor, account_id
+            )
+            for row in rows:
+                item = dict(row) if hasattr(row, "keys") else {
+                    "id": row[0],
+                    "solicitante_codigo": row[1],
+                    "profesional_codigo": row[2],
+                    "estado_pago": row[3],
+                }
+                pendientes.append(item)
+        finally:
+            if conn:
+                conn.close()
+
+    resultados = []
+    for item in pendientes:
+        cid = int(item.get("id") or 0)
+        solicitante = str(item.get("solicitante_codigo") or "").strip()
+        if not cid or not solicitante:
+            continue
+        res = ejecutar_liberacion_y_transferencia(db, cid, solicitante)
+        resultados.append({
+            "contacto_id": cid,
+            "status": res.get("status"),
+            "bloqueo": res.get("bloqueo"),
+            "stripe_transfer_id": res.get("stripe_transfer_id"),
+        })
+    return {
+        "status": "ok",
+        "pendientes": len(pendientes),
+        "reintentos": resultados,
     }

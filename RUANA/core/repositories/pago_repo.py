@@ -801,6 +801,27 @@ class PagoRepo:
         )
         return cursor.fetchall()
 
+    def listar_contactos_liberacion_pendiente_por_account(
+        self, cursor, stripe_account_id: str, limite: int = 20
+    ) -> List[Any]:
+        """Encargos cobrados y confirmados, sin Transfer Stripe, del profesional con esa cuenta."""
+        cursor.execute(
+            """
+            SELECT c.id, c.solicitante_codigo, c.profesional_codigo, c.estado_pago
+            FROM contactos_ruana c
+            JOIN aliados a ON a.codigo = c.profesional_codigo
+            WHERE a.stripe_account_id = ?
+              AND c.modo_pago = 'stripe'
+              AND c.estado_pago IN ('cobro_confirmado', 'transfer_pendiente')
+              AND COALESCE(c.stripe_transfer_id, '') = ''
+              AND c.fecha_confirmacion_trabajo IS NOT NULL
+            ORDER BY c.id ASC
+            LIMIT ?
+            """,
+            ((stripe_account_id or "").strip(), int(limite)),
+        )
+        return cursor.fetchall()
+
     def listar_contactos_stripe_pipeline(self, cursor, limite: int = 200) -> List[Any]:
         cursor.execute(
             """

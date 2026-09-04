@@ -25,11 +25,11 @@ El código de 5 dígitos es el único factor de autenticación. Compromiso del c
 
 ### K-02 — Service role elude RLS Supabase
 
-**Estado:** Abierto (diseño actual)  
+**Estado:** Abierto (diseño actual) — mitigación del agujero **anon** en `supabase/migrations/20260902000200_enable_rls_public_tables.sql` (aplicar en prod: [`docs/seguridad/rls-public-tables.md`](seguridad/rls-public-tables.md))  
 **Severidad:** Alta  
-**Verificado:** migraciones RLS + uso `SUPABASE_SERVICE_ROLE_KEY`
+**Verificado:** migraciones RLS + uso `SUPABASE_SERVICE_ROLE_KEY` y `DATABASE_URL`
 
-Toda autorización debe implementarse en Flask (`@require_aliado`, `@require_admin`). Un bug en un endpoint expone datos sin barrera RLS.
+Toda autorización de la API debe seguir en Flask (`@require_aliado`, `@require_admin`). `service_role` y el rol de `DATABASE_URL` eluden RLS. Un bug en un endpoint Flask sigue sin barrera RLS. La migración nueva cierra el acceso PostgREST con la anon key (sin `FORCE`).
 
 ---
 

@@ -2,7 +2,17 @@
 from __future__ import annotations
 
 import json
+import os
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Tuple
+
+
+def _stripe_en_proceso_stuck_threshold_iso() -> str:
+    """Umbral para reclaim de Transfer.create atascado (caso Sandra / encargo #72)."""
+    minutes = int(os.environ.get("RUANA_TRANSFER_STRIPE_STUCK_MINUTES", "5"))
+    return (
+        datetime.now(timezone.utc) - timedelta(minutes=minutes)
+    ).strftime("%Y-%m-%d %H:%M:%S")
 
 
 class FinancialTransferRepo:
@@ -63,6 +73,7 @@ class FinancialTransferRepo:
         """Permite reintentar solo tras FALLIDA explícita (p. ej. timeout Stripe).
 
         No resetea STRIPE_EN_PROCESO: otro hilo puede estar ejecutando Transfer.create.
+        El reclaim de STRIPE_EN_PROCESO caducado va por intentar_reclaim_stale_stripe_en_proceso.
         """
         cursor.execute(
             """
@@ -72,6 +83,42 @@ class FinancialTransferRepo:
               AND estado = 'FALLIDA'
             """,
             (contacto_id,),
+        )
+        return cursor.rowcount == 1
+
+    def intentar_reclaim_stale_stripe_en_proceso(self, cursor, contacto_id: int) -> bool:
+        """Reclama STRIPE_EN_PROCESO sin transfer_id si superó el TTL (proceso muerto)."""
+        stuck_before = _stripe_en_proceso_stuck_threshold_iso()
+        cursor.execute(
+            """
+            UPDATE financial_transfers
+            SET estado = 'RECLAMADA', error_message = NULL, actualizado_en = CURRENT_TIMESTAMP
+            WHERE contacto_id = ?
+              AND stripe_transfer_id IS NULL
+              AND estado = 'STRIPE_EN_PROCESO'
+              AND actualizado_en < ?
+            """,
+            (contacto_id, stuck_before),
+        )
+        return cursor.rowcount == 1
+
+    def actualizar_destino_si_pendiente(
+        self, cursor, contacto_id: int, destination_account_id: str
+    ) -> bool:
+        """Actualiza Connect destino si aún no hay Transfer Stripe (cuenta rotada / test→live)."""
+        account_id = (destination_account_id or "").strip()
+        if not account_id:
+            return False
+        cursor.execute(
+            """
+            UPDATE financial_transfers
+            SET destination_account_id = ?, actualizado_en = CURRENT_TIMESTAMP
+            WHERE contacto_id = ?
+              AND stripe_transfer_id IS NULL
+              AND estado IN ('RECLAMADA', 'FALLIDA')
+              AND destination_account_id != ?
+            """,
+            (account_id, contacto_id, account_id),
         )
         return cursor.rowcount == 1
 

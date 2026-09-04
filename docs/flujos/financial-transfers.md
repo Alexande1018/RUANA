@@ -89,6 +89,9 @@ No mueve dinero; solo compara y decide.
 - `INSERT OR IGNORE` en `financial_transfers`.
 - `intentar_ejecutar_stripe`: solo un proceso llama a Stripe.
 - Segundo proceso: respuesta idempotente `transferencia_en_proceso`.
+- `STRIPE_EN_PROCESO` sin `stripe_transfer_id` se reclama tras TTL (`RUANA_TRANSFER_STRIPE_STUCK_MINUTES`, default 5). Cierra el atasco del encargo #72.
+- Si Connect del profesional cambia **antes** de crear el Transfer Stripe (cuenta de prueba o re-onboarding), se actualiza `destination_account_id` y se reintenta. Un Transfer ya creado con otro destino sigue bloqueado.
+- `account.updated` con `charges_enabled` reintenta liberaciones ya confirmadas de ese profesional.
 
 ## Bloqueos
 
