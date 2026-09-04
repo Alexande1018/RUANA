@@ -4,9 +4,9 @@ Documento para recibir el proyecto como **nuevo desarrollador**, **operador**, *
 
 | | |
 |---|---|
-| Fecha | 2026-08-19 |
+| Fecha | 2026-09-04 |
 | Estado producto | Pre-MVP avanzada (v0.9) — inferido de roadmap interno |
-| Tests backend | **784 passed, 11 skipped** (ejecutado 2026-08-19) |
+| Tests backend | Recuento del día: ver [`AUDITORIA_DOCUMENTAL_2026-09-04.md`](exports/AUDITORIA_DOCUMENTAL_2026-09-04.md). Histórico 2026-08-19: 784 passed, 11 skipped |
 
 ---
 
@@ -23,7 +23,7 @@ RUANA coordina redes locales de profesionales por código postal: plazas de ofic
 - [ ] Clonar repo y seguir [`SETUP.md`](SETUP.md)
 - [ ] Copiar `.env.example` → `.env`; generar `FLASK_SECRET_KEY`
 - [ ] Configurar credenciales admin locales (§3 SETUP)
-- [ ] Ejecutar `python3 -m pytest RUANA/tests -q` — debe pasar (~784 tests)
+- [ ] Ejecutar `python3 -m pytest RUANA/tests -q` — debe pasar (cifra vigente en el informe de auditoría del día)
 - [ ] Arrancar app en `http://localhost:8080`
 - [ ] Leer [`ARCHITECTURE.md`](ARCHITECTURE.md) y [`ENVIRONMENT_VARIABLES.md`](ENVIRONMENT_VARIABLES.md)
 - [ ] Revisar regla Campamento Base en README §17 (extracción `DBManager` solo con test CI)
@@ -42,7 +42,7 @@ RUANA coordina redes locales de profesionales por código postal: plazas de ofic
 
 - [ ] Leer [`PROJECT_AUDIT.md`](PROJECT_AUDIT.md) completo
 - [ ] Contrastar migraciones `supabase/migrations/` vs schema remoto
-- [ ] Verificar auth: aliado código, admin JSON, cron secret
+- [ ] Verificar auth: aliado **código + PIN**, admin JSON, cron secret **u OIDC**
 - [ ] Revisar datos sensibles en `ruana_reglas_v1.json` (K-03)
 - [ ] Confirmar modo Stripe prod (K-04)
 - [ ] Ejecutar pytest localmente o revisar artefacto CI `ruana-qa-latest`
@@ -78,6 +78,8 @@ RUANA coordina redes locales de profesionales por código postal: plazas de ofic
 | SQL | `RUANA/core/repositories/` |
 | Fachada legacy | `RUANA/core/db_manager.py` |
 | Auth sesiones | `RUANA/core/auth_session.py` |
+| PIN aliado | `RUANA/core/aliado_pin_auth.py`, `core/services/aliado_pin_service.py` |
+| Finanzas | `RUANA/core/financial/`, `docs/flujos/financial-overview.md` |
 | Config negocio | `RUANA/config/ruana_reglas_v1.json` |
 | Tests | `RUANA/tests/` |
 | E2E | `e2e/ruana-critical-flows.spec.js` |

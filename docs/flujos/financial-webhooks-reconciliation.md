@@ -32,15 +32,16 @@ Blindar la comunicación Stripe ↔ RUANA con idempotencia, eventos fuera de ord
 | `payment_intent.payment_failed` | Solo si pre-pago | → `PAGO_FALLIDO` |
 | `checkout.session.expired` | Reset checkout | legacy `esperando_cobro_cliente` |
 | `account.updated` | Flags Connect aliado | N/A |
-| `transfer.created` | Guarda `transfer_id`, enviada | → `TRANSFERENCIA_ENVIADA` |
-| `transfer.paid` | Confirma transferencia | → `TRANSFERIDO` |
+| `transfer.created` | Guarda `transfer_id`, enviada | → `TRANSFERENCIA_ENVIADA` (no cierra obligación) |
+| `transfer.paid` | Camino **legacy** (`procesar_transfer_paid_legacy`) | No es el cierre canónico; FASE 03.2 exige reconciliación `confirmed` → `TRANSFERIDO` |
+| `transfer.updated` / `transfer.reversed` | Handlers en `stripe_transfer_events.py` | Reconciliación / `TRANSFERENCIA_REVERTIDA` |
 | `transfer.failed` | Marca fallo / discrepancia si terminal | → `TRANSFERENCIA_FALLIDA` |
 | `charge.refunded` | Registra refund (total/parcial) | → `REEMBOLSO_PENDIENTE` / `REEMBOLSADO` |
 | `charge.dispute.created` | Registra disputa | → `DISPUTA_STRIPE` |
 
 ## Eventos fuera de orden
 
-- `transfer.paid` antes de `transfer.created`: recupera cadena de estados hasta `TRANSFERIDO`.
+- `transfer.paid` (legacy) antes de `transfer.created`: el handler legacy intenta recuperar cadena; el flujo vigente **no** cierra a `TRANSFERIDO` solo por `transfer.paid`. Ver [`financial-transfers.md`](financial-transfers.md).
 - `transfer.failed` tras `TRANSFERIDO`: **no retrocede**; registra discrepancia `STATUS_MISMATCH`.
 
 ## Reconciliación

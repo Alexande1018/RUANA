@@ -1,16 +1,16 @@
 # Estado Stripe Live — FASE 14
 
-**Fecha de verificación:** 2026-08-19  
-**Entorno producción:** Cloud Run `ruana` (europe-west1) + Firebase Hosting `ruana-4293f.web.app`
+**Fecha de este documento original:** 2026-08-19  
+**Revisión 2026-09-04:** el workflow **ya no** hardcodea `RUANA_STRIPE_MODE=test`. El modo efectivo en Cloud Run **ahora** es `NO VERIFICADO` (depende de `vars.RUANA_STRIPE_MODE`, input de `workflow_dispatch` y prefijo de `STRIPE_SECRET_KEY`). El commit `9b273d5` habilita Live en el pipeline; no prueba que Live esté activo.
 
 ## Veredicto operativo
 
 | Aspecto | Estado |
 |--------|--------|
-| Stripe **Test** | Activo en producción (`RUANA_STRIPE_MODE=test`) |
-| Stripe **Live** | **BLOQUEADO** — no habilitado en despliegue |
-| Transferencias Live reales | **No ejecutadas** en esta fase |
-| Reembolsos Live reales | **No ejecutados** en esta fase |
+| Resolución de modo en CI | Script `resolve-stripe-mode.sh` + validación de prefijo — **VERIFICADO** en repo |
+| Stripe **Test** vs **Live** en Cloud Run hoy | **NO VERIFICADO** |
+| Transferencias Live reales | **NO VERIFICADO** |
+| Reembolsos Live reales | **NO VERIFICADO** |
 
 ## Configuración de modo (B5 — sin hardcode en workflow)
 

@@ -1,5 +1,8 @@
 # Informe interno de auditoría documental RUANA
 
+> **HISTÓRICO.** Sustituido por [`AUDITORIA_DOCUMENTAL_2026-09-04.md`](AUDITORIA_DOCUMENTAL_2026-09-04.md).  
+> Conservar como evidencia. No usar cifras de este informe (13 blueprints, 16 services, login solo-código, 12 migraciones, 383 tests) como descripción del código actual.
+
 **Fecha:** 2026-08-15  
 **Alcance:** repositorio completo (`/workspace`)  
 **Método:** inventario documental + inspección de código, configuración, migraciones y tests  

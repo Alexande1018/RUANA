@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |-------|-------|
-| Fecha de auditoría | 2026-08-19 |
+| Fecha de auditoría | 2026-08-19 (pack de cierre). **Revisión de cifras: 2026-09-04** — ver [`exports/AUDITORIA_DOCUMENTAL_2026-09-04.md`](exports/AUDITORIA_DOCUMENTAL_2026-09-04.md) |
 | Rama auditada | `main` (commit de trabajo en rama `cursor/docs-cierre-producto-dccf`) |
 | Alcance | Repositorio completo: código, config, CI/CD, migraciones, docs existentes |
 | Ejecución de tests | **Verificado** — `784 passed, 11 skipped` en ~9m24s (Python 3.12, SQLite) |
@@ -19,9 +19,9 @@ RUANA es una aplicación web monolítica Flask que sirve UI HTML/JS y una API RE
 
 Estado del producto documentado internamente: **pre-MVP avanzada (v0.9)**. El núcleo operativo (registro, grupos territoriales, score, negociación, pagos manuales, panel admin, competencia) está implementado y cubierto por tests automatizados. Existe un **módulo financiero ampliado** (conflictos, reembolsos, disputas, conciliación, ledger, automatización) añadido tras la auditoría documental de agosto 2025.
 
-La modularización **Campamento Base** está avanzada: `DBManager` actúa como fachada (~1.925 LOC) delegando en **36 services** y **30 repositories**, pero no está completa.
+La modularización **Campamento Base** está avanzada: `DBManager` actúa como fachada (**1969** LOC el 2026-09-04) delegando en **37 services** y **31 repositories**, pero no está completa.
 
-**Riesgos principales para handoff:** autenticación de aliado por código (factor único), service role Supabase que elude RLS, drift SQLite/Postgres, sesiones revocadas en memoria (multi-instancia Cloud Run), datos de cobro manual en JSON versionado, y cron jobs documentados pero **no verificados** como desplegados en GCP.
+**Riesgos principales para handoff (revisados 2026-09-04):** login aliado es código+PIN (ya no factor único; adopción prod NO VERIFICADO), CORS permisivo, service role Supabase que elude RLS, tablas financieras sin RLS en DDL, drift SQLite/Postgres, sesiones revocadas en memoria, datos de cobro en JSON/frontend versionado, modo Stripe efectivo NO VERIFICADO, cron jobs documentados pero **no verificados** en GCP.
 
 ---
 
@@ -40,7 +40,7 @@ La modularización **Campamento Base** está avanzada: `DBManager` actúa como f
 | Hosting | Firebase Hosting rewrite → Cloud Run | `firebase.json` | Verificado |
 | CI/CD | GitHub Actions (WIF → GCP) | `.github/workflows/` | Verificado |
 | QA E2E | Playwright 1.44 | `playwright.config.js`, `e2e/` | Verificado (config) |
-| Migraciones PG | Supabase CLI SQL | `supabase/migrations/` (28 archivos) | Verificado |
+| Migraciones PG | Supabase CLI SQL | `supabase/migrations/` (**29** archivos el 2026-09-04) | Verificado |
 | Node (tooling) | firebase-tools, supabase CLI, Playwright | `package.json` | Verificado |
 
 **No detectado en repo:** licencia (`LICENSE` ausente), Terraform/Pulumi, Kubernetes manifests, Vercel/Netlify, Firebase Auth implementado, Supabase Realtime en cliente.
@@ -56,7 +56,7 @@ La modularización **Campamento Base** está avanzada: `DBManager` actúa como f
 | QA / E2E | `python RUANA/web/run.py` | 5000 | Verificado — `playwright.config.js` |
 | CLI orquestador | Scripts en `RUANA/scripts/` | N/A | Inferido — no conectados al servidor web principal |
 
-**Blueprints registrados:** 21 módulos en `RUANA/web/app.py` (~320 decoradores `@*.route` en blueprints + ~28 rutas en `app.py`).
+**Blueprints registrados:** 21 módulos en `RUANA/web/app.py` (**326** decoradores `@*.route` en blueprints + **34** rutas en `app.py`, verificado 2026-09-04).
 
 Lista **Verificada** en `app.py`: `catalogo`, `negociacion`, `referidos`, `admin`, `contactos`, `auth`, `pagos`, `stripe_webhook`, `solicitudes`, `solicitudes_semanales`, `aliado`, `invitacion`, `evaluacion`, `soporte`, `financial_conflicts`, `financial_refunds`, `financial_disputes`, `financial_reconciliation`, `financial_ledger`, `financial_admin`, `financial_automation`.
 
@@ -190,12 +190,12 @@ Workflow: `.github/workflows/ruana-qa.yml` — **Verificado** con triggers `push
 
 ## Riesgos técnicos
 
-1. **Auth aliado por código** — factor único; compromiso = acceso total a cuenta.
+1. **Auth aliado código+PIN** — mitigado vs factor único; adopción prod y rate-limit en memoria pendientes.
 2. **Service role Supabase** — bypass RLS; toda autorización depende de Flask.
 3. **Drift SQLite/Postgres** — riesgo de fallos silenciosos en prod si migraciones no están al día.
 4. **Sesiones en memoria** — revocación no consistente entre réplicas Cloud Run (`max-instances: 3`).
 5. **Datos de cobro en git** — `ruana_reglas_v1.json` expone IBAN/Bizum en historial.
-6. **`RUANA_STRIPE_MODE=test` en prod deploy** — pagos en modo test salvo cambio manual — **Verificado** en workflow.
+6. **Modo Stripe en prod** — el workflow ya no hardcodea `test`; valor efectivo **NO VERIFICADO**.
 7. **Cron jobs** — endpoints existen; ejecución programada en GCP **No verificada**.
 8. **Rate limit / session store en memoria** — limitación multi-instancia.
 9. **`DBManager` fachada residual** — deuda de extracción; riesgo de regresión en cambios amplios.
@@ -236,21 +236,21 @@ Workflow: `.github/workflows/ruana-qa.yml` — **Verificado** con triggers `push
 | Ruta | Propósito |
 |------|-----------|
 | `RUANA/web/app.py` | Setup Flask, blueprints, HTML, auth admin |
-| `RUANA/core/db_manager.py` | Fachada persistencia (~1.925 LOC) |
+| `RUANA/core/db_manager.py` | Fachada persistencia (1969 LOC, 2026-09-04) |
 | `RUANA/core/settings.py` | Settings y carga `.env` |
 | `RUANA/core/startup_validation.py` | Validación boot producción |
 | `RUANA/core/auth_session.py` | Sesiones JWT + store memoria |
 | `RUANA/core/admin_auth.py` | Credenciales admin |
 | `RUANA/web/blueprints/*.py` | 21 blueprints API |
-| `RUANA/core/services/*.py` | 36 services de dominio |
-| `RUANA/core/repositories/*.py` | 30 repos SQL |
+| `RUANA/core/services/*.py` | 37 services de dominio (2026-09-04) |
+| `RUANA/core/repositories/*.py` | 31 repos SQL (2026-09-04) |
 | `RUANA/config/ruana_reglas_v1.json` | Reglas negocio + cobro manual |
 | `RUANA/config/oficios_ruana.json` | Catálogo oficios |
 | `Dockerfile` | Imagen producción |
 | `firebase.json` | Hosting rewrite |
 | `.github/workflows/deploy-firebase.yml` | Deploy prod |
 | `.github/workflows/ruana-qa.yml` | CI pytest + E2E |
-| `supabase/migrations/*.sql` | DDL Postgres (28) |
+| `supabase/migrations/*.sql` | DDL Postgres (29, 2026-09-04) |
 | `package.json` | Scripts deploy/QA |
 | `.env.example` | Plantilla variables |
 | `playwright.config.js` | E2E local/CI |

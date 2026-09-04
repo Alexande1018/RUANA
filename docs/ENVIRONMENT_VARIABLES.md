@@ -227,4 +227,15 @@ Plantilla commiteada: `.env.example` (solo documentación; valores placeholder).
 
 ---
 
-*Auditoría cruzada con código 2026-08-19. Reportar discrepancias en [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md).*
+## 16. Variables usadas en código y ausentes de esta lista (añadidas 2026-09-04)
+
+| Variable | Default / uso | Evidencia |
+|----------|---------------|-----------|
+| `RUANA_DISABLE_RATE_LIMIT` | desactiva Flask-Limiter | `web/limiter.py` |
+| `RUANA_SCHEDULER_SA` | email SA OIDC Cloud Scheduler | `auth_decorators.py`; deploy `ruana-scheduler-invoker@…` |
+| `RUANA_CANDIDATO_INVITACION_HORAS` | TTL candidato solicitud grupo | `solicitud_service.py` |
+| `RUANA_WEBHOOK_PROCESSING_STUCK_MINUTES` | umbral webhook atascado | `stripe_webhook_repo.py` |
+
+`PORT`, `WEB_CONCURRENCY`, `GUNICORN_*`, `PYTHONPATH` no se leen en Python de aplicación; viven en Docker/shell. `ARTIFACT_REGISTRY_REPOSITORY` solo en `.env.example` y workflows.
+
+*Auditoría cruzada con código 2026-09-04. Reportar discrepancias en [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md).*

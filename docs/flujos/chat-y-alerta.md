@@ -3,7 +3,7 @@
 > **Autoridad:** [Manual Maestro §8](../../README.md#8-flujos-principales).  
 > Original histórico (con límite incorrecto de 5 msgs): [`docs/archive/RUANA/LOGICA_CHAT_Y_ALERTA.md`](../archive/RUANA/LOGICA_CHAT_Y_ALERTA.md).
 
-## Flujo principal de encargo (verificado 2026-08-15)
+## Flujo principal de encargo (re-verificado 2026-09-04; rutas 410 sin cambio)
 
 El flujo vigente para cerrar un encargo es la **negociación guiada** (`negociacion_service`, UI `negociacion-guiada.js`):
 

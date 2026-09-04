@@ -2,20 +2,11 @@
 
 Documentación técnica de la **FASE 01** del modelo financiero transaccional de RUANA.
 
-## Objetivo
+> **Actualizado 2026-09-04.** Las capacidades que esta fase *definió* (webhooks, transferencias, reconciliación, reembolsos, disputas, conflictos, ledger) **ya están implementadas** en FASE 02–11. Ver [`financial-overview.md`](financial-overview.md). Este documento conserva el contrato de la máquina de estados.
 
-Preparar una máquina de estados explícita y segura para operaciones futuras:
+## Objetivo (FASE 01 — histórico + vigente)
 
-- webhooks robustos
-- transferencias
-- reconciliación
-- reembolsos
-- disputas
-- contracargos
-- conflictos
-- auditoría financiera
-
-**Esta fase NO implementa** esas capacidades. Solo define el modelo, las reglas y la persistencia.
+Definir una máquina de estados explícita y segura. La persistencia y las transiciones CAS de FASE 01 **siguen vigentes**. El resto de capacidades ya no son «fase futura».
 
 ## Separación de conceptos
 
@@ -52,9 +43,9 @@ Preparar una máquina de estados explícita y segura para operaciones futuras:
 | `PAGO_FALLIDO` | Cobro fallido |
 | `PAGO_CANCELADO` | Cobro cancelado |
 | `CONFLICTO_ABIERTO` | Conflicto activo (`payment_conflicts` o disputa de importe) |
-| `REEMBOLSO_PENDIENTE` | Reembolso iniciado (fase futura) |
-| `REEMBOLSADO` | Reembolso completado (fase futura) |
-| `DISPUTA_STRIPE` | Disputa/chargeback Stripe (fase futura) |
+| `REEMBOLSO_PENDIENTE` | Reembolso iniciado (**implementado** FASE 05) |
+| `REEMBOLSADO` | Reembolso completado (**implementado** FASE 05) |
+| `DISPUTA_STRIPE` | Disputa/chargeback Stripe (**implementado** FASE 06) |
 | `TRANSFERENCIA_FALLIDA` | Transferencia fallida |
 | `TRANSFERENCIA_REVERTIDA` | Transferencia revertida |
 | `CANCELADO` | Operación cancelada |
@@ -141,10 +132,10 @@ Código: `core/financial/mapeo_legacy.py`.
 | `stripe_checkout_session_id` | Checkout Session |
 | `stripe_payment_intent_id` | PaymentIntent (idempotencia cobro) |
 | `stripe_transfer_id` | Transfer al profesional Connect |
-| `stripe_refund_id` | Reservado (fase futura) |
-| `stripe_dispute_id` | Reservado (fase futura) |
+| `stripe_refund_id` | Usado desde FASE 02/05 (`stripe_refunds`, `financial_refunds`) |
+| `stripe_dispute_id` | Usado desde FASE 02/06 (`stripe_disputes`, `financial_disputes`) |
 
-**Stripe es la fuente de verdad del dinero real.** RUANA es la fuente de verdad operativa. La reconciliación se implementará en fases posteriores.
+**Stripe es la fuente de verdad del dinero real.** RUANA es la fuente de verdad operativa. La reconciliación está implementada (FASE 02 básica, FASE 03.2 transfers, FASE 07 avanzada). Ver [`financial-webhooks-reconciliation.md`](financial-webhooks-reconciliation.md).
 
 ## Auditoría
 
@@ -163,7 +154,7 @@ Servicio: `core/services/financial_transaction_service.py` → reutiliza `admin_
 | `idempotency_key` en Checkout/Transfer | `stripe_client` + `pago_service` |
 | Guardia `stripe_payment_intent_id IS NULL` | `pago_repo.marcar_cobro_stripe_confirmado` |
 | Guardia `stripe_transfer_id IS NULL` | `pago_repo.marcar_transfer_stripe_completado` |
-| Tabla `financial_idempotency_keys` | Preparada para fases futuras |
+| Tabla `financial_idempotency_keys` | Creada en FASE 02; usada por refunds/transfers |
 
 ## Concurrencia
 
@@ -188,14 +179,9 @@ Protege contra doble autorización de liberación (`ESPERANDO_CONFIRMACION → L
 | `core/repositories/financial_transaction_repo.py` | Persistencia |
 | `tests/test_financial_state_machine.py` | Tests FASE 01 |
 
-## Qué NO hace esta fase
+## Qué NO hace *esta* fase (01)
 
-- No modifica Stripe Checkout, PaymentIntent ni Transfer API
-- No implementa webhooks nuevos
-- No implementa reembolsos ni disputas
-- No implementa reconciliación Stripe ↔ RUANA
-- No cambia el frontend ni el 12 % de comisión
-- No elimina la lógica manual Bizum/IBAN
+La FASE 01, por sí sola, no implementa Stripe Checkout, webhooks, reembolsos, disputas ni reconciliación. Esas piezas **sí existen hoy** en FASE 02–11. La FASE 01 no elimina el cobro manual Bizum/IBAN ni cambia el 12 % de comisión (`apoyo_pct`).
 
 ## Integración mínima con flujo actual
 

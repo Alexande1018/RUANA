@@ -4,7 +4,7 @@ Documento de referencia técnica para desarrolladores y auditores. Describe la i
 
 | | |
 |---|---|
-| Fecha | 2026-08-19 |
+| Fecha | 2026-09-04 |
 | Autoridad | Código en `RUANA/` prevalece sobre este documento |
 | Manual Maestro | [`/README.md`](../README.md) |
 
@@ -66,7 +66,7 @@ Paneles principales: `aliado.html`, `admin.html`, `register.html`, `index.html`,
 
 ### 2.2 API HTTP (blueprints)
 
-21 blueprints Flask registrados en `web/app.py`. Agrupación funcional:
+**21** blueprints Flask registrados en `web/app.py` (**326** decoradores `@*.route` en blueprints + **34** en `app.py`). Agrupación funcional:
 
 | Dominio | Blueprint(s) | Prefijo API típico |
 |---------|--------------|-------------------|
@@ -78,12 +78,12 @@ Paneles principales: `aliado.html`, `admin.html`, `register.html`, `index.html`,
 | Pagos / Apoyo | `pagos_bp`, `stripe_webhook_bp` | `/api/pagos/*`, webhook Stripe |
 | Invitaciones / referidos | `invitacion_bp`, `referidos_bp` | `/api/invitaciones/*`, `/api/referidos/*` |
 | Solicitudes | `solicitudes_bp`, `solicitudes_semanales_bp` | `/api/solicitudes/*` |
-| Admin operativo | `admin_bp` | `/api/admin/*` (~58 rutas) |
+| Admin operativo | `admin_bp` | `/api/admin/*` (60 rutas) |
 | Competencia / evaluación | `admin_bp`, `evaluacion_bp` | motor, purga, competencia |
 | Soporte | `soporte_bp` | centro comunicación |
 | Finanzas (FASE 04–13) | `financial_*` (7 blueprints) | `/api/admin/financial-*` |
 
-**Inferido:** ~320 endpoints en blueprints + rutas HTML/auth en `app.py`.
+**Verificado 2026-09-04:** 326 rutas en blueprints + 34 en `app.py`. Ningún blueprint usa `url_prefix`. Las rutas financieras están duplicadas EN/ES.
 
 ### 2.3 Dominio (services)
 
@@ -91,23 +91,23 @@ Patrón **Campamento Base**:
 
 ```text
 Blueprint / test / legacy
-    → DBManager.método()          # fachada (~1.925 LOC)
+    → DBManager.método()          # fachada (1969 LOC)
         → <dominio>_service       # reglas de negocio
             → <dominio>_repo      # SQL
                 → SQLite | Postgres
 ```
 
-36 módulos en `RUANA/core/services/`, incluyendo:
+**37** módulos en `RUANA/core/services/` (excl. `__init__.py`), incluyendo:
 
-- **Core negocio:** `aliado`, `grupo`, `score`, `contacto`, `negociacion`, `pago`, `competencia`, `invitacion`, `referido`, `solicitud`, `chat`, `notificacion`, `catalogo`, `admin`, `evaluacion`
-- **Financiero:** `financial_transaction`, `financial_transfer`, `financial_conflict`, `financial_refund`, `financial_dispute`, `financial_reconciliation`, `financial_ledger`, `financial_admin`, `financial_automation`, `financial_audit`, `financial_action_approval`, etc.
-- **Infra dominio:** `schema`, `stripe_webhook`, `grupo_crecimiento`, `solicitud_semanal`, `aliado_pin`, `red_arbol`
+- **Core negocio:** `aliado`, `grupo`, `score`, `contacto`, `negociacion`, `pago`, `competencia`, `invitacion`, `referido`, `solicitud`, `solicitud_semanal`, `chat`, `notificacion`, `catalogo`, `admin`, `evaluacion`, `grupo_crecimiento`, `actividad_cinta`, `aliado_pin`, `red_arbol`
+- **Financiero:** `financial_transaction`, `financial_transfer`, `financial_conflict`, `financial_refund`, `financial_dispute`, `financial_reconciliation` (+ advanced), `financial_ledger` (+ hooks + reconciliation), `financial_admin`, `financial_automation`, `financial_audit`, `financial_action_approval`, `stripe_webhook`, `stripe_transfer_events`
+- **Infra dominio:** `schema`
 
 `DBManager` no hereda services; **delega** pasando `self` o cursor.
 
 ### 2.4 Persistencia (repositories)
 
-30 repos en `RUANA/core/repositories/` con consultas SQL explícitas.
+**31** repos en `RUANA/core/repositories/` (excl. `__init__.py`) con consultas SQL explícitas. Incluye `actividad_repo` (cinta Pulse) además de los financieros y de dominio.
 
 Adaptadores:
 
@@ -176,10 +176,11 @@ Autorización financiera: permisos granulares vía `core/financial_automation_au
 | Sesión por pestaña | UUID en `sessionStorage` + header `X-Ruana-Session-Id` |
 | Store servidor | Dict en memoria (`auth_session.py`) + set revocados |
 | TTL | `RUANA_ALIADO_SESSION_EXPIRES`, `RUANA_ADMIN_SESSION_EXPIRES` (default 3600s) |
-| Aliado login | Código 5 dígitos (`POST /api/aliado/login`) |
-| PIN aliado | Módulo `aliado_pin_*` (setup, bloqueo, recuperación OTP) |
-| Admin login | `POST /api/admin/validar` — hashes en JSON externo |
-| Cron | Header `X-Ruana-Cron-Secret` |
+| Aliado login | **Código + PIN** (`POST /api/aliado/login`). Primer acceso: solo código → `pin_setup_required` |
+| PIN aliado | `aliado_pin_*` — setup, bloqueo 5 intentos / 15 min, recuperación OTP email |
+| Admin login | `POST /api/admin/validar` — hashes en JSON / Secret Manager |
+| Cron | Header `X-Ruana-Cron-Secret` **o** OIDC (`RUANA_SCHEDULER_SA`) |
+| CORS | `CORS(app)` sin allowlist (Flask-Cors 4.0.0 → cualquier Origin) |
 
 **Limitación Verificada:** store de sesiones no compartido entre workers/instancias gunicorn.
 
@@ -193,7 +194,7 @@ Autorización financiera: permisos granulares vía `core/financial_automation_au
 | `RUANA/config/oficios_ruana.json` | Catálogo oficios (39 oficios — verificar conteo al cambiar) |
 | `RUANA/core/db_constants.py` | `MAX_GRUPOS_POR_CP = 5`, estados grupo, regex invitación |
 
-Motor evaluación (`engines/motor_evaluacion.py`): umbrales 0.70, 0.80, 6 meses **hardcodeados**; `reglas: []` vacío en JSON.
+Motor evaluación (`engines/motor_evaluacion.py`): umbrales leídos de `ruana_reglas_v1.json` (`motor_umbral_tasa_respuesta` 0.70, `motor_umbral_tasa_confirmacion` 0.80, `motor_umbral_meses_sin_trabajo` 6) con esos defaults si faltan. Array `reglas: []` sigue vacío.
 
 ---
 
@@ -227,7 +228,7 @@ Fixtures de sesión en `conftest.py` limpian `_RUANA_SESSION_STORE` entre tests.
 
 1. **Monolito Flask** con extracción parcial — coherencia depende de fachadas `DBManager`.
 2. **Dual BD** — toda feature nueva debe probarse en SQLite (CI) y validarse en Postgres (prod).
-3. **RLS Supabase irrelevante** para API actual — diseño de seguridad 100% en capa Flask.
+3. **RLS Supabase irrelevante** para la API Flask (service role). Además, 27/29 migraciones no definen RLS; las financieras (~20 tablas) no tienen RLS en DDL. `solicitudes_semanales` tiene RLS sin políticas.
 4. **Firebase Hosting sin assets** — todo el tráfico va a Cloud Run (coste/latencia vs CDN estático).
 5. **Financial module acoplado** a mismo proceso — jobs cron son HTTP al mismo servicio.
 
@@ -238,6 +239,6 @@ Fixtures de sesión en `conftest.py` limpian `_RUANA_SESSION_STORE` entre tests.
 - Instalación: [`SETUP.md`](SETUP.md)
 - Variables: [`ENVIRONMENT_VARIABLES.md`](ENVIRONMENT_VARIABLES.md)
 - Deploy: [`DEPLOYMENT.md`](DEPLOYMENT.md)
-- Flujos detallados: [`flujos/`](flujos/)
+- Flujos detallados: [`flujos/`](flujos/) — incl. [`financial-overview.md`](flujos/financial-overview.md), Pulse, solicitudes semanales, crecimiento de grupo
 - Seguridad sesiones: [`seguridad/autenticacion-sesiones.md`](seguridad/autenticacion-sesiones.md)
 - Cron: [`operaciones/cloud_scheduler_jobs.md`](operaciones/cloud_scheduler_jobs.md)

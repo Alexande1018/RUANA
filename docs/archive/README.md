@@ -2,7 +2,7 @@
 
 Esta carpeta conserva **íntegramente** la documentación previa a la reorganización del 2026-07-28.
 
-**No eliminar.** Los contenidos aquí son evidencia histórica; la verdad operativa está en el [Manual Maestro](../../README.md).
+**No eliminar.** Los contenidos aquí son evidencia histórica; la verdad operativa está en el [Manual Maestro](../../README.md) y la auditoría vigente [`docs/exports/AUDITORIA_DOCUMENTAL_2026-09-04.md`](../exports/AUDITORIA_DOCUMENTAL_2026-09-04.md).
 
 ## Inventario
 

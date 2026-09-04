@@ -4,22 +4,24 @@ Registro de issues **confirmados en código o documentación**, no lista aspirac
 
 | | |
 |---|---|
-| Fecha | 2026-08-19 |
-| Auditoría | [`PROJECT_AUDIT.md`](PROJECT_AUDIT.md) |
+| Fecha | 2026-09-04 |
+| Auditoría | [`PROJECT_AUDIT.md`](PROJECT_AUDIT.md) · [`exports/AUDITORIA_DOCUMENTAL_2026-09-04.md`](exports/AUDITORIA_DOCUMENTAL_2026-09-04.md) |
 
 ---
 
 ## Críticos (impacto seguridad / dinero / acceso)
 
-### K-01 — Login aliado por código único
+### K-01 — Login aliado: código + PIN (ya no es factor único)
 
-**Estado:** Abierto  
-**Severidad:** Alta  
-**Verificado:** `auth_bp.py`, `POST /api/aliado/login`
+**Estado:** Mitigado en código / adopción prod **NO VERIFICADO**  
+**Severidad:** Media (era Alta cuando el login era solo código)  
+**Verificado:** `auth_bp.py`, `aliado_pin_service.py`, `aliado_pin_auth.py`, tests PIN + rate limit
 
-El código de 5 dígitos es el único factor de autenticación. Compromiso del código = acceso completo a la cuenta aliado. No hay MFA ni rotación periódica obligatoria.
+El login vigente exige **código + PIN** una vez configurado el PIN. Primer acceso: código → `pin_setup_required` + `setup_token`. Hay bloqueo por intentos (`RUANA_PIN_MAX_INTENTOS`, default 5 / 15 min) y recuperación OTP por email.
 
-**Mitigación parcial:** módulo PIN aliado (`aliado_pin_*`) — cobertura y adopción **No verificada** en producción.
+**Riesgo residual:** compromiso simultáneo de código + PIN, o de email (recuperación). Rate limit en memoria (K-07). Adopción real de `pin_hash` en producción **NO VERIFICADO**.
+
+La documentación anterior a 2026-09-04 que afirma «login por código, sin contraseña / factor único» está **obsoleta**.
 
 ---
 
@@ -43,13 +45,13 @@ Contiene IBAN, número Bizum y URLs de QR en historial git. No rotar automática
 
 ---
 
-### K-04 — Stripe en modo test en deploy producción
+### K-04 — Modo Stripe de producción no inspeccionable desde el repo
 
-**Estado:** Abierto  
-**Severidad:** Alta (si se esperan cobros live)  
-**Verificado:** `.github/workflows/deploy-firebase.yml` línea `RUANA_STRIPE_MODE=test`
+**Estado:** Abierto (incertidumbre operativa)  
+**Severidad:** Alta (si se esperan cobros live o si Live está activo sin checklist)  
+**Verificado:** `deploy-firebase.yml` resuelve `RUANA_STRIPE_MODE` vía `resolve-stripe-mode.sh` (input / `vars.RUANA_STRIPE_MODE` / default `test`). **Ya no** hardcodea `test`.
 
-Cada deploy desde `main` fija modo test. Cobros reales requieren cambio explícito a `live` y claves `sk_live_`.
+El commit `9b273d5` habilita Live en el pipeline. El valor **efectivo** en Cloud Run ahora mismo es **NO VERIFICADO** (depende de GitHub vars + prefijo de `STRIPE_SECRET_KEY`). Salvaguarda: Live en push automático exige `vars.RUANA_STRIPE_ALLOW_LIVE_PUSH=true`.
 
 ---
 
@@ -147,10 +149,10 @@ Misma app que producción expone páginas de prueba (sin auth adicional document
 
 ---
 
-### K-15 — `DBManager` fachada residual (~1.925 LOC)
+### K-15 — `DBManager` fachada residual (~1.969 LOC)
 
 **Estado:** Deuda técnica  
-**Verificado:** `core/db_manager.py`
+**Verificado:** `core/db_manager.py` (`wc -l` = 1969)
 
 Extracción Campamento Base incompleta. Cambios amplios tienen radio de impacto difícil de prever.
 
@@ -172,12 +174,12 @@ Admin sigue con credenciales JSON hasheadas. El cambio de contraseña desde el p
 
 ---
 
-### K-18 — Documentación desactualizada (conteos pre-financial)
+### K-18 — Documentación desactualizada (conteos)
 
-**Estado:** En corrección (2026-08-19)  
-**Verificado:** README/roadmap citaban 13 blueprints, 383 tests
+**Estado:** En corrección (2026-09-04)  
+**Verificado:** pack 2026-08-19 citaba 21 blueprints / 36 services / 30 repos / 784 tests / 28 migraciones; login «solo código»
 
-Actualizado en entrega de docs de cierre; revisar docs en `archive/` que sigan citando cifras antiguas.
+Cifras verificadas 2026-09-04: **21 blueprints, 37 services, 31 repos, 29 migraciones, 326 rutas en blueprints**. Tests: ver informe del día. El archive conserva cifras históricas a propósito.
 
 ---
 
@@ -219,14 +221,54 @@ No se encontró consumo Realtime en JS frontend durante auditoría.
 
 ---
 
+### K-23 — CORS permisivo (`CORS(app)` sin allowlist)
+
+**Estado:** Abierto en `main`  
+**Severidad:** Alta (superficie CSRF/cross-origin si el navegador envía sesión)  
+**Verificado:** `RUANA/web/app.py` L147–148 — `CORS(app)` sin `origins`. Flask-Cors 4.0.0 por defecto permite cualquier Origin (`r".*"`).
+
+PR abierto #195 (`cursor/cors-pago-manual-allowlist-2cc1`) propone allowlist — **no fusionado** a 2026-09-04.
+
+---
+
+### K-24 — RLS ausente en tablas financieras y parcial en core
+
+**Estado:** Abierto  
+**Severidad:** Alta en combinación con K-02 (service role) y si se usara PostgREST/anon  
+**Verificado:** 29 migraciones; solo `init_ruana_clean.sql` crea políticas; `solicitudes_semanales` activa RLS **sin** políticas; **0** migraciones financieras definen RLS.
+
+PR abierto #196 (`cursor/rls-public-tables-2cc1`) — título indica «no aplicar en prod aún».
+
+---
+
+### K-25 — `GET /api/admin/financial/schema-health` sin auth
+
+**Estado:** Abierto  
+**Severidad:** Media (filtración de estado de esquema)  
+**Verificado:** `financial_admin_bp.py` — rutas `schema-health` sin decorator.
+
+---
+
+### K-26 — Datos de cobro también en frontend/código (además de JSON)
+
+**Estado:** Abierto (amplía K-03)  
+**Severidad:** Alta  
+**Verificado:** fallbacks `bizum_num`/`iban` en `pago_service.py`; constantes JS en `aliado.html`; default IBAN en `admin-sistema-module.js`. **No se reproducen valores** en esta documentación.
+
+---
+
 ## Inconsistencias documentación ↔ código (histórico)
 
-| Tema | Documentación antigua | Código actual |
-|------|----------------------|---------------|
-| Nº blueprints | 13 | 21 |
-| Nº tests | 383 | 784 passed |
-| Nº services/repos | 16/16 | 36/30 |
-| CI automático | manual (regla Campamento Base antigua) | push/PR activo |
+| Tema | Documentación antigua | Código actual (2026-09-04) |
+|------|----------------------|----------------------------|
+| Nº blueprints | 2 → 13 → 21 | **21** (sin cambio de recuento; sí de rutas) |
+| Nº tests | 383 → 784 (2026-08-19) | Recuento del día: ver auditoría 2026-09-04 |
+| Nº services/repos | 16/16 → 36/30 | **37 / 31** |
+| Migraciones | 12 → 28 | **29** |
+| Login aliado | Código de 5 dígitos, sin contraseña | **Código + PIN** + rate limit + bloqueo + email |
+| Stripe mode en deploy | Hardcode `test` | Resuelto por script / vars |
+| Motor umbrales | Hardcodeados en `motor_evaluacion.py` | Leídos de `ruana_reglas_v1.json` (`motor_umbral_*`) con default 0.70/0.80/6 |
+| CI automático | manual | push/PR a `main`/`dev` |
 
 ---
 

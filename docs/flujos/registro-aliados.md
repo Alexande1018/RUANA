@@ -25,7 +25,8 @@ Comentario explícito en `aliado_service` / `grupo_service`: especializaciones i
    - Buscar grupo activo del CP con esa plaza libre → asignar `activo`.
    - Si no hay plaza pero hay &lt;5 grupos en el CP → crear grupo nuevo.
    - Si hay 5 grupos y el oficio está ocupado en todos → **`en_espera`** (suplente).
-5. Consumir invitación si aplica (simple / oficio / campaña) y aplicar score/linaje.
+5. Consumir invitación si aplica (simple / oficio / campaña / crecimiento de grupo) y aplicar score/linaje.
+6. El aliado recién creado **no tiene PIN**. El primer `POST /api/aliado/login` con solo código responde `pin_setup_required` + `setup_token`. Ver [`autenticacion-sesiones.md`](../seguridad/autenticacion-sesiones.md).
 
 ## Suplentes
 

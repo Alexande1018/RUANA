@@ -4,7 +4,7 @@ Guía operativa para levantar RUANA en una máquina de desarrollo. Comandos **Ve
 
 | | |
 |---|---|
-| Fecha | 2026-08-19 |
+| Fecha | 2026-09-04 |
 | Variables completas | [`ENVIRONMENT_VARIABLES.md`](ENVIRONMENT_VARIABLES.md) |
 | Arquitectura | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
 
@@ -172,7 +172,7 @@ export RUANA_ENV=test
 python3 -m pytest RUANA/tests -q
 ```
 
-**Resultado Verificado (2026-08-19):** `784 passed, 11 skipped` en ~9 min.
+**Resultado histórico (2026-08-19):** `784 passed, 11 skipped` en ~9 min. Recuento vigente: [`AUDITORIA_DOCUMENTAL_2026-09-04.md`](exports/AUDITORIA_DOCUMENTAL_2026-09-04.md).
 
 ### Playwright (E2E)
 
@@ -211,7 +211,7 @@ Reporte HTML: `qa-artifacts/playwright-report/index.html`
 | `[RUANA][BOOT] Configuración inválida` | Secretos débiles con `RUANA_ENV=production` | Usar dev o secretos fuertes |
 | Puerto en uso | Conflicto 5000/8080 | Cambiar `--port` o matar proceso |
 | Admin 401 | Sin `RUANA_ADMIN_CREDENTIALS_*` | Configurar credenciales (§3) |
-| pytest lento | Suite grande (~784 tests) | Normal; usar `-k` para filtrar |
+| pytest lento | Suite grande (108 archivos `test_*.py`) | Normal; usar `-k` para filtrar |
 | `python` no encontrado | Solo `python3` instalado | Usar `python3` explícitamente |
 
 ---

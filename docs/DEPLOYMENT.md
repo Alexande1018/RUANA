@@ -4,7 +4,7 @@ Procedimientos de publicación basados en workflows y scripts **Verificados** en
 
 | | |
 |---|---|
-| Fecha | 2026-08-19 |
+| Fecha | 2026-08-19 (revisión puntual 2026-09-04: modo Stripe dinámico + cron OIDC) |
 | URL producción | `https://ruana-4293f.web.app` |
 | Proyecto GCP/Firebase | `ruana-4293f` |
 | Región | `europe-west1` |
@@ -161,7 +161,7 @@ Endpoints principales:
 | Motor evaluación | POST | `/api/admin/motor/evaluar-periodico` |
 | Automatización financiera | POST | `/api/admin/financial-automation/ejecutar-ciclo` |
 
-Header requerido: `X-Ruana-Cron-Secret: <RUANA_CRON_SECRET>`
+Auth: header `X-Ruana-Cron-Secret` **o** OIDC Bearer cuyo `email` = `RUANA_SCHEDULER_SA` (`auth_decorators._cron_secret_valid`).
 
 **Estado despliegue scheduler:** Código y script `provision-cloud-scheduler-jobs.sh` listos; **creación en GCP no verificada** (ejecutar script manualmente).
 

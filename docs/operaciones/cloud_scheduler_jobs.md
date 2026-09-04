@@ -10,13 +10,14 @@ Configura en el servicio Cloud Run (y en `.env` local si pruebas):
 RUANA_CRON_SECRET=<valor-aleatorio-largo>
 ```
 
-Cada petición del scheduler debe incluir:
+Cada petición del scheduler debe autenticarse de **una** de estas formas (verificado en `auth_decorators._cron_secret_valid()`):
 
-```http
-X-Ruana-Cron-Secret: <valor-aleatorio-largo>
-```
+1. Header `X-Ruana-Cron-Secret: <valor-aleatorio-largo>`
+2. **OIDC Bearer** de Google: `Authorization: Bearer <id_token>` cuyo `email` coincide con `RUANA_SCHEDULER_SA` y `email_verified` es verdadero. Deploy fija `RUANA_SCHEDULER_SA=ruana-scheduler-invoker@ruana-4293f.iam.gserviceaccount.com`.
 
-Los endpoints aceptan **sesión admin con escritura** **o** el header anterior.
+Los endpoints aceptan **sesión admin con escritura** **o** cron válido (secreto u OIDC).
+
+Despliegue real de los jobs en GCP: **NO VERIFICADO** en esta auditoría (el script de provisionamiento existe; no se ha listado Scheduler).
 
 Base URL de producción: sustituye `https://<tu-servicio>-<hash>-ew.a.run.app` por la URL real del servicio Cloud Run.
 
