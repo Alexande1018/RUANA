@@ -18,6 +18,7 @@ Documentación para handoff, auditoría y continuidad operativa:
 |-----------|-----------|
 | [`HANDOFF.md`](HANDOFF.md) | Checklist recepción, secretos, operación, contactos |
 | [`PROJECT_AUDIT.md`](PROJECT_AUDIT.md) | Auditoría técnica exhaustiva del repositorio |
+| [`AUDITORIA_SISTEMA_PAGOS.md`](AUDITORIA_SISTEMA_PAGOS.md) | Auditoría completa del sistema de pagos (2026-09-04) |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Arquitectura verificada (capas, flujos, decisiones frágiles) |
 | [`SETUP.md`](SETUP.md) | Instalación y ejecución local |
 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | CI/CD, Cloud Run, Firebase, cron |
@@ -36,6 +37,7 @@ Documentación para handoff, auditoría y continuidad operativa:
 | [`flujos/registro-aliados.md`](flujos/registro-aliados.md) | Registro, plazas y suplentes |
 | [`flujos/chat-y-alerta.md`](flujos/chat-y-alerta.md) | Mensajes de contacto y alertas (chat libre encargo → 410) |
 | [`flujos/financial-*.md`](flujos/) | Máquina de estados, transferencias, webhooks financieros |
+| [`AUDITORIA_SISTEMA_PAGOS.md`](AUDITORIA_SISTEMA_PAGOS.md) | Informe de auditoría del dominio de pagos (manual + Stripe + ledger) |
 | [`operaciones/roadmap.md`](operaciones/roadmap.md) | Roadmap operativo vivo |
 | [`operaciones/cloud_scheduler_jobs.md`](operaciones/cloud_scheduler_jobs.md) | Jobs cron HTTP |
 | [`operaciones/fase-14-stripe-live.md`](operaciones/fase-14-stripe-live.md) | Estado real Stripe Live (FASE 14): Test activo, Live bloqueado |
