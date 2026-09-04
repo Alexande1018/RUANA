@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Otorga a ruana-firebase-deployer los roles para crear métricas/alertas de Monitoring.
+# Tras conceder roles en IAM, el workflow security-ops crea la alerta automáticamente.
 set -euo pipefail
 
 PROJECT_ID="${PROJECT_ID:?PROJECT_ID requerido}"
