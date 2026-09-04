@@ -1,8 +1,8 @@
 # RLS en schema `public` (alerta `rls_disabled_in_public`)
 
-**Estado:** migración lista, **no aplicada en producción**.  
+**Estado:** **aplicada en producción** (2026-09-04, workflow [security-ops](https://github.com/Alexande1018/RUANA/actions/workflows/security-ops.yml)).  
 **Migración:** `supabase/migrations/20260902000200_enable_rls_public_tables.sql`  
-**Fecha inventario:** 2026-09-02
+**Resultado verificado:** 66 tablas `public`, **0 sin RLS** (antes: 43 sin RLS).
 
 ## 1. Conexión a producción
 

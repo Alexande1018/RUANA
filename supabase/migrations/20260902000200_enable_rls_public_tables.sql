@@ -1,5 +1,5 @@
 -- =============================================================================
--- RLS en schema public — NO APLICAR EN PRODUCCIÓN hasta revisión explícita.
+-- RLS en schema public — aplicada en producción (2026-09-04, workflow security-ops).
 --
 -- Alerta Supabase: rls_disabled_in_public (anon key puede leer tablas sin RLS).
 --
