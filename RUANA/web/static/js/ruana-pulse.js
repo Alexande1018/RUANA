@@ -497,8 +497,11 @@
         var unreadEncargo = countUnreadEncargoEvents();
         var entries = buildTimelineEntries(resolvePanelHost());
         var pendingAlerts = entries.filter(function (e) { return e.pending && e.kind === 'alert'; }).length;
-        trigger.classList.toggle('has-pending', count > 0);
-        trigger.classList.toggle('has-new-activity', unreadEncargo > 0);
+        var hasActivity = count > 0 || unreadEncargo > 0;
+        var hasActionRequired = pendingAlerts > 0;
+        trigger.classList.toggle('has-pending', hasActivity);
+        trigger.classList.toggle('has-new-activity', unreadEncargo > 0 || hasActionRequired);
+        trigger.classList.toggle('has-action-required', hasActionRequired);
         if (dot) {
             dot.hidden = unreadEncargo <= 0;
         }
