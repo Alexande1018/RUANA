@@ -45,9 +45,9 @@ else
   echo "Métrica de log creada: $METRIC_NAME"
 fi
 
-# CI no tiene alpha instalado; sin --quiet el prompt interactivo aborta el job.
-if ! gcloud components list --filter="id:alpha" --format="value(state.name)" 2>/dev/null | grep -q Installed; then
-  gcloud components install alpha --quiet
+# CI no tiene alpha instalado; desactivar prompts para instalar sin TTY.
+if ! gcloud alpha monitoring policies list --project="$PROJECT_ID" --limit=1 >/dev/null 2>&1; then
+  CLOUDSDK_CORE_DISABLE_PROMPTS=1 gcloud --quiet components install alpha
 fi
 
 EXISTING="$(gcloud alpha monitoring policies list \

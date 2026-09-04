@@ -7,7 +7,9 @@ on:
     paths:
       - .github/scripts/apply_rls_migration.py
       - .github/scripts/grant-deployer-monitoring-roles.sh
+      - .github/scripts/upsert-postgres-schema-init-alert.sh
       - .github/workflows/security-ops.yml
+      - infra/monitoring/ruana-postgres-schema-init-alert.json
       - supabase/migrations/20260902000200_enable_rls_public_tables.sql
   workflow_dispatch:
     inputs:
