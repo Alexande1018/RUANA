@@ -1,6 +1,14 @@
 name: Security ops (RLS + alerta GCP)
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/scripts/apply_rls_migration.py
+      - .github/scripts/grant-deployer-monitoring-roles.sh
+      - .github/workflows/security-ops.yml
+      - supabase/migrations/20260902000200_enable_rls_public_tables.sql
   workflow_dispatch:
     inputs:
       dry_run_rls:
