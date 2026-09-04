@@ -61,6 +61,7 @@ jobs:
 
       - name: Conceder roles Monitoring al deployer
         if: ${{ !inputs.skip_iam }}
+        continue-on-error: true
         env:
           PROJECT_ID: ${{ env.PROJECT_ID }}
         run: bash .github/scripts/grant-deployer-monitoring-roles.sh
