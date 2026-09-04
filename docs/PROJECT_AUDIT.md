@@ -21,7 +21,7 @@ Estado del producto documentado internamente: **pre-MVP avanzada (v0.9)**. El n�
 
 La modularización **Campamento Base** está avanzada: `DBManager` actúa como fachada (~1.925 LOC) delegando en **36 services** y **30 repositories**, pero no está completa.
 
-**Riesgos principales para handoff:** autenticación de aliado por código (factor único), service role Supabase que elude RLS, drift SQLite/Postgres, sesiones revocadas en memoria (multi-instancia Cloud Run), datos de cobro manual en JSON versionado, y cron jobs documentados pero **no verificados** como desplegados en GCP.
+**Riesgos principales para handoff:** autenticación de aliado por **código + PIN** (código sigue siendo secreto de alto valor), CORS sin allowlist, service role Supabase que elude RLS (solo 2/29 migraciones con RLS), drift SQLite/Postgres, sesiones revocadas en memoria (multi-instancia Cloud Run), datos de cobro manual en JSON versionado **y fallbacks en `pago_service.py`**, y cron jobs documentados pero **no verificados** como desplegados en GCP.
 
 ---
 

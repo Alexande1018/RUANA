@@ -35,6 +35,8 @@ Documentación para handoff, auditoría y continuidad operativa:
 | [`legal/politica-retencion-datos.md`](legal/politica-retencion-datos.md) | Retención RGPD/LGT por tipo de dato (borrador interno) |
 | [`flujos/registro-aliados.md`](flujos/registro-aliados.md) | Registro, plazas y suplentes |
 | [`flujos/chat-y-alerta.md`](flujos/chat-y-alerta.md) | Mensajes de contacto y alertas (chat libre encargo → 410) |
+| [`flujos/grupo-crecimiento-organico.md`](flujos/grupo-crecimiento-organico.md) | Crecimiento orgánico de grupos |
+| [`flujos/solicitudes-semanales.md`](flujos/solicitudes-semanales.md) | Solicitudes semanales por grupo |
 | [`flujos/financial-*.md`](flujos/) | Máquina de estados, transferencias, webhooks financieros |
 | [`operaciones/roadmap.md`](operaciones/roadmap.md) | Roadmap operativo vivo |
 | [`operaciones/cloud_scheduler_jobs.md`](operaciones/cloud_scheduler_jobs.md) | Jobs cron HTTP |
@@ -48,6 +50,7 @@ Documentación para handoff, auditoría y continuidad operativa:
 
 | Ruta | Contenido |
 |------|-----------|
+| [`exports/AUDITORIA_DOCUMENTAL_2026-09-04.md`](exports/AUDITORIA_DOCUMENTAL_2026-09-04.md) | Auditoría documental actual |
 | [`exports/AUDITORIA_DOCUMENTAL_2026-08-15.md`](exports/AUDITORIA_DOCUMENTAL_2026-08-15.md) | Auditoría documental anterior |
 | [`INFORME_REORGANIZACION_DOCS.md`](INFORME_REORGANIZACION_DOCS.md) | Informe reorganización documental |
 | [`archive/`](archive/) | Documentación histórica (no borrar) |

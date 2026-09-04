@@ -1,21 +1,10 @@
 # Financial Transaction State Machine
 
-Documentación técnica de la **FASE 01** del modelo financiero transaccional de RUANA.
+Documentación técnica del modelo financiero transaccional de RUANA.
+
+> **Actualización 2026-09-04:** las fases 02–13 están **implementadas** en código. La sección histórica «esta fase NO implementa» aplica solo a la FASE 01 original (modelo de estados).
 
 ## Objetivo
-
-Preparar una máquina de estados explícita y segura para operaciones futuras:
-
-- webhooks robustos
-- transferencias
-- reconciliación
-- reembolsos
-- disputas
-- contracargos
-- conflictos
-- auditoría financiera
-
-**Esta fase NO implementa** esas capacidades. Solo define el modelo, las reglas y la persistencia.
 
 ## Separación de conceptos
 
@@ -52,9 +41,9 @@ Preparar una máquina de estados explícita y segura para operaciones futuras:
 | `PAGO_FALLIDO` | Cobro fallido |
 | `PAGO_CANCELADO` | Cobro cancelado |
 | `CONFLICTO_ABIERTO` | Conflicto activo (`payment_conflicts` o disputa de importe) |
-| `REEMBOLSO_PENDIENTE` | Reembolso iniciado (fase futura) |
-| `REEMBOLSADO` | Reembolso completado (fase futura) |
-| `DISPUTA_STRIPE` | Disputa/chargeback Stripe (fase futura) |
+| `REEMBOLSO_PENDIENTE` | Reembolso iniciado (**FASE 05** — `financial_refund_service`) |
+| `REEMBOLSADO` | Reembolso completado (**FASE 05**) |
+| `DISPUTA_STRIPE` | Disputa/chargeback Stripe (**FASE 06** — `financial_dispute_service`) |
 | `TRANSFERENCIA_FALLIDA` | Transferencia fallida |
 | `TRANSFERENCIA_REVERTIDA` | Transferencia revertida |
 | `CANCELADO` | Operación cancelada |

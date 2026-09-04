@@ -4,22 +4,24 @@ Registro de issues **confirmados en código o documentación**, no lista aspirac
 
 | | |
 |---|---|
-| Fecha | 2026-08-19 |
-| Auditoría | [`PROJECT_AUDIT.md`](PROJECT_AUDIT.md) |
+| Fecha | 2026-09-04 |
+| Auditoría | [`PROJECT_AUDIT.md`](PROJECT_AUDIT.md) · [`exports/AUDITORIA_DOCUMENTAL_2026-09-04.md`](exports/AUDITORIA_DOCUMENTAL_2026-09-04.md) |
 
 ---
 
 ## Críticos (impacto seguridad / dinero / acceso)
 
-### K-01 — Login aliado por código único
+### K-01 — Login aliado: código + PIN
 
-**Estado:** Abierto  
-**Severidad:** Alta  
-**Verificado:** `auth_bp.py`, `POST /api/aliado/login`
+**Estado:** Mitigado parcialmente (PIN implementado)  
+**Severidad:** Media–Alta  
+**Verificado:** `auth_bp.py`, `aliado_pin_auth.py`, `aliado_pin_service.py`, `POST /api/aliado/login`
 
-El código de 5 dígitos es el único factor de autenticación. Compromiso del código = acceso completo a la cuenta aliado. No hay MFA ni rotación periódica obligatoria.
+El login exige **código de 5 dígitos + PIN de 4–6 dígitos** (dos factores de conocimiento). Incluye rate limiting (`30/h`, `10/min`), bloqueo tras `RUANA_PIN_MAX_INTENTOS` intentos fallidos y recuperación por OTP email.
 
-**Mitigación parcial:** módulo PIN aliado (`aliado_pin_*`) — cobertura y adopción **No verificada** en producción.
+**Riesgo residual:** el código de aliado sigue siendo un secreto de alto valor; no hay MFA hardware ni rotación obligatoria del código. Compromiso de código + PIN (o de sesión JWT) = acceso completo.
+
+**Documentación anterior incorrecta:** afirmaba «código único sin contraseña» — obsoleto desde implementación PIN.
 
 ---
 
@@ -39,7 +41,9 @@ Toda autorización debe implementarse en Flask (`@require_aliado`, `@require_adm
 **Severidad:** Alta (privacidad / compliance)  
 **Verificado:** `RUANA/config/ruana_reglas_v1.json`
 
-Contiene IBAN, número Bizum y URLs de QR en historial git. No rotar automáticamente si se filtran.
+Contiene IBAN, número Bizum y URLs de QR en historial git. Además, `pago_service.py` define **fallbacks hardcodeados** con los mismos datos si falla la lectura del JSON. No rotar automáticamente si se filtran. Requiere migración a secret manager / variables de entorno.
+
+---
 
 ---
 
@@ -50,6 +54,16 @@ Contiene IBAN, número Bizum y URLs de QR en historial git. No rotar automática
 **Verificado:** `.github/workflows/deploy-firebase.yml` línea `RUANA_STRIPE_MODE=test`
 
 Cada deploy desde `main` fija modo test. Cobros reales requieren cambio explícito a `live` y claves `sk_live_`.
+
+---
+
+### K-04a — CORS sin restricción de orígenes
+
+**Estado:** Abierto  
+**Severidad:** Media  
+**Verificado:** `web/app.py` — `CORS(app)` sin `origins`
+
+Flask-Cors con configuración por defecto permite peticiones desde cualquier origen. **PR abierto sin merge:** `cursor/cors-pago-manual-allowlist-2cc1`.
 
 ---
 

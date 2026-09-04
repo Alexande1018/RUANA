@@ -4,7 +4,7 @@
 > Copia histórica íntegra: [`docs/archive/qa/QA_TESTING_PLAN_RUANA.md`](../archive/qa/QA_TESTING_PLAN_RUANA.md).
 
 Fecha del plan original: 2026-06-05.  
-Última verificación contra código: **2026-08-15**.
+Última verificación contra código: **2026-09-04**.
 
 Herramienta E2E: Playwright (`e2e/ruana-critical-flows.spec.js`), base `http://127.0.0.1:5000`, SQLite aislado.
 
@@ -16,8 +16,9 @@ Validar de extremo a extremo funcionalidades críticas y dejar evidencias reprod
 
 ### Pytest (`RUANA/tests/`)
 
-- **383 tests** pasando (verificado 2026-08-15 en entorno local con SQLite).
-- Dominios cubiertos: admin, aliado, auth/permisos (Hito 2A/2B), invitaciones/campañas, referidos, grupos/plazas/competencia, contactos, negociación, chat timestamps, pagos/Stripe, score (reglas 3–8), storage, catálogo, blueprints/services.
+- **1007 tests** pasando, 11 skipped (verificado 2026-09-04: `PYTHONPATH=RUANA python3 -m pytest RUANA/tests -q`).
+- **108 archivos** `test_*.py`.
+- Dominios cubiertos: admin, aliado, auth/permisos (Hito 2A/2B), **PIN aliado** (`test_aliado_pin_auth.py`), invitaciones/campañas, referidos, grupos/plazas/competencia, contactos, negociación, chat timestamps, pagos/Stripe, **módulo financiero FASE 02–13**, score (reglas 3–8), storage, catálogo, **grupo crecimiento orgánico**, **solicitudes semanales**, blueprints/services.
 
 ### Playwright E2E (`e2e/`)
 

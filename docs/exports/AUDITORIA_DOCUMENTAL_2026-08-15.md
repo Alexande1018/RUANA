@@ -1,5 +1,7 @@
 # Informe interno de auditoría documental RUANA
 
+> **Supersedido parcialmente** por [`AUDITORIA_DOCUMENTAL_2026-09-04.md`](./AUDITORIA_DOCUMENTAL_2026-09-04.md) (inventario actualizado, auth PIN, subsistema financiero completo, 1007 tests). Este informe se conserva como evidencia histórica.
+
 **Fecha:** 2026-08-15  
 **Alcance:** repositorio completo (`/workspace`)  
 **Método:** inventario documental + inspección de código, configuración, migraciones y tests  

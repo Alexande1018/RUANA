@@ -6,14 +6,15 @@
 
 | Campo | Valor |
 |-------|-------|
-| Fecha de auditoría | 2026-08-19 (auditoría de cierre + pytest local) |
-| Commit de referencia al auditar | `main` (21 blueprints, 36 services, 30 repos, módulo financiero FASE 04–13) |
+| Fecha de auditoría | 2026-09-04 (auditoría documental + pytest local) |
+| Commit de referencia al auditar | `main` @ `7ea0fa1` (21 blueprints, 37 services, 31 repos, 29 migraciones PG) |
 | Pack documentación de cierre | [`docs/HANDOFF.md`](docs/HANDOFF.md) · [`docs/PROJECT_AUDIT.md`](docs/PROJECT_AUDIT.md) |
+| Informe auditoría documental | [`docs/exports/AUDITORIA_DOCUMENTAL_2026-09-04.md`](docs/exports/AUDITORIA_DOCUMENTAL_2026-09-04.md) |
 | Informe auditoría anterior | [`docs/exports/AUDITORIA_DOCUMENTAL_2026-08-15.md`](docs/exports/AUDITORIA_DOCUMENTAL_2026-08-15.md) |
 | Fase declarada en roadmap | pre-MVP avanzada (v0.9) |
 | Código fuente principal | `RUANA/` |
 | Hosting público verificado | Firebase Hosting → Cloud Run (`https://ruana-4293f.web.app`) |
-| Tests backend (verificado 2026-08-19) | **784 passed**, 11 skipped (`python3 -m pytest RUANA/tests -q`) |
+| Tests backend (verificado 2026-09-04) | **1007 passed**, 11 skipped (`PYTHONPATH=RUANA python3 -m pytest RUANA/tests -q`) |
 
 ---
 
@@ -36,7 +37,7 @@ Las recomendaciones entre profesionales locales carecen de memoria, reglas y con
 
 | Rol | Uso verificado |
 |-----|----------------|
-| **Aliado** | Registro, login por código, panel (`aliado.html`), directorio, solicitudes, conexiones, perfil, pagos, notificaciones |
+| **Aliado** | Registro, login **código + PIN** (4–6 dígitos), panel (`aliado.html`), directorio, solicitudes, solicitudes semanales, conexiones, perfil, pagos, notificaciones |
 | **Administrador** | Panel (`admin.html`): activar/rechazar aliados, campañas, pagos, competencia, reglas, métricas |
 | **Visitante** | Páginas de acceso (`index.html`, `invite.html`) e inicio de registro |
 
@@ -58,7 +59,7 @@ Orden profesional territorial: un oficio principal por plaza en cada grupo, repu
 | Principio | Evidencia | Notas |
 |-----------|-----------|-------|
 | Score define el estado | `score_service.score_a_estado` (fachada en `DBManager`) | Bandas ÉLITE / DESTACADO / ESTABLE / EN RIESGO / COMPETENCIA |
-| Login aliado por código | `POST /api/aliado/login` | Sin contraseña de aliado |
+| Login aliado código + PIN | `POST /api/aliado/login` | Código 5 dígitos + PIN 4–6 dígitos; rate limit (`30/h`, `10/min`); bloqueo tras intentos (`RUANA_PIN_MAX_INTENTOS`); recuperación OTP por email (`aliado_pin_auth.py`, `auth_bp.py`) |
 | Sesión por pestaña | JWT + `sessionStorage` + `X-Ruana-Session-Id` | Lógica en `core/auth_session.py` |
 | Territorio = código postal | Campo `codigo_postal` | |
 | Máx. 5 grupos activos por CP | `MAX_GRUPOS_POR_CP` en `core/db_constants.py` | |
@@ -67,7 +68,7 @@ Orden profesional territorial: un oficio principal por plaza en cada grupo, repu
 | Umbral de competencia = 15 | `ruana_reglas_v1.json` | Reinicio tras derrota: 50 |
 | Apoyo RUANA = % sobre importe | `apoyo_pct` (12.0 en config) | `pago_service` |
 | Backend-first | Flask sirve UI y API | Firebase Hosting reescribe a Cloud Run |
-| Campamento Base | 36 `services/` + 30 `repositories/` con SQL real + fachada `DBManager` (~1.925 LOC) | Extracción avanzada; `DBManager` sigue como compatibilidad |
+| Campamento Base | 37 `services/` + 31 `repositories/` con SQL real + fachada `DBManager` (~1.969 LOC) | Extracción avanzada; `DBManager` sigue como compatibilidad |
 
 ### ⚠️ INCONSISTENCIAS / DISCREPANCIAS DETECTADAS
 
@@ -104,8 +105,11 @@ Leyenda: 🟢 operativo · 🟡 parcial / requiere revisión · 🔴 no implemen
 | Purga mensual | 🟡 | Lógica/endpoint existen; operación en producción `NO VERIFICADO` |
 | Auth admin Firebase | 🔴 | `PLANIFICADO` (plan en archive); vigente: credenciales hasheadas |
 | Supabase Auth / `profiles` | 🟡 | Tabla en migración; login Flask **no** usa `auth.users` |
-| Módulo financiero admin (FASE 04–13) | 🟢 | 7 blueprints `financial_*` + services/repos; cron automatización |
-| Modularización Campamento Base | 🟡 | 36 services + 30 repos; `DBManager` (~1.925 LOC) sigue como fachada |
+| Módulo financiero admin (FASE 02–13) | 🟢 | 7 blueprints `financial_*` + 14 services/repos financieros; cron automatización FASE 11 |
+| Crecimiento orgánico de grupo | 🟢 | `grupo_crecimiento_service` + migración `20260819000100`; invitaciones tipo crecimiento |
+| Solicitudes semanales | 🟢 | `solicitud_semanal_service` + `solicitudes_semanales_bp` + migración `20260819000200` |
+| Login aliado PIN + recuperación | 🟢 | Código + PIN obligatorio; setup inicial; cambio; recuperación email OTP |
+| Modularización Campamento Base | 🟡 | 37 services + 31 repos; `DBManager` (~1.969 LOC) sigue como fachada |
 
 ---
 
@@ -122,8 +126,8 @@ Firebase Hosting (proyecto ruana-4293f)
 Cloud Run service "ruana" (europe-west1)
   Docker: python:3.13-slim + gunicorn → web.app:app
         │
-        ├── web/app.py (~525 líneas: HTML, estáticos, auth admin)
-        │     └── 21 Blueprints (~320 rutas API + rutas HTML en app.py)
+        ├── web/app.py (~546 líneas: HTML, estáticos, auth admin)
+        │     └── 21 Blueprints (~315 rutas API únicas + alias EN/ES financiero; ~349 con app.py)
         │           └── core/services/<dominio>_service.py
         │                 └── core/repositories/<dominio>_repo.py
         ├── Postgres (Supabase) vía DATABASE_URL
@@ -137,27 +141,66 @@ Cloud Run service "ruana" (europe-west1)
 |------|-------------------------------|
 | Frontend | HTML, CSS, JS vanilla en `RUANA/web/` |
 | Backend | Flask 2.3.3, Flask-Cors, PyJWT, Werkzeug, gunicorn, stripe |
-| Dominio | `RUANA/core/services/` (36 services, incl. financiero) |
-| Persistencia | `DBManager` fachada (~1.925 líneas) + 30 repositories con SQL |
+| Dominio | `RUANA/core/services/` (37 services, incl. financiero, PIN, crecimiento, solicitudes semanales) |
+| Persistencia | `DBManager` fachada (~1.969 líneas) + 31 repositories con SQL |
 | Constantes BD | `RUANA/core/db_constants.py` |
 | Sesiones | `RUANA/core/auth_session.py` |
 | Blueprints | 21: core (`admin`, `aliado`, `auth`, `catalogo`, `contactos`, `evaluacion`, `invitacion`, `negociacion`, `pagos`, `referidos`, `solicitudes`, `solicitudes_semanales`, `soporte`, `stripe_webhook`) + financiero (`financial_admin`, `financial_automation`, `financial_conflicts`, `financial_disputes`, `financial_ledger`, `financial_reconciliation`, `financial_refunds`) |
 | BD | Postgres (psycopg) o SQLite |
 | Storage | Supabase Storage (+ fallback local con `RUANA_ALLOW_LOCAL_UPLOADS`) |
 | Hosting | Firebase Hosting → Cloud Run |
-| QA | pytest **784 tests** (push/PR) + Playwright E2E (push / manual) |
+| Migraciones PG | `supabase/migrations/` — **29** archivos; **2 con RLS**, **27 sin RLS** |
+| QA | pytest **1007 tests** (push/PR) + Playwright E2E (push / manual) |
 
 ### Patrón Campamento Base (verificado)
 
 ```text
 Consumidor (blueprints / tests)
-    → DBManager.método()          # fachada / wrapper (~1.835 LOC)
+    → DBManager.método()          # fachada / wrapper (~1.969 LOC)
         → <dominio>_service.*     # lógica de negocio
-            → <dominio>_repo.*    # SQL (16 repos con consultas reales)
+            → <dominio>_repo.*    # SQL (31 repos con consultas reales)
                 → SQLite o Postgres
 ```
 
 No hay herencia de services desde `DBManager`: es **delegación** pasando `self` (o cursor) al service.
+
+### Subsistema financiero (FASE 02–13) — VERIFICADO
+
+Implementado en código y cubierto por tests `test_financial_*` / `test_stripe_*`. Documentación de flujos en `docs/flujos/financial-*.md`.
+
+| Fase / dominio | Migración PG (fecha) | Blueprint API | Service principal |
+|----------------|---------------------|---------------|-------------------|
+| FASE 02 — Webhooks + reconciliación base | `20260818000100` (2026-08-18) | `stripe_webhook_bp` | `stripe_webhook_service`, `financial_reconciliation_service` |
+| FASE 03 — Transferencias Stripe | `20260818000200`–`00400` | (vía `pagos_bp`) | `financial_transfer_service`, `financial_transaction_service` |
+| FASE 04 — Conflictos financieros | `20260818000500` | `financial_conflicts_bp` | `financial_conflict_service` |
+| FASE 05 — Reembolsos | `20260818000600` | `financial_refunds_bp` | `financial_refund_service` |
+| FASE 06 — Disputas Stripe | `20260818000700` | `financial_disputes_bp` | `financial_dispute_service` |
+| FASE 07 — Reconciliación avanzada | `20260818000800` | `financial_reconciliation_bp` | `financial_reconciliation_advanced_service` |
+| FASE 08 — Ledger (libro mayor) | `20260818000900` | `financial_ledger_bp` | `financial_ledger_service`, `financial_ledger_reconciliation_service` |
+| FASE 09 — Panel admin financiero | `20260818001000` | `financial_admin_bp` | `financial_admin_service` |
+| FASE 10 — Seguridad financiera | `20260818001100` | (decoradores en blueprints) | permisos granulares `financial_admin_authorization`, `ledger_authorization` |
+| FASE 11 — Automatización / alertas | `20260818001200` | `financial_automation_bp` | `financial_automation_service` |
+| FASE 13 — P0 endurecimientos | `20260818001300` | — | tests `test_financial_fase13a_p0.py` |
+| Serial `financial_transfers.id` | `20260903000100` (2026-09-03) | — | `financial_transfer_repo` |
+
+**Prefijos API financieros (alias EN + ES por blueprint):**
+
+- `/api/admin/financial*` y `/api/admin/finanzas*` — panel admin
+- `/api/admin/financial-conflicts*` / `conflictos-financieros`
+- `/api/admin/financial-refunds*` / `reembolsos-financieros`
+- `/api/admin/financial-disputes*` / `disputas-financieras`
+- `/api/admin/financial-reconciliation*` / `reconciliacion-financiera`
+- `/api/admin/financial-ledger*` / `libro-mayor-financiero`
+- `/api/admin/financial-automation*` / `automatizacion-financiera`
+
+**Permisos admin financieros (deny-by-default):** `financial.dashboard.view`, `financial.payments.view`, `financial.transfers.view`, `financial.refunds.view`, `financial.disputes.view`, `financial.conflicts.view`, `financial.reconciliation.view`, `financial.ledger.view`, `financial.audit.view` — mapeados desde permisos legacy `leer`/`escribir`/`configurar` (`core/financial_admin_authorization.py`).
+
+**Flujos clave:**
+
+- **Reembolso:** admin inicia → aprobación dual opcional (`RUANA_FINANCIAL_REQUIRE_APPROVAL`) → ejecución Stripe → estados `REEMBOLSO_PENDIENTE` / `REEMBOLSADO`.
+- **Disputa:** webhook `charge.dispute.created` → `financial_dispute_service` → estado `DISPUTA_STRIPE`.
+- **Reconciliación:** comparación RUANA↔Stripe sin corrección automática de estados irreversibles; alertas vía `financial_automation_service`.
+- **Cron:** `POST /api/admin/financial-automation/ejecutar-ciclo` — ver [`docs/operaciones/cloud_scheduler_jobs.md`](docs/operaciones/cloud_scheduler_jobs.md).
 
 ---
 
@@ -177,23 +220,24 @@ No hay herencia de services desde `DBManager`: es **delegación** pasando `self`
 ├── docs/                         # Docs secundarias + archive
 ├── e2e/                          # Playwright
 ├── scripts/                      # Deploy, secretos GCP
-├── supabase/migrations/          # DDL Postgres + RLS init
+├── supabase/migrations/          # 29 DDL Postgres (2 con RLS)
 ├── dev-tools/code-map/           # Mapa interactivo del código (herramienta local)
 └── RUANA/
     ├── config/                   # Reglas, oficios, ejemplos admin
     ├── core/
-    │   ├── db_manager.py         # Fachada Campamento Base (~1.925 LOC)
+    │   ├── db_manager.py         # Fachada Campamento Base (~1.969 LOC)
     │   ├── db_constants.py
     │   ├── auth_session.py
     │   ├── admin_auth.py
+    │   ├── aliado_pin_auth.py    # Hash PIN aliado, bloqueo, setup token
     │   ├── negociacion_manager.py
-    │   ├── services/             # 36 módulos de dominio (+ financiero)
-    │   └── repositories/         # 30 repos con SQL
+    │   ├── services/             # 37 módulos de dominio (+ financiero, PIN, crecimiento)
+    │   └── repositories/         # 31 repos con SQL
     ├── engines/                  # Motor de evaluación v0.2
     ├── events/ / metrics/
     ├── web/
-    │   ├── app.py                # Setup Flask + HTML (~525 LOC)
-    │   ├── blueprints/           # 21 blueprints (~320 rutas API)
+    │   ├── app.py                # Setup Flask + HTML (~546 LOC)
+    │   ├── blueprints/           # 21 blueprints (~315 rutas API únicas)
     │   ├── *.html
     │   └── static/
     ├── tests/
@@ -261,7 +305,7 @@ Email, teléfono, nombre, **código de aliado** (secreto de acceso), comprobante
 
 ### Permisos BD
 
-RLS en migración init; backend con **service role** → RLS no es la barrera de la API. Autorización real: `@require_aliado` / `@require_admin` / `@require_admin_escritura`.
+RLS definido solo en **2 de 29** migraciones (`20260519000100_init_ruana_clean.sql` — políticas completas; `20260819000200_solicitudes_semanales.sql` — `ENABLE ROW LEVEL SECURITY` sin políticas `CREATE POLICY` en el archivo). Las **27 restantes no definen RLS**. El backend usa **service role** y bypasea RLS en todos los casos. La autorización efectiva es la de la API Flask.
 
 ---
 
@@ -344,7 +388,7 @@ Acceso `index` / `invite` / `register` → validar invitación → `POST /api/al
 
 ### Perfil
 
-Login por código → panel aliado → datos / foto Storage / catálogo servicios.
+Login por **código + PIN** → panel aliado → datos / foto Storage / catálogo servicios.
 
 ### Grupos / sistema territorial
 
@@ -386,7 +430,7 @@ Login admin → dashboard, pendientes, pagos, campañas, competencia, reglas, m�
 
 | Actor | Mecanismo |
 |-------|-----------|
-| Aliado | Código → JWT HS256 (`FLASK_SECRET_KEY`), header `X-Ruana-Session-Id` (`auth_session.py`) |
+| Aliado | Código 5 dígitos + PIN 4–6 dígitos → JWT HS256 (`FLASK_SECRET_KEY`), header `X-Ruana-Session-Id` (`auth_session.py`, `aliado_pin_auth.py`, `auth_bp.py`) |
 | Admin | ID + contraseña hasheada (`admin_auth.py`) → sesión JWT análoga |
 
 ### Autorización
@@ -398,7 +442,11 @@ Login admin → dashboard, pendientes, pagos, campañas, competencia, reglas, m�
 
 ### RLS
 
-Definido en migración init; **eludido por service role** en el camino Flask. SQLite sin RLS.
+Definido parcialmente (2/29 migraciones); **eludido por service role** en el camino Flask. SQLite sin RLS. Tabla `solicitudes_semanales` tiene `ENABLE ROW LEVEL SECURITY` pero sin políticas en migración — **efecto en producción: NO VERIFICADO**.
+
+### CORS
+
+`CORS(app)` sin restricción de orígenes en `web/app.py` (Flask-Cors con configuración por defecto = todos los orígenes). **PR abierto sin merge:** `cursor/cors-pago-manual-allowlist-2cc1` propone allowlist — **NO VERIFICADO** en `main`.
 
 ### Roles
 
@@ -412,8 +460,9 @@ App: aliado / admin. `profiles.role` preparado para Supabase Auth — no cablead
 
 - Sesión por pestaña (mitiga cookie compartida).
 - JWT validable entre instancias Cloud Run; revoke store en memoria (limitación).
-- ⚠️ Código de aliado = factor único de acceso.
-- ⚠️ Datos de cobro en `ruana_reglas_v1.json` versionado.
+- Login aliado: **dos factores de conocimiento** (código + PIN) con rate limit y bloqueo por intentos — el código sigue siendo secreto de alto valor.
+- ⚠️ Datos de cobro en `ruana_reglas_v1.json` versionado **y fallbacks hardcodeados** en `pago_service.py` (requieren migración a secret manager).
+- ⚠️ CORS abierto a todos los orígenes (`CORS(app)` sin allowlist).
 - ⚠️ Previews/rutas de prueba en la misma app.
 - ⚠️ Cloud Run con acceso de red no autenticado; auth es de aplicación.
 
@@ -547,7 +596,7 @@ npm run qa:e2e
 
 ### Funcionando
 
-Registro, login, paneles, grupos/plazas, invitaciones/referidos/campañas, contactos, negociación, Apoyo con revisión, notificaciones, competencia por score, módulo financiero admin, deploy cloud, **36 services + 30 repos**, CI automático pytest (**784 tests** verificados 2026-08-19).
+Registro, login (código+PIN), paneles, grupos/plazas, invitaciones/referidos/campañas, contactos, negociación, Apoyo con revisión, notificaciones, competencia por score, módulo financiero admin (FASE 02–13), crecimiento orgánico, solicitudes semanales, deploy cloud, **37 services + 31 repos**, CI automático pytest (**1007 tests** verificados 2026-09-04).
 
 ### Parcial
 
@@ -559,13 +608,14 @@ Firebase Auth admin; cablear `profiles`/Supabase Auth al login; sincronización 
 
 ### Riesgos técnicos
 
-1. Auth por código de aliado (factor único).
-2. Service role bypasea RLS.
-3. Drift SQLite/Postgres (tablas/columnas no en todas las migraciones).
-4. Datos de cobro en `ruana_reglas_v1.json` versionado.
-5. Revocación de sesión en memoria (multi-instancia).
-6. Admin credenciales JSON puente.
-7. `comision_porcentaje` DDL (0.05) vs runtime (`apoyo_pct/100`).
+1. Código de aliado sigue siendo secreto de alto valor (aunque PIN añade segundo factor).
+2. CORS sin allowlist (`CORS(app)` por defecto).
+3. Service role bypasea RLS (solo 2/29 migraciones con RLS).
+4. Drift SQLite/Postgres (tablas/columnas no en todas las migraciones).
+5. Datos de cobro en `ruana_reglas_v1.json` **y fallbacks en `pago_service.py`** versionados.
+6. Revocación de sesión en memoria (multi-instancia).
+7. Admin credenciales JSON puente.
+8. `comision_porcentaje` DDL (0.05) vs runtime (`apoyo_pct/100`).
 
 ### Deuda técnica
 
@@ -633,7 +683,7 @@ Estado exacto schema/RLS remoto en vivo; Realtime en cliente; purga en operació
 
 ## 18. Roadmap
 
-Fuente: [`docs/operaciones/roadmap.md`](docs/operaciones/roadmap.md) (2026-08-19). `ROADMAP.md` solo apunta ahí.
+Fuente: [`docs/operaciones/roadmap.md`](docs/operaciones/roadmap.md) (2026-09-04). `ROADMAP.md` solo apunta ahí.
 
 | Hito | Estado documentado |
 |------|--------------------|
@@ -642,12 +692,16 @@ Fuente: [`docs/operaciones/roadmap.md`](docs/operaciones/roadmap.md) (2026-08-19
 | Invitaciones admin + campañas | Hecho en código |
 | Métodos de pago + Storage | Hecho en código |
 | Impugnación cobros | Hecho en código |
-| Módulo financiero (FASE 04–13) | Hecho en código |
+| Módulo financiero (FASE 02–13) | Hecho en código |
+| Crecimiento orgánico de grupo | Hecho en código (2026-08-19) |
+| Solicitudes semanales | Hecho en código (2026-08-19) |
+| Login aliado PIN + recuperación | Hecho en código |
 | Competencia automática | Hecho en main |
-| Stripe Connect (pagos encargo) | Hecho en código; deploy fija `RUANA_STRIPE_MODE=test` |
-| Campamento Base (modularización) | **Avanzado** — 36 services + 30 repos; fachada `DBManager` (~1.925 LOC) |
-| Pack documentación cierre | Hecho 2026-08-19 |
+| Stripe Connect (pagos encargo) | FASE 14: Test en prod; **Live bloqueado** |
+| Campamento Base (modularización) | **Avanzado** — 37 services + 31 repos; fachada `DBManager` (~1.969 LOC) |
+| Pack documentación cierre | Hecho 2026-08-19; auditoría documental 2026-09-04 |
 | Admin → Firebase Auth | Preparado, **no implementado** |
+| CORS allowlist pagos manuales | **PR abierto** (`cursor/cors-pago-manual-allowlist-2cc1`); no en `main` |
 
 Histórico: `docs/archive/ROADMAP_2026-05.md`.
 
@@ -671,7 +725,8 @@ No se inventan hitos fuera de fuentes del repo + estado verificable del código.
 
 ### Deep-dives y histórico
 
-- [`docs/exports/AUDITORIA_DOCUMENTAL_2026-08-15.md`](docs/exports/AUDITORIA_DOCUMENTAL_2026-08-15.md) — informe de auditoría documental anterior
+- [`docs/exports/AUDITORIA_DOCUMENTAL_2026-09-04.md`](docs/exports/AUDITORIA_DOCUMENTAL_2026-09-04.md) — informe de auditoría documental actual
+- [`docs/exports/AUDITORIA_DOCUMENTAL_2026-08-15.md`](docs/exports/AUDITORIA_DOCUMENTAL_2026-08-15.md) — informe anterior
 - [`docs/flujos/registro-aliados.md`](docs/flujos/registro-aliados.md)
 - [`docs/seguridad/autenticacion-sesiones.md`](docs/seguridad/autenticacion-sesiones.md)
 - [`docs/seguridad/credenciales-admin.md`](docs/seguridad/credenciales-admin.md)
@@ -696,4 +751,4 @@ Ver [`docs/HANDOFF.md`](docs/HANDOFF.md) para checklist de recepción, secretos,
 
 ---
 
-*Auditoría basada en inspección del repositorio y pytest local (2026-08-19). El README describe funcionalidades verificadas; lo demás está etiquetado explícitamente.*
+*Auditoría basada en inspección del repositorio y pytest local (2026-09-04). El README describe funcionalidades verificadas; lo demás está etiquetado explícitamente.*

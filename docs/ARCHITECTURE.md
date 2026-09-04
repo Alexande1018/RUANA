@@ -4,7 +4,7 @@ Documento de referencia técnica para desarrolladores y auditores. Describe la i
 
 | | |
 |---|---|
-| Fecha | 2026-08-19 |
+| Fecha | 2026-09-04 |
 | Autoridad | Código en `RUANA/` prevalece sobre este documento |
 | Manual Maestro | [`/README.md`](../README.md) |
 
@@ -78,12 +78,12 @@ Paneles principales: `aliado.html`, `admin.html`, `register.html`, `index.html`,
 | Pagos / Apoyo | `pagos_bp`, `stripe_webhook_bp` | `/api/pagos/*`, webhook Stripe |
 | Invitaciones / referidos | `invitacion_bp`, `referidos_bp` | `/api/invitaciones/*`, `/api/referidos/*` |
 | Solicitudes | `solicitudes_bp`, `solicitudes_semanales_bp` | `/api/solicitudes/*` |
-| Admin operativo | `admin_bp` | `/api/admin/*` (~58 rutas) |
+| Admin operativo | `admin_bp` | `/api/admin/*` (~59 rutas) |
 | Competencia / evaluación | `admin_bp`, `evaluacion_bp` | motor, purga, competencia |
 | Soporte | `soporte_bp` | centro comunicación |
 | Finanzas (FASE 04–13) | `financial_*` (7 blueprints) | `/api/admin/financial-*` |
 
-**Inferido:** ~320 endpoints en blueprints + rutas HTML/auth en `app.py`.
+**Verificado:** ~315 endpoints únicos en blueprints + ~34 rutas HTML/auth en `app.py` (~349 total).
 
 ### 2.3 Dominio (services)
 
@@ -97,17 +97,17 @@ Blueprint / test / legacy
                 → SQLite | Postgres
 ```
 
-36 módulos en `RUANA/core/services/`, incluyendo:
+37 módulos en `RUANA/core/services/`, incluyendo:
 
 - **Core negocio:** `aliado`, `grupo`, `score`, `contacto`, `negociacion`, `pago`, `competencia`, `invitacion`, `referido`, `solicitud`, `chat`, `notificacion`, `catalogo`, `admin`, `evaluacion`
 - **Financiero:** `financial_transaction`, `financial_transfer`, `financial_conflict`, `financial_refund`, `financial_dispute`, `financial_reconciliation`, `financial_ledger`, `financial_admin`, `financial_automation`, `financial_audit`, `financial_action_approval`, etc.
-- **Infra dominio:** `schema`, `stripe_webhook`, `grupo_crecimiento`, `solicitud_semanal`, `aliado_pin`, `red_arbol`
+- **Infra dominio:** `schema`, `stripe_webhook`, `grupo_crecimiento`, `solicitud_semanal`, `aliado_pin`, `red_arbol`, `actividad_cinta`, `contacto`
 
 `DBManager` no hereda services; **delega** pasando `self` o cursor.
 
 ### 2.4 Persistencia (repositories)
 
-30 repos en `RUANA/core/repositories/` con consultas SQL explícitas.
+31 repos en `RUANA/core/repositories/` con consultas SQL explícitas.
 
 Adaptadores:
 
@@ -176,8 +176,8 @@ Autorización financiera: permisos granulares vía `core/financial_automation_au
 | Sesión por pestaña | UUID en `sessionStorage` + header `X-Ruana-Session-Id` |
 | Store servidor | Dict en memoria (`auth_session.py`) + set revocados |
 | TTL | `RUANA_ALIADO_SESSION_EXPIRES`, `RUANA_ADMIN_SESSION_EXPIRES` (default 3600s) |
-| Aliado login | Código 5 dígitos (`POST /api/aliado/login`) |
-| PIN aliado | Módulo `aliado_pin_*` (setup, bloqueo, recuperación OTP) |
+| Aliado login | Código 5 dígitos + PIN 4–6 (`POST /api/aliado/login`) |
+| PIN aliado | `aliado_pin_auth.py` + `aliado_pin_service.py` — setup, bloqueo, recuperación OTP email |
 | Admin login | `POST /api/admin/validar` — hashes en JSON externo |
 | Cron | Header `X-Ruana-Cron-Secret` |
 
@@ -212,7 +212,7 @@ Motor evaluación (`engines/motor_evaluacion.py`): umbrales 0.70, 0.80, 6 meses 
 ## 7. Testing (arquitectura QA)
 
 ```text
-pytest (RUANA/tests/) — SQLite, mocks, Flask test client
+pytest (RUANA/tests/) — SQLite, mocks, Flask test client — **1007 passed**, 11 skipped (2026-09-04)
     ↑ gate en PR (ruana-qa.yml job pytest)
 
 Playwright (e2e/) — arranca run.py, SQLite temporal, admin_credentials.qa.json
@@ -227,9 +227,10 @@ Fixtures de sesión en `conftest.py` limpian `_RUANA_SESSION_STORE` entre tests.
 
 1. **Monolito Flask** con extracción parcial — coherencia depende de fachadas `DBManager`.
 2. **Dual BD** — toda feature nueva debe probarse en SQLite (CI) y validarse en Postgres (prod).
-3. **RLS Supabase irrelevante** para API actual — diseño de seguridad 100% en capa Flask.
-4. **Firebase Hosting sin assets** — todo el tráfico va a Cloud Run (coste/latencia vs CDN estático).
-5. **Financial module acoplado** a mismo proceso — jobs cron son HTTP al mismo servicio.
+3. **RLS Supabase parcial e irrelevante** para API actual — solo 2/29 migraciones con RLS; service role bypasea en todos los casos.
+4. **CORS abierto** — `CORS(app)` sin allowlist; PR pendiente.
+5. **Firebase Hosting sin assets** — todo el tráfico va a Cloud Run (coste/latencia vs CDN estático).
+6. **Financial module acoplado** a mismo proceso — jobs cron son HTTP al mismo servicio.
 
 ---
 
