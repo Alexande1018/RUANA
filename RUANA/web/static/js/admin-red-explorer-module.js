@@ -170,7 +170,7 @@
         var tbody = document.getElementById('tbody-grupos-admin');
         if (!tbody) return;
         if (!grupos || !grupos.length) {
-            tbody.innerHTML = '<tr><td colspan="7" style="color:#94a3b8;">Sin grupos en la base de datos.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" style="color:#94a3b8;">Sin grupos en la base de datos.</td></tr>';
             return;
         }
         tbody.innerHTML = grupos.map(function (g) {
@@ -178,10 +178,12 @@
             var activos = Number(g.aliados_activos) || 0;
             var alertCls = (estado.toLowerCase() !== 'activo' || activos <= 1) ? 'grupo-admin-row--alert' : '';
             var creado = (g.fecha_creacion || '').toString().slice(0, 16);
+            var tipo = (g.tipo || 'territorial').toString();
             return '<tr class="' + alertCls + '">' +
                 '<td>' + esc(g.id) + '</td>' +
                 '<td>' + esc(g.nombre) + '</td>' +
                 '<td>' + esc(g.codigo_postal) + '</td>' +
+                '<td>' + esc(tipo) + '</td>' +
                 '<td>' + esc(estado) + '</td>' +
                 '<td>' + esc(activos) + '</td>' +
                 '<td>' + esc(g.aliados_total) + '</td>' +
@@ -203,7 +205,7 @@
             if (data.status !== 'success') throw new Error(data.message || 'Error al cargar grupos');
             renderGruposTabla(data.grupos || []);
         }).catch(function (err) {
-            tbody.innerHTML = '<tr><td colspan="7" style="color:var(--ruana-estado-riesgo,#d4926e);">' +
+            tbody.innerHTML = '<tr><td colspan="8" style="color:var(--ruana-estado-riesgo,#d4926e);">' +
                 esc((err && err.message) || 'Error al cargar grupos') + '</td></tr>';
         });
     }

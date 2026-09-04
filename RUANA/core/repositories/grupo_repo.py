@@ -26,8 +26,11 @@ class GrupoRepo:
 
     def listar_activos_por_cp(self, cursor, codigo_postal: str) -> List[Any]:
         cursor.execute(
-            """SELECT id, nombre, codigo_postal, ciudad, provincia, estado, fecha_creacion
-               FROM grupos WHERE codigo_postal = ? AND estado = 'activo' ORDER BY id""",
+            """SELECT id, nombre, codigo_postal, ciudad, provincia, estado, fecha_creacion,
+                      COALESCE(tipo, 'territorial') AS tipo
+               FROM grupos WHERE codigo_postal = ? AND estado = 'activo'
+                 AND COALESCE(tipo, 'territorial') = 'territorial'
+               ORDER BY id""",
             (codigo_postal,),
         )
         return cursor.fetchall()
@@ -55,7 +58,11 @@ class GrupoRepo:
 
     def contar_activos_por_cp(self, cursor, codigo_postal: str) -> int:
         cursor.execute(
-            "SELECT COUNT(*) FROM grupos WHERE codigo_postal = ? AND estado = 'activo'",
+            """
+            SELECT COUNT(*) FROM grupos
+            WHERE codigo_postal = ? AND estado = 'activo'
+              AND COALESCE(tipo, 'territorial') = 'territorial'
+            """,
             (codigo_postal,),
         )
         row = cursor.fetchone()
@@ -76,8 +83,8 @@ class GrupoRepo:
             raise ValueError(f"Ya existe un grupo con el nombre «{nombre_s}»")
         cursor.execute(
             """
-            INSERT INTO grupos (nombre, codigo_postal, ciudad, provincia, estado, fecha_creacion)
-            VALUES (?, ?, ?, ?, 'activo', CURRENT_TIMESTAMP)
+            INSERT INTO grupos (nombre, codigo_postal, ciudad, provincia, estado, tipo, fecha_creacion)
+            VALUES (?, ?, ?, ?, 'activo', 'territorial', CURRENT_TIMESTAMP)
             """,
             (nombre_s, codigo_postal, ciudad or None, provincia or None),
         )
