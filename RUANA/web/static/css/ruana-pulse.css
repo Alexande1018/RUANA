@@ -34,19 +34,23 @@ body.aliado-app #ruana-alert-hub {
 
 .ruana-pulse-trigger {
     --ruana-pulse-accent: var(--ruana-brand-lime, #a2ff00);
+    --ruana-pulse-bg-idle: linear-gradient(
+        135deg,
+        rgba(162, 255, 0, 0.1) 0%,
+        rgba(9, 12, 10, 0.78) 100%
+    );
+    --ruana-pulse-border-idle: rgba(162, 255, 0, 0.18);
+    --ruana-pulse-text-idle: rgba(255, 255, 255, 0.88);
+    --ruana-pulse-icon-idle: var(--ruana-pulse-accent);
     display: inline-flex;
     align-items: center;
     gap: 9px;
     min-height: 42px;
     padding: 8px 16px 8px 14px;
-    border: 1px solid rgba(162, 255, 0, 0.22);
+    border: 1px solid var(--ruana-pulse-border-idle);
     border-radius: 999px;
-    background: linear-gradient(
-        135deg,
-        rgba(162, 255, 0, 0.12) 0%,
-        rgba(9, 12, 10, 0.72) 100%
-    );
-    color: rgba(255, 255, 255, 0.92);
+    background: var(--ruana-pulse-bg-idle);
+    color: var(--ruana-pulse-text-idle);
     font-family: inherit;
     font-size: 0.88rem;
     font-weight: 700;
@@ -57,18 +61,22 @@ body.aliado-app #ruana-alert-hub {
     -webkit-backdrop-filter: blur(14px) saturate(150%);
     box-shadow:
         0 6px 22px rgba(0, 0, 0, 0.28),
-        0 0 0 1px rgba(162, 255, 0, 0.06) inset;
+        0 0 0 1px rgba(162, 255, 0, 0.05) inset;
     transition:
-        border-color var(--ruana-transition, 180ms ease),
-        background var(--ruana-transition, 180ms ease),
+        border-color 280ms ease,
+        background 280ms ease,
+        color 280ms ease,
         transform var(--ruana-transition, 180ms ease),
-        box-shadow var(--ruana-transition, 180ms ease);
+        box-shadow 280ms ease;
 }
 
 .ruana-pulse-trigger:hover {
-    border-color: rgba(162, 255, 0, 0.22);
-    color: rgba(255, 255, 255, 0.92);
     transform: translateY(-1px);
+}
+
+.ruana-pulse-trigger:not(.has-new-activity):hover {
+    border-color: rgba(162, 255, 0, 0.28);
+    color: rgba(255, 255, 255, 0.96);
 }
 
 .ruana-pulse-trigger:active {
@@ -76,12 +84,26 @@ body.aliado-app #ruana-alert-hub {
 }
 
 .ruana-pulse-trigger.is-open {
-    border-color: rgba(162, 255, 0, 0.28);
-    background: linear-gradient(
-        135deg,
-        rgba(162, 255, 0, 0.1) 0%,
-        rgba(9, 12, 10, 0.72) 100%
-    );
+    border-color: rgba(162, 255, 0, 0.32);
+}
+
+.ruana-pulse-trigger__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    color: var(--ruana-pulse-icon-idle);
+    opacity: 0.95;
+    transition:
+        color 280ms ease,
+        transform var(--ruana-transition, 180ms ease),
+        opacity var(--ruana-transition, 180ms ease);
+}
+
+.ruana-pulse-trigger__icon svg {
+    width: 18px;
+    height: 18px;
 }
 
 .ruana-pulse-trigger__spark {
@@ -91,12 +113,107 @@ body.aliado-app #ruana-alert-hub {
     opacity: 0.92;
 }
 
+.ruana-pulse-trigger__dot {
+    position: absolute;
+    top: 7px;
+    right: 8px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--ruana-pulse-accent);
+    box-shadow: 0 0 10px rgba(162, 255, 0, 0.55);
+    animation: ruana-pulse-dot 2.4s ease-in-out infinite;
+}
+
+.ruana-pulse-trigger__dot[hidden] {
+    display: none !important;
+}
+
+@keyframes ruana-pulse-dot {
+    0%, 100% { transform: scale(0.92); opacity: 0.75; }
+    50% { transform: scale(1.08); opacity: 1; }
+}
+
+.ruana-pulse-trigger.has-new-activity:not(.has-action-required) {
+    --ruana-pulse-border-idle: rgba(162, 255, 0, 0.58);
+    --ruana-pulse-text-idle: #efffcc;
+    --ruana-pulse-icon-idle: #d4ff66;
+    border-color: var(--ruana-pulse-border-idle);
+    background: linear-gradient(
+        135deg,
+        rgba(162, 255, 0, 0.34) 0%,
+        rgba(42, 72, 24, 0.92) 52%,
+        rgba(12, 16, 10, 0.94) 100%
+    );
+    color: var(--ruana-pulse-text-idle);
+    box-shadow:
+        0 8px 28px rgba(0, 0, 0, 0.34),
+        0 0 26px rgba(162, 255, 0, 0.2),
+        0 0 0 1px rgba(162, 255, 0, 0.14) inset;
+}
+
+.ruana-pulse-trigger.has-new-activity:not(.has-action-required):hover {
+    border-color: rgba(196, 255, 80, 0.72);
+    background: linear-gradient(
+        135deg,
+        rgba(162, 255, 0, 0.42) 0%,
+        rgba(52, 88, 28, 0.94) 52%,
+        rgba(12, 16, 10, 0.96) 100%
+    );
+    color: #f6ffe0;
+}
+
+.ruana-pulse-trigger.has-action-required {
+    --ruana-pulse-border-idle: rgba(196, 255, 80, 0.95);
+    --ruana-pulse-text-idle: #0a0c0a;
+    --ruana-pulse-icon-idle: #0a0c0a;
+    border-color: var(--ruana-pulse-border-idle);
+    background: linear-gradient(
+        135deg,
+        #d8ff70 0%,
+        #a2ff00 48%,
+        #8de600 100%
+    );
+    color: var(--ruana-pulse-text-idle);
+    box-shadow:
+        0 10px 32px rgba(0, 0, 0, 0.36),
+        0 0 32px rgba(162, 255, 0, 0.42),
+        0 0 0 1px rgba(255, 255, 255, 0.22) inset;
+}
+
+.ruana-pulse-trigger.has-action-required:hover {
+    border-color: #e8ff99;
+    background: linear-gradient(
+        135deg,
+        #e4ff85 0%,
+        #b4ff1a 48%,
+        #9aeb00 100%
+    );
+    color: #050605;
+}
+
+.ruana-pulse-trigger.has-action-required .ruana-pulse-trigger__badge {
+    background: #0a0c0a;
+    color: #c8ff4d;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.25);
+}
+
+.ruana-pulse-trigger.has-new-activity:not(.has-action-required) .ruana-pulse-trigger__icon {
+    animation: ruana-pulse-spark 3.2s ease-in-out infinite;
+}
+
 .ruana-pulse-trigger.has-pending {
-    border-color: rgba(162, 255, 0, 0.38);
     box-shadow:
         0 8px 26px rgba(0, 0, 0, 0.32),
         0 0 18px rgba(162, 255, 0, 0.12),
         0 0 0 1px rgba(162, 255, 0, 0.1) inset;
+}
+
+.ruana-pulse-trigger.has-action-required.has-pending {
+    box-shadow:
+        0 10px 32px rgba(0, 0, 0, 0.36),
+        0 0 32px rgba(162, 255, 0, 0.42),
+        0 0 0 1px rgba(255, 255, 255, 0.22) inset;
 }
 
 .ruana-pulse-trigger__badge {
@@ -119,7 +236,8 @@ body.aliado-app #ruana-alert-hub {
     display: none !important;
 }
 
-.ruana-pulse-trigger.has-pending .ruana-pulse-trigger__spark {
+.ruana-pulse-trigger.has-pending .ruana-pulse-trigger__spark,
+.ruana-pulse-trigger.has-pending .ruana-pulse-trigger__icon {
     animation: ruana-pulse-spark 3.2s ease-in-out infinite;
 }
 
@@ -619,7 +737,10 @@ body.ruana-pulse-open .ruana-pulse-backdrop {
         transition-duration: 0.01ms !important;
     }
 
-    .ruana-pulse-trigger.has-pending .ruana-pulse-trigger__spark {
+    .ruana-pulse-trigger.has-pending .ruana-pulse-trigger__spark,
+    .ruana-pulse-trigger.has-pending .ruana-pulse-trigger__icon,
+    .ruana-pulse-trigger.has-new-activity .ruana-pulse-trigger__icon,
+    .ruana-pulse-trigger__dot {
         animation: none !important;
     }
 
