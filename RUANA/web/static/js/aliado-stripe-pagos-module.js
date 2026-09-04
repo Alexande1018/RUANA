@@ -86,6 +86,150 @@
     return `<ul class="stripe-desglose-list">${items.map((t) => `<li>${t}</li>`).join('')}</ul>`;
   }
 
+  function desgloseStripeTexto(contacto) {
+    const bruto = Number(contacto.importe_acordado ?? contacto.importe_final);
+    const neto = Number(contacto.importe_neto_profesional);
+    const apoyo = Number(contacto.apoyo_ruana ?? contacto.comision);
+    const pctTxt = pctRuanaLabel(contacto);
+    const partes = [];
+    if (!Number.isNaN(bruto) && bruto > 0) {
+      partes.push(`Total pagado: ${formatEuros(bruto)}`);
+    }
+    if (!Number.isNaN(apoyo) && apoyo > 0) {
+      partes.push(`Comisión RUANA (${pctTxt}): ${formatEuros(apoyo)}`);
+    }
+    if (!Number.isNaN(neto) && neto > 0) {
+      partes.push(`Importe neto profesional: ${formatEuros(neto)}`);
+    }
+    return partes.join(' · ');
+  }
+
+  function parseEventTimestamp(raw) {
+    if (!raw) return Date.now();
+    const date = new Date(raw);
+    return Number.isNaN(date.getTime()) ? Date.now() : date.getTime();
+  }
+
+  function buildPaymentActivityEvents(contacto, codigoAliado) {
+    if (!contacto || contacto.modo_pago !== 'stripe') return [];
+    const codigo = String(codigoAliado || '').trim();
+    const esContratante = codigo === String(contacto.solicitante_codigo || '').trim();
+    const esProfesional = codigo === String(contacto.profesional_codigo || '').trim();
+    if (!esContratante && !esProfesional) return [];
+
+    const estadoPago = String(contacto.estado_pago || '').trim();
+    const netoTxt = formatEuros(contacto.importe_neto_profesional) || 'tu importe neto';
+    const desglose = desgloseStripeTexto(contacto);
+    const createdAt = parseEventTimestamp(
+      contacto.fecha_confirmacion_trabajo || contacto.fecha_pago || contacto.actualizado_en
+    );
+    const events = [];
+
+    if (transferenciaStripeCompletada(contacto)) {
+      if (esProfesional) {
+        events.push({
+          id: `encargo-${contacto.id}-transferido`,
+          contactoId: contacto.id,
+          tipo: 'pago_transferido',
+          tier: 'completed',
+          title: 'Pago transferido',
+          description: `RUANA ha enviado ${netoTxt} a tu cuenta Stripe Connect.${desglose ? ` ${desglose}.` : ''}`,
+          createdAt,
+        });
+      } else if (esContratante) {
+        events.push({
+          id: `encargo-${contacto.id}-transferido`,
+          contactoId: contacto.id,
+          tipo: 'pago_transferido',
+          tier: 'completed',
+          title: 'Pago completado',
+          description: `Confirmaste la entrega y el pago al profesional se completó.${desglose ? ` ${desglose}.` : ''}`,
+          createdAt,
+        });
+      }
+      return events;
+    }
+
+    if (transferenciaStripeEnCurso(contacto) || estadoPago === 'transfer_pendiente') {
+      if (esProfesional) {
+        events.push({
+          id: `encargo-${contacto.id}-transfer-pendiente`,
+          contactoId: contacto.id,
+          tipo: 'transferencia_en_proceso',
+          tier: 'important',
+          title: 'Trabajo confirmado',
+          description: `El contratante confirmó la entrega. Pago: ${netoTxt} → transferencia en proceso.${desglose ? ` ${desglose}.` : ''}`,
+          createdAt,
+        });
+      } else if (esContratante) {
+        events.push({
+          id: `encargo-${contacto.id}-transfer-pendiente`,
+          contactoId: contacto.id,
+          tipo: 'transferencia_en_proceso',
+          tier: 'important',
+          title: 'Trabajo confirmado',
+          description: `Confirmaste la entrega. El pago de ${netoTxt} está en proceso en Stripe.${desglose ? ` ${desglose}.` : ''}`,
+          createdAt,
+        });
+      }
+      return events;
+    }
+
+    if (estadoPago === 'cobro_confirmado') {
+      if (esProfesional) {
+        events.push({
+          id: `encargo-${contacto.id}-cobro-retenido`,
+          contactoId: contacto.id,
+          tipo: 'pago_retenido',
+          tier: 'info',
+          title: 'Pago retenido',
+          description: `El contratante ya pagó. Tu importe (${netoTxt}) está retenido hasta que confirme la entrega.${desglose ? ` ${desglose}.` : ''}`,
+          createdAt: parseEventTimestamp(contacto.fecha_pago || contacto.actualizado_en),
+        });
+      } else if (esContratante) {
+        events.push({
+          id: `encargo-${contacto.id}-cobro-confirmado`,
+          contactoId: contacto.id,
+          tipo: 'pago_realizado',
+          tier: 'info',
+          title: 'Pago realizado',
+          description: `Pago confirmado. Confirma la entrega para liberar ${netoTxt} al profesional.${desglose ? ` ${desglose}.` : ''}`,
+          createdAt: parseEventTimestamp(contacto.fecha_pago || contacto.actualizado_en),
+        });
+      }
+      return events;
+    }
+
+    if (esProfesional && ['esperando_cobro_cliente', 'checkout_activo', 'no_generado'].includes(estadoPago)) {
+      events.push({
+        id: `encargo-${contacto.id}-esperando-cobro`,
+        contactoId: contacto.id,
+        tipo: 'pago_pendiente',
+        tier: 'info',
+        title: 'Pago pendiente',
+        description: 'Tu pago quedará retenido hasta que el contratante pague y confirme la entrega.',
+        createdAt: parseEventTimestamp(contacto.actualizado_en || contacto.creado_en),
+      });
+    }
+
+    return events;
+  }
+
+  function syncPaymentActivity(contacto, codigoAliado, options) {
+    const events = buildPaymentActivityEvents(contacto, codigoAliado);
+    if (!events.length) return;
+    if (global.RuanaPulse && typeof global.RuanaPulse.registerEncargoEvents === 'function') {
+      global.RuanaPulse.registerEncargoEvents(events, options || {});
+    }
+  }
+
+  function showPaymentToast(title, message) {
+    if (typeof global.RuanaUI !== 'undefined' && global.RuanaUI.success) {
+      global.RuanaUI.success(title, message, 4200);
+    } else {
+      alert(`${title}\n${message}`);
+    }
+  }
   function transferenciaStripeEnCurso(contacto) {
     const estadoPago = String(contacto.estado_pago || '').trim();
     const estadoFin = String(contacto.estado_financiero || '').trim();
@@ -120,14 +264,20 @@
     }
     const neto = data.importe_neto_profesional != null ? Number(data.importe_neto_profesional) : NaN;
     const netoTxt = !Number.isNaN(neto) && neto > 0 ? `${neto.toFixed(2)} €` : 'tu importe neto';
-    const msg = data.estado_pago === 'transferido'
-      ? `Pago completado. Se transfirieron ${netoTxt} a la cuenta del profesional.`
-      : `Trabajo confirmado. RUANA está transfiriendo ${netoTxt} a la cuenta Stripe del profesional.`;
-    if (typeof global.RuanaUI !== 'undefined' && global.RuanaUI.success) {
-      global.RuanaUI.success(msg);
+    const codigo = (host && (host.codigoAliado || (host.aliado && host.aliado.codigo)) || '').toString().trim();
+    if (data.estado_pago === 'transferido') {
+      showPaymentToast('Pago completado', `Se transfirieron ${netoTxt} a la cuenta del profesional.`);
     } else {
-      alert(msg);
+      showPaymentToast('Trabajo confirmado', `El pago de ${netoTxt} está en proceso.`);
     }
+    if (host && host.contactoActual && Number(host.contactoActual.id) === Number(contactoId)) {
+      host.contactoActual = { ...host.contactoActual, ...data };
+    }
+    syncPaymentActivity(
+      { ...(host && host.contactoActual ? host.contactoActual : {}), ...data, id: contactoId, modo_pago: 'stripe' },
+      codigo,
+      { showToast: false, markNew: true }
+    );
   }
 
   async function iniciarOnboardingStripe() {
@@ -256,81 +406,31 @@
     container.innerHTML = '';
     if (modo !== 'stripe') return;
 
+    syncPaymentActivity(contacto, codigo, { silent: true });
+
     const importeVal = contacto.importe_acordado != null ? Number(contacto.importe_acordado) : NaN;
     const importeTxt = (!Number.isNaN(importeVal) && importeVal > 0)
       ? `${importeVal.toFixed(2)} €`
       : '';
     const parts = [];
-    const desglose = desgloseStripeHtml(contacto);
     const enTransferencia = transferenciaStripeEnCurso(contacto);
     const transferido = transferenciaStripeCompletada(contacto);
+    const contactoEstado = String(contacto.estado || '').trim();
+    const puedeIniciarPago = esContratante && ['esperando_cobro_cliente', 'checkout_activo', 'no_generado', ''].includes(estadoPago)
+      && !enTransferencia && !transferido
+      && contactoEstado === 'pendiente_de_pago';
 
-    if (esProfesional) {
-      if (['esperando_cobro_cliente', 'checkout_activo', 'no_generado'].includes(estadoPago)) {
-        parts.push(
-          '<p class="stripe-estado-msg stripe-estado-msg--pro">'
-          + 'Tu pago quedará retenido hasta que el contratante pague. '
-          + 'Después se liberará cuando confirme que el trabajo quedó hecho.</p>'
-        );
-      } else if (transferido) {
-        const netoTxt = formatEuros(contacto.importe_neto_profesional) || 'tu importe neto';
-        parts.push(
-          '<p class="stripe-estado-msg stripe-estado-msg--ok">'
-          + `Pago transferido a tu cuenta Stripe (${escapeHtml(netoTxt)}). `
-          + 'Puede tardar 1–2 días hábiles en verse en tu banco.</p>'
-        );
-        if (desglose) parts.push(desglose);
-      } else if (enTransferencia || estadoPago === 'transfer_pendiente') {
-        const netoTxt = formatEuros(contacto.importe_neto_profesional) || 'tu importe neto';
-        parts.push(
-          '<p class="stripe-estado-msg stripe-estado-msg--ok">'
-          + 'El contratante confirmó el trabajo. RUANA está transfiriendo '
-          + `<strong>${escapeHtml(netoTxt)}</strong> a tu cuenta Stripe Connect.</p>`
-        );
-        if (desglose) parts.push(desglose);
-      } else if (estadoPago === 'cobro_confirmado') {
-        parts.push(
-          '<p class="stripe-estado-msg stripe-estado-msg--pro">'
-          + 'El contratante ya pagó. Tu importe está retenido y se liberará '
-          + 'cuando confirme que el trabajo quedó hecho.</p>'
-        );
-        if (desglose) parts.push(desglose);
-      }
-    }
-
-    if (esContratante) {
-      const contactoEstado = String(contacto.estado || '').trim();
-      const puedeIniciarPago = ['esperando_cobro_cliente', 'checkout_activo', 'no_generado', ''].includes(estadoPago)
-        && !enTransferencia && !transferido
-        && contactoEstado === 'pendiente_de_pago';
-      if (puedeIniciarPago) {
-        parts.push(
-          `<p class="stripe-estado-msg">${importeTxt
-            ? `Importe acordado: <strong>${escapeHtml(importeTxt)}</strong>. `
-            : ''}Completa el pago para reservar el encargo.</p>`
-          + '<button type="button" class="encargo-card-btn stripe-pagar-btn">Ir a pagar</button>'
-        );
-      } else if (transferido) {
-        parts.push(
-          '<p class="stripe-estado-msg stripe-estado-msg--ok">'
-          + 'Confirmaste la entrega y el pago al profesional se completó.</p>'
-        );
-        if (desglose) parts.push(desglose);
-      } else if (enTransferencia || estadoPago === 'transfer_pendiente') {
-        parts.push(
-          '<p class="stripe-estado-msg stripe-estado-msg--ok">'
-          + 'Confirmaste la entrega. El pago al profesional está en proceso en Stripe.</p>'
-        );
-        if (desglose) parts.push(desglose);
-      } else if (estadoPago === 'cobro_confirmado') {
-        parts.push(
-          '<p class="stripe-estado-msg">Pago realizado. Confirma que el trabajo quedó hecho '
-          + 'para liberar el importe al profesional.</p>'
-          + '<button type="button" class="encargo-card-btn stripe-confirmar-btn">'
-          + 'Confirmar trabajo y liberar pago</button>'
-        );
-        if (desglose) parts.push(desglose);
-      }
+    if (puedeIniciarPago) {
+      parts.push(
+        '<button type="button" class="encargo-card-btn stripe-pagar-btn">'
+        + (importeTxt ? `Ir a pagar (${escapeHtml(importeTxt)})` : 'Ir a pagar')
+        + '</button>'
+      );
+    } else if (esContratante && estadoPago === 'cobro_confirmado' && !enTransferencia && !transferido) {
+      parts.push(
+        '<button type="button" class="encargo-card-btn stripe-confirmar-btn">'
+        + 'Confirmar trabajo y liberar pago</button>'
+      );
     }
 
     container.innerHTML = parts.join('');
@@ -374,10 +474,9 @@
 
     if (pago === 'ok') {
       refresh().then(() => {
-        if (typeof global.RuanaUI !== 'undefined' && global.RuanaUI.success) {
-          global.RuanaUI.success('Pago recibido correctamente.');
-        } else {
-          alert('Pago recibido correctamente.');
+        showPaymentToast('Pago recibido', 'El pago se registró correctamente.');
+        if (contactoId && host && host.contactoActual) {
+          syncPaymentActivity(host.contactoActual, (host.codigoAliado || (host.aliado && host.aliado.codigo) || '').toString().trim());
         }
         if (contactoId && host && typeof host.abrirNegociacionContacto === 'function') {
           host.abrirNegociacionContacto(parseInt(contactoId, 10), null);
@@ -479,5 +578,7 @@
     stripePagosActivos,
     labelEstadoPago,
     MSG_PAGO_NO_DISPONIBLE,
+    buildPaymentActivityEvents,
+    syncPaymentActivity,
   };
 })(window);

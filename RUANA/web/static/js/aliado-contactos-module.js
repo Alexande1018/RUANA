@@ -345,12 +345,9 @@
         contexto = 'El encargo quedó cerrado y el pago Stripe se completó.';
         pasoTxt = '';
         if (esProfesional) {
-            accionTxt = netoTxt
-                ? `RUANA transfirió ${netoTxt} a tu cuenta Stripe Connect.`
-                : 'RUANA transfirió tu importe neto a tu cuenta Stripe Connect.';
-            if (apoyoTxt) accionTxt += ` Comisión RUANA (12%): ${apoyoTxt} (ya descontada).`;
+            accionTxt = 'Consulta el detalle del pago en Actividad.';
         } else if (esContratante) {
-            accionTxt = 'Confirmaste la entrega y el pago al profesional se completó.';
+            accionTxt = 'El pago al profesional se completó. Revisa el resumen en Actividad.';
         }
         btnPrincipal = 'Ver detalle';
     } else if (modoStripe && transferPendiente) {
@@ -359,11 +356,12 @@
         pasoTxt = '';
         if (esProfesional) {
             accionTxt = netoTxt
-                ? `Se está transfiriendo ${netoTxt} a tu cuenta Stripe Connect.`
-                : 'Se está transfiriendo tu importe neto a tu cuenta Stripe Connect.';
-            if (apoyoTxt) accionTxt += ` Comisión RUANA (12%): ${apoyoTxt} (retenida en el cobro).`;
+                ? `Transferencia de ${netoTxt} en curso. Detalle en Actividad.`
+                : 'Transferencia en curso. Detalle en Actividad.';
         } else if (esContratante) {
-            accionTxt = 'Confirmaste la entrega. El pago al profesional está en proceso.';
+            accionTxt = netoTxt
+                ? `El pago de ${netoTxt} está en proceso. Consulta Actividad para el seguimiento.`
+                : 'El pago está en proceso. Consulta Actividad para el seguimiento.';
         }
         btnPrincipal = 'Ver encargo';
     } else if (estado === 'acuerdo_alcanzado' || contacto.negociacion_completa) {
@@ -371,9 +369,9 @@
         contexto = 'Todos los puntos del encargo están confirmados.';
         pasoTxt = '';
         if (modoStripe && cobroConfirmado && esProfesional) {
-            accionTxt = 'El contratante ya pagó. Tu importe está retenido y se liberará cuando confirme que el trabajo quedó hecho.';
+            accionTxt = 'El contratante ya pagó. Tu importe está retenido; el detalle está en Actividad.';
         } else if (modoStripe && cobroConfirmado && esContratante) {
-            accionTxt = 'Pago realizado. Confirma que el trabajo quedó hecho para liberar el importe al profesional.';
+            accionTxt = 'Pago realizado. Confirma la entrega para liberar el importe al profesional.';
         } else if (modoStripe && esProfesional) {
             accionTxt = 'Acuerdo confirmado. Tu pago está reservado y se desbloqueará automáticamente en cuanto el contratante confirme que el trabajo quedó hecho.';
         } else if (modoStripe && esContratante) {

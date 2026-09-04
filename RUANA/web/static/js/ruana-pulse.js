@@ -21,11 +21,15 @@
         /negociaci[oó]n pendiente/i
     ];
 
+    var ENCARGO_EVENTS_KEY = 'ruana_pulse_encargo_events';
+    var ENCARGO_TOAST_SHOWN_KEY = 'ruana_pulse_encargo_toast_shown';
+
     var state = {
         isOpen: false,
         expandedDetailId: null,
         seenIds: new Set(),
-        bound: false
+        bound: false,
+        encargoEvents: []
     };
 
     function resolvePanelHost(host) {
@@ -128,6 +132,114 @@
         return false;
     }
 
+    function loadEncargoEvents() {
+        try {
+            var raw = sessionStorage.getItem(ENCARGO_EVENTS_KEY);
+            if (!raw) return [];
+            var parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function persistEncargoEvents(events) {
+        state.encargoEvents = events;
+        try {
+            sessionStorage.setItem(ENCARGO_EVENTS_KEY, JSON.stringify(events));
+        } catch (e) { /* quota */ }
+    }
+
+    function loadToastShownIds() {
+        try {
+            var raw = sessionStorage.getItem(ENCARGO_TOAST_SHOWN_KEY);
+            if (!raw) return new Set();
+            var parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? new Set(parsed) : new Set();
+        } catch (e) {
+            return new Set();
+        }
+    }
+
+    function markToastShown(eventId) {
+        var shown = loadToastShownIds();
+        shown.add(eventId);
+        try {
+            sessionStorage.setItem(ENCARGO_TOAST_SHOWN_KEY, JSON.stringify(Array.from(shown)));
+        } catch (e) { /* quota */ }
+    }
+
+    function registerEncargoEvents(events, options) {
+        if (!Array.isArray(events) || !events.length) return;
+        var opts = options || {};
+        var existing = loadEncargoEvents();
+        var map = {};
+        existing.forEach(function (ev) {
+            if (ev && ev.id) map[ev.id] = ev;
+        });
+        var toastShown = loadToastShownIds();
+        var addedNew = [];
+
+        events.forEach(function (ev) {
+            if (!ev || !ev.id) return;
+            var prev = map[ev.id];
+            var merged = {
+                id: ev.id,
+                contactoId: ev.contactoId || (prev && prev.contactoId) || null,
+                tipo: ev.tipo || (prev && prev.tipo) || 'encargo',
+                tier: ev.tier || (prev && prev.tier) || 'info',
+                title: ev.title || (prev && prev.title) || '',
+                description: ev.description || (prev && prev.description) || '',
+                createdAt: ev.createdAt || (prev && prev.createdAt) || Date.now(),
+                pending: typeof ev.pending === 'boolean' ? ev.pending : !!(prev && prev.pending),
+                isNew: prev ? !!prev.isNew : (!opts.silent || !!opts.markNew)
+            };
+            if (prev && prev.isNew === false) merged.isNew = false;
+            map[ev.id] = merged;
+            if (!prev && merged.isNew) addedNew.push(merged);
+        });
+
+        var mergedList = Object.keys(map).map(function (k) { return map[k]; });
+        mergedList.sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+        if (mergedList.length > 80) mergedList = mergedList.slice(0, 80);
+        persistEncargoEvents(mergedList);
+
+        if (opts.showToast && addedNew.length && global.RuanaUI) {
+            var latest = addedNew[0];
+            if (!toastShown.has(latest.id)) {
+                markToastShown(latest.id);
+                if (typeof global.RuanaUI.success === 'function') {
+                    global.RuanaUI.success(latest.title, latest.description, 4200);
+                } else if (typeof global.RuanaUI.toast === 'function') {
+                    global.RuanaUI.toast({
+                        title: latest.title,
+                        message: latest.description,
+                        type: 'success',
+                        duration: 4200
+                    });
+                }
+            }
+        }
+
+        render(resolvePanelHost());
+    }
+
+    function markEncargoEventsSeen() {
+        var events = loadEncargoEvents();
+        var changed = false;
+        events.forEach(function (ev) {
+            if (ev && ev.isNew) {
+                ev.isNew = false;
+                changed = true;
+            }
+        });
+        if (changed) persistEncargoEvents(events);
+    }
+
+    function countUnreadEncargoEvents() {
+        return loadEncargoEvents().filter(function (ev) { return ev && ev.isNew; }).length;
+    }
+
     function buildTimelineEntries(host) {
         var entries = [];
         var buildItems = host && typeof host.buildAlertItems === 'function'
@@ -171,6 +283,23 @@
             });
         });
 
+        loadEncargoEvents().forEach(function (ev) {
+            if (!ev || !ev.id) return;
+            entries.push({
+                id: 'encargo-' + ev.id,
+                sourceId: ev.id,
+                kind: 'encargo',
+                tier: ev.tier || 'info',
+                title: ev.title || '',
+                description: ev.description || '',
+                createdAt: ev.createdAt || Date.now(),
+                actionLabel: null,
+                hasDetail: false,
+                raw: ev,
+                pending: !!ev.isNew || !!ev.pending
+            });
+        });
+
         entries.sort(function (a, b) {
             var tierOrder = { action: 0, important: 1, info: 2, completed: 3 };
             var ta = tierOrder[a.tier] != null ? tierOrder[a.tier] : 2;
@@ -183,7 +312,9 @@
     }
 
     function countPending(entries) {
-        return entries.filter(function (e) { return e.pending; }).length;
+        var pendingAlerts = entries.filter(function (e) { return e.pending && e.kind === 'alert'; }).length;
+        var unreadEncargo = countUnreadEncargoEvents();
+        return pendingAlerts + unreadEncargo;
     }
 
     function ensureDom() {
@@ -216,8 +347,13 @@
             trigger.setAttribute('aria-controls', 'ruana-pulse-panel');
             trigger.setAttribute('aria-label', 'Abrir Centro de Actividad RUANA');
             trigger.innerHTML =
-                '<span class="ruana-pulse-trigger__spark" aria-hidden="true">✦</span>' +
+                '<span class="ruana-pulse-trigger__icon" aria-hidden="true">' +
+                    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+                        '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>' +
+                    '</svg>' +
+                '</span>' +
                 '<span class="ruana-pulse-trigger__label">Actividad</span>' +
+                '<span class="ruana-pulse-trigger__dot" hidden aria-hidden="true"></span>' +
                 '<span class="ruana-pulse-trigger__badge" hidden aria-label="Novedades pendientes"></span>';
             wrap.appendChild(trigger);
         }
@@ -357,11 +493,22 @@
         var trigger = document.getElementById('ruana-pulse-trigger');
         if (!trigger) return;
         var badge = trigger.querySelector('.ruana-pulse-trigger__badge');
+        var dot = trigger.querySelector('.ruana-pulse-trigger__dot');
+        var unreadEncargo = countUnreadEncargoEvents();
+        var entries = buildTimelineEntries(resolvePanelHost());
+        var pendingAlerts = entries.filter(function (e) { return e.pending && e.kind === 'alert'; }).length;
         trigger.classList.toggle('has-pending', count > 0);
+        trigger.classList.toggle('has-new-activity', unreadEncargo > 0);
+        if (dot) {
+            dot.hidden = unreadEncargo <= 0;
+        }
         if (badge) {
-            if (count > 0) {
+            if (pendingAlerts > 0) {
                 badge.hidden = false;
-                badge.textContent = count > 99 ? '99+' : String(count);
+                badge.textContent = pendingAlerts > 99 ? '99+' : String(pendingAlerts);
+            } else if (unreadEncargo > 0) {
+                badge.hidden = false;
+                badge.textContent = unreadEncargo > 99 ? '99+' : String(unreadEncargo);
             } else {
                 badge.hidden = true;
                 badge.textContent = '';
@@ -469,8 +616,9 @@
 
         var entries = buildTimelineEntries(host);
         entries.forEach(function (e) {
-            if (e.pending) state.seenIds.add(e.id);
+            if (e.pending && e.kind === 'alert') state.seenIds.add(e.id);
         });
+        markEncargoEventsSeen();
 
         renderTimeline(host, entries);
         updateTriggerBadge(countPending(entries));
@@ -587,7 +735,9 @@
         getPendingCount: getPendingCount,
         getSummaries: getSummaries,
         hasPendingActivity: hasPendingActivity,
-        buildTimelineEntries: buildTimelineEntries
+        buildTimelineEntries: buildTimelineEntries,
+        registerEncargoEvents: registerEncargoEvents,
+        loadEncargoEvents: loadEncargoEvents
     };
 
     if (document.readyState === 'loading') {

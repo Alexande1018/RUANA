@@ -93,14 +93,14 @@ def test_contratante_cobro_confirmado_not_told_to_pay_again():
     start = text.index("else if (estado === 'acuerdo_alcanzado' || contacto.negociacion_completa)")
     snippet = text[start : start + 1600]
     assert "modoStripe && cobroConfirmado && esContratante" in snippet
-    assert "Confirma que el trabajo quedó hecho" in snippet
+    assert "Confirma la entrega para liberar el importe al profesional" in snippet
     confirm_idx = snippet.index("modoStripe && cobroConfirmado && esContratante")
     pay_idx = snippet.index("Completa el pago con «Pagar ahora»")
     assert confirm_idx < pay_idx
 
 
 def test_stripe_transfer_pendiente_muestra_importe_y_comision():
-    """Tras liberar pago el profesional ve neto y comisión RUANA en el panel."""
+    """Tras liberar pago el detalle financiero vive en Actividad, no en bloques del acuerdo."""
     contactos_js = (
         Path(__file__).resolve().parents[1]
         / "web"
@@ -115,15 +115,30 @@ def test_stripe_transfer_pendiente_muestra_importe_y_comision():
         / "js"
         / "aliado-stripe-pagos-module.js"
     )
+    pulse_js = (
+        Path(__file__).resolve().parents[1]
+        / "web"
+        / "static"
+        / "js"
+        / "ruana-pulse.js"
+    )
     contactos = contactos_js.read_text(encoding="utf-8")
     stripe = stripe_js.read_text(encoding="utf-8")
+    pulse = pulse_js.read_text(encoding="utf-8")
     assert "transferPendiente" in contactos
-    assert "Comisión RUANA (12%)" in contactos
+    assert "Detalle en Actividad" in contactos
     assert "importe_neto_profesional" in contactos
     assert "transferenciaStripeEnCurso" in stripe
-    assert "desgloseStripeHtml" in stripe
+    assert "buildPaymentActivityEvents" in stripe
+    assert "syncPaymentActivity" in stripe
+    assert "desgloseStripeTexto" in stripe
     assert "transfer_pendiente" in stripe
     assert "Comisión RUANA" in stripe
+    assert "registerEncargoEvents" in pulse
+    render_start = stripe.index("function renderStripeAcciones")
+    render_snippet = stripe[render_start : render_start + 2200]
+    assert "stripe-estado-msg" not in render_snippet
+    assert "Confirmaste la entrega. El pago al profesional está en proceso" not in render_snippet
 
 
 def test_dispute_support_uses_ruana_modal_instead_of_browser_dialogs():

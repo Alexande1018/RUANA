@@ -28,7 +28,7 @@
     <script src="/static/js/ruana-ui.js" defer></script>
     <script src="/static/js/ruana-legal-footer.js" defer></script>
     <script src="/static/js/ruana-alert-hub.js" defer></script>
-    <script src="/static/js/ruana-pulse.js?v=20260903d" defer></script>
+    <script src="/static/js/ruana-pulse.js?v=20260904a" defer></script>
     <script src="/static/js/ruana-api-client.js" defer></script>
     <script src="/static/js/aliado-modules.js" defer></script>
     <script src="/static/js/aliado-inicio-module.js" defer></script>
@@ -224,8 +224,11 @@
                     </div>
                     <div class="ruana-pulse-trigger-wrap" id="ruana-pulse-trigger-wrap">
                         <button type="button" class="ruana-pulse-trigger" id="ruana-pulse-trigger" aria-expanded="false" aria-controls="ruana-pulse-panel" aria-label="Abrir Centro de Actividad RUANA">
-                            <span class="ruana-pulse-trigger__spark" aria-hidden="true">✦</span>
+                            <span class="ruana-pulse-trigger__icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                            </span>
                             <span class="ruana-pulse-trigger__label">Actividad</span>
+                            <span class="ruana-pulse-trigger__dot" hidden aria-hidden="true"></span>
                             <span class="ruana-pulse-trigger__badge" hidden aria-label="Novedades pendientes"></span>
                         </button>
                     </div>

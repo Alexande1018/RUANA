@@ -84,11 +84,56 @@ body.aliado-app #ruana-alert-hub {
     );
 }
 
+.ruana-pulse-trigger__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    color: var(--ruana-pulse-accent);
+    opacity: 0.95;
+    transition: transform var(--ruana-transition, 180ms ease), opacity var(--ruana-transition, 180ms ease);
+}
+
+.ruana-pulse-trigger__icon svg {
+    width: 18px;
+    height: 18px;
+}
+
 .ruana-pulse-trigger__spark {
     font-size: 0.72rem;
     line-height: 1;
     color: var(--ruana-pulse-accent);
     opacity: 0.92;
+}
+
+.ruana-pulse-trigger__dot {
+    position: absolute;
+    top: 7px;
+    right: 8px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--ruana-pulse-accent);
+    box-shadow: 0 0 10px rgba(162, 255, 0, 0.55);
+    animation: ruana-pulse-dot 2.4s ease-in-out infinite;
+}
+
+.ruana-pulse-trigger__dot[hidden] {
+    display: none !important;
+}
+
+@keyframes ruana-pulse-dot {
+    0%, 100% { transform: scale(0.92); opacity: 0.75; }
+    50% { transform: scale(1.08); opacity: 1; }
+}
+
+.ruana-pulse-trigger.has-new-activity {
+    border-color: rgba(162, 255, 0, 0.42);
+}
+
+.ruana-pulse-trigger.has-new-activity .ruana-pulse-trigger__icon {
+    animation: ruana-pulse-spark 3.2s ease-in-out infinite;
 }
 
 .ruana-pulse-trigger.has-pending {
@@ -119,7 +164,8 @@ body.aliado-app #ruana-alert-hub {
     display: none !important;
 }
 
-.ruana-pulse-trigger.has-pending .ruana-pulse-trigger__spark {
+.ruana-pulse-trigger.has-pending .ruana-pulse-trigger__spark,
+.ruana-pulse-trigger.has-pending .ruana-pulse-trigger__icon {
     animation: ruana-pulse-spark 3.2s ease-in-out infinite;
 }
 
@@ -619,7 +665,10 @@ body.ruana-pulse-open .ruana-pulse-backdrop {
         transition-duration: 0.01ms !important;
     }
 
-    .ruana-pulse-trigger.has-pending .ruana-pulse-trigger__spark {
+    .ruana-pulse-trigger.has-pending .ruana-pulse-trigger__spark,
+    .ruana-pulse-trigger.has-pending .ruana-pulse-trigger__icon,
+    .ruana-pulse-trigger.has-new-activity .ruana-pulse-trigger__icon,
+    .ruana-pulse-trigger__dot {
         animation: none !important;
     }
 
