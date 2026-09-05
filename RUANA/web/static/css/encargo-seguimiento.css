@@ -153,6 +153,42 @@
     gap: 8px;
 }
 
+.encargo-accion-compacta {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 4px 0 2px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(162, 255, 0, 0.22);
+    background: linear-gradient(
+        135deg,
+        rgba(162, 255, 0, 0.1) 0%,
+        rgba(10, 14, 11, 0.55) 100%
+    );
+}
+
+.encargo-accion-compacta__kicker {
+    margin: 0;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ruana-brand-lime, #a2ff00);
+}
+
+.encargo-accion-compacta__texto {
+    margin: 0;
+    font-size: 0.84rem;
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.encargo-accion-compacta__btn {
+    width: 100%;
+    margin-top: 2px;
+}
+
 .encargo-seguimiento-principal {
     margin-top: 2px;
 }
