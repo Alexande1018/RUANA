@@ -16,10 +16,6 @@
   "motor_umbral_tasa_respuesta": 0.70,
   "motor_umbral_tasa_confirmacion": 0.80,
   "motor_umbral_meses_sin_trabajo": 6,
-  "reglas": [],
   "description": "RUANA - Sistema modular de evaluación",
-  "qr_paypal_path": "/static/images/PayPal.png",
-  "qr_revolut_path": "https://qqlxgwbmtzcfrrobrfzy.supabase.co/storage/v1/object/public/ruana-public/metodos_pago/revolut_2b84ed29a492_QR_Revolut_RUANA.jpeg?",
-  "bizum_num": "642868261",
-  "iban": "ES8915830001119028625152"
+  "reglas": []
 }
