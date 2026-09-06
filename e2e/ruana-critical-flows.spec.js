@@ -184,6 +184,7 @@ async function confirmImporteViaUi(
     expect(cierre.estado).toBe('trabajo_cerrado');
     await page.reload();
     await expect(page.locator('#metric-score')).toBeVisible();
+    await dismissGrupoMadreAvisoIfNeeded(page);
     await expect(page.locator('#contacto-aviso-persistente')).toBeHidden({ timeout: 15000 });
     await pass(page, scenario, {
       step: 'Importe confirmado',
@@ -355,14 +356,14 @@ async function createPaymentInReviewViaUi(page, request, scenario, suffix) {
       oficio: 'Fontaner\u00eda y fontaner\u00eda-gas',
       oficio_principal: 'Fontaner\u00eda y fontaner\u00eda-gas',
       especializacion: 'Reparaci\u00f3n de fugas y grifos',
-      codigo_postal: '28020',
+      codigo_postal: '08020',
     },
     {
       nombre: `Profesional QA Pago ${suffix}`,
       oficio: 'Electricidad',
       oficio_principal: 'Electricidad',
       especializacion: 'Aver\u00edas y reparaciones el\u00e9ctricas',
-      codigo_postal: '28021',
+      codigo_postal: '08021',
     }
   );
   await openAliadoPanel(page, data.solicitanteSession, scenario, 'Solicitante');
@@ -608,14 +609,14 @@ test.describe('RUANA QA critica con video human-readable', () => {
       oficio: 'Electricidad',
       oficio_principal: 'Electricidad',
       especializacion: 'Aver\u00edas y reparaciones el\u00e9ctricas',
-      codigo_postal: '28040',
+      codigo_postal: '46040',
     });
     const respondedor = await registerAliado(request, {
       nombre: 'Aliado QA Responde Solicitud',
       oficio: 'Pintura y decoraci\u00f3n',
       oficio_principal: 'Pintura y decoraci\u00f3n',
       especializacion: 'Pintura interior y exterior',
-      codigo_postal: '28040',
+      codigo_postal: '46040',
     });
     const solicitanteSession = await aliadoLogin(request, solicitante.codigo);
     const respondedorSession = await aliadoLogin(request, respondedor.codigo);
@@ -672,14 +673,14 @@ test.describe('RUANA QA critica con video human-readable', () => {
         oficio: 'Fontaner\u00eda y fontaner\u00eda-gas',
         oficio_principal: 'Fontaner\u00eda y fontaner\u00eda-gas',
         especializacion: 'Reparaci\u00f3n de fugas y grifos',
-        codigo_postal: '28050',
+        codigo_postal: '41050',
       },
       {
         nombre: 'Profesional QA Negociacion',
         oficio: 'Electricidad',
         oficio_principal: 'Electricidad',
         especializacion: 'Aver\u00edas y reparaciones el\u00e9ctricas',
-        codigo_postal: '28051',
+        codigo_postal: '41051',
       }
     );
 
@@ -754,14 +755,14 @@ test.describe('RUANA QA critica con video human-readable', () => {
         oficio: 'Fontaner\u00eda y fontaner\u00eda-gas',
         oficio_principal: 'Fontaner\u00eda y fontaner\u00eda-gas',
         especializacion: 'Reparaci\u00f3n de fugas y grifos',
-        codigo_postal: '28060',
+        codigo_postal: '29060',
       },
       {
         nombre: 'Profesional QA Bloqueo',
         oficio: 'Electricidad',
         oficio_principal: 'Electricidad',
         especializacion: 'Aver\u00edas y reparaciones el\u00e9ctricas',
-        codigo_postal: '28061',
+        codigo_postal: '29061',
       }
     );
     await openAliadoPanel(page, flowBloqueo.profesionalSession, scenario, 'Ofertador');
@@ -782,14 +783,14 @@ test.describe('RUANA QA critica con video human-readable', () => {
         oficio: 'Carpinter\u00eda de madera e interior',
         oficio_principal: 'Carpinter\u00eda de madera e interior',
         especializacion: 'Muebles a medida b\u00e1sicos',
-        codigo_postal: '28062',
+        codigo_postal: '29062',
       },
       {
         nombre: 'Profesional QA No Trabajo',
         oficio: 'Pintura y decoraci\u00f3n',
         oficio_principal: 'Pintura y decoraci\u00f3n',
         especializacion: 'Pintura interior y exterior',
-        codigo_postal: '28063',
+        codigo_postal: '29063',
       }
     );
     await openAliadoPanel(page, flowNoTrabajo.solicitanteSession, scenario, 'Solicitante');
@@ -841,14 +842,14 @@ test.describe('RUANA QA critica con video human-readable', () => {
       oficio: 'Fontaner\u00eda y fontaner\u00eda-gas',
       oficio_principal: 'Fontaner\u00eda y fontaner\u00eda-gas',
       especializacion: 'Reparaci\u00f3n de fugas y grifos',
-      codigo_postal: '28002',
+      codigo_postal: '48002',
     });
     const profesional = await registerAliado(request, {
       nombre: 'Profesional QA',
       oficio: 'Electricidad',
       oficio_principal: 'Electricidad',
       especializacion: 'Aver\u00edas y reparaciones el\u00e9ctricas',
-      codigo_postal: '28003',
+      codigo_postal: '48003',
     });
     await pass(page, scenario, {
       step: 'Usuarios preparados',
@@ -924,14 +925,14 @@ test.describe('RUANA QA critica con video human-readable', () => {
       oficio: 'Carpinter\u00eda de madera e interior',
       oficio_principal: 'Carpinter\u00eda de madera e interior',
       especializacion: 'Muebles a medida b\u00e1sicos',
-      codigo_postal: '28004',
+      codigo_postal: '50004',
     });
     const profesional = await registerAliado(request, {
       nombre: 'Profesional QA Reclamo',
       oficio: 'Pintura y decoraci\u00f3n',
       oficio_principal: 'Pintura y decoraci\u00f3n',
       especializacion: 'Pintura interior y exterior',
-      codigo_postal: '28005',
+      codigo_postal: '50005',
     });
     const contratanteSession = await aliadoLogin(request, contratante.codigo);
     const profesionalSession = await aliadoLogin(request, profesional.codigo);

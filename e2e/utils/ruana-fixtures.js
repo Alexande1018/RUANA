@@ -14,6 +14,16 @@ function uniquePhone() {
   return `+346${random}${tail}`;
 }
 
+/** CPs de ciudades distintas (prefijos del catálogo). Evita saturar Grupo Madre Madrid. */
+const QA_CITY_CPS = ['03001', '08001', '29001', '41001', '46001', '48001', '50001', '28001'];
+let qaCpSeq = 0;
+
+function uniqueQaPostalCode() {
+  const cp = QA_CITY_CPS[qaCpSeq % QA_CITY_CPS.length];
+  qaCpSeq += 1;
+  return cp;
+}
+
 /** Extrae la parte nacional para el input visible del registro (+34…). */
 function nationalPhoneFromE164(phone) {
   const raw = String(phone || '').trim();
@@ -32,7 +42,7 @@ function buildAliadoData(overrides = {}) {
     oficio_principal: overrides.oficio_principal || overrides.oficio || 'Electricidad',
     especializacion:
       overrides.especializacion || 'Aver\u00edas y reparaciones el\u00e9ctricas',
-    codigo_postal: overrides.codigo_postal || '28001',
+    codigo_postal: overrides.codigo_postal || uniqueQaPostalCode(),
     email: overrides.email || `${suffix}@ruana.local`,
     telefono: overrides.telefono || uniquePhone(),
     descripcion: overrides.descripcion || 'Servicio de prueba QA automatizada',
@@ -88,6 +98,10 @@ async function registerAliado(request, overrides = {}) {
   });
   const body = await expectOk(response, 'register aliado');
   expect(body.codigo).toBeTruthy();
+  expect(
+    body.estado,
+    `aliado ${body.codigo} quedó en_espera/suplente (CP ${data.codigo_postal} ${data.oficio}): ${body.mensaje_lista_espera || ''}`
+  ).not.toBe('en_espera');
   return body;
 }
 
@@ -202,4 +216,5 @@ module.exports = {
   registerAliado,
   uniqueId,
   uniquePhone,
+  uniqueQaPostalCode,
 };
