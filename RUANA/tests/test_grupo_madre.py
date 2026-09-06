@@ -49,14 +49,15 @@ def _grupo_tipo(db, grupo_id):
     return (g or {}).get("tipo")
 
 
-def test_cp_sin_territorial_entra_en_grupo_madre(sqlite_db):
-    """CP incubación (03001 Alicante) asigna grupo tipo madre."""
+def test_cp_sin_territorial_bootstrap_crea_grupo_territorial(sqlite_db):
+    """CP incubación (03001 Alicante) → madre crea primer grupo territorial."""
     r = _crear(sqlite_db, "50001", cp="03001")
     assert r["status"] == "success"
     _set_activo(sqlite_db, "50001")
     aliado = sqlite_db.obtener_aliado_por_codigo("50001")
     assert aliado.get("grupo_id") is not None
-    assert _grupo_tipo(sqlite_db, aliado["grupo_id"]) == TIPO_GRUPO_MADRE
+    assert _grupo_tipo(sqlite_db, aliado["grupo_id"]) == "territorial"
+    assert grupo_madre_service.cp_en_modo_territorial(sqlite_db, "03001") is True
 
 
 def test_cp_con_territorial_mantiene_flujo_actual(sqlite_db):
@@ -106,8 +107,8 @@ def test_estados_encargo_valido_madurez_excluyen_conversacion_previa():
     assert "trabajo_en_progreso" in ESTADOS_ENCARGO_VALIDO_MADUREZ
 
 
-def test_directorio_incubacion_incluye_otro_cp_misma_ciudad(sqlite_db):
-    """En incubación el directorio muestra aliados del madre aunque tengan otro CP."""
+def test_directorio_territorial_filtra_por_cp(sqlite_db):
+    """Tras bootstrap, el directorio filtra por CP (no mezcla CPs de la ciudad)."""
     _crear(sqlite_db, "52001", cp="03001")
     _crear(sqlite_db, "52002", oficio="Fontanería y fontanería-gas", cp="03003")
     _set_activo(sqlite_db, "52001")
@@ -115,7 +116,7 @@ def test_directorio_incubacion_incluye_otro_cp_misma_ciudad(sqlite_db):
 
     directorio = sqlite_db.listar_aliados_directorio_grupo("52001")
     codigos = {a["codigo"] for a in directorio}
-    assert "52002" in codigos
+    assert "52002" not in codigos
 
 
 def test_directorio_territorial_sigue_filtrando_por_cp(sqlite_db):
@@ -139,22 +140,14 @@ def test_directorio_territorial_sigue_filtrando_por_cp(sqlite_db):
     assert "53002" not in codigos
 
 
-def test_sexto_oficio_mismo_cp_en_madre_va_a_espera(sqlite_db):
-    """Máx. 5 CP distintos con el mismo oficio en el madre → en_espera."""
-    oficios_cp = [
-        ("54001", "03001"),
-        ("54002", "03002"),
-        ("54003", "03003"),
-        ("54004", "03004"),
-        ("54005", "03005"),
-    ]
-    for codigo, cp in oficios_cp:
-        r = _crear(sqlite_db, codigo, oficio="Electricidad", cp=cp)
-        assert r["status"] == "success"
-        _set_activo(sqlite_db, codigo)
+def test_mismo_oficio_en_cp_sin_plaza_va_a_espera(sqlite_db):
+    """Mismo oficio en CP con grupo lleno para ese oficio → en_espera."""
+    r1 = _crear(sqlite_db, "54001", oficio="Electricidad", cp="03001")
+    assert r1["status"] == "success"
+    _set_activo(sqlite_db, "54001")
 
-    r6 = _crear(sqlite_db, "54006", oficio="Electricidad", cp="03001")
-    assert r6["status"] == "success"
+    r2 = _crear(sqlite_db, "54006", oficio="Electricidad", cp="03001")
+    assert r2["status"] == "success"
     aliado6 = sqlite_db.obtener_aliado_por_codigo("54006")
     assert aliado6["estado"] == "en_espera"
 

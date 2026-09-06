@@ -40,6 +40,7 @@ Referencia consolidada de variables usadas por RUANA. Origen: grep sobre `RUANA/
 | `RUANA_ADMIN_SESSION_EXPIRES` | `3600` | TTL sesión admin (seg) |
 | `RUANA_ALIADO_SESSION_EXPIRES` | `3600` | TTL sesión aliado (seg) |
 | `RUANA_SESSION_COOKIE_SECURE` | `false` local | En prod forzado `true`. Valores: `1`, `true`, `yes` |
+| `RUANA_CORS_ALLOWED_ORIGINS` | Prod: `https://ruana-4293f.web.app`; test: `http://localhost,http://127.0.0.1` | Lista explícita de orígenes CORS (coma-separados). **Verificado** `app.py`. Prod lo inyecta `deploy-firebase.yml`. Preview usa el origen Cloud Run `ruana-preview`, no el de producción. |
 
 Header de sesión (no env): `X-Ruana-Session-Id` — ver [`seguridad/autenticacion-sesiones.md`](seguridad/autenticacion-sesiones.md).
 

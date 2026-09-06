@@ -104,10 +104,31 @@ def test_formateo_notificaciones_madurez(sqlite_db, tipo, meta, fragmento):
     assert any(fragmento in t for t in _textos(items)), f"tipo={tipo} textos={_textos(items)}"
 
 
+def _asignar_a_madre(db, codigo, ciudad="Alicante", provincia="Alicante"):
+    madre = grupo_madre_service.obtener_o_crear_grupo_madre(db, ciudad, provincia)
+    conn = db._connect()
+    conn.execute("UPDATE aliados SET grupo_id = ? WHERE codigo = ?", (madre["id"], codigo))
+    conn.commit()
+    conn.close()
+    return madre["id"]
+
+
 def test_metricas_incubacion_en_grupo_madre(sqlite_db):
     _crear(sqlite_db, "60101", cp="03001")
+    _asignar_a_madre(sqlite_db, "60101")
     _crear(sqlite_db, "60102", oficio="Fontanería y fontanería-gas", cp="03001")
-    grupo_madre_service.actualizar_madurez_cp(sqlite_db, "03001")
+    _asignar_a_madre(sqlite_db, "60102")
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT OR REPLACE INTO cp_estado
+        (codigo_postal, ciudad, modo, aliados_activos, encargos_validos, listo_independizar)
+        VALUES ('03001', 'Alicante', 'incubacion', 2, 0, 0)
+        """
+    )
+    conn.commit()
+    conn.close()
     items = actividad_cinta_service.preparar_actividad_cinta(sqlite_db, "60101")
     textos = _textos(items)
     assert any("red de incubación" in t.lower() for t in textos)
@@ -116,7 +137,14 @@ def test_metricas_incubacion_en_grupo_madre(sqlite_db):
 
 def test_aliado_nuevo_mismo_cp_genera_notificacion_cercana(sqlite_db):
     _crear(sqlite_db, "60201", cp="03001", nombre="Primero")
+    _asignar_a_madre(sqlite_db, "60201")
     _crear(sqlite_db, "60202", oficio="Fontanería y fontanería-gas", cp="03001", nombre="Segundo")
+    _asignar_a_madre(sqlite_db, "60202")
+    from core.services import actividad_cinta_service as acs
+    madre_id = grupo_madre_service.obtener_o_crear_grupo_madre(sqlite_db, "Alicante", "Alicante")["id"]
+    acs.notificar_aliado_nuevo_en_madre(
+        sqlite_db, int(madre_id), "03001", "60202", "Segundo", "Fontanería y fontanería-gas"
+    )
     items = actividad_cinta_service.preparar_actividad_cinta(sqlite_db, "60201")
     assert any(
         "Segundo" in t and "red de incubación" in t for t in _textos(items)
@@ -125,8 +153,7 @@ def test_aliado_nuevo_mismo_cp_genera_notificacion_cercana(sqlite_db):
 
 def test_emitir_hitos_madurez_cp_notifica_mismo_cp(sqlite_db):
     _crear(sqlite_db, "60301", cp="03002")
-    aliado = sqlite_db.obtener_aliado_por_codigo("60301")
-    grupo_id = aliado["grupo_id"]
+    grupo_id = _asignar_a_madre(sqlite_db, "60301")
     assert sqlite_db.obtener_grupo_por_id(grupo_id).get("tipo") == TIPO_GRUPO_MADRE
 
     actividad_cinta_service.emitir_hitos_madurez_cp(
@@ -159,6 +186,7 @@ def test_contexto_aliado_grupo_madre_resuelve_cp_real(sqlite_db):
     import sqlite3
 
     _crear(sqlite_db, "60401", cp="03003")
+    _asignar_a_madre(sqlite_db, "60401")
     conn = sqlite_db._connect()
     conn.row_factory = sqlite3.Row
     from core.repositories.actividad_repo import ActividadRepo
