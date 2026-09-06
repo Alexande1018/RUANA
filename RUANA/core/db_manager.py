@@ -851,9 +851,13 @@ class DBManager:
 
     def _buscar_retador(self, codigo_aliado_en_riesgo: str, grupo_id: int, oficio: str,
                         score_actual: int, codigo_postal: str,
-                        ciudad: Optional[str] = None, provincia: Optional[str] = None) -> Optional[Dict[str, Any]]:
+                        ciudad: Optional[str] = None, provincia: Optional[str] = None,
+                        grupo_tipo: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Fachada Campamento Base → competencia_service._buscar_retador."""
-        return competencia_service._buscar_retador(self, codigo_aliado_en_riesgo, grupo_id, oficio, score_actual, codigo_postal, ciudad, provincia)
+        return competencia_service._buscar_retador(
+            self, codigo_aliado_en_riesgo, grupo_id, oficio, score_actual, codigo_postal,
+            ciudad, provincia, grupo_tipo=grupo_tipo,
+        )
 
     def _iniciar_competencia_si_procede(self, codigo_aliado: str) -> Optional[Dict[str, Any]]:
         """Fachada Campamento Base → competencia_service._iniciar_competencia_si_procede."""

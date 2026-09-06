@@ -397,8 +397,10 @@ def aprobar_independencia_cp(
     usando la misma lógica de plazas/grupos que el registro territorial.
     """
     from core.repositories.aliado_repo import AliadoRepo
+    from core.repositories.competencia_repo import CompetenciaRepo
     from core.services import notificacion_service
 
+    _comp_repo = CompetenciaRepo()
     cp = (codigo_postal or "").strip()
     ubic = territorio_service.resolver_ciudad(db, cp)
     if not ubic:
@@ -458,6 +460,7 @@ def aprobar_independencia_cp(
                     _aliado_repo.update_grupo_id(cursor, g_pref, aid)
                     migrados.append(cod)
 
+            _comp_repo.limpiar_competencia_cp_incubacion(cursor, cp)
             _madre_repo.marcar_cp_territorial(cursor, cp)
             cursor.execute(
                 """

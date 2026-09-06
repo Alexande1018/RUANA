@@ -5,7 +5,7 @@ SQL de competencia vía CompetenciaRepo.
 """
 from __future__ import annotations
 
-from core.db_constants import RUANA_ROOT, MAX_GRUPOS_POR_CP
+from core.db_constants import RUANA_ROOT, MAX_GRUPOS_POR_CP, TIPO_GRUPO_MADRE, CP_POSTAL_SENTINEL_MADRE
 
 import json
 import sqlite3
@@ -318,13 +318,18 @@ def _iniciar_competencia_si_procede(db, codigo_aliado: str) -> Optional[Dict[str
             row = _repo.select_aliado_activo_con_grupo(cursor, codigo_aliado)
             if not row or not row[0]:
                 return None
-            grupo_id, oficio, score_actual, codigo_postal = row[0], row[1], int(row[2] or 0), row[3] or ''
+            grupo_id, oficio, score_actual = row[0], row[1], int(row[2] or 0)
+            codigo_postal = (row[3] or "").strip()
             ciudad, provincia = row[4], row[5]
+            grupo_tipo = (row[6] or "territorial").strip() if len(row) > 6 else "territorial"
             if not oficio or not codigo_postal:
                 return None
             if db.competencia_activa_para_grupo_oficio(grupo_id, oficio):
                 return None
-            retador = db._buscar_retador(codigo_aliado, grupo_id, oficio, score_actual, codigo_postal)
+            retador = _buscar_retador(
+                db, codigo_aliado, grupo_id, oficio, score_actual, codigo_postal,
+                grupo_tipo=grupo_tipo,
+            )
             if not retador:
                 return None
             retador_codigo = retador['codigo']
@@ -446,26 +451,38 @@ def _finalizar_una_competencia(db,
         perdedor = retador_codigo if ganador == aliado_original_codigo else aliado_original_codigo
 
         g = _repo.select_grupo_ubicacion(cursor, grupo_id)
-        codigo_postal = (g[0] or '') if g else ''
-        ciudad = (g[1] or '') if g and len(g) > 1 else ''
-        provincia = (g[2] or '') if g and len(g) > 2 else ''
+        grupo_tipo = _repo.select_grupo_tipo(cursor, grupo_id)
+        codigo_postal = (g[0] or "") if g else ""
+        ciudad = (g[1] or "") if g and len(g) > 1 else ""
+        provincia = (g[2] or "") if g and len(g) > 2 else ""
+        if grupo_tipo == TIPO_GRUPO_MADRE or codigo_postal == CP_POSTAL_SENTINEL_MADRE:
+            tit_cp = _repo.select_aliado_cp(cursor, aliado_original_codigo)
+            codigo_postal = (tit_cp or "").strip() or codigo_postal
 
         _repo.set_grupo_aliado(cursor, grupo_id, ganador)
         derrotas_prev = _repo.select_derrotas(cursor, perdedor)
 
         grupo_formacion = None
-        if codigo_postal and oficio:
+        if grupo_tipo == TIPO_GRUPO_MADRE:
+            _repo.sacar_perdedor_con_reinicio(cursor, score_reinicio, perdedor)
+            cursor.execute(
+                "UPDATE aliados SET estado = 'en_espera' WHERE codigo = ?",
+                (perdedor,),
+            )
+        elif codigo_postal and oficio:
             grupo_formacion = db.buscar_grupo_formacion_en_cp(codigo_postal, oficio)
             if not grupo_formacion and db.contar_grupos_activos_por_cp(codigo_postal) < MAX_GRUPOS_POR_CP:
                 grupo_formacion = db.crear_grupo_en_cp(codigo_postal, ciudad, provincia)
 
-        if grupo_formacion and isinstance(grupo_formacion, dict) and grupo_formacion.get('id'):
-            gid_perdedor = grupo_formacion['id']
-            if gid_perdedor == grupo_id:
-                grupo_alt = db.buscar_grupo_formacion_en_cp(codigo_postal, oficio)
-                gid_perdedor = grupo_alt['id'] if grupo_alt and grupo_alt.get('id') != grupo_id else None
-            if gid_perdedor and gid_perdedor != grupo_id:
-                _repo.mover_perdedor_con_reinicio(cursor, gid_perdedor, score_reinicio, perdedor)
+            if grupo_formacion and isinstance(grupo_formacion, dict) and grupo_formacion.get('id'):
+                gid_perdedor = grupo_formacion['id']
+                if gid_perdedor == grupo_id:
+                    grupo_alt = db.buscar_grupo_formacion_en_cp(codigo_postal, oficio)
+                    gid_perdedor = grupo_alt['id'] if grupo_alt and grupo_alt.get('id') != grupo_id else None
+                if gid_perdedor and gid_perdedor != grupo_id:
+                    _repo.mover_perdedor_con_reinicio(cursor, gid_perdedor, score_reinicio, perdedor)
+                else:
+                    _repo.sacar_perdedor_con_reinicio(cursor, score_reinicio, perdedor)
             else:
                 _repo.sacar_perdedor_con_reinicio(cursor, score_reinicio, perdedor)
         else:
@@ -662,11 +679,13 @@ def competencia_activa_para_grupo_oficio(db, grupo_id: int, oficio: str) -> Opti
 
 def _buscar_retador(db, codigo_aliado_en_riesgo: str, grupo_id: int, oficio: str,
                     score_actual: int, codigo_postal: str,
-                    ciudad: Optional[str] = None, provincia: Optional[str] = None) -> Optional[Dict[str, Any]]:
+                    ciudad: Optional[str] = None, provincia: Optional[str] = None,
+                    grupo_tipo: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
     Retador: mismo CP y mismo oficio. Prioridad:
     1) Aliado en lista de suplentes (estado en_espera)
-    2) Aliado activo en un grupo del CP con menos profesionales
+    2) Aliado activo en un grupo del CP con menos profesionales (territorial)
+       o en el mismo grupo madre con mismo CP (incubación)
     Excluye al titular y a quien ya esté en el grupo en competencia.
     """
     del score_actual, ciudad, provincia  # compatibilidad de firma; reglas actuales no los usan
@@ -679,14 +698,18 @@ def _buscar_retador(db, codigo_aliado_en_riesgo: str, grupo_id: int, oficio: str
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            # 1) Suplentes en espera (mismo CP, mismo oficio)
+            tipo = (grupo_tipo or "").strip() or _repo.select_grupo_tipo(cursor, grupo_id)
             row = _repo.buscar_retador_en_espera(cursor, oficio, codigo_postal, codigo_aliado_en_riesgo)
             if row:
                 return dict(row)
-            # 2) Activos en el CP, mismo oficio, grupo con menos profesionales
-            row = _repo.buscar_retador_activo(
-                cursor, oficio, codigo_postal, codigo_aliado_en_riesgo, grupo_id
-            )
+            if tipo == TIPO_GRUPO_MADRE:
+                row = _repo.buscar_retador_activo_madre(
+                    cursor, oficio, codigo_postal, codigo_aliado_en_riesgo, grupo_id
+                )
+            else:
+                row = _repo.buscar_retador_activo(
+                    cursor, oficio, codigo_postal, codigo_aliado_en_riesgo, grupo_id
+                )
             return dict(row) if row else None
         except Exception:
             return None
@@ -874,11 +897,28 @@ def _avisar_grupos_cp_competencia(
     texto = f"El profesional de {oficio_txt} está en competencia en este código postal."
     try:
         cursor.execute(
-            "SELECT id FROM grupos WHERE codigo_postal = ? AND estado IN ('activo', 'en_competencia')",
+            """
+            SELECT id FROM grupos
+            WHERE TRIM(codigo_postal) = ? AND estado IN ('activo', 'en_competencia')
+            """,
             (cp,),
         )
+        grupo_ids = {int(row[0]) for row in cursor.fetchall() if row and row[0]}
+        cursor.execute(
+            """
+            SELECT DISTINCT g.id
+            FROM grupos g
+            INNER JOIN aliados a ON a.grupo_id = g.id AND a.estado = 'activo'
+            WHERE COALESCE(g.tipo, 'territorial') = ?
+              AND TRIM(a.codigo_postal) = ?
+              AND g.estado IN ('activo', 'en_competencia')
+            """,
+            (TIPO_GRUPO_MADRE, cp),
+        )
         for row in cursor.fetchall():
-            gid = row[0]
+            if row and row[0]:
+                grupo_ids.add(int(row[0]))
+        for gid in grupo_ids:
             cursor.execute(
                 "INSERT INTO avisos_grupo (grupo_id, tipo, texto) VALUES (?, 'competencia', ?)",
                 (gid, texto),
@@ -992,11 +1032,16 @@ def _registrar_competencia_pendiente(db, codigo_aliado: str) -> None:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT a.grupo_id, a.oficio, a.score, g.codigo_postal
+                SELECT a.grupo_id, a.oficio, a.score,
+                       CASE
+                         WHEN COALESCE(g.tipo, 'territorial') = ?
+                         THEN TRIM(COALESCE(a.codigo_postal, ''))
+                         ELSE TRIM(COALESCE(g.codigo_postal, ''))
+                       END AS codigo_postal
                 FROM aliados a
                 LEFT JOIN grupos g ON g.id = a.grupo_id
                 WHERE a.codigo = ? AND a.estado = 'activo'
-            """, (codigo,))
+            """, (TIPO_GRUPO_MADRE, codigo))
             row = cursor.fetchone()
             if not row or not row[0] or not row[1] or not row[3]:
                 return
