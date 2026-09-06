@@ -121,6 +121,10 @@ class DBManager:
         """Fachada Campamento Base → schema_service._migrar_grupo_madre_v1_si_procede."""
         return schema_service._migrar_grupo_madre_v1_si_procede(self, conn, cursor)
 
+    def _migrar_cp_auto_split_v1_si_procede(self, conn, cursor) -> None:
+        """Fachada Campamento Base → schema_service._migrar_cp_auto_split_v1_si_procede."""
+        return schema_service._migrar_cp_auto_split_v1_si_procede(self, conn, cursor)
+
     def _migrar_aliados_grupo_id(self, conn, cursor) -> None:
         """Fachada Campamento Base → schema_service._migrar_aliados_grupo_id."""
         return schema_service._migrar_aliados_grupo_id(self, conn, cursor)

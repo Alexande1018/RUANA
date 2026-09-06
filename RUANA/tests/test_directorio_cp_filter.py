@@ -57,7 +57,18 @@ def test_directorio_excluye_aliados_de_otro_cp_aunque_compartan_grupo(sqlite_db)
     grupo_cp_b = _crear_grupo(sqlite_db, "08001", "Grupo B")
 
     _crear_activo(sqlite_db, "91001", "Aliado CP A", "28001", grupo_cp_a)
-    _crear_activo(sqlite_db, "91002", "Compañero CP A", "28001", grupo_cp_a)
+    result02 = sqlite_db.crear_aliado(
+        codigo="91002",
+        nombre="Compañero CP A",
+        marca="Marca",
+        oficio="Fontanería y fontanería-gas",
+        codigo_postal="28001",
+        email="91002@example.com",
+        telefono="+3460091002",
+        estado="activo",
+        score=50,
+    )
+    assert result02["status"] == "success"
     _crear_activo(sqlite_db, "91003", "Aliado CP B", "08001", grupo_cp_b)
 
     # Error de datos: aliado de otro CP asignado al grupo de 28001
