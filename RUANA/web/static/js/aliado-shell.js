@@ -510,7 +510,7 @@
         startMirrorObserver();
         refreshInicioSurface();
         if (global.RuanaPulse && typeof global.RuanaPulse.render === 'function') {
-            global.RuanaPulse.render(global.PrivatePanel || null);
+            global.RuanaPulse.render(global.__ruanaPanel || null);
         }
 
         window.addEventListener('hashchange', () => {
