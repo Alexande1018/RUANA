@@ -13,6 +13,7 @@ const {
   proponerNegociacionCompleta,
   registerAliado,
   uniqueId,
+  uniqueQaPostalCode,
 } = require('./utils/ruana-fixtures');
 const {
   checkVisible,
@@ -333,14 +334,14 @@ async function createPaymentInReviewViaUi(page, request, scenario, suffix) {
       oficio: 'Fontaner\u00eda y fontaner\u00eda-gas',
       oficio_principal: 'Fontaner\u00eda y fontaner\u00eda-gas',
       especializacion: 'Reparaci\u00f3n de fugas y grifos',
-      codigo_postal: '08020',
+      codigo_postal: uniqueQaPostalCode(),
     },
     {
       nombre: `Profesional QA Pago ${suffix}`,
       oficio: 'Electricidad',
       oficio_principal: 'Electricidad',
       especializacion: 'Aver\u00edas y reparaciones el\u00e9ctricas',
-      codigo_postal: '08021',
+      codigo_postal: uniqueQaPostalCode(),
     }
   );
   await openAliadoPanel(page, data.solicitanteSession, scenario, 'Solicitante');

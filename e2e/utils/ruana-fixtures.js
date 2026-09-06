@@ -14,14 +14,15 @@ function uniquePhone() {
   return `+346${random}${tail}`;
 }
 
-/** CPs de ciudades distintas (prefijos del catálogo). Evita saturar Grupo Madre Madrid. */
-const QA_CITY_CPS = ['03001', '08001', '29001', '41001', '46001', '48001', '50001', '28001'];
+/** Prefijos del catálogo CP→ciudad. Cada llamada usa un CP distinto. */
+const QA_CITY_PREFIXES = ['03', '08', '29', '41', '46', '48', '50', '28'];
 let qaCpSeq = 0;
 
 function uniqueQaPostalCode() {
-  const cp = QA_CITY_CPS[qaCpSeq % QA_CITY_CPS.length];
+  const prefix = QA_CITY_PREFIXES[qaCpSeq % QA_CITY_PREFIXES.length];
+  const serie = 10 + Math.floor(qaCpSeq / QA_CITY_PREFIXES.length);
   qaCpSeq += 1;
-  return cp;
+  return `${prefix}${String(serie).padStart(3, '0')}`;
 }
 
 /** Extrae la parte nacional para el input visible del registro (+34…). */
