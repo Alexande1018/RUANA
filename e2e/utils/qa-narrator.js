@@ -179,6 +179,22 @@ async function dismissAdminOverlayIfNeeded(page) {
   });
 }
 
+async function dismissGrupoMadreAvisoIfNeeded(page) {
+  const overlay = page.locator('#modal-grupo-madre-aviso');
+  const visible = await overlay.isVisible().catch(() => false);
+  if (!visible) return;
+  const btn = page.locator('#btn-grupo-madre-aviso-ok');
+  if (await btn.isVisible().catch(() => false)) {
+    await btn.click({ timeout: 4000 });
+  } else {
+    await page.evaluate(() => {
+      const modal = document.getElementById('modal-grupo-madre-aviso');
+      if (modal) modal.style.display = 'none';
+    });
+  }
+  await overlay.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+}
+
 async function uncoverAdminSidebarForClick(page, locator) {
   await dismissAdminOverlayIfNeeded(page);
   await locator.evaluate((element) => {
@@ -212,6 +228,7 @@ async function restoreAdminSidebarPointerEvents(page) {
 }
 
 async function clickVisible(page, target, options = {}) {
+  await dismissGrupoMadreAvisoIfNeeded(page);
   const locator = await reveal(page, target, options);
   const clickOpts = { timeout: 4000, ...(options.clickOptions || {}) };
   let disabledSidebar = false;
@@ -286,4 +303,5 @@ module.exports = {
   selectVisible,
   setInputFilesVisible,
   dismissAdminOverlayIfNeeded,
+  dismissGrupoMadreAvisoIfNeeded,
 };

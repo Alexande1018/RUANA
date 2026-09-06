@@ -18,6 +18,7 @@ const {
   checkVisible,
   clickVisible,
   dismissAdminOverlayIfNeeded,
+  dismissGrupoMadreAvisoIfNeeded,
   fillVisible,
   narrate,
   pass,
@@ -50,6 +51,7 @@ async function openAliadoPanel(page, session, scenario, label) {
     }, session.sessionId);
     await page.goto('/aliado');
     await expect(page.locator('#metric-score')).toBeVisible();
+    await dismissGrupoMadreAvisoIfNeeded(page);
     await pass(page, scenario, {
       step: `${label} en panel aliado`,
       action: 'El usuario entra al panel con su sesion real de navegador.',
