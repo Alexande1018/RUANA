@@ -623,6 +623,7 @@
         });
         markEncargoEventsSeen();
 
+        entries = buildTimelineEntries(host);
         renderTimeline(host, entries);
         updateTriggerBadge(countPending(entries));
 

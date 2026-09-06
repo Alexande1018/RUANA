@@ -396,44 +396,63 @@
     }
   }
 
-  function renderStripeAcciones(host, contacto, container) {
-    if (!container || !contacto) return;
-    const modo = contacto.modo_pago || 'manual';
-    const estadoPago = contacto.estado_pago || '';
-    const codigo = (host.codigoAliado || (host.aliado && host.aliado.codigo) || '').toString().trim();
+  function getAccionPendienteStripe(contacto, codigoAliado) {
+    if (!contacto || contacto.modo_pago !== 'stripe') return null;
+    const codigo = String(codigoAliado || '').trim();
     const esContratante = codigo === String(contacto.solicitante_codigo || '').trim();
-    const esProfesional = codigo === String(contacto.profesional_codigo || '').trim();
-    container.innerHTML = '';
-    if (modo !== 'stripe') return;
+    if (!esContratante) return null;
 
-    syncPaymentActivity(contacto, codigo, { silent: true });
-
-    const importeVal = contacto.importe_acordado != null ? Number(contacto.importe_acordado) : NaN;
-    const importeTxt = (!Number.isNaN(importeVal) && importeVal > 0)
-      ? `${importeVal.toFixed(2)} €`
-      : '';
-    const parts = [];
+    const estadoPago = String(contacto.estado_pago || '').trim();
     const enTransferencia = transferenciaStripeEnCurso(contacto);
     const transferido = transferenciaStripeCompletada(contacto);
     const contactoEstado = String(contacto.estado || '').trim();
-    const puedeIniciarPago = esContratante && ['esperando_cobro_cliente', 'checkout_activo', 'no_generado', ''].includes(estadoPago)
-      && !enTransferencia && !transferido
-      && contactoEstado === 'pendiente_de_pago';
 
-    if (puedeIniciarPago) {
-      parts.push(
-        '<button type="button" class="encargo-card-btn stripe-pagar-btn">'
-        + (importeTxt ? `Ir a pagar (${escapeHtml(importeTxt)})` : 'Ir a pagar')
-        + '</button>'
-      );
-    } else if (esContratante && estadoPago === 'cobro_confirmado' && !enTransferencia && !transferido) {
-      parts.push(
-        '<button type="button" class="encargo-card-btn stripe-confirmar-btn">'
-        + 'Confirmar trabajo y liberar pago</button>'
-      );
+    if (estadoPago === 'cobro_confirmado' && !enTransferencia && !transferido) {
+      return {
+        tipo: 'confirmar_entrega',
+        kicker: 'ACCIÓN PENDIENTE',
+        texto: 'Confirma la entrega para liberar el pago.',
+        btnLabel: 'Confirmar entrega',
+      };
     }
 
-    container.innerHTML = parts.join('');
+    const puedeIniciarPago = ['esperando_cobro_cliente', 'checkout_activo', 'no_generado', ''].includes(estadoPago)
+      && !enTransferencia && !transferido
+      && ['pendiente_de_pago', 'trabajo_en_progreso', 'acuerdo_alcanzado'].includes(contactoEstado);
+    if (puedeIniciarPago) {
+      const importeVal = contacto.importe_acordado != null ? Number(contacto.importe_acordado) : NaN;
+      const importeTxt = (!Number.isNaN(importeVal) && importeVal > 0)
+        ? `${importeVal.toFixed(2)} €`
+        : '';
+      return {
+        tipo: 'pagar_stripe',
+        kicker: 'ACCIÓN PENDIENTE',
+        texto: 'Completa el pago para reservar el encargo.',
+        btnLabel: importeTxt ? `Ir a pagar (${importeTxt})` : 'Ir a pagar',
+      };
+    }
+
+    return null;
+  }
+
+  function renderAccionPendienteStripe(host, contacto, container) {
+    if (!container || !contacto) return;
+    container.innerHTML = '';
+    if (contacto.modo_pago !== 'stripe') return;
+
+    const codigo = (host.codigoAliado || (host.aliado && host.aliado.codigo) || '').toString().trim();
+    syncPaymentActivity(contacto, codigo, { silent: true });
+    const accion = getAccionPendienteStripe(contacto, codigo);
+    if (!accion) return;
+
+    container.innerHTML = (
+      '<div class="encargo-accion-compacta" role="status">'
+      + `<p class="encargo-accion-compacta__kicker">${escapeHtml(accion.kicker)}</p>`
+      + `<p class="encargo-accion-compacta__texto">${escapeHtml(accion.texto)}</p>`
+      + `<button type="button" class="encargo-accion-compacta__btn encargo-card-btn ${accion.tipo === 'pagar_stripe' ? 'stripe-pagar-btn' : 'stripe-confirmar-btn'}">${escapeHtml(accion.btnLabel)}</button>`
+      + '</div>'
+    );
+
     const btnPagar = container.querySelector('.stripe-pagar-btn');
     if (btnPagar && btnPagar.dataset.negStripeBound !== '1') {
       btnPagar.dataset.negStripeBound = '1';
@@ -448,6 +467,10 @@
         confirmarTrabajoStripe(host, contacto.id).catch((e) => alert(e.message));
       });
     }
+  }
+
+  function renderStripeAcciones(host, contacto, container) {
+    renderAccionPendienteStripe(host, contacto, container);
   }
 
   function handlePagoReturn(host) {
@@ -580,5 +603,7 @@
     MSG_PAGO_NO_DISPONIBLE,
     buildPaymentActivityEvents,
     syncPaymentActivity,
+    getAccionPendienteStripe,
+    renderAccionPendienteStripe,
   };
 })(window);
