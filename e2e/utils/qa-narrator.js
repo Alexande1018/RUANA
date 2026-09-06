@@ -191,22 +191,6 @@ async function dismissAdminOverlayIfNeeded(page) {
   });
 }
 
-async function dismissGrupoMadreAvisoIfNeeded(page) {
-  const overlay = page.locator('#modal-grupo-madre-aviso');
-  const visible = await overlay.isVisible().catch(() => false);
-  if (!visible) return;
-  const btn = page.locator('#btn-grupo-madre-aviso-ok');
-  if (await btn.isVisible().catch(() => false)) {
-    await btn.click({ timeout: 4000 });
-  } else {
-    await page.evaluate(() => {
-      const modal = document.getElementById('modal-grupo-madre-aviso');
-      if (modal) modal.style.display = 'none';
-    });
-  }
-  await overlay.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
-}
-
 async function uncoverAdminSidebarForClick(page, locator) {
   await dismissAdminOverlayIfNeeded(page);
   await locator.evaluate((element) => {
