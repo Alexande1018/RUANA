@@ -32,6 +32,13 @@
     return extra || {};
   }
 
+  function dismissPulsePanelIfOpen() {
+    if (global.RuanaPulse && typeof global.RuanaPulse.isOpen === 'function' && global.RuanaPulse.isOpen()
+        && typeof global.RuanaPulse.close === 'function') {
+      global.RuanaPulse.close();
+    }
+  }
+
   function formatApoyoRuana(host, raw) {
     const apoyoNum = (raw != null && raw !== '' && !Number.isNaN(Number(raw))) ? Number(raw) : null;
     if (apoyoNum != null && Number.isFinite(apoyoNum) && apoyoNum > 0) {
@@ -221,7 +228,19 @@
     };
     const body = hub.renderDetailHeader(detailEl, titles[detailId] || 'Detalle', function () {
         host._alertHubState.expandedDetailId = null;
-        renderAlertHub(host);
+        if (global.RuanaPulse && typeof global.RuanaPulse.isOpen === 'function' && global.RuanaPulse.isOpen()) {
+            var detail = document.getElementById('ruana-pulse-detail');
+            var detailBody = document.getElementById('ruana-pulse-detail-body');
+            var main = document.querySelector('.ruana-pulse-panel__main');
+            if (detail) {
+                detail.hidden = true;
+                detail.classList.remove('is-active');
+            }
+            if (detailBody) detailBody.innerHTML = '';
+            if (main) main.style.display = '';
+        } else {
+            renderAlertHub(host);
+        }
     });
 
     if (detailId === 'apoyo-pago') {
@@ -289,19 +308,25 @@
   }
 
   function renderAlertHub(host) {
-    const hubEl = document.getElementById('ruana-alert-hub');
-    if (!hubEl || typeof RuanaAlertHub === 'undefined') return;
-    const items = host.buildAlertItems();
-
     if (!host._alertHubState) {
         host._alertHubState = { showAll: false, expandedDetailId: null };
     }
+
+    const items = host.buildAlertItems();
     if (items.length === 0) {
         host._alertHubState = { showAll: false, expandedDetailId: null };
     } else if (host._alertHubState.expandedDetailId &&
         !items.some(i => i.id === host._alertHubState.expandedDetailId)) {
         host._alertHubState.expandedDetailId = null;
     }
+
+    if (global.RuanaPulse && typeof global.RuanaPulse.render === 'function') {
+        global.RuanaPulse.render(host);
+        return;
+    }
+
+    const hubEl = document.getElementById('ruana-alert-hub');
+    if (!hubEl || typeof RuanaAlertHub === 'undefined') return;
 
     RuanaAlertHub.render(hubEl, items, host._alertHubState, {
         onAction: function (item) {
@@ -455,6 +480,7 @@
     if (comentario) comentario.value = '';
     if (resultado) resultado.textContent = '';
     if (nombreEl) nombreEl.textContent = '';
+    dismissPulsePanelIfOpen();
     if (modal) modal.classList.add('show');
     // Abrir el selector de archivos del sistema en el mismo gesto de usuario (tras pintar el modal)
     if (input) {
@@ -501,6 +527,7 @@
     transferenciaImporteEl.textContent = importeStr;
     transferenciaConceptoEl.textContent = concepto;
     host.setPagoApoyoMetodo('bizum');
+    dismissPulsePanelIfOpen();
     modal.classList.add('show');
   }
 
@@ -625,6 +652,7 @@
         btn.disabled = false;
         btn.textContent = 'Enviar reclamacion';
     }
+    dismissPulsePanelIfOpen();
     modal.classList.add('show');
     if (input) input.focus();
   }

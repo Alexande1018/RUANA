@@ -161,7 +161,7 @@ def get_aliado_datos():
                 }), 403
             solicitudes = []
             if aliado.get('codigo_postal'):
-                solicitudes = db.obtener_solicitudes_grupo(aliado['codigo_postal'])
+                solicitudes = db.obtener_solicitudes_operativas(codigo)
             contar_contestadas = getattr(db, 'contar_solicitudes_enviadas_contestadas', lambda c: 0)
             solicitudes_enviadas_contestadas = contar_contestadas(codigo)
             referidos_count = db.contar_referidos_por_codigo(codigo)
@@ -208,6 +208,10 @@ def get_aliado_datos():
                 if pago_service.stripe_habilitado_global()
                 else True
             )
+            aliado_dict['territorio_modo'] = db.territorio_modo_aliado(
+                aliado_dict.get('codigo_postal') or '', grupo_id
+            )
+            aliado_dict['mostrar_aviso_madre'] = db.debe_mostrar_aviso_madre(codigo, grupo_id)
 
             # Notificaciones del aliado (ej. comprobante rechazado con mensaje de admin)
             notificaciones = notificacion_service.listar_notificaciones_aliado(
@@ -339,6 +343,26 @@ def get_aliados_directorio():
             'total': len(aliados),
             'aliados': aliados,
         })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@aliado_bp.route('/api/aliado/grupo-madre/aviso-visto', methods=['POST'])
+@require_aliado
+def aliado_grupo_madre_aviso_visto():
+    """Marca el aviso de bienvenida al Grupo Madre como visto."""
+    try:
+        from core.db_constants import AVISO_GRUPO_MADRE
+
+        codigo = _aliado_codigo()
+        if not codigo:
+            return jsonify({'status': 'error', 'message': 'Sesión expirada'}), 401
+        data = request.get_json(silent=True) or {}
+        aviso_tipo = (data.get('aviso_tipo') or AVISO_GRUPO_MADRE).strip()
+        db = get_db()
+        result = db.marcar_aviso_madre_visto(codigo, aviso_tipo)
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 

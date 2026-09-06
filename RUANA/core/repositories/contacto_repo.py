@@ -394,6 +394,20 @@ class ContactoRepo:
             pago_cols += ", c.estado_pago"
         if "precio_congelado" in columnas:
             pago_cols += ", COALESCE(c.precio_congelado, 0) AS precio_congelado"
+        if "estado_financiero" in columnas:
+            pago_cols += ", c.estado_financiero"
+        if "stripe_transfer_id" in columnas:
+            pago_cols += ", c.stripe_transfer_id"
+        if "fecha_confirmacion_trabajo" in columnas:
+            pago_cols += ", c.fecha_confirmacion_trabajo"
+        if "importe_neto_profesional" in columnas:
+            pago_cols += ", c.importe_neto_profesional"
+        if "apoyo_ruana" in columnas:
+            pago_cols += ", c.apoyo_ruana"
+        if "comision" in columnas:
+            pago_cols += ", c.comision"
+        if "comision_porcentaje" in columnas:
+            pago_cols += ", c.comision_porcentaje"
         cursor.execute(
             f"""
             SELECT

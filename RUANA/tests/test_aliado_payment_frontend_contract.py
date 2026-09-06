@@ -24,6 +24,8 @@ def test_aceptar_y_pagar_opens_manual_payment_modal_with_bizum_first():
     # El CTA vive en el hub de alertas (markup dinámico), no en una clase legacy fija.
     assert "btn-aceptar-pagar" in alertas_js
     assert "abrirModalPagoApoyo(" in alertas_js
+    assert "dismissPulsePanelIfOpen" in alertas_js
+    assert "RuanaPulse.close" in alertas_js
     assert "Aceptar y pagar" in alertas_js
 
     bind_start = alertas_js.index("btn-aceptar-pagar")
@@ -71,15 +73,16 @@ def test_stripe_pending_label_not_shown_when_cobro_confirmado():
     )
     text = contactos_js.read_text(encoding="utf-8")
     start = text.index("const cobroConfirmado")
-    snippet = text[start : start + 900]
+    snippet = text[start : start + 1200]
     assert "estado_pago" in snippet
     assert "cobro_confirmado" in snippet
-    assert "&& !cobroConfirmado" in snippet
-    assert "Pago Stripe pendiente" in snippet
+    assert "transferPendiente" in snippet
+    assert "&& !transferPendiente" in snippet
+    assert "Pago Stripe pendiente" in text
 
 
 def test_contratante_cobro_confirmado_not_told_to_pay_again():
-    """Con cobro_confirmado no debe pedir «Pagar ahora» en la tarjeta de acuerdo."""
+    """Con cobro_confirmado la tarjeta muestra acción compacta, no párrafo informativo largo."""
     contactos_js = (
         Path(__file__).resolve().parents[1]
         / "web"
@@ -87,14 +90,66 @@ def test_contratante_cobro_confirmado_not_told_to_pay_again():
         / "js"
         / "aliado-contactos-module.js"
     )
+    stripe_js = (
+        Path(__file__).resolve().parents[1]
+        / "web"
+        / "static"
+        / "js"
+        / "aliado-stripe-pagos-module.js"
+    )
     text = contactos_js.read_text(encoding="utf-8")
+    stripe = stripe_js.read_text(encoding="utf-8")
     start = text.index("else if (estado === 'acuerdo_alcanzado' || contacto.negociacion_completa)")
-    snippet = text[start : start + 1600]
-    assert "modoStripe && cobroConfirmado && esContratante" in snippet
-    assert "Confirma que el trabajo quedó hecho" in snippet
-    confirm_idx = snippet.index("modoStripe && cobroConfirmado && esContratante")
-    pay_idx = snippet.index("Completa el pago con «Pagar ahora»")
-    assert confirm_idx < pay_idx
+    snippet = text[start : start + 1200]
+    assert "modoStripe && cobroConfirmado && esContratante" not in snippet
+    assert "Pago realizado. Confirma la entrega" not in text
+    assert "accionCompacta" in text
+    assert "getAccionPendienteStripe" in stripe
+    assert "encargo-accion-compacta" in stripe
+    assert "Confirmar entrega" in stripe
+
+
+def test_stripe_transfer_pendiente_muestra_importe_y_comision():
+    """Tras liberar pago el detalle financiero vive en Actividad, no en bloques del acuerdo."""
+    contactos_js = (
+        Path(__file__).resolve().parents[1]
+        / "web"
+        / "static"
+        / "js"
+        / "aliado-contactos-module.js"
+    )
+    stripe_js = (
+        Path(__file__).resolve().parents[1]
+        / "web"
+        / "static"
+        / "js"
+        / "aliado-stripe-pagos-module.js"
+    )
+    pulse_js = (
+        Path(__file__).resolve().parents[1]
+        / "web"
+        / "static"
+        / "js"
+        / "ruana-pulse.js"
+    )
+    contactos = contactos_js.read_text(encoding="utf-8")
+    stripe = stripe_js.read_text(encoding="utf-8")
+    pulse = pulse_js.read_text(encoding="utf-8")
+    assert "transferPendiente" in contactos
+    assert "Detalle en Actividad" not in contactos
+    assert "importe_neto_profesional" in stripe
+    assert "transferenciaStripeEnCurso" in stripe
+    assert "buildPaymentActivityEvents" in stripe
+    assert "syncPaymentActivity" in stripe
+    assert "desgloseStripeTexto" in stripe
+    assert "getAccionPendienteStripe" in stripe
+    assert "renderAccionPendienteStripe" in stripe
+    assert "Comisión RUANA" in stripe
+    assert "registerEncargoEvents" in pulse
+    render_start = stripe.index("function renderAccionPendienteStripe")
+    render_snippet = stripe[render_start : render_start + 1800]
+    assert "encargo-accion-compacta" in render_snippet
+    assert "Confirmaste la entrega. El pago al profesional está en proceso" not in stripe
 
 
 def test_dispute_support_uses_ruana_modal_instead_of_browser_dialogs():

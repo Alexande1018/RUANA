@@ -92,7 +92,7 @@
         metricas: '.metricas-block',
         directorio: '.directorio-panel',
         solicitudes: '.solicitudes-zone',
-        alertas: '#ruana-alert-hub',
+        alertas: '#ruana-pulse-trigger',
         centro: '#ruana-help-center'
     };
     return (sections || [])

@@ -45,14 +45,6 @@ def test_deploy_workflow_upserts_schema_init_alert():
     assert syntax.returncode == 0, syntax.stderr
 
 
-def test_financial_tables_id_serial_includes_transfers():
-    """Confirmar trabajo inserta financial_transfers sin id; Postgres necesita SERIAL."""
-    assert "financial_transfers" in schema_service._FINANCIAL_TABLES_ID_SERIAL
-    assert "financial_transfer_attempts" in schema_service._FINANCIAL_TABLES_ID_SERIAL
-    src = Path(schema_service.__file__).read_text(encoding="utf-8")
-    assert "_asegurar_ids_serial_tablas_financieras(db, cursor)" in src
-
-
 def test_asegurar_ids_serial_tablas_financieras_sets_transfer_default():
     db = MagicMock()
     db.backend = "postgres"
@@ -72,3 +64,21 @@ def test_asegurar_ids_serial_tablas_financieras_sets_transfer_default():
     assert any(
         "ALTER TABLE financial_transfers" in s and "DEFAULT nextval" in s for s in executed
     )
+
+
+def test_financial_tables_id_serial_includes_transfers():
+    """Confirmar trabajo inserta financial_transfers sin id; Postgres necesita SERIAL."""
+    assert "financial_transfers" in schema_service._FINANCIAL_TABLES_ID_SERIAL
+    assert "financial_transfer_attempts" in schema_service._FINANCIAL_TABLES_ID_SERIAL
+    src = Path(schema_service.__file__).read_text(encoding="utf-8")
+    assert "_asegurar_ids_serial_tablas_financieras(db, cursor)" in src
+
+
+def test_init_postgres_schema_aplica_serial_antes_de_otras_migraciones():
+    """El commit aislado de SERIAL va al inicio del init, no solo al final."""
+    src = Path(schema_service.__file__).read_text(encoding="utf-8")
+    idx = src.index("def _init_postgres_schema")
+    block = src[idx : idx + 1400]
+    serial_idx = block.index("_asegurar_ids_serial_tablas_financieras")
+    campanas_idx = block.index("invitacion_campanas")
+    assert serial_idx < campanas_idx

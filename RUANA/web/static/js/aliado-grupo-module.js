@@ -90,6 +90,64 @@
     if (typeof host.renderAlertHub === 'function') host.renderAlertHub();
   }
 
+  function renderMadurezCp(grupoInfo) {
+    const wrap = document.getElementById('grupo-madurez-wrap');
+    if (!wrap) return;
+    const madurez = grupoInfo && grupoInfo.madurez_cp;
+    if (!grupoInfo || grupoInfo.tipo !== 'madre' || !madurez) {
+      wrap.style.display = 'none';
+      return;
+    }
+    wrap.style.display = 'block';
+    const aliados = madurez.aliados != null ? madurez.aliados : 0;
+    const aliadosReq = madurez.aliados_requeridos != null ? madurez.aliados_requeridos : 10;
+    const encargos = madurez.encargos != null ? madurez.encargos : 0;
+    const encargosReq = madurez.encargos_requeridos != null ? madurez.encargos_requeridos : 3;
+    const pctAliados = Math.min(100, Math.round((aliados / Math.max(aliadosReq, 1)) * 100));
+    const pctEncargos = Math.min(100, Math.round((encargos / Math.max(encargosReq, 1)) * 100));
+    const barAliados = document.getElementById('grupo-madurez-aliados-bar');
+    const barEncargos = document.getElementById('grupo-madurez-encargos-bar');
+    const txtAliados = document.getElementById('grupo-madurez-aliados-text');
+    const txtEncargos = document.getElementById('grupo-madurez-encargos-text');
+    const lead = document.getElementById('grupo-madurez-lead');
+    if (barAliados) barAliados.style.width = pctAliados + '%';
+    if (barEncargos) barEncargos.style.width = pctEncargos + '%';
+    if (txtAliados) txtAliados.textContent = aliados + ' / ' + aliadosReq + ' aliados activos';
+    if (txtEncargos) txtEncargos.textContent = encargos + ' / ' + encargosReq + ' encargos válidos';
+    if (lead) {
+      lead.textContent = madurez.listo_independizar
+        ? 'Tu zona está lista para solicitar su propio grupo territorial. RUANA revisará la independización.'
+        : 'Estamos incubando la red de tu ciudad. Cuando tu zona alcance la madurez, podrá tener su propio grupo territorial.';
+    }
+  }
+
+  function maybeShowAvisoMadre(host) {
+    if (!host || !host.aliado || !host.aliado.mostrar_aviso_madre) return;
+    const overlay = document.getElementById('modal-grupo-madre-aviso');
+    if (!overlay || overlay.dataset.shown === '1') return;
+    overlay.dataset.shown = '1';
+    overlay.style.display = 'flex';
+    const ciudad = (host.aliado.grupo_info && (host.aliado.grupo_info.ciudad || host.aliado.grupo_info.nombre_display)) || 'tu ciudad';
+    const txt = document.getElementById('modal-grupo-madre-texto');
+    if (txt) {
+      txt.textContent = 'Formas parte del Grupo Madre de ' + ciudad + '. Compartes red con profesionales de distintas zonas de la ciudad mientras tu código postal crece hacia su propio grupo territorial.';
+    }
+    const btn = document.getElementById('btn-grupo-madre-aviso-ok');
+    if (btn && !btn.dataset.bound) {
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', function () {
+        fetch(getApiBaseSafe() + '/api/aliado/grupo-madre/aviso-visto', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: getAuthHeadersSafe({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ aviso_tipo: 'grupo_madre_bienvenida' })
+        }).catch(function () {});
+        overlay.style.display = 'none';
+        if (host.aliado) host.aliado.mostrar_aviso_madre = false;
+      });
+    }
+  }
+
   function renderGrupo(host) {
     const block = document.getElementById('grupo-panel-block');
     const grupoInfo = (host.aliado && host.aliado.grupo_info) ? host.aliado.grupo_info : null;
@@ -108,6 +166,8 @@
     }
 
     renderGrupoCrecimiento(host, grupoInfo);
+    renderMadurezCp(grupoInfo);
+    maybeShowAvisoMadre(host);
 
     if (!block) return;
 
@@ -115,9 +175,12 @@
     const nombreEl = document.getElementById('grupo-nombre');
     const estadoEl = document.getElementById('grupo-estado');
     const numEl = document.getElementById('grupo-num-oficios');
-    if (nombreEl) nombreEl.textContent = grupoInfo.nombre || '---';
+    const displayName = grupoInfo.nombre_display || grupoInfo.nombre || '---';
+    if (nombreEl) nombreEl.textContent = displayName;
     if (estadoEl) {
-        if (grupoInfo.en_creacion) {
+        if (grupoInfo.en_incubacion) {
+            estadoEl.textContent = 'Incubación';
+        } else if (grupoInfo.en_creacion) {
             estadoEl.textContent = 'En creación';
         } else {
             const estadoLabels = { 'activo': 'Activo', 'en_competencia': 'En competencia', 'disuelto': 'Disuelto' };
@@ -285,6 +348,7 @@
 modules.grupo = {
     renderCompetencia: renderCompetencia,
     renderGrupo: renderGrupo,
+    maybeShowAvisoMadre: maybeShowAvisoMadre,
   
     renderOficiosFaltantesFullList: renderOficiosFaltantesFullList,
     expandirOficiosFaltantes: expandirOficiosFaltantes,

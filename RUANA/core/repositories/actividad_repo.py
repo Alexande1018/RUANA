@@ -21,7 +21,9 @@ class ActividadRepo:
         cursor.execute(
             """
             SELECT a.codigo, a.nombre, a.grupo_id, TRIM(a.codigo_postal) AS codigo_postal,
-                   g.codigo_postal AS grupo_cp
+                   g.codigo_postal AS grupo_cp,
+                   COALESCE(g.tipo, 'territorial') AS grupo_tipo,
+                   TRIM(COALESCE(g.ciudad, '')) AS ciudad
             FROM aliados a
             LEFT JOIN grupos g ON g.id = a.grupo_id
             WHERE TRIM(CAST(a.codigo AS TEXT)) = ?
@@ -33,8 +35,59 @@ class ActividadRepo:
             return None
         data = dict(row)
         cp = (data.get("codigo_postal") or data.get("grupo_cp") or "").strip()
+        if cp == "__MADRE__":
+            cp = (data.get("codigo_postal") or "").strip()
         data["codigo_postal"] = cp
         return data
+
+    def select_cp_estado(self, cursor, codigo_postal: str) -> Optional[Dict[str, Any]]:
+        cp = (codigo_postal or "").strip()
+        if not cp:
+            return None
+        cursor.execute(
+            """
+            SELECT codigo_postal, ciudad, modo, aliados_activos, encargos_validos,
+                   listo_independizar
+            FROM cp_estado
+            WHERE codigo_postal = ?
+            """,
+            (cp,),
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def listar_codigos_activos_cp_en_grupo(
+        self, cursor, grupo_id: int, codigo_postal: str, excluir: str = ""
+    ) -> List[str]:
+        cursor.execute(
+            """
+            SELECT TRIM(codigo) AS codigo
+            FROM aliados
+            WHERE grupo_id = ? AND estado = 'activo'
+              AND TRIM(codigo_postal) = ?
+              AND TRIM(codigo) != ?
+            """,
+            (int(grupo_id), codigo_postal.strip(), (excluir or "").strip()),
+        )
+        return [
+            str(r[0] if not hasattr(r, "keys") else r["codigo"]).strip()
+            for r in cursor.fetchall()
+            if r and (r[0] if not hasattr(r, "keys") else r["codigo"])
+        ]
+
+    def listar_aliados_activos_grupo_con_cp(
+        self, cursor, grupo_id: int, excluir_codigo: str = ""
+    ) -> List[Dict[str, Any]]:
+        cursor.execute(
+            """
+            SELECT codigo, nombre, oficio, TRIM(codigo_postal) AS codigo_postal
+            FROM aliados
+            WHERE grupo_id = ? AND estado = 'activo'
+              AND TRIM(CAST(codigo AS TEXT)) != ?
+            """,
+            (int(grupo_id), (excluir_codigo or "").strip()),
+        )
+        return [dict(r) for r in cursor.fetchall()]
 
     def listar_solicitudes_nuevas_grupo(
         self, cursor, grupo_id: int, excluir_codigo: str
@@ -181,7 +234,7 @@ class ActividadRepo:
     ) -> List[Dict[str, Any]]:
         cursor.execute(
             """
-            SELECT codigo, nombre, oficio, creado_en
+            SELECT codigo, nombre, oficio, TRIM(codigo_postal) AS codigo_postal, creado_en
             FROM aliados
             WHERE grupo_id = ?
               AND estado = 'activo'
