@@ -89,6 +89,26 @@
     });
   }
 
+  function renderCpMadurez(cps) {
+    var tbody = document.getElementById('tbody-cp-madurez');
+    if (!tbody) return;
+    var list = cps || [];
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="color:#94a3b8;">No hay CPs en incubación registrados.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = list.map(function (c) {
+      var listo = c.listo_independizar ? 'Sí' : 'No';
+      return '<tr>' +
+        '<td>' + esc(c.codigo_postal) + '</td>' +
+        '<td>' + esc(c.ciudad) + '</td>' +
+        '<td>' + esc(c.modo || 'incubacion') + '</td>' +
+        '<td>' + esc(c.aliados_activos) + '</td>' +
+        '<td>' + esc(c.encargos_validos) + '</td>' +
+        '<td>' + esc(listo) + '</td></tr>';
+    }).join('');
+  }
+
   function renderGruposMadre(grupos) {
     var wrap = document.getElementById('grupos-madre-overview');
     if (!wrap) return;
@@ -111,13 +131,17 @@
         .then(function (d) { if (d && d.status === 'success') renderIndependenciaPendientes(d.solicitudes); }),
       fetch('/api/admin/grupos-madre', { credentials: 'same-origin', headers: authHeaders() })
         .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (d) { if (d && d.status === 'success') renderGruposMadre(d.grupos); })
+        .then(function (d) { if (d && d.status === 'success') renderGruposMadre(d.grupos); }),
+      fetch('/api/admin/cp-madurez?modo=incubacion', { credentials: 'same-origin', headers: authHeaders() })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) { if (d && d.status === 'success') renderCpMadurez(d.cps); })
     ]);
   }
 
   modules.territorio = {
     refresh: refresh,
     renderIndependenciaPendientes: renderIndependenciaPendientes,
-    renderGruposMadre: renderGruposMadre
+    renderGruposMadre: renderGruposMadre,
+    renderCpMadurez: renderCpMadurez
   };
 })(typeof window !== 'undefined' ? window : globalThis);

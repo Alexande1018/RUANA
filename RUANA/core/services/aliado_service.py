@@ -5,7 +5,7 @@ SQL de aliados vía AliadoRepo.
 """
 from __future__ import annotations
 
-from core.db_constants import ALIADO_FOTO_PERFIL_COLUMN, MAX_GRUPOS_POR_CP, _email_liberado_aliado, _telefono_liberado_aliado
+from core.db_constants import ALIADO_FOTO_PERFIL_COLUMN, MAX_GRUPOS_POR_CP, TIPO_GRUPO_MADRE, _email_liberado_aliado, _telefono_liberado_aliado
 from core.repositories.aliado_repo import AliadoRepo, _format_nombre_aliado_eliminado
 from core.services import grupo_madre_service
 from core.services import territorio_service
@@ -16,6 +16,32 @@ import sqlite3
 from typing import Any, Dict, List, Optional, Tuple
 
 _repo = AliadoRepo()
+
+def _notificar_registro_madre_si_procede(
+    db,
+    aliado_row: Dict[str, Any],
+    codigo: str,
+    nombre: str,
+    codigo_postal: str,
+    oficio: str,
+    estado_final: str,
+) -> None:
+    if estado_final != 'activo' or not aliado_row.get('grupo_id'):
+        return
+    try:
+        g = db.obtener_grupo_por_id(aliado_row['grupo_id'])
+        if g and (g.get('tipo') or '') == TIPO_GRUPO_MADRE:
+            from core.services import actividad_cinta_service
+            actividad_cinta_service.notificar_aliado_nuevo_en_madre(
+                db,
+                int(aliado_row['grupo_id']),
+                codigo_postal,
+                codigo,
+                nombre,
+                oficio,
+            )
+    except Exception:
+        pass
 
 # --- Extraído de DBManager (aliado) ---
 
@@ -125,6 +151,9 @@ def crear_aliado(db, codigo: str, nombre: str, marca: str = "",
                     db._procesar_competencias_pendientes(codigo_postal, oficio_stripped)
                 except Exception:
                     pass
+            _notificar_registro_madre_si_procede(
+                db, aliado_row, codigo, nombre, codigo_postal, oficio_stripped or oficio, estado_final
+            )
             return out
 
         except sqlite3.IntegrityError as e:
@@ -244,6 +273,9 @@ def completar_aliado_pendiente(db, codigo: str, nombre: str, marca: str = "",
                     db._procesar_competencias_pendientes(codigo_postal, oficio_stripped)
                 except Exception:
                     pass
+            _notificar_registro_madre_si_procede(
+                db, aliado_row, codigo, nombre, codigo_postal, oficio_stripped or oficio, estado_final
+            )
             return out
         except sqlite3.IntegrityError as e:
             return {'status': 'error', 'message': f'Error de integridad: {e}'}
