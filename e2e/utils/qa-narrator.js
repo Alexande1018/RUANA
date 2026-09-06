@@ -179,6 +179,14 @@ async function dismissAdminOverlayIfNeeded(page) {
   });
 }
 
+async function dismissGrupoMadreModalIfNeeded(page) {
+  const okBtn = page.locator('#btn-grupo-madre-aviso-ok');
+  if (await okBtn.isVisible().catch(() => false)) {
+    await okBtn.click({ timeout: 3000 });
+    await page.waitForTimeout(150);
+  }
+}
+
 async function uncoverAdminSidebarForClick(page, locator) {
   await dismissAdminOverlayIfNeeded(page);
   await locator.evaluate((element) => {
@@ -216,11 +224,13 @@ async function clickVisible(page, target, options = {}) {
   const clickOpts = { timeout: 4000, ...(options.clickOptions || {}) };
   let disabledSidebar = false;
   try {
+    await dismissGrupoMadreModalIfNeeded(page);
     disabledSidebar = await uncoverAdminSidebarForClick(page, locator);
     await locator.click(clickOpts);
   } catch (error) {
     const message = String(error && error.message ? error.message : error);
     if (!/intercepts pointer events/i.test(message)) throw error;
+    await dismissGrupoMadreModalIfNeeded(page);
     disabledSidebar = await uncoverAdminSidebarForClick(page, locator) || disabledSidebar;
     await page.evaluate(() => {
       const sidebar = document.getElementById('adminSidebar');
@@ -286,4 +296,5 @@ module.exports = {
   selectVisible,
   setInputFilesVisible,
   dismissAdminOverlayIfNeeded,
+  dismissGrupoMadreModalIfNeeded,
 };

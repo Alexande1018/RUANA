@@ -14,6 +14,17 @@ function uniquePhone() {
   return `+346${random}${tail}`;
 }
 
+let qaPostalSeq = 0;
+
+/**
+ * CP 99xxx fuera del catálogo territorial → asignación estándar en E2E.
+ * Evita incubación Grupo Madre (Madrid 28xxx) que agota plazas y bloquea login.
+ */
+function uniqueQaPostalCode() {
+  qaPostalSeq = (qaPostalSeq + 1) % 900;
+  return String(99000 + qaPostalSeq);
+}
+
 /** Extrae la parte nacional para el input visible del registro (+34…). */
 function nationalPhoneFromE164(phone) {
   const raw = String(phone || '').trim();
@@ -32,7 +43,7 @@ function buildAliadoData(overrides = {}) {
     oficio_principal: overrides.oficio_principal || overrides.oficio || 'Electricidad',
     especializacion:
       overrides.especializacion || 'Aver\u00edas y reparaciones el\u00e9ctricas',
-    codigo_postal: overrides.codigo_postal || '28001',
+    codigo_postal: overrides.codigo_postal || uniqueQaPostalCode(),
     email: overrides.email || `${suffix}@ruana.local`,
     telefono: overrides.telefono || uniquePhone(),
     descripcion: overrides.descripcion || 'Servicio de prueba QA automatizada',
@@ -72,7 +83,7 @@ async function createCampaign(request, admin, overrides = {}) {
     data: {
       codigo: code,
       nombre: overrides.nombre || `Campana QA ${code}`,
-      codigo_postal: overrides.codigo_postal || '28001',
+      codigo_postal: overrides.codigo_postal || uniqueQaPostalCode(),
       max_usos: overrides.max_usos || 3,
     },
   });
@@ -88,6 +99,10 @@ async function registerAliado(request, overrides = {}) {
   });
   const body = await expectOk(response, 'register aliado');
   expect(body.codigo).toBeTruthy();
+  expect(
+    body.estado,
+    `aliado ${body.codigo} quedó en_espera (CP ${data.codigo_postal}, oficio ${data.oficio})`
+  ).not.toBe('en_espera');
   return body;
 }
 
@@ -202,4 +217,5 @@ module.exports = {
   registerAliado,
   uniqueId,
   uniquePhone,
+  uniqueQaPostalCode,
 };
