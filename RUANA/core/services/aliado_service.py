@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from core.db_constants import ALIADO_FOTO_PERFIL_COLUMN, MAX_GRUPOS_POR_CP, _email_liberado_aliado, _telefono_liberado_aliado
 from core.repositories.aliado_repo import AliadoRepo, _format_nombre_aliado_eliminado
+from core.services import grupo_madre_service
+from core.services import territorio_service
 
 
 from datetime import datetime, timedelta, timezone
@@ -72,26 +74,11 @@ def crear_aliado(db, codigo: str, nombre: str, marca: str = "",
             grupo_preferido_id = None
             mensaje_lista_espera = None
             if en_catalogo and oficio_stripped and estado_final not in ('pendiente_validacion', 'pendiente_completar'):
-                if grupo_id_invitacion:
-                    if not db._grupo_tiene_oficio(cursor, grupo_id_invitacion, oficio_stripped):
-                        grupo_pref = db.obtener_grupo_por_id(grupo_id_invitacion)
-                        if grupo_pref and (grupo_pref.get('estado') or '') == 'activo':
-                            grupo_preferido_id = grupo_id_invitacion
-                    # Si invitador tiene oficio ocupado, buscar otro grupo del CP
-                    if grupo_preferido_id is None and codigo_postal:
-                        grupo_sin_oficio = db.buscar_grupo_sin_oficio(codigo_postal, oficio_stripped)
-                        if grupo_sin_oficio:
-                            grupo_preferido_id = grupo_sin_oficio['id']
-                if grupo_preferido_id is None and codigo_postal:
-                    grupo_sin_oficio = db.buscar_grupo_sin_oficio(codigo_postal, oficio_stripped)
-                    if grupo_sin_oficio:
-                        grupo_preferido_id = grupo_sin_oficio['id']
-                    elif db.contar_grupos_activos_por_cp(codigo_postal) < MAX_GRUPOS_POR_CP:
-                        pass  # Se creará el grupo después del INSERT
-                    else:
-                        # CP lleno y oficio ocupado en todos → en_espera
-                        estado_final = 'en_espera'
-                        mensaje_lista_espera = db.MENSAJE_LISTA_ESPERA
+                grupo_preferido_id, estado_asig, mensaje_lista_espera = grupo_madre_service.resolver_asignacion_registro(
+                    db, cursor, codigo_postal, oficio_stripped, grupo_id_invitacion
+                )
+                if estado_asig == 'en_espera':
+                    estado_final = 'en_espera'
 
             aliado_id = _repo.insertar(
                 cursor, codigo, nombre, marca, oficio_stripped or oficio, codigo_postal, email, telefono,
@@ -105,15 +92,18 @@ def crear_aliado(db, codigo: str, nombre: str, marca: str = "",
                     _repo.update_grupo_id(cursor, grupo_preferido_id, aliado_id)
                     conn.commit()
                 elif codigo_postal and en_catalogo and oficio_stripped:
-                    grupo_asignar = db.buscar_grupo_sin_oficio(codigo_postal, oficio_stripped)
-                    if grupo_asignar:
-                        _repo.update_grupo_id(cursor, grupo_asignar['id'], aliado_id)
-                    elif db.contar_grupos_activos_por_cp(codigo_postal) < MAX_GRUPOS_POR_CP:
-                        nuevo_grupo = db.crear_grupo_en_cp(codigo_postal)
-                        if isinstance(nuevo_grupo, dict) and 'id' in nuevo_grupo:
-                            _repo.update_grupo_id(cursor, nuevo_grupo['id'], aliado_id)
-                    if cursor.rowcount:
-                        conn.commit()
+                    ubic = territorio_service.resolver_ciudad(db, codigo_postal)
+                    if grupo_madre_service.cp_en_modo_territorial(db, codigo_postal) or not (
+                        ubic and ubic.get("ciudad")
+                    ):
+                        grupo_madre_service.asignar_territorial_post_insert(
+                            db, cursor, aliado_id, codigo_postal, oficio_stripped
+                        )
+                    conn.commit()
+                try:
+                    grupo_madre_service.actualizar_madurez_cp(db, codigo_postal)
+                except Exception:
+                    pass
 
             row = _repo.select_fila_basica_por_id(cursor, aliado_id)
             if row and hasattr(row, 'keys'):
@@ -202,22 +192,11 @@ def completar_aliado_pendiente(db, codigo: str, nombre: str, marca: str = "",
             grupo_preferido_id = None
             mensaje_lista_espera = None
             if en_catalogo and oficio_stripped and estado_final not in ('pendiente_validacion',):
-                if grupo_id_invitacion:
-                    if not db._grupo_tiene_oficio(cursor, grupo_id_invitacion, oficio_stripped):
-                        grupo_pref = db.obtener_grupo_por_id(grupo_id_invitacion)
-                        if grupo_pref and (grupo_pref.get('estado') or '') == 'activo':
-                            grupo_preferido_id = grupo_id_invitacion
-                    if grupo_preferido_id is None and codigo_postal:
-                        grupo_sin_oficio = db.buscar_grupo_sin_oficio(codigo_postal, oficio_stripped)
-                        if grupo_sin_oficio:
-                            grupo_preferido_id = grupo_sin_oficio['id']
-                if grupo_preferido_id is None and codigo_postal:
-                    grupo_sin_oficio = db.buscar_grupo_sin_oficio(codigo_postal, oficio_stripped)
-                    if grupo_sin_oficio:
-                        grupo_preferido_id = grupo_sin_oficio['id']
-                    elif db.contar_grupos_activos_por_cp(codigo_postal) >= MAX_GRUPOS_POR_CP:
-                        estado_final = 'en_espera'
-                        mensaje_lista_espera = db.MENSAJE_LISTA_ESPERA
+                grupo_preferido_id, estado_asig, mensaje_lista_espera = grupo_madre_service.resolver_asignacion_registro(
+                    db, cursor, codigo_postal, oficio_stripped, grupo_id_invitacion
+                )
+                if estado_asig == 'en_espera':
+                    estado_final = 'en_espera'
 
             if _repo.update_completar_pendiente(
                 cursor, aliado_id, nombre, marca, oficio_stripped or oficio, codigo_postal, email, telefono,
@@ -232,15 +211,18 @@ def completar_aliado_pendiente(db, codigo: str, nombre: str, marca: str = "",
                     _repo.update_grupo_id(cursor, grupo_preferido_id, aliado_id)
                     conn.commit()
                 elif codigo_postal:
-                    grupo_asignar = db.buscar_grupo_sin_oficio(codigo_postal, oficio_stripped)
-                    if grupo_asignar:
-                        _repo.update_grupo_id(cursor, grupo_asignar['id'], aliado_id)
-                    elif db.contar_grupos_activos_por_cp(codigo_postal) < MAX_GRUPOS_POR_CP:
-                        nuevo_grupo = db.crear_grupo_en_cp(codigo_postal)
-                        if isinstance(nuevo_grupo, dict) and 'id' in nuevo_grupo:
-                            _repo.update_grupo_id(cursor, nuevo_grupo['id'], aliado_id)
-                    if cursor.rowcount:
-                        conn.commit()
+                    ubic = territorio_service.resolver_ciudad(db, codigo_postal)
+                    if grupo_madre_service.cp_en_modo_territorial(db, codigo_postal) or not (
+                        ubic and ubic.get("ciudad")
+                    ):
+                        grupo_madre_service.asignar_territorial_post_insert(
+                            db, cursor, aliado_id, codigo_postal, oficio_stripped
+                        )
+                    conn.commit()
+                try:
+                    grupo_madre_service.actualizar_madurez_cp(db, codigo_postal)
+                except Exception:
+                    pass
 
             row = _repo.select_fila_basica_por_id(cursor, aliado_id)
             if row and hasattr(row, 'keys'):
@@ -614,6 +596,7 @@ def listar_aliados_directorio_grupo(db, codigo_aliado: str) -> List[Dict[str, An
     grupo_id = aliado.get('grupo_id')
     codigo_postal = (aliado.get('codigo_postal') or '').strip()
     codigo_excluir = (aliado.get('codigo') or codigo_busqueda or '').strip()
+    modo = grupo_madre_service.territorio_modo_aliado(db, codigo_postal, grupo_id)
 
     with db._lock:
         try:
@@ -626,30 +609,48 @@ def listar_aliados_directorio_grupo(db, codigo_aliado: str) -> List[Dict[str, An
                 f"a.estado, a.score, a.descripcion_servicio, a.{ALIADO_FOTO_PERFIL_COLUMN}, a.creado_en"
             )
 
-            cp_filtro = codigo_postal
-            if grupo_id is not None:
-                cp_grupo = _repo.select_codigo_postal_grupo(cursor, grupo_id)
-                if cp_grupo and str(cp_grupo).strip():
-                    cp_filtro = str(cp_grupo).strip()
-
-            if grupo_id is not None and cp_filtro:
-                rows = _repo.listar_directorio_grupo_con_cp(
-                    cursor, select_cols, codigo_excluir, grupo_id, cp_filtro, estados_ok,
-                )
-            elif grupo_id is not None:
-                rows = _repo.listar_directorio_solo_grupo(
-                    cursor, grupo_id, codigo_excluir, estados_ok,
-                )
-            elif cp_filtro:
-                rows = _repo.listar_directorio_por_cp(
-                    cursor, cp_filtro, codigo_excluir, estados_ok,
+            if modo == 'incubacion' and grupo_id is not None:
+                from core.repositories.grupo_madre_repo import GrupoMadreRepo
+                rows = GrupoMadreRepo().listar_directorio_madre(
+                    cursor, grupo_id, codigo_excluir, estados_ok, ALIADO_FOTO_PERFIL_COLUMN
                 )
             else:
-                return []
+                cp_filtro = codigo_postal
+                if grupo_id is not None:
+                    cp_grupo = _repo.select_codigo_postal_grupo(cursor, grupo_id)
+                    if cp_grupo and str(cp_grupo).strip():
+                        cp_filtro = str(cp_grupo).strip()
+
+                if grupo_id is not None and cp_filtro:
+                    rows = _repo.listar_directorio_grupo_con_cp(
+                        cursor, select_cols, codigo_excluir, grupo_id, cp_filtro, estados_ok,
+                    )
+                elif grupo_id is not None:
+                    rows = _repo.listar_directorio_solo_grupo(
+                        cursor, grupo_id, codigo_excluir, estados_ok,
+                    )
+                elif cp_filtro:
+                    rows = _repo.listar_directorio_por_cp(
+                        cursor, cp_filtro, codigo_excluir, estados_ok,
+                    )
+                else:
+                    return []
             result = []
             for row in rows:
                 item = dict(row)
                 item['zona'] = item.get('codigo_postal') or ''
+                if modo == 'incubacion':
+                    nivel, orden = territorio_service.proximidad_territorial(
+                        codigo_postal, item.get('codigo_postal') or '', db=db
+                    )
+                    item['prioridad_cercania'] = nivel
+                    item['orden_cercania'] = orden
+                    if nivel == 1:
+                        item['etiqueta_cercania'] = 'Tu zona'
+                    elif nivel == 2:
+                        item['etiqueta_cercania'] = 'Cerca'
+                    else:
+                        item['etiqueta_cercania'] = 'Tu ciudad'
                 item['estado_ruana'] = db.score_a_estado(item.get('score'))
                 # M-06: marcar perfiles incompletos (placeholder o datos sin completar)
                 nombre = (item.get('nombre') or '').strip()
@@ -663,6 +664,8 @@ def listar_aliados_directorio_grupo(db, codigo_aliado: str) -> List[Dict[str, An
                     or not oficio
                 )
                 result.append(item)
+            if modo == 'incubacion':
+                result.sort(key=lambda x: (x.get('prioridad_cercania', 3), x.get('orden_cercania', 9999)))
             return result
         except Exception as e:
             print(f"Error listar_aliados_directorio_grupo: {e}")
@@ -975,13 +978,21 @@ def incorporar_aliado_espera(db, codigo: str, grupo_id: Optional[int] = None,
                     return {'status': 'error', 'message': f'El grupo ya tiene un aliado con oficio {oficio}'}
                 grupo_asignado = grupo_id
             elif oficio and codigo_postal:
-                g = db.buscar_grupo_sin_oficio(codigo_postal, oficio)
-                if g:
-                    grupo_asignado = g['id']
-                elif db.contar_grupos_activos_por_cp(codigo_postal) < MAX_GRUPOS_POR_CP:
-                    nuevo = db.crear_grupo_en_cp(codigo_postal)
-                    if isinstance(nuevo, dict) and nuevo.get('id'):
-                        grupo_asignado = nuevo['id']
+                g_pref, estado_asig, _ = grupo_madre_service.resolver_asignacion_registro(
+                    db, cursor, codigo_postal, oficio, None
+                )
+                if g_pref:
+                    grupo_asignado = g_pref
+                elif grupo_madre_service.cp_en_modo_territorial(db, codigo_postal):
+                    g = db.buscar_grupo_sin_oficio(codigo_postal, oficio)
+                    if g:
+                        grupo_asignado = g['id']
+                    elif grupo_madre_service.contar_grupos_territoriales_activos_por_cp(
+                        db, codigo_postal
+                    ) < MAX_GRUPOS_POR_CP:
+                        nuevo = db.crear_grupo_en_cp(codigo_postal)
+                        if isinstance(nuevo, dict) and nuevo.get('id'):
+                            grupo_asignado = nuevo['id']
             if grupo_asignado is None:
                 return {'status': 'error', 'message': 'No hay plaza disponible. Especifica grupo_id o espera a que se libere una plaza.'}
             _repo.update_incorporar_espera(cursor, grupo_asignado, aliado_id)

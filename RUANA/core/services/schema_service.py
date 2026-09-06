@@ -76,6 +76,7 @@ def _init_db(db):
             db._migrar_grupos_si_procede(conn, cursor)
             db._migrar_grupos_multi_cp_si_procede(conn, cursor)
             db._migrar_grupos_nombre_unique_si_procede(conn, cursor)
+            db._migrar_grupo_madre_v1_si_procede(conn, cursor)
             db._migrar_aliados_grupo_id(conn, cursor)
             db._migrar_aliados_derrotas_competencia(conn, cursor)
             db._migrar_aliados_especializaciones(conn, cursor)
@@ -531,6 +532,74 @@ def _migrar_grupos_nombre_unique_si_procede(db, conn, cursor) -> None:
     except Exception as ex:
         print(f"[RUANA][DB] Aviso al crear índice único grupos.nombre: {ex}")
     _repo.registrar_migracion(cursor, 'grupos_nombre_unique_v1')
+
+def _migrar_grupo_madre_v1_si_procede(db, conn, cursor) -> None:
+    """Grupo Madre por ciudad: tipo en grupos, tablas cp_ciudad, cp_estado, independencia, avisos."""
+    if _repo.migracion_aplicada(cursor, 'grupo_madre_v1'):
+        return
+    columnas = _repo.columnas_tabla(cursor, "grupos")
+    if 'tipo' not in columnas:
+        _repo.execute(cursor, "ALTER TABLE grupos ADD COLUMN tipo TEXT NOT NULL DEFAULT 'territorial'")
+    if 'grupo_madre_id' not in columnas:
+        _repo.execute(cursor, "ALTER TABLE grupos ADD COLUMN grupo_madre_id INTEGER REFERENCES grupos(id)")
+    _repo.execute(cursor, "UPDATE grupos SET tipo = 'territorial' WHERE tipo IS NULL OR tipo = ''")
+
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS cp_ciudad (
+            codigo_postal TEXT PRIMARY KEY,
+            ciudad TEXT NOT NULL,
+            provincia TEXT,
+            normalizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS cp_estado (
+            codigo_postal TEXT PRIMARY KEY,
+            ciudad TEXT NOT NULL,
+            modo TEXT NOT NULL DEFAULT 'incubacion'
+                CHECK(modo IN ('incubacion', 'territorial')),
+            grupo_madre_id INTEGER REFERENCES grupos(id),
+            aliados_activos INTEGER DEFAULT 0,
+            encargos_validos INTEGER DEFAULT 0,
+            listo_independizar INTEGER DEFAULT 0,
+            independizado_en TIMESTAMP,
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS cp_independencia_solicitudes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            codigo_postal TEXT NOT NULL,
+            ciudad TEXT NOT NULL,
+            aliados_activos INTEGER NOT NULL,
+            encargos_validos INTEGER NOT NULL,
+            estado TEXT NOT NULL DEFAULT 'pendiente'
+                CHECK(estado IN ('pendiente', 'aprobada', 'pospuesta')),
+            notas_admin TEXT,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            resuelto_en TIMESTAMP,
+            resuelto_por TEXT
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS aliado_avisos_vistos (
+            aliado_codigo TEXT NOT NULL,
+            aviso_tipo TEXT NOT NULL,
+            visto_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (aliado_codigo, aviso_tipo)
+        )
+    """)
+    # CPs con grupos territoriales activos → modo territorial
+    _repo.execute(cursor, """
+        INSERT OR IGNORE INTO cp_estado (codigo_postal, ciudad, modo)
+        SELECT DISTINCT TRIM(g.codigo_postal), COALESCE(g.ciudad, ''), 'territorial'
+        FROM grupos g
+        WHERE g.estado = 'activo'
+          AND COALESCE(g.tipo, 'territorial') = 'territorial'
+          AND TRIM(g.codigo_postal) != ''
+          AND TRIM(g.codigo_postal) != '__MADRE__'
+    """)
+    _repo.registrar_migracion(cursor, 'grupo_madre_v1')
 
 def _migrar_aliados_grupo_id(db, conn, cursor) -> None:
     """Añade grupo_id a aliados si falta y rellena con el primer grupo activo del CP."""
