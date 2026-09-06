@@ -77,6 +77,7 @@ def _init_db(db):
             db._migrar_grupos_multi_cp_si_procede(conn, cursor)
             db._migrar_grupos_nombre_unique_si_procede(conn, cursor)
             db._migrar_grupo_madre_v1_si_procede(conn, cursor)
+            db._migrar_cp_auto_split_v1_si_procede(conn, cursor)
             db._migrar_aliados_grupo_id(conn, cursor)
             db._migrar_aliados_derrotas_competencia(conn, cursor)
             db._migrar_aliados_especializaciones(conn, cursor)
@@ -600,6 +601,18 @@ def _migrar_grupo_madre_v1_si_procede(db, conn, cursor) -> None:
           AND TRIM(g.codigo_postal) != '__MADRE__'
     """)
     _repo.registrar_migracion(cursor, 'grupo_madre_v1')
+
+def _migrar_cp_auto_split_v1_si_procede(db, conn, cursor) -> None:
+    """Contador de elegibles desde último grupo para auto-split por CP."""
+    if _repo.migracion_aplicada(cursor, 'cp_auto_split_v1'):
+        return
+    columnas = _repo.columnas_tabla(cursor, 'cp_estado')
+    if 'aliados_desde_ultimo_grupo' not in columnas:
+        _repo.execute(
+            cursor,
+            "ALTER TABLE cp_estado ADD COLUMN aliados_desde_ultimo_grupo INTEGER NOT NULL DEFAULT 0",
+        )
+    _repo.registrar_migracion(cursor, 'cp_auto_split_v1')
 
 def _migrar_aliados_grupo_id(db, conn, cursor) -> None:
     """Añade grupo_id a aliados si falta y rellena con el primer grupo activo del CP."""

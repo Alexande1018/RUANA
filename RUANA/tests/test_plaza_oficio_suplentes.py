@@ -88,27 +88,19 @@ def test_misma_plaza_libre_para_distinto_oficio(sqlite_db):
 # 2. CP < 5 grupos → crear grupo nuevo para segundo aliado del mismo oficio
 # ---------------------------------------------------------------------------
 
-def test_cp_menos_de_5_grupos_crea_nuevo_grupo(sqlite_db):
-    """Segundo aliado con mismo oficio en el mismo CP → asignado a un grupo diferente."""
+def test_cp_menos_de_5_grupos_segundo_mismo_oficio_en_espera(sqlite_db):
+    """Segundo aliado con mismo oficio en el mismo CP → en_espera (no nuevo grupo por oficio)."""
     r1 = _crear(sqlite_db, "10003", oficio="Electricidad", cp="11111")
     assert r1["status"] == "success"
     _set_activo(sqlite_db, "10003")
     grupo1 = sqlite_db.obtener_aliado_por_codigo("10003").get("grupo_id")
     assert grupo1 is not None
 
-    # Segundo aliado con mismo oficio, mismo CP
     r2 = _crear(sqlite_db, "10004", oficio="Electricidad", cp="11111")
     assert r2["status"] == "success"
-    _set_activo(sqlite_db, "10004")
-
-    # Puede quedar pendiente_validacion si oficio no está en catálogo del test;
-    # pero el grupo asignado, si existe, debe ser diferente.
     aliado2 = sqlite_db.obtener_aliado_por_codigo("10004")
-    grupo2 = aliado2.get("grupo_id")
-
-    # Ambos deben existir y pertenecer a grupos distintos
-    if grupo2 is not None:
-        assert grupo1 != grupo2, "Los dos aliados del mismo oficio no deben compartir grupo"
+    assert aliado2["estado"] == "en_espera"
+    assert aliado2.get("grupo_id") is None
 
 
 # ---------------------------------------------------------------------------

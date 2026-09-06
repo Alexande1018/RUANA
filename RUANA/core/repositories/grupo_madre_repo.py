@@ -145,7 +145,38 @@ class GrupoMadreRepo:
         aliados_activos: int,
         encargos_validos: int,
         listo: bool,
+        aliados_desde_ultimo_grupo: Optional[int] = None,
     ) -> None:
+        if aliados_desde_ultimo_grupo is not None:
+            cursor.execute(
+                """
+                INSERT INTO cp_estado (
+                    codigo_postal, ciudad, modo, grupo_madre_id,
+                    aliados_activos, encargos_validos, listo_independizar,
+                    aliados_desde_ultimo_grupo, actualizado_en
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(codigo_postal) DO UPDATE SET
+                    ciudad = excluded.ciudad,
+                    modo = excluded.modo,
+                    grupo_madre_id = COALESCE(excluded.grupo_madre_id, cp_estado.grupo_madre_id),
+                    aliados_activos = excluded.aliados_activos,
+                    encargos_validos = excluded.encargos_validos,
+                    listo_independizar = excluded.listo_independizar,
+                    aliados_desde_ultimo_grupo = excluded.aliados_desde_ultimo_grupo,
+                    actualizado_en = CURRENT_TIMESTAMP
+                """,
+                (
+                    codigo_postal.strip(),
+                    ciudad,
+                    modo,
+                    grupo_madre_id,
+                    aliados_activos,
+                    encargos_validos,
+                    1 if listo else 0,
+                    aliados_desde_ultimo_grupo,
+                ),
+            )
+            return
         cursor.execute(
             """
             INSERT INTO cp_estado (
@@ -170,6 +201,45 @@ class GrupoMadreRepo:
                 encargos_validos,
                 1 if listo else 0,
             ),
+        )
+
+    def obtener_contador_desde_ultimo_grupo(self, cursor, codigo_postal: str) -> int:
+        cursor.execute(
+            "SELECT aliados_desde_ultimo_grupo FROM cp_estado WHERE codigo_postal = ?",
+            (codigo_postal.strip(),),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return 0
+        val = row[0] if not hasattr(row, "keys") else row["aliados_desde_ultimo_grupo"]
+        return int(val or 0)
+
+    def incrementar_contador_desde_ultimo_grupo(
+        self, cursor, codigo_postal: str, ciudad: str, incremento: int = 1
+    ) -> int:
+        cp = codigo_postal.strip()
+        actual = self.obtener_contador_desde_ultimo_grupo(cursor, cp)
+        nuevo = actual + incremento
+        cursor.execute(
+            """
+            INSERT INTO cp_estado (codigo_postal, ciudad, modo, aliados_desde_ultimo_grupo, actualizado_en)
+            VALUES (?, ?, 'territorial', ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(codigo_postal) DO UPDATE SET
+                aliados_desde_ultimo_grupo = excluded.aliados_desde_ultimo_grupo,
+                actualizado_en = CURRENT_TIMESTAMP
+            """,
+            (cp, ciudad, nuevo),
+        )
+        return nuevo
+
+    def resetear_contador_desde_ultimo_grupo(self, cursor, codigo_postal: str) -> None:
+        cursor.execute(
+            """
+            UPDATE cp_estado
+            SET aliados_desde_ultimo_grupo = 0, actualizado_en = CURRENT_TIMESTAMP
+            WHERE codigo_postal = ?
+            """,
+            (codigo_postal.strip(),),
         )
 
     def select_cp_estado(self, cursor, codigo_postal: str) -> Optional[Any]:

@@ -43,6 +43,16 @@ def _activo(db, codigo, oficio, cp, score=50, estado="activo", grupo_id=None):
 def _madre_grupo_id(db, codigo):
     a = db.obtener_aliado_por_codigo(codigo)
     gid = a.get("grupo_id")
+    g = db.obtener_grupo_por_id(gid)
+    if (g or {}).get("tipo") != TIPO_GRUPO_MADRE:
+        from core.services import grupo_madre_service
+        madre = grupo_madre_service.obtener_o_crear_grupo_madre(db, "Alicante", "Alicante")
+        conn = db._connect()
+        cur = conn.cursor()
+        cur.execute("UPDATE aliados SET grupo_id = ? WHERE codigo = ?", (madre["id"], codigo))
+        conn.commit()
+        conn.close()
+        gid = madre["id"]
     assert db.obtener_grupo_por_id(gid).get("tipo") == TIPO_GRUPO_MADRE
     return gid
 

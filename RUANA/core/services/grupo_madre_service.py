@@ -12,8 +12,10 @@ from core.db_constants import (
     CP_MADUREZ_MIN_ENCARGOS,
     CP_MODO_INCUBACION,
     CP_MODO_TERRITORIAL,
+    CP_NUEVO_GRUPO_MIN_ALIADOS,
     MAX_GRUPOS_POR_CP,
     TIPO_GRUPO_MADRE,
+    TIPO_GRUPO_TERRITORIAL,
 )
 from core.repositories.grupo_madre_repo import GrupoMadreRepo
 from core.services import territorio_service
@@ -170,7 +172,12 @@ def asignar_aliado_territorial_estandar(
         g = db.buscar_grupo_sin_oficio(codigo_postal, oficio)
         if g:
             grupo_preferido_id = g["id"]
+        elif contar_grupos_territoriales_activos_por_cp(db, codigo_postal) == 0:
+            pass  # bootstrap: post_insert o incubación creará el primer grupo
         elif contar_grupos_territoriales_activos_por_cp(db, codigo_postal) >= MAX_GRUPOS_POR_CP:
+            estado_final = "en_espera"
+            mensaje = db.MENSAJE_LISTA_ESPERA
+        else:
             estado_final = "en_espera"
             mensaje = db.MENSAJE_LISTA_ESPERA
     return grupo_preferido_id, estado_final, mensaje
@@ -183,36 +190,41 @@ def asignar_aliado_incubacion(
     oficio: str,
     grupo_id_invitacion: Optional[int] = None,
 ) -> Tuple[Optional[int], str, Optional[str]]:
-    """Asignación al Grupo Madre de la ciudad."""
+    """Grupo Madre: crea el primer grupo territorial del CP (bootstrap)."""
     ubic = territorio_service.resolver_ciudad(db, codigo_postal)
     if not ubic or not ubic.get("ciudad"):
         return None, "en_espera", db.MENSAJE_LISTA_ESPERA
-    madre = obtener_o_crear_grupo_madre(
-        db, ubic["ciudad"], ubic.get("provincia") or ""
-    )
-    if not madre:
+
+    ciudad = ubic["ciudad"]
+    provincia = ubic.get("provincia") or ""
+
+    if contar_grupos_territoriales_activos_por_cp(db, codigo_postal) > 0:
+        return asignar_aliado_territorial_estandar(
+            db, cursor, codigo_postal, oficio, grupo_id_invitacion
+        )
+
+    madre = obtener_o_crear_grupo_madre(db, ciudad, provincia)
+    madre_id = madre["id"] if madre else None
+
+    from core.services import grupo_service
+
+    try:
+        gid = grupo_service._insertar_grupo_nombre_unico(db, cursor, codigo_postal, ciudad, provincia)
+    except Exception:
         return None, "en_espera", db.MENSAJE_LISTA_ESPERA
 
-    # Invitador en madre con plaza compatible
-    if grupo_id_invitacion:
-        inv = db.obtener_grupo_por_id(grupo_id_invitacion)
-        if inv and (inv.get("tipo") or "") == TIPO_GRUPO_MADRE:
-            if plaza_disponible_en_madre(db, cursor, inv["id"], oficio, codigo_postal):
-                return inv["id"], "activo", None
-
-    if plaza_disponible_en_madre(db, cursor, madre["id"], oficio, codigo_postal):
-        _madre_repo.upsert_cp_estado(
-            cursor,
-            codigo_postal,
-            ubic["ciudad"],
-            CP_MODO_INCUBACION,
-            madre["id"],
-            _madre_repo.contar_aliados_activos_cp(cursor, codigo_postal),
-            _madre_repo.contar_encargos_validos_cp_profesional(cursor, codigo_postal),
-            False,
-        )
-        return madre["id"], "activo", None
-    return None, "en_espera", db.MENSAJE_LISTA_ESPERA_MADRE
+    _madre_repo.upsert_cp_estado(
+        cursor,
+        codigo_postal,
+        ciudad,
+        CP_MODO_TERRITORIAL,
+        madre_id,
+        0,
+        0,
+        False,
+        aliados_desde_ultimo_grupo=0,
+    )
+    return gid, "activo", None
 
 
 def resolver_asignacion_registro(
@@ -239,17 +251,87 @@ def resolver_asignacion_registro(
 def asignar_territorial_post_insert(
     db, cursor, aliado_id: int, codigo_postal: str, oficio: str, ciudad: str = "", provincia: str = ""
 ) -> None:
-    """Tras INSERT: asignar grupo territorial (crear si cabe) — lógica estándar."""
+    """Tras INSERT: asignar grupo territorial existente o bootstrap del primer grupo."""
     from core.repositories.aliado_repo import AliadoRepo
 
     _aliado_repo = AliadoRepo()
     grupo_asignar = db.buscar_grupo_sin_oficio(codigo_postal, oficio)
     if grupo_asignar:
         _aliado_repo.update_grupo_id(cursor, grupo_asignar["id"], aliado_id)
-    elif contar_grupos_territoriales_activos_por_cp(db, codigo_postal) < MAX_GRUPOS_POR_CP:
+    elif contar_grupos_territoriales_activos_por_cp(db, codigo_postal) == 0:
         nuevo = db.crear_grupo_en_cp(codigo_postal, ciudad, provincia)
         if isinstance(nuevo, dict) and nuevo.get("id"):
             _aliado_repo.update_grupo_id(cursor, nuevo["id"], aliado_id)
+
+
+def evaluar_nuevo_grupo_por_acumulacion(
+    db, cursor, codigo_postal: str, ciudad: str = "", provincia: str = ""
+) -> Optional[Dict[str, Any]]:
+    """
+    Si el CP acumuló CP_NUEVO_GRUPO_MIN_ALIADOS elegibles desde el último grupo,
+    crea un nuevo grupo territorial y reinicia el contador.
+    """
+    from core.repositories.grupo_repo import GrupoRepo
+    from core.services import grupo_service
+
+    cp = (codigo_postal or "").strip()
+    if not cp:
+        return None
+    if contar_grupos_territoriales_activos_por_cp(db, cp) == 0:
+        return None
+    if contar_grupos_territoriales_activos_por_cp(db, cp) >= MAX_GRUPOS_POR_CP:
+        return None
+    contador = _madre_repo.obtener_contador_desde_ultimo_grupo(cursor, cp)
+    if contador < CP_NUEVO_GRUPO_MIN_ALIADOS:
+        return None
+    if not ciudad:
+        ubic = territorio_service.resolver_ciudad(db, cp)
+        if ubic:
+            ciudad = ubic.get("ciudad") or ""
+            provincia = provincia or ubic.get("provincia") or ""
+    try:
+        gid = grupo_service._insertar_grupo_nombre_unico(db, cursor, cp, ciudad, provincia)
+        row = GrupoRepo().select_grupo_por_id(cursor, gid)
+        _madre_repo.resetear_contador_desde_ultimo_grupo(cursor, cp)
+        return dict(row) if row else {"id": gid}
+    except Exception:
+        return None
+
+
+def registrar_elegible_cp(
+    db, codigo_postal: str, ciudad: str = "", provincia: str = ""
+) -> Dict[str, Any]:
+    """
+    Incrementa el contador de elegibles del CP y evalúa si procede un nuevo grupo.
+    Llamar tras cada registro exitoso de profesional elegible.
+    """
+    cp = (codigo_postal or "").strip()
+    if not cp or not cp_en_modo_territorial(db, cp):
+        return {"status": "skip", "motivo": "sin_territorial"}
+    if not ciudad:
+        ubic = territorio_service.resolver_ciudad(db, cp)
+        ciudad = (ubic or {}).get("ciudad") or ""
+        provincia = provincia or (ubic or {}).get("provincia") or ""
+    with db._lock:
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            nuevo_contador = _madre_repo.incrementar_contador_desde_ultimo_grupo(
+                cursor, cp, ciudad or cp
+            )
+            nuevo_grupo = evaluar_nuevo_grupo_por_acumulacion(
+                db, cursor, cp, ciudad, provincia
+            )
+            conn.commit()
+            return {
+                "status": "ok",
+                "contador": nuevo_contador,
+                "nuevo_grupo_id": (nuevo_grupo or {}).get("id"),
+            }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+        finally:
+            conn.close()
 
 
 def actualizar_madurez_cp(db, codigo_postal: str) -> Dict[str, Any]:
