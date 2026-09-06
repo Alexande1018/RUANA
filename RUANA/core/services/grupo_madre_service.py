@@ -264,6 +264,11 @@ def actualizar_madurez_cp(db, codigo_postal: str) -> Dict[str, Any]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
+            prev_row = _madre_repo.select_cp_estado(cursor, cp)
+            prev_aliados = int((prev_row or {}).get("aliados_activos") or 0) if prev_row else 0
+            prev_encargos = int((prev_row or {}).get("encargos_validos") or 0) if prev_row else 0
+            prev_listo = bool((prev_row or {}).get("listo_independizar")) if prev_row else False
+
             n_aliados = _madre_repo.contar_aliados_activos_cp(cursor, cp)
             n_encargos = _madre_repo.contar_encargos_validos_cp_profesional(cursor, cp)
             listo = n_aliados >= CP_MADUREZ_MIN_ALIADOS and n_encargos >= CP_MADUREZ_MIN_ENCARGOS
@@ -273,6 +278,21 @@ def actualizar_madurez_cp(db, codigo_postal: str) -> Dict[str, Any]:
                 cursor, cp, ubic["ciudad"], CP_MODO_INCUBACION, madre_id,
                 n_aliados, n_encargos, listo,
             )
+            if madre_id:
+                from core.services import actividad_cinta_service
+
+                actividad_cinta_service.emitir_hitos_madurez_cp(
+                    db,
+                    cp,
+                    int(madre_id),
+                    prev_aliados,
+                    prev_encargos,
+                    prev_listo,
+                    n_aliados,
+                    n_encargos,
+                    listo,
+                    cursor=cursor,
+                )
             if listo and not _madre_repo.existe_solicitud_pendiente_cp(cursor, cp):
                 _madre_repo.insertar_solicitud_independencia(
                     cursor, cp, ubic["ciudad"], n_aliados, n_encargos
