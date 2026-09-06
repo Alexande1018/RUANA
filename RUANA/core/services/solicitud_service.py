@@ -358,7 +358,7 @@ def listar_solicitudes_historial_grupo_por_codigo(db, codigo: str, limite: int =
 
 
 def obtener_solicitudes_grupo(db, codigo_postal: str) -> List[Dict[str, Any]]:
-    """Obtiene solicitudes pendientes de todos los grupos activos en el código postal."""
+    """Obtiene solicitudes pendientes de todos los grupos territoriales activos en el CP."""
     if not codigo_postal or not str(codigo_postal).strip():
         return []
     with db._lock:
@@ -376,6 +376,32 @@ def obtener_solicitudes_grupo(db, codigo_postal: str) -> List[Dict[str, Any]]:
             return []
         finally:
             conn.close()
+
+
+def obtener_solicitudes_operativas(db, codigo_aliado: str) -> List[Dict[str, Any]]:
+    """Solicitudes visibles según modo territorial o incubación (grupo madre)."""
+    from core.services import grupo_madre_service
+
+    aliado = db.obtener_aliado_por_codigo((codigo_aliado or '').strip())
+    if not aliado:
+        return []
+    cp = (aliado.get('codigo_postal') or '').strip()
+    grupo_id = aliado.get('grupo_id')
+    modo = grupo_madre_service.territorio_modo_aliado(db, cp, grupo_id)
+    if modo == 'incubacion' and grupo_id:
+        with db._lock:
+            try:
+                conn = db._connect()
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                _expirar_candidatos_vencidos_lazy(db, conn, cursor)
+                conn.commit()
+                return _json_safe_rows(_repo.listar_pendientes_por_grupo(cursor, int(grupo_id)))
+            except Exception:
+                return []
+            finally:
+                conn.close()
+    return obtener_solicitudes_grupo(db, cp)
 
 
 def atender_solicitud_por_id(db, solicitud_id: int, codigo: str) -> Dict[str, Any]:

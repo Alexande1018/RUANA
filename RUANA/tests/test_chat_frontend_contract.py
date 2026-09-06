@@ -32,4 +32,6 @@ def test_negociacion_guiada_replaces_free_chat_modal():
     assert "renderAcuerdoConfirmFlotante" in neg_js
     stripe_js = (root / "static" / "js" / "aliado-stripe-pagos-module.js").read_text(encoding="utf-8")
     assert "function apiUrl(path)" in stripe_js
-    assert "contactoEstado === 'pendiente_de_pago'" in stripe_js
+    assert "getAccionPendienteStripe" in stripe_js
+    assert "'pendiente_de_pago'" in stripe_js
+    assert "'acuerdo_alcanzado'" in stripe_js

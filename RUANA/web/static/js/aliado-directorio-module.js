@@ -89,8 +89,9 @@
     listaProfesionales.innerHTML = '';
 
     var profesionalesArray = Array.isArray(host.profesionales) ? host.profesionales : [];
+    var territorioModo = (host.aliado && host.aliado.territorio_modo) || 'territorial';
     var miCp = ((host.aliado && host.aliado.codigo_postal) || '').trim();
-    if (miCp) {
+    if (miCp && territorioModo !== 'incubacion') {
       profesionalesArray = profesionalesArray.filter(function (p) {
         var cp = ((p && (p.codigo_postal || p.zona)) || '').trim();
         return cp === miCp;
@@ -129,6 +130,10 @@
       var nombre = prof.nombre || '(sin nombre)';
       var oficio = prof.oficio || '(sin oficio)';
       var zona = prof.zona || prof.codigo_postal || '(sin zona)';
+      var cercaniaBadge = '';
+      if (territorioModo === 'incubacion' && prof.etiqueta_cercania) {
+        cercaniaBadge = ' <span class="directorio-cercania-badge">' + escapeHtmlSafe(host, prof.etiqueta_cercania) + '</span>';
+      }
       var descripcionServicio = (prof.descripcion_servicio || prof.descripcion || '').trim();
       var badgeTexto = tieneConversacion ? 'Negociación activa' : (esIncompleto ? 'Perfil incompleto' : 'DISPONIBLE');
       var scoreMeta = scoreEtiquetaMeta(prof.score, prof.estado_ruana);
@@ -147,7 +152,7 @@
             avatarHtml +
             '<div>' +
               '<div class="profesional-nombre">' + escapeHtmlSafe(host, nombre) + '</div>' +
-              '<div class="profesional-oficio-sub">' + escapeHtmlSafe(host, oficio) + ' · ' + escapeHtmlSafe(host, zona) + '</div>' +
+              '<div class="profesional-oficio-sub">' + escapeHtmlSafe(host, oficio) + ' · ' + escapeHtmlSafe(host, zona) + cercaniaBadge + '</div>' +
             '</div>' +
           '</div>' +
           '<div class="profesional-badge ' + badgeRuana + ' ' + badgeTipo + '"><span class="ruana-badge-dot"></span>' + escapeHtmlSafe(host, badgeTexto) + '</div>' +

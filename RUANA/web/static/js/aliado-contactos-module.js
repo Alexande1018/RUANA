@@ -137,7 +137,10 @@
             pasoEl.textContent = ui.pasoTxt;
             pasoEl.style.display = ui.pasoTxt ? 'block' : 'none';
         }
-        if (accionEl) accionEl.textContent = ui.accionTxt;
+        if (accionEl) {
+            accionEl.textContent = ui.accionTxt || '';
+            accionEl.style.display = (ui.accionTxt && !ui.accionCompacta) ? 'block' : 'none';
+        }
         const stripeSlot = document.getElementById('contacto-aviso-stripe-acciones');
         if (stripeSlot) {
             stripeSlot.innerHTML = '';
@@ -312,74 +315,47 @@
     const transferido = String(contacto.estado_pago || '').trim() === 'transferido'
         || String(contacto.estado_financiero || '').trim() === 'TRANSFERIDO'
         || estado === 'trabajo_cerrado';
-    const netoTxt = contacto.importe_neto_profesional != null && !Number.isNaN(Number(contacto.importe_neto_profesional))
-        ? `${Number(contacto.importe_neto_profesional).toFixed(2)} €`
-        : '';
-    const apoyoTxt = contacto.apoyo_ruana != null && !Number.isNaN(Number(contacto.apoyo_ruana))
-        ? `${Number(contacto.apoyo_ruana).toFixed(2)} €`
-        : '';
     if (
         (estado === 'pendiente_de_pago' && !cobroConfirmado && !transferPendiente && !transferido)
         || (contacto.modo_pago === 'stripe' && estado === 'trabajo_en_progreso' && !cobroConfirmado && !transferPendiente && !transferido)
     ) {
         estadoLabel = contacto.modo_pago === 'stripe' ? 'Pago Stripe pendiente' : estadoLabel;
         if (contacto.modo_pago === 'stripe') {
-            contexto = 'El importe acordado está congelado. El contratante debe completar el pago.';
-            if (esProfesional) {
-                accionTxt = contacto.estado_pago === 'cobro_confirmado'
-                    ? 'El contratante ya pagó. Tu importe está retenido y se liberará cuando confirme que el trabajo quedó hecho.'
-                    : 'Tu pago quedará retenido hasta que el contratante pague y confirme que el trabajo quedó hecho.';
-            } else if (esContratante) {
-                accionTxt = contacto.estado_pago === 'cobro_confirmado'
-                    ? 'Confirma que el trabajo se realizó para liberar el pago al profesional.'
-                    : 'Pulsa «Ir a pagar» para completar el pago con Stripe.';
-            } else {
-                accionTxt = contacto.estado_pago === 'cobro_confirmado'
-                    ? 'Confirma que el trabajo se realizó para liberar el pago al profesional.'
-                    : 'El contratante debe completar el pago con Stripe.';
-            }
+            contexto = esContratante
+                ? 'Importe acordado listo para el pago.'
+                : 'Esperando el pago del contratante.';
+            accionTxt = '';
             btnPrincipal = 'Ver encargo';
         }
     } else if (modoStripe && transferido) {
         estadoLabel = 'Pago transferido';
-        contexto = 'El encargo quedó cerrado y el pago Stripe se completó.';
+        contexto = 'Encargo cerrado.';
         pasoTxt = '';
-        if (esProfesional) {
-            accionTxt = netoTxt
-                ? `RUANA transfirió ${netoTxt} a tu cuenta Stripe Connect.`
-                : 'RUANA transfirió tu importe neto a tu cuenta Stripe Connect.';
-            if (apoyoTxt) accionTxt += ` Comisión RUANA (12%): ${apoyoTxt} (ya descontada).`;
-        } else if (esContratante) {
-            accionTxt = 'Confirmaste la entrega y el pago al profesional se completó.';
-        }
+        accionTxt = '';
         btnPrincipal = 'Ver detalle';
     } else if (modoStripe && transferPendiente) {
         estadoLabel = 'Pago en transferencia';
-        contexto = 'El contratante confirmó el trabajo; RUANA está transfiriendo el importe.';
+        contexto = 'Transferencia en curso.';
         pasoTxt = '';
-        if (esProfesional) {
-            accionTxt = netoTxt
-                ? `Se está transfiriendo ${netoTxt} a tu cuenta Stripe Connect.`
-                : 'Se está transfiriendo tu importe neto a tu cuenta Stripe Connect.';
-            if (apoyoTxt) accionTxt += ` Comisión RUANA (12%): ${apoyoTxt} (retenida en el cobro).`;
-        } else if (esContratante) {
-            accionTxt = 'Confirmaste la entrega. El pago al profesional está en proceso.';
-        }
+        accionTxt = '';
         btnPrincipal = 'Ver encargo';
     } else if (estado === 'acuerdo_alcanzado' || contacto.negociacion_completa) {
         estadoLabel = 'Acuerdo alcanzado';
         contexto = 'Todos los puntos del encargo están confirmados.';
         pasoTxt = '';
-        if (modoStripe && cobroConfirmado && esProfesional) {
-            accionTxt = 'El contratante ya pagó. Tu importe está retenido y se liberará cuando confirme que el trabajo quedó hecho.';
-        } else if (modoStripe && cobroConfirmado && esContratante) {
-            accionTxt = 'Pago realizado. Confirma que el trabajo quedó hecho para liberar el importe al profesional.';
-        } else if (modoStripe && esProfesional) {
-            accionTxt = 'Acuerdo confirmado. Tu pago está reservado y se desbloqueará automáticamente en cuanto el contratante confirme que el trabajo quedó hecho.';
-        } else if (modoStripe && esContratante) {
-            accionTxt = 'El importe acordado está congelado. Completa el pago con «Pagar ahora» para reservar el encargo.';
-        } else if (modoStripe) {
-            accionTxt = 'El importe acordado está congelado. El contratante debe completar el pago.';
+        if (modoStripe) {
+            accionTxt = '';
+            if (cobroConfirmado && esContratante) {
+                estadoLabel = 'Pago realizado';
+                contexto = 'Pendiente de confirmar la entrega.';
+            } else if (cobroConfirmado && esProfesional) {
+                estadoLabel = 'Pago retenido';
+                contexto = 'Esperando confirmación de entrega.';
+            } else if (esContratante) {
+                contexto = 'Importe acordado listo para el pago.';
+            } else if (esProfesional) {
+                contexto = 'Esperando el pago del contratante.';
+            }
         } else {
             accionTxt = 'El importe acordado está congelado. El contratante debe completar el pago con tarjeta.';
         }
@@ -404,22 +380,29 @@
         estadoLabel = 'Trabajo cerrado';
         contexto = 'El encargo quedó registrado como realizado.';
         pasoTxt = '';
-        accionTxt = modoStripe
-            ? 'Revisa el estado del pago en el detalle del encargo.'
-            : 'Revisa el detalle del encargo si necesitas más información.';
+        accionTxt = modoStripe ? '' : 'Revisa el detalle del encargo si necesitas más información.';
         btnPrincipal = 'Ver detalle';
     }
-    if (yaDeclaraste && estado !== 'importe_en_disputa' && estado !== 'trabajo_cerrado') {
+    const accionCompacta = (global.RuanaStripePagos && typeof global.RuanaStripePagos.getAccionPendienteStripe === 'function')
+        ? global.RuanaStripePagos.getAccionPendienteStripe(contacto, codigo)
+        : null;
+    if (accionCompacta) accionTxt = '';
+    if (yaDeclaraste && accionTxt && estado !== 'importe_en_disputa' && estado !== 'trabajo_cerrado') {
         accionTxt += ' Ya confirmaste el importe.';
     }
     const contraparte = esContratante
         ? contacto.profesional_codigo
         : contacto.solicitante_codigo;
     return {
-        estadoLabel, contexto, pasoTxt, accionTxt, btnPrincipal, requiereRespuesta, contraparte,
+        estadoLabel, contexto, pasoTxt, accionTxt, accionCompacta, btnPrincipal, requiereRespuesta, contraparte,
         progresoConf: meta.progreso_confirmados || 0,
         progresoTotal: meta.progreso_total || 6,
     };
+  }
+
+  function _encargoAccionHtml(host, ui) {
+    if (!ui || !ui.accionTxt) return '';
+    return `<p class="encargo-card-accion">${host.escapeHtml(ui.accionTxt)}</p>`;
   }
 
   function renderEncargosActivos(host) {
@@ -459,7 +442,7 @@
             <p class="encargo-card-meta">Con aliado ${contraparte}</p>
             <p class="encargo-card-contexto">${host.escapeHtml(ui.contexto)}</p>
             ${pasoHtml}
-            <p class="encargo-card-accion">${host.escapeHtml(ui.accionTxt)}</p>
+            ${_encargoAccionHtml(host, ui)}
             <div class="encargo-stripe-acciones" data-stripe-contacto="${c.id}"></div>
             <button type="button" class="encargo-card-btn" data-abrir-negociacion="${c.id}">${host.escapeHtml(ui.btnPrincipal)}</button>
         </article>`;
