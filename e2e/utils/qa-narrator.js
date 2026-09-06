@@ -21,7 +21,8 @@ async function ensureNarrator(page, scenario) {
       style.textContent = `
         #qa-video-narrator {
           position: fixed;
-          right: 18px;
+          left: 18px;
+          right: auto;
           top: 18px;
           z-index: 2147483647;
           width: min(440px, calc(100vw - 36px));
