@@ -7,6 +7,7 @@ Sin reglas de negocio: solo lectura/escritura.
 
 from __future__ import annotations
 
+from core.db_constants import TIPO_GRUPO_MADRE
 from typing import Any, List, Optional, Sequence
 
 
@@ -111,14 +112,29 @@ class CompetenciaRepo:
     def select_aliado_activo_con_grupo(self, cursor, codigo_aliado: str) -> Optional[Any]:
         cursor.execute(
             """
-            SELECT a.grupo_id, a.oficio, a.score, g.codigo_postal, g.ciudad, g.provincia
+            SELECT a.grupo_id, a.oficio, a.score,
+                   CASE
+                     WHEN COALESCE(g.tipo, 'territorial') = ?
+                     THEN TRIM(COALESCE(a.codigo_postal, ''))
+                     ELSE TRIM(COALESCE(g.codigo_postal, ''))
+                   END AS codigo_postal,
+                   g.ciudad, g.provincia,
+                   COALESCE(g.tipo, 'territorial') AS grupo_tipo
             FROM aliados a
             LEFT JOIN grupos g ON g.id = a.grupo_id
             WHERE a.codigo = ? AND a.estado = 'activo'
             """,
-            (codigo_aliado,),
+            (TIPO_GRUPO_MADRE, codigo_aliado),
         )
         return cursor.fetchone()
+
+    def select_grupo_tipo(self, cursor, grupo_id: int) -> str:
+        cursor.execute(
+            "SELECT COALESCE(tipo, 'territorial') FROM grupos WHERE id = ?",
+            (int(grupo_id),),
+        )
+        row = cursor.fetchone()
+        return str(row[0] if row else "territorial").strip()
 
     def insertar_competencia(
         self,
@@ -185,6 +201,36 @@ class CompetenciaRepo:
     def select_score(self, cursor, codigo: str) -> Optional[Any]:
         cursor.execute("SELECT score FROM aliados WHERE codigo = ?", (codigo,))
         return cursor.fetchone()
+
+    def select_aliado_cp(self, cursor, codigo: str) -> str:
+        cursor.execute(
+            "SELECT TRIM(COALESCE(codigo_postal, '')) FROM aliados WHERE codigo = ?",
+            (codigo,),
+        )
+        row = cursor.fetchone()
+        return str(row[0] if row else "").strip()
+
+    def limpiar_competencia_cp_incubacion(self, cursor, codigo_postal: str) -> None:
+        cp = (codigo_postal or "").strip()
+        if not cp:
+            return
+        cursor.execute(
+            """
+            UPDATE competencia SET estado = 'finalizada', fecha_cierre = CURRENT_TIMESTAMP
+            WHERE estado = 'activa'
+              AND grupo_id IN (
+                SELECT DISTINCT a.grupo_id FROM aliados a
+                INNER JOIN grupos g ON g.id = a.grupo_id
+                WHERE COALESCE(g.tipo, 'territorial') = ?
+                  AND TRIM(a.codigo_postal) = ?
+              )
+            """,
+            (TIPO_GRUPO_MADRE, cp),
+        )
+        cursor.execute(
+            "DELETE FROM competencia_pendiente WHERE codigo_postal = ? AND estado = 'pendiente'",
+            (cp,),
+        )
 
     def select_grupo_ubicacion(self, cursor, grupo_id: int) -> Optional[Any]:
         cursor.execute(
@@ -323,6 +369,29 @@ class CompetenciaRepo:
             LIMIT 1
             """,
             (oficio, codigo_postal, codigo_aliado_en_riesgo),
+        )
+        return cursor.fetchone()
+
+    def buscar_retador_activo_madre(
+        self,
+        cursor,
+        oficio: str,
+        codigo_postal: str,
+        codigo_aliado_en_riesgo: str,
+        grupo_madre_id: int,
+    ) -> Optional[Any]:
+        """Retador activo en incubación: mismo grupo madre, mismo CP y oficio (sin cross-CP)."""
+        cursor.execute(
+            """
+            SELECT a.codigo, a.score, a.grupo_id, a.estado, a.codigo_postal,
+                   0 AS n_aliados
+            FROM aliados a
+            WHERE a.estado = 'activo' AND a.oficio = ? AND TRIM(a.codigo_postal) = ?
+              AND a.grupo_id = ? AND a.codigo != ?
+            ORDER BY a.score DESC, a.codigo
+            LIMIT 1
+            """,
+            (oficio, codigo_postal, int(grupo_madre_id), codigo_aliado_en_riesgo),
         )
         return cursor.fetchone()
 
