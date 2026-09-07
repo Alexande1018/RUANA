@@ -252,11 +252,6 @@ async function uploadComprobanteViaUi(page, scenario) {
       expected: 'Debe aparecer el aviso con accion Gestionar.',
       result: 'El Centro de Actividad muestra el pago pendiente.',
     });
-<<<<<<< HEAD
-    await clickVisible(page, '[data-alert-action="apoyo-pago"]');
-    // Pago manual (Bizum/IBAN) está off salvo allowlist; el comprobante sigue disponible.
-    await clickVisible(page, '.btn-enviar-comprobante');
-=======
     await openPulseDetailAction(page, scenario, 'apoyo-pago');
     await clickVisible(page, '#ruana-pulse-detail-body .btn-aceptar-pagar');
     await expect(page.locator('#modal-pago-apoyo')).toHaveClass(/show/);
@@ -268,7 +263,6 @@ async function uploadComprobanteViaUi(page, scenario) {
       result: 'RUANA muestra Bizum/Revolut/Transferencia y la accion de comprobante.',
     });
     await clickVisible(page, '#btn-pago-apoyo-comprobante');
->>>>>>> origin/main
     await expect(page.locator('#modal-comprobante-apoyo')).toHaveClass(/show/);
     await expect(page.locator('#modal-pago-apoyo')).not.toHaveClass(/show/);
     await pass(page, scenario, {
