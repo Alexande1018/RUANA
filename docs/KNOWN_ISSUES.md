@@ -25,21 +25,21 @@ El código de 5 dígitos es el único factor de autenticación. Compromiso del c
 
 ### K-02 — Service role elude RLS Supabase
 
-**Estado:** Abierto (diseño actual)  
+**Estado:** Abierto (diseño actual) — mitigación parcial del agujero **anon** en `supabase/migrations/20260902000200_enable_rls_public_tables.sql` (pendiente de aplicar en prod; ver [`docs/seguridad/rls-public-tables.md`](seguridad/rls-public-tables.md))  
 **Severidad:** Alta  
-**Verificado:** migraciones RLS + uso `SUPABASE_SERVICE_ROLE_KEY`
+**Verificado:** migraciones RLS + uso `SUPABASE_SERVICE_ROLE_KEY` y `DATABASE_URL`
 
-Toda autorización debe implementarse en Flask (`@require_aliado`, `@require_admin`). Un bug en un endpoint expone datos sin barrera RLS.
+Toda autorización de la API debe seguir en Flask (`@require_aliado`, `@require_admin`). `service_role` y el rol de `DATABASE_URL` eluden RLS. Un bug en un endpoint Flask sigue sin barrera RLS. La migración nueva solo cierra el acceso PostgREST con la anon key.
 
 ---
 
 ### K-03 — Datos de cobro manual en repositorio
 
-**Estado:** Abierto  
+**Estado:** Cerrado (código) en [#195](https://github.com/Alexande1018/RUANA/pull/195) — historial git pendiente de purga manual  
 **Severidad:** Alta (privacidad / compliance)  
-**Verificado:** `RUANA/config/ruana_reglas_v1.json`
+**Verificado:** `docs/seguridad/pago-manual-allowlist.md`
 
-Contiene IBAN, número Bizum y URLs de QR en historial git. No rotar automáticamente si se filtran.
+Los datos de cobro salieron de `ruana_reglas_v1.json` y del código. Viven en `ruana_metodos_pago_manual` y solo se muestran a aliados de `ruana_pago_manual_aliados_habilitados`. **Sigue haciendo falta rotar IBAN/Bizum reales y purgar el historial** (`git filter-repo` / BFG); eso queda fuera de #195.
 
 ---
 

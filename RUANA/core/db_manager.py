@@ -117,6 +117,14 @@ class DBManager:
         """Fachada Campamento Base → schema_service._migrar_grupos_nombre_unique_si_procede."""
         return schema_service._migrar_grupos_nombre_unique_si_procede(self, conn, cursor)
 
+    def _migrar_grupo_madre_v1_si_procede(self, conn, cursor) -> None:
+        """Fachada Campamento Base → schema_service._migrar_grupo_madre_v1_si_procede."""
+        return schema_service._migrar_grupo_madre_v1_si_procede(self, conn, cursor)
+
+    def _migrar_cp_auto_split_v1_si_procede(self, conn, cursor) -> None:
+        """Fachada Campamento Base → schema_service._migrar_cp_auto_split_v1_si_procede."""
+        return schema_service._migrar_cp_auto_split_v1_si_procede(self, conn, cursor)
+
     def _migrar_aliados_grupo_id(self, conn, cursor) -> None:
         """Fachada Campamento Base → schema_service._migrar_aliados_grupo_id."""
         return schema_service._migrar_aliados_grupo_id(self, conn, cursor)
@@ -268,6 +276,10 @@ class DBManager:
     def _migrar_financial_fase13_p0_ledger_immutability(self, conn, cursor) -> None:
         """Fachada Campamento Base → schema_service._migrar_financial_fase13_p0_ledger_immutability."""
         return schema_service._migrar_financial_fase13_p0_ledger_immutability(self, conn, cursor)
+
+    def _migrar_pago_manual_allowlist(self, conn, cursor) -> None:
+        """Fachada Campamento Base → schema_service._migrar_pago_manual_allowlist."""
+        return schema_service._migrar_pago_manual_allowlist(self, conn, cursor)
 
     def _migrar_contactos_validacion_pago(self, conn, cursor) -> None:
         """Fachada Campamento Base → schema_service._migrar_contactos_validacion_pago."""
@@ -524,6 +536,30 @@ class DBManager:
         """Fachada Campamento Base → grupo_service.info_grupo_para_panel."""
         return grupo_service.info_grupo_para_panel(self, grupo_id, codigo_aliado)
 
+    def cp_en_modo_territorial(self, codigo_postal: str) -> bool:
+        from core.services import grupo_madre_service
+        return grupo_madre_service.cp_en_modo_territorial(self, codigo_postal)
+
+    def territorio_modo_aliado(self, codigo_postal: str, grupo_id: Optional[int]) -> str:
+        from core.services import grupo_madre_service
+        return grupo_madre_service.territorio_modo_aliado(self, codigo_postal, grupo_id)
+
+    def debe_mostrar_aviso_madre(self, codigo_aliado: str, grupo_id: Optional[int]) -> bool:
+        from core.services import grupo_madre_service
+        return grupo_madre_service.debe_mostrar_aviso_madre(self, codigo_aliado, grupo_id)
+
+    def marcar_aviso_madre_visto(self, codigo_aliado: str, aviso_tipo: str) -> Dict[str, Any]:
+        from core.services import grupo_madre_service
+        return grupo_madre_service.marcar_aviso_visto(self, codigo_aliado, aviso_tipo)
+
+    def aprobar_independencia_cp(self, codigo_postal: str, admin_codigo: str = "admin") -> Dict[str, Any]:
+        from core.services import grupo_madre_service
+        return grupo_madre_service.aprobar_independencia_cp(self, codigo_postal, admin_codigo)
+
+    def posponer_independencia_cp(self, codigo_postal: str, admin_codigo: str = "admin", notas: str = "") -> Dict[str, Any]:
+        from core.services import grupo_madre_service
+        return grupo_madre_service.posponer_independencia_cp(self, codigo_postal, admin_codigo, notas)
+
     def _buscar_candidato_fusion(self, cursor, grupo_id: int, codigo_postal: str, oficio_aliado_solo: str) -> Optional[Dict[str, Any]]:
         """Fachada Campamento Base → grupo_service._buscar_candidato_fusion."""
         return grupo_service._buscar_candidato_fusion(self, cursor, grupo_id, codigo_postal, oficio_aliado_solo)
@@ -557,6 +593,14 @@ class DBManager:
         "plaza disponible en tu zona. En cuanto se libere una vacante, nuestro equipo revisará tu "
         "incorporación y te lo notificaremos.\n\n"
         "Mientras tanto, no tienes que hacer nada más. Gracias por confiar en RUANA."
+    )
+    MENSAJE_LISTA_ESPERA_MADRE = (
+        "¡Bienvenido a RUANA! 🎉\n\n"
+        "Tu registro se ha completado correctamente.\n\n"
+        "La red de tu ciudad ya tiene el máximo de plazas para tu oficio en distintas zonas, "
+        "así que entras en la lista de Suplentes de tu ciudad.\n\n"
+        "En cuanto se libere una plaza compatible con tu código postal, el equipo RUANA te incorporará.\n\n"
+        "Gracias por confiar en RUANA."
     )
 
     def crear_aliado(self, codigo: str, nombre: str, marca: str = "",
@@ -726,13 +770,29 @@ class DBManager:
         """Fachada Campamento Base → pago_service._get_ruana_pago_defaults."""
         return pago_service._get_ruana_pago_defaults(self)
 
-    def obtener_metodos_pago_ruana(self) -> Dict[str, Any]:
+    def obtener_metodos_pago_ruana(self, aliado_codigo: Optional[str] = None) -> Dict[str, Any]:
         """Fachada Campamento Base → pago_service.obtener_metodos_pago_ruana."""
-        return pago_service.obtener_metodos_pago_ruana(self)
+        return pago_service.obtener_metodos_pago_ruana(self, aliado_codigo=aliado_codigo)
 
     def actualizar_metodos_pago_ruana(self, valores: Dict[str, Any], admin_codigo: Optional[str] = None) -> Dict[str, Any]:
         """Fachada Campamento Base → pago_service.actualizar_metodos_pago_ruana."""
         return pago_service.actualizar_metodos_pago_ruana(self, valores, admin_codigo)
+
+    def habilitar_pago_manual_aliado(self, aliado_codigo: str, admin_codigo: Optional[str] = None) -> Dict[str, Any]:
+        """Fachada Campamento Base → pago_service.habilitar_pago_manual_aliado."""
+        return pago_service.habilitar_pago_manual_aliado(self, aliado_codigo, admin_codigo)
+
+    def deshabilitar_pago_manual_aliado(self, aliado_codigo: str, admin_codigo: Optional[str] = None) -> Dict[str, Any]:
+        """Fachada Campamento Base → pago_service.deshabilitar_pago_manual_aliado."""
+        return pago_service.deshabilitar_pago_manual_aliado(self, aliado_codigo, admin_codigo)
+
+    def listar_aliados_con_pago_manual(self) -> List[Dict[str, Any]]:
+        """Fachada Campamento Base → pago_service.listar_aliados_con_pago_manual."""
+        return pago_service.listar_aliados_con_pago_manual(self)
+
+    def obtener_config_pago_manual(self) -> Dict[str, Any]:
+        """Fachada Campamento Base → pago_service.obtener_config_pago_manual."""
+        return pago_service.obtener_config_pago_manual(self)
 
     def _get_posponer_horas(self) -> int:
         """Fachada Campamento Base → contacto_service._get_posponer_horas."""
@@ -815,9 +875,13 @@ class DBManager:
 
     def _buscar_retador(self, codigo_aliado_en_riesgo: str, grupo_id: int, oficio: str,
                         score_actual: int, codigo_postal: str,
-                        ciudad: Optional[str] = None, provincia: Optional[str] = None) -> Optional[Dict[str, Any]]:
+                        ciudad: Optional[str] = None, provincia: Optional[str] = None,
+                        grupo_tipo: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Fachada Campamento Base → competencia_service._buscar_retador."""
-        return competencia_service._buscar_retador(self, codigo_aliado_en_riesgo, grupo_id, oficio, score_actual, codigo_postal, ciudad, provincia)
+        return competencia_service._buscar_retador(
+            self, codigo_aliado_en_riesgo, grupo_id, oficio, score_actual, codigo_postal,
+            ciudad, provincia, grupo_tipo=grupo_tipo,
+        )
 
     def _iniciar_competencia_si_procede(self, codigo_aliado: str) -> Optional[Dict[str, Any]]:
         """Fachada Campamento Base → competencia_service._iniciar_competencia_si_procede."""
@@ -1211,6 +1275,10 @@ class DBManager:
     def obtener_solicitudes_grupo(self, codigo_postal: str) -> List[Dict[str, Any]]:
         """Fachada Campamento Base → solicitud_service.obtener_solicitudes_grupo."""
         return solicitud_service.obtener_solicitudes_grupo(self, codigo_postal)
+
+    def obtener_solicitudes_operativas(self, codigo_aliado: str) -> List[Dict[str, Any]]:
+        """Fachada → solicitud_service.obtener_solicitudes_operativas."""
+        return solicitud_service.obtener_solicitudes_operativas(self, codigo_aliado)
 
     def atender_solicitud_por_id(self, solicitud_id: int, codigo: str) -> Dict[str, Any]:
         """Fachada Campamento Base → solicitud_service.atender_solicitud_por_id."""

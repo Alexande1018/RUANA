@@ -17,6 +17,7 @@ from core.repositories.financial_transaction_repo import FinancialTransactionRep
 from core.repositories.financial_transfer_repo import FinancialTransferRepo
 from core.repositories.pago_repo import PagoRepo
 from core.services import financial_transaction_service as fts
+from core.services import schema_service
 
 _pago_repo = PagoRepo()
 _fin_repo = FinancialTransactionRepo()
@@ -50,6 +51,11 @@ def ejecutar_liberacion_y_transferencia(
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
+
+            if db.backend == "postgres":
+                schema_service.asegurar_tabla_id_serial_postgres(
+                    db, cursor, "financial_transfers"
+                )
 
             validacion = _validar_precondiciones(db, cursor, contacto_id, codigo)
             if validacion.get("status") != "ok":
@@ -238,7 +244,7 @@ def ejecutar_liberacion_y_transferencia(
                 "status": "success",
                 "contacto_id": contacto_id,
                 "estado": "transferencia_enviada",
-                "estado_pago": "cobro_confirmado",
+                "estado_pago": "transfer_pendiente",
                 "estado_financiero": EstadoFinanciero.TRANSFERENCIA_ENVIADA.value,
                 "estado_transferencia": EstadoTransferencia.ENVIADA.value,
                 "stripe_transfer_id": transfer_id,
@@ -414,10 +420,10 @@ def _validar_precondiciones(
         return {"status": "error", "message": "Este contacto no usa pago Stripe", "bloqueo": "operacion"}
 
     estado_pago = (contacto.get("estado_pago") or "").strip()
-    if estado_pago in ("transferido",):
+    if estado_pago == "transferido":
         return {"status": "error", "message": "La transferencia al profesional ya se realizó", "bloqueo": "ya_transferido"}
 
-    if estado_pago not in ("cobro_confirmado",):
+    if estado_pago not in ("cobro_confirmado", "transfer_pendiente"):
         return {
             "status": "error",
             "message": "El pago del cliente aún no está confirmado o ya se transfirió al profesional",
@@ -672,7 +678,7 @@ def _build_idempotent_success(
         "status": "success",
         "contacto_id": contacto_id,
         "estado": "trabajo_cerrado" if transferido else "transferencia_enviada",
-        "estado_pago": "transferido" if transferido else "cobro_confirmado",
+        "estado_pago": "transferido" if transferido else "transfer_pendiente",
         "estado_financiero": (
             EstadoFinanciero.TRANSFERIDO.value if transferido
             else EstadoFinanciero.TRANSFERENCIA_ENVIADA.value

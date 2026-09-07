@@ -1,0 +1,32 @@
+{
+  "displayName": "RUANA: fallo init esquema Postgres",
+  "documentation": {
+    "content": "Cloud Run abortó `_init_postgres_schema`. Los webhooks Stripe pueden devolver 500 sin marcar cobros (encargo #72). Revisar logs con `ruana_postgres_schema_init_failed`.",
+    "mimeType": "text/markdown"
+  },
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "ruana_postgres_schema_init_failed > 0",
+      "conditionThreshold": {
+        "filter": "resource.type = \"cloud_run_revision\" AND metric.type = \"logging.googleapis.com/user/ruana_postgres_schema_init_failed\"",
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0,
+        "duration": "0s",
+        "aggregations": [
+          {
+            "alignmentPeriod": "60s",
+            "perSeriesAligner": "ALIGN_DELTA"
+          }
+        ],
+        "trigger": {
+          "count": 1
+        }
+      }
+    }
+  ],
+  "alertStrategy": {
+    "autoClose": "1800s"
+  },
+  "enabled": true
+}

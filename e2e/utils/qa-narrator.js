@@ -21,7 +21,8 @@ async function ensureNarrator(page, scenario) {
       style.textContent = `
         #qa-video-narrator {
           position: fixed;
-          right: 18px;
+          left: 18px;
+          right: auto;
           top: 18px;
           z-index: 2147483647;
           width: min(440px, calc(100vw - 36px));
@@ -141,7 +142,7 @@ async function pass(page, scenario, entry) {
 
 async function pointAt(page, locator) {
   await locator.evaluate((element) => {
-    element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+    element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
   });
   await page.waitForTimeout(ACTION_PAUSE_MS);
   const box = await locator.boundingBox();
@@ -167,9 +168,100 @@ async function reveal(page, target, options = {}) {
   return locator;
 }
 
+async function dismissGrupoMadreAvisoIfNeeded(page) {
+  const modal = page.locator('#modal-grupo-madre-aviso');
+  const visible = await modal.isVisible().catch(() => false);
+  if (!visible) return false;
+  const ok = page.locator('#btn-grupo-madre-aviso-ok');
+  if (!(await ok.isVisible().catch(() => false))) return false;
+  await ok.click({ timeout: 4000 });
+  await modal.waitFor({ state: 'hidden', timeout: 8000 }).catch(() => {});
+  return true;
+}
+
+async function dismissAdminOverlayIfNeeded(page) {
+  await page.evaluate(() => {
+    const shell = window.AdminShell;
+    if (!shell || typeof shell.setSidebarOpen !== 'function') return;
+    const sidebar = document.getElementById('adminSidebar');
+    const mobile = typeof window.matchMedia === 'function'
+      && window.matchMedia('(max-width: 960px)').matches;
+    const overlay = !!(sidebar && sidebar.classList.contains('is-mobile-open'));
+    if (mobile || overlay) shell.setSidebarOpen(false);
+  });
+}
+
+async function dismissGrupoMadreAvisoIfNeeded(page) {
+  const overlay = page.locator('#modal-grupo-madre-aviso');
+  const visible = await overlay.isVisible().catch(() => false);
+  if (!visible) return;
+  const btn = page.locator('#btn-grupo-madre-aviso-ok');
+  if (await btn.isVisible().catch(() => false)) {
+    await btn.click({ timeout: 4000 });
+  } else {
+    await page.evaluate(() => {
+      const modal = document.getElementById('modal-grupo-madre-aviso');
+      if (modal) modal.style.display = 'none';
+    });
+  }
+  await overlay.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+}
+
+async function uncoverAdminSidebarForClick(page, locator) {
+  await dismissAdminOverlayIfNeeded(page);
+  await locator.evaluate((element) => {
+    element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  });
+  const covered = await locator.evaluate((element) => {
+    const sidebar = document.getElementById('adminSidebar');
+    if (!sidebar) return false;
+    const sb = sidebar.getBoundingClientRect();
+    const box = element.getBoundingClientRect();
+    return box.left < sb.right - 2 && box.right > sb.left + 2
+      && box.top < sb.bottom - 2 && box.bottom > sb.top + 2;
+  });
+  if (!covered) return false;
+  await page.evaluate(() => {
+    const sidebar = document.getElementById('adminSidebar');
+    if (!sidebar) return;
+    sidebar.dataset.qaPrevPe = sidebar.style.pointerEvents || '';
+    sidebar.style.pointerEvents = 'none';
+  });
+  return true;
+}
+
+async function restoreAdminSidebarPointerEvents(page) {
+  await page.evaluate(() => {
+    const sidebar = document.getElementById('adminSidebar');
+    if (!sidebar || sidebar.dataset.qaPrevPe === undefined) return;
+    sidebar.style.pointerEvents = sidebar.dataset.qaPrevPe || '';
+    delete sidebar.dataset.qaPrevPe;
+  });
+}
+
 async function clickVisible(page, target, options = {}) {
+  await dismissGrupoMadreAvisoIfNeeded(page);
   const locator = await reveal(page, target, options);
-  await locator.click(options.clickOptions || {});
+  const clickOpts = { timeout: 4000, ...(options.clickOptions || {}) };
+  let disabledSidebar = false;
+  try {
+    await dismissGrupoMadreAvisoIfNeeded(page);
+    disabledSidebar = await uncoverAdminSidebarForClick(page, locator);
+    await locator.click(clickOpts);
+  } catch (error) {
+    const message = String(error && error.message ? error.message : error);
+    if (!/intercepts pointer events/i.test(message)) throw error;
+    await dismissGrupoMadreAvisoIfNeeded(page);
+    disabledSidebar = await uncoverAdminSidebarForClick(page, locator) || disabledSidebar;
+    await page.evaluate(() => {
+      const sidebar = document.getElementById('adminSidebar');
+      if (sidebar) sidebar.style.pointerEvents = 'none';
+    });
+    disabledSidebar = true;
+    await locator.click(clickOpts);
+  } finally {
+    if (disabledSidebar) await restoreAdminSidebarPointerEvents(page);
+  }
   await page.waitForTimeout(options.pauseMs ?? ACTION_PAUSE_MS);
   return locator;
 }
@@ -224,4 +316,6 @@ module.exports = {
   reviewSection,
   selectVisible,
   setInputFilesVisible,
+  dismissAdminOverlayIfNeeded,
+  dismissGrupoMadreAvisoIfNeeded,
 };

@@ -247,10 +247,28 @@ class SolicitudRepo:
                    s.estado, s.created_at, g.nombre AS grupo_nombre
             FROM solicitudes s
             JOIN grupos g ON g.id = s.grupo_id
-            WHERE g.codigo_postal = ? AND g.estado = 'activo' AND s.estado = 'pendiente'
+            WHERE g.codigo_postal = ? AND g.estado = 'activo'
+              AND COALESCE(g.tipo, 'territorial') = 'territorial'
+              AND s.estado = 'pendiente'
             ORDER BY s.created_at DESC
             """,
             (codigo_postal,),
+        )
+        return [dict(r) for r in cursor.fetchall()]
+
+    def listar_pendientes_por_grupo(
+        self, cursor, grupo_id: int
+    ) -> List[Dict[str, Any]]:
+        cursor.execute(
+            """
+            SELECT s.id, s.grupo_id, s.solicitante_codigo, s.solicitante_nombre, s.oficio, s.descripcion,
+                   s.estado, s.created_at, g.nombre AS grupo_nombre
+            FROM solicitudes s
+            JOIN grupos g ON g.id = s.grupo_id
+            WHERE s.grupo_id = ? AND g.estado = 'activo' AND s.estado = 'pendiente'
+            ORDER BY s.created_at DESC
+            """,
+            (int(grupo_id),),
         )
         return [dict(r) for r in cursor.fetchall()]
 

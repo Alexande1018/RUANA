@@ -35,9 +35,9 @@
         wrap.dataset.ccBuilt = '1';
         wrap.innerHTML =
             '<header class="cc-header">' +
-            '<div><p class="cc-kicker">RUANA · Centro de mando</p>' +
+            '<div><p class="cc-kicker">RUANA · Sala de control</p>' +
             '<h1 class="cc-title">Command Center</h1>' +
-            '<p class="cc-lead">Control y supervisión de la red RUANA.</p></div>' +
+            '<p class="cc-lead">Panorama operativo de la red en un vistazo.</p></div>' +
             '<div class="cc-health-pill" id="cc-health-pill"><span class="cc-health-dot"></span><span id="cc-health-label">Estable</span></div>' +
             '</header>' +
             '<div class="cc-kpi-strip" id="cc-kpi-strip"></div>' +
@@ -111,6 +111,13 @@
         }
         if ((data.indicadores.gruposEnCompetencia || 0) > 0) {
             alerts.push({ level: 'info', text: data.indicadores.gruposEnCompetencia + ' grupos en competencia', nav: '#competencias-activas-wrap' });
+        }
+        if ((data.indicadores.cpIndependenciaPendientes || 0) > 0) {
+            alerts.push({
+                level: 'warn',
+                text: data.indicadores.cpIndependenciaPendientes + ' CP listos para independización',
+                nav: '#territorio-madre-wrap'
+            });
         }
         if (!alerts.length) {
             alerts.push({ level: 'ok', text: 'Sin alertas críticas en este momento.', nav: '' });

@@ -74,6 +74,7 @@ from web.blueprints.financial_reconciliation_bp import financial_reconciliation_
 from web.blueprints.financial_ledger_bp import financial_ledger_bp
 from web.blueprints.financial_admin_bp import financial_admin_bp
 from web.blueprints.financial_automation_bp import financial_automation_bp
+from web.blueprints.territorio_bp import territorio_bp
 from web.auth_decorators import (
     require_admin,
     require_admin_escritura,
@@ -124,6 +125,7 @@ app.register_blueprint(financial_disputes_bp)
 app.register_blueprint(financial_reconciliation_bp)
 app.register_blueprint(financial_ledger_bp)
 app.register_blueprint(financial_admin_bp)
+app.register_blueprint(territorio_bp)
 app.register_blueprint(financial_automation_bp)
 
 # Cookie de sesión segura (aliado y admin)
@@ -145,7 +147,18 @@ except StartupConfigurationError as _boot_err:
     raise SystemExit(f"[RUANA][BOOT] Configuración inválida: {_boot_err}") from _boot_err
 
 if CORS is not None:
-    CORS(app)
+    _cors_default = (
+        "http://localhost,http://127.0.0.1"
+        if os.environ.get("RUANA_ENV", "").strip().lower() == "test"
+        else "https://ruana-4293f.web.app"
+    )
+    _allowed_origins = [
+        o.strip() for o in os.environ.get(
+            "RUANA_CORS_ALLOWED_ORIGINS",
+            _cors_default,
+        ).split(",") if o.strip()
+    ]
+    CORS(app, origins=_allowed_origins, supports_credentials=True)
 
 init_limiter(app)
 

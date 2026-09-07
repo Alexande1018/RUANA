@@ -32,6 +32,8 @@ html.admin-shell-enabled body {
     color: var(--admin-text);
     font-family: var(--admin-font);
     overflow-x: hidden;
+    scroll-padding-top: calc(var(--admin-topbar-h) + 12px);
+    scroll-padding-left: 12px;
 }
 
 .admin-app {
@@ -40,7 +42,7 @@ html.admin-shell-enabled body {
     padding-top: var(--admin-topbar-h);
 }
 
-/* Sidebar — plegado por defecto: no ocupa espacio ni cubre el contenido */
+/* Sidebar — overlay desplegable: cerrado no cubre; abierto encima; clic fuera lo oculta */
 .admin-sidebar {
     position: fixed;
     top: var(--admin-topbar-h);
@@ -53,7 +55,7 @@ html.admin-shell-enabled body {
     -webkit-backdrop-filter: blur(24px) saturate(160%);
     display: flex;
     flex-direction: column;
-    z-index: 100;
+    z-index: 140;
     overflow: hidden;
     transform: translateX(-100%);
     visibility: hidden;
@@ -66,7 +68,6 @@ html.admin-shell-enabled body {
     transform: translateX(0);
     visibility: visible;
     pointer-events: auto;
-    z-index: 140;
     transition: transform 220ms ease, visibility 0s linear 0s;
 }
 
@@ -88,12 +89,7 @@ html.admin-shell-enabled body {
 
 html.admin-sidebar-open .admin-sidebar-backdrop.is-visible {
     display: block;
-}
-
-@media (min-width: 961px) {
-    .admin-sidebar-backdrop {
-        display: none !important;
-    }
+    left: var(--admin-sidebar-w);
 }
 
 .admin-sidebar-brand {
@@ -314,16 +310,16 @@ html.admin-sidebar-open .admin-sidebar-backdrop.is-visible {
     color: var(--admin-text);
 }
 
-/* Main area — el margen solo se reserva cuando el menú está desplegado en escritorio */
+/* Main area — pantalla completa; el menú se superpone y se cierra al clic fuera */
 .admin-main {
     flex: 1;
     margin-left: 0;
     min-width: 0;
-    transition: margin-left 220ms ease;
 }
 
-html.admin-sidebar-open .admin-main {
-    margin-left: var(--admin-sidebar-w);
+html.admin-shell-enabled .admin-main * {
+    scroll-margin-left: 12px;
+    scroll-margin-top: calc(var(--admin-topbar-h) + 16px);
 }
 
 html.admin-shell-enabled .admin-header {
@@ -853,15 +849,11 @@ html.admin-shell-enabled table tbody tr {
     display: block;
 }
 
-/* Mobile — overlay: el contenido no se comprime; el fondo cierra el menú */
+/* Mobile — overlay bajo el topbar; bottom nav deja hueco; clic fuera cierra */
 @media (max-width: 960px) {
     .admin-sidebar {
         box-shadow: var(--admin-shadow);
         bottom: 64px;
-    }
-
-    html.admin-sidebar-open .admin-main {
-        margin-left: 0;
     }
 
     html.admin-sidebar-open .admin-sidebar-backdrop.is-visible {
@@ -881,25 +873,19 @@ html.admin-shell-enabled table tbody tr {
         display: none;
     }
 
-    .admin-sidebar-toggle-label {
-        display: none;
-    }
-
     .admin-sidebar-toggle {
         width: 38px;
         padding: 0;
+    }
+
+    .admin-sidebar-toggle-label {
+        display: none;
     }
 }
 
 @media (max-width: 640px) {
     html.admin-shell-enabled {
         --admin-topbar-h: 88px;
-    }
-}
-
-@media (min-width: 961px) {
-    html.admin-sidebar-open .admin-sidebar-backdrop {
-        display: none;
     }
 }
 

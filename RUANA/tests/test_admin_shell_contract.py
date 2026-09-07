@@ -107,11 +107,12 @@ def test_admin_shell_operaciones_module_aligned_with_module_defs():
     assert "_operacionesModule" in admin
 
 
-def test_admin_shell_sidebar_is_collapsible():
-    """El menú lateral se pliega por defecto y no reserva espacio ni cubre el contenido."""
+def test_admin_shell_sidebar_click_outside_closes_overlay():
+    """El menú desplegable se oculta al clic fuera y deja ver toda la pantalla."""
     root = Path(__file__).resolve().parents[1] / "web"
     css = (root / "static" / "css" / "admin-shell.css").read_text(encoding="utf-8")
     js = (root / "static" / "js" / "admin-shell.js").read_text(encoding="utf-8")
+    ops_css = (root / "static" / "css" / "admin-ops-identity.css").read_text(encoding="utf-8")
 
     main_block = css[css.index(".admin-main {") : css.index("}", css.index(".admin-main {"))]
     assert "margin-left: 0" in main_block
@@ -123,26 +124,33 @@ def test_admin_shell_sidebar_is_collapsible():
         css.index(".admin-sidebar-toggle {") : css.index("}", css.index(".admin-sidebar-toggle {"))
     ]
     assert "display: inline-flex" in toggle_block
-    assert "display: none" not in toggle_block
 
-    assert ".admin-sidebar.is-open" in css
-    assert "html.admin-sidebar-open .admin-main" in css
-    assert "margin-left: var(--admin-sidebar-w)" in css
-    assert ".admin-sidebar-backdrop" in css
-    assert ".admin-sidebar-toggle-label" in css
-
-    assert "function setSidebarOpen" in js
-    assert "function toggleSidebar" in js
+    assert "display: none !important" not in css.split(".admin-sidebar-backdrop")[1][:400]
+    assert "left: var(--admin-sidebar-w)" in css
+    assert "const showBackdrop = shouldOpen;" in js
+    assert "function onDocumentClickCloseSidebar" in js
+    assert "document.addEventListener('click', onDocumentClickCloseSidebar)" in js
     assert "function closeSidebarIfOverlay" in js
-    assert "admin-sidebar-open" in js
+    assert "setSidebarOpen(false)" in js
+    assert "setSidebarOpen(!isMobileShell())" not in js
+    assert "shouldOpen && isMobileShell()" in js
     assert "adminSidebarBackdrop" in js
-    assert "aria-expanded" in js
-    assert "aria-controls" in js
-    assert "toggleSidebar," in js
-    assert "setSidebarOpen" in js
-    assert 'id="adminSidebarToggle"' in js or "adminSidebarToggle" in js
     assert "Mostrar menú" in js
     assert "Ocultar menú" in js
+    assert "margin-left: 0 !important" in ops_css
+    assert "admin-sidebar-open .admin-app" not in ops_css
+    assert ops_css.index(".admin-sidebar {") < ops_css.index("z-index: 140")
+
+
+def test_e2e_admin_clicks_dismiss_sidebar_overlay():
+    """El helper de clics QA cierra el overlay del menú admin antes de pulsar contenido."""
+    narrator = Path(__file__).resolve().parents[2] / "e2e" / "utils" / "qa-narrator.js"
+    text = narrator.read_text(encoding="utf-8")
+    assert "dismissAdminOverlayIfNeeded" in text
+    assert "uncoverAdminSidebarForClick" in text
+    assert "is-mobile-open" in text
+    assert "inline: 'nearest'" in text
+    assert "pointerEvents = 'none'" in text
 
 
 def test_admin_shell_sidebar_nav_not_blocked_by_backdrop():
@@ -156,3 +164,26 @@ def test_admin_shell_sidebar_nav_not_blocked_by_backdrop():
 
     assert "admin-sidebar-open .admin-app" not in ops_css
     assert ops_css.index(".admin-sidebar {") < ops_css.index("z-index: 140")
+
+
+def test_admin_ops_identity_restores_dark_ruana_look():
+    """El panel admin recupera lima, fondo oscuro y árbol; no fuerza el tema claro."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    ops_css = (root / "static" / "css" / "admin-ops-identity.css").read_text(encoding="utf-8")
+    admin_html = (root / "admin.html").read_text(encoding="utf-8")
+    shell_js = (root / "static" / "js" / "admin-shell.js").read_text(encoding="utf-8")
+    cc_js = (root / "static" / "js" / "admin-command-center-module.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "--mod-resumen-accent: #a2ff00" in ops_css
+    assert "#eef1f6" not in ops_css
+    assert "#ffffff" not in ops_css
+    assert ".ruana-atmosphere" not in ops_css
+    assert "background-image: none !important" not in ops_css
+    assert "referidos-tree-panel" in ops_css
+    assert "red-explorer-tabs" in ops_css
+    assert 'href="/static/css/referidos-tree.css"' in admin_html
+    assert 'id="red-view-referidos"' in admin_html
+    assert "Árbol genealógico" in shell_js
+    assert "Sala de control" in cc_js

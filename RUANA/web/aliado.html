@@ -20,6 +20,7 @@
     <link rel="stylesheet" href="/static/css/ruana-identity.css">
     <link rel="stylesheet" href="/static/css/ruana-legal.css">
     <link rel="stylesheet" href="/static/css/ruana-actividad-cinta.css">
+    <link rel="stylesheet" href="/static/css/ruana-pulse.css?v=20260904b">
     <link rel="stylesheet" href="/static/css/referidos-tree.css">
     <link rel="stylesheet" href="/static/css/aliado-solicitudes-semanales.css?v=20260822a">
     <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
@@ -27,6 +28,7 @@
     <script src="/static/js/ruana-ui.js" defer></script>
     <script src="/static/js/ruana-legal-footer.js" defer></script>
     <script src="/static/js/ruana-alert-hub.js" defer></script>
+    <script src="/static/js/ruana-pulse.js?v=20260904a" defer></script>
     <script src="/static/js/ruana-api-client.js" defer></script>
     <script src="/static/js/aliado-modules.js" defer></script>
     <script src="/static/js/aliado-inicio-module.js" defer></script>
@@ -43,8 +45,8 @@
     <script src="/static/js/aliado-invitaciones-module.js" defer></script>
     <script src="/static/js/aliado-alertas-module.js" defer></script>
     <script src="/static/js/aliado-catalogo-module.js" defer></script>
-    <script src="/static/js/aliado-contactos-module.js?v=20260820a" defer></script>
-    <script src="/static/js/aliado-stripe-pagos-module.js" defer></script>
+    <script src="/static/js/aliado-contactos-module.js?v=20260903a" defer></script>
+    <script src="/static/js/aliado-stripe-pagos-module.js?v=20260903a" defer></script>
     <script src="/static/js/aliado-grupo-module.js" defer></script>
     <script src="/static/js/aliado-sync-module.js?v=20260823c" defer></script>
     <script src="/static/js/aliado-events-module.js" defer></script>
@@ -161,7 +163,7 @@
         <div class="aliado-shell-alerts" id="aliado-shell-alerts">
         <div id="stripe-onboarding-banner" class="stripe-onboarding-banner" style="display:none;" role="alert" aria-live="polite"></div>
         <!-- Hub compacto: Apoyo RUANA, pagos pendientes, mensajes RUANA -->
-        <div id="ruana-alert-hub" class="ruana-alert-hub" hidden>
+        <div id="ruana-alert-hub" class="ruana-alert-hub ruana-alert-hub--offscreen" hidden aria-hidden="true">
             <header class="ruana-alert-hub__header">
                 <p class="ruana-alert-hub__kicker">Centro de avisos</p>
                 <h2 class="ruana-alert-hub__title">Tu bandeja RUANA</h2>
@@ -214,9 +216,23 @@
 
         <!-- MÓDULO: Inicio (centro operativo) -->
         <section class="aliado-module is-active" id="module-inicio" data-aliado-module="inicio" aria-hidden="false">
-            <header class="aliado-module-header">
-                <p class="aliado-module-kicker">Centro operativo</p>
-                <h2 class="aliado-module-title">Inicio</h2>
+            <header class="aliado-module-header inicio-module-header">
+                <div class="aliado-module-header-top">
+                    <div class="aliado-module-header-copy">
+                        <p class="aliado-module-kicker">Centro operativo</p>
+                        <h2 class="aliado-module-title">Inicio</h2>
+                    </div>
+                    <div class="ruana-pulse-trigger-wrap" id="ruana-pulse-trigger-wrap">
+                        <button type="button" class="ruana-pulse-trigger" id="ruana-pulse-trigger" aria-expanded="false" aria-controls="ruana-pulse-panel" aria-label="Abrir Centro de Actividad RUANA">
+                            <span class="ruana-pulse-trigger__icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                            </span>
+                            <span class="ruana-pulse-trigger__label">Actividad</span>
+                            <span class="ruana-pulse-trigger__dot" hidden aria-hidden="true"></span>
+                            <span class="ruana-pulse-trigger__badge" hidden aria-label="Novedades pendientes"></span>
+                        </button>
+                    </div>
+                </div>
                 <p class="aliado-module-subtitle">Estado de tu cuenta, métricas y accesos rápidos para empezar a trabajar.</p>
             </header>
             <div class="inicio-ops">
@@ -243,7 +259,7 @@
                 </div>
 
                 <div
-                    class="ruana-actividad-cinta"
+                    class="ruana-actividad-cinta ruana-actividad-cinta--in-pulse"
                     id="inicio-actividad-cinta"
                     role="region"
                     aria-label="Noticias de actividad RUANA"
@@ -542,6 +558,17 @@
                         <span class="detail-value" id="grupo-num-oficios">0</span>
                     </div>
                 </div>
+                <div id="grupo-madurez-wrap" class="grupo-madurez-wrap" style="display:none;" aria-live="polite">
+                    <p class="grupo-madurez-lead" id="grupo-madurez-lead"></p>
+                    <div class="grupo-madurez-item">
+                        <div class="grupo-madurez-bar"><div class="grupo-madurez-fill" id="grupo-madurez-aliados-bar"></div></div>
+                        <span class="grupo-madurez-text" id="grupo-madurez-aliados-text"></span>
+                    </div>
+                    <div class="grupo-madurez-item">
+                        <div class="grupo-madurez-bar"><div class="grupo-madurez-fill" id="grupo-madurez-encargos-bar"></div></div>
+                        <span class="grupo-madurez-text" id="grupo-madurez-encargos-text"></span>
+                    </div>
+                </div>
                 <div id="grupo-crecimiento-card" class="grupo-crecimiento-card" style="display: none;" aria-live="polite">
                     <p class="grupo-crecimiento-lead">Este grupo todavía está creciendo.</p>
                     <p class="grupo-crecimiento-texto" id="grupo-crecimiento-texto"></p>
@@ -559,7 +586,17 @@
         </section><!-- /module-perfil -->
 
         <!-- Modal: árbol genealógico de referidos -->
-        <div class="modal-overlay" id="modal-linaje-hijos" style="display:none; align-items:center; justify-content:center;">
+    <div class="modal-overlay" id="modal-grupo-madre-aviso" style="display:none; align-items:center; justify-content:center;" role="dialog" aria-modal="true" aria-labelledby="modal-grupo-madre-title">
+        <div class="modal-content">
+            <h3 class="modal-title" id="modal-grupo-madre-title">Bienvenido al Grupo Madre</h3>
+            <p class="modal-text" id="modal-grupo-madre-texto"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn-admin-action" id="btn-grupo-madre-aviso-ok">Entendido</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modal-linaje-hijos" style="display:none; align-items:center; justify-content:center;">
             <div class="modal-content" style="max-width:min(960px, 96vw); width:92%; max-height:90vh; overflow:auto;">
                 <h3 class="modal-title">Mi red de referidos</h3>
                 <p class="modal-text" id="modal-linaje-hijos-meta">Tu linaje de invitaciones</p>
@@ -990,7 +1027,7 @@
                     <button type="button" id="btn-pago-apoyo-tab-transferencia" class="modal-contacto-btn cancel" style="flex:1; min-width:120px;">Transferencia</button>
                 </div>
                 <div id="pago-apoyo-bizum-panel">
-                    <p><strong>Numero Bizum:</strong> <span id="pago-apoyo-bizum-numero" style="font-size:1.2rem; font-weight:bold; color:#22c55e;">642868261</span></p>
+                    <p><strong>Numero Bizum:</strong> <span id="pago-apoyo-bizum-numero" style="font-size:1.2rem; font-weight:bold; color:#22c55e;">-</span></p>
                     <p style="margin-top:8px;"><strong>Importe exacto:</strong> <span id="pago-apoyo-bizum-importe" style="font-size:1.1rem; font-weight:bold;">-</span></p>
                     <p style="margin-top:8px;"><strong>Concepto:</strong> <span id="pago-apoyo-concepto">-</span></p>
                     <p style="margin-top:14px; padding:10px; background:rgba(34,197,94,0.1); border-radius:8px; font-size:0.9rem;">
@@ -1006,7 +1043,7 @@
                     </p>
                 </div>
                 <div id="pago-apoyo-transferencia-panel" style="display:none;">
-                    <p><strong>IBAN:</strong> <span id="pago-apoyo-iban" style="font-size:1.05rem; font-weight:bold; color:#22c55e; word-break:break-all;">ES8915830001119028625152</span></p>
+                    <p><strong>IBAN:</strong> <span id="pago-apoyo-iban" style="font-size:1.05rem; font-weight:bold; color:#22c55e; word-break:break-all;">-</span></p>
                     <p style="margin-top:8px;"><strong>Importe exacto:</strong> <span id="pago-apoyo-transferencia-importe" style="font-size:1.1rem; font-weight:bold;">-</span></p>
                     <p style="margin-top:8px;"><strong>Concepto:</strong> <span id="pago-apoyo-transferencia-concepto">-</span></p>
                     <p style="margin-top:14px; padding:10px; background:rgba(34,197,94,0.1); border-radius:8px; font-size:0.9rem;">
@@ -1055,15 +1092,6 @@
         if (typeof window.RUANA_API_BASE === 'undefined') {
             // Por defecto, usa el mismo origen del panel para evitar desajustes (ej. panel en :5001 → API en :5001).
             window.RUANA_API_BASE = window.location.origin;
-        }
-        if (typeof window.RUANA_BIZUM_NUM === 'undefined') {
-            window.RUANA_BIZUM_NUM = '642868261';
-        }
-        if (typeof window.RUANA_IBAN === 'undefined') {
-            window.RUANA_IBAN = 'ES8915830001119028625152';
-        }
-        if (typeof window.RUANA_QR_REVOLUT_PATH === 'undefined') {
-            window.RUANA_QR_REVOLUT_PATH = '/static/images/PayPal.png';
         }
 
         function getApiBase() {

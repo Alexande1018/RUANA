@@ -21,6 +21,17 @@ from psycopg_pool import ConnectionPool
 _pools: dict[str, ConnectionPool] = {}
 _pools_lock = threading.Lock()
 
+# SchemaRepo.tabla_existe usa `SELECT name FROM sqlite_master ... name=?`.
+# Solo se traducía el literal `name='tabla'` y `SELECT 1 ... name=?`; el
+# placeholder con SELECT name abortaba todo el init de Postgres (sqlite_master
+# no existe) y dejaba stripe_webhook_events.id sin DEFAULT SERIAL.
+_SQLITE_MASTER_RE = re.compile(
+    r"^\s*SELECT\s+(name|1)\s+FROM\s+sqlite_master\s+"
+    r"WHERE\s+type\s*=\s*'(table|index)'\s+AND\s+name\s*=\s*(?:\?|'([^']+)')"
+    r"(?:\s+LIMIT\s+\d+)?\s*;?\s*$",
+    re.IGNORECASE | re.DOTALL,
+)
+
 
 def _pool_min_size() -> int:
     return max(1, int(os.environ.get("RUANA_DB_POOL_MIN", "1")))
@@ -210,52 +221,17 @@ class PostgresCompatCursor:
             self.description = [("cid",), ("name",), ("type",), ("notnull",), ("dflt_value",), ("pk",)]
             return self
 
-        sqlite_master_match = re.match(
-            r"\s*SELECT\s+name\s+FROM\s+sqlite_master\s+WHERE\s+type='table'\s+AND\s+name='([^']+)'",
-            sql,
-            flags=re.IGNORECASE,
-        )
-        if sqlite_master_match:
-            table = sqlite_master_match.group(1)
-            self._cursor.execute(
-                """
-                select table_name as name
-                from information_schema.tables
-                where table_schema='public' and table_name=%s
-                """,
-                (table,),
-            )
-            rows = self._cursor.fetchall()
-            self._synthetic_rows = [(r["name"],) for r in rows]
-            self.description = [("name",)]
-            return self
-
-        sqlite_exists_match = re.match(
-            r"\s*SELECT\s+1\s+FROM\s+sqlite_master\s+WHERE\s+type='table'\s+AND\s+name=\?",
-            sql,
-            flags=re.IGNORECASE,
-        )
-        if sqlite_exists_match:
-            table = params[0] if params else None
-            self._cursor.execute(
-                """
-                select 1 as exists_flag
-                from information_schema.tables
-                where table_schema='public' and table_name=%s
-                limit 1
-                """,
-                (table,),
-            )
-            row = self._cursor.fetchone()
-            self._synthetic_rows = [(1,)] if row else []
-            self.description = [("exists_flag",)]
+        if self._execute_sqlite_master(sql, params):
             return self
 
         translated = _translate_sql(sql)
         try:
             self._cursor.execute(translated, params)
             self.description = self._cursor.description
-            if translated.lstrip().upper().startswith("INSERT"):
+            insert_sql = translated.lstrip().upper()
+            # INSERT OR IGNORE → ON CONFLICT: lastval() no aplica y puede
+            # abortar la transacción si no hubo nextval en la sesión.
+            if insert_sql.startswith("INSERT") and "ON CONFLICT" not in insert_sql:
                 try:
                     with self.conn._conn.cursor() as c:
                         c.execute("savepoint ruana_lastval_probe")
@@ -278,6 +254,53 @@ class PostgresCompatCursor:
             return self
         except psycopg.IntegrityError as exc:
             raise sqlite3.IntegrityError(str(exc)) from exc
+
+    def _execute_sqlite_master(self, sql: str, params: tuple[Any, ...]) -> bool:
+        match = _SQLITE_MASTER_RE.match(sql.strip())
+        if not match:
+            return False
+        select_what = (match.group(1) or "name").lower()
+        obj_type = (match.group(2) or "table").lower()
+        literal_name = match.group(3)
+        name = literal_name if literal_name else (params[0] if params else None)
+        if not name:
+            self._synthetic_rows = []
+            self.description = [("name",)] if select_what == "name" else [("exists_flag",)]
+            return True
+        if obj_type == "index":
+            self._cursor.execute(
+                """
+                select indexname as name
+                from pg_indexes
+                where schemaname = 'public' and indexname = %s
+                limit 1
+                """,
+                (name,),
+            )
+        else:
+            self._cursor.execute(
+                """
+                select table_name as name
+                from information_schema.tables
+                where table_schema = 'public' and table_name = %s
+                limit 1
+                """,
+                (name,),
+            )
+        row = self._cursor.fetchone()
+        found_name = None
+        if row is not None:
+            if isinstance(row, dict):
+                found_name = row.get("name") or row.get("exists_flag")
+            else:
+                found_name = row[0]
+        if select_what == "1":
+            self._synthetic_rows = [(1,)] if found_name else []
+            self.description = [("exists_flag",)]
+        else:
+            self._synthetic_rows = [(found_name,)] if found_name else []
+            self.description = [("name",)]
+        return True
 
     def fetchone(self):
         if self._synthetic_rows is not None:

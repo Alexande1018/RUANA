@@ -370,8 +370,29 @@ def test_aliado_alertas_module_is_wired():
     assert "mod.renderAlertHub(this)" in aliado
     assert "mod.abrirModalPagoApoyo(this, contactoId, apoyoRuana, servicio)" in aliado
     assert 'id="ruana-alert-hub"' in aliado
+    assert 'id="ruana-pulse-trigger"' in aliado
+    assert 'inicio-module-header' in aliado
+    assert 'ruana-pulse.css' in aliado
+    assert 'ruana-pulse.js' in aliado
+    pulse_js = (root / "static" / "js" / "ruana-pulse.js").read_text(encoding="utf-8")
+    assert "RuanaPulse" in pulse_js
+    assert "registerEncargoEvents" in pulse_js
+    assert "has-action-required" in pulse_js
+    assert "ruana-pulse-trigger__icon" in aliado
+    assert "resolvePanelHost" in pulse_js
+    assert "__ruanaPanel" in pulse_js
+    assert "renderAlertDetailPanel(wrapper, detailId)" in pulse_js
+    assert "Centro de Actividad" in pulse_js
     assert "renderAlertHub(host)" in alertas_js
     assert "renderAlertDetailPanel(host, detailEl, detailId)" in alertas_js
+    assert "host.renderAlertDetailPanel(wrapper, detailId)" in pulse_js
+    assert "host.renderAlertDetailPanel(host, wrapper, detailId)" not in pulse_js
+    assert "if (!Array.isArray(buildItems)) buildItems = []" in pulse_js
+    assert "function closePulseIfOpen(" in alertas_js
+    assert "closePulseIfOpen()" in alertas_js
+    assert "html.ruana-pulse-enabled .modal-contacto-overlay" in (
+        Path(__file__).resolve().parents[1] / "web" / "static" / "css" / "ruana-pulse.css"
+    ).read_text(encoding="utf-8")
     assert "const self = this" not in alertas_js
     assert 'id="modal-pago-apoyo"' in aliado
     assert 'id="modal-impugnar-apoyo"' in aliado

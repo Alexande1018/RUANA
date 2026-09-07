@@ -46,7 +46,7 @@ class SchemaRepo:
 
     def tabla_existe(self, cursor, nombre: str) -> bool:
         cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
             (nombre,),
         )
         return cursor.fetchone() is not None

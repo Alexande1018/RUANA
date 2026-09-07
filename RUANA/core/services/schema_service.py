@@ -9,6 +9,7 @@ from __future__ import annotations
 from core.db_constants import RUANA_ROOT, ALIADO_FOTO_PERFIL_COLUMN, ESTADOS_GRUPO
 
 import json
+import logging
 import sqlite3
 import os
 from pathlib import Path
@@ -19,6 +20,8 @@ from core.db_constants import ALIADO_FOTO_PERFIL_COLUMN, ESTADOS_GRUPO
 from core.repositories.schema_repo import SchemaRepo
 
 _repo = SchemaRepo()
+_schema_logger = logging.getLogger("ruana.db.schema")
+SCHEMA_INIT_FAIL_MARKER = "ruana_postgres_schema_init_failed"
 
 # --- Extraído de DBManager (schema) ---
 # NOTA: el DDL de _init_db y las migraciones *_si_procede se ejecutan vía
@@ -73,6 +76,8 @@ def _init_db(db):
             db._migrar_grupos_si_procede(conn, cursor)
             db._migrar_grupos_multi_cp_si_procede(conn, cursor)
             db._migrar_grupos_nombre_unique_si_procede(conn, cursor)
+            db._migrar_grupo_madre_v1_si_procede(conn, cursor)
+            db._migrar_cp_auto_split_v1_si_procede(conn, cursor)
             db._migrar_aliados_grupo_id(conn, cursor)
             db._migrar_aliados_derrotas_competencia(conn, cursor)
             db._migrar_aliados_especializaciones(conn, cursor)
@@ -436,6 +441,8 @@ def _init_db(db):
             db._migrar_financial_fase10_security(conn, cursor)
             db._migrar_financial_fase11_automation(conn, cursor)
             db._migrar_financial_fase13_p0_ledger_immutability(conn, cursor)
+            db._migrar_pago_manual_allowlist(conn, cursor)
+            _asegurar_ids_serial_tablas_financieras(db, cursor)
 
             conn.commit()
             print(f"[RUANA][DB] Base de datos inicializada en: {db.db_path}")
@@ -527,6 +534,86 @@ def _migrar_grupos_nombre_unique_si_procede(db, conn, cursor) -> None:
     except Exception as ex:
         print(f"[RUANA][DB] Aviso al crear índice único grupos.nombre: {ex}")
     _repo.registrar_migracion(cursor, 'grupos_nombre_unique_v1')
+
+def _migrar_grupo_madre_v1_si_procede(db, conn, cursor) -> None:
+    """Grupo Madre por ciudad: tipo en grupos, tablas cp_ciudad, cp_estado, independencia, avisos."""
+    if _repo.migracion_aplicada(cursor, 'grupo_madre_v1'):
+        return
+    columnas = _repo.columnas_tabla(cursor, "grupos")
+    if 'tipo' not in columnas:
+        _repo.execute(cursor, "ALTER TABLE grupos ADD COLUMN tipo TEXT NOT NULL DEFAULT 'territorial'")
+    if 'grupo_madre_id' not in columnas:
+        _repo.execute(cursor, "ALTER TABLE grupos ADD COLUMN grupo_madre_id INTEGER REFERENCES grupos(id)")
+    _repo.execute(cursor, "UPDATE grupos SET tipo = 'territorial' WHERE tipo IS NULL OR tipo = ''")
+
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS cp_ciudad (
+            codigo_postal TEXT PRIMARY KEY,
+            ciudad TEXT NOT NULL,
+            provincia TEXT,
+            normalizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS cp_estado (
+            codigo_postal TEXT PRIMARY KEY,
+            ciudad TEXT NOT NULL,
+            modo TEXT NOT NULL DEFAULT 'incubacion'
+                CHECK(modo IN ('incubacion', 'territorial')),
+            grupo_madre_id INTEGER REFERENCES grupos(id),
+            aliados_activos INTEGER DEFAULT 0,
+            encargos_validos INTEGER DEFAULT 0,
+            listo_independizar INTEGER DEFAULT 0,
+            independizado_en TIMESTAMP,
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS cp_independencia_solicitudes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            codigo_postal TEXT NOT NULL,
+            ciudad TEXT NOT NULL,
+            aliados_activos INTEGER NOT NULL,
+            encargos_validos INTEGER NOT NULL,
+            estado TEXT NOT NULL DEFAULT 'pendiente'
+                CHECK(estado IN ('pendiente', 'aprobada', 'pospuesta')),
+            notas_admin TEXT,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            resuelto_en TIMESTAMP,
+            resuelto_por TEXT
+        )
+    """)
+    _repo.execute(cursor, """
+        CREATE TABLE IF NOT EXISTS aliado_avisos_vistos (
+            aliado_codigo TEXT NOT NULL,
+            aviso_tipo TEXT NOT NULL,
+            visto_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (aliado_codigo, aviso_tipo)
+        )
+    """)
+    # CPs con grupos territoriales activos → modo territorial
+    _repo.execute(cursor, """
+        INSERT OR IGNORE INTO cp_estado (codigo_postal, ciudad, modo)
+        SELECT DISTINCT TRIM(g.codigo_postal), COALESCE(g.ciudad, ''), 'territorial'
+        FROM grupos g
+        WHERE g.estado = 'activo'
+          AND COALESCE(g.tipo, 'territorial') = 'territorial'
+          AND TRIM(g.codigo_postal) != ''
+          AND TRIM(g.codigo_postal) != '__MADRE__'
+    """)
+    _repo.registrar_migracion(cursor, 'grupo_madre_v1')
+
+def _migrar_cp_auto_split_v1_si_procede(db, conn, cursor) -> None:
+    """Contador de elegibles desde último grupo para auto-split por CP."""
+    if _repo.migracion_aplicada(cursor, 'cp_auto_split_v1'):
+        return
+    columnas = _repo.columnas_tabla(cursor, 'cp_estado')
+    if 'aliados_desde_ultimo_grupo' not in columnas:
+        _repo.execute(
+            cursor,
+            "ALTER TABLE cp_estado ADD COLUMN aliados_desde_ultimo_grupo INTEGER NOT NULL DEFAULT 0",
+        )
+    _repo.registrar_migracion(cursor, 'cp_auto_split_v1')
 
 def _migrar_aliados_grupo_id(db, conn, cursor) -> None:
     """Añade grupo_id a aliados si falta y rellena con el primer grupo activo del CP."""
@@ -847,13 +934,7 @@ def _migrar_payment_conflicts(db, conn, cursor) -> None:
 
 
 def _migrar_competencia_postgres(db, cursor) -> None:
-    """Garantiza el esquema PostgreSQL usado por el panel de competencia.
-
-    Las migraciones runtime históricas son SQLite-only. Supabase necesita esta
-    variante explícita para que el arranque no deje la transacción abortada.
-    Es deliberadamente idempotente y no modifica datos existentes salvo para
-    conservar nombres legacy de columnas.
-    """
+    """Garantiza el esquema PostgreSQL usado por el panel de competencia."""
     cursor.execute("""
         DO $$
         BEGIN
@@ -930,7 +1011,7 @@ def _migrar_competencia_postgres(db, cursor) -> None:
 
 
 def _migrar_payment_conflicts_postgres(db, cursor) -> None:
-    """Asegura las columnas legacy que consume el código financiero en Supabase."""
+    """Asegura la tabla y columnas de conflictos de pago en Supabase."""
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS public.payment_conflicts (
             id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
@@ -950,14 +1031,22 @@ def _migrar_payment_conflicts_postgres(db, cursor) -> None:
     cursor.execute("ALTER TABLE public.payment_conflicts ADD COLUMN IF NOT EXISTS tipo_conflicto TEXT")
 
 
+def asegurar_tabla_id_serial_postgres(db, cursor, tabla: str) -> None:
+    """API pública: idempotente; usada en init y antes de INSERT sin id explícito."""
+    _asegurar_tabla_id_serial_postgres(db, cursor, tabla)
+
+
+def asegurar_ids_serial_tablas_financieras(db, cursor) -> None:
+    """API pública: todas las tablas financieras con INTEGER PK sin SERIAL en Postgres."""
+    _asegurar_ids_serial_tablas_financieras(db, cursor)
+
+
 def _asegurar_tabla_id_serial_postgres(db, cursor, tabla: str) -> None:
     """
     Postgres: tablas creadas con INTEGER PRIMARY KEY (sin SERIAL) no auto-generan id.
     Añade secuencia + DEFAULT nextval sin relajar NOT NULL ni la PK.
     """
     if db.backend != "postgres":
-        return
-    if not _repo.tabla_existe(cursor, tabla):
         return
     seq = f"{tabla}_id_seq"
     cursor.execute(
@@ -993,6 +1082,41 @@ def _asegurar_tabla_id_serial_postgres(db, cursor, tabla: str) -> None:
         """
     )
     cursor.execute(f"ALTER SEQUENCE {seq} OWNED BY {tabla}.id")
+
+
+# Tablas financieras creadas con INTEGER PRIMARY KEY (AUTOINCREMENT se recorta
+# en Postgres). Sin DEFAULT nextval el INSERT no envía id → NOT NULL (encargo #72,
+# confirmar trabajo / liberar pago).
+_FINANCIAL_TABLES_ID_SERIAL = (
+    "payment_conflicts",
+    "financial_transfers",
+    "financial_transfer_attempts",
+    "financial_transfer_snapshots",
+    "financial_refunds",
+    "financial_refund_attempts",
+    "financial_disputes",
+    "financial_dispute_evidence",
+    "financial_dispute_attempts",
+    "financial_reconciliation",
+    "financial_reconciliation_executions",
+    "financial_reconciliation_snapshots",
+    "financial_reconciliation_resource_results",
+    "ledger_transactions",
+    "ledger_entries",
+    "ledger_event_links",
+    "financial_idempotency_keys",
+    "financial_admin_alert_actions",
+    "financial_action_approvals",
+    "financial_audit_log",
+    "financial_job_leases",
+    "financial_automation_runs",
+    "financial_alerts",
+)
+
+
+def _asegurar_ids_serial_tablas_financieras(db, cursor) -> None:
+    for tabla in _FINANCIAL_TABLES_ID_SERIAL:
+        _asegurar_tabla_id_serial_postgres(db, cursor, tabla)
 
 
 def _asegurar_stripe_webhook_events_id_serial_postgres(db, cursor) -> None:
@@ -2538,6 +2662,59 @@ def _migrar_solicitudes_semanales(db, conn, cursor) -> None:
     except Exception as ex:
         print(f"[RUANA][DB] Aviso migrar solicitudes_semanales: {ex}")
 
+
+def _migrar_pago_manual_allowlist(db, conn, cursor) -> None:
+    """Tablas de cobro manual y allowlist por aliado."""
+    try:
+        if getattr(db, "backend", None) == "postgres":
+            _repo.execute(cursor, """
+                CREATE TABLE IF NOT EXISTS ruana_metodos_pago_manual (
+                    id BIGSERIAL PRIMARY KEY,
+                    bizum_num TEXT,
+                    iban TEXT,
+                    qr_revolut_path TEXT,
+                    actualizado_por TEXT,
+                    actualizado_en TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            _repo.execute(cursor, """
+                CREATE TABLE IF NOT EXISTS ruana_pago_manual_aliados_habilitados (
+                    id BIGSERIAL PRIMARY KEY,
+                    aliado_codigo TEXT NOT NULL UNIQUE,
+                    habilitado_por TEXT,
+                    habilitado_en TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+        else:
+            _repo.execute(cursor, """
+                CREATE TABLE IF NOT EXISTS ruana_metodos_pago_manual (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    bizum_num TEXT,
+                    iban TEXT,
+                    qr_revolut_path TEXT,
+                    actualizado_por TEXT,
+                    actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            _repo.execute(cursor, """
+                CREATE TABLE IF NOT EXISTS ruana_pago_manual_aliados_habilitados (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    aliado_codigo TEXT NOT NULL UNIQUE,
+                    habilitado_por TEXT,
+                    habilitado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+        _repo.execute(
+            cursor,
+            """
+            CREATE INDEX IF NOT EXISTS idx_pago_manual_aliados_codigo
+            ON ruana_pago_manual_aliados_habilitados(aliado_codigo)
+            """,
+        )
+    except Exception as ex:
+        print(f"[RUANA][DB] Aviso migrar pago_manual_allowlist: {ex}")
+
+
 def _aplicar_esquema_pin_personal(db, cursor) -> None:
     """DDL de PIN personal en aliados y tabla de recuperación (sin capturar errores)."""
     if db.backend == "postgres":
@@ -2674,6 +2851,17 @@ def _init_postgres_schema(db):
     try:
         conn = db._connect()
         cursor = conn.cursor()
+        # SERIAL en tablas financieras primero (commit aislado): si el resto del init
+        # falla, liberar pago no queda bloqueado por id NULL en financial_transfers.
+        try:
+            _asegurar_ids_serial_tablas_financieras(db, cursor)
+            conn.commit()
+        except Exception as serial_exc:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            _log_schema_init_failed(serial_exc)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS invitacion_campanas (
                 codigo TEXT PRIMARY KEY,
@@ -2738,10 +2926,28 @@ def _init_postgres_schema(db):
         db._migrar_financial_fase10_security(conn, cursor)
         db._migrar_financial_fase11_automation(conn, cursor)
         db._migrar_financial_fase13_p0_ledger_immutability(conn, cursor)
+        db._migrar_pago_manual_allowlist(conn, cursor)
+        _asegurar_ids_serial_tablas_financieras(db, cursor)
         conn.commit()
         print("[RUANA][DB] Esquema Postgres verificado (core + triggers ledger FASE 13A)")
     except Exception as e:
-        print(f"[RUANA][DB] Error inicializando esquema Postgres: {e}")
+        _log_schema_init_failed(e)
     finally:
         if conn:
             conn.close()
+
+
+def _log_schema_init_failed(exc: BaseException) -> None:
+    """ERROR estable para Cloud Logging + alerta de Monitoring (encargo #72)."""
+    payload = {
+        "component": "postgres_schema",
+        "event": SCHEMA_INIT_FAIL_MARKER,
+        "error_type": type(exc).__name__,
+        "message": str(exc)[:500],
+    }
+    line = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    try:
+        _schema_logger.error(line)
+    except Exception:
+        pass
+    print(f"[RUANA][DB] {SCHEMA_INIT_FAIL_MARKER} Error inicializando esquema Postgres: {exc}")

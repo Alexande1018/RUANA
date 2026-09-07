@@ -17,6 +17,8 @@ const {
 const {
   checkVisible,
   clickVisible,
+  dismissAdminOverlayIfNeeded,
+  dismissGrupoMadreAvisoIfNeeded,
   fillVisible,
   narrate,
   pass,
@@ -24,6 +26,33 @@ const {
   selectVisible,
   setInputFilesVisible,
 } = require('./utils/qa-narrator');
+
+async function openPulseActivityPanel(page, scenario) {
+  await page.waitForFunction(() => {
+    const pulse = window.RuanaPulse;
+    const panel = window.__ruanaPanel;
+    if (!pulse || !panel) return false;
+    if (typeof pulse.render === 'function') pulse.render(panel);
+    if (typeof pulse.hasPendingActivity === 'function') {
+      return pulse.hasPendingActivity(panel);
+    }
+    const trigger = document.getElementById('ruana-pulse-trigger');
+    return !!(trigger && trigger.classList.contains('has-pending'));
+  }, null, { timeout: 15000 });
+  await clickVisible(page, '#ruana-pulse-trigger');
+  await expect(page.locator('#ruana-pulse-panel.is-open')).toBeVisible();
+  await pass(page, scenario, {
+    step: 'Centro de Actividad abierto',
+    action: 'El usuario pulsa el trigger de Actividad en Inicio.',
+    result: 'Se abre el panel flotante RUANA Pulse.',
+  });
+}
+
+async function openPulseDetailAction(page, scenario, actionId) {
+  await openPulseActivityPanel(page, scenario);
+  await clickVisible(page, `[data-pulse-action="${actionId}"]`);
+  await expect(page.locator('#ruana-pulse-detail.is-active')).toBeVisible();
+}
 
 async function openAliadoPanel(page, session, scenario, label) {
   await test.step(`${label} abre su panel de aliado`, async () => {
@@ -33,6 +62,7 @@ async function openAliadoPanel(page, session, scenario, label) {
     }, session.sessionId);
     await page.goto('/aliado');
     await expect(page.locator('#metric-score')).toBeVisible();
+    await dismissGrupoMadreAvisoIfNeeded(page);
     await pass(page, scenario, {
       step: `${label} en panel aliado`,
       action: 'El usuario entra al panel con su sesion real de navegador.',
@@ -63,6 +93,7 @@ async function goAdminSection(page, selector) {
     window.AdminShell.navigateTo(sel);
   }, selector);
   await expect(page.locator(selector).first()).toBeVisible({ timeout: 15000 });
+  await dismissAdminOverlayIfNeeded(page);
 }
 
 async function loginAdminAsUser(page, scenario, code = ADMIN_CODE, label = 'admin') {
@@ -153,6 +184,7 @@ async function confirmImporteViaUi(
     expect(cierre.estado).toBe('trabajo_cerrado');
     await page.reload();
     await expect(page.locator('#metric-score')).toBeVisible();
+    await dismissGrupoMadreAvisoIfNeeded(page);
     await expect(page.locator('#contacto-aviso-persistente')).toBeHidden({ timeout: 15000 });
     await pass(page, scenario, {
       step: 'Importe confirmado',
@@ -214,14 +246,19 @@ async function closeNoWorkViaUi(page, scenario, roleLabel) {
 
 async function uploadComprobanteViaUi(page, scenario) {
   await test.step('Profesional sube comprobante desde el panel', async () => {
-    await reviewSection(page, scenario, '#ruana-alert-hub', {
+    await reviewSection(page, scenario, '#ruana-pulse-trigger', {
       step: 'Revisar Apoyo RUANA pendiente',
-      action: 'El profesional revisa el aviso compacto de Apoyo RUANA.',
-      expected: 'Debe aparecer la tarjeta con accion Gestionar.',
-      result: 'El hub de alertas muestra el pago pendiente.',
+      action: 'El profesional abre el Centro de Actividad.',
+      expected: 'Debe aparecer el aviso con accion Gestionar.',
+      result: 'El Centro de Actividad muestra el pago pendiente.',
     });
+<<<<<<< HEAD
     await clickVisible(page, '[data-alert-action="apoyo-pago"]');
-    await clickVisible(page, '.btn-aceptar-pagar');
+    // Pago manual (Bizum/IBAN) está off salvo allowlist; el comprobante sigue disponible.
+    await clickVisible(page, '.btn-enviar-comprobante');
+=======
+    await openPulseDetailAction(page, scenario, 'apoyo-pago');
+    await clickVisible(page, '#ruana-pulse-detail-body .btn-aceptar-pagar');
     await expect(page.locator('#modal-pago-apoyo')).toHaveClass(/show/);
     await expect(page.locator('#modal-pago-apoyo')).toContainText('Bizum');
     await expect(page.locator('#btn-pago-apoyo-comprobante')).toBeVisible();
@@ -231,7 +268,14 @@ async function uploadComprobanteViaUi(page, scenario) {
       result: 'RUANA muestra Bizum/Revolut/Transferencia y la accion de comprobante.',
     });
     await clickVisible(page, '#btn-pago-apoyo-comprobante');
+>>>>>>> origin/main
     await expect(page.locator('#modal-comprobante-apoyo')).toHaveClass(/show/);
+    await expect(page.locator('#modal-pago-apoyo')).not.toHaveClass(/show/);
+    await pass(page, scenario, {
+      step: 'Modal de comprobante Apoyo visible',
+      action: 'El profesional pulsa Comprobante en el detalle de Apoyo RUANA.',
+      result: 'RUANA abre la subida de comprobante sin mostrar pago manual.',
+    });
     await setInputFilesVisible(page, '#input-comprobante-apoyo', {
       name: 'comprobante-qa.png',
       mimeType: 'image/png',
@@ -312,14 +356,14 @@ async function createPaymentInReviewViaUi(page, request, scenario, suffix) {
       oficio: 'Fontaner\u00eda y fontaner\u00eda-gas',
       oficio_principal: 'Fontaner\u00eda y fontaner\u00eda-gas',
       especializacion: 'Reparaci\u00f3n de fugas y grifos',
-      codigo_postal: '28020',
+      codigo_postal: '08020',
     },
     {
       nombre: `Profesional QA Pago ${suffix}`,
       oficio: 'Electricidad',
       oficio_principal: 'Electricidad',
       especializacion: 'Aver\u00edas y reparaciones el\u00e9ctricas',
-      codigo_postal: '28021',
+      codigo_postal: '08021',
     }
   );
   await openAliadoPanel(page, data.solicitanteSession, scenario, 'Solicitante');
@@ -565,14 +609,14 @@ test.describe('RUANA QA critica con video human-readable', () => {
       oficio: 'Electricidad',
       oficio_principal: 'Electricidad',
       especializacion: 'Aver\u00edas y reparaciones el\u00e9ctricas',
-      codigo_postal: '28040',
+      codigo_postal: '46040',
     });
     const respondedor = await registerAliado(request, {
       nombre: 'Aliado QA Responde Solicitud',
       oficio: 'Pintura y decoraci\u00f3n',
       oficio_principal: 'Pintura y decoraci\u00f3n',
       especializacion: 'Pintura interior y exterior',
-      codigo_postal: '28040',
+      codigo_postal: '46040',
     });
     const solicitanteSession = await aliadoLogin(request, solicitante.codigo);
     const respondedorSession = await aliadoLogin(request, respondedor.codigo);
@@ -629,14 +673,14 @@ test.describe('RUANA QA critica con video human-readable', () => {
         oficio: 'Fontaner\u00eda y fontaner\u00eda-gas',
         oficio_principal: 'Fontaner\u00eda y fontaner\u00eda-gas',
         especializacion: 'Reparaci\u00f3n de fugas y grifos',
-        codigo_postal: '28050',
+        codigo_postal: '41050',
       },
       {
         nombre: 'Profesional QA Negociacion',
         oficio: 'Electricidad',
         oficio_principal: 'Electricidad',
         especializacion: 'Aver\u00edas y reparaciones el\u00e9ctricas',
-        codigo_postal: '28051',
+        codigo_postal: '41051',
       }
     );
 
@@ -711,14 +755,14 @@ test.describe('RUANA QA critica con video human-readable', () => {
         oficio: 'Fontaner\u00eda y fontaner\u00eda-gas',
         oficio_principal: 'Fontaner\u00eda y fontaner\u00eda-gas',
         especializacion: 'Reparaci\u00f3n de fugas y grifos',
-        codigo_postal: '28060',
+        codigo_postal: '29060',
       },
       {
         nombre: 'Profesional QA Bloqueo',
         oficio: 'Electricidad',
         oficio_principal: 'Electricidad',
         especializacion: 'Aver\u00edas y reparaciones el\u00e9ctricas',
-        codigo_postal: '28061',
+        codigo_postal: '29061',
       }
     );
     await openAliadoPanel(page, flowBloqueo.profesionalSession, scenario, 'Ofertador');
@@ -739,14 +783,14 @@ test.describe('RUANA QA critica con video human-readable', () => {
         oficio: 'Carpinter\u00eda de madera e interior',
         oficio_principal: 'Carpinter\u00eda de madera e interior',
         especializacion: 'Muebles a medida b\u00e1sicos',
-        codigo_postal: '28062',
+        codigo_postal: '29062',
       },
       {
         nombre: 'Profesional QA No Trabajo',
         oficio: 'Pintura y decoraci\u00f3n',
         oficio_principal: 'Pintura y decoraci\u00f3n',
         especializacion: 'Pintura interior y exterior',
-        codigo_postal: '28063',
+        codigo_postal: '29063',
       }
     );
     await openAliadoPanel(page, flowNoTrabajo.solicitanteSession, scenario, 'Solicitante');
@@ -769,19 +813,14 @@ test.describe('RUANA QA critica con video human-readable', () => {
     await loginAdminAsUser(page, scenario);
     await adminRejectPaymentViaUi(page, scenario, pagoRechazar.contactoId);
     await openAliadoPanel(page, pagoRechazar.profesionalSession, scenario, 'Profesional con pago rechazado');
-    await reviewSection(page, scenario, '#ruana-alert-hub', {
+    await reviewSection(page, scenario, '#ruana-pulse-trigger', {
       step: 'Profesional recibe mensaje de RUANA',
-      action: 'Tras el rechazo, el profesional revisa el hub de alertas.',
+      action: 'Tras el rechazo, el profesional abre el Centro de Actividad.',
       expected: 'Debe ver una notificacion con el motivo del rechazo.',
-      result: 'La tarjeta de mensajes de RUANA queda visible.',
+      result: 'El aviso de mensajes de RUANA queda visible.',
     });
-    // El hub colapsa a 1 aviso (pago pendiente); hay que expandir para ver mensajes.
-    const moreAlerts = page.locator('.ruana-alert-hub__more');
-    if (await moreAlerts.isVisible().catch(() => false)) {
-      await clickVisible(page, '.ruana-alert-hub__more');
-    }
-    await clickVisible(page, '[data-alert-action="mensajes-ruana"]');
-    await expect(page.locator('#ruana-alert-hub')).toContainText('Comprobante ilegible');
+    await openPulseDetailAction(page, scenario, 'mensajes-ruana');
+    await expect(page.locator('#ruana-pulse-detail-body')).toContainText('Comprobante ilegible');
     await pass(page, scenario, {
       step: 'Notificacion de rechazo visible',
       action: 'El profesional ve el motivo enviado por admin.',
@@ -803,14 +842,14 @@ test.describe('RUANA QA critica con video human-readable', () => {
       oficio: 'Fontaner\u00eda y fontaner\u00eda-gas',
       oficio_principal: 'Fontaner\u00eda y fontaner\u00eda-gas',
       especializacion: 'Reparaci\u00f3n de fugas y grifos',
-      codigo_postal: '28002',
+      codigo_postal: '48002',
     });
     const profesional = await registerAliado(request, {
       nombre: 'Profesional QA',
       oficio: 'Electricidad',
       oficio_principal: 'Electricidad',
       especializacion: 'Aver\u00edas y reparaciones el\u00e9ctricas',
-      codigo_postal: '28003',
+      codigo_postal: '48003',
     });
     await pass(page, scenario, {
       step: 'Usuarios preparados',
@@ -886,14 +925,14 @@ test.describe('RUANA QA critica con video human-readable', () => {
       oficio: 'Carpinter\u00eda de madera e interior',
       oficio_principal: 'Carpinter\u00eda de madera e interior',
       especializacion: 'Muebles a medida b\u00e1sicos',
-      codigo_postal: '28004',
+      codigo_postal: '50004',
     });
     const profesional = await registerAliado(request, {
       nombre: 'Profesional QA Reclamo',
       oficio: 'Pintura y decoraci\u00f3n',
       oficio_principal: 'Pintura y decoraci\u00f3n',
       especializacion: 'Pintura interior y exterior',
-      codigo_postal: '28005',
+      codigo_postal: '50005',
     });
     const contratanteSession = await aliadoLogin(request, contratante.codigo);
     const profesionalSession = await aliadoLogin(request, profesional.codigo);
@@ -913,14 +952,14 @@ test.describe('RUANA QA critica con video human-readable', () => {
         action: 'El profesional baja a Apoyo RUANA y reclama el importe declarado.',
         expected: 'RUANA debe abrir un conflicto pendiente de prueba.',
       });
-      await reviewSection(page, scenario, '#ruana-alert-hub', {
+      await reviewSection(page, scenario, '#ruana-pulse-trigger', {
         step: 'Ver pago reclamable',
-        action: 'El profesional abre el detalle del Apoyo RUANA pendiente.',
+        action: 'El profesional abre el Centro de Actividad y el detalle del Apoyo RUANA.',
         expected: 'Debe aparecer Reclamar.',
-        result: 'El hub de Apoyo RUANA queda visible.',
+        result: 'El aviso de Apoyo RUANA queda visible.',
       });
-      await clickVisible(page, '[data-alert-action="apoyo-pago"]');
-      await clickVisible(page, '.btn-impugnar-apoyo');
+      await openPulseDetailAction(page, scenario, 'apoyo-pago');
+      await clickVisible(page, '#ruana-pulse-detail-body .btn-impugnar-apoyo');
       await expect(page.locator('#modal-impugnar-apoyo')).toHaveClass(/show/);
       await fillVisible(
         page,
@@ -954,6 +993,168 @@ test.describe('RUANA QA critica con video human-readable', () => {
         action: 'La cola de conflictos muestra el contacto reclamado.',
         result: `Contacto ${contactoId} visible; verificacion tecnica HTTP ${conflicts.status()}.`,
       });
+    });
+  });
+
+  test('pago manual oculto si el aliado no esta en la allowlist', async ({ page, request }) => {
+    const scenario = 'Aliado sin allowlist no ve pago manual';
+    const bizumFake = '600000000';
+    const ibanFake = 'ES0000000000000000000000';
+    const flow = await createContactPrecondition(
+      page,
+      request,
+      scenario,
+      {
+        nombre: 'Solicitante QA Manual Off',
+        oficio: 'Fontaner\u00eda y fontaner\u00eda-gas',
+        oficio_principal: 'Fontaner\u00eda y fontaner\u00eda-gas',
+        especializacion: 'Reparaci\u00f3n de fugas y grifos',
+        codigo_postal: '28110',
+      },
+      {
+        nombre: 'Profesional QA Manual Off',
+        oficio: 'Electricidad',
+        oficio_principal: 'Electricidad',
+        especializacion: 'Aver\u00edas y reparaciones el\u00e9ctricas',
+        codigo_postal: '28111',
+      }
+    );
+    const admin = await adminLogin(request);
+    const saved = await request.post('/api/admin/metodos-pago', {
+      headers: admin.headers,
+      data: { bizum_num: bizumFake, iban: ibanFake },
+    });
+    await expectOk(saved, 'guardar metodos pago');
+
+    await openAliadoPanel(page, flow.solicitanteSession, scenario, 'Solicitante');
+    await confirmImporteViaUi(
+      page,
+      request,
+      scenario,
+      flow.solicitanteSession,
+      flow.contactoId,
+      120,
+      'Solicitante'
+    );
+    await openAliadoPanel(page, flow.profesionalSession, scenario, 'Profesional sin pago manual');
+    const metodos = await request.get('/api/metodos-pago', { headers: flow.profesionalSession.headers });
+    const metodosBody = await expectOk(metodos, 'metodos pago aliado no habilitado');
+    expect(metodosBody.metodos.habilitado).toBe(false);
+    expect(metodosBody.metodos.bizum_num).toBeNull();
+    expect(metodosBody.metodos.iban).toBeNull();
+
+    await clickVisible(page, '[data-alert-action="apoyo-pago"]');
+    await expect(page.locator('.btn-aceptar-pagar')).toHaveCount(0);
+    await expect(page.locator('#modal-pago-apoyo')).not.toHaveClass(/show/);
+    await expect(page.locator('#ruana-alert-hub')).not.toContainText(ibanFake);
+    await expect(page.locator('#ruana-alert-hub')).not.toContainText(bizumFake);
+    await pass(page, scenario, {
+      step: 'Pago manual ausente en cobro',
+      action: 'El profesional abre Apoyo RUANA sin estar en la allowlist.',
+      result: 'No aparece Aceptar y pagar ni IBAN/Bizum reales en el flujo de cobro.',
+    });
+  });
+
+  test('admin habilita y deshabilita pago manual aliado desde el panel', async ({ page, request }) => {
+    const scenario = 'Allowlist pago manual desde admin';
+    const bizumFake = '600000000';
+    const ibanFake = 'ES0000000000000000000000';
+    const flow = await createContactPrecondition(
+      page,
+      request,
+      scenario,
+      {
+        nombre: 'Solicitante QA Manual On',
+        oficio: 'Fontaner\u00eda y fontaner\u00eda-gas',
+        oficio_principal: 'Fontaner\u00eda y fontaner\u00eda-gas',
+        especializacion: 'Reparaci\u00f3n de fugas y grifos',
+        codigo_postal: '28120',
+      },
+      {
+        nombre: 'Profesional QA Manual On',
+        oficio: 'Electricidad',
+        oficio_principal: 'Electricidad',
+        especializacion: 'Aver\u00edas y reparaciones el\u00e9ctricas',
+        codigo_postal: '28121',
+      }
+    );
+
+    await openAliadoPanel(page, flow.solicitanteSession, scenario, 'Solicitante');
+    await confirmImporteViaUi(
+      page,
+      request,
+      scenario,
+      flow.solicitanteSession,
+      flow.contactoId,
+      140,
+      'Solicitante'
+    );
+
+    await loginAdminAsUser(page, scenario);
+    await goAdminSection(page, '#metodos-pago-admin-wrap');
+    await page.waitForFunction((codigo) => {
+      const panel = window._ruanaAdminPanel;
+      return Boolean(
+        panel &&
+          Array.isArray(panel._aliadosData) &&
+          panel._aliadosData.some((a) => a && a.codigo === codigo)
+      );
+    }, flow.profesional.codigo, { timeout: 20000 });
+
+    await clickVisible(page, 'button[data-action="editar-metodos-pago"]');
+    await expect(page.locator('#modal-accion-admin')).toBeVisible();
+    await fillVisible(page, '#accion-mp-bizum', bizumFake);
+    await fillVisible(page, '#accion-mp-iban', ibanFake);
+    await clickVisible(page, '#modal-accion-confirmar');
+    await clickVisible(page, '#modal-accion-confirmar');
+    await expect(page.locator('#admin-metodo-bizum')).toHaveText(bizumFake, { timeout: 15000 });
+    await expect(page.locator('#admin-metodo-iban')).toHaveText(ibanFake);
+
+    await fillVisible(page, '#admin-pago-manual-buscar', flow.profesional.codigo);
+    await clickVisible(page, '#btn-habilitar-pago-manual');
+    await expect(page.locator('#admin-pago-manual-aliados-tbody')).toContainText(flow.profesional.codigo, {
+      timeout: 15000,
+    });
+    await pass(page, scenario, {
+      step: 'Admin habilita pago manual',
+      action: 'Se guardan Bizum/IBAN de prueba y se habilita al profesional.',
+      result: `Aliado ${flow.profesional.codigo} aparece en la allowlist.`,
+    });
+
+    await openAliadoPanel(page, flow.profesionalSession, scenario, 'Profesional con pago manual');
+    await clickVisible(page, '[data-alert-action="apoyo-pago"]');
+    await expect(page.locator('.btn-aceptar-pagar')).toBeVisible();
+    await clickVisible(page, '.btn-aceptar-pagar');
+    await expect(page.locator('#modal-pago-apoyo')).toHaveClass(/show/);
+    await expect(page.locator('#pago-apoyo-bizum-numero')).toHaveText(bizumFake);
+    await expect(page.locator('#pago-apoyo-iban')).toHaveText(ibanFake);
+    await pass(page, scenario, {
+      step: 'Pago manual visible con datos reales',
+      action: 'El profesional recarga el panel con la misma sesion y abre Aceptar y pagar.',
+      result: 'Ve Bizum e IBAN de prueba.',
+    });
+
+    await loginAdminAsUser(page, scenario);
+    await goAdminSection(page, '#metodos-pago-admin-wrap');
+    await clickVisible(
+      page,
+      `#admin-pago-manual-aliados-tbody [data-deshabilitar-pago="${flow.profesional.codigo}"]`
+    );
+    await expect(page.locator('#admin-pago-manual-aliados-tbody')).not.toContainText(flow.profesional.codigo);
+
+    await page.goto('/aliado');
+    await page.evaluate((sessionId) => {
+      sessionStorage.setItem('ruana_session_id', sessionId);
+    }, flow.profesionalSession.sessionId);
+    await page.goto('/aliado');
+    await expect(page.locator('#metric-score')).toBeVisible();
+    await clickVisible(page, '[data-alert-action="apoyo-pago"]');
+    await expect(page.locator('.btn-aceptar-pagar')).toHaveCount(0);
+    await expect(page.locator('#modal-pago-apoyo')).not.toHaveClass(/show/);
+    await pass(page, scenario, {
+      step: 'Pago manual desaparece sin nuevo login',
+      action: 'El admin quita al aliado; el profesional recarga con la misma sesion.',
+      result: 'Aceptar y pagar ya no aparece; no se pidieron credenciales nuevas.',
     });
   });
 });

@@ -32,6 +32,13 @@
     return extra || {};
   }
 
+  function dismissPulsePanelIfOpen() {
+    if (global.RuanaPulse && typeof global.RuanaPulse.isOpen === 'function' && global.RuanaPulse.isOpen()
+        && typeof global.RuanaPulse.close === 'function') {
+      global.RuanaPulse.close();
+    }
+  }
+
   function formatApoyoRuana(host, raw) {
     const apoyoNum = (raw != null && raw !== '' && !Number.isNaN(Number(raw))) ? Number(raw) : null;
     if (apoyoNum != null && Number.isFinite(apoyoNum) && apoyoNum > 0) {
@@ -221,7 +228,19 @@
     };
     const body = hub.renderDetailHeader(detailEl, titles[detailId] || 'Detalle', function () {
         host._alertHubState.expandedDetailId = null;
-        renderAlertHub(host);
+        if (global.RuanaPulse && typeof global.RuanaPulse.isOpen === 'function' && global.RuanaPulse.isOpen()) {
+            var detail = document.getElementById('ruana-pulse-detail');
+            var detailBody = document.getElementById('ruana-pulse-detail-body');
+            var main = document.querySelector('.ruana-pulse-panel__main');
+            if (detail) {
+                detail.hidden = true;
+                detail.classList.remove('is-active');
+            }
+            if (detailBody) detailBody.innerHTML = '';
+            if (main) main.style.display = '';
+        } else {
+            renderAlertHub(host);
+        }
     });
 
     if (detailId === 'apoyo-pago') {
@@ -237,8 +256,10 @@
                     'Contacto <strong>#' + c.id + '</strong> · ' + servicio +
                     ' · Apoyo: <strong>' + apoyo + '</strong>' +
                 '</div>' +
-                '<div class="ruana-alert-detail-item__actions">' +
-                    '<button type="button" class="ruana-alert-detail-btn ruana-alert-detail-btn--primary btn-aceptar-pagar">Aceptar y pagar</button>' +
+                    '<div class="ruana-alert-detail-item__actions">' +
+                    (host.metodosPagoRuana && host.metodosPagoRuana.habilitado
+                        ? '<button type="button" class="ruana-alert-detail-btn ruana-alert-detail-btn--primary btn-aceptar-pagar">Aceptar y pagar</button>'
+                        : '') +
                     '<button type="button" class="ruana-alert-detail-btn btn-impugnar-apoyo">Reclamar</button>' +
                     '<button type="button" class="ruana-alert-detail-btn btn-enviar-comprobante">Comprobante</button>' +
                 '</div>';
@@ -287,19 +308,25 @@
   }
 
   function renderAlertHub(host) {
-    const hubEl = document.getElementById('ruana-alert-hub');
-    if (!hubEl || typeof RuanaAlertHub === 'undefined') return;
-    const items = host.buildAlertItems();
-
     if (!host._alertHubState) {
         host._alertHubState = { showAll: false, expandedDetailId: null };
     }
+
+    const items = host.buildAlertItems();
     if (items.length === 0) {
         host._alertHubState = { showAll: false, expandedDetailId: null };
     } else if (host._alertHubState.expandedDetailId &&
         !items.some(i => i.id === host._alertHubState.expandedDetailId)) {
         host._alertHubState.expandedDetailId = null;
     }
+
+    if (global.RuanaPulse && typeof global.RuanaPulse.render === 'function') {
+        global.RuanaPulse.render(host);
+        return;
+    }
+
+    const hubEl = document.getElementById('ruana-alert-hub');
+    if (!hubEl || typeof RuanaAlertHub === 'undefined') return;
 
     RuanaAlertHub.render(hubEl, items, host._alertHubState, {
         onAction: function (item) {
@@ -339,7 +366,10 @@
         const data = await resp.json();
         if (data.status === 'success' && data.metodos) {
             host.metodosPagoRuana = {
-                ...host.metodosPagoRuana,
+                habilitado: false,
+                bizum_num: null,
+                iban: null,
+                qr_revolut_path: null,
                 ...data.metodos
             };
         }
@@ -439,7 +469,14 @@
     }
   }
 
+  function closePulseIfOpen() {
+    if (global.RuanaPulse && typeof global.RuanaPulse.close === 'function') {
+      global.RuanaPulse.close();
+    }
+  }
+
   function abrirModalComprobanteApoyo(host, contactoId) {
+    closePulseIfOpen();
     host._contactoIdComprobante = contactoId;
     const modal = document.getElementById('modal-comprobante-apoyo');
     const input = document.getElementById('input-comprobante-apoyo');
@@ -450,6 +487,7 @@
     if (comentario) comentario.value = '';
     if (resultado) resultado.textContent = '';
     if (nombreEl) nombreEl.textContent = '';
+    dismissPulsePanelIfOpen();
     if (modal) modal.classList.add('show');
     // Abrir el selector de archivos del sistema en el mismo gesto de usuario (tras pintar el modal)
     if (input) {
@@ -461,6 +499,7 @@
   }
 
   function abrirModalPagoApoyo(host, contactoId, apoyoRuana, servicio) {
+    closePulseIfOpen();
     const modal = document.getElementById('modal-pago-apoyo');
     const infoEl = document.getElementById('pago-apoyo-info');
     const bizumEl = document.getElementById('pago-apoyo-bizum-numero');
@@ -478,9 +517,12 @@
     const importeStr = importe != null ? importe.toFixed(2) + ' EUR' : 'Pendiente de calculo';
     const concepto = `RUANA contacto #${contactoId}`;
     const metodos = host.metodosPagoRuana || {};
-    const bizumNum = metodos.bizum_num || window.RUANA_BIZUM_NUM || '642868261';
-    const iban = metodos.iban || window.RUANA_IBAN || 'ES8915830001119028625152';
-    const qrRevolut = metodos.qr_revolut_path || window.RUANA_QR_REVOLUT_PATH || '/static/images/PayPal.png';
+    if (!metodos.habilitado) {
+        return;
+    }
+    const bizumNum = metodos.bizum_num || '';
+    const iban = metodos.iban || '';
+    const qrRevolut = metodos.qr_revolut_path || '';
 
     host._contactoIdPagoActual = contactoId;
     infoEl.textContent = `Contacto #${contactoId} - ${servicio || 'Contacto'} - Apoyo RUANA: ${importeStr}`;
@@ -493,6 +535,7 @@
     transferenciaImporteEl.textContent = importeStr;
     transferenciaConceptoEl.textContent = concepto;
     host.setPagoApoyoMetodo('bizum');
+    dismissPulsePanelIfOpen();
     modal.classList.add('show');
   }
 
@@ -600,6 +643,7 @@
   }
 
   function abrirModalImpugnarApoyo(host, contactoId) {
+    closePulseIfOpen();
     const modal = document.getElementById('modal-impugnar-apoyo');
     const infoEl = document.getElementById('impugnar-apoyo-info');
     const input = document.getElementById('input-motivo-impugnar-apoyo');
@@ -617,6 +661,7 @@
         btn.disabled = false;
         btn.textContent = 'Enviar reclamacion';
     }
+    dismissPulsePanelIfOpen();
     modal.classList.add('show');
     if (input) input.focus();
   }
