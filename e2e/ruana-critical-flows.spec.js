@@ -291,6 +291,28 @@ async function uploadComprobanteViaUi(page, scenario) {
     });
   });
 }
+    await expect(page.locator('#modal-comprobante-apoyo')).toHaveClass(/show/);
+    await expect(page.locator('#modal-pago-apoyo')).not.toHaveClass(/show/);
+    await pass(page, scenario, {
+      step: 'Modal de comprobante Apoyo visible',
+      action: 'El profesional pulsa Comprobante en el detalle de Apoyo RUANA.',
+      result: 'RUANA abre la subida de comprobante sin mostrar pago manual.',
+    });
+    await setInputFilesVisible(page, '#input-comprobante-apoyo', {
+      name: 'comprobante-qa.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from('comprobante QA RUANA'),
+    });
+    await fillVisible(page, '#input-comprobante-apoyo-comentario', 'Comprobante QA subido por la interfaz');
+    await clickVisible(page, '#btn-comprobante-apoyo-enviar');
+    await expect(page.locator('#modal-comprobante-apoyo')).not.toHaveClass(/show/);
+    await pass(page, scenario, {
+      step: 'Comprobante enviado por UI',
+      action: 'El profesional selecciona archivo, escribe comentario y envia.',
+      result: 'RUANA acepta el comprobante y lo envia a revision admin.',
+    });
+  });
+}
 
 async function registerAliadoViaUi(page, scenario, data) {
   await test.step('Usuario completa el formulario de registro de aliado', async () => {
