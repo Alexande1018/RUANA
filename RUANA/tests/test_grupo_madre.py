@@ -1,6 +1,7 @@
 """
 Tests Grupo Madre por ciudad: incubación, madurez, directorio y compatibilidad territorial.
 """
+import sqlite3
 from types import SimpleNamespace
 
 import pytest
@@ -49,15 +50,15 @@ def _grupo_tipo(db, grupo_id):
     return (g or {}).get("tipo")
 
 
-def test_cp_sin_territorial_bootstrap_crea_grupo_territorial(sqlite_db):
-    """CP incubación (03001 Alicante) → madre crea primer grupo territorial."""
+def test_cp_sin_territorial_entra_en_grupo_madre(sqlite_db):
+    """CP sin estructura territorial → el aliado entra en el Grupo Madre de la ciudad."""
     r = _crear(sqlite_db, "50001", cp="03001")
     assert r["status"] == "success"
     _set_activo(sqlite_db, "50001")
     aliado = sqlite_db.obtener_aliado_por_codigo("50001")
     assert aliado.get("grupo_id") is not None
-    assert _grupo_tipo(sqlite_db, aliado["grupo_id"]) == "territorial"
-    assert grupo_madre_service.cp_en_modo_territorial(sqlite_db, "03001") is True
+    assert _grupo_tipo(sqlite_db, aliado["grupo_id"]) == TIPO_GRUPO_MADRE
+    assert grupo_madre_service.cp_en_modo_territorial(sqlite_db, "03001") is False
 
 
 def test_cp_con_territorial_mantiene_flujo_actual(sqlite_db):
@@ -107,8 +108,8 @@ def test_estados_encargo_valido_madurez_excluyen_conversacion_previa():
     assert "trabajo_en_progreso" in ESTADOS_ENCARGO_VALIDO_MADUREZ
 
 
-def test_directorio_territorial_filtra_por_cp(sqlite_db):
-    """Tras bootstrap, el directorio filtra por CP (no mezcla CPs de la ciudad)."""
+def test_directorio_madre_incluye_cps_de_la_ciudad(sqlite_db):
+    """En incubación el directorio del Grupo Madre cubre la ciudad, no un solo CP."""
     _crear(sqlite_db, "52001", cp="03001")
     _crear(sqlite_db, "52002", oficio="Fontanería y fontanería-gas", cp="03003")
     _set_activo(sqlite_db, "52001")
@@ -116,7 +117,7 @@ def test_directorio_territorial_filtra_por_cp(sqlite_db):
 
     directorio = sqlite_db.listar_aliados_directorio_grupo("52001")
     codigos = {a["codigo"] for a in directorio}
-    assert "52002" not in codigos
+    assert "52002" in codigos
 
 
 def test_directorio_territorial_sigue_filtrando_por_cp(sqlite_db):
@@ -195,3 +196,47 @@ def test_aviso_visto_endpoint(client, sqlite_db, monkeypatch):
     assert resp.status_code == 200
     assert resp.get_json().get("status") == "success"
     assert sqlite_db.debe_mostrar_aviso_madre("56001", r.get("grupo_id")) is False
+
+
+def test_cp_en_modo_territorial_no_reconsulta_si_falta_columna_tipo(sqlite_db, monkeypatch):
+    """Si falta grupos.tipo no debe repetir el SELECT (Postgres aborta la transacción)."""
+    calls = {"n": 0}
+
+    def boom(cursor, cp):
+        calls["n"] += 1
+        raise sqlite3.OperationalError('column "tipo" does not exist')
+
+    monkeypatch.setattr(
+        grupo_madre_service._madre_repo,
+        "contar_territoriales_activos_por_cp",
+        boom,
+    )
+    assert grupo_madre_service.cp_en_modo_territorial(sqlite_db, "50009") is False
+    assert calls["n"] == 1
+
+
+def test_get_aliado_datos_carga_si_falta_columna_tipo(client, sqlite_db, monkeypatch):
+    """El panel no debe devolver 500 cuando Postgres aún no tiene grupos.tipo."""
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    r = _crear(sqlite_db, "57009", cp="03001")
+    assert r["status"] == "success"
+    _set_activo(sqlite_db, "57009")
+
+    conn = sqlite_db._connect()
+    conn.execute("ALTER TABLE grupos DROP COLUMN tipo")
+    conn.commit()
+    conn.close()
+
+    session_id = app_module._ruana_session_create(
+        tipo="aliado",
+        codigo="57009",
+        expires_at=9999999999,
+    )
+    headers = {app_module.RUANA_SESSION_HEADER: session_id}
+
+    resp = client.get("/api/aliado/datos", headers=headers)
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["status"] == "success"
+    assert data["aliado"]["codigo"] == "57009"
+    assert data["aliado"].get("territorio_modo") in ("incubacion", "territorial")

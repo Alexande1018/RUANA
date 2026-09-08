@@ -208,10 +208,16 @@ def get_aliado_datos():
                 if pago_service.stripe_habilitado_global()
                 else True
             )
-            aliado_dict['territorio_modo'] = db.territorio_modo_aliado(
-                aliado_dict.get('codigo_postal') or '', grupo_id
-            )
-            aliado_dict['mostrar_aviso_madre'] = db.debe_mostrar_aviso_madre(codigo, grupo_id)
+            try:
+                aliado_dict['territorio_modo'] = db.territorio_modo_aliado(
+                    aliado_dict.get('codigo_postal') or '', grupo_id
+                )
+            except Exception:
+                aliado_dict['territorio_modo'] = 'territorial'
+            try:
+                aliado_dict['mostrar_aviso_madre'] = db.debe_mostrar_aviso_madre(codigo, grupo_id)
+            except Exception:
+                aliado_dict['mostrar_aviso_madre'] = False
 
             # Notificaciones del aliado (ej. comprobante rechazado con mensaje de admin)
             notificaciones = notificacion_service.listar_notificaciones_aliado(
