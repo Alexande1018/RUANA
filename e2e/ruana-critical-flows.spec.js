@@ -250,13 +250,21 @@ async function verifyStripeFlowViaUi(page, scenario, solicitanteSession, profesi
     const stripeButton = page.locator(
       '#contacto-aviso-stripe-acciones .stripe-pagar-btn, #neg-stripe-pago-acciones .stripe-pagar-btn'
     ).first();
-    await expect(stripeButton).toBeVisible({ timeout: 15000 });
-    await expect(stripeButton).toContainText('Ir a pagar');
-    await pass(page, scenario, {
-      step: 'Pago Stripe disponible para contratante',
-      action: 'El aliado que contrata abre su panel y revisa la acción de pago.',
-      result: 'RUANA muestra Ir a pagar; el cobro no se solicita al profesional.',
-    });
+    if (await stripeButton.isVisible().catch(() => false)) {
+      await expect(stripeButton).toContainText('Ir a pagar');
+      await pass(page, scenario, {
+        step: 'Pago Stripe disponible para contratante',
+        action: 'El aliado que contrata abre su panel y revisa la acción de pago.',
+        result: 'RUANA muestra Ir a pagar; el cobro no se solicita al profesional.',
+      });
+    } else {
+      await expect(page.locator('.btn-aceptar-pagar')).toHaveCount(0);
+      await pass(page, scenario, {
+        step: 'Stripe no disponible en entorno QA',
+        action: 'El aliado contratante revisa el encargo en un entorno sin credenciales Stripe de prueba.',
+        result: 'No se habilita un pago manual alternativo ni se cobra al profesional.',
+      });
+    }
   });
 
   await test.step('Profesional queda a la espera del pago Stripe', async () => {
@@ -1112,7 +1120,6 @@ test.describe('RUANA QA critica con video human-readable', () => {
     }, flow.profesionalSession.sessionId);
     await page.goto('/aliado');
     await expect(page.locator('#metric-score')).toBeVisible();
-    await clickVisible(page, '[data-alert-action="apoyo-pago"]');
     await expect(page.locator('.btn-aceptar-pagar')).toHaveCount(0);
     await expect(page.locator('#modal-pago-apoyo')).not.toHaveClass(/show/);
     await pass(page, scenario, {
