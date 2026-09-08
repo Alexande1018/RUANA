@@ -178,6 +178,15 @@ def _translate_sql(sql: str) -> str:
         flags=re.IGNORECASE,
     )
     translated = translated.replace("AUTOINCREMENT", "")
+    # SQLite COLLATE NOCASE no existe en Postgres: "collation nocase does not exist"
+    # aborta la transacción y el siguiente INSERT (p. ej. aliados) falla con
+    # "current transaction is aborted, commands ignored until end of transaction block".
+    translated = re.sub(
+        r"\s+COLLATE\s+(?:NOCASE|\"nocase\")\b",
+        "",
+        translated,
+        flags=re.IGNORECASE,
+    )
     translated = _replace_placeholders(translated)
     return translated
 
@@ -190,6 +199,40 @@ class PostgresCompatCursor:
         self.description = None
         self._synthetic_rows: Optional[list[tuple[Any, ...]]] = None
         self._synthetic_description = None
+
+    def _next_savepoint_name(self) -> str:
+        n = getattr(self.conn, "_ruana_sp_seq", 0) + 1
+        self.conn._ruana_sp_seq = n
+        return f"ruana_stmt_{n}"
+
+    def _raw_exec(self, sql: str) -> None:
+        raw = getattr(self.conn, "_conn", None)
+        if raw is None:
+            return
+        raw.execute(sql)
+
+    def _begin_statement_savepoint(self) -> Optional[str]:
+        """Aísla cada sentencia: en SQLite un error no aborta la transacción."""
+        name = self._next_savepoint_name()
+        try:
+            self._raw_exec(f"SAVEPOINT {name}")
+            return name
+        except Exception:
+            return None
+
+    def _end_statement_savepoint(self, name: Optional[str], *, failed: bool) -> None:
+        if not name:
+            return
+        try:
+            if failed:
+                self._raw_exec(f"ROLLBACK TO SAVEPOINT {name}")
+            self._raw_exec(f"RELEASE SAVEPOINT {name}")
+        except Exception:
+            if failed:
+                try:
+                    self.conn.rollback()
+                except Exception:
+                    pass
 
     def execute(self, sql: str, params: Optional[Iterable[Any]] = None):
         params = tuple(params or ())
@@ -225,35 +268,43 @@ class PostgresCompatCursor:
             return self
 
         translated = _translate_sql(sql)
+        sp = self._begin_statement_savepoint()
         try:
             self._cursor.execute(translated, params)
-            self.description = self._cursor.description
-            insert_sql = translated.lstrip().upper()
-            # INSERT OR IGNORE → ON CONFLICT: lastval() no aplica y puede
-            # abortar la transacción si no hubo nextval en la sesión.
-            if insert_sql.startswith("INSERT") and "ON CONFLICT" not in insert_sql:
+        except psycopg.IntegrityError as exc:
+            self._end_statement_savepoint(sp, failed=True)
+            raise sqlite3.IntegrityError(str(exc)) from exc
+        except Exception:
+            self._end_statement_savepoint(sp, failed=True)
+            raise
+        else:
+            self._end_statement_savepoint(sp, failed=False)
+
+        self.description = self._cursor.description
+        insert_sql = translated.lstrip().upper()
+        # INSERT OR IGNORE → ON CONFLICT: lastval() no aplica y puede
+        # abortar la transacción si no hubo nextval en la sesión.
+        if insert_sql.startswith("INSERT") and "ON CONFLICT" not in insert_sql:
+            try:
+                with self.conn._conn.cursor() as c:
+                    c.execute("savepoint ruana_lastval_probe")
+                    c.execute("select lastval()")
+                    self.lastrowid = c.fetchone()["lastval"]
+            except Exception:
                 try:
                     with self.conn._conn.cursor() as c:
-                        c.execute("savepoint ruana_lastval_probe")
-                        c.execute("select lastval()")
-                        self.lastrowid = c.fetchone()["lastval"]
+                        c.execute("rollback to savepoint ruana_lastval_probe")
+                        c.execute("release savepoint ruana_lastval_probe")
                 except Exception:
-                    try:
-                        with self.conn._conn.cursor() as c:
-                            c.execute("rollback to savepoint ruana_lastval_probe")
-                            c.execute("release savepoint ruana_lastval_probe")
-                    except Exception:
-                        pass
-                    self.lastrowid = None
-                else:
-                    try:
-                        with self.conn._conn.cursor() as c:
-                            c.execute("release savepoint ruana_lastval_probe")
-                    except Exception:
-                        pass
-            return self
-        except psycopg.IntegrityError as exc:
-            raise sqlite3.IntegrityError(str(exc)) from exc
+                    pass
+                self.lastrowid = None
+            else:
+                try:
+                    with self.conn._conn.cursor() as c:
+                        c.execute("release savepoint ruana_lastval_probe")
+                except Exception:
+                    pass
+        return self
 
     def _execute_sqlite_master(self, sql: str, params: tuple[Any, ...]) -> bool:
         match = _SQLITE_MASTER_RE.match(sql.strip())
