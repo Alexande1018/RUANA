@@ -521,3 +521,33 @@ def test_solicitudes_semanales_botones_activos_si_sigue_sin_ayuda():
     assert "recomendaciones_count" in sem_js
     assert ".sol-sem-ya-respondido" in css
     assert ".btn-sol-sem-conozco" in css
+
+
+def test_panel_quita_loader_antes_del_sync_secundario():
+    """El loader no debe esperar a solicitudes semanales ni a un segundo /datos."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    sync_js = (root / "static" / "js" / "aliado-sync-module.js").read_text(encoding="utf-8")
+    start = sync_js.index("async function init(host)")
+    end = sync_js.index("function render(host)", start)
+    init_fn = sync_js[start:end]
+    assert "host.setPanelLoading(false)" in init_fn
+    assert init_fn.index("setPanelLoading(false)") < init_fn.index("initSemanales")
+    assert "finally" in init_fn
+    assert "AbortController" in sync_js
+    assert "showBootstrapError" in sync_js
+
+
+def test_get_aliado_datos_no_ejecuta_jobs_globales():
+    """Abrir el panel no debe esperar al orquestador de competencias/Stripe."""
+    bp = (
+        Path(__file__).resolve().parents[1]
+        / "web"
+        / "blueprints"
+        / "aliado_bp.py"
+    ).read_text(encoding="utf-8")
+    start = bp.index("def get_aliado_datos")
+    end = bp.index("def get_aliado_by_codigo", start)
+    fn = bp[start:end]
+    assert "procesar_competencia_automatica" not in fn
+    assert "procesar_timeouts_sin_confirmacion_stripe" not in fn
+    assert "aplicar_penalizaciones_contactos_abiertos" in fn

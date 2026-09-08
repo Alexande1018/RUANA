@@ -281,10 +281,9 @@
             const fetchedAtRaw = sessionStorage.getItem('ruana_aliado_data_fetched_at');
             const fetchedAt = fetchedAtRaw ? Number(fetchedAtRaw) : 0;
             const fetchedRecently = Number.isFinite(fetchedAt) && fetchedAt > 0 && (Date.now() - fetchedAt) < 15000;
-            const needsActividadRefresh = !Array.isArray(host.actividadCinta) || host.actividadCinta.length === 0;
             try {
-                // Evita fetch duplicado inmediato tras bootstrap, salvo si aún no hay cinta.
-                if (!fetchedRecently || needsActividadRefresh) {
+                // Evita fetch duplicado inmediato tras bootstrap (aunque la cinta venga vacía).
+                if (!fetchedRecently) {
                     const respDatos = await fetch(apiBase + '/api/aliado/datos', { credentials: 'same-origin', headers: getAuthHeadersSafe() });
                     if (respDatos.ok) {
                         const dataDatos = await respDatos.json();
@@ -430,10 +429,18 @@
   }
 
   async function init(host) {
+      try {
       // Configurar listeners primero (SIEMPRE)
       host.setupEventListeners();
       if (typeof NegociacionGuiada !== 'undefined') {
           host.negociacionGuiada = new NegociacionGuiada(host);
+      }
+
+      // Pintar con el snapshot del bootstrap y quitar el loader antes del sync secundario.
+      if (host.aliado && (host.aliado.codigo || host.codigoAliado)) {
+          host.render();
+          host.renderAlertas();
+          host.setPanelLoading(false);
       }
 
       // Luego, cargar datos base para pintar el panel lo antes posible
@@ -442,11 +449,11 @@
       // Render temprano: el usuario entra al panel sin esperar sincronizaciones largas.
       host.render();
       host.renderAlertas();
+      host.setPanelLoading(false);
       const semModInit = global.RuanaAliadoModules && global.RuanaAliadoModules.solicitudesSemanales;
       if (semModInit && typeof semModInit.initSemanales === 'function') {
           await semModInit.initSemanales(host);
       }
-      host.setPanelLoading(false);
       host.initOnboarding();
       if (global.RuanaStripePagos && typeof global.RuanaStripePagos.handleOnboardingReturn === 'function') {
           global.RuanaStripePagos.handleOnboardingReturn(host);
@@ -458,6 +465,11 @@
 
       // Sincronización post-render en segundo plano (mismo comportamiento final).
       host.runWarmupSync();
+      } catch (error) {
+          console.error('Error inicializando panel:', error);
+      } finally {
+          host.setPanelLoading(false);
+      }
   }
 
   function render(host) {
@@ -569,12 +581,15 @@
   }
 
   async function fetchAliadoDatos(codigo) {
+      var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      var timer = controller ? setTimeout(function () { controller.abort(); }, 25000) : null;
       try {
           const base = getApiBase();
           const response = await fetch(base + '/api/aliado/datos', {
               method: 'GET',
               headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
-              credentials: 'same-origin'
+              credentials: 'same-origin',
+              signal: controller ? controller.signal : undefined
           });
 
           if (!response.ok) {
@@ -592,12 +607,27 @@
       } catch (error) {
           console.error('Error fetching aliado datos:', error);
           return null;
+      } finally {
+          if (timer) clearTimeout(timer);
+      }
+  }
+
+  function showBootstrapError(errorContainer, msg) {
+      document.body.classList.remove('panel-loading');
+      const loadingEl = document.getElementById('panel-loading');
+      if (loadingEl) loadingEl.style.display = 'none';
+      if (errorContainer) {
+          const textEl = document.getElementById('error-bootstrap-text');
+          if (textEl) textEl.textContent = msg;
+          errorContainer.style.display = 'flex';
       }
   }
 
   function bootstrapPrivatePanel() {
     document.addEventListener('DOMContentLoaded', async () => {
       const errorContainer = document.getElementById('error-bootstrap');
+      const failMsg = 'No se pudieron cargar tus datos. Intenta de nuevo desde el inicio.';
+      try {
       const apiBase = (typeof getApiBase === 'function') ? getApiBase() : '';
 
       const sesionRes = await fetch(apiBase + '/api/aliado/sesion', { method: 'GET', credentials: 'same-origin', headers: getAuthHeadersSafe() });
@@ -618,15 +648,7 @@
       }
       const datos = await global.PrivatePanel.fetchAliadoDatos(sesionData.codigo);
       if (!datos || !datos.aliado) {
-        document.body.classList.remove('panel-loading');
-        const loadingEl = document.getElementById('panel-loading');
-        if (loadingEl) loadingEl.style.display = 'none';
-        if (errorContainer) {
-          const textEl = document.getElementById('error-bootstrap-text');
-          const msg = 'No se pudieron cargar tus datos. Intenta de nuevo desde el inicio.';
-          if (textEl) textEl.textContent = msg;
-          errorContainer.style.display = 'flex';
-        }
+        showBootstrapError(errorContainer, failMsg);
         return;
       }
       sessionStorage.setItem('ruana_codigo_aliado', sesionData.codigo);
@@ -637,6 +659,10 @@
         global.__ruanaBootstrapActividadCinta = datos.actividad_cinta;
       }
       new global.PrivatePanel();
+      } catch (error) {
+        console.error('Error arrancando el panel:', error);
+        showBootstrapError(errorContainer, failMsg);
+      }
     });
   }
 
@@ -673,7 +699,15 @@
     };
 
     // Estado de datos - INICIALIZADOS SIEMPRE
-    host.aliado = null; // Se llena en loadData()
+    host.aliado = null;
+    try {
+      var aliadoData = JSON.parse(sessionStorage.getItem('ruana_aliado_data') || '{}');
+      if (aliadoData && Object.keys(aliadoData).length > 0) {
+        host.aliado = aliadoData;
+      }
+    } catch (_) {
+      host.aliado = null;
+    }
     host.solicitudesEntrantes = [];   // Solicitudes de otros del grupo (pendientes) para poder atender
     host.solicitudesPropias = [];     // Mis solicitudes enviadas (pendientes y atendidas)
     host.solicitudesHistorial = [];   // Historial del grupo (todas, para contexto)
