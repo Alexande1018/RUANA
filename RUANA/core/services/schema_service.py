@@ -2800,6 +2800,29 @@ def _migrar_pago_manual_allowlist(db, conn, cursor) -> None:
             ON ruana_pago_manual_aliados_habilitados(aliado_codigo)
             """,
         )
+        existentes = set()
+        try:
+            existentes = set(_repo.columnas_tabla(cursor, "ruana_metodos_pago_manual") or [])
+        except Exception:
+            existentes = set()
+        col_specs = {
+            "bizum_num": "TEXT",
+            "iban": "TEXT",
+            "qr_revolut_path": "TEXT",
+            "actualizado_por": "TEXT",
+            "actualizado_en": (
+                "TIMESTAMPTZ DEFAULT NOW()"
+                if getattr(db, "backend", None) == "postgres"
+                else "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            ),
+        }
+        for col, spec in col_specs.items():
+            if col in existentes:
+                continue
+            try:
+                _repo.execute(cursor, f"ALTER TABLE ruana_metodos_pago_manual ADD COLUMN {col} {spec}")
+            except Exception:
+                pass
     except Exception as ex:
         print(f"[RUANA][DB] Aviso migrar pago_manual_allowlist: {ex}")
 

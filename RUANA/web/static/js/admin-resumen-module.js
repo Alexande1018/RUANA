@@ -386,6 +386,19 @@
           }
           host.renderInvitacionesRecientes(invitacionesRecData && invitacionesRecData.status === 'success' && Array.isArray(invitacionesRecData.invitaciones) ? invitacionesRecData.invitaciones : []);
           host.renderCampanasInvitacion(campanasData && campanasData.status === 'success' && Array.isArray(campanasData.campanas) ? campanasData.campanas : []);
+          const metodosPagoHttp = responses[19];
+          if (!metodosPagoHttp) {
+              host.showToast('No se pudieron cargar los metodos de pago.', 'error');
+          } else if (typeof metodosPagoHttp.status === 'number' && metodosPagoHttp.status !== 200) {
+              let detalleHttp = '';
+              try {
+                  const errBody = await metodosPagoHttp.json();
+                  if (errBody && errBody.message) detalleHttp = ' ' + errBody.message;
+              } catch (e) { /* cuerpo no JSON */ }
+              host.showToast('No se pudieron cargar los metodos de pago (HTTP ' + metodosPagoHttp.status + ').' + detalleHttp, 'error');
+          } else if (metodosPagoData && metodosPagoData.status && metodosPagoData.status !== 'success') {
+              host.showToast(metodosPagoData.message || 'No se pudieron cargar los metodos de pago.', 'error');
+          }
           host.renderMetodosPago((metodosPagoData && metodosPagoData.status === 'success' && metodosPagoData.metodos) ? metodosPagoData.metodos : null);
           host.renderCompetenciasActivas((competenciasData && competenciasData.status === 'success' && Array.isArray(competenciasData.competencias)) ? competenciasData.competencias : []);
           host.renderCompetenciasPendientes((competenciasPendientesData && competenciasPendientesData.status === 'success' && Array.isArray(competenciasPendientesData.pendientes)) ? competenciasPendientesData.pendientes : []);

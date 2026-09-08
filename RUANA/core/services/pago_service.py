@@ -62,15 +62,24 @@ def _metodos_pago_ocultos() -> Dict[str, Any]:
     }
 
 
+def _celda_metodo(row: Any, clave: str, indice: int) -> Any:
+    if hasattr(row, "keys"):
+        try:
+            return row[clave]
+        except (KeyError, IndexError, TypeError):
+            return None
+    try:
+        return row[indice]
+    except (IndexError, TypeError, KeyError):
+        return None
+
+
 def _fila_metodos_pago(row: Any) -> Dict[str, Any]:
     if not row:
         return {"bizum_num": None, "iban": None, "qr_revolut_path": None}
-    if hasattr(row, "keys"):
-        bizum = row["bizum_num"]
-        iban = row["iban"]
-        qr = row["qr_revolut_path"]
-    else:
-        bizum, iban, qr = row[0], row[1], row[2]
+    bizum = _celda_metodo(row, "bizum_num", 0)
+    iban = _celda_metodo(row, "iban", 1)
+    qr = _celda_metodo(row, "qr_revolut_path", 2)
     return {
         "bizum_num": (str(bizum).strip() if bizum else None) or None,
         "iban": (str(iban).strip() if iban else None) or None,
@@ -87,10 +96,9 @@ def obtener_config_pago_manual(db) -> Dict[str, Any]:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             return _fila_metodos_pago(_repo.select_metodos_pago_manual(cursor))
-        except Exception:
-            return {"bizum_num": None, "iban": None, "qr_revolut_path": None}
         finally:
-            conn.close()
+            if conn is not None:
+                conn.close()
 
 
 def obtener_metodos_pago_ruana(db, aliado_codigo: Optional[str] = None) -> Dict[str, Any]:
@@ -141,14 +149,18 @@ def actualizar_metodos_pago_ruana(db, valores: Dict[str, Any], admin_codigo: Opt
                 actual.get("qr_revolut_path"),
                 admin_codigo,
             )
-            db._insert_evento_sistema(
-                cursor,
-                "actualizar_metodos_pago",
-                "Metodos de pago RUANA actualizados",
-                actor_tipo="admin",
-                actor_codigo=admin_codigo,
-                metadata={"claves": sorted(cambios.keys())},
-            )
+            # El cobro debe persistir aunque falle la trazabilidad.
+            try:
+                db._insert_evento_sistema(
+                    cursor,
+                    "actualizar_metodos_pago",
+                    "Metodos de pago RUANA actualizados",
+                    actor_tipo="admin",
+                    actor_codigo=admin_codigo,
+                    metadata={"claves": sorted(cambios.keys())},
+                )
+            except Exception as log_exc:
+                print(f"[RUANA][pago] Evento de metodos de pago no registrado: {log_exc}")
             conn.commit()
             return {
                 "status": "success",
@@ -156,10 +168,15 @@ def actualizar_metodos_pago_ruana(db, valores: Dict[str, Any], admin_codigo: Opt
                 "metodos": _fila_metodos_pago(_repo.select_metodos_pago_manual(cursor)),
             }
         except Exception as e:
-            conn.rollback()
-            return {"status": "error", "message": str(e)}
+            if conn is not None:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            return {"status": "error", "message": str(e), "http_status": 500}
         finally:
-            conn.close()
+            if conn is not None:
+                conn.close()
 
 
 def habilitar_pago_manual_aliado(db, aliado_codigo: str, admin_codigo: Optional[str] = None) -> Dict[str, Any]:

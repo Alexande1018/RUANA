@@ -61,6 +61,7 @@ def test_admin_mutation_routes_exigen_sesion(client):
         ("post", "/api/admin/abrir-plaza"),
         ("post", "/api/admin/generar-reporte"),
         ("post", "/api/admin/cambiar-reglas"),
+        ("post", "/api/admin/metodos-pago"),
     ):
         resp = getattr(client, method)(path)
         assert resp.status_code == 401, path

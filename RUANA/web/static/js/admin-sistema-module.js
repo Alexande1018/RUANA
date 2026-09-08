@@ -423,32 +423,63 @@
         },
         getConfirmSummary: (p) => `Confirmar metodos de pago: Bizum <strong>${host.escapeHtml(p.bizum_num)}</strong>, IBAN <strong>${host.escapeHtml(p.iban)}</strong>${p.qrFile ? ', con nuevo QR Revolut' : ''}.`,
         execute: async (p) => {
-            const r = await fetch('/api/admin/metodos-pago', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: host.getAuthHeaders(),
-                body: JSON.stringify({ bizum_num: p.bizum_num, iban: p.iban })
-            });
-            if (r.status === 401) { host._adminSessionExpired(); return; }
-            if (r.status === 403) { host.showToast('Sin permiso de escritura (solo lectura).', 'error'); return; }
+            const fail = (msg) => {
+                host.showToast(msg, 'error');
+                throw new Error(msg);
+            };
+            let r;
+            try {
+                r = await fetch('/api/admin/metodos-pago', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: host.getAuthHeaders(),
+                    body: JSON.stringify({ bizum_num: p.bizum_num, iban: p.iban })
+                });
+            } catch (e) {
+                console.error('Error guardando metodos de pago:', e);
+                fail('No se pudo guardar los metodos de pago. Intentalo de nuevo.');
+            }
+            if (r.status === 401) {
+                host.showToast('Sesion admin expirada o no autorizado.', 'error');
+                host._adminSessionExpired();
+                throw new Error('HTTP 401');
+            }
+            if (r.status === 403) fail('Sin permiso de escritura (solo lectura).');
             const data = await r.json().catch(() => ({}));
-            if (data.status !== 'success') { host.showToast(data.message || 'Error actualizando metodos.', 'error'); return; }
+            if (!r.ok || data.status !== 'success') {
+                fail(data.message || ('Error actualizando metodos de pago (HTTP ' + r.status + ').'));
+            }
             if (p.qrFile) {
                 const fd = new FormData();
                 fd.append('archivo', p.qrFile);
-                const qrResp = await fetch('/api/admin/metodos-pago/qr-revolut', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: AdminAuthenticator.getAdminAuthHeaders({ _skipContentType: true }),
-                    body: fd
-                });
-                if (qrResp.status === 401) { host._adminSessionExpired(); return; }
-                if (qrResp.status === 403) { host.showToast('Sin permiso de escritura (solo lectura).', 'error'); return; }
+                let qrResp;
+                try {
+                    qrResp = await fetch('/api/admin/metodos-pago/qr-revolut', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: AdminAuthenticator.getAdminAuthHeaders({ _skipContentType: true }),
+                        body: fd
+                    });
+                } catch (e) {
+                    console.error('Error subiendo QR Revolut:', e);
+                    fail('No se pudo subir el QR Revolut. Intentalo de nuevo.');
+                }
+                if (qrResp.status === 401) {
+                    host.showToast('Sesion admin expirada o no autorizado.', 'error');
+                    host._adminSessionExpired();
+                    throw new Error('HTTP 401');
+                }
+                if (qrResp.status === 403) fail('Sin permiso de escritura (solo lectura).');
                 const qrData = await qrResp.json().catch(() => ({}));
-                if (qrData.status !== 'success') { host.showToast(qrData.message || 'Error subiendo QR.', 'error'); return; }
+                if (!qrResp.ok || qrData.status !== 'success') {
+                    fail(qrData.message || ('Error subiendo QR (HTTP ' + qrResp.status + ').'));
+                }
+                if (qrData.metodos) host.renderMetodosPago(qrData.metodos);
+            } else if (data.metodos) {
+                host.renderMetodosPago(data.metodos);
             }
             host.showToast('Metodos de pago actualizados. Esto no activa el pago manual: habilita aliados en la allowlist.', 'success');
-            host.cargarDesdeApi();
+            await host.cargarDesdeApi();
         }
     });
   }
