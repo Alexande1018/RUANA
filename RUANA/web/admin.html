@@ -1746,6 +1746,13 @@
                 }
             }
 
+            bindPagoManualAllowlist() {
+                const mod = this._sistemaModule();
+                if (mod && typeof mod.bindPagoManualAllowlist === 'function') {
+                    return mod.bindPagoManualAllowlist(this);
+                }
+            }
+
             accionEditarMetodosPago() {
                 const mod = this._sistemaModule();
                 if (mod && typeof mod.accionEditarMetodosPago === 'function') {
