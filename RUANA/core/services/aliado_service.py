@@ -59,6 +59,7 @@ def crear_aliado(db, codigo: str, nombre: str, marca: str = "",
     Si CP lleno y oficio ocupado en todos → estado en_espera (lista de Suplentes).
     """
     with db._lock:
+        conn = None
         try:
             conn = db._connect()
             cursor = conn.cursor()
@@ -169,11 +170,22 @@ def crear_aliado(db, codigo: str, nombre: str, marca: str = "",
             return out
 
         except sqlite3.IntegrityError as e:
+            try:
+                if conn is not None:
+                    conn.rollback()
+            except Exception:
+                pass
             return {'status': 'error', 'message': f'Error de integridad: {e}'}
         except Exception as e:
+            try:
+                if conn is not None:
+                    conn.rollback()
+            except Exception:
+                pass
             return {'status': 'error', 'message': str(e)}
         finally:
-            conn.close()
+            if conn is not None:
+                conn.close()
 
 def completar_aliado_pendiente(db, codigo: str, nombre: str, marca: str = "",
                                oficio: str = "", codigo_postal: str = "",
