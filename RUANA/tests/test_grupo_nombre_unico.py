@@ -50,6 +50,7 @@ def test_existe_nombre_case_insensitive(sqlite_db):
     from core.repositories.grupo_repo import GrupoRepo
 
     repo = GrupoRepo()
-    if g["nombre"].upper() != g["nombre"]:
-        assert repo.existe_nombre(cur, g["nombre"].upper())
+    assert repo.existe_nombre(cur, g["nombre"])
+    assert repo.existe_nombre(cur, g["nombre"].lower())
+    assert repo.existe_nombre(cur, g["nombre"].upper())
     conn.close()

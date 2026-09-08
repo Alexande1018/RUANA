@@ -19,7 +19,7 @@ class GrupoRepo:
         if not nombre_s:
             return False
         cursor.execute(
-            "SELECT 1 FROM grupos WHERE TRIM(nombre) = ? COLLATE NOCASE LIMIT 1",
+            "SELECT 1 FROM grupos WHERE LOWER(TRIM(nombre)) = LOWER(?) LIMIT 1",
             (nombre_s,),
         )
         return cursor.fetchone() is not None

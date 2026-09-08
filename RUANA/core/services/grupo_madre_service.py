@@ -82,7 +82,7 @@ def obtener_o_crear_grupo_madre(
             nombre = _nombre_grupo_madre(ciudad_n)
             if _grupo_repo.existe_nombre(cursor, nombre):
                 cursor.execute(
-                    "SELECT id FROM grupos WHERE TRIM(nombre) = ? COLLATE NOCASE LIMIT 1",
+                    "SELECT id FROM grupos WHERE LOWER(TRIM(nombre)) = LOWER(?) LIMIT 1",
                     (nombre,),
                 )
                 existing = cursor.fetchone()
