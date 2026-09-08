@@ -513,13 +513,13 @@ def _migrar_grupos_nombre_unique_si_procede(db, conn, cursor) -> None:
     if _repo.migracion_aplicada(cursor, 'grupos_nombre_unique_v1'):
         return
     cursor.execute(
-        "SELECT TRIM(nombre) AS n, COUNT(*) AS c FROM grupos "
-        "WHERE nombre IS NOT NULL AND TRIM(nombre) != '' GROUP BY TRIM(nombre) COLLATE NOCASE HAVING c > 1"
+        "SELECT LOWER(TRIM(nombre)) AS n, COUNT(*) AS c FROM grupos "
+        "WHERE nombre IS NOT NULL AND TRIM(nombre) != '' GROUP BY LOWER(TRIM(nombre)) HAVING c > 1"
     )
     for row in cursor.fetchall():
         dup_name = row[0]
         cursor.execute(
-            "SELECT id FROM grupos WHERE TRIM(nombre) = ? COLLATE NOCASE ORDER BY id",
+            "SELECT id FROM grupos WHERE LOWER(TRIM(nombre)) = LOWER(?) ORDER BY id",
             (dup_name,),
         )
         ids = [r[0] for r in cursor.fetchall()]
@@ -529,7 +529,7 @@ def _migrar_grupos_nombre_unique_si_procede(db, conn, cursor) -> None:
     try:
         _repo.execute(
             cursor,
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_grupos_nombre_unique ON grupos(nombre COLLATE NOCASE)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_grupos_nombre_unique ON grupos(LOWER(nombre))",
         )
     except Exception as ex:
         print(f"[RUANA][DB] Aviso al crear índice único grupos.nombre: {ex}")
