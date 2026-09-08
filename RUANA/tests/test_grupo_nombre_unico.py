@@ -47,10 +47,13 @@ def test_existe_nombre_case_insensitive(sqlite_db):
     g = sqlite_db.crear_grupo_en_cp("28004")
     conn = sqlite_db._connect()
     cur = conn.cursor()
+    cur.execute("UPDATE grupos SET nombre = ? WHERE id = ?", ("RUANA-TEST-RAÍZ", g["id"]))
+    conn.commit()
     from core.repositories.grupo_repo import GrupoRepo
 
     repo = GrupoRepo()
-    assert repo.existe_nombre(cur, g["nombre"])
-    assert repo.existe_nombre(cur, g["nombre"].lower())
-    assert repo.existe_nombre(cur, g["nombre"].upper())
+    assert repo.existe_nombre(cur, "RUANA-TEST-RAÍZ")
+    assert repo.existe_nombre(cur, "ruana-test-raíz")
+    assert repo.existe_nombre(cur, "RUANA-TEST-RAÍZ".lower())
+    assert repo.existe_nombre(cur, "ruana-test-RAÍZ")
     conn.close()
