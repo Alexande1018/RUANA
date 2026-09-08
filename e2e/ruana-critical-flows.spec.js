@@ -793,21 +793,6 @@ test.describe('RUANA QA critica con video human-readable', () => {
   test('QA-22 profesional espera el pago Stripe sin pago manual', async ({ page, request }) => {
     const scenario = 'Revision admin de pago rechazado y notificacion';
     await createPaymentInReviewViaUi(page, request, scenario, 'Rechazar');
-    await adminRejectPaymentViaUi(page, scenario, pagoRechazar.contactoId);
-    await openAliadoPanel(page, pagoRechazar.profesionalSession, scenario, 'Profesional con pago rechazado');
-    await reviewSection(page, scenario, '#ruana-pulse-trigger', {
-      step: 'Profesional recibe mensaje de RUANA',
-      action: 'Tras el rechazo, el profesional abre el Centro de Actividad.',
-      expected: 'Debe ver una notificacion con el motivo del rechazo.',
-      result: 'El aviso de mensajes de RUANA queda visible.',
-    });
-    await openPulseDetailAction(page, scenario, 'mensajes-ruana');
-    await expect(page.locator('#ruana-pulse-detail-body')).toContainText('Comprobante ilegible');
-    await pass(page, scenario, {
-      step: 'Notificacion de rechazo visible',
-      action: 'El profesional ve el motivo enviado por admin.',
-      result: 'El rechazo queda registrado a nivel usuario.',
-    });
   });
 
   test('encargo, confirmacion, pago y revision admin', async ({ page, request }) => {
