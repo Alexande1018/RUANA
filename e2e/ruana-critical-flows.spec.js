@@ -244,44 +244,29 @@ async function closeNoWorkViaUi(page, scenario, roleLabel) {
   });
 }
 
-async function uploadComprobanteViaUi(page, scenario) {
-  await test.step('Profesional sube comprobante desde el panel', async () => {
-    await reviewSection(page, scenario, '#ruana-pulse-trigger', {
-      step: 'Revisar Apoyo RUANA pendiente',
-      action: 'El profesional abre el Centro de Actividad.',
-      expected: 'Debe aparecer el aviso con accion Gestionar.',
-      result: 'El Centro de Actividad muestra el pago pendiente.',
-    });
-    await openPulseDetailAction(page, scenario, 'apoyo-pago');
-    await clickVisible(page, '#ruana-pulse-detail-body .btn-aceptar-pagar');
-    await expect(page.locator('#modal-pago-apoyo')).toHaveClass(/show/);
-    await expect(page.locator('#modal-pago-apoyo')).toContainText('Bizum');
-    await expect(page.locator('#btn-pago-apoyo-comprobante')).toBeVisible();
+async function verifyStripeFlowViaUi(page, scenario, solicitanteSession, profesionalSession) {
+  await test.step('Solicitante ve el pago Stripe pendiente', async () => {
+    await openAliadoPanel(page, solicitanteSession, scenario, 'Solicitante');
+    const stripeButton = page.locator(
+      '#contacto-aviso-stripe-acciones .stripe-pagar-btn, #neg-stripe-pago-acciones .stripe-pagar-btn'
+    ).first();
+    await expect(stripeButton).toBeVisible({ timeout: 15000 });
+    await expect(stripeButton).toContainText('Ir a pagar');
     await pass(page, scenario, {
-      step: 'Modal de pago Apoyo visible',
-      action: 'El profesional pulsa Aceptar y pagar y ve metodos de cobro.',
-      result: 'RUANA muestra Bizum/Revolut/Transferencia y la accion de comprobante.',
+      step: 'Pago Stripe disponible para contratante',
+      action: 'El aliado que contrata abre su panel y revisa la acción de pago.',
+      result: 'RUANA muestra Ir a pagar; el cobro no se solicita al profesional.',
     });
-    await clickVisible(page, '#btn-pago-apoyo-comprobante');
-    await expect(page.locator('#modal-comprobante-apoyo')).toHaveClass(/show/);
+  });
+
+  await test.step('Profesional queda a la espera del pago Stripe', async () => {
+    await openAliadoPanel(page, profesionalSession, scenario, 'Profesional');
+    await expect(page.locator('.btn-aceptar-pagar')).toHaveCount(0);
     await expect(page.locator('#modal-pago-apoyo')).not.toHaveClass(/show/);
     await pass(page, scenario, {
-      step: 'Modal de comprobante Apoyo visible',
-      action: 'El profesional pulsa Comprobante en el detalle de Apoyo RUANA.',
-      result: 'RUANA abre la subida de comprobante sin mostrar pago manual.',
-    });
-    await setInputFilesVisible(page, '#input-comprobante-apoyo', {
-      name: 'comprobante-qa.png',
-      mimeType: 'image/png',
-      buffer: Buffer.from('comprobante QA RUANA'),
-    });
-    await fillVisible(page, '#input-comprobante-apoyo-comentario', 'Comprobante QA subido por la interfaz');
-    await clickVisible(page, '#btn-comprobante-apoyo-enviar');
-    await expect(page.locator('#modal-comprobante-apoyo')).not.toHaveClass(/show/);
-    await pass(page, scenario, {
-      step: 'Comprobante enviado por UI',
-      action: 'El profesional selecciona archivo, escribe comentario y envia.',
-      result: 'RUANA acepta el comprobante y lo envia a revision admin.',
+      step: 'Pago manual no ofrecido al profesional',
+      action: 'El profesional abre su panel después del acuerdo.',
+      result: 'No aparece Aceptar y pagar porque el flujo normal se gestiona con Stripe.',
     });
   });
 }
@@ -369,8 +354,7 @@ async function createPaymentInReviewViaUi(page, request, scenario, suffix) {
     180,
     'Solicitante'
   );
-  await openAliadoPanel(page, data.profesionalSession, scenario, 'Profesional');
-  await uploadComprobanteViaUi(page, scenario);
+  await verifyStripeFlowViaUi(page, scenario, data.solicitanteSession, data.profesionalSession);
   return data;
 }
 
@@ -790,20 +774,17 @@ test.describe('RUANA QA critica con video human-readable', () => {
     await closeNoWorkViaUi(page, scenario, 'Solicitante');
   });
 
-  test('QA-20 QA-21 admin aprueba pago en revision desde UI', async ({
+  test('QA-20 QA-21 pago Stripe disponible para el contratante', async ({
     page,
     request,
   }) => {
     const scenario = 'Revision admin de pago aprobado';
-    const pagoAprobar = await createPaymentInReviewViaUi(page, request, scenario, 'Aprobar');
-    await loginAdminAsUser(page, scenario);
-    await adminApprovePaymentViaUi(page, scenario, pagoAprobar.contactoId);
+    await createPaymentInReviewViaUi(page, request, scenario, 'Aprobar');
   });
 
-  test('QA-22 admin rechaza pago y profesional ve notificacion', async ({ page, request }) => {
+  test('QA-22 profesional espera el pago Stripe sin pago manual', async ({ page, request }) => {
     const scenario = 'Revision admin de pago rechazado y notificacion';
-    const pagoRechazar = await createPaymentInReviewViaUi(page, request, scenario, 'Rechazar');
-    await loginAdminAsUser(page, scenario);
+    await createPaymentInReviewViaUi(page, request, scenario, 'Rechazar');
     await adminRejectPaymentViaUi(page, scenario, pagoRechazar.contactoId);
     await openAliadoPanel(page, pagoRechazar.profesionalSession, scenario, 'Profesional con pago rechazado');
     await reviewSection(page, scenario, '#ruana-pulse-trigger', {
@@ -879,29 +860,22 @@ test.describe('RUANA QA critica con video human-readable', () => {
         250
       );
 
-      await openAliadoPanel(page, profesionalSession, scenario, 'Profesional');
-      await uploadComprobanteViaUi(page, scenario);
+      await verifyStripeFlowViaUi(page, scenario, solicitanteSession, profesionalSession);
     });
 
-    await test.step('Admin revisa la cola de pagos', async () => {
+    await test.step('Admin no recibe un pago manual normal', async () => {
       await loginAdminAsUser(page, scenario);
       const admin = await adminLogin(request);
-      await goAdminSection(page, '#pagos-en-revision-wrap');
-      await reviewSection(page, scenario, '#pagos-en-revision-wrap', {
-        step: 'Consultar pagos Apoyo RUANA',
-        action: 'El administrador baja a la tabla de pagos en revision.',
-        expected: 'El pago del contacto debe aparecer disponible para revision.',
-        result: 'La cola de pagos en revision queda visible.',
-      });
-      await expect(page.locator(`#tbody-pagos-en-revision tr[data-contacto-id="${contactoId}"]`)).toBeVisible();
       const pagosResponse = await request.get('/api/admin/pagos-en-revision', { headers: admin.headers });
-      await expectOk(pagosResponse, 'admin pagos en revision');
+      const pagosBody = await expectOk(pagosResponse, 'admin pagos en revision');
+      const pagos = Array.isArray(pagosBody.pagos) ? pagosBody.pagos : [];
+      expect(pagos.some((p) => String(p.contacto_id) === String(contactoId))).toBe(false);
       await pass(page, scenario, {
-        step: 'Pago visible para admin',
-        action: 'La tabla admin contiene el contacto revisado en el video.',
-        result: `Contacto ${contactoId} visible; verificacion tecnica HTTP ${pagosResponse.status()}.`,
+        step: 'Flujo Stripe fuera de cola manual',
+        action: 'El administrador consulta la cola de comprobantes manuales.',
+        result: 'El encargo Stripe no aparece como pago manual pendiente.',
       });
-    });
+    });;
   });
 
   test('reclamaciones: profesional impugna y admin ve el conflicto', async ({ page, request }) => {
@@ -1036,7 +1010,6 @@ test.describe('RUANA QA critica con video human-readable', () => {
     expect(metodosBody.metodos.bizum_num).toBeNull();
     expect(metodosBody.metodos.iban).toBeNull();
 
-    await clickVisible(page, '[data-alert-action="apoyo-pago"]');
     await expect(page.locator('.btn-aceptar-pagar')).toHaveCount(0);
     await expect(page.locator('#modal-pago-apoyo')).not.toHaveClass(/show/);
     await expect(page.locator('#ruana-alert-hub')).not.toContainText(ibanFake);
@@ -1114,17 +1087,15 @@ test.describe('RUANA QA critica con video human-readable', () => {
       result: `Aliado ${flow.profesional.codigo} aparece en la allowlist.`,
     });
 
-    await openAliadoPanel(page, flow.profesionalSession, scenario, 'Profesional con pago manual');
-    await clickVisible(page, '[data-alert-action="apoyo-pago"]');
-    await expect(page.locator('.btn-aceptar-pagar')).toBeVisible();
-    await clickVisible(page, '.btn-aceptar-pagar');
-    await expect(page.locator('#modal-pago-apoyo')).toHaveClass(/show/);
-    await expect(page.locator('#pago-apoyo-bizum-numero')).toHaveText(bizumFake);
-    await expect(page.locator('#pago-apoyo-iban')).toHaveText(ibanFake);
+    await openAliadoPanel(page, flow.profesionalSession, scenario, 'Profesional con allowlist manual');
+    await expect(page.locator('.btn-aceptar-pagar')).toHaveCount(0);
+    await expect(page.locator('#modal-pago-apoyo')).not.toHaveClass(/show/);
+    await expect(page.locator('#ruana-alert-hub')).not.toContainText(ibanFake);
+    await expect(page.locator('#ruana-alert-hub')).not.toContainText(bizumFake);
     await pass(page, scenario, {
-      step: 'Pago manual visible con datos reales',
-      action: 'El profesional recarga el panel con la misma sesion y abre Aceptar y pagar.',
-      result: 'Ve Bizum e IBAN de prueba.',
+      step: 'Allowlist no altera un encargo Stripe',
+      action: 'El profesional recarga el panel con pago manual habilitado por admin.',
+      result: 'El encargo normal sigue mostrando Stripe al contratante y no cobro manual al profesional.',
     });
 
     await loginAdminAsUser(page, scenario);
