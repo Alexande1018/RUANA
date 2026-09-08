@@ -174,7 +174,11 @@ def habilitar_pago_manual_aliado(db, aliado_codigo: str, admin_codigo: Optional[
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             if _repo.select_aliado_id_por_codigo(cursor, codigo) is None:
-                return {"status": "error", "message": "Aliado no encontrado"}
+                return {
+                    "status": "error",
+                    "code": "aliado_no_encontrado",
+                    "message": "Aliado no encontrado",
+                }
             datos = _fila_metodos_pago(_repo.select_metodos_pago_manual(cursor))
             if not datos.get("iban") and not datos.get("bizum_num"):
                 return {

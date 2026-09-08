@@ -1,3 +1,4 @@
+import subprocess
 from pathlib import Path
 
 
@@ -85,6 +86,20 @@ def test_admin_has_payment_methods_management_contract():
     assert "/api/admin/metodos-pago/qr-revolut" in sistema_js
     assert "/api/admin/metodos-pago/aliados" in sistema_js
     assert "apagado por defecto" in admin_html
+    assert "bindPagoManualAllowlist" in admin_html
+    assert "host.bindPagoManualAllowlist" in resumen_js
+    assert "function resolverAliadoPagoManual(host, query)" in sistema_js
+    assert "/^[A-Za-z0-9_-]{3,20}$/.test(raw)" in sistema_js
+    habilitar_start = sistema_js.index("async function habilitarPagoManualAliado(host)")
+    habilitar_snippet = sistema_js[habilitar_start : habilitar_start + 2200]
+    assert "try {" in habilitar_snippet
+    assert "panel.showToast" in habilitar_snippet
+    assert "No se pudo habilitar el pago manual. Inténtalo de nuevo." in habilitar_snippet
+    assert "Sesión admin expirada o no autorizado." in habilitar_snippet
+    bind_start = sistema_js.index("function bindPagoManualAllowlist(host)")
+    bind_snippet = sistema_js[bind_start : bind_start + 1100]
+    assert "wrap.dataset.boundPagoManual" in bind_snippet
+    assert "closest('#btn-habilitar-pago-manual')" in bind_snippet
 
 
 def test_admin_qr_upload_does_not_send_json_content_type():
@@ -338,3 +353,34 @@ def test_admin_muestra_solicitudes_semanales():
     assert "host.renderSolicitudesSemanalesAdmin" in resumen_js
     assert "#solicitudes-semanales-admin-wrap" in shell_js
     assert "Solicitudes de esta semana" in cc_js
+
+
+def test_resolver_pago_manual_usa_codigo_tecleado_sin_cache():
+    """El código 77357 se resuelve aunque _aliadosData esté vacío."""
+    sistema_js = (
+        Path(__file__).resolve().parents[1] / "web" / "static" / "js" / "admin-sistema-module.js"
+    ).read_text(encoding="utf-8")
+    start = sistema_js.index("function resolverAliadoPagoManual(host, query)")
+    end = sistema_js.index("async function habilitarPagoManualAliado(host)")
+    fn = sistema_js[start:end]
+    script = (
+        fn
+        + """
+const emptyHost = { _aliadosData: [] };
+const fromCache = resolverAliadoPagoManual(
+  { _aliadosData: [{ codigo: '77357', nombre: 'Ana' }] },
+  '77357'
+);
+if (!fromCache || fromCache.nombre !== 'Ana') process.exit(2);
+const typed = resolverAliadoPagoManual(emptyHost, '77357');
+if (!typed || typed.codigo !== '77357') process.exit(3);
+const blank = resolverAliadoPagoManual(emptyHost, '  ');
+if (blank !== null) process.exit(4);
+const unknownName = resolverAliadoPagoManual(emptyHost, 'nombre inventado');
+if (unknownName !== null) process.exit(5);
+console.log('ok');
+"""
+    )
+    result = subprocess.run(["node", "-e", script], capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert "ok" in result.stdout

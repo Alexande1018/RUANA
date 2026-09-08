@@ -558,6 +558,11 @@ function setupEventListeners(host) {
       if (ccModal) ccModal.addEventListener('click', (e) => { if (e.target === ccModal) host.cerrarModalCentroComunicacionAdmin(); });
 
       host.setupAdminActionButtons();
+      if (typeof host.bindPagoManualAllowlist === 'function') {
+          host.bindPagoManualAllowlist();
+      } else if (typeof RuanaAdminModules !== 'undefined' && RuanaAdminModules.sistema && typeof RuanaAdminModules.sistema.bindPagoManualAllowlist === 'function') {
+          RuanaAdminModules.sistema.bindPagoManualAllowlist(host);
+      }
 
       document.addEventListener('click', (e) => {
           const btn = e.target && e.target.closest ? e.target.closest('.btn-ver-documento-admin') : null;
