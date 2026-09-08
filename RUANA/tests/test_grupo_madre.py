@@ -1,6 +1,7 @@
 """
 Tests Grupo Madre por ciudad: incubación, madurez, directorio y compatibilidad territorial.
 """
+import sqlite3
 from types import SimpleNamespace
 
 import pytest
@@ -195,3 +196,47 @@ def test_aviso_visto_endpoint(client, sqlite_db, monkeypatch):
     assert resp.status_code == 200
     assert resp.get_json().get("status") == "success"
     assert sqlite_db.debe_mostrar_aviso_madre("56001", r.get("grupo_id")) is False
+
+
+def test_cp_en_modo_territorial_no_reconsulta_si_falta_columna_tipo(sqlite_db, monkeypatch):
+    """Si falta grupos.tipo no debe repetir el SELECT (Postgres aborta la transacción)."""
+    calls = {"n": 0}
+
+    def boom(cursor, cp):
+        calls["n"] += 1
+        raise sqlite3.OperationalError('column "tipo" does not exist')
+
+    monkeypatch.setattr(
+        grupo_madre_service._madre_repo,
+        "contar_territoriales_activos_por_cp",
+        boom,
+    )
+    assert grupo_madre_service.cp_en_modo_territorial(sqlite_db, "50009") is False
+    assert calls["n"] == 1
+
+
+def test_get_aliado_datos_carga_si_falta_columna_tipo(client, sqlite_db, monkeypatch):
+    """El panel no debe devolver 500 cuando Postgres aún no tiene grupos.tipo."""
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    r = _crear(sqlite_db, "57009", cp="03001")
+    assert r["status"] == "success"
+    _set_activo(sqlite_db, "57009")
+
+    conn = sqlite_db._connect()
+    conn.execute("ALTER TABLE grupos DROP COLUMN tipo")
+    conn.commit()
+    conn.close()
+
+    session_id = app_module._ruana_session_create(
+        tipo="aliado",
+        codigo="57009",
+        expires_at=9999999999,
+    )
+    headers = {app_module.RUANA_SESSION_HEADER: session_id}
+
+    resp = client.get("/api/aliado/datos", headers=headers)
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["status"] == "success"
+    assert data["aliado"]["codigo"] == "57009"
+    assert data["aliado"].get("territorio_modo") in ("incubacion", "territorial")

@@ -43,6 +43,7 @@ def cp_en_modo_territorial(db, codigo_postal: str) -> bool:
     if not cp:
         return False
     with db._lock:
+        conn = None
         try:
             conn = db._connect()
             cursor = conn.cursor()
@@ -54,9 +55,17 @@ def cp_en_modo_territorial(db, codigo_postal: str) -> bool:
                 return (data.get("modo") or "") == CP_MODO_TERRITORIAL
             return False
         except Exception:
-            return _madre_repo.contar_territoriales_activos_por_cp(cursor, cp) > 0 if cp else False
+            # Si falta grupos.tipo (Postgres sin migrar) no reconsultar: la transacción
+            # queda abortada y un segundo SELECT revienta el panel.
+            try:
+                if conn is not None:
+                    conn.rollback()
+            except Exception:
+                pass
+            return False
         finally:
-            conn.close()
+            if conn is not None:
+                conn.close()
 
 
 def contar_grupos_territoriales_activos_por_cp(db, codigo_postal: str) -> int:
