@@ -524,8 +524,8 @@ def responder_conozco_alguien(
             grupo_id = sol["grupo_id"]
             aliado_row = db.obtener_aliado_por_codigo(codigo)
             cp_aliado = (aliado_row.get("codigo_postal") or "") if aliado_row else ""
-            from core.services import grupo_madre_service
-            if grupo_madre_service.plaza_ocupada_contexto(
+            from core.services import grupo_service
+            if grupo_service.plaza_ocupada_contexto(
                 db, grupo_id, oficio_buscar, cp_aliado, cursor=cursor
             ):
                 return {

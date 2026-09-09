@@ -268,7 +268,19 @@ def crear_solicitud_por_codigo(db, codigo: str, oficio: str, descripcion: str) -
                 cursor, grupo_id, codigo.strip(), nombre, oficio, descripcion
             )
             conn.commit()
-            return {'status': 'success', 'ok': True, 'id': sid}
+            result = {'status': 'success', 'ok': True, 'id': sid, 'proximidad': None}
+            from core.services import grupo_service, proximidad_service
+            if not grupo_service.plaza_ocupada_contexto(
+                db, int(grupo_id), oficio, cursor=cursor
+            ):
+                rec = proximidad_service.recomendar_profesional(db, codigo.strip(), oficio)
+                result['proximidad'] = rec
+                if rec and rec.get('codigo'):
+                    notif = proximidad_service.solicitar_contacto_proximidad(
+                        db, codigo.strip(), oficio, rec.get('codigo')
+                    )
+                    result['proximidad_notificado'] = bool(notif.get('notificado'))
+            return result
         except Exception as e:
             return {'status': 'error', 'message': str(e)}
         finally:
@@ -379,28 +391,11 @@ def obtener_solicitudes_grupo(db, codigo_postal: str) -> List[Dict[str, Any]]:
 
 
 def obtener_solicitudes_operativas(db, codigo_aliado: str) -> List[Dict[str, Any]]:
-    """Solicitudes visibles según modo territorial o incubación (grupo madre)."""
-    from core.services import grupo_madre_service
-
+    """Solicitudes visibles del código postal del aliado (grupo territorial)."""
     aliado = db.obtener_aliado_por_codigo((codigo_aliado or '').strip())
     if not aliado:
         return []
     cp = (aliado.get('codigo_postal') or '').strip()
-    grupo_id = aliado.get('grupo_id')
-    modo = grupo_madre_service.territorio_modo_aliado(db, cp, grupo_id)
-    if modo == 'incubacion' and grupo_id:
-        with db._lock:
-            try:
-                conn = db._connect()
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                _expirar_candidatos_vencidos_lazy(db, conn, cursor)
-                conn.commit()
-                return _json_safe_rows(_repo.listar_pendientes_por_grupo(cursor, int(grupo_id)))
-            except Exception:
-                return []
-            finally:
-                conn.close()
     return obtener_solicitudes_grupo(db, cp)
 
 

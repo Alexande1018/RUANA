@@ -80,6 +80,7 @@ def _init_db(db):
             db._migrar_cp_auto_split_v1_si_procede(conn, cursor)
             db._migrar_aliados_grupo_id(conn, cursor)
             db._migrar_grupo_madre_v2_consolidar_si_procede(conn, cursor)
+            db._migrar_territorio_directo_v1_si_procede(conn, cursor)
             db._migrar_aliados_derrotas_competencia(conn, cursor)
             db._migrar_aliados_especializaciones(conn, cursor)
             db._migrar_aliados_descripcion_servicio(conn, cursor)
@@ -677,13 +678,20 @@ def _migrar_grupo_madre_v1_si_procede(db, conn, cursor) -> None:
     _repo.registrar_migracion(cursor, 'grupo_madre_v1')
 
 def _migrar_grupo_madre_v2_consolidar_si_procede(db, conn, cursor) -> None:
-    """Mueve aliados de grupos territoriales vivos al Grupo Madre y disuelve esos grupos."""
+    """Histórico: ya no consolida aliados en Grupo Madre. Solo marca la migración."""
     if _repo.migracion_aplicada(cursor, 'grupo_madre_v2_consolidar'):
         return
-    from core.services import grupo_madre_service
-
-    grupo_madre_service.consolidar_territoriales_en_madre_cursor(db, cursor)
     _repo.registrar_migracion(cursor, 'grupo_madre_v2_consolidar')
+
+
+def _migrar_territorio_directo_v1_si_procede(db, conn, cursor) -> None:
+    """Asigna aliados de grupos madre a grupos territoriales por CP, con backup."""
+    if _repo.migracion_aplicada(cursor, 'territorio_directo_v1'):
+        return
+    from core.services import territorio_migracion_service
+
+    territorio_migracion_service.migrar_madre_a_territorial_cursor(db, cursor)
+    _repo.registrar_migracion(cursor, 'territorio_directo_v1')
 
 def _migrar_cp_auto_split_v1_si_procede(db, conn, cursor) -> None:
     """Contador de elegibles desde último grupo para auto-split por CP."""
@@ -3077,6 +3085,15 @@ def _init_postgres_schema(db):
             except Exception:
                 pass
             print(f"[RUANA][DB] Aviso consolidar grupo madre: {cons_exc}")
+        try:
+            db._migrar_territorio_directo_v1_si_procede(conn, cursor)
+            conn.commit()
+        except Exception as terr_exc:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            print(f"[RUANA][DB] Aviso territorio directo: {terr_exc}")
         db._migrar_estado_financiero(conn, cursor)
         db._migrar_financial_fase02(conn, cursor)
         db._migrar_financial_fase03(conn, cursor)

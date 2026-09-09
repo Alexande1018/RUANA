@@ -12,11 +12,6 @@ import sqlite3
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from core.db_constants import (
-    CP_MADUREZ_MIN_ALIADOS,
-    CP_MADUREZ_MIN_ENCARGOS,
-    TIPO_GRUPO_MADRE,
-)
 from core.repositories.actividad_repo import ActividadRepo
 from core.repositories.notificacion_repo import NotificacionRepo
 
@@ -508,6 +503,18 @@ def _formatear_notificacion_cinta(
             f"comp-tit:{meta.get('competencia_id') or notif_id}",
         )
 
+    if tipo == "proximidad_solicitud":
+        oficio = _nombre(meta.get("oficio")) or "un oficio"
+        return _item(
+            base_id,
+            f"Un aliado cercano busca un profesional de {oficio}",
+            creado,
+            tipo,
+            "notificacion",
+            _PRIORIDAD_ALTA,
+            f"prox:{meta.get('solicitante_codigo') or notif_id}",
+        )
+
     if tipo == "cp_independizado":
         cp = _nombre(meta.get("codigo_postal")) or "tu zona"
         return _item(
@@ -523,7 +530,7 @@ def _formatear_notificacion_cinta(
     if tipo == "madurez_encargo_progreso":
         cp = _nombre(meta.get("codigo_postal")) or "tu zona"
         n = int(meta.get("encargos") or 0)
-        req = int(meta.get("encargos_requeridos") or CP_MADUREZ_MIN_ENCARGOS)
+        req = int(meta.get("encargos_requeridos") or 3)
         return _item(
             base_id,
             f"Tu zona ({cp}) acumula {n} de {req} encargos válidos hacia la independencia",
@@ -537,7 +544,7 @@ def _formatear_notificacion_cinta(
     if tipo == "madurez_aliado_progreso":
         cp = _nombre(meta.get("codigo_postal")) or "tu zona"
         n = int(meta.get("aliados") or 0)
-        req = int(meta.get("aliados_requeridos") or CP_MADUREZ_MIN_ALIADOS)
+        req = int(meta.get("aliados_requeridos") or 10)
         return _item(
             base_id,
             f"Tu zona ({cp}) suma {n} de {req} aliados activos hacia la independencia",
@@ -568,7 +575,7 @@ def _formatear_notificacion_cinta(
         cp = _nombre(meta.get("codigo_postal")) or "tu CP"
         return _item(
             base_id,
-            f"{nombre} ({oficio}) se ha unido a la red de incubación en {cp}",
+            f"{nombre} ({oficio}) se ha unido a la red en {cp}",
             creado,
             tipo,
             "notificacion",
@@ -630,9 +637,6 @@ def _recolectar_desde_tablas(
     items: List[Dict[str, Any]] = []
     if not grupo_id:
         return items
-
-    grupo_tipo = str((contexto or {}).get("grupo_tipo") or "").strip()
-    viewer_cp = str(codigo_postal or "").strip()
 
     cols_sol = _act_repo.columnas_tabla(cursor, "solicitudes")
     has_asignada = "asignada_a_codigo" in cols_sol
@@ -787,32 +791,17 @@ def _recolectar_desde_tablas(
         nombre = _nombre_fila(cursor, row, "nombre", "codigo")
         if not nombre:
             continue
-        aliado_cp = str(row.get("codigo_postal") or "").strip()
-        oficio = str(row.get("oficio") or "").strip() or "profesional"
-        if grupo_tipo == TIPO_GRUPO_MADRE and aliado_cp and viewer_cp and aliado_cp == viewer_cp:
-            items.append(
-                _item(
-                    f"aliado-cercano-{cod}",
-                    f"{nombre} ({oficio}) se ha unido a la red de incubación en {aliado_cp}",
-                    row.get("creado_en"),
-                    "aliado_nuevo_cercano",
-                    "aliado",
-                    _PRIORIDAD_MEDIA,
-                    f"aliado-cercano:{cod}",
-                )
+        items.append(
+            _item(
+                f"aliado-{cod}",
+                f"{nombre} acaba de entrar al grupo",
+                row.get("creado_en"),
+                "aliado_nuevo_grupo",
+                "aliado",
+                _PRIORIDAD_MEDIA,
+                f"aliado-nuevo:{cod}",
             )
-        else:
-            items.append(
-                _item(
-                    f"aliado-{cod}",
-                    f"{nombre} acaba de entrar al grupo",
-                    row.get("creado_en"),
-                    "aliado_nuevo_grupo",
-                    "aliado",
-                    _PRIORIDAD_MEDIA,
-                    f"aliado-nuevo:{cod}",
-                )
-            )
+        )
 
     for row in _act_repo.listar_referidos_recientes_grupo(cursor, grupo_id):
         invitador = _nombre_requerido(row.get("invitador_nombre"))
@@ -1020,102 +1009,6 @@ def _recolectar_desde_tablas(
     return items
 
 
-def _recolectar_metricas_madre(
-    cursor,
-    grupo_id: Optional[int],
-    codigo_postal: str,
-    contexto: Optional[Dict[str, Any]] = None,
-) -> List[Dict[str, Any]]:
-    if str((contexto or {}).get("grupo_tipo") or "") != TIPO_GRUPO_MADRE:
-        return []
-    cp = str(codigo_postal or "").strip()
-    if not cp or not grupo_id:
-        return []
-
-    ahora = datetime.utcnow().isoformat(sep=" ", timespec="seconds")
-    items: List[Dict[str, Any]] = []
-    ciudad = str((contexto or {}).get("ciudad") or "").strip()
-
-    estado = _act_repo.select_cp_estado(cursor, cp)
-    if estado:
-        n_a = int(estado.get("aliados_activos") or 0)
-        n_e = int(estado.get("encargos_validos") or 0)
-        if n_a > 0:
-            items.append(
-                _item(
-                    f"metric-mad-aliados-{cp}",
-                    (
-                        f"Tu zona ({cp}) suma {n_a} de {CP_MADUREZ_MIN_ALIADOS} "
-                        "aliados activos hacia la independencia territorial"
-                    ),
-                    ahora,
-                    "metrica_madurez_aliados",
-                    "metrica",
-                    _PRIORIDAD_METRICA,
-                    f"metric-mad-ali:{cp}",
-                )
-            )
-        if n_e > 0:
-            items.append(
-                _item(
-                    f"metric-mad-encargos-{cp}",
-                    (
-                        f"Tu zona ({cp}) acumula {n_e} de {CP_MADUREZ_MIN_ENCARGOS} "
-                        "encargos válidos hacia la independencia territorial"
-                    ),
-                    ahora,
-                    "metrica_madurez_encargos",
-                    "metrica",
-                    _PRIORIDAD_METRICA,
-                    f"metric-mad-enc:{cp}",
-                )
-            )
-        if estado.get("listo_independizar"):
-            items.append(
-                _item(
-                    f"metric-mad-listo-{cp}",
-                    f"El código postal {cp} ya cumple los requisitos para independizarse",
-                    ahora,
-                    "metrica_madurez_listo",
-                    "metrica",
-                    _PRIORIDAD_METRICA + 5,
-                    f"metric-mad-listo:{cp}",
-                )
-            )
-
-    n_ciudad = _act_repo.contar_aliados_activos_grupo(cursor, grupo_id)
-    if n_ciudad > 0:
-        etiqueta = ciudad or "tu ciudad"
-        items.append(
-            _item(
-                "metric-mad-ciudad",
-                f"La red de incubación de {etiqueta} suma {n_ciudad} profesionales activos",
-                ahora,
-                "metrica_incubacion_ciudad",
-                "metrica",
-                _PRIORIDAD_METRICA,
-                "metric-mad-ciudad",
-            )
-        )
-
-    anio_mes = datetime.utcnow().strftime("%Y-%m")
-    n_nuevos_cp = _act_repo.contar_nuevos_aliados_mes_cp(cursor, cp, anio_mes)
-    if n_nuevos_cp > 0:
-        items.append(
-            _item(
-                f"metric-mad-nuevos-{anio_mes}",
-                f"Este mes se han incorporado {n_nuevos_cp} profesionales a tu código postal",
-                ahora,
-                "metrica_nuevos_cp_madre",
-                "metrica",
-                _PRIORIDAD_METRICA,
-                f"metric-mad-nuevos:{anio_mes}",
-            )
-        )
-
-    return items
-
-
 def _recolectar_metricas(
     cursor,
     grupo_id: Optional[int],
@@ -1257,13 +1150,6 @@ def _recolectar_metricas(
                     "metric-top-grupo",
                 )
             )
-
-    try:
-        items.extend(_recolectar_metricas_madre(cursor, grupo_id, cp, contexto))
-    except Exception:
-        logging.getLogger(__name__).exception(
-            "Error métricas incubación actividad cinta"
-        )
 
     return items
 
@@ -1504,168 +1390,3 @@ def notificar_grupo_actividad(
             if conn:
                 conn.close()
 
-
-def _notificar_aliados_cp_madre(
-    cursor,
-    grupo_id: int,
-    codigo_postal: str,
-    tipo: str,
-    titulo: str,
-    mensaje: str,
-    metadata: Optional[Dict[str, Any]] = None,
-    excluir_codigo: str = "",
-) -> None:
-    """Notifica a aliados activos del mismo CP dentro del grupo madre."""
-    meta = dict(metadata or {})
-    meta.setdefault("codigo_postal", codigo_postal)
-    meta_json = json.dumps(meta, ensure_ascii=False)
-    for codigo in _act_repo.listar_codigos_activos_cp_en_grupo(
-        cursor, grupo_id, codigo_postal, excluir_codigo
-    ):
-        _notif_repo.insertar(cursor, codigo, tipo, titulo, mensaje, meta_json)
-
-
-def emitir_hitos_madurez_cp(
-    db,
-    codigo_postal: str,
-    grupo_madre_id: int,
-    prev_aliados: int,
-    prev_encargos: int,
-    prev_listo: bool,
-    n_aliados: int,
-    n_encargos: int,
-    listo: bool,
-    cursor=None,
-) -> None:
-    """Emite notificaciones de hitos de madurez a aliados del CP en incubación."""
-    cp = (codigo_postal or "").strip()
-    if not cp or not grupo_madre_id:
-        return
-
-    def _emitir(cur) -> None:
-        if n_encargos > prev_encargos:
-            _notificar_aliados_cp_madre(
-                cur,
-                int(grupo_madre_id),
-                cp,
-                "madurez_encargo_progreso",
-                "Progreso de madurez",
-                (
-                    f"Tu zona ({cp}) acumula {n_encargos} de {CP_MADUREZ_MIN_ENCARGOS} "
-                    "encargos válidos hacia la independencia"
-                ),
-                metadata={
-                    "codigo_postal": cp,
-                    "encargos": n_encargos,
-                    "encargos_requeridos": CP_MADUREZ_MIN_ENCARGOS,
-                },
-            )
-        if n_aliados > prev_aliados:
-            _notificar_aliados_cp_madre(
-                cur,
-                int(grupo_madre_id),
-                cp,
-                "madurez_aliado_progreso",
-                "Progreso de madurez",
-                (
-                    f"Tu zona ({cp}) suma {n_aliados} de {CP_MADUREZ_MIN_ALIADOS} "
-                    "aliados activos hacia la independencia"
-                ),
-                metadata={
-                    "codigo_postal": cp,
-                    "aliados": n_aliados,
-                    "aliados_requeridos": CP_MADUREZ_MIN_ALIADOS,
-                },
-            )
-        if listo and not prev_listo:
-            _notificar_aliados_cp_madre(
-                cur,
-                int(grupo_madre_id),
-                cp,
-                "madurez_listo_independizar",
-                "Zona lista para independizarse",
-                f"El código postal {cp} ya cumple los requisitos para independizarse",
-                metadata={"codigo_postal": cp},
-            )
-
-    if cursor is not None:
-        _emitir(cursor)
-        return
-
-    with db._lock:
-        conn = None
-        try:
-            conn = db._connect()
-            cur = conn.cursor()
-            _emitir(cur)
-            conn.commit()
-        except Exception:
-            pass
-        finally:
-            if conn:
-                conn.close()
-
-
-def notificar_aliado_nuevo_en_madre(
-    db,
-    grupo_madre_id: int,
-    codigo_postal: str,
-    codigo_nuevo: str,
-    nombre: str,
-    oficio: str = "",
-    cursor=None,
-) -> None:
-    """Notifica a aliados del mismo CP que un profesional se ha unido a la incubación."""
-    cp = (codigo_postal or "").strip()
-    cod = (codigo_nuevo or "").strip()
-    if not cp or not cod or not grupo_madre_id:
-        return
-    nombre_n = (nombre or "").strip()
-    if not nombre_n:
-        return
-    oficio_n = (oficio or "").strip() or "profesional"
-
-    meta = {
-        "codigo": cod,
-        "nombre": nombre_n,
-        "oficio": oficio_n,
-        "codigo_postal": cp,
-        "grupo_id": int(grupo_madre_id),
-    }
-    titulo = "Nuevo profesional en tu zona"
-    mensaje = f"{nombre_n} ({oficio_n}) se ha unido a la red de incubación en {cp}"
-
-    if cursor is not None:
-        _notificar_aliados_cp_madre(
-            cursor,
-            int(grupo_madre_id),
-            cp,
-            "aliado_nuevo_cercano",
-            titulo,
-            mensaje,
-            metadata=meta,
-            excluir_codigo=cod,
-        )
-        return
-
-    with db._lock:
-        conn = None
-        try:
-            conn = db._connect()
-            cur = conn.cursor()
-            _notificar_aliados_cp_madre(
-                cur,
-                int(grupo_madre_id),
-                cp,
-                "aliado_nuevo_cercano",
-                titulo,
-                mensaje,
-                metadata=meta,
-                excluir_codigo=cod,
-            )
-            conn.commit()
-        except Exception:
-            pass
-        finally:
-            if conn:
-                conn.close()

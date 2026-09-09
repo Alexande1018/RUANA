@@ -330,8 +330,7 @@
               gruposActivos: dashOk ? (dashboardData.grupos_activos ?? 0) : (statsOk ? (statsData.grupos_activos ?? 0) : 0),
               gruposEnCompetencia: dashOk ? (dashboardData.grupos_en_competencia ?? 0) : (statsOk ? (statsData.grupos_en_competencia ?? 0) : 0),
               gruposDisueltos: dashOk ? (dashboardData.grupos_disueltos ?? 0) : (statsOk ? (statsData.grupos_disueltos ?? 0) : 0),
-              gruposMadre: dashOk ? (dashboardData.grupos_madre ?? 0) : 0,
-              cpIndependenciaPendientes: dashOk ? (dashboardData.cp_independencia_pendientes ?? 0) : 0,
+              aliadosSinGrupoTerritorial: dashOk ? (dashboardData.aliados_sin_grupo_territorial ?? 0) : 0,
               estadoSistema: (() => {
                   const e = dashOk ? (dashboardData.estado_sistema || 'Estable') : (statsOk ? (statsData.estado_sistema || 'Estable') : 'Estable');
                   const low = String(e).toLowerCase();

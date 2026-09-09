@@ -168,15 +168,8 @@ async function reveal(page, target, options = {}) {
   return locator;
 }
 
-async function dismissGrupoMadreAvisoIfNeeded(page) {
-  const modal = page.locator('#modal-grupo-madre-aviso');
-  const visible = await modal.isVisible().catch(() => false);
-  if (!visible) return false;
-  const ok = page.locator('#btn-grupo-madre-aviso-ok');
-  if (!(await ok.isVisible().catch(() => false))) return false;
-  await ok.click({ timeout: 4000 });
-  await modal.waitFor({ state: 'hidden', timeout: 8000 }).catch(() => {});
-  return true;
+async function dismissGrupoMadreAvisoIfNeeded() {
+  return false;
 }
 
 async function dismissAdminOverlayIfNeeded(page) {

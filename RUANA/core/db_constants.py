@@ -22,29 +22,20 @@ SUFIJOS_GRUPO = (
 )
 MAX_GRUPOS_POR_CP = 5
 
-# Grupo Madre por ciudad (incubación territorial)
+# Territorio directo: hasta 5 grupos independientes por código postal.
 TIPO_GRUPO_TERRITORIAL = "territorial"
+CP_MODO_TERRITORIAL = "territorial"
+CP_NUEVO_GRUPO_MIN_ALIADOS = 10
+
+# Históricos: se conservan para detectar y migrar datos de Grupo Madre. No se crean grupos madre.
 TIPO_GRUPO_MADRE = "madre"
 CP_POSTAL_SENTINEL_MADRE = "__MADRE__"
 CP_MODO_INCUBACION = "incubacion"
-CP_MODO_TERRITORIAL = "territorial"
-CP_MADUREZ_MIN_ALIADOS = 10
-CP_MADUREZ_MIN_ENCARGOS = 3
-CP_NUEVO_GRUPO_MIN_ALIADOS = 10
-AVISO_GRUPO_MADRE = "grupo_madre_bienvenida"
-AVISO_CP_INDEPENDIZADO = "cp_independizado"
 
-# Encargos válidos para madurez de CP (flujo real contactos_ruana):
-# Cuentan desde que el profesional acepta (aceptado) o estados posteriores de trabajo real.
-# NO cuentan: iniciado, en_conversacion (posible sin aceptar), chat_agotado, cierres sin encargo.
-ESTADOS_ENCARGO_VALIDO_MADUREZ = (
-    "aceptado",
-    "trabajo_en_progreso",
-    "acuerdo_alcanzado",
-    "pendiente_de_pago",
-    "trabajo_cerrado",
-    "importe_en_disputa",
-)
+# Proximidad: un único profesional cercano; no abre el directorio de otros grupos.
+# nivel 1 = mismo CP, 2 = misma ciudad (territorio_service.proximidad_territorial).
+PROXIMIDAD_NIVEL_MAX = 2
+PROXIMIDAD_DISTANCIA_MAX = 2000
 ALIADO_FOTO_PERFIL_COLUMN = "foto_perfil_url"
 ESTADOS_ALIADO_CONTACTO_LIBERADO = ("expulsado", "rechazado")
 SQL_ESTADO_CONTACTO_OCUPADO = (

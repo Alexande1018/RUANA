@@ -1,11 +1,10 @@
-"""Competencia en incubación (Grupo Madre): CP efectivo, retador mismo CP y cierre."""
+"""Competencia territorial por CP: retador, aviso y cierre sin lógica de incubación."""
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
 
 from core import db_manager as db_module
-from core.db_constants import TIPO_GRUPO_MADRE
 
 
 @pytest.fixture
@@ -40,26 +39,10 @@ def _activo(db, codigo, oficio, cp, score=50, estado="activo", grupo_id=None):
     conn.close()
 
 
-def _madre_grupo_id(db, codigo):
-    a = db.obtener_aliado_por_codigo(codigo)
-    gid = a.get("grupo_id")
-    g = db.obtener_grupo_por_id(gid)
-    if (g or {}).get("tipo") != TIPO_GRUPO_MADRE:
-        from core.services import grupo_madre_service
-        madre = grupo_madre_service.obtener_o_crear_grupo_madre(db, "Alicante", "Alicante")
-        conn = db._connect()
-        cur = conn.cursor()
-        cur.execute("UPDATE aliados SET grupo_id = ? WHERE codigo = ?", (madre["id"], codigo))
-        conn.commit()
-        conn.close()
-        gid = madre["id"]
-    assert db.obtener_grupo_por_id(gid).get("tipo") == TIPO_GRUPO_MADRE
-    return gid
-
-
-def test_buscar_retador_madre_prioriza_en_espera_mismo_cp(sqlite_db):
+def test_buscar_retador_prioriza_en_espera_mismo_cp(sqlite_db):
     _activo(sqlite_db, "71001", "Electricidad", "03010", score=10)
-    gid = _madre_grupo_id(sqlite_db, "71001")
+    a = sqlite_db.obtener_aliado_por_codigo("71001")
+    gid = a["grupo_id"]
     _activo(sqlite_db, "71002", "Electricidad", "03010", score=50, estado="en_espera")
 
     retador = sqlite_db._buscar_retador("71001", gid, "Electricidad", 10, "03010")
@@ -67,9 +50,10 @@ def test_buscar_retador_madre_prioriza_en_espera_mismo_cp(sqlite_db):
     assert retador["codigo"] == "71002"
 
 
-def test_iniciar_competencia_madre_usa_cp_aliado_y_avisa_grupo(sqlite_db):
+def test_iniciar_competencia_usa_cp_aliado_y_avisa_grupo(sqlite_db):
     _activo(sqlite_db, "71011", "Electricidad", "03011", score=12)
-    gid = _madre_grupo_id(sqlite_db, "71011")
+    a = sqlite_db.obtener_aliado_por_codigo("71011")
+    gid = a["grupo_id"]
     _activo(sqlite_db, "71012", "Electricidad", "03011", score=60, estado="en_espera")
 
     result = sqlite_db._iniciar_competencia_si_procede("71011")
@@ -87,9 +71,10 @@ def test_iniciar_competencia_madre_usa_cp_aliado_y_avisa_grupo(sqlite_db):
     assert "Electricidad" in avisos[0]["texto"]
 
 
-def test_finalizar_competencia_madre_perdedor_pasa_a_en_espera(sqlite_db):
+def test_finalizar_competencia_ganador_retiene_plaza(sqlite_db):
     _activo(sqlite_db, "71021", "Electricidad", "03012", score=5)
-    gid = _madre_grupo_id(sqlite_db, "71021")
+    a = sqlite_db.obtener_aliado_por_codigo("71021")
+    gid = a["grupo_id"]
     _activo(sqlite_db, "71022", "Electricidad", "03012", score=70, estado="en_espera")
 
     sqlite_db._iniciar_competencia_si_procede("71021")
@@ -107,13 +92,13 @@ def test_finalizar_competencia_madre_perdedor_pasa_a_en_espera(sqlite_db):
     conn.close()
 
     sqlite_db.finalizar_competencia_activas_vencidas()
+    ganador = sqlite_db.obtener_aliado_por_codigo("71022")
     perdedor = sqlite_db.obtener_aliado_por_codigo("71021")
-    assert perdedor["estado"] == "en_espera"
-    assert perdedor["score"] == 50
-    assert perdedor.get("grupo_id") is None
+    assert ganador["grupo_id"] == gid
+    assert perdedor["grupo_id"] != gid or perdedor["estado"] != "activo"
 
 
-def test_competencia_pendiente_guarda_cp_real_no_sentinel(sqlite_db):
+def test_competencia_pendiente_guarda_cp_real(sqlite_db):
     _activo(sqlite_db, "71031", "Electricidad", "03013", score=8)
     sqlite_db._registrar_competencia_pendiente("71031")
 

@@ -27,7 +27,6 @@ from core.services import (
     competencia_service,
     contacto_service,
     evaluacion_service,
-    grupo_madre_service,
     grupo_service,
     invitacion_service,
     negociacion_service,
@@ -131,8 +130,9 @@ def admin_dashboard_summary():
         oficios_ocupados = catalogo_service.contar_oficios_ocupados(db)
         grupos_data = grupo_service.contar_grupos(db)
         grupos = int(grupos_data.get("total", 0) or 0)
-        grupos_madre = len(grupo_madre_service.listar_grupos_madre_admin(db))
-        independencia_pendientes = grupo_madre_service.listar_independencia_pendientes(db)
+        from core.services import territorio_migracion_service
+        check = territorio_migracion_service.comprobar_migracion(db)
+        sin_territorial = int(check.get("total") or 0)
 
         contactos_metricas = admin_service.obtener_metricas_contactos(db)
         contactos_disputa = contactos_metricas.get("contactos_en_disputa", 0) or 0
@@ -160,8 +160,7 @@ def admin_dashboard_summary():
             "grupos_activos": int(grupos_data.get("activos", 0) or 0),
             "grupos_en_competencia": int(grupos_data.get("en_competencia", 0) or 0),
             "grupos_disueltos": int(grupos_data.get("disueltos", 0) or 0),
-            "grupos_madre": grupos_madre,
-            "cp_independencia_pendientes": len(independencia_pendientes),
+            "aliados_sin_grupo_territorial": sin_territorial,
             "estado_sistema": estado_sistema,
         })
     except Exception as e:
@@ -364,76 +363,26 @@ def admin_listar_grupos():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
-@admin_bp.route('/api/admin/grupos-madre', methods=['GET'])
+@admin_bp.route('/api/admin/territorio/migracion-check', methods=['GET'])
 @require_admin
-def admin_listar_grupos_madre():
-    """GET grupos madre activos con conteo de aliados."""
+def admin_territorio_migracion_check():
+    """GET aliados sin grupo territorial válido e informe de migración."""
     try:
+        from core.services import territorio_migracion_service
         db = get_db()
-        grupos = grupo_madre_service.listar_grupos_madre_admin(db)
-        return jsonify({'status': 'success', 'grupos': grupos, 'total': len(grupos)})
+        return jsonify(territorio_migracion_service.comprobar_migracion(db))
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
-@admin_bp.route('/api/admin/cp-madurez', methods=['GET'])
+@admin_bp.route('/api/admin/territorio/estado', methods=['GET'])
 @require_admin
-def admin_listar_cp_madurez():
-    """GET estado de madurez por CP (incubación / territorial)."""
+def admin_territorio_estado():
+    """GET estado territorial de aliados por código postal y grupo."""
     try:
-        modo = (request.args.get('modo') or '').strip() or None
+        from core.services import territorio_migracion_service
         db = get_db()
-        cps = grupo_madre_service.listar_cp_madurez_admin(db, modo)
-        return jsonify({'status': 'success', 'cps': cps, 'total': len(cps)})
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-
-@admin_bp.route('/api/admin/cp-independencia/pendientes', methods=['GET'])
-@require_admin
-def admin_independencia_pendientes():
-    """GET solicitudes de independización territorial pendientes."""
-    try:
-        db = get_db()
-        solicitudes = grupo_madre_service.listar_independencia_pendientes(db)
-        return jsonify({'status': 'success', 'solicitudes': solicitudes, 'total': len(solicitudes)})
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-
-@admin_bp.route('/api/admin/cp-independencia/aprobar', methods=['POST'])
-@require_admin_escritura
-def admin_aprobar_independencia():
-    """POST aprueba independización de un CP (migración territorial estándar)."""
-    try:
-        data = request.get_json(silent=True) or {}
-        cp = (data.get('codigo_postal') or data.get('cp') or '').strip()
-        if not cp:
-            return jsonify({'status': 'error', 'message': 'codigo_postal obligatorio'}), 400
-        db = get_db()
-        result = db.aprobar_independencia_cp(cp, admin_codigo=_admin_codigo() or 'admin')
-        status_code = 200 if result.get('status') == 'success' else 400
-        return jsonify(result), status_code
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-
-@admin_bp.route('/api/admin/cp-independencia/posponer', methods=['POST'])
-@require_admin_escritura
-def admin_posponer_independencia():
-    """POST pospone una solicitud de independización."""
-    try:
-        data = request.get_json(silent=True) or {}
-        cp = (data.get('codigo_postal') or data.get('cp') or '').strip()
-        notas = (data.get('notas') or data.get('notas_admin') or '').strip()
-        if not cp:
-            return jsonify({'status': 'error', 'message': 'codigo_postal obligatorio'}), 400
-        db = get_db()
-        result = db.posponer_independencia_cp(
-            cp, admin_codigo=_admin_codigo() or 'admin', notas=notas
-        )
-        status_code = 200 if result.get('status') == 'success' else 400
-        return jsonify(result), status_code
+        return jsonify(territorio_migracion_service.listar_estado_territorial(db))
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
