@@ -315,6 +315,9 @@ def test_admin_inline_fetch_budget_and_module_coverage():
     assert "fetch('/api/admin/validar'" in admin
     assert "fetch('/api/admin/me'" in admin or "fetch('/api/admin/me'," in admin
     assert "async function cargarDesdeApi(host)" in resumen
+    assert "signal: loadController.signal" in resumen
+    assert "Se mantienen las cifras anteriores." in resumen
+    assert "if (tieneDatosCriticos)" in resumen
     assert "function setupEventListeners(host)" in resumen
     assert "abrirDocumentoAdmin" in ops
     assert "resolverConflictoDecision" in ops
