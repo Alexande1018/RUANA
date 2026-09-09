@@ -244,8 +244,7 @@ class TerritorioRepo:
                    COALESCE(g.tipo, 'territorial') AS grupo_tipo
             FROM aliados a
             INNER JOIN grupos g ON g.id = a.grupo_id
-            WHERE a.estado = 'activo'
-              AND TRIM(a.oficio) = ?
+            WHERE LOWER(TRIM(COALESCE(a.estado, ''))) IN ('activo', 'pendiente_validacion')
               AND a.grupo_id != ?
               AND TRIM(a.codigo) != ?
               AND COALESCE(g.tipo, 'territorial') = ?
@@ -253,7 +252,6 @@ class TerritorioRepo:
               AND COALESCE(g.estado, 'activo') IN ('activo', 'en_competencia')
             """,
             (
-                oficio.strip(),
                 int(excluir_grupo_id),
                 excluir_codigo.strip(),
                 TIPO_GRUPO_TERRITORIAL,

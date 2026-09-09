@@ -43,6 +43,25 @@ def _resolver_en_conjunto_catalogo(db, valor: str, permitidos: set) -> Optional[
             return item
     return None
 
+
+def oficios_equivalentes(db, solicitado: str, candidato: str) -> bool:
+    """True si el oficio pedido y el del profesional son el mismo (catálogo o forma corta)."""
+    a = _normalizar_texto_catalogo(solicitado)
+    b = _normalizar_texto_catalogo(candidato)
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    if b.startswith(a) or a.startswith(b) or a in b or b in a:
+        return True
+    catalogo = {str(o).strip() for o in (db.get_catalogo_oficios_ruana() or []) if o}
+    ca = _resolver_en_conjunto_catalogo(db, solicitado, catalogo)
+    cb = _resolver_en_conjunto_catalogo(db, candidato, catalogo)
+    if ca and cb:
+        return _normalizar_texto_catalogo(ca) == _normalizar_texto_catalogo(cb)
+    return False
+
+
 def oficio_en_catalogo(db, oficio: str) -> bool:
     """True si el oficio está en el catálogo oficial RUANA (comparación normalizada)."""
     if not oficio or not str(oficio).strip():
