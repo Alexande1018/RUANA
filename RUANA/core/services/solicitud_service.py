@@ -89,20 +89,7 @@ def _etiqueta_oficio_humano(oficio: str) -> str:
 
 
 def _oficios_equivalentes(db, solicitado: str, candidato: str) -> bool:
-    a = catalogo_service._normalizar_texto_catalogo(solicitado)
-    b = catalogo_service._normalizar_texto_catalogo(candidato)
-    if not a or not b:
-        return False
-    if a == b:
-        return True
-    if b.startswith(a) or a.startswith(b) or a in b or b in a:
-        return True
-    catalogo = {str(o).strip() for o in (db.get_catalogo_oficios_ruana() or []) if o}
-    ca = catalogo_service._resolver_en_conjunto_catalogo(db, solicitado, catalogo)
-    cb = catalogo_service._resolver_en_conjunto_catalogo(db, candidato, catalogo)
-    if ca and cb:
-        return catalogo_service._normalizar_texto_catalogo(ca) == catalogo_service._normalizar_texto_catalogo(cb)
-    return False
+    return catalogo_service.oficios_equivalentes(db, solicitado, candidato)
 
 
 def resolver_oficio_conexion(db, oficio: str) -> str:

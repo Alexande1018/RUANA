@@ -125,17 +125,24 @@ def cp_misma_ciudad(cp_a: str, cp_b: str, db=None) -> bool:
         return False
     if a == b:
         return True
+    ra_cat = resolver_ciudad_por_cp(a)
+    rb_cat = resolver_ciudad_por_cp(b)
+    if ra_cat and rb_cat:
+        misma = normalizar_ciudad(ra_cat.get("ciudad") or "").lower() == normalizar_ciudad(
+            rb_cat.get("ciudad") or ""
+        ).lower()
+        if misma:
+            return True
+        # Catálogo conoce ambos y no coinciden (p. ej. Madrid vs Barcelona).
+        return False
     if db is not None:
         ra = resolver_ciudad(db, a)
         rb = resolver_ciudad(db, b)
-    else:
-        ra = resolver_ciudad_por_cp(a)
-        rb = resolver_ciudad_por_cp(b)
-    if not ra or not rb:
-        return False
-    return normalizar_ciudad(ra.get("ciudad") or "").lower() == normalizar_ciudad(
-        rb.get("ciudad") or ""
-    ).lower()
+        if ra and rb:
+            return normalizar_ciudad(ra.get("ciudad") or "").lower() == normalizar_ciudad(
+                rb.get("ciudad") or ""
+            ).lower()
+    return False
 
 
 def distancia_cp_heuristica(cp_a: str, cp_b: str) -> int:

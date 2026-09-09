@@ -319,3 +319,59 @@ def test_api_idiomas_en_grupo_aparece_en_recibidas(
     ids = {s.get("id") for s in (payload.get("entrantes") or [])}
     assert sid in ids
     assert "solicitud_asignada" in _tipos(sqlite_db, "95102")
+
+
+def test_fontaneria_desde_03014_recomienda_fontanero_de_03001(sqlite_db):
+    """Sandra (03014) pide Fontanería: el fontanero activo de Alicante 03001 es cercano."""
+    conn = sqlite_db._connect()
+    conn.execute(
+        "INSERT OR REPLACE INTO cp_ciudad (codigo_postal, ciudad, provincia) "
+        "VALUES ('03014', 'San Blas', 'Alicante')"
+    )
+    conn.commit()
+    conn.close()
+
+    _crear(sqlite_db, "96101", oficio="Electricidad", cp="03014")
+    _crear(sqlite_db, "96102", oficio="Cerrajería", cp="03014")
+    _crear(sqlite_db, "96103", oficio="Fontanería y fontanería-gas", cp="03001")
+
+    creada = solicitud_service.crear_solicitud_por_codigo(
+        sqlite_db, "96101", "Fontanería", "Fuga en el baño, prueba Sandra"
+    )
+    assert creada["status"] == "success"
+    assert creada["enrutamiento"] == "proximidad"
+    assert creada["proximidad"]["codigo"] == "96103"
+    assert creada["requiere_aprobacion_proximidad"] is True
+    assert creada["proximidad_notificado"] is False
+    mensaje = creada.get("mensaje") or ""
+    assert "Buscando ayuda" not in mensaje
+    assert "Te recomendamos" in mensaje
+    assert "03001" in mensaje
+
+
+def test_fontaneria_corta_en_03001_tambien_es_cercana_desde_03014(sqlite_db):
+    """Si el oficio está guardado como Fontanería (forma corta), sigue siendo el mismo oficio."""
+    _crear(sqlite_db, "96201", oficio="Electricidad", cp="03014")
+    _crear(sqlite_db, "96202", oficio="Fontanería", cp="03001")
+    gid = _insertar_grupo_territorial(sqlite_db, "03001", "Grupo fontanero 03001")
+    _forzar_grupo(sqlite_db, "96202", gid, codigo_postal="03001")
+
+    creada = solicitud_service.crear_solicitud_por_codigo(
+        sqlite_db, "96201", "Fontanería", "Necesito fontanero cercano"
+    )
+    assert creada["status"] == "success"
+    assert creada["enrutamiento"] == "proximidad"
+    assert creada["proximidad"]["codigo"] == "96202"
+    assert creada["requiere_aprobacion_proximidad"] is True
+
+
+def test_fontanero_de_madrid_no_es_cercano_desde_alicante(sqlite_db):
+    _crear(sqlite_db, "96301", oficio="Electricidad", cp="03014")
+    _crear(sqlite_db, "96302", oficio="Fontanería y fontanería-gas", cp="28001")
+
+    creada = solicitud_service.crear_solicitud_por_codigo(
+        sqlite_db, "96301", "Fontanería", "No debe saltar a Madrid"
+    )
+    assert creada["status"] == "success"
+    assert creada["enrutamiento"] == "buscando_ayuda"
+    assert creada.get("proximidad") is None

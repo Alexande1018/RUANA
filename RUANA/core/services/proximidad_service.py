@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 from core.db_constants import PROXIMIDAD_DISTANCIA_MAX, PROXIMIDAD_NIVEL_MAX
 from core.repositories.territorio_repo import TerritorioRepo
-from core.services import notificacion_service, territorio_service
+from core.services import catalogo_service, notificacion_service, territorio_service
 
 _repo = TerritorioRepo()
 
@@ -48,6 +48,8 @@ def recomendar_profesional(
                 cursor, of, int(grupo_id), codigo
             ):
                 item = _row_dict(row)
+                if not catalogo_service.oficios_equivalentes(db, of, item.get("oficio") or ""):
+                    continue
                 cp_other = (item.get("codigo_postal") or item.get("grupo_cp") or "").strip()
                 nivel, orden = territorio_service.proximidad_territorial(
                     cp_viewer, cp_other, db=db
@@ -78,7 +80,8 @@ def recomendar_profesional(
                 "nivel_proximidad": best.get("nivel_proximidad"),
                 "mismo_grupo": False,
             }
-        except Exception:
+        except Exception as exc:
+            print(f"Error recomendar_profesional: {exc}")
             return None
         finally:
             if conn:
