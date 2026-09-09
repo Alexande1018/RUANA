@@ -74,7 +74,7 @@ Pack Fase 3 (`test_territorio_directo.py` y tests reescritos de madre/auto-split
 2. **Aliados sin CP** no se mueven; hay que completar el dato.
 3. **Varios grupos por CP:** un aliado no ve a profesionales del mismo CP en otro grupo; la proximidad cubre el oficio ausente.
 4. **Solicitudes históricas** ligadas al grupo madre no se remapean (mezclaría CPs). Los aliados migrados operan en el nuevo grupo.
-5. **Tests Stripe webhook** siguen siendo sensibles al orden de la suite; no forman parte de este cambio.
+5. **Tests Stripe webhook** siguen siendo sensibles al orden de la suite; no forman parte de este cambio. CI de GitHub del PR (`03dfe30`) quedó **en verde** (2 comprobaciones).
 6. **Verificación UI en navegador** no se ejecutó de punta a punta en este entorno; el contrato se cubrió con tests de API, HTML y módulos JS.
 
 ## Cómo revertir
