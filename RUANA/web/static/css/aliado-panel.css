@@ -1555,6 +1555,13 @@
             transform: translateY(0);
         }
 
+        .btn-enviar-solicitud:disabled {
+            opacity: 0.65;
+            cursor: wait;
+            transform: none;
+            box-shadow: none;
+        }
+
         .solicitud-success {
             padding: 10px;
             background: rgba(34, 197, 94, 0.15);

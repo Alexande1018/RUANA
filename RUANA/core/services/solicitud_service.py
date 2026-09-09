@@ -574,7 +574,16 @@ def crear_solicitud_por_codigo(db, codigo: str, oficio: str, descripcion: str) -
                     "mensaje": f"Solicitud enviada a {local.get('nombre') or local['codigo']}.",
                 }
             else:
-                rec = proximidad_service.recomendar_profesional(db, codigo.strip(), oficio)
+                rec = proximidad_service.recomendar_profesional(
+                    db,
+                    codigo.strip(),
+                    oficio,
+                    cursor=cursor,
+                    aliado={
+                        "grupo_id": grupo_id,
+                        "codigo_postal": ctx.get("codigo_postal") or "",
+                    },
+                )
                 if rec and rec.get("codigo"):
                     sid = _repo.insertar_pendiente(
                         cursor,
