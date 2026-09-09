@@ -355,12 +355,16 @@ def alert_hub_preview():
 
 @app.route('/static/<path:path>')
 def static_files(path):
-    """Sirve archivos estáticos (CSS, JS, etc) con cache-control conservador."""
+    """Sirve archivos estáticos (CSS, JS, etc). Assets con ?v= se cachean largo."""
     response = make_response(send_from_directory(str(web_dir / 'static'), path))
     if path.endswith(('.js', '.css', '.woff', '.woff2', '.png', '.jpg', '.jpeg', '.webp', '.svg', '.ico')):
         response.cache_control.public = True
-        response.cache_control.max_age = 3600
-        response.cache_control.must_revalidate = True
+        if request.args.get('v'):
+            response.cache_control.max_age = 31536000
+            response.cache_control.immutable = True
+        else:
+            response.cache_control.max_age = 3600
+            response.cache_control.must_revalidate = True
     return response
 
 

@@ -312,7 +312,9 @@
 
             const [notificacionesTask, solicitudesTask, directorioTask, semanalesTask] = await Promise.allSettled([
                 (async () => {
-                    // Cargar notificaciones explícitamente (mensajes de RUANA: comprobante rechazado, etc.)
+                    if (fetchedRecently && Array.isArray(host.notificaciones) && host._notificacionesFromBootstrap) {
+                        return;
+                    }
                     const respNotif = await fetch(apiBase + '/api/aliados/' + encodeURIComponent(host.codigoAliado) + '/notificaciones?limite=50', {
                         credentials: 'same-origin',
                         headers: getAuthHeadersSafe()
@@ -630,7 +632,9 @@
       try {
       const apiBase = (typeof getApiBase === 'function') ? getApiBase() : '';
 
-      const sesionRes = await fetch(apiBase + '/api/aliado/sesion', { method: 'GET', credentials: 'same-origin', headers: getAuthHeadersSafe() });
+      const sesionPromise = fetch(apiBase + '/api/aliado/sesion', { method: 'GET', credentials: 'same-origin', headers: getAuthHeadersSafe() });
+      const datosPromise = global.PrivatePanel.fetchAliadoDatos(null);
+      const sesionRes = await sesionPromise;
       if (!sesionRes.ok) {
         window.location.replace('/');
         return;
@@ -646,7 +650,7 @@
         window.location.replace('/');
         return;
       }
-      const datos = await global.PrivatePanel.fetchAliadoDatos(sesionData.codigo);
+      const datos = await datosPromise;
       if (!datos || !datos.aliado) {
         showBootstrapError(errorContainer, failMsg);
         return;
@@ -654,6 +658,12 @@
       sessionStorage.setItem('ruana_codigo_aliado', sesionData.codigo);
       sessionStorage.setItem('ruana_aliado_data', JSON.stringify(datos.aliado));
       sessionStorage.setItem('ruana_aliado_data_fetched_at', String(Date.now()));
+      if (Array.isArray(datos.notificaciones)) {
+        try {
+          sessionStorage.setItem('ruana_aliado_notificaciones', JSON.stringify(datos.notificaciones));
+        } catch (_) {}
+        global.__ruanaBootstrapNotificaciones = datos.notificaciones;
+      }
       if (Array.isArray(datos.actividad_cinta)) {
         sessionStorage.setItem(ACTIVIDAD_CINTA_STORAGE_KEY, JSON.stringify(datos.actividad_cinta));
         global.__ruanaBootstrapActividadCinta = datos.actividad_cinta;
@@ -728,6 +738,18 @@
     host.profesionalSeleccionado = null;
     host.negociacionGuiada = null;
     host.notificaciones = [];
+    if (Array.isArray(global.__ruanaBootstrapNotificaciones)) {
+      host.notificaciones = global.__ruanaBootstrapNotificaciones;
+      host._notificacionesFromBootstrap = true;
+    } else {
+      try {
+        var storedNotifs = JSON.parse(sessionStorage.getItem('ruana_aliado_notificaciones') || '[]');
+        if (Array.isArray(storedNotifs) && storedNotifs.length) {
+          host.notificaciones = storedNotifs;
+          host._notificacionesFromBootstrap = true;
+        }
+      } catch (_) {}
+    }
     var restoredCinta = restoreActividadCintaFromStorage();
     if (restoredCinta.length) {
       host.actividadCinta = restoredCinta;

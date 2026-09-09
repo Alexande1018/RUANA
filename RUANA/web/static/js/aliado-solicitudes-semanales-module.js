@@ -817,7 +817,10 @@
 
   async function initSemanales(host) {
     bindUi(host);
-    await fetchSnapshot(host);
+    var snap = host.solicitudesSemanales;
+    if (!(snap && (snap.semana_inicio || snap.propia || (Array.isArray(snap.activas_grupo) && snap.activas_grupo.length)))) {
+      await fetchSnapshot(host);
+    }
     renderSeccion(host);
     if (tieneSolicitudPropiaActiva(host)) {
       asegurarPromptCerradoSiPublicada(host);
