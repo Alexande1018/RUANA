@@ -14,6 +14,23 @@ function uniquePhone() {
   return `+346${random}${tail}`;
 }
 
+/** Prefijos del catálogo CP→ciudad. Cada llamada usa un CP distinto. */
+const QA_CITY_PREFIXES = ['03', '08', '29', '41', '46', '48', '50', '28'];
+const QA_FALLBACK_CPS = [
+  '03001', '08001', '15001', '20001', '24001', '29001', '30001', '33001',
+  '35001', '38001', '39001', '41001', '43001', '44001', '46001', '47001',
+  '48001', '49001', '50001', '51001', '52001', '28001', '45001', '47002',
+];
+let qaCpSeq = 0;
+let qaFallbackCpSeq = 0;
+
+function uniqueQaPostalCode() {
+  const prefix = QA_CITY_PREFIXES[qaCpSeq % QA_CITY_PREFIXES.length];
+  const serie = 10 + Math.floor(qaCpSeq / QA_CITY_PREFIXES.length);
+  qaCpSeq += 1;
+  return `${prefix}${String(serie).padStart(3, '0')}`;
+}
+
 /** Extrae la parte nacional para el input visible del registro (+34…). */
 function nationalPhoneFromE164(phone) {
   const raw = String(phone || '').trim();
@@ -32,7 +49,7 @@ function buildAliadoData(overrides = {}) {
     oficio_principal: overrides.oficio_principal || overrides.oficio || 'Electricidad',
     especializacion:
       overrides.especializacion || 'Aver\u00edas y reparaciones el\u00e9ctricas',
-    codigo_postal: overrides.codigo_postal || '28001',
+    codigo_postal: overrides.codigo_postal || uniqueQaPostalCode(),
     email: overrides.email || `${suffix}@ruana.local`,
     telefono: overrides.telefono || uniquePhone(),
     descripcion: overrides.descripcion || 'Servicio de prueba QA automatizada',
@@ -82,13 +99,45 @@ async function createCampaign(request, admin, overrides = {}) {
 }
 
 async function registerAliado(request, overrides = {}) {
-  const data = buildAliadoData(overrides);
-  const response = await request.post('/api/aliados/registrar', {
-    data,
-  });
-  const body = await expectOk(response, 'register aliado');
-  expect(body.codigo).toBeTruthy();
-  return body;
+  let data = buildAliadoData(overrides);
+  const maxAttempts = QA_FALLBACK_CPS.length + 1;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const response = await request.post('/api/aliados/registrar', { data });
+    const body = await expectOk(response, 'register aliado');
+    expect(body.codigo).toBeTruthy();
+
+    if (body.estado !== 'en_espera') {
+      return body;
+    }
+
+    // Esta es una precondición de QA: no dejamos aliados de prueba bloqueados
+    // en espera y probamos otra plaza válida para que el escenario continúe.
+    const admin = await adminLogin(request);
+    const cleanup = await request.post('/api/admin/eliminar-aliado', {
+      headers: admin.headers,
+      data: {
+        codigo: body.codigo,
+        motivo: 'Limpieza de aliado QA en lista de espera',
+      },
+    });
+    await expectOk(cleanup, `cleanup aliado QA ${body.codigo}`);
+
+    if (attempt === maxAttempts - 1) {
+      expect(
+        body.estado,
+        `No se encontró plaza QA activa (último CP ${data.codigo_postal} ${data.oficio}): ${body.mensaje_lista_espera || ''}`
+      ).not.toBe('en_espera');
+    }
+
+    data = {
+      ...data,
+      codigo_postal: QA_FALLBACK_CPS[qaFallbackCpSeq % QA_FALLBACK_CPS.length],
+    };
+    qaFallbackCpSeq += 1;
+  }
+
+  throw new Error('No se pudo registrar un aliado QA activo');
 }
 
 async function aliadoLogin(request, codigo, pin = DEFAULT_ALIADO_PIN) {
@@ -202,4 +251,5 @@ module.exports = {
   registerAliado,
   uniqueId,
   uniquePhone,
+  uniqueQaPostalCode,
 };

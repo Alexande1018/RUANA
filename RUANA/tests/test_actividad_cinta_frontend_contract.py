@@ -119,7 +119,11 @@ def test_alertas_refresh_updates_actividad_cinta():
 def test_sync_skips_empty_actividad_overwrite():
     sync = _read("static/js/aliado-sync-module.js")
     assert "hasExisting" in sync
-    assert "needsActividadRefresh" in sync
+    load_start = sync.index("async function loadData")
+    load_end = sync.index("async function fetchDirectorioSnapshot", load_start)
+    load_block = sync[load_start:load_end]
+    assert "needsActividadRefresh" not in load_block
+    assert "if (!fetchedRecently)" in load_block
 
 
 def test_set_panel_loading_renders_actividad_cinta():

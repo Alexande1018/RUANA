@@ -59,6 +59,7 @@ def crear_aliado(db, codigo: str, nombre: str, marca: str = "",
     Si CP lleno y oficio ocupado en todos → estado en_espera (lista de Suplentes).
     """
     with db._lock:
+        conn = None
         try:
             conn = db._connect()
             cursor = conn.cursor()
@@ -99,6 +100,7 @@ def crear_aliado(db, codigo: str, nombre: str, marca: str = "",
             # Asignación de grupo: solo si oficio en catálogo
             grupo_preferido_id = None
             mensaje_lista_espera = None
+            ya_territorial = grupo_madre_service.cp_en_modo_territorial(db, codigo_postal)
             if en_catalogo and oficio_stripped and estado_final not in ('pendiente_validacion', 'pendiente_completar'):
                 grupo_preferido_id, estado_asig, mensaje_lista_espera = grupo_madre_service.resolver_asignacion_registro(
                     db, cursor, codigo_postal, oficio_stripped, grupo_id_invitacion
@@ -130,6 +132,17 @@ def crear_aliado(db, codigo: str, nombre: str, marca: str = "",
                     grupo_madre_service.actualizar_madurez_cp(db, codigo_postal)
                 except Exception:
                     pass
+                try:
+                    if ya_territorial and codigo_postal and en_catalogo and oficio_stripped:
+                        ubic = territorio_service.resolver_ciudad(db, codigo_postal)
+                        grupo_madre_service.registrar_elegible_cp(
+                            db,
+                            codigo_postal,
+                            (ubic or {}).get("ciudad") or "",
+                            (ubic or {}).get("provincia") or "",
+                        )
+                except Exception:
+                    pass
 
             row = _repo.select_fila_basica_por_id(cursor, aliado_id)
             if row and hasattr(row, 'keys'):
@@ -157,11 +170,22 @@ def crear_aliado(db, codigo: str, nombre: str, marca: str = "",
             return out
 
         except sqlite3.IntegrityError as e:
+            try:
+                if conn is not None:
+                    conn.rollback()
+            except Exception:
+                pass
             return {'status': 'error', 'message': f'Error de integridad: {e}'}
         except Exception as e:
+            try:
+                if conn is not None:
+                    conn.rollback()
+            except Exception:
+                pass
             return {'status': 'error', 'message': str(e)}
         finally:
-            conn.close()
+            if conn is not None:
+                conn.close()
 
 def completar_aliado_pendiente(db, codigo: str, nombre: str, marca: str = "",
                                oficio: str = "", codigo_postal: str = "",
@@ -220,6 +244,7 @@ def completar_aliado_pendiente(db, codigo: str, nombre: str, marca: str = "",
             # Asignación de grupo
             grupo_preferido_id = None
             mensaje_lista_espera = None
+            ya_territorial = grupo_madre_service.cp_en_modo_territorial(db, codigo_postal)
             if en_catalogo and oficio_stripped and estado_final not in ('pendiente_validacion',):
                 grupo_preferido_id, estado_asig, mensaje_lista_espera = grupo_madre_service.resolver_asignacion_registro(
                     db, cursor, codigo_postal, oficio_stripped, grupo_id_invitacion
@@ -250,6 +275,17 @@ def completar_aliado_pendiente(db, codigo: str, nombre: str, marca: str = "",
                     conn.commit()
                 try:
                     grupo_madre_service.actualizar_madurez_cp(db, codigo_postal)
+                except Exception:
+                    pass
+                try:
+                    if ya_territorial and codigo_postal and en_catalogo and oficio_stripped:
+                        ubic = territorio_service.resolver_ciudad(db, codigo_postal)
+                        grupo_madre_service.registrar_elegible_cp(
+                            db,
+                            codigo_postal,
+                            (ubic or {}).get("ciudad") or "",
+                            (ubic or {}).get("provincia") or "",
+                        )
                 except Exception:
                     pass
 
@@ -371,7 +407,7 @@ def crear_aliado_seed(db, codigo: str, nombre: str, marca: str = "",
                 if grupo_asignar:
                     _repo.update_grupo_id(cursor, grupo_asignar['id'], aliado_id)
                     grupo_id_final = grupo_asignar['id']
-                elif db.contar_grupos_activos_por_cp(codigo_postal) < MAX_GRUPOS_POR_CP:
+                elif db.contar_grupos_activos_por_cp(codigo_postal) == 0:
                     nuevo_grupo = db.crear_grupo_en_cp(codigo_postal)
                     if isinstance(nuevo_grupo, dict) and 'id' in nuevo_grupo:
                         _repo.update_grupo_id(cursor, nuevo_grupo['id'], aliado_id)
@@ -1021,8 +1057,13 @@ def incorporar_aliado_espera(db, codigo: str, grupo_id: Optional[int] = None,
                         grupo_asignado = g['id']
                     elif grupo_madre_service.contar_grupos_territoriales_activos_por_cp(
                         db, codigo_postal
-                    ) < MAX_GRUPOS_POR_CP:
-                        nuevo = db.crear_grupo_en_cp(codigo_postal)
+                    ) == 0:
+                        ubic = territorio_service.resolver_ciudad(db, codigo_postal)
+                        nuevo = db.crear_grupo_en_cp(
+                            codigo_postal,
+                            (ubic or {}).get("ciudad") or "",
+                            (ubic or {}).get("provincia") or "",
+                        )
                         if isinstance(nuevo, dict) and nuevo.get('id'):
                             grupo_asignado = nuevo['id']
             if grupo_asignado is None:

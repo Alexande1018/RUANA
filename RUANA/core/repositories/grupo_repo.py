@@ -19,10 +19,21 @@ class GrupoRepo:
         if not nombre_s:
             return False
         cursor.execute(
-            "SELECT 1 FROM grupos WHERE TRIM(nombre) = ? COLLATE NOCASE LIMIT 1",
+            "SELECT 1 FROM grupos WHERE LOWER(TRIM(nombre)) = LOWER(?) LIMIT 1",
             (nombre_s,),
         )
-        return cursor.fetchone() is not None
+        if cursor.fetchone() is not None:
+            return True
+        # SQLite LOWER() no pliega Í/í; Python casefold sí. Postgres LOWER ya cubre unicode.
+        if nombre_s.isascii():
+            return False
+        needle = nombre_s.casefold()
+        cursor.execute("SELECT nombre FROM grupos")
+        for row in cursor.fetchall():
+            existing = row["nombre"] if hasattr(row, "keys") else row[0]
+            if (str(existing or "")).strip().casefold() == needle:
+                return True
+        return False
 
     def listar_activos_por_cp(self, cursor, codigo_postal: str) -> List[Any]:
         cursor.execute(

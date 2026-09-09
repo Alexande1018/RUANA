@@ -119,17 +119,11 @@ def get_aliado_datos():
     
     try:
         db = get_db()
-        # Procesamiento automático de competencias (cierre 30d, abandonos, pendientes)
+        # Jobs globales (competencia/Stripe) tienen cron; no bloquear la apertura del panel.
         try:
-            db.procesar_competencia_automatica()
+            db.aplicar_penalizaciones_contactos_abiertos(codigo)
         except Exception:
             pass
-        try:
-            db.procesar_timeouts_sin_confirmacion_stripe()
-        except Exception:
-            pass
-        # Aplicar penalizaciones (abiertos 7d/21d, chat 48h, sin acceso semanal, comprobante 3d)
-        db.aplicar_penalizaciones_contactos_abiertos(codigo)
         aliado = db.obtener_aliado_por_codigo(codigo)
         
         if aliado:
@@ -208,10 +202,16 @@ def get_aliado_datos():
                 if pago_service.stripe_habilitado_global()
                 else True
             )
-            aliado_dict['territorio_modo'] = db.territorio_modo_aliado(
-                aliado_dict.get('codigo_postal') or '', grupo_id
-            )
-            aliado_dict['mostrar_aviso_madre'] = db.debe_mostrar_aviso_madre(codigo, grupo_id)
+            try:
+                aliado_dict['territorio_modo'] = db.territorio_modo_aliado(
+                    aliado_dict.get('codigo_postal') or '', grupo_id
+                )
+            except Exception:
+                aliado_dict['territorio_modo'] = 'territorial'
+            try:
+                aliado_dict['mostrar_aviso_madre'] = db.debe_mostrar_aviso_madre(codigo, grupo_id)
+            except Exception:
+                aliado_dict['mostrar_aviso_madre'] = False
 
             # Notificaciones del aliado (ej. comprobante rechazado con mensaje de admin)
             notificaciones = notificacion_service.listar_notificaciones_aliado(

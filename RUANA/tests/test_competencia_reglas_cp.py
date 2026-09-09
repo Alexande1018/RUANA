@@ -206,7 +206,8 @@ def test_pendiente_inicia_cuando_aparece_retador(sqlite_db):
     sqlite_db._solicitar_competencia_por_score("50071")
     assert sqlite_db.tiene_competencia_pendiente("50071")
 
-    _activo(sqlite_db, "50072", "Cerrajería", "28111", score=55, estado="en_espera")
+    g2 = sqlite_db.crear_grupo_en_cp("28111")
+    _activo(sqlite_db, "50072", "Cerrajería", "28111", score=55, estado="en_espera", grupo_id=g2["id"])
     iniciadas = sqlite_db._procesar_competencias_pendientes("28111", "Cerrajería")
     assert len(iniciadas) == 1
     assert not sqlite_db.tiene_competencia_pendiente("50071")

@@ -21,7 +21,8 @@ async function ensureNarrator(page, scenario) {
       style.textContent = `
         #qa-video-narrator {
           position: fixed;
-          right: 18px;
+          left: 18px;
+          right: auto;
           top: 18px;
           z-index: 2147483647;
           width: min(440px, calc(100vw - 36px));
@@ -167,6 +168,17 @@ async function reveal(page, target, options = {}) {
   return locator;
 }
 
+async function dismissGrupoMadreAvisoIfNeeded(page) {
+  const modal = page.locator('#modal-grupo-madre-aviso');
+  const visible = await modal.isVisible().catch(() => false);
+  if (!visible) return false;
+  const ok = page.locator('#btn-grupo-madre-aviso-ok');
+  if (!(await ok.isVisible().catch(() => false))) return false;
+  await ok.click({ timeout: 4000 });
+  await modal.waitFor({ state: 'hidden', timeout: 8000 }).catch(() => {});
+  return true;
+}
+
 async function dismissAdminOverlayIfNeeded(page) {
   await page.evaluate(() => {
     const shell = window.AdminShell;
@@ -212,15 +224,18 @@ async function restoreAdminSidebarPointerEvents(page) {
 }
 
 async function clickVisible(page, target, options = {}) {
+  await dismissGrupoMadreAvisoIfNeeded(page);
   const locator = await reveal(page, target, options);
   const clickOpts = { timeout: 4000, ...(options.clickOptions || {}) };
   let disabledSidebar = false;
   try {
+    await dismissGrupoMadreAvisoIfNeeded(page);
     disabledSidebar = await uncoverAdminSidebarForClick(page, locator);
     await locator.click(clickOpts);
   } catch (error) {
     const message = String(error && error.message ? error.message : error);
     if (!/intercepts pointer events/i.test(message)) throw error;
+    await dismissGrupoMadreAvisoIfNeeded(page);
     disabledSidebar = await uncoverAdminSidebarForClick(page, locator) || disabledSidebar;
     await page.evaluate(() => {
       const sidebar = document.getElementById('adminSidebar');
@@ -286,4 +301,5 @@ module.exports = {
   selectVisible,
   setInputFilesVisible,
   dismissAdminOverlayIfNeeded,
+  dismissGrupoMadreAvisoIfNeeded,
 };

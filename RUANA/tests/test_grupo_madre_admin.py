@@ -39,7 +39,17 @@ def _crear(db, codigo, oficio="Electricidad", cp="03020"):
 
 def test_listar_cp_madurez_admin(sqlite_db):
     _crear(sqlite_db, "72001", cp="03020")
-    grupo_madre_service.actualizar_madurez_cp(sqlite_db, "03020")
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT OR REPLACE INTO cp_estado
+        (codigo_postal, ciudad, modo, aliados_activos, encargos_validos, listo_independizar)
+        VALUES ('03020', 'Alicante', 'incubacion', 1, 0, 0)
+        """
+    )
+    conn.commit()
+    conn.close()
     cps = grupo_madre_service.listar_cp_madurez_admin(sqlite_db, modo="incubacion")
     assert any(c.get("codigo_postal") == "03020" for c in cps)
 
@@ -53,18 +63,29 @@ def test_listar_grupos_madre_admin(sqlite_db):
 
 def test_aprobar_independencia_migra_y_limpia_competencia(sqlite_db):
     """Tras aprobar independización, el CP pasa a territorial y se limpian competencias."""
+    from core.services import grupo_madre_service
+
     cp = "03022"
+    madre = grupo_madre_service.obtener_o_crear_grupo_madre(sqlite_db, "Alicante", "Alicante")
     oficios = ["Electricidad", "Fontanería y fontanería-gas"]
     for i, ofi in enumerate(oficios):
-        _crear(sqlite_db, f"721{i:02d}", oficio=ofi, cp=cp)
-
-    grupo_madre_service.actualizar_madurez_cp(sqlite_db, cp)
+        codigo = f"721{i:02d}"
+        _crear(sqlite_db, codigo, oficio=ofi, cp=cp)
+        conn = sqlite_db._connect()
+        cur = conn.cursor()
+        cur.execute("UPDATE aliados SET grupo_id = ? WHERE codigo = ?", (madre["id"], codigo))
+        conn.commit()
+        conn.close()
 
     conn = sqlite_db._connect()
     cur = conn.cursor()
     cur.execute(
-        "UPDATE cp_estado SET aliados_activos = ?, encargos_validos = ?, listo_independizar = 1 WHERE codigo_postal = ?",
-        (CP_MADUREZ_MIN_ALIADOS, CP_MADUREZ_MIN_ENCARGOS, cp),
+        """
+        INSERT OR REPLACE INTO cp_estado
+        (codigo_postal, ciudad, modo, grupo_madre_id, aliados_activos, encargos_validos, listo_independizar)
+        VALUES (?, 'Alicante', 'incubacion', ?, ?, ?, 1)
+        """,
+        (cp, madre["id"], CP_MADUREZ_MIN_ALIADOS, CP_MADUREZ_MIN_ENCARGOS),
     )
     cur.execute(
         """

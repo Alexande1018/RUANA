@@ -7,6 +7,10 @@ os.environ.setdefault("FLASK_SECRET_KEY", "pytest_flask_secret_key_24chars")
 os.environ.setdefault("STRIPE_SECRET_KEY", "sk_test_pytest_default_key")
 os.environ.setdefault("STRIPE_WEBHOOK_SECRET", "whsec_pytest_webhook_secret_24")
 os.environ.setdefault("RUANA_CRON_SECRET", "pytest_cron_secret_minimum_24")
+os.environ.setdefault(
+    "RUANA_CORS_ALLOWED_ORIGINS",
+    "http://localhost,http://127.0.0.1,https://ruana-4293f.web.app",
+)
 
 import time
 import threading

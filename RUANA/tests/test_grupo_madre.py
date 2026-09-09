@@ -1,6 +1,7 @@
 """
 Tests Grupo Madre por ciudad: incubación, madurez, directorio y compatibilidad territorial.
 """
+import sqlite3
 from types import SimpleNamespace
 
 import pytest
@@ -50,13 +51,14 @@ def _grupo_tipo(db, grupo_id):
 
 
 def test_cp_sin_territorial_entra_en_grupo_madre(sqlite_db):
-    """CP incubación (03001 Alicante) asigna grupo tipo madre."""
+    """CP sin estructura territorial → el aliado entra en el Grupo Madre de la ciudad."""
     r = _crear(sqlite_db, "50001", cp="03001")
     assert r["status"] == "success"
     _set_activo(sqlite_db, "50001")
     aliado = sqlite_db.obtener_aliado_por_codigo("50001")
     assert aliado.get("grupo_id") is not None
     assert _grupo_tipo(sqlite_db, aliado["grupo_id"]) == TIPO_GRUPO_MADRE
+    assert grupo_madre_service.cp_en_modo_territorial(sqlite_db, "03001") is False
 
 
 def test_cp_con_territorial_mantiene_flujo_actual(sqlite_db):
@@ -106,8 +108,8 @@ def test_estados_encargo_valido_madurez_excluyen_conversacion_previa():
     assert "trabajo_en_progreso" in ESTADOS_ENCARGO_VALIDO_MADUREZ
 
 
-def test_directorio_incubacion_incluye_otro_cp_misma_ciudad(sqlite_db):
-    """En incubación el directorio muestra aliados del madre aunque tengan otro CP."""
+def test_directorio_madre_incluye_cps_de_la_ciudad(sqlite_db):
+    """En incubación el directorio del Grupo Madre cubre la ciudad, no un solo CP."""
     _crear(sqlite_db, "52001", cp="03001")
     _crear(sqlite_db, "52002", oficio="Fontanería y fontanería-gas", cp="03003")
     _set_activo(sqlite_db, "52001")
@@ -139,22 +141,14 @@ def test_directorio_territorial_sigue_filtrando_por_cp(sqlite_db):
     assert "53002" not in codigos
 
 
-def test_sexto_oficio_mismo_cp_en_madre_va_a_espera(sqlite_db):
-    """Máx. 5 CP distintos con el mismo oficio en el madre → en_espera."""
-    oficios_cp = [
-        ("54001", "03001"),
-        ("54002", "03002"),
-        ("54003", "03003"),
-        ("54004", "03004"),
-        ("54005", "03005"),
-    ]
-    for codigo, cp in oficios_cp:
-        r = _crear(sqlite_db, codigo, oficio="Electricidad", cp=cp)
-        assert r["status"] == "success"
-        _set_activo(sqlite_db, codigo)
+def test_mismo_oficio_en_cp_sin_plaza_va_a_espera(sqlite_db):
+    """Mismo oficio en CP con grupo lleno para ese oficio → en_espera."""
+    r1 = _crear(sqlite_db, "54001", oficio="Electricidad", cp="03001")
+    assert r1["status"] == "success"
+    _set_activo(sqlite_db, "54001")
 
-    r6 = _crear(sqlite_db, "54006", oficio="Electricidad", cp="03001")
-    assert r6["status"] == "success"
+    r2 = _crear(sqlite_db, "54006", oficio="Electricidad", cp="03001")
+    assert r2["status"] == "success"
     aliado6 = sqlite_db.obtener_aliado_por_codigo("54006")
     assert aliado6["estado"] == "en_espera"
 
@@ -202,3 +196,47 @@ def test_aviso_visto_endpoint(client, sqlite_db, monkeypatch):
     assert resp.status_code == 200
     assert resp.get_json().get("status") == "success"
     assert sqlite_db.debe_mostrar_aviso_madre("56001", r.get("grupo_id")) is False
+
+
+def test_cp_en_modo_territorial_no_reconsulta_si_falta_columna_tipo(sqlite_db, monkeypatch):
+    """Si falta grupos.tipo no debe repetir el SELECT (Postgres aborta la transacción)."""
+    calls = {"n": 0}
+
+    def boom(cursor, cp):
+        calls["n"] += 1
+        raise sqlite3.OperationalError('column "tipo" does not exist')
+
+    monkeypatch.setattr(
+        grupo_madre_service._madre_repo,
+        "contar_territoriales_activos_por_cp",
+        boom,
+    )
+    assert grupo_madre_service.cp_en_modo_territorial(sqlite_db, "50009") is False
+    assert calls["n"] == 1
+
+
+def test_get_aliado_datos_carga_si_falta_columna_tipo(client, sqlite_db, monkeypatch):
+    """El panel no debe devolver 500 cuando Postgres aún no tiene grupos.tipo."""
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    r = _crear(sqlite_db, "57009", cp="03001")
+    assert r["status"] == "success"
+    _set_activo(sqlite_db, "57009")
+
+    conn = sqlite_db._connect()
+    conn.execute("ALTER TABLE grupos DROP COLUMN tipo")
+    conn.commit()
+    conn.close()
+
+    session_id = app_module._ruana_session_create(
+        tipo="aliado",
+        codigo="57009",
+        expires_at=9999999999,
+    )
+    headers = {app_module.RUANA_SESSION_HEADER: session_id}
+
+    resp = client.get("/api/aliado/datos", headers=headers)
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["status"] == "success"
+    assert data["aliado"]["codigo"] == "57009"
+    assert data["aliado"].get("territorio_modo") in ("incubacion", "territorial")

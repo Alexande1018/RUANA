@@ -679,9 +679,8 @@ def _obtener_grupo_activacion_pendiente(db, cursor, aliado: Dict[str, Any]) -> O
         return g_pref
     if estado == 'en_espera':
         return None
-    if grupo_madre_service.cp_en_modo_territorial(db, codigo_postal):
-        if grupo_madre_service.contar_grupos_territoriales_activos_por_cp(db, codigo_postal) < MAX_GRUPOS_POR_CP:
-            return _insertar_grupo_nombre_unico(db, cursor, codigo_postal)
+    if grupo_madre_service.contar_grupos_territoriales_activos_por_cp(db, codigo_postal) == 0:
+        return _insertar_grupo_nombre_unico(db, cursor, codigo_postal)
     return None
 
 
