@@ -182,6 +182,8 @@ def test_aliado_solicitudes_module_is_wired():
     assert "appendSolicitudCard" in solicitudes_js
     assert "solicitudes-list" in solicitudes_js
     assert "btn-conocer" in solicitudes_js
+    assert "btn-atender" in solicitudes_js
+    assert "Aceptar solicitud" in solicitudes_js
     assert "btn-aceptar-proximidad" in solicitudes_js
     assert "pedir-recomendacion-grupo" in solicitudes_js
     assert "Buscando ayuda" in solicitudes_js

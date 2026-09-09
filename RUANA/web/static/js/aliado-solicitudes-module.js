@@ -71,6 +71,14 @@
     return extra || {};
   }
 
+  function codigoAliadoHost(host) {
+    return String((host && (host.codigoAliado || (host.aliado && host.aliado.codigo))) || '').trim();
+  }
+
+  function codigoAsignadoSolicitud(solicitud) {
+    return String((solicitud && solicitud.asignada_a_codigo) || '').trim();
+  }
+
   function etiquetaEstado(estado) {
     if (estado === 'atendida') {
       return { label: 'Atendida', badgeClass: 'ruana-badge atendida' };
@@ -125,6 +133,8 @@
     var atendidoAt = formatoFechaCorta(solicitud.atendido_at || '');
     var candidatoPor = solicitud.candidato_por_nombre || solicitud.candidato_por_codigo || '';
     var candidatoAt = formatoFechaCorta(solicitud.candidato_at || '');
+    var asignadaCodigo = codigoAsignadoSolicitud(solicitud);
+    var asignadaAMi = !!asignadaCodigo && asignadaCodigo === codigoAliadoHost(host);
     var asignadaA = solicitud.asignada_a_nombre || solicitud.asignada_a_codigo || '';
     var metaExtraParts = [];
     if (estado === 'atendida' && (atendidoPor || atendidoAt)) {
@@ -146,7 +156,8 @@
       );
     }
     var metaExtra = metaExtraParts.join('');
-    var mostrarConocer = conBotonConocer && estado === 'pendiente' && !asignadaA;
+    var mostrarAtender = conBotonConocer && estado === 'pendiente' && asignadaAMi;
+    var mostrarConocer = conBotonConocer && estado === 'pendiente' && !asignadaAMi;
     var requiereAprob = solicitud.requiere_aprobacion_proximidad ||
       (solicitud.proximidad_estado === 'pendiente_aprobacion');
     var esPropiaPendiente = !conBotonConocer && estado === 'pendiente';
@@ -183,8 +194,11 @@
         metaExtra +
       '</div>' +
       bloqueRecomienda +
+      (mostrarAtender
+        ? '<div class="solicitud-actions"><button type="button" class="btn-atender" data-id="' + (solicitud.id || 0) + '"><i data-lucide="check" style="width:16px;height:16px;vertical-align:-2px;margin-right:6px"></i>Aceptar solicitud</button></div>'
+        : '') +
       (mostrarConocer
-        ? '<div class="solicitud-actions"><button class="btn-conocer" data-id="' + (solicitud.id || 0) + '"><i data-lucide="user-plus" style="width:16px;height:16px;vertical-align:-2px;margin-right:6px"></i>Conozco a alguien</button></div>'
+        ? '<div class="solicitud-actions"><button type="button" class="btn-conocer" data-id="' + (solicitud.id || 0) + '"><i data-lucide="user-plus" style="width:16px;height:16px;vertical-align:-2px;margin-right:6px"></i>Conozco a alguien</button></div>'
         : '');
     container.appendChild(card);
   }
@@ -315,6 +329,15 @@
           appendSolicitudCard(host, host.solicitudesList, solicitud, true);
         });
       }
+      document.querySelectorAll('#solicitudes-list .btn-atender').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          var el = e.currentTarget || e.target.closest('.btn-atender');
+          var id = parseInt(el && el.dataset ? el.dataset.id : '0', 10);
+          if (!id) return;
+          el.disabled = true;
+          postAccionSolicitud(host, 'atender', id);
+        });
+      });
       document.querySelectorAll('#solicitudes-list .btn-conocer').forEach(function (btn) {
         btn.addEventListener('click', function (e) {
           var el = e.currentTarget || e.target.closest('.btn-conocer');

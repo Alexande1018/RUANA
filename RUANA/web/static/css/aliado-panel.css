@@ -1291,6 +1291,7 @@
         }
 
         .btn-conocer,
+        .btn-atender,
         .btn-aceptar-proximidad,
         .btn-pedir-recomendacion,
         .btn-invitar-aliado {
@@ -1328,6 +1329,7 @@
         }
 
         .btn-conocer:hover,
+        .btn-atender:hover,
         .btn-aceptar-proximidad:hover,
         .btn-pedir-recomendacion:hover,
         .btn-invitar-aliado:hover {
@@ -1336,6 +1338,7 @@
         }
 
         .btn-conocer:active,
+        .btn-atender:active,
         .btn-aceptar-proximidad:active,
         .btn-pedir-recomendacion:active,
         .btn-invitar-aliado:active {

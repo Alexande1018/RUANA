@@ -294,9 +294,9 @@
         if (hayAlertasHub) {
             const taskById = {
                 'score-bajo': { label: 'Ver score', action: 'inicio', scrollAlerts: true },
-                'apoyo-pago': { label: 'Gestionar pago', action: 'inicio', scrollAlerts: true },
+                'apoyo-pago': { label: 'Gestionar pago', action: 'inicio', scrollAlerts: true, paymentAction: 'apoyo-pago' },
                 'mensajes-ruana': { label: 'Leer mensajes', action: 'inicio', scrollAlerts: true },
-                'stripe-pendiente': { label: 'Conectar pago', action: 'perfil', scrollAlerts: true },
+                'stripe-pendiente': { label: 'Conectar pago', action: 'perfil', scrollAlerts: true, paymentAction: 'stripe-pendiente' },
                 'competencia': { label: 'Ver competencia', action: 'perfil', scrollAlerts: true },
             };
             const seen = new Set();
@@ -308,7 +308,9 @@
                     text: entry.title || 'Aviso RUANA pendiente',
                     action: meta ? meta.action : 'inicio',
                     label: meta ? meta.label : 'Ver avisos',
-                    scrollAlerts: true
+                    scrollAlerts: true,
+                    alertId: entry.id,
+                    paymentAction: meta ? meta.paymentAction : null
                 });
             });
             if (!hubSummaries.length) {
@@ -361,9 +363,29 @@
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.textContent = task.label;
+            if (task.alertId) btn.setAttribute('data-inicio-alert', task.alertId);
             btn.addEventListener('click', () => {
                 if (task.openNegociacion) {
                     abrirNegociacionDesdeShell(task.openNegociacion);
+                    return;
+                }
+                if (task.paymentAction === 'stripe-pendiente' || task.alertId === 'stripe-pendiente') {
+                    if (global.RuanaStripePagos && typeof global.RuanaStripePagos.iniciarOnboardingStripe === 'function') {
+                        global.RuanaStripePagos.iniciarOnboardingStripe().catch(function (e) {
+                            alert(e && e.message ? e.message : String(e));
+                        });
+                    } else if (global.RuanaPulse && typeof global.RuanaPulse.handleAction === 'function') {
+                        global.RuanaPulse.handleAction(panel, 'stripe-pendiente');
+                    }
+                    return;
+                }
+                if (task.paymentAction === 'apoyo-pago' || task.alertId === 'apoyo-pago') {
+                    showModule('inicio');
+                    if (global.RuanaPulse && typeof global.RuanaPulse.handleAction === 'function') {
+                        global.RuanaPulse.handleAction(panel, 'apoyo-pago');
+                    } else if (global.RuanaPulse && typeof global.RuanaPulse.open === 'function') {
+                        global.RuanaPulse.open(panel);
+                    }
                     return;
                 }
                 showModule(task.action);
