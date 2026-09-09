@@ -307,9 +307,19 @@ class FinancialAdminRepo:
         )
         return self._rows(cursor)
 
+    def _audit_log_fecha_sql(self, cursor) -> str:
+        """SQLite y Postgres (tras sqlite_compat_names) usan creado_en; created_at es legado."""
+        cols = self.columnas_tabla(cursor, "audit_log")
+        if "creado_en" in cols:
+            return "creado_en"
+        if "created_at" in cols:
+            return "created_at AS creado_en"
+        return "NULL AS creado_en"
+
     def listar_audit(self, cursor, *, limit: int, offset: int, entidad: str = "", q: str = "") -> List[Dict[str, Any]]:
         if not self.tabla_existe(cursor, "audit_log"):
             return []
+        fecha_sql = self._audit_log_fecha_sql(cursor)
         lim, off = self.clamp_pagination(limit, offset)
         where = ["1=1"]
         params: list = []
@@ -322,7 +332,7 @@ class FinancialAdminRepo:
         params.extend([lim, off])
         cursor.execute(
             f"""
-            SELECT id, entidad, entidad_id, accion, actor_tipo, actor_codigo, detalles, created_at
+            SELECT id, entidad, entidad_id, accion, actor_tipo, actor_codigo, detalles, {fecha_sql}
             FROM audit_log
             WHERE {' AND '.join(where)}
             ORDER BY id DESC LIMIT ? OFFSET ?

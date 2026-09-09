@@ -123,6 +123,68 @@ def test_scalar_compat_row_like_dict():
     assert repo._scalar(row) == 7
 
 
+def test_listar_audit_usa_creado_en_real():
+    """Producción (SQLite y Postgres migrado) tiene audit_log.creado_en."""
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute(
+        """
+        CREATE TABLE audit_log (
+            id INTEGER PRIMARY KEY,
+            entidad TEXT NOT NULL,
+            entidad_id INTEGER,
+            accion TEXT NOT NULL,
+            actor_tipo TEXT,
+            actor_codigo TEXT,
+            detalles TEXT,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    cur.execute(
+        "INSERT INTO audit_log (entidad, entidad_id, accion, actor_tipo, actor_codigo, detalles) "
+        "VALUES ('contacto', 7, 'cierre', 'admin', 'A1', 'ok')"
+    )
+    repo = FinancialAdminRepo()
+    rows = repo.listar_audit(cur, limit=10, offset=0)
+    assert len(rows) == 1
+    assert rows[0]["accion"] == "cierre"
+    assert rows[0]["entidad_id"] == 7
+    assert rows[0]["creado_en"]
+    conn.close()
+
+
+def test_listar_audit_acepta_created_at_legado():
+    """Esquema Postgres anterior a sqlite_compat_names aún puede tener created_at."""
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute(
+        """
+        CREATE TABLE audit_log (
+            id INTEGER PRIMARY KEY,
+            entidad TEXT NOT NULL,
+            entidad_id INTEGER,
+            accion TEXT NOT NULL,
+            actor_tipo TEXT,
+            actor_codigo TEXT,
+            detalles TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    cur.execute(
+        "INSERT INTO audit_log (entidad, entidad_id, accion) VALUES ('contacto', 9, 'legacy')"
+    )
+    repo = FinancialAdminRepo()
+    rows = repo.listar_audit(cur, limit=10, offset=0)
+    assert len(rows) == 1
+    assert rows[0]["accion"] == "legacy"
+    assert rows[0]["creado_en"]
+    conn.close()
+
+
 def test_postgres_init_includes_financial_migrations_through_fase11():
     import inspect
     from core.services import schema_service
