@@ -45,11 +45,13 @@ Los datos de cobro salieron de `ruana_reglas_v1.json` y del código. Viven en `r
 
 ### K-04 — Stripe en modo test en deploy producción
 
-**Estado:** Abierto  
-**Severidad:** Alta (si se esperan cobros live)  
-**Verificado:** `.github/workflows/deploy-firebase.yml` línea `RUANA_STRIPE_MODE=test`
+**Estado:** Cerrado (código, 2026-09-09) — el workflow **ya no** hardcodea `RUANA_STRIPE_MODE=test`  
+**Severidad:** Alta (si se esperan cobros live) — el **default operativo sigue siendo test**  
+**Verificado:** `.github/workflows/deploy-firebase.yml` usa `${{ steps.stripe_mode.outputs.mode }}`; scripts `resolve-stripe-mode.sh` + `validate-stripe-deploy-mode.sh`
 
-Cada deploy desde `main` fija modo test. Cobros reales requieren cambio explícito a `live` y claves `sk_live_`.
+El hardcode que documentaba este ítem ya no existe (tests `test_cicd_stripe_mode_b5.py`). El deploy resuelve el modo: input `workflow_dispatch` → `vars.RUANA_STRIPE_MODE` → prefijo de `STRIPE_SECRET_KEY` → default `test`. Live en push a `main` requiere `vars.RUANA_STRIPE_ALLOW_LIVE_PUSH=true` o una secret `sk_live_`.
+
+**Sigue siendo cierto:** si no se configura nada, producción corre en Test. El primer cobro Live es un flip operativo, no un bug de workflow. Ver [`operaciones/STRIPE_PRODUCTION_REVIEW.md`](operaciones/STRIPE_PRODUCTION_REVIEW.md).
 
 ---
 

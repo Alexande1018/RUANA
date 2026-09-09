@@ -79,7 +79,7 @@ Lista **Verificada** en `app.py`: `catalogo`, `negociacion`, `referidos`, `admin
 | Nº blueprints | 21 | README citaba 13 | Código |
 | Nº tests | 784 passed | README citaba 383 | Código (ejecución 2026-08-19) |
 | `ruana.db` en git | Ignorado (`*.db` en `.gitignore`) | README decía "commiteado" | Código |
-| Stripe en prod | `RUANA_STRIPE_MODE=test` en deploy workflow | No documentado | Código |
+| Stripe en prod | Deploy resuelve `RUANA_STRIPE_MODE` (default `test`, no hardcode) | Review 2026-09-09 | Código + [`operaciones/STRIPE_PRODUCTION_REVIEW.md`](operaciones/STRIPE_PRODUCTION_REVIEW.md) |
 | Referencia `docs/ADMIN_CREDENTIALS_SETUP.md` | Archivo **no existe** | `.env.example` línea 29 | Hueco |
 
 ---
@@ -195,7 +195,7 @@ Workflow: `.github/workflows/ruana-qa.yml` — **Verificado** con triggers `push
 3. **Drift SQLite/Postgres** — riesgo de fallos silenciosos en prod si migraciones no están al día.
 4. **Sesiones en memoria** — revocación no consistente entre réplicas Cloud Run (`max-instances: 3`).
 5. **Datos de cobro en git** — `ruana_reglas_v1.json` expone IBAN/Bizum en historial.
-6. **`RUANA_STRIPE_MODE=test` en prod deploy** — pagos en modo test salvo cambio manual — **Verificado** en workflow.
+6. **Stripe Live no activado por defecto** — el workflow ya no hardcodea test; el default sigue siendo `test` hasta `workflow_dispatch`/`vars` + claves `sk_live_`. Ver [`operaciones/STRIPE_PRODUCTION_REVIEW.md`](operaciones/STRIPE_PRODUCTION_REVIEW.md).
 7. **Cron jobs** — endpoints existen; ejecución programada en GCP **No verificada**.
 8. **Rate limit / session store en memoria** — limitación multi-instancia.
 9. **`DBManager` fachada residual** — deuda de extracción; riesgo de regresión en cambios amplios.
