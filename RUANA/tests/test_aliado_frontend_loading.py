@@ -323,9 +323,22 @@ def test_aliado_conexiones_module_is_wired():
     assert "RuanaUI.toast" in conexiones_js
     assert "AliadoShell.show('solicitudes')" in conexiones_js
     assert "classList.add('show')" in conexiones_js
-    # Fachadas delgadas en PrivatePanel
+    assert "AbortController" in conexiones_js
+    assert "ENVIO_TIMEOUT_MS" in conexiones_js
+    assert "envioEnCurso" in conexiones_js
+    assert "setEnviando(false)" in conexiones_js
+    assert "refrescarTrasEnvio(host, apiBase)" in conexiones_js
+    assert "await host.refreshAfterAction" not in conexiones_js
+    assert "Sesión caducada" in conexiones_js
+    events_js = (root / "static" / "js" / "aliado-events-module.js").read_text(
+        encoding="utf-8"
+    )
+    assert "closest('#btn-enviar')" in events_js
+    assert "_enviarSolicitudDelegated" in events_js
+    # Fachadas delgadas en PrivatePanel: si falta el módulo, avisar (nunca silencio)
     assert "_conexionesModule" in aliado
     assert "mod.handleEnviarSolicitud(this)" in aliado
+    assert "No se pudo enviar: recarga el panel." in aliado
     # Markup permanece en aliado.html
     assert 'id="module-conexiones"' in aliado
     assert 'id="nueva-solicitud-oficio"' in aliado
@@ -343,6 +356,7 @@ def test_aliado_conexiones_module_is_wired():
     panel_css = (root / "static" / "css" / "aliado-panel.css").read_text(encoding="utf-8")
     assert ".solicitud-success.show" in panel_css
     assert "display: block !important" in panel_css
+    assert ".btn-enviar-solicitud:disabled" in panel_css
 
 
 def test_aliado_invitaciones_module_is_wired():

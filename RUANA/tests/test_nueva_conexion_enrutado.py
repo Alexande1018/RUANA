@@ -375,3 +375,29 @@ def test_fontanero_de_madrid_no_es_cercano_desde_alicante(sqlite_db):
     assert creada["status"] == "success"
     assert creada["enrutamiento"] == "buscando_ayuda"
     assert creada.get("proximidad") is None
+
+
+def test_crear_solicitud_proximidad_no_abre_conexion_anidada(sqlite_db):
+    """El POST no debe abrir una 2ª conexión mientras sostiene la primera (cuelga en Postgres)."""
+    _crear(sqlite_db, "96401", oficio="Electricidad", cp="03014")
+    _crear(sqlite_db, "96402", oficio="Fontanería y fontanería-gas", cp="03001")
+
+    original = sqlite_db._connect
+    opens = {"n": 0}
+
+    def wrapped():
+        opens["n"] += 1
+        return original()
+
+    sqlite_db._connect = wrapped
+    try:
+        creada = solicitud_service.crear_solicitud_por_codigo(
+            sqlite_db, "96401", "Fontanería", "Fuga, prueba de conexión única"
+        )
+    finally:
+        sqlite_db._connect = original
+
+    assert creada.get("status") == "success", creada
+    assert creada["enrutamiento"] == "proximidad"
+    assert creada["proximidad"]["codigo"] == "96402"
+    assert opens["n"] == 1

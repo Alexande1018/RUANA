@@ -19,67 +19,97 @@ def _row_dict(row: Any) -> Dict[str, Any]:
     return {}
 
 
+def _escanear_candidatos(
+    db,
+    cursor,
+    oficio: str,
+    grupo_id: int,
+    codigo: str,
+    cp_viewer: str,
+) -> Optional[Dict[str, Any]]:
+    candidatos = []
+    for row in _repo.listar_profesionales_oficio_fuera_grupo(
+        cursor, oficio, int(grupo_id), codigo
+    ):
+        item = _row_dict(row)
+        if not catalogo_service.oficios_equivalentes(db, oficio, item.get("oficio") or ""):
+            continue
+        cp_other = (item.get("codigo_postal") or item.get("grupo_cp") or "").strip()
+        # Catálogo estático: no abrir otra conexión mientras el caller ya tiene una.
+        nivel, orden = territorio_service.proximidad_territorial(cp_viewer, cp_other)
+        if nivel > PROXIMIDAD_NIVEL_MAX:
+            continue
+        if nivel == 2 and orden > PROXIMIDAD_DISTANCIA_MAX:
+            continue
+        item["nivel_proximidad"] = nivel
+        item["orden_proximidad"] = orden
+        if nivel == 1:
+            item["etiqueta_proximidad"] = "Mismo código postal, otro grupo"
+        elif nivel == 2:
+            item["etiqueta_proximidad"] = "Misma ciudad"
+        else:
+            item["etiqueta_proximidad"] = "Cercano"
+        candidatos.append(item)
+    if not candidatos:
+        return None
+    candidatos.sort(key=lambda x: (x.get("nivel_proximidad", 9), x.get("orden_proximidad", 9999)))
+    best = candidatos[0]
+    return {
+        "codigo": best.get("codigo"),
+        "nombre": best.get("nombre"),
+        "oficio": best.get("oficio"),
+        "codigo_postal": best.get("codigo_postal"),
+        "etiqueta_proximidad": best.get("etiqueta_proximidad"),
+        "nivel_proximidad": best.get("nivel_proximidad"),
+        "mismo_grupo": False,
+    }
+
+
 def recomendar_profesional(
-    db, codigo_aliado: str, oficio: str
+    db,
+    codigo_aliado: str,
+    oficio: str,
+    *,
+    cursor=None,
+    aliado: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Devuelve el profesional activo más cercano del oficio pedido que no pertenece
     al grupo del solicitante. No lista el directorio ajeno: un único candidato.
+
+    Si el caller ya tiene conexión abierta, pasa ``cursor`` y ``aliado`` para no
+    abrir una segunda conexión (en Postgres eso deja el envío colgado).
     """
     codigo = (codigo_aliado or "").strip()
     of = (oficio or "").strip()
     if not codigo or not of:
         return None
-    aliado = db.obtener_aliado_por_codigo(codigo)
-    if not aliado:
+    if cursor is not None:
+        ctx = aliado or {}
+        grupo_id = ctx.get("grupo_id")
+        if not grupo_id:
+            return None
+        cp_viewer = (ctx.get("codigo_postal") or "").strip()
+        try:
+            return _escanear_candidatos(db, cursor, of, int(grupo_id), codigo, cp_viewer)
+        except Exception as exc:
+            print(f"Error recomendar_profesional: {exc}")
+            return None
+    row = db.obtener_aliado_por_codigo(codigo)
+    if not row:
         return None
-    grupo_id = aliado.get("grupo_id")
+    grupo_id = row.get("grupo_id")
     if not grupo_id:
         return None
-    cp_viewer = (aliado.get("codigo_postal") or "").strip()
+    cp_viewer = (row.get("codigo_postal") or "").strip()
     with db._lock:
         conn = None
         try:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            candidatos = []
-            for row in _repo.listar_profesionales_oficio_fuera_grupo(
-                cursor, of, int(grupo_id), codigo
-            ):
-                item = _row_dict(row)
-                if not catalogo_service.oficios_equivalentes(db, of, item.get("oficio") or ""):
-                    continue
-                cp_other = (item.get("codigo_postal") or item.get("grupo_cp") or "").strip()
-                nivel, orden = territorio_service.proximidad_territorial(
-                    cp_viewer, cp_other, db=db
-                )
-                if nivel > PROXIMIDAD_NIVEL_MAX:
-                    continue
-                if nivel == 2 and orden > PROXIMIDAD_DISTANCIA_MAX:
-                    continue
-                item["nivel_proximidad"] = nivel
-                item["orden_proximidad"] = orden
-                if nivel == 1:
-                    item["etiqueta_proximidad"] = "Mismo código postal, otro grupo"
-                elif nivel == 2:
-                    item["etiqueta_proximidad"] = "Misma ciudad"
-                else:
-                    item["etiqueta_proximidad"] = "Cercano"
-                candidatos.append(item)
-            if not candidatos:
-                return None
-            candidatos.sort(key=lambda x: (x.get("nivel_proximidad", 9), x.get("orden_proximidad", 9999)))
-            best = candidatos[0]
-            return {
-                "codigo": best.get("codigo"),
-                "nombre": best.get("nombre"),
-                "oficio": best.get("oficio"),
-                "codigo_postal": best.get("codigo_postal"),
-                "etiqueta_proximidad": best.get("etiqueta_proximidad"),
-                "nivel_proximidad": best.get("nivel_proximidad"),
-                "mismo_grupo": False,
-            }
+            return _escanear_candidatos(
+                db, conn.cursor(), of, int(grupo_id), codigo, cp_viewer
+            )
         except Exception as exc:
             print(f"Error recomendar_profesional: {exc}")
             return None

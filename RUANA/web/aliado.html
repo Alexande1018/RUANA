@@ -41,7 +41,7 @@
     <script src="/static/js/aliado-solicitudes-module.js?v=20260820a" defer></script>
     <script src="/static/js/aliado-solicitudes-semanales-module.js?v=20260909a" defer></script>
     <script src="/static/js/aliado-acuerdos-module.js" defer></script>
-    <script src="/static/js/aliado-conexiones-module.js?v=20260909d" defer></script>
+    <script src="/static/js/aliado-conexiones-module.js?v=20260909e" defer></script>
     <script src="/static/js/aliado-centro-comunicacion-module.js" defer></script>
     <script src="/static/js/aliado-invitaciones-module.js" defer></script>
     <script src="/static/js/aliado-alertas-module.js" defer></script>
@@ -50,7 +50,7 @@
     <script src="/static/js/aliado-stripe-pagos-module.js?v=20260903a" defer></script>
     <script src="/static/js/aliado-grupo-module.js" defer></script>
     <script src="/static/js/aliado-sync-module.js?v=20260909a" defer></script>
-    <script src="/static/js/aliado-events-module.js" defer></script>
+    <script src="/static/js/aliado-events-module.js?v=20260909e" defer></script>
     <script src="/static/js/aliado-shell.js?v=20260820a" defer></script>
     <link rel="stylesheet" href="/static/css/negociacion-guiada.css">
     <script src="/static/js/ruana-conversacion-ui.js" defer></script>
@@ -2308,6 +2308,12 @@
                 const mod = this._conexionesModule();
                 if (mod && typeof mod.handleEnviarSolicitud === 'function') {
                     return mod.handleEnviarSolicitud(this);
+                }
+                const msg = 'No se pudo enviar: recarga el panel.';
+                if (window.RuanaUI && typeof window.RuanaUI.toast === 'function') {
+                    window.RuanaUI.toast(msg, 'error', 6000);
+                } else {
+                    alert(msg);
                 }
             }
             copyCode() {

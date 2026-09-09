@@ -150,9 +150,19 @@
           });
       }
 
-      // Botones de modal de código
-      if (host.btnEnviar) {
-          host.btnEnviar.addEventListener('click', () => host.handleEnviarSolicitud());
+      // Nueva conexión: delegación (el nodo #btn-enviar puede quedar stale
+      // tras recuperar sesión o si el primer envío dejó el botón deshabilitado).
+      if (!modules._enviarSolicitudDelegated) {
+          modules._enviarSolicitudDelegated = true;
+          document.addEventListener('click', function (e) {
+              var btn = e.target && e.target.closest && e.target.closest('#btn-enviar');
+              if (!btn) return;
+              e.preventDefault();
+              var panel = global.__ruanaPanel || host;
+              if (panel && typeof panel.handleEnviarSolicitud === 'function') {
+                  panel.handleEnviarSolicitud();
+              }
+          });
       }
       if (host.btnCopyCode) {
           host.btnCopyCode.addEventListener('click', () => host.copyCode());
