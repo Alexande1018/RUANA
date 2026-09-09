@@ -378,3 +378,35 @@ def test_24_permiso_granular_y_legacy():
     assert tiene_permiso_panel(["leer"], DASHBOARD_VIEW)
     assert tiene_permiso_panel(["financial.dashboard.view"], DASHBOARD_VIEW)
     assert not tiene_permiso_panel([], PAYMENTS_VIEW)
+
+
+def test_25_audit_lista_con_columna_creado_en(client, sqlite_db, monkeypatch, session_headers):
+    """GET /audit no debe 500: audit_log real usa creado_en (no created_at)."""
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    conn = sqlite_db._connect()
+    c = conn.cursor()
+    c.execute("PRAGMA table_info(audit_log)")
+    col_names = {row[1] for row in c.fetchall()}
+    assert "creado_en" in col_names
+    assert "created_at" not in col_names
+    c.execute(
+        """
+        INSERT INTO audit_log (entidad, entidad_id, accion, actor_tipo, actor_codigo, detalles)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        ("contacto", 42, "financiero_transicion", "admin", "ADMIN_F09", "test auditoria"),
+    )
+    conn.commit()
+    conn.close()
+    headers = _headers(session_headers)
+    resp = client.get("/api/admin/financial/audit?limit=10", headers=headers)
+    data = resp.get_json()
+    assert resp.status_code == 200
+    assert data["status"] == "success"
+    match = next((i for i in data["items"] if i.get("entidad_id") == 42), None)
+    assert match is not None
+    assert match["accion"] == "financiero_transicion"
+    assert match.get("creado_en")
+    alias = client.get("/api/admin/finanzas/auditoria?limit=10", headers=headers)
+    assert alias.status_code == 200
+    assert any(i.get("entidad_id") == 42 for i in alias.get_json()["items"])
