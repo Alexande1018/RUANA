@@ -357,7 +357,37 @@
         }
     }
 
-    function renderGruposCp(host) {
+    function ensureAliadosTerritoriales(host) {
+        if (!host) return Promise.resolve([]);
+        if (Array.isArray(host._aliadosData) && host._aliadosData.length) {
+            return Promise.resolve(host._aliadosData);
+        }
+        if (host._aliadosFetchPromise) return host._aliadosFetchPromise;
+        host._adminAliadosLoading = true;
+        host._aliadosFetchPromise = fetch('/api/aliados/listar', {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: authHeaders()
+        }).then(function (r) {
+            if (!r.ok) throw new Error('No se pudo cargar la red de aliados');
+            return r.json();
+        }).then(function (data) {
+            var raw = (data && Array.isArray(data.aliados)) ? data.aliados : [];
+            host._aliadosData = raw.filter(function (a) {
+                return !(host.esAliadoPlaceholder && host.esAliadoPlaceholder(a));
+            });
+            return host._aliadosData;
+        }).catch(function () {
+            return host._aliadosData || [];
+        }).finally(function () {
+            host._adminAliadosLoading = false;
+            host._aliadosFetchPromise = null;
+        });
+        return host._aliadosFetchPromise;
+    }
+
+    function renderGruposCp(host, options) {
+        var opts = options || {};
         var overview = document.getElementById('grupos-cp-overview');
         if (!overview) return;
         var aliados = (host && host._aliadosData) || [];
@@ -375,6 +405,20 @@
         });
         var cps = Object.keys(byCp).sort();
         if (!cps.length) {
+            if (!opts.skipFetch) {
+                overview.innerHTML = '<p style="color:#94a3b8;">Cargando grupos territoriales…</p>';
+                ensureAliadosTerritoriales(host).then(function (lista) {
+                    if (lista && lista.length) {
+                        renderGruposCp(host, { skipFetch: true });
+                        if (host && typeof host.renderAliadosJerarquia === 'function') {
+                            host.renderAliadosJerarquia();
+                        }
+                    } else {
+                        overview.innerHTML = '<p style="color:#94a3b8;">Sin datos de grupos. Carga el panel o revisa la conexión.</p>';
+                    }
+                });
+                return;
+            }
             overview.innerHTML = '<p style="color:#94a3b8;">Sin datos de grupos. Carga el panel o revisa la conexión.</p>';
             return;
         }
@@ -519,6 +563,7 @@
         setup: setup,
         refresh: refresh,
         renderGruposCp: renderGruposCp,
+        ensureAliadosTerritoriales: ensureAliadosTerritoriales,
         loadGruposTabla: loadGruposTabla,
         loadAliadosSinGrupo: loadAliadosSinGrupo,
         renderScores: renderScores,

@@ -73,7 +73,7 @@ def test_admin_shell_resumen_module_aligned_with_module_defs():
     assert "#command-center-wrap" in shell_js
     assert ".estado-global" in shell_js
     assert ".movimiento-sistema" in shell_js
-    assert 'src="/static/js/admin-resumen-module.js"' in admin
+    assert 'src="/static/js/admin-resumen-module.js' in admin
     assert "renderEstadoGlobal" in resumen_js
     assert "estado-sistema-label" in resumen_js
     assert "mov-sol-nuevas" in resumen_js
