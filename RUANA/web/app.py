@@ -353,19 +353,36 @@ def alert_hub_preview():
     return send_from_directory(str(web_dir), 'alert-hub-preview.html')
 
 
+_STATIC_CACHE_SUFFIXES = (
+    '.js', '.css', '.woff', '.woff2', '.png', '.jpg', '.jpeg', '.webp', '.svg', '.ico'
+)
+
+
+def _apply_static_cache_headers(response):
+    """Cache largo si el asset lleva ?v=; si no, 1 h con revalidación."""
+    if response.status_code != 200:
+        return response
+    path = request.path or ''
+    if not path.startswith('/static/') or not path.endswith(_STATIC_CACHE_SUFFIXES):
+        return response
+    if request.args.get('v'):
+        response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+    else:
+        response.headers['Cache-Control'] = 'public, max-age=3600, must-revalidate'
+    return response
+
+
+@app.after_request
+def cache_static_assets(response):
+    """Aplica cache a /static aunque Flask sirva por el endpoint built-in."""
+    return _apply_static_cache_headers(response)
+
+
 @app.route('/static/<path:path>')
 def static_files(path):
     """Sirve archivos estáticos (CSS, JS, etc). Assets con ?v= se cachean largo."""
     response = make_response(send_from_directory(str(web_dir / 'static'), path))
-    if path.endswith(('.js', '.css', '.woff', '.woff2', '.png', '.jpg', '.jpeg', '.webp', '.svg', '.ico')):
-        response.cache_control.public = True
-        if request.args.get('v'):
-            response.cache_control.max_age = 31536000
-            response.cache_control.immutable = True
-        else:
-            response.cache_control.max_age = 3600
-            response.cache_control.must_revalidate = True
-    return response
+    return _apply_static_cache_headers(response)
 
 
 # ================================================
