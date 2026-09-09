@@ -212,7 +212,14 @@
       document.body.classList.add('admin-is-loading');
       if (loader) loader.style.display = 'flex';
       const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
-      const fetchOpts = { method: 'GET', credentials: 'same-origin', headers: authHeaders };
+      const loadController = new AbortController();
+      const loadTimeoutId = setTimeout(function () { loadController.abort(); }, 12000);
+      const fetchOpts = {
+          method: 'GET',
+          credentials: 'same-origin',
+          headers: authHeaders,
+          signal: loadController.signal
+      };
       try {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 5000);
@@ -313,7 +320,7 @@
           const statsOk = statsData && statsData.status === 'success';
           const tieneDatosCriticos = dashOk || statsOk;
           if (!tieneDatosCriticos) {
-              host.showToast('Error de conexión. Comprueba la red.', 'error');
+              host.showToast('No se pudo cargar el resumen. Se mantienen las cifras anteriores.', 'error');
           }
           const totalGruposRaw = dashOk ? dashboardData.grupos : (statsOk ? statsData.total_grupos : undefined);
           const totalGrupos = typeof totalGruposRaw === 'number' ? totalGruposRaw : (totalGruposRaw && typeof totalGruposRaw.total === 'number' ? totalGruposRaw.total : 0);
@@ -340,7 +347,9 @@
               })()
           };
 
-          host.renderEstadoGlobal({ indicadores });
+          if (tieneDatosCriticos) {
+              host.renderEstadoGlobal({ indicadores });
+          }
           const tieneMovimiento24h = stats24hData && !stats24hData._error && (stats24hData.status === 'success' || stats24hData.solicitudes != null || stats24hData.invitaciones != null || (Array.isArray(stats24hData.top_invitadores) && stats24hData.top_invitadores.length > 0));
           if (stats24hData && stats24hData._error) {
               host.renderMovimientoError(stats24hData._error === 'timeout' ? 'No se pudieron cargar estadísticas' : 'Sin datos disponibles');
@@ -417,7 +426,7 @@
           }
 
           refreshCommandCenterPanels(host, {
-              indicadores: indicadores,
+              indicadores: tieneDatosCriticos ? indicadores : {},
               conflictos: (conflictosData && conflictosData.status === 'success' && Array.isArray(conflictosData.conflictos)) ? conflictosData.conflictos.length : 0,
               solicitudes: Array.isArray(solicitudesData) ? solicitudesData : (solicitudesData && Array.isArray(solicitudesData.solicitudes) ? solicitudesData.solicitudes : []),
               solicitudesSemanales: (solicitudesSemanalesData && solicitudesSemanalesData.status === 'success' && Array.isArray(solicitudesSemanalesData.solicitudes))
@@ -441,6 +450,7 @@
           host.updateConversacionesPaginationUI();
           host.cargarChatsFallback();
       } finally {
+          clearTimeout(loadTimeoutId);
           if (loader) loader.style.display = 'none';
           document.body.classList.remove('admin-is-loading');
       }
