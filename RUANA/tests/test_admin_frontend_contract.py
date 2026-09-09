@@ -177,7 +177,7 @@ def test_admin_resumen_module_is_wired():
     modules_js = (root / "static" / "js" / "admin-modules.js").read_text(encoding="utf-8")
 
     assert 'src="/static/js/admin-modules.js"' in admin
-    assert 'src="/static/js/admin-resumen-module.js"' in admin
+    assert 'src="/static/js/admin-resumen-module.js' in admin
     assert "RuanaAdminModules" in modules_js
     assert "resumen: null" in modules_js
     assert "RuanaAdminModules.resumen" in resumen_js or "modules.resumen" in resumen_js
@@ -242,7 +242,7 @@ def test_admin_referidos_tree_is_wired():
 
     assert 'href="/static/css/referidos-tree.css"' in admin
     assert 'src="/static/js/referidos-module.js"' in admin
-    assert 'src="/static/js/admin-red-explorer-module.js"' in admin
+    assert 'src="/static/js/admin-red-explorer-module.js' in admin
     assert 'id="red-view-referidos"' in admin
     assert 'id="referidos-tree-admin"' in admin
     assert 'id="referidos-detail-admin"' in admin
@@ -316,6 +316,8 @@ def test_admin_inline_fetch_budget_and_module_coverage():
     assert "fetch('/api/admin/me'" in admin or "fetch('/api/admin/me'," in admin
     assert "async function cargarDesdeApi(host)" in resumen
     assert "signal: loadController.signal" in resumen
+    assert "fetchOptsAliados" in resumen
+    assert "applyAliadosList" in resumen
     assert "Se mantienen las cifras anteriores." in resumen
     assert "if (tieneDatosCriticos)" in resumen
     assert "function setupEventListeners(host)" in resumen

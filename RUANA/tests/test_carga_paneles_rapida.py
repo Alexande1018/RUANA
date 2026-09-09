@@ -72,7 +72,10 @@ def test_admin_hidratacion_en_dos_fases():
     start = resumen.index("async function cargarDesdeApi(host)")
     end = resumen.index("function buildIndicadoresAdmin(")
     fn = resumen[start:end]
-    assert "criticalIdx = [0, 1, 3, 4, 5, 16]" in fn
+    assert "criticalIdx = [0, 1, 2, 3, 4, 5, 16]" in fn
+    assert "fetchOptsAliados" in fn
+    assert "applyAliadosList(host, parsed[2])" in fn
+    assert fn.index("applyAliadosList(host, parsed[2])") < fn.index("hideAdminLoader(loader)")
     assert "hideAdminLoader(loader)" in fn
     assert fn.index("hideAdminLoader(loader)") < fn.index("settleIndexes(secondaryIdx)")
     assert "heavy: false" in fn
@@ -83,6 +86,20 @@ def test_admin_hidratacion_en_dos_fases():
     assert "fetch('/api/admin/metodos-pago', fetchOpts)" in fn
     assert "async function refreshCommandCenterPanels(host, payload, options)" in resumen
     assert "options.heavy === false" in resumen
+
+
+def test_admin_panel_territorial_carga_aliados_en_critico():
+    """Grupos/CP no depende de la hidratación secundaria ni del abort de 12s."""
+    resumen = _read("static/js/admin-resumen-module.js")
+    explorer = _read("static/js/admin-red-explorer-module.js")
+    html = _read("admin.html")
+    assert "fetch('/api/aliados/listar', fetchOptsAliados)" in resumen
+    assert "function applyAliadosList(host, aliadosData)" in resumen
+    assert "Cargando grupos territoriales" in explorer
+    assert "function ensureAliadosTerritoriales(host)" in explorer
+    assert "fetch('/api/aliados/listar'" in explorer
+    assert 'src="/static/js/admin-resumen-module.js?v=20260909e"' in html
+    assert 'src="/static/js/admin-red-explorer-module.js?v=20260909e"' in html
 
 
 def test_static_versioned_assets_tienen_cache_largo(client):

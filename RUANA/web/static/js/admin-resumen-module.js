@@ -212,24 +212,45 @@
       document.body.classList.remove('admin-is-loading');
   }
 
+  function applyAliadosList(host, aliadosData) {
+      var raw = (aliadosData && Array.isArray(aliadosData.aliados)) ? aliadosData.aliados : [];
+      host._aliadosData = raw.filter(function (a) {
+          return !(host.esAliadoPlaceholder && host.esAliadoPlaceholder(a));
+      });
+      host._adminAliadosLoading = false;
+      if (typeof host.renderAliadosJerarquia === 'function') {
+          host.renderAliadosJerarquia();
+      }
+      var redEx = global.RuanaAdminModules && global.RuanaAdminModules.redExplorer;
+      if (redEx && typeof redEx.renderGruposCp === 'function') {
+          redEx.renderGruposCp(host, { skipFetch: host._aliadosData.length > 0 });
+      }
+  }
+
   async function cargarDesdeApi(host) {
       const loader = document.getElementById('admin-loader');
       document.body.classList.add('admin-is-loading');
       if (loader) loader.style.display = 'flex';
       const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+      host._adminAliadosLoading = true;
       const loadController = new AbortController();
       const loadTimeoutId = setTimeout(function () { loadController.abort(); }, 12000);
-      const fetchOpts = {
+      let fetchOpts = {
           method: 'GET',
           credentials: 'same-origin',
           headers: authHeaders,
           signal: loadController.signal
       };
+      const fetchOptsAliados = {
+          method: 'GET',
+          credentials: 'same-origin',
+          headers: authHeaders
+      };
       try {
           const fetchStarters = [
               function () { return fetch('/api/admin/dashboard-summary', fetchOpts); },
               function () { return fetch('/api/stats', fetchOpts); },
-              function () { return fetch('/api/aliados/listar', fetchOpts); },
+              function () { return fetch('/api/aliados/listar', fetchOptsAliados); },
               function () { return fetch('/api/admin/pending-users', fetchOpts); },
               function () { return fetch('/api/metricas-salud', fetchOpts); },
               function () { return fetch('/api/eventos-recientes', fetchOpts); },
@@ -268,7 +289,7 @@
               function () { return fetch('/api/admin/solicitudes-baja', fetchOpts); },
               function () { return fetch('/api/admin/solicitudes-semanales', fetchOpts); }
           ];
-          const criticalIdx = [0, 1, 3, 4, 5, 16];
+          const criticalIdx = [0, 1, 2, 3, 4, 5, 16];
           const responses = new Array(fetchStarters.length);
           async function settleIndexes(indexes) {
               const settled = await Promise.allSettled(indexes.map(function (idx) { return fetchStarters[idx](); }));
@@ -324,7 +345,14 @@
           } else {
               host.showToast('No se pudo cargar el resumen. Se mantienen las cifras anteriores.', 'error');
           }
+          applyAliadosList(host, parsed[2]);
           hideAdminLoader(loader);
+          clearTimeout(loadTimeoutId);
+          fetchOpts = {
+              method: 'GET',
+              credentials: 'same-origin',
+              headers: authHeaders
+          };
 
           var secondaryIdx = [];
           for (var si = 0; si < fetchStarters.length; si++) {
@@ -390,6 +418,7 @@
               host.renderSolicitudesBaja((solicitudesBajaData && solicitudesBajaData.status === 'success' && Array.isArray(solicitudesBajaData.solicitudes)) ? solicitudesBajaData.solicitudes : []);
           }
           host._aliadosData = ((aliadosData && aliadosData.aliados) || []).filter(a => !host.esAliadoPlaceholder(a));
+          host._adminAliadosLoading = false;
           host.renderAliadosJerarquia();
           host.renderEventos((eventosData && eventosData.status === 'success' && Array.isArray(eventosData.eventos)) ? eventosData.eventos : []);
           const permisos = (statsData && Array.isArray(statsData.permisos)) ? statsData.permisos : ['leer', 'escribir', 'eliminar', 'configurar'];
@@ -456,6 +485,7 @@
               trabajos: conversaciones.length
           }, { heavy: true });
       } catch (e) {
+          host._adminAliadosLoading = false;
           host.showToast('Error de conexión. Comprueba la red.', 'error');
           host._conversacionesList = [];
           host._conversacionesOffset = 0;
