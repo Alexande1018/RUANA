@@ -381,6 +381,10 @@ class DBManager:
         """Fachada Campamento Base → schema_service._migrar_solicitudes_candidato."""
         return schema_service._migrar_solicitudes_candidato(self, conn, cursor)
 
+    def _migrar_solicitudes_proximidad(self, conn, cursor) -> None:
+        """Fachada Campamento Base → schema_service._migrar_solicitudes_proximidad."""
+        return schema_service._migrar_solicitudes_proximidad(self, conn, cursor)
+
     def _migrar_solicitudes_semanales(self, conn, cursor) -> None:
         """Fachada Campamento Base → schema_service._migrar_solicitudes_semanales."""
         return schema_service._migrar_solicitudes_semanales(self, conn, cursor)
@@ -1276,6 +1280,14 @@ class DBManager:
     def marcar_solicitud_contestada(self, solicitud_id: int, invitador_aliado_id: Optional[int] = None) -> None:
         """Fachada Campamento Base → solicitud_service.marcar_solicitud_contestada."""
         return solicitud_service.marcar_solicitud_contestada(self, solicitud_id, invitador_aliado_id)
+
+    def aceptar_proximidad_solicitud(self, solicitud_id: int, codigo: str) -> Dict[str, Any]:
+        """Fachada → solicitud_service.aceptar_proximidad_solicitud."""
+        return solicitud_service.aceptar_proximidad_solicitud(self, solicitud_id, codigo)
+
+    def pedir_recomendacion_grupo_solicitud(self, solicitud_id: int, codigo: str) -> Dict[str, Any]:
+        """Fachada → solicitud_service.pedir_recomendacion_grupo_solicitud."""
+        return solicitud_service.pedir_recomendacion_grupo_solicitud(self, solicitud_id, codigo)
 
     def listar_solicitudes_admin_todas(self) -> List[Dict[str, Any]]:
         """Fachada Campamento Base → solicitud_service.listar_solicitudes_admin_todas."""

@@ -171,11 +171,18 @@ def test_solicitud_entre_aliados_y_proximidad_si_falta_oficio(sqlite_db):
     )
     assert creada["status"] == "success"
     assert creada.get("id")
+    assert creada.get("enrutamiento") == "proximidad"
     assert creada.get("proximidad", {}).get("codigo") == "83002"
+    assert creada.get("proximidad_notificado") is False
+    assert creada.get("requiere_aprobacion_proximidad") is True
+    assert "No hay fontanero en tu grupo" in (creada.get("mensaje") or "")
 
     pendientes = solicitud_service.obtener_solicitudes_operativas(sqlite_db, "83001")
     ids = {s.get("id") for s in pendientes}
     assert creada["id"] in ids
+
+    notifs_cerca = notificacion_service.listar_notificaciones_aliado(sqlite_db, "83002")
+    assert "proximidad_solicitud" not in {n.get("tipo") for n in notifs_cerca}
 
 
 def test_cierre_encargo_confirmacion_pago_12_y_mensajes(sqlite_db):

@@ -144,15 +144,143 @@ class SolicitudRepo:
         nombre: str,
         oficio: str,
         descripcion: str,
+        asignada_a_codigo: Optional[str] = None,
+        asignada_a_nombre: Optional[str] = None,
+        destino: Optional[str] = None,
+        proximidad_codigo: Optional[str] = None,
+        proximidad_nombre: Optional[str] = None,
+        proximidad_cp: Optional[str] = None,
+        proximidad_zona: Optional[str] = None,
+        proximidad_estado: Optional[str] = None,
     ) -> Any:
         cursor.execute(
             """
-            INSERT INTO solicitudes (grupo_id, solicitante_codigo, solicitante_nombre, oficio, descripcion, estado)
-            VALUES (?, ?, ?, ?, ?, 'pendiente')
+            INSERT INTO solicitudes (
+                grupo_id, solicitante_codigo, solicitante_nombre, oficio, descripcion, estado,
+                asignada_a_codigo, asignada_a_nombre, destino,
+                proximidad_codigo, proximidad_nombre, proximidad_cp, proximidad_zona, proximidad_estado
+            )
+            VALUES (?, ?, ?, ?, ?, 'pendiente', ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (grupo_id, codigo, nombre, oficio, descripcion),
+            (
+                grupo_id,
+                codigo,
+                nombre,
+                oficio,
+                descripcion,
+                asignada_a_codigo,
+                asignada_a_nombre or "",
+                destino,
+                proximidad_codigo,
+                proximidad_nombre,
+                proximidad_cp,
+                proximidad_zona,
+                proximidad_estado,
+            ),
         )
         return cursor.lastrowid
+
+    def select_enrutamiento(self, cursor, solicitud_id: int) -> Optional[Dict[str, Any]]:
+        cursor.execute(
+            """
+            SELECT id, grupo_id, estado, oficio, descripcion,
+                   solicitante_codigo, solicitante_nombre,
+                   asignada_a_codigo, asignada_a_nombre, destino,
+                   proximidad_codigo, proximidad_nombre, proximidad_cp,
+                   proximidad_zona, proximidad_estado
+            FROM solicitudes
+            WHERE id = ?
+            """,
+            (int(solicitud_id),),
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def select_profesional_grupo_oficio(
+        self, cursor, grupo_id: Any, excluir_codigo: str
+    ) -> List[Dict[str, Any]]:
+        cursor.execute(
+            """
+            SELECT codigo, nombre, oficio, codigo_postal
+            FROM aliados
+            WHERE grupo_id = ? AND estado = 'activo' AND codigo != ?
+            ORDER BY id
+            """,
+            (grupo_id, excluir_codigo),
+        )
+        out = []
+        for r in cursor.fetchall():
+            if hasattr(r, "keys"):
+                out.append(dict(r))
+            else:
+                out.append(
+                    {
+                        "codigo": r[0],
+                        "nombre": r[1],
+                        "oficio": r[2],
+                        "codigo_postal": r[3],
+                    }
+                )
+        return out
+
+    def listar_codigos_activos_grupo(
+        self, cursor, grupo_id: Any, excluir_codigo: Optional[str] = None
+    ) -> List[str]:
+        if excluir_codigo:
+            cursor.execute(
+                """
+                SELECT codigo FROM aliados
+                WHERE grupo_id = ? AND estado = 'activo' AND codigo != ?
+                """,
+                (grupo_id, excluir_codigo),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT codigo FROM aliados
+                WHERE grupo_id = ? AND estado = 'activo'
+                """,
+                (grupo_id,),
+            )
+        return [str(r[0]).strip() for r in cursor.fetchall() if r[0]]
+
+    def aceptar_proximidad(
+        self,
+        cursor,
+        solicitud_id: int,
+        profesional_codigo: str,
+        profesional_nombre: str,
+    ) -> int:
+        cursor.execute(
+            """
+            UPDATE solicitudes
+            SET asignada_a_codigo = ?,
+                asignada_a_nombre = ?,
+                destino = 'proximidad',
+                proximidad_estado = 'aceptada'
+            WHERE id = ?
+              AND estado = 'pendiente'
+              AND COALESCE(proximidad_estado, '') = 'pendiente_aprobacion'
+            """,
+            (profesional_codigo, profesional_nombre or "", int(solicitud_id)),
+        )
+        return cursor.rowcount
+
+    def pedir_recomendacion_grupo(self, cursor, solicitud_id: int) -> int:
+        cursor.execute(
+            """
+            UPDATE solicitudes
+            SET asignada_a_codigo = NULL,
+                asignada_a_nombre = NULL,
+                destino = 'buscando_ayuda',
+                proximidad_estado = 'rechazada'
+            WHERE id = ?
+              AND estado = 'pendiente'
+              AND COALESCE(proximidad_estado, '') = 'pendiente_aprobacion'
+            """,
+            (int(solicitud_id),),
+        )
+        return cursor.rowcount
 
     def listar_activas_grupo_o_asignada(
         self, cursor, codigo: str, grupo_id: Any
@@ -160,10 +288,12 @@ class SolicitudRepo:
         cursor.execute(
             """
             SELECT id, grupo_id, solicitante_codigo, solicitante_nombre, oficio, descripcion, estado, created_at,
-                   asignada_a_codigo, asignada_a_nombre
+                   asignada_a_codigo, asignada_a_nombre, destino,
+                   proximidad_codigo, proximidad_nombre, proximidad_cp, proximidad_zona, proximidad_estado
             FROM solicitudes
             WHERE estado = 'pendiente'
               AND solicitante_codigo != ?
+              AND COALESCE(proximidad_estado, '') != 'pendiente_aprobacion'
               AND (
                 asignada_a_codigo = ?
                 OR (
@@ -197,7 +327,8 @@ class SolicitudRepo:
         cursor.execute(
             """
             SELECT id, grupo_id, solicitante_codigo, solicitante_nombre, oficio, descripcion, estado, created_at,
-                   asignada_a_codigo, asignada_a_nombre
+                   asignada_a_codigo, asignada_a_nombre, destino,
+                   proximidad_codigo, proximidad_nombre, proximidad_cp, proximidad_zona, proximidad_estado
             FROM solicitudes
             WHERE estado = 'pendiente' AND asignada_a_codigo = ?
             ORDER BY created_at DESC

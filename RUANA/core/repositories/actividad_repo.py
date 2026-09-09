@@ -98,6 +98,8 @@ class ActividadRepo:
             FROM solicitudes
             WHERE grupo_id = ?
               AND created_at >= datetime('now', '-30 days')
+              AND COALESCE(asignada_a_codigo, '') = ''
+              AND COALESCE(proximidad_estado, '') != 'pendiente_aprobacion'
             ORDER BY created_at DESC
             LIMIT 25
             """,

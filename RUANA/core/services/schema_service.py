@@ -420,6 +420,7 @@ def _init_db(db):
             db._migrar_invitaciones_revocada(conn, cursor)
             db._migrar_grupo_crecimiento_recompensas(conn, cursor)
             db._migrar_solicitudes_candidato(conn, cursor)
+            db._migrar_solicitudes_proximidad(conn, cursor)
             db._migrar_solicitudes_semanales(conn, cursor)
             db._migrar_aliado_accesos_dia(conn, cursor)
             db._migrar_datos_plaza_oficio(conn, cursor)
@@ -2669,6 +2670,32 @@ def _migrar_solicitudes_candidato(db, conn, cursor) -> None:
     except Exception as ex:
         print(f"[RUANA][DB] Aviso migrar solicitudes candidato: {ex}")
 
+def _migrar_solicitudes_proximidad(db, conn, cursor) -> None:
+    """Enrutado Nueva conexión: destino local, recomendación cercana o buscando ayuda."""
+    cols_new = [
+        ("destino", "TEXT"),
+        ("proximidad_codigo", "TEXT"),
+        ("proximidad_nombre", "TEXT"),
+        ("proximidad_cp", "TEXT"),
+        ("proximidad_zona", "TEXT"),
+        ("proximidad_estado", "TEXT"),
+    ]
+    try:
+        if getattr(db, "backend", None) == "postgres":
+            for col, def_sql in cols_new:
+                _repo.execute(
+                    cursor,
+                    f"ALTER TABLE solicitudes ADD COLUMN IF NOT EXISTS {col} {def_sql}",
+                )
+            return
+        columnas = _repo.columnas_tabla(cursor, "solicitudes")
+        for col, def_sql in cols_new:
+            if col not in columnas:
+                _repo.execute(cursor, f"ALTER TABLE solicitudes ADD COLUMN {col} {def_sql}")
+    except Exception as ex:
+        print(f"[RUANA][DB] Aviso migrar solicitudes proximidad: {ex}")
+
+
 def _migrar_solicitudes_semanales(db, conn, cursor) -> None:
     """Tablas solicitudes_semanales y solicitudes_semanales_respuestas."""
     try:
@@ -3045,6 +3072,7 @@ def _init_postgres_schema(db):
         db._migrar_aliados_invitado_por(conn, cursor)
         db._migrar_invitaciones_solicitud_id(conn, cursor)
         db._migrar_solicitudes_candidato(conn, cursor)
+        db._migrar_solicitudes_proximidad(conn, cursor)
         db._migrar_solicitudes_semanales(conn, cursor)
         db._migrar_contactos_es_urgente(conn, cursor)
         db._migrar_negociacion_guiada(conn, cursor)
