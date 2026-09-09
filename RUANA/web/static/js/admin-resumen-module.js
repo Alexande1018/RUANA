@@ -207,6 +207,11 @@
     } catch (e) { /* ignorar */ }
   }
 
+  function hideAdminLoader(loader) {
+      if (loader) loader.style.display = 'none';
+      document.body.classList.remove('admin-is-loading');
+  }
+
   async function cargarDesdeApi(host) {
       const loader = document.getElementById('admin-loader');
       document.body.classList.add('admin-is-loading');
@@ -221,91 +226,123 @@
           signal: loadController.signal
       };
       try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5000);
-          const stats24hFetch = fetch('/api/admin/stats-24h', {
-              method: 'GET',
-              credentials: 'same-origin',
-              headers: authHeaders,
-              signal: controller.signal
-          }).then(r => {
-              clearTimeout(timeoutId);
-              return r;
-          }).then(r => r.ok ? r.json().catch(() => null) : null).catch(err => {
-              clearTimeout(timeoutId);
-              return { _error: err.name === 'AbortError' ? 'timeout' : 'fail' };
-          });
-
-          const fetchPromises = [
-              fetch('/api/admin/dashboard-summary', fetchOpts),
-              fetch('/api/stats', fetchOpts),
-              fetch('/api/aliados/listar', fetchOpts),
-              fetch('/api/admin/pending-users', fetchOpts),
-              fetch('/api/metricas-salud', fetchOpts),
-              fetch('/api/eventos-recientes', fetchOpts),
-              fetch('/api/admin/payment-conflicts', fetchOpts),
-              fetch('/api/admin/pagos-apoyo', fetchOpts),
-              fetch('/api/admin/pagos-en-revision', fetchOpts),
-              fetch('/api/admin/stripe/resumen', fetchOpts),
-              fetch('/api/admin/solicitudes', fetchOpts),
-              fetch('/api/admin/chats?limite=10&offset=0', fetchOpts),
-              fetch('/api/admin/conversations?limite=100', fetchOpts),
-              fetch('/api/admin/competencias-activas', fetchOpts),
-              fetch('/api/admin/competencias-pendientes', fetchOpts),
-              fetch('/api/admin/competencias-historial?limite=30', fetchOpts),
-              stats24hFetch,
-              fetch('/api/admin/invitaciones-recientes?limite=15', fetchOpts),
-              fetch('/api/admin/invitacion-campanas?limite=30', fetchOpts),
-              fetch('/api/admin/metodos-pago', fetchOpts),
-              fetch('/api/admin/suplentes-espera', fetchOpts),
-              fetch('/api/admin/centro-comunicacion?limite=120', fetchOpts),
-              fetch('/api/admin/aliados-eliminados', fetchOpts),
-              fetch('/api/admin/solicitudes-baja', fetchOpts),
-              fetch('/api/admin/solicitudes-semanales', fetchOpts)
+          const fetchStarters = [
+              function () { return fetch('/api/admin/dashboard-summary', fetchOpts); },
+              function () { return fetch('/api/stats', fetchOpts); },
+              function () { return fetch('/api/aliados/listar', fetchOpts); },
+              function () { return fetch('/api/admin/pending-users', fetchOpts); },
+              function () { return fetch('/api/metricas-salud', fetchOpts); },
+              function () { return fetch('/api/eventos-recientes', fetchOpts); },
+              function () { return fetch('/api/admin/payment-conflicts', fetchOpts); },
+              function () { return fetch('/api/admin/pagos-apoyo', fetchOpts); },
+              function () { return fetch('/api/admin/pagos-en-revision', fetchOpts); },
+              function () { return fetch('/api/admin/stripe/resumen', fetchOpts); },
+              function () { return fetch('/api/admin/solicitudes', fetchOpts); },
+              function () { return fetch('/api/admin/chats?limite=10&offset=0', fetchOpts); },
+              function () { return fetch('/api/admin/conversations?limite=100', fetchOpts); },
+              function () { return fetch('/api/admin/competencias-activas', fetchOpts); },
+              function () { return fetch('/api/admin/competencias-pendientes', fetchOpts); },
+              function () { return fetch('/api/admin/competencias-historial?limite=30', fetchOpts); },
+              function () {
+                  const controller = new AbortController();
+                  const timeoutId = setTimeout(() => controller.abort(), 5000);
+                  return fetch('/api/admin/stats-24h', {
+                      method: 'GET',
+                      credentials: 'same-origin',
+                      headers: authHeaders,
+                      signal: controller.signal
+                  }).then(r => {
+                      clearTimeout(timeoutId);
+                      return r;
+                  }).then(r => r.ok ? r.json().catch(() => null) : null).catch(err => {
+                      clearTimeout(timeoutId);
+                      return { _error: err.name === 'AbortError' ? 'timeout' : 'fail' };
+                  });
+              },
+              function () { return fetch('/api/admin/invitaciones-recientes?limite=15', fetchOpts); },
+              function () { return fetch('/api/admin/invitacion-campanas?limite=30', fetchOpts); },
+              function () { return fetch('/api/admin/metodos-pago', fetchOpts); },
+              function () { return fetch('/api/admin/suplentes-espera', fetchOpts); },
+              function () { return fetch('/api/admin/centro-comunicacion?limite=120', fetchOpts); },
+              function () { return fetch('/api/admin/aliados-eliminados', fetchOpts); },
+              function () { return fetch('/api/admin/solicitudes-baja', fetchOpts); },
+              function () { return fetch('/api/admin/solicitudes-semanales', fetchOpts); }
           ];
-          const settled = await Promise.allSettled(fetchPromises);
-          const responses = settled.map((r, i) => (r.status === 'fulfilled' ? r.value : null));
-
-          const any401 = responses.some(r => r && typeof r.status === 'number' && r.status === 401);
-          if (any401) {
-              host._adminSessionExpired();
-              return;
+          const criticalIdx = [0, 1, 3, 4, 5, 16];
+          const responses = new Array(fetchStarters.length);
+          async function settleIndexes(indexes) {
+              const settled = await Promise.allSettled(indexes.map(function (idx) { return fetchStarters[idx](); }));
+              indexes.forEach(function (idx, i) {
+                  responses[idx] = settled[i].status === 'fulfilled' ? settled[i].value : null;
+              });
           }
-
+          function has401(indexes) {
+              return indexes.some(function (idx) {
+                  var r = responses[idx];
+                  return r && typeof r.status === 'number' && r.status === 401;
+              });
+          }
           async function parseResponse(r, isStats24h) {
               if (isStats24h) return r;
               if (!r || typeof r.ok !== 'boolean') return null;
               if (!r.ok) return null;
               return r.json().catch(() => null);
           }
-          const idx16 = responses[16];
-          const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, stripeResumenData, solicitudesData, chatsData, contactosChatData, competenciasData, competenciasPendientesData, competenciasHistorialData, stats24hData, invitacionesRecData, campanasData, metodosPagoData, suplentesEsperaData, centroComData, eliminadosData, solicitudesBajaData, solicitudesSemanalesData] = await Promise.all([
-              parseResponse(responses[0], false),
-              parseResponse(responses[1], false),
-              parseResponse(responses[2], false),
-              parseResponse(responses[3], false),
-              parseResponse(responses[4], false),
-              parseResponse(responses[5], false),
-              parseResponse(responses[6], false),
-              parseResponse(responses[7], false),
-              parseResponse(responses[8], false),
-              parseResponse(responses[9], false),
-              parseResponse(responses[10], false),
-              parseResponse(responses[11], false),
-              parseResponse(responses[12], false),
-              parseResponse(responses[13], false),
-              parseResponse(responses[14], false),
-              parseResponse(responses[15], false),
-              Promise.resolve(idx16),
-              parseResponse(responses[17], false),
-              parseResponse(responses[18], false),
-              parseResponse(responses[19], false),
-              parseResponse(responses[20], false),
-              parseResponse(responses[21], false),
-              parseResponse(responses[22], false),
-              parseResponse(responses[23], false),
-              parseResponse(responses[24], false)
-          ]);
+          const parsed = new Array(fetchStarters.length);
+          async function parseIndexes(indexes) {
+              await Promise.all(indexes.map(async function (idx) {
+                  parsed[idx] = await parseResponse(responses[idx], idx === 16);
+              }));
+          }
+
+          await settleIndexes(criticalIdx);
+          if (has401(criticalIdx)) {
+              host._adminSessionExpired();
+              return;
+          }
+          await parseIndexes(criticalIdx);
+
+          var pendientesCriticos = (parsed[3] && parsed[3].status === 'success' && Array.isArray(parsed[3].aliados)) ? parsed[3].aliados : [];
+          var dashOkCrit = parsed[0] && !parsed[0].status;
+          var statsOkCrit = parsed[1] && parsed[1].status === 'success';
+          var indicadoresCriticos = buildIndicadoresAdmin(parsed[0], parsed[1], parsed[2], pendientesCriticos);
+          if (dashOkCrit || statsOkCrit) {
+              paintResumenCritico(host, {
+                  indicadores: indicadoresCriticos,
+                  statsData: parsed[1],
+                  metricasData: parsed[4],
+                  eventosData: parsed[5],
+                  stats24hData: parsed[16],
+                  pendientes: pendientesCriticos
+              });
+              refreshCommandCenterPanels(host, {
+                  indicadores: indicadoresCriticos,
+                  eventos: (parsed[5] && parsed[5].status === 'success' && Array.isArray(parsed[5].eventos)) ? parsed[5].eventos.map(function (ev) {
+                      return { fecha: ev.fecha || ev.creado_en, descripcion: ev.descripcion, tipo: ev.tipo };
+                  }) : []
+              }, { heavy: false });
+          } else {
+              host.showToast('No se pudo cargar el resumen. Se mantienen las cifras anteriores.', 'error');
+          }
+          hideAdminLoader(loader);
+
+          var secondaryIdx = [];
+          for (var si = 0; si < fetchStarters.length; si++) {
+              if (criticalIdx.indexOf(si) === -1) secondaryIdx.push(si);
+          }
+          if (typeof requestAnimationFrame === 'function') {
+              await new Promise(function (resolve) {
+                  requestAnimationFrame(function () { requestAnimationFrame(resolve); });
+              });
+          }
+          await settleIndexes(secondaryIdx);
+          if (has401(secondaryIdx)) {
+              host._adminSessionExpired();
+              return;
+          }
+          await parseIndexes(secondaryIdx);
+
+          const [dashboardData, statsData, aliadosData, pendientesData, metricasData, eventosData, conflictosData, pagosApoyoData, pagosEnRevisionData, stripeResumenData, solicitudesData, chatsData, contactosChatData, competenciasData, competenciasPendientesData, competenciasHistorialData, stats24hData, invitacionesRecData, campanasData, metodosPagoData, suplentesEsperaData, centroComData, eliminadosData, solicitudesBajaData, solicitudesSemanalesData] = parsed;
 
           // Pendientes de validación (unir API + lista por código)
           const pendientesFromApi = (pendientesData && pendientesData.status === 'success' && Array.isArray(pendientesData.aliados)) ? pendientesData.aliados : [];
@@ -322,30 +359,7 @@
           if (!tieneDatosCriticos) {
               host.showToast('No se pudo cargar el resumen. Se mantienen las cifras anteriores.', 'error');
           }
-          const totalGruposRaw = dashOk ? dashboardData.grupos : (statsOk ? statsData.total_grupos : undefined);
-          const totalGrupos = typeof totalGruposRaw === 'number' ? totalGruposRaw : (totalGruposRaw && typeof totalGruposRaw.total === 'number' ? totalGruposRaw.total : 0);
-          const indicadores = {
-              totalAliados: dashOk ? (dashboardData.total_users ?? 0) : (statsOk ? statsData.total_aliados : (aliadosData && aliadosData.total) || 0),
-              aliadosActivos: dashOk ? (dashboardData.active_users ?? 0) : (statsOk ? statsData.aliados_activos : 0),
-              retadores: dashOk ? (dashboardData.retadores ?? dashboardData.suplentes ?? 0) : (statsOk ? (statsData.retadores || statsData.suplentes || 0) : 0),
-              enEspera: dashOk ? (dashboardData.en_espera ?? 0) : (statsOk ? (statsData.en_espera || 0) : 0),
-              enRiesgo: dashOk ? (dashboardData.en_riesgo ?? 0) : (statsOk ? (statsData.en_riesgo || 0) : 0),
-              solicitudesActivas: dashOk ? (dashboardData.solicitudes_activas ?? 0) : (statsOk ? (statsData.solicitudes_activas || 0) : 0),
-              pendientesValidacion: pendientes.length,
-              oficiosOcupados: dashOk ? (dashboardData.oficios_ocupados ?? '-') : (statsOk ? (statsData.oficios_ocupados ?? '-') : '-'),
-              totalGrupos: dashOk ? (dashboardData.grupos ?? 0) : totalGrupos,
-              gruposActivos: dashOk ? (dashboardData.grupos_activos ?? 0) : (statsOk ? (statsData.grupos_activos ?? 0) : 0),
-              gruposEnCompetencia: dashOk ? (dashboardData.grupos_en_competencia ?? 0) : (statsOk ? (statsData.grupos_en_competencia ?? 0) : 0),
-              gruposDisueltos: dashOk ? (dashboardData.grupos_disueltos ?? 0) : (statsOk ? (statsData.grupos_disueltos ?? 0) : 0),
-              aliadosSinGrupoTerritorial: dashOk ? (dashboardData.aliados_sin_grupo_territorial ?? 0) : 0,
-              estadoSistema: (() => {
-                  const e = dashOk ? (dashboardData.estado_sistema || 'Estable') : (statsOk ? (statsData.estado_sistema || 'Estable') : 'Estable');
-                  const low = String(e).toLowerCase();
-                  if (low === 'estable' || low === 'alerta') return e.charAt(0).toUpperCase() + e.slice(1).toLowerCase();
-                  if (low === 'crítico' || low === 'critico') return 'Crítico';
-                  return 'Estable';
-              })()
-          };
+          const indicadores = buildIndicadoresAdmin(dashboardData, statsData, aliadosData, pendientes);
 
           if (tieneDatosCriticos) {
               host.renderEstadoGlobal({ indicadores });
@@ -440,7 +454,7 @@
                   : [],
               competencias: (competenciasData && competenciasData.status === 'success' && Array.isArray(competenciasData.competencias)) ? competenciasData.competencias : [],
               trabajos: conversaciones.length
-          });
+          }, { heavy: true });
       } catch (e) {
           host.showToast('Error de conexión. Comprueba la red.', 'error');
           host._conversacionesList = [];
@@ -451,16 +465,80 @@
           host.cargarChatsFallback();
       } finally {
           clearTimeout(loadTimeoutId);
-          if (loader) loader.style.display = 'none';
-          document.body.classList.remove('admin-is-loading');
+          hideAdminLoader(loader);
       }
 }
 
-async function refreshCommandCenterPanels(host, payload) {
+  function buildIndicadoresAdmin(dashboardData, statsData, aliadosData, pendientes) {
+      const dashOk = dashboardData && !dashboardData.status;
+      const statsOk = statsData && statsData.status === 'success';
+      const totalGruposRaw = dashOk ? dashboardData.grupos : (statsOk ? statsData.total_grupos : undefined);
+      const totalGrupos = typeof totalGruposRaw === 'number' ? totalGruposRaw : (totalGruposRaw && typeof totalGruposRaw.total === 'number' ? totalGruposRaw.total : 0);
+      const pendientesLen = Array.isArray(pendientes) ? pendientes.length : 0;
+      return {
+          totalAliados: dashOk ? (dashboardData.total_users ?? 0) : (statsOk ? statsData.total_aliados : (aliadosData && aliadosData.total) || 0),
+          aliadosActivos: dashOk ? (dashboardData.active_users ?? 0) : (statsOk ? statsData.aliados_activos : 0),
+          retadores: dashOk ? (dashboardData.retadores ?? dashboardData.suplentes ?? 0) : (statsOk ? (statsData.retadores || statsData.suplentes || 0) : 0),
+          enEspera: dashOk ? (dashboardData.en_espera ?? 0) : (statsOk ? (statsData.en_espera || 0) : 0),
+          enRiesgo: dashOk ? (dashboardData.en_riesgo ?? 0) : (statsOk ? (statsData.en_riesgo || 0) : 0),
+          solicitudesActivas: dashOk ? (dashboardData.solicitudes_activas ?? 0) : (statsOk ? (statsData.solicitudes_activas || 0) : 0),
+          pendientesValidacion: pendientesLen,
+          oficiosOcupados: dashOk ? (dashboardData.oficios_ocupados ?? '-') : (statsOk ? (statsData.oficios_ocupados ?? '-') : '-'),
+          totalGrupos: dashOk ? (dashboardData.grupos ?? 0) : totalGrupos,
+          gruposActivos: dashOk ? (dashboardData.grupos_activos ?? 0) : (statsOk ? (statsData.grupos_activos ?? 0) : 0),
+          gruposEnCompetencia: dashOk ? (dashboardData.grupos_en_competencia ?? 0) : (statsOk ? (statsData.grupos_en_competencia ?? 0) : 0),
+          gruposDisueltos: dashOk ? (dashboardData.grupos_disueltos ?? 0) : (statsOk ? (statsData.grupos_disueltos ?? 0) : 0),
+          aliadosSinGrupoTerritorial: dashOk ? (dashboardData.aliados_sin_grupo_territorial ?? 0) : 0,
+          estadoSistema: (() => {
+              const e = dashOk ? (dashboardData.estado_sistema || 'Estable') : (statsOk ? (statsData.estado_sistema || 'Estable') : 'Estable');
+              const low = String(e).toLowerCase();
+              if (low === 'estable' || low === 'alerta') return e.charAt(0).toUpperCase() + e.slice(1).toLowerCase();
+              if (low === 'crítico' || low === 'critico') return 'Crítico';
+              return 'Estable';
+          })()
+      };
+  }
+
+  function paintResumenCritico(host, payload) {
+      host.renderEstadoGlobal({ indicadores: payload.indicadores });
+      var stats24hData = payload.stats24hData;
+      var tieneMovimiento24h = stats24hData && !stats24hData._error && (stats24hData.status === 'success' || stats24hData.solicitudes != null || stats24hData.invitaciones != null || (Array.isArray(stats24hData.top_invitadores) && stats24hData.top_invitadores.length > 0));
+      if (stats24hData && stats24hData._error) {
+          host.renderMovimientoError(stats24hData._error === 'timeout' ? 'No se pudieron cargar estadísticas' : 'Sin datos disponibles');
+      } else if (tieneMovimiento24h) {
+          host.renderMovimientoError(null);
+          host.renderMovimiento({
+              movimiento24h: {
+                  solicitudes: stats24hData.solicitudes || { nuevas: 0, atendidas: 0, sin_respuesta: 0 },
+                  invitaciones: stats24hData.invitaciones || { generadas: 0, usadas: 0, expiradas: 0 },
+                  top_invitadores: stats24hData.top_invitadores || []
+              },
+              movimiento24hHoras: null
+          });
+      } else {
+          host.renderMovimientoError('Sin datos disponibles');
+      }
+      var metricasData = payload.metricasData;
+      var metricasPayload = (metricasData && metricasData.status === 'success' && metricasData.metricas != null)
+          ? metricasData.metricas
+          : { ratio_solicitud_invitacion: 0, ratio_invitacion_registro: 0, oficios_saturados: 0, oficios_disponibles: 0, zona_mayor_demanda: '—', tasa_retencion: 0 };
+      host.renderMetricas({ metricas: metricasPayload });
+      if (typeof host.renderPendientesValidacion === 'function') {
+          host.renderPendientesValidacion(payload.pendientes || []);
+      }
+      var eventosData = payload.eventosData;
+      host.renderEventos((eventosData && eventosData.status === 'success' && Array.isArray(eventosData.eventos)) ? eventosData.eventos : []);
+      var statsData = payload.statsData;
+      var permisos = (statsData && Array.isArray(statsData.permisos)) ? statsData.permisos : ['leer', 'escribir', 'eliminar', 'configurar'];
+      if (typeof host.applyPermisosUI === 'function') host.applyPermisosUI(permisos);
+  }
+
+async function refreshCommandCenterPanels(host, payload, options) {
       var cc = global.RuanaAdminModules && global.RuanaAdminModules.commandCenter;
       if (cc && typeof cc.refresh === 'function') {
           cc.refresh(host, payload || {});
       }
+      if (options && options.heavy === false) return;
       var intel = global.RuanaAdminModules && global.RuanaAdminModules.intelligence;
       if (intel && typeof intel.refresh === 'function') {
           intel.refresh(host);
