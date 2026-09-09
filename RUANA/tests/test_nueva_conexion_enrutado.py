@@ -96,6 +96,43 @@ def test_oficio_idiomas_en_grupo_entrega_inmediata(sqlite_db):
     assert "proximidad_solicitud" not in _tipos(sqlite_db, "91102")
 
 
+def test_fontanero_mismo_grupo_aparece_en_recibidas_del_profesional(sqlite_db):
+    """Carolina 58848 envía a Carlos 66803 (mismo grupo): él debe verla en recibidas."""
+    _crear(sqlite_db, "58848", oficio="Electricidad", cp="03001")
+    _crear(sqlite_db, "66803", oficio="Fontanería y fontanería-gas", cp="03001")
+
+    creada = solicitud_service.crear_solicitud_por_codigo(
+        sqlite_db, "58848", "Fontanería", "Fuga en casa, prueba Carolina"
+    )
+    assert creada["status"] == "success"
+    sid = creada["id"]
+    assert creada["enrutamiento"] == "profesional_grupo"
+    assert creada["profesional"]["codigo"] == "66803"
+    assert "enviada a" in (creada.get("mensaje") or "").lower()
+
+    assert sid in _ids_entrantes(sqlite_db, "66803")
+    assert sid not in _ids_entrantes(sqlite_db, "58848")
+    propias = solicitud_service.listar_solicitudes_propias_por_codigo(sqlite_db, "58848")
+    assert sid in {s.get("id") for s in propias}
+
+
+def test_listar_recibidas_sigue_si_expirar_candidatos_falla(sqlite_db, monkeypatch):
+    """Un fallo al caducar candidatos no puede dejar la bandeja del profesional vacía."""
+    _crear(sqlite_db, "58848", oficio="Electricidad", cp="03001")
+    _crear(sqlite_db, "66803", oficio="Fontanería y fontanería-gas", cp="03001")
+    creada = solicitud_service.crear_solicitud_por_codigo(
+        sqlite_db, "58848", "Fontanería", "No debe perderse si caduca mal"
+    )
+    assert creada["status"] == "success"
+    sid = creada["id"]
+
+    def boom(*_a, **_k):
+        raise RuntimeError("datetime('now', ?) no vale en Postgres")
+
+    monkeypatch.setattr(solicitud_service, "_expirar_candidatos_vencidos_lazy", boom)
+    assert sid in _ids_entrantes(sqlite_db, "66803")
+
+
 def test_oficio_idiomas_mismo_cp_otro_grupo_entrega_inmediata(sqlite_db):
     """Tras el split territorial, mismo CP y otro grupo_id sigue siendo entrega local."""
     _crear(sqlite_db, "91201", oficio="Electricidad", cp="03001")

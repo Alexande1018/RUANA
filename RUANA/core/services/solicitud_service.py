@@ -179,7 +179,7 @@ def _enriquecer_propia(row: Dict[str, Any]) -> Dict[str, Any]:
 
 def _pack_profesional(row: Dict[str, Any], oficio: str, mismo_grupo: bool) -> Dict[str, Any]:
     return {
-        "codigo": row.get("codigo"),
+        "codigo": str(row.get("codigo") or "").strip(),
         "nombre": row.get("nombre") or "",
         "oficio": row.get("oficio") or oficio,
         "codigo_postal": row.get("codigo_postal") or "",
@@ -336,6 +336,19 @@ def _expirar_candidatos_vencidos(db, cursor) -> int:
 def _expirar_candidatos_vencidos_lazy(db, conn, cursor) -> int:
     _asegurar_migraciones_candidato(db, conn, cursor)
     return _expirar_candidatos_vencidos(db, cursor)
+
+
+def _try_expirar_candidatos(db, conn, cursor) -> None:
+    """La caducidad no puede tumbar el listado (bandeja vacía si Postgres rechaza el SQL)."""
+    try:
+        _expirar_candidatos_vencidos_lazy(db, conn, cursor)
+        conn.commit()
+    except Exception as exc:
+        print(f"Error expirando candidatos pendientes: {exc}")
+        try:
+            conn.rollback()
+        except Exception:
+            pass
 
 
 def expirar_candidatos_pendientes_vencidos(db) -> Dict[str, Any]:
@@ -817,9 +830,8 @@ def listar_solicitudes_activas_por_codigo(db, codigo: str) -> List[Dict[str, Any
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            _expirar_candidatos_vencidos_lazy(db, conn, cursor)
-            conn.commit()
-            codigo = codigo.strip()
+            codigo = str(codigo or "").strip()
+            _try_expirar_candidatos(db, conn, cursor)
             aliado = _repo.select_aliado_grupo_nombre(cursor, codigo)
             if not aliado:
                 return []
@@ -837,6 +849,7 @@ def listar_solicitudes_activas_por_codigo(db, codigo: str) -> List[Dict[str, Any
             else:
                 return _json_safe_rows(_repo.listar_activas_asignadas(cursor, codigo))
         except Exception as e:
+            print(f"Error listar_solicitudes_activas_por_codigo: {e}")
             return []
         finally:
             conn.close()
@@ -849,9 +862,8 @@ def listar_solicitudes_propias_por_codigo(db, codigo: str) -> List[Dict[str, Any
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            _expirar_candidatos_vencidos_lazy(db, conn, cursor)
-            conn.commit()
-            aliado = _repo.select_aliado_grupo_nombre(cursor, codigo.strip())
+            _try_expirar_candidatos(db, conn, cursor)
+            aliado = _repo.select_aliado_grupo_nombre(cursor, str(codigo or "").strip())
             if not aliado or aliado[0] is None:
                 return []
             grupo_id = aliado[0]
@@ -859,8 +871,9 @@ def listar_solicitudes_propias_por_codigo(db, codigo: str) -> List[Dict[str, Any
             if 'solicitante_codigo' not in cols:
                 return []
             extra = _extra_cols_candidato_asignada(cols)
-            return [_enriquecer_propia(r) for r in _json_safe_rows(_repo.listar_propias(cursor, grupo_id, codigo.strip(), extra))]
+            return [_enriquecer_propia(r) for r in _json_safe_rows(_repo.listar_propias(cursor, grupo_id, str(codigo or "").strip(), extra))]
         except Exception as e:
+            print(f"Error listar_solicitudes_propias_por_codigo: {e}")
             return []
         finally:
             conn.close()
@@ -873,9 +886,8 @@ def listar_solicitudes_historial_grupo_por_codigo(db, codigo: str, limite: int =
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            _expirar_candidatos_vencidos_lazy(db, conn, cursor)
-            conn.commit()
-            aliado = _repo.select_aliado_grupo_nombre(cursor, codigo.strip())
+            _try_expirar_candidatos(db, conn, cursor)
+            aliado = _repo.select_aliado_grupo_nombre(cursor, str(codigo or "").strip())
             if not aliado or aliado[0] is None:
                 return []
             grupo_id = aliado[0]
@@ -885,6 +897,7 @@ def listar_solicitudes_historial_grupo_por_codigo(db, codigo: str, limite: int =
             extra = _extra_cols_candidato_asignada(cols)
             return _json_safe_rows(_repo.listar_historial_grupo(cursor, grupo_id, limite, extra))
         except Exception as e:
+            print(f"Error listar_solicitudes_historial_grupo_por_codigo: {e}")
             return []
         finally:
             conn.close()
@@ -899,8 +912,7 @@ def obtener_solicitudes_grupo(db, codigo_postal: str) -> List[Dict[str, Any]]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            _expirar_candidatos_vencidos_lazy(db, conn, cursor)
-            conn.commit()
+            _try_expirar_candidatos(db, conn, cursor)
             cols = _repo.columnas_solicitudes(cursor)
             if 'solicitante_codigo' not in cols:
                 return []
