@@ -1648,6 +1648,9 @@
                     if (btnConfirm) btnConfirm.disabled = true;
                     try {
                         await config.execute(this._modalAccion.payload);
+                    } catch (err) {
+                        console.error('Error ejecutando accion admin:', err);
+                        return;
                     } finally {
                         if (btnConfirm) btnConfirm.disabled = false;
                     }

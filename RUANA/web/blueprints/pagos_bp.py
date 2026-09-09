@@ -88,8 +88,14 @@ def admin_actualizar_metodos_pago():
                 return jsonify({"status": "error", "message": "IBAN espanol no valido"}), 400
             valores["iban"] = iban_limpio
         db = get_db()
-        result = pago_service.actualizar_metodos_pago_ruana(db, valores, admin_codigo=_admin_codigo() or None)
-        status_code = 200 if result.get("status") == "success" else 400
+        result = dict(
+            pago_service.actualizar_metodos_pago_ruana(db, valores, admin_codigo=_admin_codigo() or None) or {}
+        )
+        if result.get("status") == "success":
+            status_code = 200
+        else:
+            status_code = int(result.pop("http_status", 400) or 400)
+        result.pop("http_status", None)
         return jsonify(result), status_code
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500

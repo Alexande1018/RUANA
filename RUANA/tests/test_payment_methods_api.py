@@ -102,3 +102,73 @@ def test_admin_qr_upload_updates_revolut_qr_path(client, monkeypatch, session_he
         {"qr_revolut_path": "https://storage.example/metodos/revolut.png"},
         "ADMIN001",
     )
+
+
+def test_admin_update_payment_methods_unauthorized(client):
+    response = client.post(
+        "/api/admin/metodos-pago",
+        json={"bizum_num": "600111222", "iban": _IBAN_FAKE},
+    )
+    assert response.status_code == 401
+    data = response.get_json()
+    assert data["status"] == "error"
+
+
+def test_admin_update_payment_methods_forbidden(client, monkeypatch, session_headers):
+    from RUANA.web import app as app_module
+
+    db = PaymentMethodsFakeDB()
+    monkeypatch.setattr(app_module, "get_db", lambda: db)
+    install_service_db_forwarders(monkeypatch)
+
+    response = client.post(
+        "/api/admin/metodos-pago",
+        headers=session_headers("admin", "ADMIN001", permisos=["leer"]),
+        json={"bizum_num": "600111222", "iban": _IBAN_FAKE},
+    )
+    assert response.status_code == 403
+    data = response.get_json()
+    assert data["status"] == "error"
+    assert db.calls == []
+
+
+def test_admin_update_payment_methods_invalid_iban(client, monkeypatch, session_headers):
+    from RUANA.web import app as app_module
+
+    db = PaymentMethodsFakeDB()
+    monkeypatch.setattr(app_module, "get_db", lambda: db)
+    install_service_db_forwarders(monkeypatch)
+
+    response = client.post(
+        "/api/admin/metodos-pago",
+        headers=session_headers("admin", "ADMIN001", permisos=["leer", "configurar"]),
+        json={"bizum_num": "600111222", "iban": "ES12"},
+    )
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["status"] == "error"
+    assert db.calls == []
+
+
+def test_admin_update_payment_methods_internal_error_is_500(client, monkeypatch, session_headers):
+    from RUANA.web import app as app_module
+
+    class FailingDB(PaymentMethodsFakeDB):
+        def actualizar_metodos_pago_ruana(self, valores, admin_codigo=None):
+            self.calls.append(("actualizar_metodos_pago_ruana", valores, admin_codigo))
+            return {"status": "error", "message": "fallo interno de persistencia", "http_status": 500}
+
+    db = FailingDB()
+    monkeypatch.setattr(app_module, "get_db", lambda: db)
+    install_service_db_forwarders(monkeypatch)
+
+    response = client.post(
+        "/api/admin/metodos-pago",
+        headers=session_headers("admin", "ADMIN001", permisos=["leer", "configurar"]),
+        json={"bizum_num": "600111222", "iban": _IBAN_FAKE},
+    )
+    assert response.status_code == 500
+    data = response.get_json()
+    assert data["status"] == "error"
+    assert "fallo interno" in (data.get("message") or "")
+    assert "http_status" not in data

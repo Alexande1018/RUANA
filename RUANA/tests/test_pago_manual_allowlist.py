@@ -218,3 +218,134 @@ def test_deshabilitar_oculta_pago_manual_al_aliado(client, sqlite_db, session_he
     assert metodos["habilitado"] is False
     assert metodos["iban"] is None
     assert metodos["bizum_num"] is None
+
+
+def test_admin_guardar_metodos_pago_persiste_en_get(client, sqlite_db, session_headers):
+    headers = _admin_headers(session_headers)
+    post = client.post(
+        "/api/admin/metodos-pago",
+        headers=headers,
+        json={"bizum_num": _BIZUM_FAKE, "iban": _IBAN_FAKE},
+    )
+    assert post.status_code == 200
+    body = post.get_json()
+    assert body["status"] == "success"
+    assert body["metodos"]["bizum_num"] == _BIZUM_FAKE
+    assert body["metodos"]["iban"] == _IBAN_FAKE
+
+    get = client.get("/api/admin/metodos-pago", headers=headers)
+    assert get.status_code == 200
+    metodos = get.get_json()["metodos"]
+    assert metodos["bizum_num"] == _BIZUM_FAKE
+    assert metodos["iban"] == _IBAN_FAKE
+
+
+def test_admin_metodos_pago_iban_invalido_es_400(client, sqlite_db, session_headers):
+    headers = _admin_headers(session_headers)
+    resp = client.post(
+        "/api/admin/metodos-pago",
+        headers=headers,
+        json={"bizum_num": _BIZUM_FAKE, "iban": "ES12"},
+    )
+    assert resp.status_code == 400
+    assert resp.get_json()["status"] == "error"
+    get = client.get("/api/admin/metodos-pago", headers=headers)
+    assert get.status_code == 200
+    assert get.get_json()["metodos"]["iban"] is None
+    assert get.get_json()["metodos"]["bizum_num"] is None
+
+
+def test_admin_metodos_pago_sin_sesion_es_401(client):
+    r_get = client.get("/api/admin/metodos-pago")
+    r_post = client.post(
+        "/api/admin/metodos-pago",
+        json={"bizum_num": _BIZUM_FAKE, "iban": _IBAN_FAKE},
+    )
+    assert r_get.status_code == 401
+    assert r_post.status_code == 401
+    assert r_get.get_json()["status"] == "error"
+    assert r_post.get_json()["status"] == "error"
+
+
+def test_admin_metodos_pago_solo_lectura_es_403(client, sqlite_db, session_headers):
+    resp = client.post(
+        "/api/admin/metodos-pago",
+        headers=_admin_headers(session_headers, escritura=False),
+        json={"bizum_num": _BIZUM_FAKE, "iban": _IBAN_FAKE},
+    )
+    assert resp.status_code == 403
+    data = resp.get_json()
+    assert data["status"] == "error"
+    get = client.get("/api/admin/metodos-pago", headers=_admin_headers(session_headers, escritura=False))
+    assert get.status_code == 200
+    assert get.get_json()["metodos"]["iban"] is None
+
+
+def test_metodos_pago_persisten_en_nueva_conexion_bd(sqlite_db):
+    sqlite_db.actualizar_metodos_pago_ruana(
+        {"bizum_num": _BIZUM_FAKE, "iban": _IBAN_FAKE},
+        admin_codigo="ADMIN001",
+    )
+    db2 = db_module.DBManager(sqlite_db.db_path)
+    cfg = db2.obtener_config_pago_manual()
+    assert cfg["bizum_num"] == _BIZUM_FAKE
+    assert cfg["iban"] == _IBAN_FAKE
+
+
+def test_guardar_metodos_pago_persiste_aunque_falle_evento(sqlite_db, monkeypatch):
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("eventos_sistema no disponible")
+
+    monkeypatch.setattr(sqlite_db, "_insert_evento_sistema", boom)
+    result = sqlite_db.actualizar_metodos_pago_ruana(
+        {"bizum_num": _BIZUM_FAKE, "iban": _IBAN_FAKE},
+        admin_codigo="ADMIN001",
+    )
+    assert result["status"] == "success"
+    cfg = sqlite_db.obtener_config_pago_manual()
+    assert cfg["bizum_num"] == _BIZUM_FAKE
+    assert cfg["iban"] == _IBAN_FAKE
+
+
+def test_get_admin_metodos_pago_error_es_500_visible(client, sqlite_db, session_headers, monkeypatch):
+    from core.services import pago_service
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("tabla rota")
+
+    monkeypatch.setattr(pago_service._repo, "select_metodos_pago_manual", boom)
+    resp = client.get("/api/admin/metodos-pago", headers=_admin_headers(session_headers))
+    assert resp.status_code == 500
+    data = resp.get_json()
+    assert data["status"] == "error"
+    assert "tabla rota" in (data.get("message") or "")
+
+
+def test_allowlist_tras_guardar_http_habilita_solo_aliado_incluido(
+    client, sqlite_db, session_headers
+):
+    headers = _admin_headers(session_headers)
+    post = client.post(
+        "/api/admin/metodos-pago",
+        headers=headers,
+        json={"bizum_num": _BIZUM_FAKE, "iban": _IBAN_FAKE},
+    )
+    assert post.status_code == 200
+    hab = client.post(
+        "/api/admin/metodos-pago/aliados/A0001/habilitar",
+        headers=headers,
+        json={},
+    )
+    assert hab.status_code == 200
+    visible = client.get("/api/metodos-pago", headers=session_headers("aliado", "A0001"))
+    assert visible.status_code == 200
+    metodos = visible.get_json()["metodos"]
+    assert metodos["habilitado"] is True
+    assert metodos["iban"] == _IBAN_FAKE
+    assert metodos["bizum_num"] == _BIZUM_FAKE
+    oculto = client.get("/api/metodos-pago", headers=session_headers("aliado", "77357"))
+    assert oculto.status_code == 200
+    metodos_ocultos = oculto.get_json()["metodos"]
+    assert metodos_ocultos["habilitado"] is False
+    assert metodos_ocultos["iban"] is None
+    assert metodos_ocultos["bizum_num"] is None
