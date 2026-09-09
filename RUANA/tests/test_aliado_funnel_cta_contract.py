@@ -1,4 +1,4 @@
-"""Contrato UI del embudo aliado: CTA de solicitudes asignadas y botones de pago."""
+"""Contrato UI: CTA de solicitudes asignadas. No toca el cobro «Ir a pagar»."""
 from pathlib import Path
 import subprocess
 import textwrap
@@ -20,29 +20,23 @@ def test_solicitud_asignada_a_mi_tiene_boton_aceptar():
     assert "&& !asignadaA;" not in js
 
 
-def test_conectar_gestionar_pago_disparan_accion_real():
-    shell = (WEB / "static" / "js" / "aliado-shell.js").read_text(encoding="utf-8")
-    pulse = (WEB / "static" / "js" / "ruana-pulse.js").read_text(encoding="utf-8")
+def test_ir_a_pagar_sigue_en_el_encargo_tras_acuerdo():
+    """El cobro del trabajo es «Ir a pagar» del contratante, no «Conectar pago» de Inicio."""
     stripe = (WEB / "static" / "js" / "aliado-stripe-pagos-module.js").read_text(encoding="utf-8")
-    aliado = (WEB / "aliado.html").read_text(encoding="utf-8")
+    negociacion = (WEB / "static" / "js" / "negociacion-guiada.js").read_text(encoding="utf-8")
+    contactos = (WEB / "static" / "js" / "aliado-contactos-module.js").read_text(encoding="utf-8")
 
-    assert "paymentAction: 'stripe-pendiente'" in shell
-    assert "paymentAction: 'apoyo-pago'" in shell
-    assert "data-inicio-alert" in shell
-    assert "iniciarOnboardingStripe" in shell
-    assert "handleAction(panel, 'stripe-pendiente')" in shell
-    assert "handleAction(panel, 'apoyo-pago')" in shell
+    checkout = stripe[stripe.index("async function iniciarPagoStripe") : stripe.index("async function iniciarPagoStripe") + 520]
+    assert "apiUrl(`/api/contactos/${contactoId}/stripe/checkout`)" in checkout
+    assert "checkout_url" in checkout
+    assert "btnLabel: importeTxt ? `Ir a pagar (${importeTxt})` : 'Ir a pagar'" in stripe
+    assert "tipo: 'pagar_stripe'" in stripe
+    assert "stripe-pagar-btn" in stripe
+    assert "iniciarPagoStripe(host, contacto.id)" in stripe
 
-    assert "handleAction: handleAction" in pulse
-    assert "if (!state.isOpen) open(host);" in pulse
-
-    assert "apiUrl('/api/aliado/stripe/onboarding')" in stripe
-    assert "fetch('/api/aliado/stripe/onboarding'" not in stripe
-
-    assert "aliado-solicitudes-module.js?v=20260909a" in aliado
-    assert "aliado-shell.js?v=20260909a" in aliado
-    assert "aliado-stripe-pagos-module.js?v=20260909a" in aliado
-    assert "ruana-pulse.js?v=20260909a" in aliado
+    assert "Ir a pagar" in negociacion
+    assert "iniciarPagoStripe(host, cid)" in negociacion
+    assert "getAccionPendienteStripe" in contactos
 
 
 def test_render_solicitudes_asignadas_muestra_cta(tmp_path):

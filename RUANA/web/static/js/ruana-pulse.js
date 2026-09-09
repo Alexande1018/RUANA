@@ -613,7 +613,6 @@
         if (!Array.isArray(items)) items = [];
         var item = items.find(function (i) { return i.id === itemId; });
         if (item && item.hasDetail) {
-            if (!state.isOpen) open(host);
             openDetail(host, itemId);
             return;
         }
@@ -741,7 +740,6 @@
         open: open,
         close: close,
         toggle: toggle,
-        handleAction: handleAction,
         init: init,
         isOpen: function () { return state.isOpen; },
         getPendingCount: getPendingCount,

@@ -281,7 +281,7 @@
   }
 
   async function iniciarOnboardingStripe() {
-    const resp = await fetch(apiUrl('/api/aliado/stripe/onboarding'), {
+    const resp = await fetch('/api/aliado/stripe/onboarding', {
       method: 'POST',
       credentials: 'include',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
@@ -339,7 +339,7 @@
   async function refreshStripeEstadoFromServer(host) {
     if (!host) return;
     try {
-      const resp = await fetch(apiUrl('/api/aliado/stripe/estado'), {
+      const resp = await fetch('/api/aliado/stripe/estado', {
         credentials: 'include',
         headers: authHeaders(),
       });
@@ -352,7 +352,7 @@
         renderOnboardingUi(host);
         return data;
       }
-      const respDatos = await fetch(apiUrl('/api/aliado/datos'), {
+      const respDatos = await fetch('/api/aliado/datos', {
         credentials: 'include',
         headers: authHeaders(),
       });
