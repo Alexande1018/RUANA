@@ -477,9 +477,20 @@
                 if (qrData.metodos) host.renderMetodosPago(qrData.metodos);
             } else if (data.metodos) {
                 host.renderMetodosPago(data.metodos);
+            } else {
+                host.renderMetodosPago({ bizum_num: p.bizum_num, iban: p.iban });
             }
+            const guardados = Object.assign({}, host._metodosPago || {}, data.metodos || {
+                bizum_num: p.bizum_num,
+                iban: p.iban
+            });
             host.showToast('Metodos de pago actualizados. Esto no activa el pago manual: habilita aliados en la allowlist.', 'success');
             await host.cargarDesdeApi();
+            const trasReload = host._metodosPago || {};
+            if (guardados.bizum_num && !trasReload.bizum_num) {
+                host.renderMetodosPago(guardados);
+                fail('El guardado no se reflejó al recargar. Los metodos de pago no quedaron en la base de datos.');
+            }
         }
     });
   }

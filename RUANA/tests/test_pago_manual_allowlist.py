@@ -296,6 +296,7 @@ def test_guardar_metodos_pago_persiste_aunque_falle_evento(sqlite_db, monkeypatc
     def boom(*_args, **_kwargs):
         raise RuntimeError("eventos_sistema no disponible")
 
+    monkeypatch.setattr(sqlite_db, "registrar_evento_sistema", boom)
     monkeypatch.setattr(sqlite_db, "_insert_evento_sistema", boom)
     result = sqlite_db.actualizar_metodos_pago_ruana(
         {"bizum_num": _BIZUM_FAKE, "iban": _IBAN_FAKE},
@@ -349,3 +350,74 @@ def test_allowlist_tras_guardar_http_habilita_solo_aliado_incluido(
     assert metodos_ocultos["habilitado"] is False
     assert metodos_ocultos["iban"] is None
     assert metodos_ocultos["bizum_num"] is None
+
+
+def test_get_elige_fila_con_datos_aunque_la_primera_este_vacia(sqlite_db):
+    conn = sqlite_db._connect()
+    conn.execute(
+        "INSERT INTO ruana_metodos_pago_manual (bizum_num, iban) VALUES (?, ?)",
+        (None, None),
+    )
+    conn.execute(
+        "INSERT INTO ruana_metodos_pago_manual (bizum_num, iban) VALUES (?, ?)",
+        (_BIZUM_FAKE, _IBAN_FAKE),
+    )
+    conn.commit()
+    conn.close()
+    cfg = sqlite_db.obtener_config_pago_manual()
+    assert cfg["bizum_num"] == _BIZUM_FAKE
+    assert cfg["iban"] == _IBAN_FAKE
+
+
+def test_guardar_metodos_pago_actualiza_todas_las_filas(sqlite_db):
+    conn = sqlite_db._connect()
+    conn.execute(
+        "INSERT INTO ruana_metodos_pago_manual (bizum_num, iban) VALUES (?, ?)",
+        (None, None),
+    )
+    conn.execute(
+        "INSERT INTO ruana_metodos_pago_manual (bizum_num, iban) VALUES (?, ?)",
+        ("600111222", _IBAN_FAKE),
+    )
+    conn.commit()
+    conn.close()
+    result = sqlite_db.actualizar_metodos_pago_ruana(
+        {"bizum_num": _BIZUM_FAKE, "iban": _IBAN_FAKE},
+        admin_codigo="ADMIN001",
+    )
+    assert result["status"] == "success"
+    conn = sqlite_db._connect()
+    rows = conn.execute(
+        "SELECT bizum_num FROM ruana_metodos_pago_manual ORDER BY id"
+    ).fetchall()
+    conn.close()
+    assert [r[0] for r in rows] == [_BIZUM_FAKE, _BIZUM_FAKE]
+
+
+def test_guardar_metodos_pago_error_si_relectura_vacia(sqlite_db, monkeypatch):
+    from core.services import pago_service
+
+    monkeypatch.setattr(
+        pago_service,
+        "obtener_config_pago_manual",
+        lambda _db: {"bizum_num": None, "iban": None, "qr_revolut_path": None},
+    )
+    result = sqlite_db.actualizar_metodos_pago_ruana(
+        {"bizum_num": _BIZUM_FAKE, "iban": _IBAN_FAKE},
+        admin_codigo="ADMIN001",
+    )
+    assert result["status"] == "error"
+    assert result.get("http_status") == 500
+
+
+def test_fila_metodos_pago_lee_claves_alias():
+    from core.postgres_compat import CompatRow
+    from core.services import pago_service
+
+    row = CompatRow(
+        {"ruana_metodos_pago_manual.bizum_num": _BIZUM_FAKE, "IBAN": _IBAN_FAKE, "qr": None},
+        ["ruana_metodos_pago_manual.bizum_num", "IBAN", "qr"],
+    )
+    datos = pago_service._fila_metodos_pago(row)
+    assert datos["bizum_num"] == _BIZUM_FAKE
+    assert datos["iban"] == _IBAN_FAKE

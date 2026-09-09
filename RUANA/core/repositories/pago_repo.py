@@ -822,11 +822,40 @@ class PagoRepo:
             """
             SELECT bizum_num, iban, qr_revolut_path
             FROM ruana_metodos_pago_manual
+            WHERE TRIM(COALESCE(bizum_num, '')) <> ''
+               OR TRIM(COALESCE(iban, '')) <> ''
+               OR TRIM(COALESCE(qr_revolut_path, '')) <> ''
+            ORDER BY id DESC
+            LIMIT 1
+            """
+        )
+        row = cursor.fetchone()
+        if row:
+            return row
+        cursor.execute(
+            """
+            SELECT bizum_num, iban, qr_revolut_path
+            FROM ruana_metodos_pago_manual
             ORDER BY id
             LIMIT 1
             """
         )
         return cursor.fetchone()
+
+    def _contar_metodos_pago_manual(self, cursor) -> int:
+        cursor.execute("SELECT COUNT(*) AS n FROM ruana_metodos_pago_manual")
+        row = cursor.fetchone()
+        if not row:
+            return 0
+        if hasattr(row, "keys"):
+            try:
+                return int(row["n"])
+            except Exception:
+                pass
+        try:
+            return int(row[0])
+        except Exception:
+            return 0
 
     def upsert_metodos_pago_manual(
         self,
@@ -837,20 +866,14 @@ class PagoRepo:
         actualizado_por: Optional[str],
     ) -> None:
         cursor.execute(
-            "SELECT id FROM ruana_metodos_pago_manual ORDER BY id LIMIT 1"
+            """
+            UPDATE ruana_metodos_pago_manual
+            SET bizum_num = ?, iban = ?, qr_revolut_path = ?,
+                actualizado_por = ?, actualizado_en = CURRENT_TIMESTAMP
+            """,
+            (bizum_num, iban, qr_revolut_path, actualizado_por),
         )
-        row = cursor.fetchone()
-        if row:
-            row_id = row[0] if not hasattr(row, "keys") else row["id"]
-            cursor.execute(
-                """
-                UPDATE ruana_metodos_pago_manual
-                SET bizum_num = ?, iban = ?, qr_revolut_path = ?,
-                    actualizado_por = ?, actualizado_en = CURRENT_TIMESTAMP
-                WHERE id = ?
-                """,
-                (bizum_num, iban, qr_revolut_path, actualizado_por, row_id),
-            )
+        if self._contar_metodos_pago_manual(cursor) > 0:
             return
         cursor.execute(
             """

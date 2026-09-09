@@ -37,3 +37,16 @@ def test_rls_migration_score_is_select_only_for_authenticated():
     assert "FOR DELETE" not in sql
     assert "USING (true)" not in sql.lower()
     assert "using (true)" not in sql.lower()
+
+
+def test_pago_manual_app_access_migration_keeps_anon_denied():
+    import re
+
+    sql = (
+        ROOT / "supabase" / "migrations" / "20260909000100_pago_manual_metodos_app_access.sql"
+    ).read_text(encoding="utf-8")
+    assert re.search(r"ALTER\s+TABLE[\s\S]{0,80}FORCE\s+ROW\s+LEVEL", sql, re.I) is None
+    assert "ruana_metodos_pago_manual_app" in sql
+    assert "TO anon" not in sql
+    assert "REVOKE ALL ON TABLE public.ruana_metodos_pago_manual FROM anon" in sql
+    assert "GRANT SELECT, INSERT, UPDATE, DELETE" in sql
