@@ -515,6 +515,34 @@ def _formatear_notificacion_cinta(
             f"prox:{meta.get('solicitante_codigo') or notif_id}",
         )
 
+    if tipo == "proximidad_contactada":
+        profesional = _resolver_nombre(meta, "profesional_nombre", "profesional_codigo", cursor) or "Un profesional"
+        solicitante = _resolver_nombre(meta, "solicitante_nombre", "solicitante_codigo", cursor) or "un aliado"
+        return _item(
+            base_id,
+            f"{profesional} ha sido contactado para un encargo por {solicitante}",
+            creado,
+            tipo,
+            "notificacion",
+            _PRIORIDAD_ALTA,
+            f"prox-cont:{meta.get('solicitud_id') or notif_id}",
+        )
+
+    if tipo == "solicitud_buscando_ayuda":
+        nombre = _resolver_nombre(meta, "solicitante_nombre", "solicitante_codigo", cursor)
+        oficio = _nombre(meta.get("oficio")) or "un profesional"
+        if not nombre:
+            return None
+        return _item(
+            base_id,
+            f"{nombre} busca ayuda de {oficio} en el grupo",
+            creado,
+            tipo,
+            "notificacion",
+            _PRIORIDAD_ALTA,
+            f"sol-busca:{meta.get('solicitud_id') or notif_id}",
+        )
+
     if tipo == "cp_independizado":
         cp = _nombre(meta.get("codigo_postal")) or "tu zona"
         return _item(

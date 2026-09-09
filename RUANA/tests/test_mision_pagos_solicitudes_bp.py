@@ -43,6 +43,8 @@ def test_solicitudes_routes_exigen_sesion(client):
         ("get", "/api/solicitudes"),
         ("post", "/api/solicitudes"),
         ("post", "/api/solicitudes/1/atender"),
+        ("post", "/api/solicitudes/1/aceptar-proximidad"),
+        ("post", "/api/solicitudes/1/pedir-recomendacion-grupo"),
         ("post", "/api/admin/solicitudes/1/atender"),
     ):
         resp = getattr(client, method)(path)

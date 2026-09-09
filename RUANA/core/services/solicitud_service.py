@@ -12,9 +12,27 @@ from typing import Any, Dict, List, Optional
 
 from core.repositories.invitacion_repo import InvitacionRepo
 from core.repositories.solicitud_repo import SolicitudRepo
+from core.services import catalogo_service, notificacion_service
 
 _repo = SolicitudRepo()
 _inv_repo = InvitacionRepo()
+
+DESTINO_PROFESIONAL_GRUPO = "profesional_grupo"
+DESTINO_PROXIMIDAD = "proximidad"
+DESTINO_BUSCANDO_AYUDA = "buscando_ayuda"
+PROXIMIDAD_PENDIENTE = "pendiente_aprobacion"
+PROXIMIDAD_ACEPTADA = "aceptada"
+PROXIMIDAD_RECHAZADA = "rechazada"
+
+_OFICIO_PERSONA = {
+    "fontaneria": "fontanero",
+    "electricidad": "electricista",
+    "cerrajeria": "cerrajero",
+    "carpinteria": "carpintero",
+    "pintura": "pintor",
+    "albanileria": "albañil",
+    "jardineria": "jardinero",
+}
 
 CANDIDATO_INVITACION_HORAS = max(
     1, int(os.environ.get("RUANA_CANDIDATO_INVITACION_HORAS", "24"))
@@ -45,15 +63,218 @@ def _extra_cols_candidato_asignada(cols: List[str]) -> str:
         extra += ", candidato_por_codigo, candidato_por_nombre, candidato_at"
     if "asignada_a_codigo" in cols:
         extra += ", asignada_a_codigo, asignada_a_nombre"
+    if "destino" in cols:
+        extra += (
+            ", destino, proximidad_codigo, proximidad_nombre, proximidad_cp, "
+            "proximidad_zona, proximidad_estado"
+        )
     return extra
 
 
 def _asegurar_migraciones_candidato(db, conn, cursor) -> None:
     try:
         db._migrar_solicitudes_candidato(conn, cursor)
+        db._migrar_solicitudes_proximidad(conn, cursor)
         db._migrar_invitaciones_revocada(conn, cursor)
     except Exception:
         pass
+
+
+def _etiqueta_oficio_humano(oficio: str) -> str:
+    txt = (oficio or "profesional").strip()
+    if " y " in txt:
+        txt = txt.split(" y ", 1)[0].strip()
+    clave = catalogo_service._normalizar_texto_catalogo(txt)
+    return _OFICIO_PERSONA.get(clave, txt.lower() or "profesional")
+
+
+def _oficios_equivalentes(db, solicitado: str, candidato: str) -> bool:
+    a = catalogo_service._normalizar_texto_catalogo(solicitado)
+    b = catalogo_service._normalizar_texto_catalogo(candidato)
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    return b.startswith(a) or a.startswith(b) or a in b or b in a
+
+
+def resolver_oficio_conexion(db, oficio: str) -> str:
+    """Resuelve el oficio pedido al nombre de catálogo cuando existe equivalencia."""
+    oficio = (oficio or "").strip()
+    if not oficio:
+        return oficio
+    catalogo = {str(o).strip() for o in (db.get_catalogo_oficios_ruana() or []) if o}
+    canon = catalogo_service._resolver_en_conjunto_catalogo(db, oficio, catalogo)
+    if canon:
+        return canon
+    objetivo = catalogo_service._normalizar_texto_catalogo(oficio)
+    candidatos = []
+    for item in catalogo:
+        normalizado = catalogo_service._normalizar_texto_catalogo(item)
+        if (
+            normalizado == objetivo
+            or normalizado.startswith(objetivo)
+            or objetivo in normalizado
+        ):
+            candidatos.append((len(normalizado), item))
+    if candidatos:
+        candidatos.sort()
+        return candidatos[0][1]
+    return oficio
+
+
+def _zona_proximidad(rec: Dict[str, Any]) -> str:
+    cp = (rec.get("codigo_postal") or "").strip()
+    etiqueta = (rec.get("etiqueta_proximidad") or "").strip()
+    if cp and etiqueta:
+        return f"{cp} ({etiqueta})"
+    return cp or etiqueta or "una zona cercana"
+
+
+def mensaje_recomendacion_proximidad(oficio: str, rec: Dict[str, Any]) -> str:
+    oficio_h = _etiqueta_oficio_humano(oficio)
+    nombre = (rec.get("nombre") or "un profesional").strip()
+    return (
+        f"No hay {oficio_h} en tu grupo. Te recomendamos a {nombre}, "
+        f"de {_zona_proximidad(rec)}."
+    )
+
+
+def _pack_proximidad(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    codigo = (row.get("proximidad_codigo") or "").strip()
+    if not codigo:
+        return None
+    return {
+        "codigo": codigo,
+        "nombre": row.get("proximidad_nombre") or "",
+        "codigo_postal": row.get("proximidad_cp") or "",
+        "etiqueta_proximidad": row.get("proximidad_zona") or "",
+        "estado": row.get("proximidad_estado") or "",
+        "mismo_grupo": False,
+    }
+
+
+def _enriquecer_propia(row: Dict[str, Any]) -> Dict[str, Any]:
+    item = dict(row)
+    prox = _pack_proximidad(item)
+    if prox:
+        item["proximidad"] = prox
+    destino = (item.get("destino") or "").strip()
+    estado = (item.get("estado") or "").strip().lower()
+    if destino == DESTINO_BUSCANDO_AYUDA and estado == "pendiente":
+        item["etiqueta_busqueda"] = "Buscando ayuda"
+        item["mensaje_solicitante"] = "Buscando ayuda. Tu grupo puede recomendar a alguien."
+    elif (
+        destino == DESTINO_PROXIMIDAD
+        and (item.get("proximidad_estado") or "") == PROXIMIDAD_PENDIENTE
+        and prox
+    ):
+        item["mensaje_solicitante"] = mensaje_recomendacion_proximidad(
+            item.get("oficio") or "", prox
+        )
+        item["requiere_aprobacion_proximidad"] = True
+    elif destino == DESTINO_PROFESIONAL_GRUPO and item.get("asignada_a_nombre"):
+        item["mensaje_solicitante"] = (
+            f"Solicitud enviada a {item.get('asignada_a_nombre')}."
+        )
+    elif destino == DESTINO_PROXIMIDAD and (item.get("proximidad_estado") or "") == PROXIMIDAD_ACEPTADA:
+        nombre = item.get("asignada_a_nombre") or (prox or {}).get("nombre") or "el profesional"
+        item["mensaje_solicitante"] = f"Contactaste a {nombre}."
+    return item
+
+
+def _buscar_profesional_grupo(
+    db, cursor, grupo_id: Any, oficio: str, excluir_codigo: str
+) -> Optional[Dict[str, Any]]:
+    for row in _repo.select_profesional_grupo_oficio(cursor, grupo_id, excluir_codigo):
+        if _oficios_equivalentes(db, oficio, row.get("oficio") or ""):
+            return {
+                "codigo": row.get("codigo"),
+                "nombre": row.get("nombre") or "",
+                "oficio": row.get("oficio") or oficio,
+                "codigo_postal": row.get("codigo_postal") or "",
+                "mismo_grupo": True,
+            }
+    return None
+
+
+def _notificar_profesional_solicitud(
+    db,
+    codigo_dest: str,
+    solicitante_nombre: str,
+    oficio: str,
+    solicitud_id: int,
+) -> None:
+    oficio_h = _etiqueta_oficio_humano(oficio)
+    notificacion_service.crear_notificacion_aliado(
+        db,
+        codigo_dest,
+        "solicitud_asignada",
+        "Nueva solicitud para ti",
+        f"{solicitante_nombre} te ha enviado una solicitud de {oficio_h}.",
+        metadata={
+            "solicitud_id": int(solicitud_id),
+            "oficio": oficio,
+            "solicitante_nombre": solicitante_nombre,
+            "origen": "nueva_conexion",
+        },
+    )
+
+
+def _notificar_grupo_buscando_ayuda(
+    db,
+    grupo_id: Any,
+    solicitante_codigo: str,
+    solicitante_nombre: str,
+    oficio: str,
+    solicitud_id: int,
+) -> None:
+    oficio_h = _etiqueta_oficio_humano(oficio)
+    notificacion_service.notificar_grupo_actividad(
+        db,
+        int(grupo_id),
+        "solicitud_buscando_ayuda",
+        "Buscando ayuda",
+        f"{solicitante_nombre} busca un {oficio_h} y no hay ninguno cerca. "
+        f"¿Puedes recomendar a alguien?",
+        metadata={
+            "solicitud_id": int(solicitud_id),
+            "oficio": oficio,
+            "solicitante_codigo": solicitante_codigo,
+            "solicitante_nombre": solicitante_nombre,
+            "origen": "nueva_conexion",
+        },
+        excluir_codigo=solicitante_codigo,
+    )
+
+
+def _notificar_grupo_profesional_contactado(
+    db,
+    grupo_id: Any,
+    solicitante_codigo: str,
+    solicitante_nombre: str,
+    profesional_codigo: str,
+    profesional_nombre: str,
+    oficio: str,
+    solicitud_id: int,
+) -> None:
+    notificacion_service.notificar_grupo_actividad(
+        db,
+        int(grupo_id),
+        "proximidad_contactada",
+        "Profesional contactado",
+        f"{profesional_nombre} ha sido contactado para un encargo por {solicitante_nombre}.",
+        metadata={
+            "solicitud_id": int(solicitud_id),
+            "oficio": oficio,
+            "solicitante_codigo": solicitante_codigo,
+            "solicitante_nombre": solicitante_nombre,
+            "profesional_codigo": profesional_codigo,
+            "profesional_nombre": profesional_nombre,
+            "origen": "nueva_conexion",
+        },
+        excluir_codigo=solicitante_codigo,
+    )
 
 
 def calcular_expiracion_candidato(desde: Optional[datetime] = None) -> str:
@@ -246,45 +467,293 @@ def vincular_solicitud_a_aliado_incorporado(db,
 
 
 def crear_solicitud_por_codigo(db, codigo: str, oficio: str, descripcion: str) -> Dict[str, Any]:
-    """Crea solicitud: obtiene aliado por código, inserta en solicitudes con estado pendiente."""
+    """
+    Nueva conexión: primero el profesional del oficio en el grupo actual;
+    si no hay, un único profesional cercano (pendiente de aprobación);
+    si no hay nadie, queda como «Buscando ayuda» y se avisa solo al grupo.
+    Nunca se envía la solicitud a todos los aliados.
+    """
+    from core.services import proximidad_service
+
+    notif_after: Optional[Dict[str, Any]] = None
+    result: Optional[Dict[str, Any]] = None
     with db._lock:
+        conn = None
         try:
             conn = db._connect()
+            conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
+            _asegurar_migraciones_candidato(db, conn, cursor)
+            conn.commit()
             row = _repo.select_aliado_grupo_nombre(cursor, codigo.strip())
             if not row:
                 return {'status': 'error', 'message': 'Aliado no válido'}
             grupo_id, nombre = row[0], row[1] or ''
             if grupo_id is None:
                 return {'status': 'error', 'message': 'No perteneces a un grupo'}
-            oficio = (oficio or '').strip()
+            oficio = resolver_oficio_conexion(db, (oficio or '').strip())
             descripcion = (descripcion or '').strip()
             if not oficio:
                 return {'status': 'error', 'message': 'Oficio requerido'}
             cols = _repo.columnas_solicitudes(cursor)
             if 'solicitante_codigo' not in cols:
                 return {'status': 'error', 'message': 'Tabla solicitudes no migrada'}
-            sid = _repo.insertar_pendiente(
-                cursor, grupo_id, codigo.strip(), nombre, oficio, descripcion
-            )
-            conn.commit()
-            result = {'status': 'success', 'ok': True, 'id': sid, 'proximidad': None}
-            from core.services import grupo_service, proximidad_service
-            if not grupo_service.plaza_ocupada_contexto(
-                db, int(grupo_id), oficio, cursor=cursor
-            ):
+
+            local = _buscar_profesional_grupo(db, cursor, grupo_id, oficio, codigo.strip())
+            if local and local.get("codigo"):
+                sid = _repo.insertar_pendiente(
+                    cursor,
+                    grupo_id,
+                    codigo.strip(),
+                    nombre,
+                    oficio,
+                    descripcion,
+                    asignada_a_codigo=local["codigo"],
+                    asignada_a_nombre=local.get("nombre") or "",
+                    destino=DESTINO_PROFESIONAL_GRUPO,
+                )
+                conn.commit()
+                notif_after = {
+                    "kind": "profesional_grupo",
+                    "codigo": local["codigo"],
+                    "nombre_sol": nombre,
+                    "oficio": oficio,
+                    "sid": int(sid),
+                }
+                result = {
+                    "status": "success",
+                    "ok": True,
+                    "id": sid,
+                    "enrutamiento": DESTINO_PROFESIONAL_GRUPO,
+                    "profesional": local,
+                    "proximidad": None,
+                    "proximidad_notificado": False,
+                    "mensaje": f"Solicitud enviada a {local.get('nombre') or local['codigo']}.",
+                }
+            else:
                 rec = proximidad_service.recomendar_profesional(db, codigo.strip(), oficio)
-                result['proximidad'] = rec
-                if rec and rec.get('codigo'):
-                    notif = proximidad_service.solicitar_contacto_proximidad(
-                        db, codigo.strip(), oficio, rec.get('codigo')
+                if rec and rec.get("codigo"):
+                    sid = _repo.insertar_pendiente(
+                        cursor,
+                        grupo_id,
+                        codigo.strip(),
+                        nombre,
+                        oficio,
+                        descripcion,
+                        destino=DESTINO_PROXIMIDAD,
+                        proximidad_codigo=rec.get("codigo"),
+                        proximidad_nombre=rec.get("nombre") or "",
+                        proximidad_cp=rec.get("codigo_postal") or "",
+                        proximidad_zona=rec.get("etiqueta_proximidad") or "",
+                        proximidad_estado=PROXIMIDAD_PENDIENTE,
                     )
-                    result['proximidad_notificado'] = bool(notif.get('notificado'))
-            return result
+                    conn.commit()
+                    result = {
+                        "status": "success",
+                        "ok": True,
+                        "id": sid,
+                        "enrutamiento": DESTINO_PROXIMIDAD,
+                        "profesional": None,
+                        "proximidad": rec,
+                        "proximidad_notificado": False,
+                        "requiere_aprobacion_proximidad": True,
+                        "mensaje": mensaje_recomendacion_proximidad(oficio, rec),
+                    }
+                else:
+                    sid = _repo.insertar_pendiente(
+                        cursor,
+                        grupo_id,
+                        codigo.strip(),
+                        nombre,
+                        oficio,
+                        descripcion,
+                        destino=DESTINO_BUSCANDO_AYUDA,
+                    )
+                    conn.commit()
+                    notif_after = {
+                        "kind": "buscando",
+                        "grupo_id": int(grupo_id),
+                        "codigo": codigo.strip(),
+                        "nombre_sol": nombre,
+                        "oficio": oficio,
+                        "sid": int(sid),
+                    }
+                    result = {
+                        "status": "success",
+                        "ok": True,
+                        "id": sid,
+                        "enrutamiento": DESTINO_BUSCANDO_AYUDA,
+                        "profesional": None,
+                        "proximidad": None,
+                        "proximidad_notificado": False,
+                        "mensaje": (
+                            f"No hay {_etiqueta_oficio_humano(oficio)} en tu grupo ni cerca. "
+                            "Tu solicitud queda como Buscando ayuda."
+                        ),
+                    }
         except Exception as e:
             return {'status': 'error', 'message': str(e)}
         finally:
-            conn.close()
+            if conn:
+                conn.close()
+
+    if notif_after:
+        if notif_after["kind"] == "profesional_grupo":
+            _notificar_profesional_solicitud(
+                db,
+                notif_after["codigo"],
+                notif_after["nombre_sol"],
+                notif_after["oficio"],
+                notif_after["sid"],
+            )
+        elif notif_after["kind"] == "buscando":
+            _notificar_grupo_buscando_ayuda(
+                db,
+                notif_after["grupo_id"],
+                notif_after["codigo"],
+                notif_after["nombre_sol"],
+                notif_after["oficio"],
+                notif_after["sid"],
+            )
+    return result or {"status": "error", "message": "No se pudo crear la solicitud"}
+
+
+def aceptar_proximidad_solicitud(db, solicitud_id: int, codigo: str) -> Dict[str, Any]:
+    """El solicitante acepta al profesional cercano recomendado."""
+    from core.services import proximidad_service
+
+    notif_after: Optional[Dict[str, Any]] = None
+    result: Optional[Dict[str, Any]] = None
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            _asegurar_migraciones_candidato(db, conn, cursor)
+            sol = _repo.select_enrutamiento(cursor, int(solicitud_id))
+            if not sol:
+                return {"status": "error", "message": "Solicitud no encontrada"}
+            if (sol.get("solicitante_codigo") or "").strip() != (codigo or "").strip():
+                return {"status": "error", "message": "Solo el solicitante puede aceptar esta recomendación"}
+            if (sol.get("estado") or "") != "pendiente":
+                return {"status": "error", "message": "La solicitud ya no está pendiente"}
+            if (sol.get("proximidad_estado") or "") != PROXIMIDAD_PENDIENTE:
+                return {"status": "error", "message": "No hay un profesional cercano pendiente de aprobación"}
+            prof_codigo = (sol.get("proximidad_codigo") or "").strip()
+            prof_nombre = (sol.get("proximidad_nombre") or "").strip()
+            if not prof_codigo:
+                return {"status": "error", "message": "Recomendación no válida"}
+            rc = _repo.aceptar_proximidad(cursor, int(solicitud_id), prof_codigo, prof_nombre)
+            if rc == 0:
+                return {"status": "error", "message": "No se pudo aceptar la recomendación"}
+            conn.commit()
+            notif_after = {
+                "grupo_id": int(sol["grupo_id"]),
+                "solicitante_codigo": (codigo or "").strip(),
+                "solicitante_nombre": sol.get("solicitante_nombre") or "",
+                "profesional_codigo": prof_codigo,
+                "profesional_nombre": prof_nombre,
+                "oficio": sol.get("oficio") or "",
+                "sid": int(solicitud_id),
+            }
+            result = {
+                "status": "success",
+                "ok": True,
+                "id": int(solicitud_id),
+                "enrutamiento": DESTINO_PROXIMIDAD,
+                "proximidad_notificado": True,
+                "profesional": {
+                    "codigo": prof_codigo,
+                    "nombre": prof_nombre,
+                    "mismo_grupo": False,
+                },
+                "mensaje": f"Contactaste a {prof_nombre or prof_codigo}.",
+            }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+        finally:
+            if conn:
+                conn.close()
+
+    if notif_after:
+        of = notif_after["oficio"]
+        prox = proximidad_service.solicitar_contacto_proximidad(
+            db,
+            notif_after["solicitante_codigo"],
+            of,
+            notif_after["profesional_codigo"],
+        )
+        if result is not None:
+            result["proximidad_notificado"] = bool(prox.get("notificado"))
+            result["proximidad"] = prox.get("proximidad")
+        _notificar_grupo_profesional_contactado(
+            db,
+            notif_after["grupo_id"],
+            notif_after["solicitante_codigo"],
+            notif_after["solicitante_nombre"],
+            notif_after["profesional_codigo"],
+            notif_after["profesional_nombre"],
+            of,
+            notif_after["sid"],
+        )
+    return result or {"status": "error", "message": "No se pudo aceptar la recomendación"}
+
+
+def pedir_recomendacion_grupo_solicitud(db, solicitud_id: int, codigo: str) -> Dict[str, Any]:
+    """El solicitante rechaza al cercano y pide recomendación al grupo (Conozco a alguien)."""
+    notif_after: Optional[Dict[str, Any]] = None
+    result: Optional[Dict[str, Any]] = None
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            _asegurar_migraciones_candidato(db, conn, cursor)
+            sol = _repo.select_enrutamiento(cursor, int(solicitud_id))
+            if not sol:
+                return {"status": "error", "message": "Solicitud no encontrada"}
+            if (sol.get("solicitante_codigo") or "").strip() != (codigo or "").strip():
+                return {"status": "error", "message": "Solo el solicitante puede pedir recomendación al grupo"}
+            if (sol.get("estado") or "") != "pendiente":
+                return {"status": "error", "message": "La solicitud ya no está pendiente"}
+            if (sol.get("proximidad_estado") or "") != PROXIMIDAD_PENDIENTE:
+                return {"status": "error", "message": "Esta solicitud no tiene una recomendación pendiente"}
+            rc = _repo.pedir_recomendacion_grupo(cursor, int(solicitud_id))
+            if rc == 0:
+                return {"status": "error", "message": "No se pudo pedir recomendación al grupo"}
+            conn.commit()
+            notif_after = {
+                "grupo_id": int(sol["grupo_id"]),
+                "codigo": (codigo or "").strip(),
+                "nombre_sol": sol.get("solicitante_nombre") or "",
+                "oficio": sol.get("oficio") or "",
+                "sid": int(solicitud_id),
+            }
+            result = {
+                "status": "success",
+                "ok": True,
+                "id": int(solicitud_id),
+                "enrutamiento": DESTINO_BUSCANDO_AYUDA,
+                "mensaje": "Buscando ayuda. Tu grupo puede recomendar a alguien.",
+            }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+        finally:
+            if conn:
+                conn.close()
+
+    if notif_after:
+        _notificar_grupo_buscando_ayuda(
+            db,
+            notif_after["grupo_id"],
+            notif_after["codigo"],
+            notif_after["nombre_sol"],
+            notif_after["oficio"],
+            notif_after["sid"],
+        )
+    return result or {"status": "error", "message": "No se pudo pedir recomendación al grupo"}
 
 
 def listar_solicitudes_activas_por_codigo(db, codigo: str) -> List[Dict[str, Any]]:
@@ -338,7 +807,7 @@ def listar_solicitudes_propias_por_codigo(db, codigo: str) -> List[Dict[str, Any
             if 'solicitante_codigo' not in cols:
                 return []
             extra = _extra_cols_candidato_asignada(cols)
-            return _json_safe_rows(_repo.listar_propias(cursor, grupo_id, codigo.strip(), extra))
+            return [_enriquecer_propia(r) for r in _json_safe_rows(_repo.listar_propias(cursor, grupo_id, codigo.strip(), extra))]
         except Exception as e:
             return []
         finally:
@@ -400,22 +869,29 @@ def obtener_solicitudes_operativas(db, codigo_aliado: str) -> List[Dict[str, Any
 
 
 def atender_solicitud_por_id(db, solicitud_id: int, codigo: str) -> Dict[str, Any]:
-    """Marca solicitud como atendida y registra quién atendió. Solo mismo grupo."""
+    """Marca solicitud como atendida. Mismo grupo o profesional asignado (p. ej. proximidad)."""
     with db._lock:
         try:
             conn = db._connect()
+            conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            row = _repo.select_grupo_estado(cursor, solicitud_id)
-            if not row:
+            _asegurar_migraciones_candidato(db, conn, cursor)
+            sol = _repo.select_enrutamiento(cursor, solicitud_id)
+            if not sol:
                 return {'status': 'error', 'message': 'Solicitud no encontrada'}
-            grupo_id, estado = row[0], row[1]
+            grupo_id, estado = sol.get("grupo_id"), sol.get("estado")
             if estado != 'pendiente':
                 return {'status': 'error', 'message': 'La solicitud ya fue atendida'}
             r2 = _repo.select_aliado_grupo_nombre(cursor, codigo.strip())
             if not r2:
                 return {'status': 'error', 'message': 'Aliado no encontrado'}
-            if r2[0] != grupo_id:
-                return {'status': 'error', 'message': 'Solo un aliado del mismo grupo puede atender'}
+            asignada = (sol.get("asignada_a_codigo") or "").strip()
+            mismo_grupo = r2[0] == grupo_id
+            es_asignado = asignada == codigo.strip()
+            if not mismo_grupo and not es_asignado:
+                return {'status': 'error', 'message': 'Solo el profesional asignado o un aliado del grupo puede atender'}
+            if asignada and not es_asignado and (sol.get("destino") or "") != DESTINO_BUSCANDO_AYUDA:
+                return {'status': 'error', 'message': 'Esta solicitud ya está asignada a otro profesional'}
             nombre_atendido = r2[1] or ''
             rowcount = _repo.update_atendida(
                 cursor, solicitud_id, codigo.strip(), nombre_atendido

@@ -78,9 +78,68 @@ def api_solicitudes():
             result = solicitud_service.crear_solicitud_por_codigo(db, codigo, oficio, descripcion)
             if result.get("status") != "success":
                 return jsonify({"error": result.get("message", "Error al crear solicitud")}), 400
-            return jsonify({"ok": True, "id": result.get("id")}), 200
+            return jsonify(
+                {
+                    "ok": True,
+                    "id": result.get("id"),
+                    "enrutamiento": result.get("enrutamiento"),
+                    "mensaje": result.get("mensaje"),
+                    "proximidad": result.get("proximidad"),
+                    "profesional": result.get("profesional"),
+                    "requiere_aprobacion_proximidad": bool(
+                        result.get("requiere_aprobacion_proximidad")
+                    ),
+                    "proximidad_notificado": bool(result.get("proximidad_notificado")),
+                }
+            ), 200
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+
+
+@solicitudes_bp.route("/api/solicitudes/<int:solicitud_id>/aceptar-proximidad", methods=["POST"])
+@require_aliado
+def aceptar_proximidad_solicitud(solicitud_id):
+    """El solicitante acepta al profesional cercano recomendado."""
+    codigo = _aliado_codigo()
+    if not codigo:
+        return jsonify({"error": "Sesión expirada"}), 401
+    try:
+        db = get_db()
+        result = solicitud_service.aceptar_proximidad_solicitud(db, solicitud_id, codigo)
+        if result.get("status") != "success":
+            return jsonify({"error": result.get("message", "Error al aceptar")}), 400
+        return jsonify(
+            {
+                "ok": True,
+                "id": result.get("id"),
+                "mensaje": result.get("mensaje"),
+                "profesional": result.get("profesional"),
+                "proximidad": result.get("proximidad"),
+            }
+        ), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@solicitudes_bp.route(
+    "/api/solicitudes/<int:solicitud_id>/pedir-recomendacion-grupo", methods=["POST"]
+)
+@require_aliado
+def pedir_recomendacion_grupo_solicitud(solicitud_id):
+    """El solicitante prefiere que el grupo recomiende a alguien."""
+    codigo = _aliado_codigo()
+    if not codigo:
+        return jsonify({"error": "Sesión expirada"}), 401
+    try:
+        db = get_db()
+        result = solicitud_service.pedir_recomendacion_grupo_solicitud(
+            db, solicitud_id, codigo
+        )
+        if result.get("status") != "success":
+            return jsonify({"error": result.get("message", "Error al pedir recomendación")}), 400
+        return jsonify({"ok": True, "id": result.get("id"), "mensaje": result.get("mensaje")}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @solicitudes_bp.route("/api/solicitudes/<int:solicitud_id>/atender", methods=["POST"])

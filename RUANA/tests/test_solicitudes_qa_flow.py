@@ -68,7 +68,7 @@ def test_qa_solicitudes_crear_entrantes_propias_e_historial(
     assert vista_a["entrantes"] == []
     assert [s["id"] for s in vista_a["propias"]] == [solicitud_id]
     assert vista_a["propias"][0]["estado"] == "pendiente"
-    assert vista_a["propias"][0]["oficio"] == "Carpinteria"
+    assert "carpinter" in vista_a["propias"][0]["oficio"].lower()
     assert vista_a["historial"] == []
 
     vista_b = _get_solicitudes(client, headers_b)

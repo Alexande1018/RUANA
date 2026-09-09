@@ -59,6 +59,18 @@
     return fecha.toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' });
   }
 
+  function getApiBaseSafe() {
+    if (typeof global.getApiBase === 'function') return global.getApiBase();
+    return '';
+  }
+
+  function getAuthHeadersSafe(extra) {
+    if (typeof global.getRuanaAuthHeaders === 'function') {
+      return global.getRuanaAuthHeaders(extra || {});
+    }
+    return extra || {};
+  }
+
   function etiquetaEstado(estado) {
     if (estado === 'atendida') {
       return { label: 'Atendida', badgeClass: 'ruana-badge atendida' };
@@ -135,6 +147,24 @@
     }
     var metaExtra = metaExtraParts.join('');
     var mostrarConocer = conBotonConocer && estado === 'pendiente' && !asignadaA;
+    var requiereAprob = solicitud.requiere_aprobacion_proximidad ||
+      (solicitud.proximidad_estado === 'pendiente_aprobacion');
+    var esPropiaPendiente = !conBotonConocer && estado === 'pendiente';
+    var bloqueRecomienda = '';
+    if (esPropiaPendiente && requiereAprob) {
+      var msgRec = solicitud.mensaje_solicitante || '';
+      var proxNombre = (solicitud.proximidad && solicitud.proximidad.nombre) || solicitud.proximidad_nombre || 'este profesional';
+      bloqueRecomienda =
+        '<p class="solicitud-recomienda">' + escapeHtmlSafe(host, msgRec) + '</p>' +
+        '<div class="solicitud-actions">' +
+          '<button type="button" class="btn-aceptar-proximidad" data-id="' + (solicitud.id || 0) + '">Aceptar a ' + escapeHtmlSafe(host, proxNombre) + '</button>' +
+          '<button type="button" class="btn-pedir-recomendacion" data-id="' + (solicitud.id || 0) + '">Pedir recomendación al grupo</button>' +
+        '</div>';
+    } else if (esPropiaPendiente && (solicitud.destino === 'buscando_ayuda' || solicitud.etiqueta_busqueda)) {
+      bloqueRecomienda = '<p class="solicitud-buscando">Buscando ayuda</p>';
+    } else if (esPropiaPendiente && solicitud.mensaje_solicitante) {
+      bloqueRecomienda = '<p class="solicitud-buscando">' + escapeHtmlSafe(host, solicitud.mensaje_solicitante) + '</p>';
+    }
     card.innerHTML =
       '<div class="solicitud-card-header">' +
         '<div class="solicitud-texto">' + escapeHtmlSafe(host, texto) + '</div>' +
@@ -152,10 +182,75 @@
         (fechaFmt ? '<div class="meta-item"><span class="meta-label">Fecha</span><span class="meta-value">' + fechaFmt + '</span></div>' : '') +
         metaExtra +
       '</div>' +
+      bloqueRecomienda +
       (mostrarConocer
         ? '<div class="solicitud-actions"><button class="btn-conocer" data-id="' + (solicitud.id || 0) + '"><i data-lucide="user-plus" style="width:16px;height:16px;vertical-align:-2px;margin-right:6px"></i>Conozco a alguien</button></div>'
         : '');
     container.appendChild(card);
+  }
+
+  function recargarSolicitudes(host) {
+    var apiBase = getApiBaseSafe();
+    return fetch(apiBase + '/api/solicitudes', {
+      credentials: 'same-origin',
+      headers: getAuthHeadersSafe(),
+    }).then(function (resp) {
+      if (!resp.ok) return;
+      return resp.json().then(function (dataSol) {
+        if (dataSol && typeof dataSol === 'object' && !Array.isArray(dataSol)) {
+          host.solicitudesEntrantes = Array.isArray(dataSol.entrantes) ? dataSol.entrantes : [];
+          host.solicitudesPropias = Array.isArray(dataSol.propias) ? dataSol.propias : [];
+          host.solicitudesHistorial = Array.isArray(dataSol.historial) ? dataSol.historial : [];
+        }
+        renderSolicitudes(host);
+      });
+    }).catch(function () {});
+  }
+
+  function postAccionSolicitud(host, path, id) {
+    var apiBase = getApiBaseSafe();
+    return fetch(apiBase + '/api/solicitudes/' + id + '/' + path, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: getAuthHeadersSafe({ 'Content-Type': 'application/json' }),
+    }).then(function (resp) {
+      return resp.json().catch(function () { return {}; }).then(function (data) {
+        if (!resp.ok) {
+          alert(data.error || data.message || 'No se pudo completar la acción');
+          return;
+        }
+        if (host.solicitudSuccess && data.mensaje) {
+          host.solicitudSuccess.textContent = '✓ ' + data.mensaje;
+          host.solicitudSuccess.classList.add('show');
+          setTimeout(function () {
+            host.solicitudSuccess.classList.remove('show');
+          }, 5000);
+        }
+        return recargarSolicitudes(host);
+      });
+    }).catch(function (e) {
+      alert('Error de conexión: ' + (e.message || e));
+    });
+  }
+
+  function bindAccionesPropias(host) {
+    if (!host.solicitudesPropiasList) return;
+    host.solicitudesPropiasList.querySelectorAll('.btn-aceptar-proximidad').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = parseInt(btn.getAttribute('data-id'), 10);
+        if (!id) return;
+        btn.disabled = true;
+        postAccionSolicitud(host, 'aceptar-proximidad', id);
+      });
+    });
+    host.solicitudesPropiasList.querySelectorAll('.btn-pedir-recomendacion').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = parseInt(btn.getAttribute('data-id'), 10);
+        if (!id) return;
+        btn.disabled = true;
+        postAccionSolicitud(host, 'pedir-recomendacion-grupo', id);
+      });
+    });
   }
 
   function renderListaPropias(host, propias) {
@@ -229,6 +324,7 @@
     }
 
     renderListaPropias(host, propias);
+    bindAccionesPropias(host);
     renderListaHistorial(host, historial);
 
     actualizarContadorSubseccion('solicitudes-entrantes-wrap', entrantes.length);

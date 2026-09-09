@@ -182,6 +182,9 @@ def test_aliado_solicitudes_module_is_wired():
     assert "appendSolicitudCard" in solicitudes_js
     assert "solicitudes-list" in solicitudes_js
     assert "btn-conocer" in solicitudes_js
+    assert "btn-aceptar-proximidad" in solicitudes_js
+    assert "pedir-recomendacion-grupo" in solicitudes_js
+    assert "Buscando ayuda" in solicitudes_js
     # Fachadas delgadas en PrivatePanel
     assert "_solicitudesModule" in aliado
     assert "mod.renderSolicitudes(this)" in aliado
@@ -330,6 +333,9 @@ def test_aliado_conexiones_module_is_wired():
     oficios_pos = aliado.index('id="oficios-faltantes-card"')
     assert conexiones_start < oficios_pos < perfil_start or conexiones_start < oficios_pos
     assert 'Oficios faltantes (catálogo RUANA)' not in aliado
+    assert 'enviada a todos los aliados' not in aliado
+    assert 'data.mensaje' in conexiones_js
+    assert 'llega a todos los aliados del grupo' not in aliado
 
 
 def test_aliado_invitaciones_module_is_wired():

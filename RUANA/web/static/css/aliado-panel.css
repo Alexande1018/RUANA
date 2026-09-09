@@ -1268,10 +1268,31 @@
 
         .solicitud-actions {
             display: flex;
+            flex-wrap: wrap;
             gap: 8px;
         }
 
+        .solicitud-recomienda {
+            margin: 8px 0 0;
+            padding: 10px 12px;
+            border-radius: 8px;
+            background: rgba(250, 204, 21, 0.12);
+            border: 1px solid rgba(250, 204, 21, 0.28);
+            color: #fde68a;
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }
+
+        .solicitud-buscando {
+            margin: 8px 0 0;
+            color: #fbbf24;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
         .btn-conocer,
+        .btn-aceptar-proximidad,
+        .btn-pedir-recomendacion,
         .btn-invitar-aliado {
             flex: 1;
             padding: 8px 12px;
@@ -1298,13 +1319,25 @@
             gap: 8px;
         }
 
+        .btn-pedir-recomendacion {
+            background: transparent;
+            border: 1px solid rgba(250, 204, 21, 0.55);
+            color: #fde68a;
+            text-transform: none;
+            letter-spacing: 0;
+        }
+
         .btn-conocer:hover,
+        .btn-aceptar-proximidad:hover,
+        .btn-pedir-recomendacion:hover,
         .btn-invitar-aliado:hover {
             transform: translateY(-1px);
             box-shadow: 0 6px 12px rgba(34, 197, 94, 0.25);
         }
 
         .btn-conocer:active,
+        .btn-aceptar-proximidad:active,
+        .btn-pedir-recomendacion:active,
         .btn-invitar-aliado:active {
             transform: translateY(0);
         }
