@@ -78,17 +78,26 @@
       if (data.ok === true || data.status === 'success') {
         if (oficioInput) oficioInput.value = '';
         if (host.nuevaSolicitud) host.nuevaSolicitud.value = '';
+        var msg = (data.mensaje || '').trim();
+        if (!msg && data.enrutamiento === 'profesional_grupo' && data.profesional) {
+          msg = 'Solicitud enviada a ' + (data.profesional.nombre || 'el profesional') + '.';
+        }
+        if (!msg) msg = 'Solicitud enviada';
         if (host.solicitudSuccess) {
-          var msg = (data.mensaje || '').trim();
-          if (!msg && data.enrutamiento === 'profesional_grupo' && data.profesional) {
-            msg = 'Solicitud enviada a ' + (data.profesional.nombre || 'el profesional') + '.';
-          }
-          if (!msg) msg = 'Solicitud enviada';
+          host.solicitudSuccess = document.getElementById('solicitud-success') || host.solicitudSuccess;
           host.solicitudSuccess.textContent = '✓ ' + msg;
           host.solicitudSuccess.classList.add('show');
+          host.solicitudSuccess.hidden = false;
+          host.solicitudSuccess.setAttribute('role', 'status');
           setTimeout(function () {
             host.solicitudSuccess.classList.remove('show');
-          }, 7000);
+          }, 8000);
+        }
+        if (global.RuanaUI && typeof global.RuanaUI.toast === 'function') {
+          global.RuanaUI.toast(msg, 'success', 6000);
+        }
+        if (global.AliadoShell && typeof global.AliadoShell.show === 'function') {
+          global.AliadoShell.show('solicitudes');
         }
         var respSol = await fetch(apiBase + '/api/solicitudes', {
           credentials: 'same-origin',

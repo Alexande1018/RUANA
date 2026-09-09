@@ -851,6 +851,7 @@ body:not(.panel-loading) {
 }
 
 .solicitud-success.show {
+    display: block !important;
     opacity: 1;
     transform: translateY(0);
 }

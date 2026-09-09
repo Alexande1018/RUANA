@@ -11,6 +11,25 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 
+def _row_profesional(r: Any) -> Dict[str, Any]:
+    if hasattr(r, "keys"):
+        data = dict(r)
+        return {
+            "codigo": data.get("codigo"),
+            "nombre": data.get("nombre"),
+            "oficio": data.get("oficio"),
+            "codigo_postal": data.get("codigo_postal"),
+            "grupo_id": data.get("grupo_id"),
+        }
+    return {
+        "codigo": r[0],
+        "nombre": r[1],
+        "oficio": r[2],
+        "codigo_postal": r[3],
+        "grupo_id": r[4] if len(r) > 4 else None,
+    }
+
+
 class SolicitudRepo:
     """Operaciones de persistencia del dominio solicitud."""
 
@@ -37,6 +56,28 @@ class SolicitudRepo:
         if not row:
             return None
         return (row[0], row[1] or "")
+
+    def select_aliado_contexto(
+        self, cursor, codigo: str
+    ) -> Optional[Dict[str, Any]]:
+        cursor.execute(
+            """
+            SELECT a.grupo_id, a.nombre,
+                   TRIM(COALESCE(NULLIF(TRIM(a.codigo_postal), ''), g.codigo_postal, ''))
+            FROM aliados a
+            LEFT JOIN grupos g ON g.id = a.grupo_id
+            WHERE a.codigo = ?
+            """,
+            (codigo,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "grupo_id": row[0],
+            "nombre": row[1] or "",
+            "codigo_postal": (row[2] or "").strip() if row[2] is not None else "",
+        }
 
     def select_aliado_grupo_id(self, cursor, codigo: str) -> Optional[Any]:
         cursor.execute("SELECT grupo_id FROM aliados WHERE codigo = ?", (codigo,))
@@ -161,6 +202,7 @@ class SolicitudRepo:
                 proximidad_codigo, proximidad_nombre, proximidad_cp, proximidad_zona, proximidad_estado
             )
             VALUES (?, ?, ?, ?, ?, 'pendiente', ?, ?, ?, ?, ?, ?, ?, ?)
+            RETURNING id
             """,
             (
                 grupo_id,
@@ -178,7 +220,13 @@ class SolicitudRepo:
                 proximidad_estado,
             ),
         )
-        return cursor.lastrowid
+        row = cursor.fetchone()
+        if row is None:
+            return cursor.lastrowid
+        try:
+            return int(row[0] if not isinstance(row, dict) else row.get("id"))
+        except (TypeError, ValueError, KeyError):
+            return cursor.lastrowid
 
     def select_enrutamiento(self, cursor, solicitud_id: int) -> Optional[Dict[str, Any]]:
         cursor.execute(
@@ -201,27 +249,40 @@ class SolicitudRepo:
     ) -> List[Dict[str, Any]]:
         cursor.execute(
             """
-            SELECT codigo, nombre, oficio, codigo_postal
+            SELECT codigo, nombre, oficio, codigo_postal, grupo_id
             FROM aliados
-            WHERE grupo_id = ? AND estado = 'activo' AND codigo != ?
+            WHERE grupo_id = ?
+              AND LOWER(TRIM(COALESCE(estado, ''))) IN ('activo', 'pendiente_validacion')
+              AND codigo != ?
             ORDER BY id
             """,
             (grupo_id, excluir_codigo),
         )
         out = []
         for r in cursor.fetchall():
-            if hasattr(r, "keys"):
-                out.append(dict(r))
-            else:
-                out.append(
-                    {
-                        "codigo": r[0],
-                        "nombre": r[1],
-                        "oficio": r[2],
-                        "codigo_postal": r[3],
-                    }
-                )
+            out.append(_row_profesional(r))
         return out
+
+    def select_profesional_mismo_cp(
+        self, cursor, codigo_postal: str, excluir_codigo: str
+    ) -> List[Dict[str, Any]]:
+        cp = (codigo_postal or "").strip()
+        cursor.execute(
+            """
+            SELECT a.codigo, a.nombre, a.oficio, a.codigo_postal, a.grupo_id
+            FROM aliados a
+            LEFT JOIN grupos g ON g.id = a.grupo_id
+            WHERE (
+                    TRIM(COALESCE(a.codigo_postal, '')) = ?
+                    OR TRIM(COALESCE(g.codigo_postal, '')) = ?
+                  )
+              AND LOWER(TRIM(COALESCE(a.estado, ''))) IN ('activo', 'pendiente_validacion')
+              AND a.codigo != ?
+            ORDER BY a.id
+            """,
+            (cp, cp, excluir_codigo),
+        )
+        return [_row_profesional(r) for r in cursor.fetchall()]
 
     def listar_codigos_activos_grupo(
         self, cursor, grupo_id: Any, excluir_codigo: Optional[str] = None
