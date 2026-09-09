@@ -63,11 +63,23 @@ def _metodos_pago_ocultos() -> Dict[str, Any]:
 
 
 def _celda_metodo(row: Any, clave: str, indice: int) -> Any:
+    if row is None:
+        return None
     if hasattr(row, "keys"):
         try:
-            return row[clave]
-        except (KeyError, IndexError, TypeError):
-            return None
+            claves = list(row.keys())
+        except Exception:
+            claves = []
+        mapa = {}
+        for k in claves:
+            corto = str(k).split(".")[-1].lower()
+            mapa[corto] = k
+        real = mapa.get((clave or "").lower())
+        if real is not None:
+            try:
+                return row[real]
+            except (KeyError, IndexError, TypeError):
+                pass
     try:
         return row[indice]
     except (IndexError, TypeError, KeyError):
@@ -149,24 +161,7 @@ def actualizar_metodos_pago_ruana(db, valores: Dict[str, Any], admin_codigo: Opt
                 actual.get("qr_revolut_path"),
                 admin_codigo,
             )
-            # El cobro debe persistir aunque falle la trazabilidad.
-            try:
-                db._insert_evento_sistema(
-                    cursor,
-                    "actualizar_metodos_pago",
-                    "Metodos de pago RUANA actualizados",
-                    actor_tipo="admin",
-                    actor_codigo=admin_codigo,
-                    metadata={"claves": sorted(cambios.keys())},
-                )
-            except Exception as log_exc:
-                print(f"[RUANA][pago] Evento de metodos de pago no registrado: {log_exc}")
             conn.commit()
-            return {
-                "status": "success",
-                "message": "Metodos de pago actualizados",
-                "metodos": _fila_metodos_pago(_repo.select_metodos_pago_manual(cursor)),
-            }
         except Exception as e:
             if conn is not None:
                 try:
@@ -177,6 +172,38 @@ def actualizar_metodos_pago_ruana(db, valores: Dict[str, Any], admin_codigo: Opt
         finally:
             if conn is not None:
                 conn.close()
+    try:
+        leido = obtener_config_pago_manual(db)
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Guardado no se pudo verificar: {e}",
+            "http_status": 500,
+        }
+    for clave, valor in cambios.items():
+        esperado = (valor or "").strip()
+        obtenido = (str(leido.get(clave) or "")).strip()
+        if esperado != obtenido:
+            return {
+                "status": "error",
+                "message": "Los metodos de pago no quedaron guardados en la base de datos",
+                "http_status": 500,
+            }
+    try:
+        db.registrar_evento_sistema(
+            "actualizar_metodos_pago",
+            "Metodos de pago RUANA actualizados",
+            actor_tipo="admin",
+            actor_codigo=admin_codigo,
+            metadata={"claves": sorted(cambios.keys())},
+        )
+    except Exception as log_exc:
+        print(f"[RUANA][pago] Evento de metodos de pago no registrado: {log_exc}")
+    return {
+        "status": "success",
+        "message": "Metodos de pago actualizados",
+        "metodos": leido,
+    }
 
 
 def habilitar_pago_manual_aliado(db, aliado_codigo: str, admin_codigo: Optional[str] = None) -> Dict[str, Any]:
@@ -197,10 +224,10 @@ def habilitar_pago_manual_aliado(db, aliado_codigo: str, admin_codigo: Optional[
                     "message": "Aliado no encontrado",
                 }
             datos = _fila_metodos_pago(_repo.select_metodos_pago_manual(cursor))
-            if not datos.get("iban") and not datos.get("bizum_num"):
+            if not datos.get("iban") and not datos.get("bizum_num") and not datos.get("qr_revolut_path"):
                 return {
                     "status": "error",
-                    "message": "Configura IBAN o Bizum antes de habilitar el pago manual a un aliado",
+                    "message": "Configura IBAN, Bizum o QR antes de habilitar el pago manual a un aliado",
                 }
             _repo.insertar_pago_manual_aliado(cursor, codigo, admin_codigo)
             db._insert_evento_sistema(

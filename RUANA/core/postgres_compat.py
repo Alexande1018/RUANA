@@ -373,6 +373,12 @@ class PostgresCompatCursor:
             return None
         if isinstance(row, dict):
             return CompatRow(row, list(row.keys()))
+        if isinstance(row, Mapping):
+            try:
+                data = dict(row)
+                return CompatRow(data, list(data.keys()))
+            except Exception:
+                return row
         return row
 
     def close(self):

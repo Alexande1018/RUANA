@@ -402,9 +402,10 @@
     host._abrirModalAccionAdmin({
         title: 'Editar metodos de pago',
         bodyHtml: `
-            <label class="modal-importe-label" style="display:block; margin-bottom:6px;">Telefono Bizum *</label>
+            <p style="margin:0 0 12px; color:#aaa; font-size:0.85rem;">Puedes guardar solo Bizum, solo IBAN, solo QR, o cualquier combinacion. No hace falta rellenar los tres.</p>
+            <label class="modal-importe-label" style="display:block; margin-bottom:6px;">Telefono Bizum</label>
             <input type="text" id="accion-mp-bizum" value="${host.escapeHtml(metodos.bizum_num || '')}" style="width:100%; padding:8px; margin-bottom:12px; box-sizing:border-box;" />
-            <label class="modal-importe-label" style="display:block; margin-bottom:6px;">IBAN *</label>
+            <label class="modal-importe-label" style="display:block; margin-bottom:6px;">IBAN</label>
             <input type="text" id="accion-mp-iban" value="${host.escapeHtml(metodos.iban || '')}" style="width:100%; padding:8px; margin-bottom:12px; box-sizing:border-box;" />
             <label class="modal-importe-label" style="display:block; margin-bottom:6px;">QR Revolut</label>
             <input type="file" id="accion-mp-qr" accept=".jpg,.jpeg,.png,.webp" style="width:100%; padding:8px; box-sizing:border-box;" />
@@ -416,38 +417,64 @@
             qrFile: document.getElementById('accion-mp-qr')?.files?.[0] || null
         }),
         validate: (p) => {
-            if (!p.bizum_num) return 'El telefono Bizum es obligatorio.';
-            if (!p.iban || !p.iban.startsWith('ES') || p.iban.length !== 24) return 'El IBAN espanol debe tener 24 caracteres y empezar por ES.';
+            if (p.iban && (!p.iban.startsWith('ES') || p.iban.length !== 24)) {
+                return 'El IBAN espanol debe tener 24 caracteres y empezar por ES.';
+            }
             if (p.qrFile && p.qrFile.size > 2 * 1024 * 1024) return 'El QR no puede superar 2 MB.';
+            const prev = host._metodosPago || {};
+            if (!p.bizum_num && !p.iban && !p.qrFile && !prev.qr_revolut_path) {
+                return 'Indica al menos un metodo: Bizum, IBAN o QR.';
+            }
             return null;
         },
-        getConfirmSummary: (p) => `Confirmar metodos de pago: Bizum <strong>${host.escapeHtml(p.bizum_num)}</strong>, IBAN <strong>${host.escapeHtml(p.iban)}</strong>${p.qrFile ? ', con nuevo QR Revolut' : ''}.`,
+        getConfirmSummary: (p) => {
+            const partes = [];
+            if (p.bizum_num) partes.push('Bizum <strong>' + host.escapeHtml(p.bizum_num) + '</strong>');
+            if (p.iban) partes.push('IBAN <strong>' + host.escapeHtml(p.iban) + '</strong>');
+            if (p.qrFile) partes.push('nuevo QR Revolut');
+            if (!partes.length) partes.push('mantener el QR actual y vaciar Bizum/IBAN');
+            return 'Confirmar metodos de pago: ' + partes.join(', ') + '.';
+        },
         execute: async (p) => {
             const fail = (msg) => {
                 host.showToast(msg, 'error');
                 throw new Error(msg);
             };
-            let r;
-            try {
-                r = await fetch('/api/admin/metodos-pago', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: host.getAuthHeaders(),
-                    body: JSON.stringify({ bizum_num: p.bizum_num, iban: p.iban })
-                });
-            } catch (e) {
-                console.error('Error guardando metodos de pago:', e);
-                fail('No se pudo guardar los metodos de pago. Intentalo de nuevo.');
-            }
-            if (r.status === 401) {
-                host.showToast('Sesion admin expirada o no autorizado.', 'error');
-                host._adminSessionExpired();
-                throw new Error('HTTP 401');
-            }
-            if (r.status === 403) fail('Sin permiso de escritura (solo lectura).');
-            const data = await r.json().catch(() => ({}));
-            if (!r.ok || data.status !== 'success') {
-                fail(data.message || ('Error actualizando metodos de pago (HTTP ' + r.status + ').'));
+            const prev = host._metodosPago || {};
+            const body = {};
+            if (p.bizum_num) body.bizum_num = p.bizum_num;
+            else if (prev.bizum_num) body.bizum_num = '';
+            if (p.iban) body.iban = p.iban;
+            else if (prev.iban) body.iban = '';
+            let data = {};
+            if (Object.keys(body).length) {
+                let r;
+                try {
+                    r = await fetch('/api/admin/metodos-pago', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: host.getAuthHeaders(),
+                        body: JSON.stringify(body)
+                    });
+                } catch (e) {
+                    console.error('Error guardando metodos de pago:', e);
+                    fail('No se pudo guardar los metodos de pago. Intentalo de nuevo.');
+                }
+                if (r.status === 401) {
+                    host.showToast('Sesion admin expirada o no autorizado.', 'error');
+                    host._adminSessionExpired();
+                    throw new Error('HTTP 401');
+                }
+                if (r.status === 403) fail('Sin permiso de escritura (solo lectura).');
+                data = await r.json().catch(() => ({}));
+                if (!r.ok || data.status !== 'success') {
+                    fail(data.message || ('Error actualizando metodos de pago (HTTP ' + r.status + ').'));
+                }
+            } else if (!p.qrFile) {
+                if (!prev.bizum_num && !prev.iban && !prev.qr_revolut_path) {
+                    fail('Indica al menos un metodo: Bizum, IBAN o QR.');
+                }
+                host.renderMetodosPago(prev);
             }
             if (p.qrFile) {
                 const fd = new FormData();
@@ -477,9 +504,23 @@
                 if (qrData.metodos) host.renderMetodosPago(qrData.metodos);
             } else if (data.metodos) {
                 host.renderMetodosPago(data.metodos);
+            } else {
+                host.renderMetodosPago(Object.assign({}, prev, {
+                    bizum_num: p.bizum_num || null,
+                    iban: p.iban || null
+                }));
             }
+            const guardados = Object.assign({}, host._metodosPago || {});
             host.showToast('Metodos de pago actualizados. Esto no activa el pago manual: habilita aliados en la allowlist.', 'success');
             await host.cargarDesdeApi();
+            const trasReload = host._metodosPago || {};
+            const perdidoBizum = p.bizum_num && trasReload.bizum_num !== p.bizum_num;
+            const perdidoIban = p.iban && trasReload.iban !== p.iban;
+            const perdidoQr = p.qrFile && !trasReload.qr_revolut_path;
+            if (perdidoBizum || perdidoIban || perdidoQr) {
+                host.renderMetodosPago(guardados);
+                fail('El guardado no se reflejó al recargar. Los metodos de pago no quedaron en la base de datos.');
+            }
         }
     });
   }

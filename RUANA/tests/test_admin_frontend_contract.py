@@ -93,15 +93,20 @@ def test_admin_has_payment_methods_management_contract():
     assert "Error ejecutando accion admin" in admin_html
     assert "No se pudieron cargar los metodos de pago (HTTP " in resumen_js
     edit_start = sistema_js.index("function accionEditarMetodosPago(host)")
-    edit_snippet = sistema_js[edit_start : edit_start + 5200]
+    edit_snippet = sistema_js[edit_start : edit_start + 7500]
     assert "getPayload" in edit_snippet
     assert "validate" in edit_snippet
-    assert "JSON.stringify({ bizum_num: p.bizum_num, iban: p.iban })" in edit_snippet
+    assert "JSON.stringify(body)" in edit_snippet
+    assert "Indica al menos un metodo: Bizum, IBAN o QR." in edit_snippet
+    assert "El telefono Bizum es obligatorio." not in edit_snippet
     assert "host.getAuthHeaders()" in edit_snippet
     assert "fail(" in edit_snippet
     assert "HTTP " in edit_snippet
     assert "await host.cargarDesdeApi()" in edit_snippet
     assert "host.renderMetodosPago" in edit_snippet
+    assert "El guardado no se reflejó al recargar" in edit_snippet
+    assert "perdidoIban" in edit_snippet
+    assert "perdidoQr" in edit_snippet
     habilitar_start = sistema_js.index("async function habilitarPagoManualAliado(host)")
     habilitar_snippet = sistema_js[habilitar_start : habilitar_start + 2200]
     assert "try {" in habilitar_snippet

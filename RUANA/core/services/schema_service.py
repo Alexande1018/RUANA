@@ -2858,8 +2858,50 @@ def _migrar_pago_manual_allowlist(db, conn, cursor) -> None:
                 _repo.execute(cursor, f"ALTER TABLE ruana_metodos_pago_manual ADD COLUMN {col} {spec}")
             except Exception:
                 pass
+        if getattr(db, "backend", None) == "postgres":
+            _asegurar_acceso_app_metodos_pago_manual(cursor)
     except Exception as ex:
         print(f"[RUANA][DB] Aviso migrar pago_manual_allowlist: {ex}")
+
+
+def _asegurar_acceso_app_metodos_pago_manual(cursor) -> None:
+    """El rol de Flask debe poder leer/escribir cobro; anon sigue sin política."""
+    sentencias = (
+        "REVOKE ALL ON TABLE ruana_metodos_pago_manual FROM PUBLIC",
+        "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE ruana_metodos_pago_manual TO CURRENT_USER",
+        """
+        DO $$
+        DECLARE seq text;
+        BEGIN
+          seq := pg_get_serial_sequence('ruana_metodos_pago_manual', 'id');
+          IF seq IS NOT NULL THEN
+            EXECUTE format('GRANT USAGE, SELECT ON SEQUENCE %s TO CURRENT_USER', seq);
+          END IF;
+        END $$
+        """,
+        """
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_policies
+            WHERE schemaname = 'public'
+              AND tablename = 'ruana_metodos_pago_manual'
+              AND policyname = 'ruana_metodos_pago_manual_app'
+          ) THEN
+            CREATE POLICY ruana_metodos_pago_manual_app
+              ON ruana_metodos_pago_manual
+              FOR ALL TO CURRENT_USER
+              USING (true)
+              WITH CHECK (true);
+          END IF;
+        END $$
+        """,
+    )
+    for sql in sentencias:
+        try:
+            _repo.execute(cursor, sql)
+        except Exception as ex:
+            print(f"[RUANA][DB] Aviso acceso metodos_pago_manual: {ex}")
 
 
 def _aplicar_esquema_pin_personal(db, cursor) -> None:
