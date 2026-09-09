@@ -15,14 +15,14 @@ def _row_profesional(r: Any) -> Dict[str, Any]:
     if hasattr(r, "keys"):
         data = dict(r)
         return {
-            "codigo": data.get("codigo"),
+            "codigo": str(data.get("codigo") or "").strip(),
             "nombre": data.get("nombre"),
             "oficio": data.get("oficio"),
             "codigo_postal": data.get("codigo_postal"),
             "grupo_id": data.get("grupo_id"),
         }
     return {
-        "codigo": r[0],
+        "codigo": str(r[0] or "").strip(),
         "nombre": r[1],
         "oficio": r[2],
         "codigo_postal": r[3],
@@ -49,8 +49,8 @@ class SolicitudRepo:
         self, cursor, codigo: str
     ) -> Optional[Tuple[Any, Any]]:
         cursor.execute(
-            "SELECT grupo_id, nombre FROM aliados WHERE codigo = ?",
-            (codigo,),
+            "SELECT grupo_id, nombre FROM aliados WHERE TRIM(CAST(codigo AS TEXT)) = TRIM(?)",
+            (str(codigo or "").strip(),),
         )
         row = cursor.fetchone()
         if not row:
@@ -210,7 +210,7 @@ class SolicitudRepo:
                 nombre,
                 oficio,
                 descripcion,
-                asignada_a_codigo,
+                str(asignada_a_codigo).strip() if asignada_a_codigo else None,
                 asignada_a_nombre or "",
                 destino,
                 proximidad_codigo,
@@ -353,13 +353,13 @@ class SolicitudRepo:
                    proximidad_codigo, proximidad_nombre, proximidad_cp, proximidad_zona, proximidad_estado
             FROM solicitudes
             WHERE estado = 'pendiente'
-              AND solicitante_codigo != ?
-              AND COALESCE(proximidad_estado, '') != 'pendiente_aprobacion'
+              AND TRIM(CAST(solicitante_codigo AS TEXT)) != TRIM(?)
               AND (
-                asignada_a_codigo = ?
+                TRIM(CAST(COALESCE(asignada_a_codigo, '') AS TEXT)) = TRIM(?)
                 OR (
-                  COALESCE(asignada_a_codigo, '') = ''
+                  TRIM(CAST(COALESCE(asignada_a_codigo, '') AS TEXT)) = ''
                   AND grupo_id = ?
+                  AND COALESCE(proximidad_estado, '') != 'pendiente_aprobacion'
                 )
               )
             ORDER BY created_at DESC
@@ -391,7 +391,8 @@ class SolicitudRepo:
                    asignada_a_codigo, asignada_a_nombre, destino,
                    proximidad_codigo, proximidad_nombre, proximidad_cp, proximidad_zona, proximidad_estado
             FROM solicitudes
-            WHERE estado = 'pendiente' AND asignada_a_codigo = ?
+            WHERE estado = 'pendiente'
+              AND TRIM(CAST(COALESCE(asignada_a_codigo, '') AS TEXT)) = TRIM(?)
             ORDER BY created_at DESC
             """,
             (codigo,),
@@ -540,14 +541,15 @@ class SolicitudRepo:
         return cursor.fetchone()[0] or 0
 
     def listar_ids_candidatos_vencidos(self, cursor, horas: int) -> List[int]:
+        # Literal en SQL: datetime('now', ?) no se traduce en Postgres y tumba el GET.
+        horas = max(1, int(horas))
         cursor.execute(
-            """
+            f"""
             SELECT id FROM solicitudes
             WHERE estado = 'candidato_pendiente'
               AND candidato_at IS NOT NULL
-              AND datetime(candidato_at) <= datetime('now', ?)
-            """,
-            (f"-{int(horas)} hours",),
+              AND datetime(candidato_at) <= datetime('now', '-{horas} hours')
+            """
         )
         return [int(r[0]) for r in cursor.fetchall()]
 

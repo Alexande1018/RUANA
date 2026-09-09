@@ -50,6 +50,21 @@ def test_actividad_repo_listar_solicitudes_usa_datetime_literal():
     assert "interval '30 days'" in sql
 
 
+def test_caducar_candidatos_sql_usa_datetime_literal():
+    from core.repositories.solicitud_repo import SolicitudRepo
+
+    repo = SolicitudRepo()
+    cur, inner = _compat_cursor()
+    inner.fetchall.return_value = []
+
+    repo.listar_ids_candidatos_vencidos(cur, 24)
+
+    sql = inner.execute.call_args[0][0]
+    assert "datetime('now', ?)" not in sql
+    assert "now()" in sql
+    assert "interval '24 hours'" in sql
+
+
 def _compat_cursor():
     conn = MagicMock()
     conn._conn = MagicMock()
