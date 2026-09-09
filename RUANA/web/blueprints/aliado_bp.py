@@ -202,16 +202,8 @@ def get_aliado_datos():
                 if pago_service.stripe_habilitado_global()
                 else True
             )
-            try:
-                aliado_dict['territorio_modo'] = db.territorio_modo_aliado(
-                    aliado_dict.get('codigo_postal') or '', grupo_id
-                )
-            except Exception:
-                aliado_dict['territorio_modo'] = 'territorial'
-            try:
-                aliado_dict['mostrar_aviso_madre'] = db.debe_mostrar_aviso_madre(codigo, grupo_id)
-            except Exception:
-                aliado_dict['mostrar_aviso_madre'] = False
+            aliado_dict['territorio_modo'] = 'territorial'
+            aliado_dict['mostrar_aviso_madre'] = False
 
             # Notificaciones del aliado (ej. comprobante rechazado con mensaje de admin)
             notificaciones = notificacion_service.listar_notificaciones_aliado(
@@ -347,20 +339,43 @@ def get_aliados_directorio():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
-@aliado_bp.route('/api/aliado/grupo-madre/aviso-visto', methods=['POST'])
+@aliado_bp.route('/api/aliado/proximidad', methods=['GET'])
 @require_aliado
-def aliado_grupo_madre_aviso_visto():
-    """Marca el aviso de bienvenida al Grupo Madre como visto."""
+def aliado_proximidad():
+    """Recomienda un profesional cercano si el oficio no está en el grupo local."""
     try:
-        from core.db_constants import AVISO_GRUPO_MADRE
+        from core.services import proximidad_service
+
+        codigo = _aliado_codigo()
+        if not codigo:
+            return jsonify({'status': 'error', 'message': 'Sesión expirada'}), 401
+        oficio = (request.args.get('oficio') or '').strip()
+        if not oficio:
+            return jsonify({'status': 'error', 'message': 'oficio obligatorio'}), 400
+        rec = proximidad_service.recomendar_profesional(get_db(), codigo, oficio)
+        return jsonify({'status': 'success', 'proximidad': rec})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@aliado_bp.route('/api/aliado/proximidad/solicitar', methods=['POST'])
+@require_aliado
+def aliado_proximidad_solicitar():
+    """Notifica al profesional recomendado. No abre el directorio ajeno."""
+    try:
+        from core.services import proximidad_service
 
         codigo = _aliado_codigo()
         if not codigo:
             return jsonify({'status': 'error', 'message': 'Sesión expirada'}), 401
         data = request.get_json(silent=True) or {}
-        aviso_tipo = (data.get('aviso_tipo') or AVISO_GRUPO_MADRE).strip()
-        db = get_db()
-        result = db.marcar_aviso_madre_visto(codigo, aviso_tipo)
+        oficio = (data.get('oficio') or '').strip()
+        profesional = (data.get('profesional_codigo') or data.get('codigo') or '').strip() or None
+        if not oficio:
+            return jsonify({'status': 'error', 'message': 'oficio obligatorio'}), 400
+        result = proximidad_service.solicitar_contacto_proximidad(
+            get_db(), codigo, oficio, profesional
+        )
         status_code = 200 if result.get('status') == 'success' else 400
         return jsonify(result), status_code
     except Exception as e:

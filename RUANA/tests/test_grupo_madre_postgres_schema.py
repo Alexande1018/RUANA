@@ -54,11 +54,12 @@ def test_migrar_cp_auto_split_v1_postgres_if_not_exists():
 def test_init_postgres_schema_commits_madre_v1_antes_de_consolidar():
     src = Path(schema_service.__file__).read_text(encoding="utf-8")
     idx = src.index("def _init_postgres_schema")
-    block = src[idx : idx + 9000]
+    block = src[idx : idx + 16000]
     v1_idx = block.index("_migrar_grupo_madre_v1_si_procede")
     split_idx = block.index("_migrar_cp_auto_split_v1_si_procede")
     v2_idx = block.index("_migrar_grupo_madre_v2_consolidar_si_procede")
-    assert v1_idx < split_idx < v2_idx
+    v3_idx = block.index("_migrar_territorio_directo_v1_si_procede")
+    assert v1_idx < split_idx < v2_idx < v3_idx
     v1_commit = block.find("conn.commit()", v1_idx)
     assert v1_commit != -1
     assert v1_commit < v2_idx
@@ -73,6 +74,19 @@ def test_supabase_grupo_madre_migration_adds_tipo():
     )
     sql = path.read_text(encoding="utf-8")
     assert "ADD COLUMN IF NOT EXISTS tipo" in sql
+    assert "DROP TABLE" not in sql
+    assert "DROP COLUMN" not in sql
+
+
+def test_supabase_territorio_directo_no_borra_columnas():
+    path = (
+        Path(__file__).resolve().parents[2]
+        / "supabase"
+        / "migrations"
+        / "20260909000100_territorio_directo.sql"
+    )
+    sql = path.read_text(encoding="utf-8")
+    assert "migracion_territorio_backup" in sql
     assert "DROP TABLE" not in sql
     assert "DROP COLUMN" not in sql
 
@@ -93,3 +107,4 @@ def test_init_postgres_schema_sigue_si_falla_madre_v1(monkeypatch):
     schema_service._init_postgres_schema(db)
     assert later == ["financial"]
     db._migrar_grupo_madre_v2_consolidar_si_procede.assert_called()
+    db._migrar_territorio_directo_v1_si_procede.assert_called()

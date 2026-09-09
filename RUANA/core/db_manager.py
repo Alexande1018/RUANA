@@ -129,6 +129,10 @@ class DBManager:
         """Fachada Campamento Base → schema_service._migrar_grupo_madre_v2_consolidar_si_procede."""
         return schema_service._migrar_grupo_madre_v2_consolidar_si_procede(self, conn, cursor)
 
+    def _migrar_territorio_directo_v1_si_procede(self, conn, cursor) -> None:
+        """Fachada Campamento Base → schema_service._migrar_territorio_directo_v1_si_procede."""
+        return schema_service._migrar_territorio_directo_v1_si_procede(self, conn, cursor)
+
     def _migrar_aliados_grupo_id(self, conn, cursor) -> None:
         """Fachada Campamento Base → schema_service._migrar_aliados_grupo_id."""
         return schema_service._migrar_aliados_grupo_id(self, conn, cursor)
@@ -541,28 +545,14 @@ class DBManager:
         return grupo_service.info_grupo_para_panel(self, grupo_id, codigo_aliado)
 
     def cp_en_modo_territorial(self, codigo_postal: str) -> bool:
-        from core.services import grupo_madre_service
-        return grupo_madre_service.cp_en_modo_territorial(self, codigo_postal)
+        """Compatibilidad: el territorio es siempre directo por CP."""
+        del codigo_postal
+        return True
 
     def territorio_modo_aliado(self, codigo_postal: str, grupo_id: Optional[int]) -> str:
-        from core.services import grupo_madre_service
-        return grupo_madre_service.territorio_modo_aliado(self, codigo_postal, grupo_id)
-
-    def debe_mostrar_aviso_madre(self, codigo_aliado: str, grupo_id: Optional[int]) -> bool:
-        from core.services import grupo_madre_service
-        return grupo_madre_service.debe_mostrar_aviso_madre(self, codigo_aliado, grupo_id)
-
-    def marcar_aviso_madre_visto(self, codigo_aliado: str, aviso_tipo: str) -> Dict[str, Any]:
-        from core.services import grupo_madre_service
-        return grupo_madre_service.marcar_aviso_visto(self, codigo_aliado, aviso_tipo)
-
-    def aprobar_independencia_cp(self, codigo_postal: str, admin_codigo: str = "admin") -> Dict[str, Any]:
-        from core.services import grupo_madre_service
-        return grupo_madre_service.aprobar_independencia_cp(self, codigo_postal, admin_codigo)
-
-    def posponer_independencia_cp(self, codigo_postal: str, admin_codigo: str = "admin", notas: str = "") -> Dict[str, Any]:
-        from core.services import grupo_madre_service
-        return grupo_madre_service.posponer_independencia_cp(self, codigo_postal, admin_codigo, notas)
+        """Compatibilidad: no existe modo incubación."""
+        del codigo_postal, grupo_id
+        return "territorial"
 
     def _buscar_candidato_fusion(self, cursor, grupo_id: int, codigo_postal: str, oficio_aliado_solo: str) -> Optional[Dict[str, Any]]:
         """Fachada Campamento Base → grupo_service._buscar_candidato_fusion."""
@@ -598,15 +588,6 @@ class DBManager:
         "incorporación y te lo notificaremos.\n\n"
         "Mientras tanto, no tienes que hacer nada más. Gracias por confiar en RUANA."
     )
-    MENSAJE_LISTA_ESPERA_MADRE = (
-        "¡Bienvenido a RUANA! 🎉\n\n"
-        "Tu registro se ha completado correctamente.\n\n"
-        "La red de tu ciudad ya tiene el máximo de plazas para tu oficio en distintas zonas, "
-        "así que entras en la lista de Suplentes de tu ciudad.\n\n"
-        "En cuanto se libere una plaza compatible con tu código postal, el equipo RUANA te incorporará.\n\n"
-        "Gracias por confiar en RUANA."
-    )
-
     def crear_aliado(self, codigo: str, nombre: str, marca: str = "",
                     oficio: str = "", codigo_postal: str = "",
                     email: str = "", telefono: str = "",

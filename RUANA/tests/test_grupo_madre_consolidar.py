@@ -1,11 +1,10 @@
-"""Consolidación: aliados de grupos territoriales pequeños pasan al Grupo Madre."""
+"""Consolidación v2 es no-op: los grupos territoriales no se absorben en un Grupo Madre."""
 from types import SimpleNamespace
 
 import pytest
 
 from core import db_manager as db_module
-from core.db_constants import TIPO_GRUPO_MADRE
-from core.services import grupo_madre_service
+from core.services import schema_service
 
 
 @pytest.fixture
@@ -38,7 +37,7 @@ def _crear(db, codigo, oficio="Electricidad", cp="03001"):
     return r
 
 
-def test_consolidar_mueve_grupos_pequenos_al_madre(sqlite_db):
+def test_consolidar_v2_no_mueve_grupos_territoriales(sqlite_db):
     g1 = sqlite_db.crear_grupo_en_cp("03001", "Alicante", "Alicante")
     g2 = sqlite_db.crear_grupo_en_cp("03003", "Alicante", "Alicante")
     assert g1.get("id") and g2.get("id")
@@ -48,38 +47,34 @@ def test_consolidar_mueve_grupos_pequenos_al_madre(sqlite_db):
     _crear(sqlite_db, "80003", oficio="Albañilería y obra", cp="03003")
     _crear(sqlite_db, "80004", oficio="Cerrajería", cp="03003")
 
-    assert grupo_madre_service.contar_grupos_territoriales_activos_por_cp(sqlite_db, "03001") == 1
-    assert grupo_madre_service.contar_grupos_territoriales_activos_por_cp(sqlite_db, "03003") == 1
+    assert sqlite_db.contar_grupos_activos_por_cp("03001") == 1
+    assert sqlite_db.contar_grupos_activos_por_cp("03003") == 1
 
-    result = grupo_madre_service.consolidar_territoriales_en_madre(sqlite_db)
-    assert result["status"] == "ok"
-    assert result["aliados_movidos"] >= 4
-    assert result["grupos_disueltos"] >= 2
+    conn = sqlite_db._connect()
+    cursor = conn.cursor()
+    schema_service._migrar_grupo_madre_v2_consolidar_si_procede(sqlite_db, conn, cursor)
+    conn.commit()
+    conn.close()
 
-    ids = set()
     for codigo in ("80001", "80002", "80003", "80004"):
         aliado = sqlite_db.obtener_aliado_por_codigo(codigo)
         g = sqlite_db.obtener_grupo_por_id(aliado["grupo_id"])
-        assert (g or {}).get("tipo") == TIPO_GRUPO_MADRE
-        ids.add(aliado["grupo_id"])
-    assert len(ids) == 1
+        assert (g or {}).get("tipo") == "territorial"
 
-    assert grupo_madre_service.contar_grupos_territoriales_activos_por_cp(sqlite_db, "03001") == 0
-    assert grupo_madre_service.contar_grupos_territoriales_activos_por_cp(sqlite_db, "03003") == 0
-    assert grupo_madre_service.cp_en_modo_territorial(sqlite_db, "03001") is False
+    assert sqlite_db.contar_grupos_activos_por_cp("03001") == 1
+    assert sqlite_db.contar_grupos_activos_por_cp("03003") == 1
+    assert sqlite_db.cp_en_modo_territorial("03001") is True
 
     g1_after = sqlite_db.obtener_grupo_por_id(g1["id"])
     g2_after = sqlite_db.obtener_grupo_por_id(g2["id"])
-    assert (g1_after or {}).get("estado") == "disuelto"
-    assert (g2_after or {}).get("estado") == "disuelto"
+    assert (g1_after or {}).get("estado") == "activo"
+    assert (g2_after or {}).get("estado") == "activo"
 
 
-def test_nuevo_registro_tras_consolidar_sigue_en_madre(sqlite_db):
+def test_nuevo_registro_sigue_en_territorial(sqlite_db):
     sqlite_db.crear_grupo_en_cp("03001", "Alicante", "Alicante")
     _crear(sqlite_db, "80101", oficio="Electricidad", cp="03001")
-    grupo_madre_service.consolidar_territoriales_en_madre(sqlite_db)
-
     _crear(sqlite_db, "80102", oficio="Pintura y decoración", cp="03001")
     aliado = sqlite_db.obtener_aliado_por_codigo("80102")
     g = sqlite_db.obtener_grupo_por_id(aliado["grupo_id"])
-    assert (g or {}).get("tipo") == TIPO_GRUPO_MADRE
+    assert (g or {}).get("tipo") == "territorial"

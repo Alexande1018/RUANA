@@ -89,9 +89,8 @@
     listaProfesionales.innerHTML = '';
 
     var profesionalesArray = Array.isArray(host.profesionales) ? host.profesionales : [];
-    var territorioModo = (host.aliado && host.aliado.territorio_modo) || 'territorial';
     var miCp = ((host.aliado && host.aliado.codigo_postal) || '').trim();
-    if (miCp && territorioModo !== 'incubacion') {
+    if (miCp) {
       profesionalesArray = profesionalesArray.filter(function (p) {
         var cp = ((p && (p.codigo_postal || p.zona)) || '').trim();
         return cp === miCp;
@@ -114,8 +113,14 @@
       : profesionalesDisponibles;
 
     if (filtrados.length === 0) {
+      var emptyMsg = query
+        ? 'Ningún profesional de tu grupo coincide con la búsqueda.'
+        : 'No hay profesionales disponibles en este momento';
       listaProfesionales.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">' +
-        (query ? 'Ningún profesional coincide con la búsqueda.' : 'No hay profesionales disponibles en este momento') + '</p>';
+        emptyMsg + '</p>';
+      if (query) {
+        pedirProximidad(host, listaProfesionales, query);
+      }
       return;
     }
 
@@ -130,10 +135,6 @@
       var nombre = prof.nombre || '(sin nombre)';
       var oficio = prof.oficio || '(sin oficio)';
       var zona = prof.zona || prof.codigo_postal || '(sin zona)';
-      var cercaniaBadge = '';
-      if (territorioModo === 'incubacion' && prof.etiqueta_cercania) {
-        cercaniaBadge = ' <span class="directorio-cercania-badge">' + escapeHtmlSafe(host, prof.etiqueta_cercania) + '</span>';
-      }
       var descripcionServicio = (prof.descripcion_servicio || prof.descripcion || '').trim();
       var badgeTexto = tieneConversacion ? 'Negociación activa' : (esIncompleto ? 'Perfil incompleto' : 'DISPONIBLE');
       var scoreMeta = scoreEtiquetaMeta(prof.score, prof.estado_ruana);
@@ -152,7 +153,7 @@
             avatarHtml +
             '<div>' +
               '<div class="profesional-nombre">' + escapeHtmlSafe(host, nombre) + '</div>' +
-              '<div class="profesional-oficio-sub">' + escapeHtmlSafe(host, oficio) + ' · ' + escapeHtmlSafe(host, zona) + cercaniaBadge + '</div>' +
+              '<div class="profesional-oficio-sub">' + escapeHtmlSafe(host, oficio) + ' · ' + escapeHtmlSafe(host, zona) + '</div>' +
             '</div>' +
           '</div>' +
           '<div class="profesional-badge ' + badgeRuana + ' ' + badgeTipo + '"><span class="ruana-badge-dot"></span>' + escapeHtmlSafe(host, badgeTexto) + '</div>' +
@@ -189,6 +190,61 @@
       });
     });
     if (typeof global.RuanaUI !== 'undefined') global.RuanaUI.initIcons(document.getElementById('profesionales-list'));
+  }
+
+  function pedirProximidad(host, listaProfesionales, query) {
+    var oficio = (query || '').trim();
+    if (!oficio) return;
+    var apiBase = typeof global.getApiBase === 'function' ? global.getApiBase() : '';
+    var headers = typeof global.getRuanaAuthHeaders === 'function' ? global.getRuanaAuthHeaders() : {};
+    fetch(apiBase + '/api/aliado/proximidad?oficio=' + encodeURIComponent(oficio), {
+      credentials: 'same-origin',
+      headers: headers
+    }).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data || data.status !== 'success' || !data.proximidad) return;
+        var rec = data.proximidad;
+        var card = document.createElement('div');
+        card.className = 'profesional-card proximidad-card';
+        card.innerHTML =
+          '<div class="profesional-header">' +
+            '<div class="profesional-identity"><div>' +
+              '<div class="profesional-nombre">' + escapeHtmlSafe(host, rec.nombre || 'Profesional cercano') + '</div>' +
+              '<div class="profesional-oficio-sub">' + escapeHtmlSafe(host, rec.oficio || oficio) +
+                ' · ' + escapeHtmlSafe(host, rec.etiqueta_proximidad || 'Cercano') + '</div>' +
+            '</div></div>' +
+            '<div class="profesional-badge ruana-badge observacion"><span class="ruana-badge-dot"></span>Cercano</div>' +
+          '</div>' +
+          '<p class="profesional-descripcion">No hay este oficio en tu grupo. Puedes solicitar contacto al profesional más cercano; no verás el directorio de su grupo.</p>' +
+          '<div class="profesional-acciones">' +
+            '<button type="button" class="btn-solicitar-proximidad">Solicitar contacto</button>' +
+          '</div>';
+        listaProfesionales.appendChild(card);
+        var btn = card.querySelector('.btn-solicitar-proximidad');
+        if (btn) {
+          btn.addEventListener('click', function () {
+            btn.disabled = true;
+            fetch(apiBase + '/api/aliado/proximidad/solicitar', {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: Object.assign({ 'Content-Type': 'application/json' }, headers),
+              body: JSON.stringify({ oficio: oficio, profesional_codigo: rec.codigo || '' })
+            }).then(function (r) { return r.json(); })
+              .then(function (res) {
+                if (res && res.status === 'success' && res.notificado) {
+                  btn.textContent = 'Solicitud enviada';
+                } else {
+                  btn.disabled = false;
+                  alert((res && res.message) || 'No se pudo notificar al profesional');
+                }
+              })
+              .catch(function () {
+                btn.disabled = false;
+                alert('Error de red');
+              });
+          });
+        }
+      }).catch(function () {});
   }
 
   function render(host) {

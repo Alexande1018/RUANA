@@ -1,5 +1,5 @@
 /**
- * RUANA Admin — Grupo Madre e independización territorial.
+ * RUANA Admin — estado territorial por código postal y comprobación de migración.
  */
 (function (global) {
   'use strict';
@@ -22,126 +22,64 @@
     return {};
   }
 
-  function renderIndependenciaPendientes(solicitudes) {
-    var tbody = document.getElementById('tbody-independencia-pendientes');
+  function renderMigracion(data) {
+    var wrap = document.getElementById('territorio-migracion-resumen');
+    var tbody = document.getElementById('tbody-territorio-migracion');
+    var filas = (data && data.sin_grupo_territorial_valido) || [];
+    var total = data && data.total != null ? data.total : filas.length;
+    if (wrap) {
+      wrap.innerHTML = '<div class="grupos-cp-card"><h4>Comprobación</h4>' +
+        '<div class="grupos-cp-meta">' + esc(total) + ' aliados sin grupo territorial válido</div></div>';
+    }
     if (!tbody) return;
-    var list = solicitudes || [];
-    if (!list.length) {
-      tbody.innerHTML = '<tr><td colspan="6" style="color:#94a3b8;">No hay solicitudes pendientes.</td></tr>';
+    if (!filas.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="color:#94a3b8;">Todos los aliados activos tienen grupo territorial.</td></tr>';
       return;
     }
-    tbody.innerHTML = list.map(function (s) {
+    tbody.innerHTML = filas.map(function (a) {
       return '<tr>' +
-        '<td>' + esc(s.codigo_postal) + '</td>' +
-        '<td>' + esc(s.ciudad) + '</td>' +
-        '<td>' + esc(s.aliados_activos) + '</td>' +
-        '<td>' + esc(s.encargos_validos) + '</td>' +
-        '<td>' + esc((s.creado_en || '').toString().slice(0, 16)) + '</td>' +
-        '<td class="territorio-acciones">' +
-          '<button type="button" class="ruana-btn-primario btn-aprobar-independencia" data-cp="' + esc(s.codigo_postal) + '">Aprobar</button> ' +
-          '<button type="button" class="btn-admin-action btn-posponer-independencia" data-cp="' + esc(s.codigo_postal) + '">Posponer</button>' +
-        '</td></tr>';
-    }).join('');
-    tbody.querySelectorAll('.btn-aprobar-independencia').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var cp = btn.getAttribute('data-cp');
-        if (!cp || !confirm('¿Aprobar independización territorial del CP ' + cp + '?')) return;
-        btn.disabled = true;
-        fetch('/api/admin/cp-independencia/aprobar', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
-          body: JSON.stringify({ codigo_postal: cp })
-        }).then(function (r) { return r.json(); })
-          .then(function (data) {
-            if (data.status === 'success') {
-              if (global.AdminPanel && typeof global.AdminPanel.showToast === 'function') {
-                global.AdminPanel.showToast('CP ' + cp + ' independizado.', 'success');
-              }
-              refresh();
-            } else {
-              alert(data.message || 'No se pudo aprobar');
-            }
-          })
-          .catch(function () { alert('Error de red'); })
-          .finally(function () { btn.disabled = false; });
-      });
-    });
-    tbody.querySelectorAll('.btn-posponer-independencia').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var cp = btn.getAttribute('data-cp');
-        var notas = prompt('Notas (opcional) para posponer CP ' + cp + ':', '');
-        if (notas === null) return;
-        btn.disabled = true;
-        fetch('/api/admin/cp-independencia/posponer', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
-          body: JSON.stringify({ codigo_postal: cp, notas: notas })
-        }).then(function (r) { return r.json(); })
-          .then(function (data) {
-            if (data.status === 'success') refresh();
-            else alert(data.message || 'No se pudo posponer');
-          })
-          .catch(function () { alert('Error de red'); })
-          .finally(function () { btn.disabled = false; });
-      });
-    });
-  }
-
-  function renderCpMadurez(cps) {
-    var tbody = document.getElementById('tbody-cp-madurez');
-    if (!tbody) return;
-    var list = cps || [];
-    if (!list.length) {
-      tbody.innerHTML = '<tr><td colspan="6" style="color:#94a3b8;">No hay CPs en incubación registrados.</td></tr>';
-      return;
-    }
-    tbody.innerHTML = list.map(function (c) {
-      var listo = c.listo_independizar ? 'Sí' : 'No';
-      return '<tr>' +
-        '<td>' + esc(c.codigo_postal) + '</td>' +
-        '<td>' + esc(c.ciudad) + '</td>' +
-        '<td>' + esc(c.modo || 'incubacion') + '</td>' +
-        '<td>' + esc(c.aliados_activos) + '</td>' +
-        '<td>' + esc(c.encargos_validos) + '</td>' +
-        '<td>' + esc(listo) + '</td></tr>';
+        '<td>' + esc(a.codigo) + '</td>' +
+        '<td>' + esc(a.nombre) + '</td>' +
+        '<td>' + esc(a.codigo_postal) + '</td>' +
+        '<td>' + esc(a.oficio) + '</td>' +
+        '<td>' + esc(a.estado) + '</td>' +
+        '<td>' + esc(a.grupo_id || '—') + '</td></tr>';
     }).join('');
   }
 
-  function renderGruposMadre(grupos) {
-    var wrap = document.getElementById('grupos-madre-overview');
-    if (!wrap) return;
-    var list = grupos || [];
+  function renderEstado(data) {
+    var tbody = document.getElementById('tbody-territorio-estado');
+    if (!tbody) return;
+    var list = (data && data.aliados) || [];
     if (!list.length) {
-      wrap.innerHTML = '<p style="color:#94a3b8;">No hay grupos madre activos.</p>';
+      tbody.innerHTML = '<tr><td colspan="6" style="color:#94a3b8;">Sin aliados territoriales.</td></tr>';
       return;
     }
-    wrap.innerHTML = list.map(function (g) {
-      return '<div class="grupos-cp-card">' +
-        '<h4>' + esc(g.nombre) + '</h4>' +
-        '<div class="grupos-cp-meta">' + esc(g.ciudad) + ' · ' + esc(g.n_aliados || 0) + ' aliados activos</div></div>';
+    tbody.innerHTML = list.map(function (a) {
+      return '<tr>' +
+        '<td>' + esc(a.codigo) + '</td>' +
+        '<td>' + esc(a.nombre) + '</td>' +
+        '<td>' + esc(a.codigo_postal) + '</td>' +
+        '<td>' + esc(a.grupo_nombre || a.grupo_id || '—') + '</td>' +
+        '<td>' + esc(a.grupo_tipo || 'territorial') + '</td>' +
+        '<td>' + esc(a.estado) + '</td></tr>';
     }).join('');
   }
 
   function refresh() {
     return Promise.all([
-      fetch('/api/admin/cp-independencia/pendientes', { credentials: 'same-origin', headers: authHeaders() })
+      fetch('/api/admin/territorio/migracion-check', { credentials: 'same-origin', headers: authHeaders() })
         .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (d) { if (d && d.status === 'success') renderIndependenciaPendientes(d.solicitudes); }),
-      fetch('/api/admin/grupos-madre', { credentials: 'same-origin', headers: authHeaders() })
+        .then(function (d) { if (d && d.status === 'success') renderMigracion(d); }),
+      fetch('/api/admin/territorio/estado', { credentials: 'same-origin', headers: authHeaders() })
         .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (d) { if (d && d.status === 'success') renderGruposMadre(d.grupos); }),
-      fetch('/api/admin/cp-madurez?modo=incubacion', { credentials: 'same-origin', headers: authHeaders() })
-        .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (d) { if (d && d.status === 'success') renderCpMadurez(d.cps); })
+        .then(function (d) { if (d && d.status === 'success') renderEstado(d); })
     ]);
   }
 
   modules.territorio = {
     refresh: refresh,
-    renderIndependenciaPendientes: renderIndependenciaPendientes,
-    renderGruposMadre: renderGruposMadre,
-    renderCpMadurez: renderCpMadurez
+    renderMigracion: renderMigracion,
+    renderEstado: renderEstado
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -975,28 +975,29 @@
             <h2 class="seccion-titulo">Grupos y códigos postales</h2>
             <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Vista territorial de la red RUANA por CP y grupos.</p>
             <div class="grupos-cp-overview" id="grupos-cp-overview"></div>
-            <div class="control-aliados" id="territorio-madre-wrap" style="margin-top: 20px;">
-                <h3 class="seccion-titulo" style="font-size: 1rem;">Grupo Madre e independización</h3>
-                <p class="admin-subtitle">CPs en incubación y solicitudes listas para grupo territorial propio.</p>
-                <div class="grupos-cp-overview" id="grupos-madre-overview" style="margin-bottom:16px;"></div>
-                <h4 class="seccion-titulo" style="font-size:0.95rem;margin-bottom:8px;">Madurez por CP (incubación)</h4>
+            <div class="control-aliados" id="territorio-check-wrap" style="margin-top: 20px;">
+                <h3 class="seccion-titulo" style="font-size: 1rem;">Estado territorial</h3>
+                <p class="admin-subtitle">Aliados por código postal y grupo. Comprueba la migración de datos históricos.</p>
+                <div id="territorio-migracion-resumen" class="grupos-cp-overview" style="margin-bottom:16px;"></div>
+                <h4 class="seccion-titulo" style="font-size:0.95rem;margin-bottom:8px;">Comprobación de migración</h4>
                 <div class="movimiento-24h-tabla-wrap" style="margin-bottom:16px;">
                     <div class="movimiento-24h-tabla-scroll">
                         <table class="movimiento-24h-tabla">
                             <thead>
-                                <tr><th>CP</th><th>Ciudad</th><th>Modo</th><th>Aliados</th><th>Encargos</th><th>Listo</th></tr>
+                                <tr><th>Código</th><th>Nombre</th><th>CP</th><th>Oficio</th><th>Estado</th><th>Grupo</th></tr>
                             </thead>
-                            <tbody id="tbody-cp-madurez"></tbody>
+                            <tbody id="tbody-territorio-migracion"></tbody>
                         </table>
                     </div>
                 </div>
+                <h4 class="seccion-titulo" style="font-size:0.95rem;margin-bottom:8px;">Aliados por territorio</h4>
                 <div class="movimiento-24h-tabla-wrap">
                     <div class="movimiento-24h-tabla-scroll">
                         <table class="movimiento-24h-tabla">
                             <thead>
-                                <tr><th>CP</th><th>Ciudad</th><th>Aliados</th><th>Encargos</th><th>Solicitado</th><th>Acciones</th></tr>
+                                <tr><th>Código</th><th>Nombre</th><th>CP</th><th>Grupo</th><th>Tipo</th><th>Estado</th></tr>
                             </thead>
-                            <tbody id="tbody-independencia-pendientes"></tbody>
+                            <tbody id="tbody-territorio-estado"></tbody>
                         </table>
                     </div>
                 </div>
