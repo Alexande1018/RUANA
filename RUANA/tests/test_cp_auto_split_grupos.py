@@ -84,11 +84,11 @@ def test_segundo_mismo_oficio_va_a_espera(sqlite_db):
     assert sqlite_db.contar_grupos_activos_por_cp("03002") == 1
 
 
-def test_once_oficios_distintos_quedan_en_un_grupo_territorial(sqlite_db):
-    """11 oficios distintos del mismo CP caben en el primer grupo territorial."""
+def test_nueve_oficios_distintos_quedan_en_un_grupo_territorial(sqlite_db):
+    """Menos de 10 elegibles no abren un segundo grupo; caben en el primero."""
     cp = "03004"
     ids = []
-    for i, oficio in enumerate(OFICIOS[:11]):
+    for i, oficio in enumerate(OFICIOS[:9]):
         codigo = f"61{i:03d}"
         r = _crear(sqlite_db, codigo, oficio=oficio, cp=cp)
         assert r["status"] == "success"

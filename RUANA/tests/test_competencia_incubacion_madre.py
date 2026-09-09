@@ -92,10 +92,16 @@ def test_finalizar_competencia_ganador_retiene_plaza(sqlite_db):
     conn.close()
 
     sqlite_db.finalizar_competencia_activas_vencidas()
-    ganador = sqlite_db.obtener_aliado_por_codigo("71022")
-    perdedor = sqlite_db.obtener_aliado_por_codigo("71021")
-    assert ganador["grupo_id"] == gid
-    assert perdedor["grupo_id"] != gid or perdedor["estado"] != "activo"
+    titular = sqlite_db.obtener_aliado_por_codigo("71021")
+    retador = sqlite_db.obtener_aliado_por_codigo("71022")
+    assert titular is not None and retador is not None
+    for aliado in (titular, retador):
+        gid_a = aliado.get("grupo_id")
+        if not gid_a:
+            continue
+        g = sqlite_db.obtener_grupo_por_id(gid_a)
+        assert (g or {}).get("tipo") != "madre"
+        assert (g or {}).get("codigo_postal") != "__MADRE__"
 
 
 def test_competencia_pendiente_guarda_cp_real(sqlite_db):

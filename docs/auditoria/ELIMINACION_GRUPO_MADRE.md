@@ -4,7 +4,7 @@
 |---|---|
 | Fecha | 2026-09-09 |
 | Rama | `cursor/territorio-directo-cp-b288` |
-| Estado | Fase 1 — auditoría previa a implementación |
+| Estado | Implementado — ver `docs/auditoria/INFORME_FINAL_TERRITORIO_DIRECTO.md` |
 | Autoridad | El código en `RUANA/` prevalece si hay conflicto |
 
 ---

@@ -21,11 +21,16 @@ _aliado_repo = AliadoRepo()
 MIGRACION_NOMBRE = "territorio_directo_v1"
 
 
-def _row_dict(row: Any) -> Dict[str, Any]:
+def _row_dict(row: Any, cursor=None) -> Dict[str, Any]:
     if row is None:
         return {}
     if hasattr(row, "keys"):
-        return dict(row)
+        try:
+            return dict(row)
+        except Exception:
+            pass
+    if cursor is not None and getattr(cursor, "description", None):
+        return {d[0]: v for d, v in zip(cursor.description, row)}
     return {}
 
 
@@ -146,9 +151,8 @@ def migrar_madre_a_territorial_cursor(db, cursor) -> Dict[str, Any]:
         "grupos_madre_disueltos": 0,
         "casos": 0,
     }
-    filas = _repo.listar_aliados_en_grupo_madre(cursor)
-    for row in filas:
-        data = _row_dict(row)
+    filas = [_row_dict(r, cursor) for r in _repo.listar_aliados_en_grupo_madre(cursor)]
+    for data in filas:
         aid = int(data.get("aliado_id") or data.get("id") or 0)
         codigo = str(data.get("codigo") or "").strip()
         oficio = str(data.get("oficio") or "").strip()
@@ -207,8 +211,7 @@ def migrar_madre_a_territorial_cursor(db, cursor) -> Dict[str, Any]:
         resumen["migrados"] += 1
         resumen["casos"] += 1
 
-    for row in _repo.listar_grupos_madre(cursor):
-        g = _row_dict(row)
+    for g in [_row_dict(r, cursor) for r in _repo.listar_grupos_madre(cursor)]:
         gid = int(g.get("id") or 0)
         if not gid:
             continue
@@ -257,8 +260,7 @@ def revertir_migracion_territorio_cursor(db, cursor) -> Dict[str, Any]:
     """Restaura grupo_id desde el backup de filas migradas. No toca el resto de datos."""
     asegurar_tablas_migracion(db, cursor)
     restaurados = 0
-    for row in _repo.listar_backup_migrados(cursor):
-        data = _row_dict(row)
+    for data in [_row_dict(r, cursor) for r in _repo.listar_backup_migrados(cursor)]:
         aid = int(data.get("aliado_id") or 0)
         old_gid = data.get("grupo_id_anterior")
         if not aid:
@@ -300,8 +302,8 @@ def comprobar_migracion(db) -> Dict[str, Any]:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             asegurar_tablas_migracion(db, cursor)
-            filas = [_row_dict(r) for r in _repo.listar_sin_grupo_territorial_valido(cursor)]
-            informe = [_row_dict(r) for r in _repo.listar_informe(cursor)]
+            filas = [_row_dict(r, cursor) for r in _repo.listar_sin_grupo_territorial_valido(cursor)]
+            informe = [_row_dict(r, cursor) for r in _repo.listar_informe(cursor)]
             return {
                 "status": "success",
                 "sin_grupo_territorial_valido": filas,
@@ -322,7 +324,7 @@ def listar_estado_territorial(db, limite: int = 500) -> Dict[str, Any]:
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            filas = [_row_dict(r) for r in _repo.listar_estado_territorial_aliados(cursor, limite)]
+            filas = [_row_dict(r, cursor) for r in _repo.listar_estado_territorial_aliados(cursor, limite)]
             return {"status": "success", "aliados": filas, "total": len(filas)}
         except Exception as e:
             return {"status": "error", "message": str(e), "aliados": [], "total": 0}
