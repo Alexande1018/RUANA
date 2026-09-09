@@ -1,6 +1,8 @@
 # Estado Stripe Live — FASE 14
 
 **Fecha de verificación:** 2026-08-19  
+**Revisión go/no-go (2026-09-09):** [`STRIPE_PRODUCTION_REVIEW.md`](STRIPE_PRODUCTION_REVIEW.md) — veredicto **go-with-caveats**; el primer cobro Live sigue siendo un flip operativo.
+
 **Entorno producción:** Cloud Run `ruana` (europe-west1) + Firebase Hosting `ruana-4293f.web.app`
 
 ## Veredicto operativo

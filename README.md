@@ -644,7 +644,7 @@ Fuente: [`docs/operaciones/roadmap.md`](docs/operaciones/roadmap.md) (2026-08-19
 | Impugnación cobros | Hecho en código |
 | Módulo financiero (FASE 04–13) | Hecho en código |
 | Competencia automática | Hecho en main |
-| Stripe Connect (pagos encargo) | Hecho en código; deploy fija `RUANA_STRIPE_MODE=test` |
+| Stripe Connect (pagos encargo) | Hecho en código; deploy resuelve `RUANA_STRIPE_MODE` (default `test`). Live: ver [`docs/operaciones/STRIPE_PRODUCTION_REVIEW.md`](docs/operaciones/STRIPE_PRODUCTION_REVIEW.md) |
 | Campamento Base (modularización) | **Avanzado** — 36 services + 30 repos; fachada `DBManager` (~1.925 LOC) |
 | Pack documentación cierre | Hecho 2026-08-19 |
 | Admin → Firebase Auth | Preparado, **no implementado** |
