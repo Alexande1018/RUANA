@@ -398,6 +398,7 @@
 
 .solicitud-success.show,
 .ruana-feedback--inline-success.show {
+    display: block !important;
     opacity: 1;
     transform: translateY(0);
 }

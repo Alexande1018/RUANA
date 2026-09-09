@@ -46,6 +46,94 @@ def _ids_entrantes(db, codigo):
     return {s.get("id") for s in solicitud_service.listar_solicitudes_activas_por_codigo(db, codigo)}
 
 
+def _insertar_grupo_territorial(db, codigo_postal, nombre):
+    conn = db._connect()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO grupos (nombre, codigo_postal, ciudad, provincia, estado, tipo)
+        VALUES (?, ?, ?, ?, 'activo', 'territorial')
+        """,
+        (nombre, codigo_postal, "Alicante", "Alicante"),
+    )
+    gid = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return gid
+
+
+def _forzar_grupo(db, codigo, grupo_id, codigo_postal=None):
+    conn = db._connect()
+    if codigo_postal is None:
+        conn.execute("UPDATE aliados SET grupo_id = ? WHERE codigo = ?", (grupo_id, codigo))
+    else:
+        conn.execute(
+            "UPDATE aliados SET grupo_id = ?, codigo_postal = ? WHERE codigo = ?",
+            (grupo_id, codigo_postal, codigo),
+        )
+    conn.commit()
+    conn.close()
+
+
+def test_oficio_idiomas_en_grupo_entrega_inmediata(sqlite_db):
+    """Caso de la prueba fallida: Idiomas existe en el grupo → llega al profesional."""
+    _crear(sqlite_db, "91101", oficio="Electricidad", cp="03001")
+    _crear(sqlite_db, "91102", oficio="Idiomas", cp="03001")
+
+    creada = solicitud_service.crear_solicitud_por_codigo(
+        sqlite_db, "91101", "Idiomas", "Clases de inglés de prueba"
+    )
+    assert creada["status"] == "success"
+    sid = creada["id"]
+    assert creada["enrutamiento"] == "profesional_grupo"
+    assert creada["profesional"]["codigo"] == "91102"
+    assert creada.get("requiere_aprobacion_proximidad") is not True
+    assert "enviada a" in (creada.get("mensaje") or "").lower()
+
+    assert sid in _ids_entrantes(sqlite_db, "91102")
+    assert sid not in _ids_entrantes(sqlite_db, "91101")
+    assert "solicitud_asignada" in _tipos(sqlite_db, "91102")
+    assert "proximidad_solicitud" not in _tipos(sqlite_db, "91102")
+
+
+def test_oficio_idiomas_mismo_cp_otro_grupo_entrega_inmediata(sqlite_db):
+    """Tras el split territorial, mismo CP y otro grupo_id sigue siendo entrega local."""
+    _crear(sqlite_db, "91201", oficio="Electricidad", cp="03001")
+    _crear(sqlite_db, "91202", oficio="Idiomas", cp="03001")
+    extra_gid = _insertar_grupo_territorial(sqlite_db, "03001", "Grupo 03001 B")
+    _forzar_grupo(sqlite_db, "91202", extra_gid, codigo_postal="03001")
+    assert sqlite_db.obtener_aliado_por_codigo("91201")["grupo_id"] != extra_gid
+
+    creada = solicitud_service.crear_solicitud_por_codigo(
+        sqlite_db, "91201", "Idiomas", "Necesito clases de idiomas"
+    )
+    assert creada["status"] == "success"
+    sid = creada["id"]
+    assert creada["enrutamiento"] == "profesional_grupo"
+    assert creada["profesional"]["codigo"] == "91202"
+    assert creada.get("requiere_aprobacion_proximidad") is not True
+
+    assert sid in _ids_entrantes(sqlite_db, "91202")
+    assert "solicitud_asignada" in _tipos(sqlite_db, "91202")
+    assert "proximidad_solicitud" not in _tipos(sqlite_db, "91202")
+
+
+def test_oficio_idiomas_pendiente_validacion_en_grupo_entrega(sqlite_db):
+    """El directorio muestra pendiente_validacion; Nueva conexión también debe entregarle."""
+    _crear(sqlite_db, "91301", oficio="Electricidad", cp="03001")
+    _crear(sqlite_db, "91302", oficio="Idiomas", cp="03001", estado="pendiente_validacion")
+
+    creada = solicitud_service.crear_solicitud_por_codigo(
+        sqlite_db, "91301", "Idiomas", "Prueba con aliado aún en validación"
+    )
+    assert creada["status"] == "success"
+    sid = creada["id"]
+    assert creada["enrutamiento"] == "profesional_grupo"
+    assert creada["profesional"]["codigo"] == "91302"
+    assert sid in _ids_entrantes(sqlite_db, "91302")
+    assert "solicitud_asignada" in _tipos(sqlite_db, "91302")
+
+
 def test_oficio_disponible_en_grupo_solo_ese_profesional(sqlite_db):
     _crear(sqlite_db, "91001", oficio="Electricidad", cp="03001")
     _crear(sqlite_db, "91002", oficio="Cerrajería", cp="03001")
@@ -202,3 +290,32 @@ def test_api_nueva_conexion_enruta_y_acepta_proximidad(
     assert acepta.get_json()["ok"] is True
     assert sid in _ids_entrantes(sqlite_db, "95003")
     assert "proximidad_contactada" in _tipos(sqlite_db, "95002")
+
+
+def test_api_idiomas_en_grupo_aparece_en_recibidas(
+    client, sqlite_db, monkeypatch, session_headers
+):
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    _crear(sqlite_db, "95101", oficio="Electricidad", cp="03001")
+    _crear(sqlite_db, "95102", oficio="Idiomas", cp="03001")
+
+    headers = session_headers("aliado", "95101")
+    created = client.post(
+        "/api/solicitudes",
+        json={"oficio": "Idiomas", "descripcion": "Clases de prueba de idiomas"},
+        headers=headers,
+    )
+    assert created.status_code == 200
+    body = created.get_json()
+    assert body["ok"] is True
+    assert body["enrutamiento"] == "profesional_grupo"
+    assert "enviada a" in (body.get("mensaje") or "").lower()
+    sid = body["id"]
+
+    prof_headers = session_headers("aliado", "95102")
+    listed = client.get("/api/solicitudes", headers=prof_headers)
+    assert listed.status_code == 200
+    payload = listed.get_json()
+    ids = {s.get("id") for s in (payload.get("entrantes") or [])}
+    assert sid in ids
+    assert "solicitud_asignada" in _tipos(sqlite_db, "95102")

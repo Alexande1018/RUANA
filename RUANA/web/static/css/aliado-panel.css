@@ -1568,7 +1568,9 @@
         }
 
         .solicitud-success.show {
-            display: block;
+            display: block !important;
+            opacity: 1 !important;
+            transform: none;
         }
 
         /* Aviso persistente de contacto RUANA pendiente */

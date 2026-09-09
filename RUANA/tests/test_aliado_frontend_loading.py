@@ -310,6 +310,7 @@ def test_aliado_conexiones_module_is_wired():
 
     assert 'src="/static/js/aliado-modules.js"' in aliado
     assert 'src="/static/js/aliado-conexiones-module.js"' in aliado
+    assert 'type="button"' in aliado[aliado.index('id="btn-enviar"') - 80 : aliado.index('id="btn-enviar"') + 80]
     assert "RuanaAliadoModules" in modules_js
     assert "conexiones: null" in modules_js
     assert (
@@ -319,6 +320,9 @@ def test_aliado_conexiones_module_is_wired():
     assert "handleEnviarSolicitud" in conexiones_js
     assert "/api/solicitudes" in conexiones_js
     assert "nueva-solicitud-oficio" in conexiones_js
+    assert "RuanaUI.toast" in conexiones_js
+    assert "AliadoShell.show('solicitudes')" in conexiones_js
+    assert "classList.add('show')" in conexiones_js
     # Fachadas delgadas en PrivatePanel
     assert "_conexionesModule" in aliado
     assert "mod.handleEnviarSolicitud(this)" in aliado
@@ -336,6 +340,9 @@ def test_aliado_conexiones_module_is_wired():
     assert 'enviada a todos los aliados' not in aliado
     assert 'data.mensaje' in conexiones_js
     assert 'llega a todos los aliados del grupo' not in aliado
+    panel_css = (root / "static" / "css" / "aliado-panel.css").read_text(encoding="utf-8")
+    assert ".solicitud-success.show" in panel_css
+    assert "display: block !important" in panel_css
 
 
 def test_aliado_invitaciones_module_is_wired():

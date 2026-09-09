@@ -95,7 +95,14 @@ def _oficios_equivalentes(db, solicitado: str, candidato: str) -> bool:
         return False
     if a == b:
         return True
-    return b.startswith(a) or a.startswith(b) or a in b or b in a
+    if b.startswith(a) or a.startswith(b) or a in b or b in a:
+        return True
+    catalogo = {str(o).strip() for o in (db.get_catalogo_oficios_ruana() or []) if o}
+    ca = catalogo_service._resolver_en_conjunto_catalogo(db, solicitado, catalogo)
+    cb = catalogo_service._resolver_en_conjunto_catalogo(db, candidato, catalogo)
+    if ca and cb:
+        return catalogo_service._normalizar_texto_catalogo(ca) == catalogo_service._normalizar_texto_catalogo(cb)
+    return False
 
 
 def resolver_oficio_conexion(db, oficio: str) -> str:
@@ -183,19 +190,62 @@ def _enriquecer_propia(row: Dict[str, Any]) -> Dict[str, Any]:
     return item
 
 
+def _pack_profesional(row: Dict[str, Any], oficio: str, mismo_grupo: bool) -> Dict[str, Any]:
+    return {
+        "codigo": row.get("codigo"),
+        "nombre": row.get("nombre") or "",
+        "oficio": row.get("oficio") or oficio,
+        "codigo_postal": row.get("codigo_postal") or "",
+        "mismo_grupo": mismo_grupo,
+    }
+
+
+def _primer_profesional_oficio(
+    db, rows: List[Any], oficio: str, prefer_grupo_id: Any = None
+) -> Optional[Dict[str, Any]]:
+    matches: List[Dict[str, Any]] = []
+    for raw in rows or []:
+        row = dict(raw) if not isinstance(raw, dict) else raw
+        if _oficios_equivalentes(db, oficio, row.get("oficio") or ""):
+            matches.append(row)
+    if not matches:
+        return None
+    if prefer_grupo_id is not None:
+        prefer = str(prefer_grupo_id)
+        for row in matches:
+            if str(row.get("grupo_id") or "") == prefer:
+                return _pack_profesional(row, oficio, True)
+    mismo = prefer_grupo_id is not None and str(matches[0].get("grupo_id") or "") == str(prefer_grupo_id)
+    return _pack_profesional(matches[0], oficio, mismo)
+
+
 def _buscar_profesional_grupo(
     db, cursor, grupo_id: Any, oficio: str, excluir_codigo: str
 ) -> Optional[Dict[str, Any]]:
-    for row in _repo.select_profesional_grupo_oficio(cursor, grupo_id, excluir_codigo):
-        if _oficios_equivalentes(db, oficio, row.get("oficio") or ""):
-            return {
-                "codigo": row.get("codigo"),
-                "nombre": row.get("nombre") or "",
-                "oficio": row.get("oficio") or oficio,
-                "codigo_postal": row.get("codigo_postal") or "",
-                "mismo_grupo": True,
-            }
-    return None
+    return _primer_profesional_oficio(
+        db,
+        _repo.select_profesional_grupo_oficio(cursor, grupo_id, excluir_codigo),
+        oficio,
+        prefer_grupo_id=grupo_id,
+    )
+
+
+def _buscar_profesional_territorio(
+    db, cursor, grupo_id: Any, oficio: str, excluir_codigo: str, codigo_postal: str
+) -> Optional[Dict[str, Any]]:
+    """Profesional del oficio en el grupo o, si no hay, en el mismo código postal."""
+    local = _buscar_profesional_grupo(db, cursor, grupo_id, oficio, excluir_codigo)
+    if local and local.get("codigo"):
+        return local
+    cp = (codigo_postal or "").strip()
+    if not cp:
+        return None
+    return _primer_profesional_oficio(
+        db,
+        _repo.select_profesional_mismo_cp(cursor, cp, excluir_codigo),
+        oficio,
+        prefer_grupo_id=grupo_id,
+    )
 
 
 def _notificar_profesional_solicitud(
@@ -469,6 +519,7 @@ def vincular_solicitud_a_aliado_incorporado(db,
 def crear_solicitud_por_codigo(db, codigo: str, oficio: str, descripcion: str) -> Dict[str, Any]:
     """
     Nueva conexión: primero el profesional del oficio en el grupo actual;
+    si no hay, el del mismo código postal (otro grupo del territorio);
     si no hay, un único profesional cercano (pendiente de aprobación);
     si no hay nadie, queda como «Buscando ayuda» y se avisa solo al grupo.
     Nunca se envía la solicitud a todos los aliados.
@@ -485,10 +536,10 @@ def crear_solicitud_por_codigo(db, codigo: str, oficio: str, descripcion: str) -
             cursor = conn.cursor()
             _asegurar_migraciones_candidato(db, conn, cursor)
             conn.commit()
-            row = _repo.select_aliado_grupo_nombre(cursor, codigo.strip())
-            if not row:
+            ctx = _repo.select_aliado_contexto(cursor, codigo.strip())
+            if not ctx:
                 return {'status': 'error', 'message': 'Aliado no válido'}
-            grupo_id, nombre = row[0], row[1] or ''
+            grupo_id, nombre = ctx["grupo_id"], ctx["nombre"]
             if grupo_id is None:
                 return {'status': 'error', 'message': 'No perteneces a un grupo'}
             oficio = resolver_oficio_conexion(db, (oficio or '').strip())
@@ -499,7 +550,9 @@ def crear_solicitud_por_codigo(db, codigo: str, oficio: str, descripcion: str) -
             if 'solicitante_codigo' not in cols:
                 return {'status': 'error', 'message': 'Tabla solicitudes no migrada'}
 
-            local = _buscar_profesional_grupo(db, cursor, grupo_id, oficio, codigo.strip())
+            local = _buscar_profesional_territorio(
+                db, cursor, grupo_id, oficio, codigo.strip(), ctx.get("codigo_postal") or ""
+            )
             if local and local.get("codigo"):
                 sid = _repo.insertar_pendiente(
                     cursor,
@@ -513,12 +566,15 @@ def crear_solicitud_por_codigo(db, codigo: str, oficio: str, descripcion: str) -
                     destino=DESTINO_PROFESIONAL_GRUPO,
                 )
                 conn.commit()
+                if not sid:
+                    return {'status': 'error', 'message': 'No se pudo crear la solicitud'}
+                sid = int(sid)
                 notif_after = {
                     "kind": "profesional_grupo",
                     "codigo": local["codigo"],
                     "nombre_sol": nombre,
                     "oficio": oficio,
-                    "sid": int(sid),
+                    "sid": sid,
                 }
                 result = {
                     "status": "success",
