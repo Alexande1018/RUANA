@@ -374,3 +374,100 @@ class GrupoMadreRepo:
             (grupo_madre_id, *estados_ok, codigo_excluir.strip()),
         )
         return cursor.fetchall()
+
+    def asegurar_grupo_madre(
+        self, cursor, nombre: str, ciudad: str, provincia: Optional[str]
+    ) -> int:
+        """Devuelve el id del grupo madre de la ciudad; lo crea o reetiqueta si hace falta."""
+        row = self.select_grupo_madre_por_ciudad(cursor, ciudad)
+        if row:
+            return int(row["id"] if hasattr(row, "keys") else row[0])
+        cursor.execute(
+            "SELECT id FROM grupos WHERE LOWER(TRIM(nombre)) = LOWER(?) LIMIT 1",
+            (nombre,),
+        )
+        existing = cursor.fetchone()
+        if existing:
+            gid = int(existing["id"] if hasattr(existing, "keys") else existing[0])
+            cursor.execute(
+                """
+                UPDATE grupos
+                SET tipo = ?, codigo_postal = ?, ciudad = ?, provincia = ?, estado = 'activo'
+                WHERE id = ?
+                """,
+                (TIPO_GRUPO_MADRE, CP_POSTAL_SENTINEL_MADRE, ciudad, provincia or None, gid),
+            )
+            return gid
+        return self.insertar_grupo_madre(cursor, nombre, ciudad, provincia)
+
+    def listar_aliados_en_grupos_no_madre(self, cursor) -> List[Any]:
+        cursor.execute(
+            """
+            SELECT a.id AS aliado_id, a.codigo AS aliado_codigo,
+                   TRIM(a.codigo_postal) AS aliado_cp, a.grupo_id AS grupo_id,
+                   g.ciudad AS grupo_ciudad, g.provincia AS grupo_provincia,
+                   g.codigo_postal AS grupo_cp
+            FROM aliados a
+            INNER JOIN grupos g ON g.id = a.grupo_id
+            WHERE COALESCE(g.tipo, 'territorial') != ?
+              AND COALESCE(g.estado, 'activo') IN ('activo', 'en_competencia')
+            """,
+            (TIPO_GRUPO_MADRE,),
+        )
+        return cursor.fetchall() or []
+
+    def listar_grupos_no_madre_vivos(self, cursor) -> List[Any]:
+        cursor.execute(
+            """
+            SELECT id, codigo_postal, ciudad, provincia, estado
+            FROM grupos
+            WHERE COALESCE(tipo, 'territorial') != ?
+              AND COALESCE(estado, 'activo') IN ('activo', 'en_competencia')
+            """,
+            (TIPO_GRUPO_MADRE,),
+        )
+        return cursor.fetchall() or []
+
+    def disolver_grupo_bajo_madre(self, cursor, grupo_id: int, madre_id: Optional[int]) -> None:
+        cursor.execute(
+            """
+            UPDATE grupos
+            SET estado = 'disuelto', grupo_madre_id = COALESCE(?, grupo_madre_id)
+            WHERE id = ?
+            """,
+            (madre_id, grupo_id),
+        )
+
+    def remap_grupo_id_tabla(self, cursor, tabla: str, old_id: int, new_id: int) -> None:
+        cursor.execute(
+            f"UPDATE {tabla} SET grupo_id = ? WHERE grupo_id = ?",
+            (new_id, old_id),
+        )
+
+    def remap_grupo_oficio_cerrado(self, cursor, old_id: int, new_id: int) -> None:
+        cursor.execute(
+            """
+            INSERT OR IGNORE INTO grupo_oficio_cerrado (grupo_id, oficio, cerrado_en)
+            SELECT ?, oficio, cerrado_en FROM grupo_oficio_cerrado WHERE grupo_id = ?
+            """,
+            (new_id, old_id),
+        )
+        cursor.execute("DELETE FROM grupo_oficio_cerrado WHERE grupo_id = ?", (old_id,))
+
+    def resetear_cp_estado_a_incubacion(self, cursor, codigo_postal: str, ciudad: str, madre_id: Optional[int]) -> None:
+        cursor.execute(
+            """
+            INSERT INTO cp_estado (
+                codigo_postal, ciudad, modo, grupo_madre_id,
+                aliados_activos, encargos_validos, listo_independizar, actualizado_en
+            ) VALUES (?, ?, 'incubacion', ?, 0, 0, 0, CURRENT_TIMESTAMP)
+            ON CONFLICT(codigo_postal) DO UPDATE SET
+                ciudad = excluded.ciudad,
+                modo = 'incubacion',
+                grupo_madre_id = COALESCE(excluded.grupo_madre_id, cp_estado.grupo_madre_id),
+                listo_independizar = 0,
+                independizado_en = NULL,
+                actualizado_en = CURRENT_TIMESTAMP
+            """,
+            (codigo_postal.strip(), ciudad, madre_id),
+        )

@@ -229,99 +229,171 @@
     bindPagoManualAllowlist(host);
   }
 
+  function panelPagoManual(host) {
+    return (typeof window !== 'undefined' && window._ruanaAdminPanel) || host;
+  }
+
   async function cargarAllowlistPagoManual(host) {
+    const panel = panelPagoManual(host);
     const tbody = document.getElementById('admin-pago-manual-aliados-tbody');
     if (!tbody) return;
     try {
         const r = await fetch('/api/admin/metodos-pago/aliados', {
             credentials: 'same-origin',
-            headers: host.getAuthHeaders(),
+            headers: panel.getAuthHeaders(),
         });
-        if (r.status === 401) { host._adminSessionExpired(); return; }
+        if (r.status === 401) {
+            panel.showToast('Sesión admin expirada o no autorizado.', 'error');
+            panel._adminSessionExpired();
+            return;
+        }
         const data = await r.json().catch(() => ({}));
-        const lista = (data.status === 'success' && Array.isArray(data.aliados)) ? data.aliados : [];
-        host._pagoManualAllowlist = lista;
+        if (!r.ok || data.status !== 'success') {
+            panel.showToast(data.message || ('No se pudo cargar la allowlist (HTTP ' + r.status + ').'), 'error');
+            return;
+        }
+        const lista = Array.isArray(data.aliados) ? data.aliados : [];
+        panel._pagoManualAllowlist = lista;
         tbody.innerHTML = '';
         lista.forEach((a) => {
             const tr = document.createElement('tr');
-            const codigo = host.escapeHtml(a.aliado_codigo || '');
-            const nombre = host.escapeHtml(a.nombre || '');
-            const por = host.escapeHtml(a.habilitado_por || '-');
+            const codigo = panel.escapeHtml(a.aliado_codigo || '');
+            const nombre = panel.escapeHtml(a.nombre || '');
+            const por = panel.escapeHtml(a.habilitado_por || '-');
             tr.innerHTML =
                 `<td>${codigo}</td><td>${nombre}</td><td>${por}</td>` +
-                `<td><button type="button" class="btn-admin-action" data-deshabilitar-pago="${host.escapeHtml(a.aliado_codigo || '')}">Quitar</button></td>`;
+                `<td><button type="button" class="btn-admin-action" data-deshabilitar-pago="${panel.escapeHtml(a.aliado_codigo || '')}">Quitar</button></td>`;
             tbody.appendChild(tr);
-        });
-        tbody.querySelectorAll('[data-deshabilitar-pago]').forEach((btn) => {
-            btn.addEventListener('click', () => deshabilitarPagoManualAliado(host, btn.getAttribute('data-deshabilitar-pago')));
         });
     } catch (e) {
         console.error('Error cargando allowlist pago manual:', e);
+        if (panel && typeof panel.showToast === 'function') {
+            panel.showToast('No se pudo cargar la allowlist de pago manual.', 'error');
+        }
     }
   }
 
   function resolverAliadoPagoManual(host, query) {
-    const q = (query || '').trim().toLowerCase();
-    if (!q) return null;
-    const lista = Array.isArray(host._aliadosData) ? host._aliadosData : [];
-    const exacto = lista.find((a) => String(a.codigo || '').toLowerCase() === q);
+    const raw = (query || '').trim();
+    if (!raw) return null;
+    const q = raw.toLowerCase();
+    const lista = Array.isArray(host && host._aliadosData) ? host._aliadosData : [];
+    const exacto = lista.find((a) => String(a.codigo || '').trim().toLowerCase() === q);
     if (exacto) return exacto;
     const parciales = lista.filter((a) =>
         String(a.codigo || '').toLowerCase().includes(q) ||
         String(a.nombre || '').toLowerCase().includes(q)
     );
-    return parciales.length === 1 ? parciales[0] : (parciales[0] || null);
+    if (parciales.length === 1) return parciales[0];
+    if (parciales.length > 1) return parciales[0];
+    // Código tecleado: no exigir que ya esté en la caché del panel (aliados recién creados).
+    if (/^[A-Za-z0-9_-]{3,20}$/.test(raw)) {
+        return { codigo: raw };
+    }
+    return null;
   }
 
   async function habilitarPagoManualAliado(host) {
+    const panel = panelPagoManual(host);
     const input = document.getElementById('admin-pago-manual-buscar');
-    const aliado = resolverAliadoPagoManual(host, input && input.value);
-    if (!aliado || !aliado.codigo) {
-        host.showToast('Indica un código o nombre de aliado existente.', 'error');
-        return;
-    }
-    const r = await fetch('/api/admin/metodos-pago/aliados/' + encodeURIComponent(aliado.codigo) + '/habilitar', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: host.getAuthHeaders(),
-        body: '{}',
-    });
-    if (r.status === 401) { host._adminSessionExpired(); return; }
-    if (r.status === 403) { host.showToast('Sin permiso de escritura (solo lectura).', 'error'); return; }
-    const data = await r.json().catch(() => ({}));
-    if (data.status === 'success') {
-        host.showToast(data.message || 'Pago manual habilitado.', 'success');
-        if (input) input.value = '';
-        await cargarAllowlistPagoManual(host);
-    } else {
-        host.showToast(data.message || 'No se pudo habilitar.', 'error');
+    try {
+        const aliado = resolverAliadoPagoManual(panel, input && input.value);
+        if (!aliado || !aliado.codigo) {
+            panel.showToast('Indica un código o nombre de aliado existente.', 'error');
+            return;
+        }
+        const r = await fetch('/api/admin/metodos-pago/aliados/' + encodeURIComponent(aliado.codigo) + '/habilitar', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: panel.getAuthHeaders(),
+            body: '{}',
+        });
+        if (r.status === 401) {
+            panel.showToast('Sesión admin expirada o no autorizado.', 'error');
+            panel._adminSessionExpired();
+            return;
+        }
+        if (r.status === 403) {
+            panel.showToast('Sin permiso de escritura (solo lectura).', 'error');
+            return;
+        }
+        const data = await r.json().catch(() => ({}));
+        if (r.ok && data.status === 'success') {
+            panel.showToast(data.message || 'Pago manual habilitado.', 'success');
+            if (input) input.value = '';
+            await cargarAllowlistPagoManual(panel);
+        } else {
+            panel.showToast(data.message || ('No se pudo habilitar (HTTP ' + r.status + ').'), 'error');
+        }
+    } catch (e) {
+        console.error('Error habilitando pago manual:', e);
+        if (panel && typeof panel.showToast === 'function') {
+            panel.showToast('No se pudo habilitar el pago manual. Inténtalo de nuevo.', 'error');
+        }
     }
   }
 
   async function deshabilitarPagoManualAliado(host, codigo) {
+    const panel = panelPagoManual(host);
     if (!codigo) return;
-    const r = await fetch('/api/admin/metodos-pago/aliados/' + encodeURIComponent(codigo) + '/deshabilitar', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: host.getAuthHeaders(),
-        body: '{}',
-    });
-    if (r.status === 401) { host._adminSessionExpired(); return; }
-    if (r.status === 403) { host.showToast('Sin permiso de escritura (solo lectura).', 'error'); return; }
-    const data = await r.json().catch(() => ({}));
-    if (data.status === 'success') {
-        host.showToast(data.message || 'Pago manual deshabilitado.', 'success');
-        await cargarAllowlistPagoManual(host);
-    } else {
-        host.showToast(data.message || 'No se pudo deshabilitar.', 'error');
+    try {
+        const r = await fetch('/api/admin/metodos-pago/aliados/' + encodeURIComponent(codigo) + '/deshabilitar', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: panel.getAuthHeaders(),
+            body: '{}',
+        });
+        if (r.status === 401) {
+            panel.showToast('Sesión admin expirada o no autorizado.', 'error');
+            panel._adminSessionExpired();
+            return;
+        }
+        if (r.status === 403) {
+            panel.showToast('Sin permiso de escritura (solo lectura).', 'error');
+            return;
+        }
+        const data = await r.json().catch(() => ({}));
+        if (r.ok && data.status === 'success') {
+            panel.showToast(data.message || 'Pago manual deshabilitado.', 'success');
+            await cargarAllowlistPagoManual(panel);
+        } else {
+            panel.showToast(data.message || ('No se pudo deshabilitar (HTTP ' + r.status + ').'), 'error');
+        }
+    } catch (e) {
+        console.error('Error deshabilitando pago manual:', e);
+        if (panel && typeof panel.showToast === 'function') {
+            panel.showToast('No se pudo deshabilitar el pago manual. Inténtalo de nuevo.', 'error');
+        }
     }
   }
 
   function bindPagoManualAllowlist(host) {
+    const wrap = document.getElementById('metodos-pago-admin-wrap');
+    if (wrap) {
+        if (wrap.dataset.boundPagoManual) return;
+        wrap.dataset.boundPagoManual = '1';
+        wrap.addEventListener('click', (event) => {
+            const target = event.target && event.target.closest ? event.target : null;
+            if (!target) return;
+            const panel = panelPagoManual(host);
+            const btnHabilitar = target.closest('#btn-habilitar-pago-manual');
+            if (btnHabilitar) {
+                event.preventDefault();
+                habilitarPagoManualAliado(panel);
+                return;
+            }
+            const btnQuitar = target.closest('[data-deshabilitar-pago]');
+            if (btnQuitar) {
+                event.preventDefault();
+                deshabilitarPagoManualAliado(panel, btnQuitar.getAttribute('data-deshabilitar-pago'));
+            }
+        });
+        return;
+    }
     const btn = document.getElementById('btn-habilitar-pago-manual');
     if (btn && !btn.dataset.boundPagoManual) {
         btn.dataset.boundPagoManual = '1';
-        btn.addEventListener('click', () => habilitarPagoManualAliado(host));
+        btn.addEventListener('click', () => habilitarPagoManualAliado(panelPagoManual(host)));
     }
   }
 
@@ -980,6 +1052,7 @@ modules.sistema = {
     accionCambiarReglas: accionCambiarReglas,
     renderMetodosPago: renderMetodosPago,
     bindPagoManualAllowlist: bindPagoManualAllowlist,
+    resolverAliadoPagoManual: resolverAliadoPagoManual,
     accionEditarMetodosPago: accionEditarMetodosPago,
     accionForzarSuplencia: accionForzarSuplencia,
     accionAbrirPlaza: accionAbrirPlaza,

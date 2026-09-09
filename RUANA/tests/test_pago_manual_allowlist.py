@@ -20,8 +20,12 @@ def sqlite_db(tmp_path, monkeypatch):
     monkeypatch.setattr(app_module, "get_db", lambda: db)
     conn = db._connect()
     conn.execute(
-        "INSERT INTO aliados (codigo, nombre, email) VALUES (?, ?, ?)",
-        ("A0001", "Aliado Uno", "a1@test.com"),
+        "INSERT INTO aliados (codigo, nombre, email, estado) VALUES (?, ?, ?, ?)",
+        ("A0001", "Aliado Uno", "a1@test.com", "activo"),
+    )
+    conn.execute(
+        "INSERT INTO aliados (codigo, nombre, email, estado) VALUES (?, ?, ?, ?)",
+        ("77357", "Aliado Numerico", "n77357@test.com", "activo"),
     )
     conn.commit()
     conn.close()
@@ -109,3 +113,108 @@ def test_habilitar_listar_y_deshabilitar_allowlist(client, sqlite_db, session_he
     resp = client.get("/api/metodos-pago", headers=session_headers("aliado", "A0001"))
     assert resp.get_json()["metodos"]["habilitado"] is False
     assert resp.get_json()["metodos"]["iban"] is None
+
+
+def test_listar_aliados_incluye_activo_recien_creado(sqlite_db):
+    conn = sqlite_db._connect()
+    conn.execute(
+        "INSERT INTO aliados (codigo, nombre, email, estado) VALUES (?, ?, ?, ?)",
+        ("99001", "Aliado Recien Creado", "nuevo@test.com", "activo"),
+    )
+    conn.commit()
+    conn.close()
+    codigos = {str(a["codigo"]) for a in sqlite_db.listar_aliados()}
+    assert "77357" in codigos
+    assert "99001" in codigos
+
+
+def _count_rows(db, table):
+    conn = db._connect()
+    try:
+        return int(conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
+    finally:
+        conn.close()
+
+
+def test_habilitar_aliado_activo_numerico_persiste_sin_crear_cargo(
+    client, sqlite_db, session_headers
+):
+    sqlite_db.actualizar_metodos_pago_ruana(
+        {"bizum_num": _BIZUM_FAKE, "iban": _IBAN_FAKE},
+        admin_codigo="ADMIN001",
+    )
+    contactos_antes = _count_rows(sqlite_db, "contactos_ruana")
+    ingresos_antes = _count_rows(sqlite_db, "ingresos_ruana")
+    headers = _admin_headers(session_headers)
+
+    hab = client.post(
+        "/api/admin/metodos-pago/aliados/77357/habilitar",
+        headers=headers,
+        json={},
+    )
+    assert hab.status_code == 200
+    body = hab.get_json()
+    assert body.get("status") == "success"
+    assert body.get("aliado_codigo") == "77357"
+
+    listed = client.get("/api/admin/metodos-pago/aliados", headers=headers)
+    assert listed.status_code == 200
+    aliados = listed.get_json()["aliados"]
+    assert any(a["aliado_codigo"] == "77357" for a in aliados)
+
+    listed_otra_vez = client.get("/api/admin/metodos-pago/aliados", headers=headers)
+    assert any(a["aliado_codigo"] == "77357" for a in listed_otra_vez.get_json()["aliados"])
+
+    visible = client.get("/api/metodos-pago", headers=session_headers("aliado", "77357"))
+    assert visible.status_code == 200
+    metodos = visible.get_json()["metodos"]
+    assert metodos["habilitado"] is True
+    assert metodos["iban"] == _IBAN_FAKE
+    assert metodos["bizum_num"] == _BIZUM_FAKE
+
+    assert _count_rows(sqlite_db, "contactos_ruana") == contactos_antes
+    assert _count_rows(sqlite_db, "ingresos_ruana") == ingresos_antes
+
+
+def test_habilitar_codigo_inexistente_es_404(client, sqlite_db, session_headers):
+    sqlite_db.actualizar_metodos_pago_ruana(
+        {"bizum_num": _BIZUM_FAKE, "iban": _IBAN_FAKE},
+        admin_codigo="ADMIN001",
+    )
+    resp = client.post(
+        "/api/admin/metodos-pago/aliados/99999/habilitar",
+        headers=_admin_headers(session_headers),
+        json={},
+    )
+    assert resp.status_code == 404
+    data = resp.get_json()
+    assert data.get("status") == "error"
+    assert data.get("code") == "aliado_no_encontrado"
+
+
+def test_deshabilitar_oculta_pago_manual_al_aliado(client, sqlite_db, session_headers):
+    sqlite_db.actualizar_metodos_pago_ruana(
+        {"bizum_num": _BIZUM_FAKE, "iban": _IBAN_FAKE},
+        admin_codigo="ADMIN001",
+    )
+    headers = _admin_headers(session_headers)
+    hab = client.post(
+        "/api/admin/metodos-pago/aliados/77357/habilitar",
+        headers=headers,
+        json={},
+    )
+    assert hab.status_code == 200
+    visible = client.get("/api/metodos-pago", headers=session_headers("aliado", "77357"))
+    assert visible.get_json()["metodos"]["habilitado"] is True
+
+    des = client.post(
+        "/api/admin/metodos-pago/aliados/77357/deshabilitar",
+        headers=headers,
+        json={},
+    )
+    assert des.status_code == 200
+    oculto = client.get("/api/metodos-pago", headers=session_headers("aliado", "77357"))
+    metodos = oculto.get_json()["metodos"]
+    assert metodos["habilitado"] is False
+    assert metodos["iban"] is None
+    assert metodos["bizum_num"] is None

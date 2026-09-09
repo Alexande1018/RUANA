@@ -117,7 +117,12 @@ def admin_habilitar_pago_manual_aliado(aliado_codigo):
         db = get_db()
         admin_codigo = _admin_codigo() or None
         result = pago_service.habilitar_pago_manual_aliado(db, aliado_codigo, admin_codigo)
-        status_code = 200 if result.get("status") == "success" else 400
+        if result.get("status") == "success":
+            status_code = 200
+        elif result.get("code") == "aliado_no_encontrado":
+            status_code = 404
+        else:
+            status_code = 400
         return jsonify(result), status_code
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
