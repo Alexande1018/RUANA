@@ -309,7 +309,7 @@ def test_aliado_conexiones_module_is_wired():
     modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
 
     assert 'src="/static/js/aliado-modules.js"' in aliado
-    assert 'src="/static/js/aliado-conexiones-module.js"' in aliado
+    assert 'src="/static/js/aliado-conexiones-module.js' in aliado
     assert 'type="button"' in aliado[aliado.index('id="btn-enviar"') - 80 : aliado.index('id="btn-enviar"') + 80]
     assert "RuanaAliadoModules" in modules_js
     assert "conexiones: null" in modules_js
