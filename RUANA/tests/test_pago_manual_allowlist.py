@@ -421,3 +421,83 @@ def test_fila_metodos_pago_lee_claves_alias():
     datos = pago_service._fila_metodos_pago(row)
     assert datos["bizum_num"] == _BIZUM_FAKE
     assert datos["iban"] == _IBAN_FAKE
+
+
+def test_admin_guardar_solo_bizum_persiste(client, sqlite_db, session_headers):
+    headers = _admin_headers(session_headers)
+    post = client.post(
+        "/api/admin/metodos-pago",
+        headers=headers,
+        json={"bizum_num": _BIZUM_FAKE},
+    )
+    assert post.status_code == 200
+    metodos = post.get_json()["metodos"]
+    assert metodos["bizum_num"] == _BIZUM_FAKE
+    assert metodos["iban"] is None
+    get = client.get("/api/admin/metodos-pago", headers=headers)
+    assert get.get_json()["metodos"]["bizum_num"] == _BIZUM_FAKE
+    assert get.get_json()["metodos"]["iban"] is None
+
+
+def test_admin_guardar_solo_iban_persiste(client, sqlite_db, session_headers):
+    headers = _admin_headers(session_headers)
+    post = client.post(
+        "/api/admin/metodos-pago",
+        headers=headers,
+        json={"iban": _IBAN_FAKE},
+    )
+    assert post.status_code == 200
+    metodos = post.get_json()["metodos"]
+    assert metodos["iban"] == _IBAN_FAKE
+    assert metodos["bizum_num"] is None
+    get = client.get("/api/admin/metodos-pago", headers=headers)
+    assert get.get_json()["metodos"]["iban"] == _IBAN_FAKE
+    assert get.get_json()["metodos"]["bizum_num"] is None
+
+
+def test_admin_guardar_iban_conserva_bizum_previo(client, sqlite_db, session_headers):
+    headers = _admin_headers(session_headers)
+    client.post(
+        "/api/admin/metodos-pago",
+        headers=headers,
+        json={"bizum_num": _BIZUM_FAKE},
+    )
+    post = client.post(
+        "/api/admin/metodos-pago",
+        headers=headers,
+        json={"iban": _IBAN_FAKE},
+    )
+    assert post.status_code == 200
+    metodos = post.get_json()["metodos"]
+    assert metodos["bizum_num"] == _BIZUM_FAKE
+    assert metodos["iban"] == _IBAN_FAKE
+
+
+def test_admin_guardar_solo_qr_persiste(sqlite_db):
+    result = sqlite_db.actualizar_metodos_pago_ruana(
+        {"qr_revolut_path": "https://storage.example/metodos/revolut.png"},
+        admin_codigo="ADMIN001",
+    )
+    assert result["status"] == "success"
+    cfg = sqlite_db.obtener_config_pago_manual()
+    assert cfg["qr_revolut_path"] == "https://storage.example/metodos/revolut.png"
+    assert cfg["bizum_num"] is None
+    assert cfg["iban"] is None
+
+
+def test_habilitar_con_solo_qr(client, sqlite_db, session_headers):
+    sqlite_db.actualizar_metodos_pago_ruana(
+        {"qr_revolut_path": "https://storage.example/metodos/revolut.png"},
+        admin_codigo="ADMIN001",
+    )
+    resp = client.post(
+        "/api/admin/metodos-pago/aliados/A0001/habilitar",
+        headers=_admin_headers(session_headers),
+        json={},
+    )
+    assert resp.status_code == 200
+    visible = client.get("/api/metodos-pago", headers=session_headers("aliado", "A0001"))
+    assert visible.get_json()["metodos"]["habilitado"] is True
+    assert visible.get_json()["metodos"]["qr_revolut_path"] == "https://storage.example/metodos/revolut.png"
+    assert visible.get_json()["metodos"]["iban"] is None
+    assert visible.get_json()["metodos"]["bizum_num"] is None

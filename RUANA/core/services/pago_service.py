@@ -224,10 +224,10 @@ def habilitar_pago_manual_aliado(db, aliado_codigo: str, admin_codigo: Optional[
                     "message": "Aliado no encontrado",
                 }
             datos = _fila_metodos_pago(_repo.select_metodos_pago_manual(cursor))
-            if not datos.get("iban") and not datos.get("bizum_num"):
+            if not datos.get("iban") and not datos.get("bizum_num") and not datos.get("qr_revolut_path"):
                 return {
                     "status": "error",
-                    "message": "Configura IBAN o Bizum antes de habilitar el pago manual a un aliado",
+                    "message": "Configura IBAN, Bizum o QR antes de habilitar el pago manual a un aliado",
                 }
             _repo.insertar_pago_manual_aliado(cursor, codigo, admin_codigo)
             db._insert_evento_sistema(
