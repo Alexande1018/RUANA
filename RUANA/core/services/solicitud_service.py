@@ -130,7 +130,7 @@ def mensaje_recomendacion_proximidad(oficio: str, rec: Dict[str, Any]) -> str:
     nombre = (rec.get("nombre") or "un profesional").strip()
     return (
         f"No hay {oficio_h} en tu grupo. Te recomendamos a {nombre}, "
-        f"de {_zona_proximidad(rec)}."
+        f"el más cercano a tu código postal ({_zona_proximidad(rec)})."
     )
 
 
@@ -157,7 +157,9 @@ def _enriquecer_propia(row: Dict[str, Any]) -> Dict[str, Any]:
     estado = (item.get("estado") or "").strip().lower()
     if destino == DESTINO_BUSCANDO_AYUDA and estado == "pendiente":
         item["etiqueta_busqueda"] = "Buscando ayuda"
-        item["mensaje_solicitante"] = "Buscando ayuda. Tu grupo puede recomendar a alguien."
+        item["mensaje_solicitante"] = (
+            "Buscando ayuda. Tu grupo puede recomendar a alguien que entre al grupo."
+        )
     elif (
         destino == DESTINO_PROXIMIDAD
         and (item.get("proximidad_estado") or "") == PROXIMIDAD_PENDIENTE
@@ -167,6 +169,10 @@ def _enriquecer_propia(row: Dict[str, Any]) -> Dict[str, Any]:
             item.get("oficio") or "", prox
         )
         item["requiere_aprobacion_proximidad"] = True
+        item["opciones_solicitante"] = {
+            "aceptar_proximidad": True,
+            "pedir_recomendacion_grupo": True,
+        }
     elif destino == DESTINO_PROFESIONAL_GRUPO and item.get("asignada_a_nombre"):
         item["mensaje_solicitante"] = (
             f"Solicitud enviada a {item.get('asignada_a_nombre')}."
@@ -212,24 +218,6 @@ def _buscar_profesional_grupo(
     return _primer_profesional_oficio(
         db,
         _repo.select_profesional_grupo_oficio(cursor, grupo_id, excluir_codigo),
-        oficio,
-        prefer_grupo_id=grupo_id,
-    )
-
-
-def _buscar_profesional_territorio(
-    db, cursor, grupo_id: Any, oficio: str, excluir_codigo: str, codigo_postal: str
-) -> Optional[Dict[str, Any]]:
-    """Profesional del oficio en el grupo o, si no hay, en el mismo código postal."""
-    local = _buscar_profesional_grupo(db, cursor, grupo_id, oficio, excluir_codigo)
-    if local and local.get("codigo"):
-        return local
-    cp = (codigo_postal or "").strip()
-    if not cp:
-        return None
-    return _primer_profesional_oficio(
-        db,
-        _repo.select_profesional_mismo_cp(cursor, cp, excluir_codigo),
         oficio,
         prefer_grupo_id=grupo_id,
     )
@@ -519,8 +507,8 @@ def vincular_solicitud_a_aliado_incorporado(db,
 def crear_solicitud_por_codigo(db, codigo: str, oficio: str, descripcion: str) -> Dict[str, Any]:
     """
     Nueva conexión: primero el profesional del oficio en el grupo actual;
-    si no hay, el del mismo código postal (otro grupo del territorio);
-    si no hay, un único profesional cercano (pendiente de aprobación);
+    si no hay, un único profesional más cercano al CP (pendiente de que el
+    solicitante acepte o pida al grupo que recomiende a alguien);
     si no hay nadie, queda como «Buscando ayuda» y se avisa solo al grupo.
     Nunca se envía la solicitud a todos los aliados.
     """
@@ -550,8 +538,8 @@ def crear_solicitud_por_codigo(db, codigo: str, oficio: str, descripcion: str) -
             if 'solicitante_codigo' not in cols:
                 return {'status': 'error', 'message': 'Tabla solicitudes no migrada'}
 
-            local = _buscar_profesional_territorio(
-                db, cursor, grupo_id, oficio, codigo.strip(), ctx.get("codigo_postal") or ""
+            local = _buscar_profesional_grupo(
+                db, cursor, grupo_id, oficio, codigo.strip()
             )
             if local and local.get("codigo"):
                 sid = _repo.insertar_pendiente(
@@ -622,6 +610,10 @@ def crear_solicitud_por_codigo(db, codigo: str, oficio: str, descripcion: str) -
                         "proximidad": rec,
                         "proximidad_notificado": False,
                         "requiere_aprobacion_proximidad": True,
+                        "opciones_solicitante": {
+                            "aceptar_proximidad": True,
+                            "pedir_recomendacion_grupo": True,
+                        },
                         "mensaje": mensaje_recomendacion_proximidad(oficio, rec),
                     }
                 else:
@@ -801,7 +793,9 @@ def pedir_recomendacion_grupo_solicitud(db, solicitud_id: int, codigo: str) -> D
                 "ok": True,
                 "id": int(solicitud_id),
                 "enrutamiento": DESTINO_BUSCANDO_AYUDA,
-                "mensaje": "Buscando ayuda. Tu grupo puede recomendar a alguien.",
+                "mensaje": (
+                    "Buscando ayuda. Tu grupo puede recomendar a alguien que entre al grupo."
+                ),
             }
         except Exception as e:
             return {"status": "error", "message": str(e)}

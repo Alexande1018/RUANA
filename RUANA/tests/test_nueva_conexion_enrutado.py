@@ -75,6 +75,38 @@ def _forzar_grupo(db, codigo, grupo_id, codigo_postal=None):
     conn.close()
 
 
+def test_oficio_idiomas_mismo_cp_otro_grupo_recomienda_con_aprobacion(sqlite_db):
+    """Sin el oficio en el grupo: se recomienda al más cercano del CP, sin entregarla aún."""
+    _crear(sqlite_db, "91201", oficio="Electricidad", cp="03001")
+    _crear(sqlite_db, "91202", oficio="Idiomas", cp="03001")
+    extra_gid = _insertar_grupo_territorial(sqlite_db, "03001", "Grupo 03001 B")
+    _forzar_grupo(sqlite_db, "91202", extra_gid, codigo_postal="03001")
+    assert sqlite_db.obtener_aliado_por_codigo("91201")["grupo_id"] != extra_gid
+
+    creada = solicitud_service.crear_solicitud_por_codigo(
+        sqlite_db, "91201", "Idiomas", "Necesito clases de idiomas"
+    )
+    assert creada["status"] == "success"
+    sid = creada["id"]
+    assert creada["enrutamiento"] == "proximidad"
+    assert creada["proximidad"]["codigo"] == "91202"
+    assert creada.get("requiere_aprobacion_proximidad") is True
+    assert creada.get("opciones_solicitante", {}).get("aceptar_proximidad") is True
+    assert creada.get("opciones_solicitante", {}).get("pedir_recomendacion_grupo") is True
+    assert "Te recomendamos" in (creada.get("mensaje") or "")
+    assert "más cercano a tu código postal" in (creada.get("mensaje") or "")
+
+    assert sid not in _ids_entrantes(sqlite_db, "91202")
+    assert "solicitud_asignada" not in _tipos(sqlite_db, "91202")
+    assert "proximidad_solicitud" not in _tipos(sqlite_db, "91202")
+
+    propias = solicitud_service.listar_solicitudes_propias_por_codigo(sqlite_db, "91201")
+    mia = next(s for s in propias if s.get("id") == sid)
+    assert mia["requiere_aprobacion_proximidad"] is True
+    assert mia["mensaje_solicitante"]
+    assert mia["opciones_solicitante"]["aceptar_proximidad"] is True
+
+
 def test_oficio_idiomas_en_grupo_entrega_inmediata(sqlite_db):
     """Caso de la prueba fallida: Idiomas existe en el grupo → llega al profesional."""
     _crear(sqlite_db, "91101", oficio="Electricidad", cp="03001")
@@ -133,32 +165,12 @@ def test_listar_recibidas_sigue_si_expirar_candidatos_falla(sqlite_db, monkeypat
     assert sid in _ids_entrantes(sqlite_db, "66803")
 
 
-def test_oficio_idiomas_mismo_cp_otro_grupo_entrega_inmediata(sqlite_db):
-    """Tras el split territorial, mismo CP y otro grupo_id sigue siendo entrega local."""
-    _crear(sqlite_db, "91201", oficio="Electricidad", cp="03001")
-    _crear(sqlite_db, "91202", oficio="Idiomas", cp="03001")
-    extra_gid = _insertar_grupo_territorial(sqlite_db, "03001", "Grupo 03001 B")
-    _forzar_grupo(sqlite_db, "91202", extra_gid, codigo_postal="03001")
-    assert sqlite_db.obtener_aliado_por_codigo("91201")["grupo_id"] != extra_gid
-
-    creada = solicitud_service.crear_solicitud_por_codigo(
-        sqlite_db, "91201", "Idiomas", "Necesito clases de idiomas"
-    )
-    assert creada["status"] == "success"
-    sid = creada["id"]
-    assert creada["enrutamiento"] == "profesional_grupo"
-    assert creada["profesional"]["codigo"] == "91202"
-    assert creada.get("requiere_aprobacion_proximidad") is not True
-
-    assert sid in _ids_entrantes(sqlite_db, "91202")
-    assert "solicitud_asignada" in _tipos(sqlite_db, "91202")
-    assert "proximidad_solicitud" not in _tipos(sqlite_db, "91202")
-
-
 def test_oficio_idiomas_pendiente_validacion_en_grupo_entrega(sqlite_db):
     """El directorio muestra pendiente_validacion; Nueva conexión también debe entregarle."""
     _crear(sqlite_db, "91301", oficio="Electricidad", cp="03001")
     _crear(sqlite_db, "91302", oficio="Idiomas", cp="03001", estado="pendiente_validacion")
+    grupo_id = sqlite_db.obtener_aliado_por_codigo("91301")["grupo_id"]
+    _forzar_grupo(sqlite_db, "91302", grupo_id, codigo_postal="03001")
 
     creada = solicitud_service.crear_solicitud_por_codigo(
         sqlite_db, "91301", "Idiomas", "Prueba con aliado aún en validación"
@@ -213,6 +225,9 @@ def test_oficio_ausente_con_profesional_cercano_requiere_aprobacion(sqlite_db):
     assert creada["proximidad_notificado"] is False
     assert "No hay fontanero en tu grupo" in creada["mensaje"]
     assert "Aliado 92003" in creada["mensaje"]
+    assert "más cercano a tu código postal" in creada["mensaje"]
+    assert creada["opciones_solicitante"]["aceptar_proximidad"] is True
+    assert creada["opciones_solicitante"]["pedir_recomendacion_grupo"] is True
 
     assert sid not in _ids_entrantes(sqlite_db, "92002")
     assert sid not in _ids_entrantes(sqlite_db, "92003")
@@ -222,6 +237,9 @@ def test_oficio_ausente_con_profesional_cercano_requiere_aprobacion(sqlite_db):
 
     propias = solicitud_service.listar_solicitudes_propias_por_codigo(sqlite_db, "92001")
     assert propias[0]["requiere_aprobacion_proximidad"] is True
+    assert propias[0]["opciones_solicitante"]["aceptar_proximidad"] is True
+    assert propias[0]["opciones_solicitante"]["pedir_recomendacion_grupo"] is True
+    assert "Te recomendamos a" in (propias[0].get("mensaje_solicitante") or "")
 
     aceptada = solicitud_service.aceptar_proximidad_solicitud(sqlite_db, sid, "92001")
     assert aceptada["status"] == "success"
@@ -246,6 +264,7 @@ def test_pedir_recomendacion_al_grupo_tras_cercano(sqlite_db):
     pedida = solicitud_service.pedir_recomendacion_grupo_solicitud(sqlite_db, sid, "92101")
     assert pedida["status"] == "success"
     assert pedida["enrutamiento"] == "buscando_ayuda"
+    assert "recomendar a alguien que entre al grupo" in (pedida.get("mensaje") or "")
 
     assert sid in _ids_entrantes(sqlite_db, "92102")
     assert sid not in _ids_entrantes(sqlite_db, "92103")
@@ -317,7 +336,18 @@ def test_api_nueva_conexion_enruta_y_acepta_proximidad(
     assert body["ok"] is True
     assert body["enrutamiento"] == "proximidad"
     assert "No hay fontanero en tu grupo" in body["mensaje"]
+    assert body["requiere_aprobacion_proximidad"] is True
+    assert body.get("opciones_solicitante", {}).get("aceptar_proximidad") is True
     sid = body["id"]
+
+    listed = client.get("/api/solicitudes", headers=headers)
+    assert listed.status_code == 200
+    payload = listed.get_json()
+    propias = payload.get("propias") or []
+    mia = next(s for s in propias if s.get("id") == sid)
+    assert mia["requiere_aprobacion_proximidad"] is True
+    assert "Te recomendamos" in (mia.get("mensaje_solicitante") or "")
+    assert mia["opciones_solicitante"]["pedir_recomendacion_grupo"] is True
 
     acepta = client.post(
         f"/api/solicitudes/{sid}/aceptar-proximidad",

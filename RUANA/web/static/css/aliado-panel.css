@@ -1283,6 +1283,11 @@
             line-height: 1.4;
         }
 
+        .solicitudes-recomendacion-wrap .solicitud-card,
+        .inicio-recomendacion-list .solicitud-card {
+            border: 1px solid rgba(250, 204, 21, 0.35);
+        }
+
         .solicitud-buscando {
             margin: 8px 0 0;
             color: #fbbf24;

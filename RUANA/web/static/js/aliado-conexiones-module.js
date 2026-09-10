@@ -177,12 +177,19 @@
         }
         if (!msg) msg = 'Solicitud enviada';
         mostrarExito(host, msg);
+        var irARecomendacion = !!(data.requiere_aprobacion_proximidad ||
+          (data.enrutamiento === 'proximidad' && data.proximidad));
         if (global.AliadoShell && typeof global.AliadoShell.show === 'function') {
-          global.AliadoShell.show('solicitudes');
+          global.AliadoShell.show('solicitudes', irARecomendacion ? { skipScroll: true } : undefined);
         }
         envioEnCurso = false;
         setEnviando(false);
-        refrescarTrasEnvio(host, apiBase);
+        refrescarTrasEnvio(host, apiBase).then(function () {
+          if (!irARecomendacion) return;
+          var el = document.getElementById('solicitudes-recomendacion-wrap') ||
+            document.getElementById('inicio-recomendacion-wrap');
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
         return;
       }
       aviso(data.error || data.message || 'Error al enviar', 'error');

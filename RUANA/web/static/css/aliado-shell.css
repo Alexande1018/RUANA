@@ -703,6 +703,62 @@ body.panel-loading #inicio-grupo-en-creacion-banner {
     background: rgba(255, 255, 255, 0.1);
 }
 
+.inicio-recomendacion-banner {
+    display: none;
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px 20px 16px;
+    border-radius: 20px;
+    border: 1px solid rgba(250, 204, 21, 0.38);
+    background:
+        linear-gradient(145deg, rgba(250, 204, 21, 0.16) 0%, rgba(255, 255, 255, 0.04) 55%, rgba(234, 179, 8, 0.10) 100%);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.inicio-recomendacion-banner.is-visible {
+    display: flex;
+}
+
+.inicio-recomendacion-banner[hidden] {
+    display: none !important;
+}
+
+body.ruana-tour-active #inicio-recomendacion-wrap,
+body.panel-loading #inicio-recomendacion-wrap {
+    display: none !important;
+}
+
+.inicio-recomendacion-copy h3 {
+    margin: 0 0 8px;
+    font-size: 1.05rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #fef9c3;
+}
+
+.inicio-recomendacion-copy p {
+    margin: 0;
+    font-size: 0.92rem;
+    line-height: 1.55;
+    color: rgba(254, 249, 195, 0.88);
+}
+
+.inicio-recomendacion-list .solicitud-card {
+    margin-top: 4px;
+    background: rgba(10, 12, 20, 0.35);
+}
+
+.solicitudes-recomendacion-wrap {
+    border-radius: 16px;
+    padding: 14px 16px 16px;
+    border: 1px solid rgba(250, 204, 21, 0.32);
+    background: rgba(250, 204, 21, 0.08);
+}
+
+.solicitudes-recomendacion-wrap[hidden] {
+    display: none !important;
+}
+
 .inicio-quick-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));

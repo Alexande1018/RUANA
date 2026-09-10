@@ -186,6 +186,10 @@ def test_aliado_solicitudes_module_is_wired():
     assert "Aceptar solicitud" in solicitudes_js
     assert "btn-aceptar-proximidad" in solicitudes_js
     assert "pedir-recomendacion-grupo" in solicitudes_js
+    assert "Pedir al grupo que recomienden a alguien" in solicitudes_js
+    assert "esRecomendacionPendiente" in solicitudes_js
+    assert "solicitudes-recomendacion-wrap" in solicitudes_js
+    assert "inicio-recomendacion-wrap" in solicitudes_js
     assert "Buscando ayuda" in solicitudes_js
     # Fachadas delgadas en PrivatePanel
     assert "_solicitudesModule" in aliado
@@ -211,6 +215,10 @@ def test_aliado_solicitudes_panel_refresca_al_abrir_y_modulos_visibles():
     sync_js = (root / "static" / "js" / "aliado-sync-module.js").read_text(encoding="utf-8")
 
     for section_id in (
+        "solicitudes-recomendacion-wrap",
+        "solicitudes-recomendacion-list",
+        "inicio-recomendacion-wrap",
+        "inicio-recomendacion-list",
         "solicitudes-semanales-wrap",
         "solicitudes-encargos-wrap",
         "solicitudes-entrantes-wrap",
@@ -227,6 +235,9 @@ def test_aliado_solicitudes_panel_refresca_al_abrir_y_modulos_visibles():
     assert "refreshAfterAction(['solicitudes', 'contactos'])" in shell_js
     assert "refreshSolicitudes: refreshSolicitudesPanel" in shell_js
     assert "'#solicitudes-semanales-wrap': 'solicitudes'" in shell_js
+    assert "'#solicitudes-recomendacion-wrap': 'solicitudes'" in shell_js
+    assert "scrollRecomendacion" in shell_js
+    assert "el más cercano a tu CP" in shell_js
     assert "'#solicitudes-historial-wrap': 'solicitudes'" in shell_js
 
     assert "animation: aliado-module-in 280ms ease both;" in shell_css
@@ -323,7 +334,9 @@ def test_aliado_conexiones_module_is_wired():
     assert "/api/solicitudes" in conexiones_js
     assert "nueva-solicitud-oficio" in conexiones_js
     assert "RuanaUI.toast" in conexiones_js
-    assert "AliadoShell.show('solicitudes')" in conexiones_js
+    assert "AliadoShell.show('solicitudes'" in conexiones_js
+    assert "skipScroll: true" in conexiones_js
+    assert "solicitudes-recomendacion-wrap" in conexiones_js
     assert "classList.add('show')" in conexiones_js
     assert "AbortController" in conexiones_js
     assert "ENVIO_TIMEOUT_MS" in conexiones_js
