@@ -163,6 +163,7 @@ def _enriquecer_propia(row: Dict[str, Any]) -> Dict[str, Any]:
         )
     elif (
         destino == DESTINO_PROXIMIDAD
+        and estado == "pendiente"
         and (item.get("proximidad_estado") or "") == PROXIMIDAD_PENDIENTE
         and prox
     ):
@@ -173,6 +174,7 @@ def _enriquecer_propia(row: Dict[str, Any]) -> Dict[str, Any]:
         item["opciones_solicitante"] = {
             "aceptar_proximidad": True,
             "pedir_recomendacion_grupo": True,
+            "invitar_conocido_cercano": True,
         }
     elif destino == DESTINO_PROFESIONAL_GRUPO and item.get("asignada_a_nombre"):
         item["mensaje_solicitante"] = (
@@ -614,6 +616,7 @@ def crear_solicitud_por_codigo(db, codigo: str, oficio: str, descripcion: str) -
                         "opciones_solicitante": {
                             "aceptar_proximidad": True,
                             "pedir_recomendacion_grupo": True,
+                            "invitar_conocido_cercano": True,
                         },
                         "mensaje": mensaje_recomendacion_proximidad(oficio, rec),
                     }

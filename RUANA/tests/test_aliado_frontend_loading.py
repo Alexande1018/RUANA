@@ -187,6 +187,9 @@ def test_aliado_solicitudes_module_is_wired():
     assert "btn-aceptar-proximidad" in solicitudes_js
     assert "pedir-recomendacion-grupo" in solicitudes_js
     assert "Pedir al grupo que recomienden a alguien" in solicitudes_js
+    assert "btn-invitar-cercano" in solicitudes_js
+    assert "Invita a alguien que conozcas más cerca de tu CP" in solicitudes_js
+    assert "generarCodigoInvitarCercanoCp" in solicitudes_js
     assert "esRecomendacionPendiente" in solicitudes_js
     assert "appendRecomendacionCard" in solicitudes_js
     assert "recomendacionesPendientesDe" in solicitudes_js
@@ -385,15 +388,18 @@ def test_aliado_invitaciones_module_is_wired():
     inv_js = (root / "static" / "js" / "aliado-invitaciones-module.js").read_text(encoding="utf-8")
     modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
 
-    assert 'src="/static/js/aliado-invitaciones-module.js"' in aliado
+    assert "/static/js/aliado-invitaciones-module.js" in aliado
     assert "invitaciones: null" in modules_js
     assert "modules.invitaciones" in inv_js or "RuanaAliadoModules.invitaciones" in inv_js
     assert "generarCodigoInvitacionPerfil" in inv_js
     assert "generateInviteCode" in inv_js
+    assert "generarCodigoInvitarCercanoCp" in inv_js
+    assert "alguien que conozcas más cerca de tu código postal" in inv_js
     assert "/api/invitaciones/crear" in inv_js
     assert "generarInvitacionOficio" in inv_js
     assert "_invitacionesModule" in aliado
     assert "mod.generateInviteCode(this, solicitudId)" in aliado
+    assert "mod.generarCodigoInvitarCercanoCp(this, solicitudId)" in aliado
     assert 'id="modal-code"' in aliado
     assert 'id="modal-invitacion-oficio"' in aliado
 

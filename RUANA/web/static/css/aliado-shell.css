@@ -823,7 +823,8 @@ body.panel-loading #inicio-recomendacion-wrap {
 }
 
 .recomendacion-card .btn-aceptar-proximidad,
-.recomendacion-card .btn-pedir-recomendacion {
+.recomendacion-card .btn-pedir-recomendacion,
+.recomendacion-card .btn-invitar-cercano {
     flex: 1 1 180px;
     min-height: 44px;
     padding: 10px 16px;
@@ -850,6 +851,13 @@ body.panel-loading #inicio-recomendacion-wrap {
     color: rgba(255, 255, 255, 0.9);
 }
 
+.recomendacion-card .btn-invitar-cercano {
+    flex: 1 1 100%;
+    border: 1px solid rgba(162, 255, 0, 0.28);
+    background: rgba(162, 255, 0, 0.07);
+    color: var(--ruana-brand-lime, #a2ff00);
+}
+
 .recomendacion-card .btn-aceptar-proximidad:hover {
     transform: translateY(-1px);
     filter: brightness(1.05);
@@ -861,8 +869,15 @@ body.panel-loading #inicio-recomendacion-wrap {
     background: rgba(162, 255, 0, 0.08);
 }
 
+.recomendacion-card .btn-invitar-cercano:hover {
+    transform: translateY(-1px);
+    border-color: rgba(162, 255, 0, 0.5);
+    background: rgba(162, 255, 0, 0.14);
+}
+
 .recomendacion-card .btn-aceptar-proximidad:disabled,
-.recomendacion-card .btn-pedir-recomendacion:disabled {
+.recomendacion-card .btn-pedir-recomendacion:disabled,
+.recomendacion-card .btn-invitar-cercano:disabled {
     opacity: 0.65;
     cursor: wait;
     transform: none;
@@ -1551,7 +1566,8 @@ body.panel-loading #inicio-recomendacion-wrap {
     .inicio-grupo-banner-cta,
     .inicio-grupo-banner-dismiss,
     .recomendacion-card .btn-aceptar-proximidad,
-    .recomendacion-card .btn-pedir-recomendacion {
+    .recomendacion-card .btn-pedir-recomendacion,
+    .recomendacion-card .btn-invitar-cercano {
         width: 100%;
     }
 }
@@ -1563,7 +1579,8 @@ body.panel-loading #inicio-recomendacion-wrap {
     .inicio-grupo-banner-cta,
     .inicio-grupo-banner-dismiss,
     .recomendacion-card .btn-aceptar-proximidad,
-    .recomendacion-card .btn-pedir-recomendacion {
+    .recomendacion-card .btn-pedir-recomendacion,
+    .recomendacion-card .btn-invitar-cercano {
         animation: none;
         transition: none;
     }

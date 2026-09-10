@@ -93,6 +93,7 @@ def test_oficio_idiomas_mismo_cp_otro_grupo_recomienda_con_aprobacion(sqlite_db)
     assert creada.get("requiere_aprobacion_proximidad") is True
     assert creada.get("opciones_solicitante", {}).get("aceptar_proximidad") is True
     assert creada.get("opciones_solicitante", {}).get("pedir_recomendacion_grupo") is True
+    assert creada.get("opciones_solicitante", {}).get("invitar_conocido_cercano") is True
     assert "Te recomendamos" in (creada.get("mensaje") or "")
     assert "más cercano a tu código postal" in (creada.get("mensaje") or "")
 
@@ -105,6 +106,7 @@ def test_oficio_idiomas_mismo_cp_otro_grupo_recomienda_con_aprobacion(sqlite_db)
     assert mia["requiere_aprobacion_proximidad"] is True
     assert mia["mensaje_solicitante"]
     assert mia["opciones_solicitante"]["aceptar_proximidad"] is True
+    assert mia["opciones_solicitante"]["invitar_conocido_cercano"] is True
 
 
 def test_oficio_idiomas_en_grupo_entrega_inmediata(sqlite_db):
@@ -228,6 +230,7 @@ def test_oficio_ausente_con_profesional_cercano_requiere_aprobacion(sqlite_db):
     assert "más cercano a tu código postal" in creada["mensaje"]
     assert creada["opciones_solicitante"]["aceptar_proximidad"] is True
     assert creada["opciones_solicitante"]["pedir_recomendacion_grupo"] is True
+    assert creada["opciones_solicitante"]["invitar_conocido_cercano"] is True
 
     assert sid not in _ids_entrantes(sqlite_db, "92002")
     assert sid not in _ids_entrantes(sqlite_db, "92003")
@@ -239,6 +242,7 @@ def test_oficio_ausente_con_profesional_cercano_requiere_aprobacion(sqlite_db):
     assert propias[0]["requiere_aprobacion_proximidad"] is True
     assert propias[0]["opciones_solicitante"]["aceptar_proximidad"] is True
     assert propias[0]["opciones_solicitante"]["pedir_recomendacion_grupo"] is True
+    assert propias[0]["opciones_solicitante"]["invitar_conocido_cercano"] is True
     assert "Te recomendamos a" in (propias[0].get("mensaje_solicitante") or "")
 
     aceptada = solicitud_service.aceptar_proximidad_solicitud(sqlite_db, sid, "92001")
@@ -270,6 +274,32 @@ def test_pedir_recomendacion_al_grupo_tras_cercano(sqlite_db):
     assert sid not in _ids_entrantes(sqlite_db, "92103")
     assert "solicitud_buscando_ayuda" in _tipos(sqlite_db, "92102")
     assert "proximidad_solicitud" not in _tipos(sqlite_db, "92103")
+
+
+def test_invitar_conocido_cercano_deja_candidato_pendiente(sqlite_db):
+    """El solicitante invita a alguien más cerca: código ligado y solicitud en candidato pendiente."""
+    _crear(sqlite_db, "92201", oficio="Electricidad", cp="03001")
+    _crear(sqlite_db, "92202", oficio="Cerrajería", cp="03001")
+    _crear(sqlite_db, "92203", oficio="Fontanería y fontanería-gas", cp="03003")
+
+    creada = solicitud_service.crear_solicitud_por_codigo(
+        sqlite_db, "92201", "Fontanería", "Invito a alguien más cerca de mi CP"
+    )
+    sid = creada["id"]
+    assert creada["enrutamiento"] == "proximidad"
+    assert creada["opciones_solicitante"]["invitar_conocido_cercano"] is True
+
+    invitador = sqlite_db.obtener_aliado_por_codigo("92201")
+    sqlite_db._registrar_invitacion("67890", invitador["id"], sid)
+    mark = sqlite_db.marcar_solicitud_candidato_pendiente(sid, "92201")
+    assert mark.get("status") == "success"
+
+    propias = solicitud_service.listar_solicitudes_propias_por_codigo(sqlite_db, "92201")
+    mia = next(s for s in propias if s.get("id") == sid)
+    assert mia["estado"] == "candidato_pendiente"
+    assert mia["candidato_por_codigo"] == "92201"
+    assert mia.get("requiere_aprobacion_proximidad") is not True
+    assert sid not in _ids_entrantes(sqlite_db, "92203")
 
 
 def test_oficio_sin_profesional_cercano_queda_buscando_ayuda(sqlite_db):
@@ -348,6 +378,7 @@ def test_api_nueva_conexion_enruta_y_acepta_proximidad(
     assert mia["requiere_aprobacion_proximidad"] is True
     assert "Te recomendamos" in (mia.get("mensaje_solicitante") or "")
     assert mia["opciones_solicitante"]["pedir_recomendacion_grupo"] is True
+    assert mia["opciones_solicitante"]["invitar_conocido_cercano"] is True
 
     acepta = client.post(
         f"/api/solicitudes/{sid}/aceptar-proximidad",

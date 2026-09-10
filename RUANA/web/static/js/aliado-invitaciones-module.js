@@ -125,6 +125,84 @@
     }
   }
 
+  function _solicitudPorId(host, solicitudId) {
+    var listas = [
+      host.solicitudesPropias,
+      host.solicitudesEntrantes,
+      host.solicitudesHistorial,
+    ];
+    var i;
+    var j;
+    var lista;
+    for (i = 0; i < listas.length; i += 1) {
+      lista = listas[i] || [];
+      for (j = 0; j < lista.length; j += 1) {
+        if (lista[j] && lista[j].id == solicitudId) return lista[j];
+      }
+    }
+    return null;
+  }
+
+  async function generarCodigoInvitarCercanoCp(host, solicitudId) {
+    const sid = parseInt(solicitudId, 10);
+    if (!sid) {
+      alert('No se encontró la solicitud');
+      return;
+    }
+    const solicitud = _solicitudPorId(host, sid);
+    const codigo = host.codigoAliado || (host.aliado && host.aliado.codigo) || '';
+    if (!codigo) {
+      alert('Sesión no válida');
+      return;
+    }
+    const aliadoId = (host.aliado && host.aliado.id) || host.aliadoId;
+    const zona = (host.aliado && host.aliado.codigo_postal) || '';
+    const oficio = (solicitud && (solicitud.oficio || solicitud.zona)) || '';
+    const apiBase = getApiBaseSafe();
+    try {
+      const r = await fetch(apiBase + '/api/invitaciones/crear', {
+        method: 'POST',
+        headers: getAuthHeadersSafe({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          aliado_id: aliadoId,
+          zona: zona,
+          solicitud_id: sid,
+        }),
+        credentials: 'same-origin',
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok && data.status === 'success' && data.codigo) {
+        host.currentCode = data.codigo;
+        host.currentSolicitud = {
+          por: (solicitud && (solicitud.solicitante_nombre || solicitud.solicitante_codigo)) || 'tú',
+          texto: oficio ? ('Invitar a alguien más cerca · ' + oficio) : 'Invitar a alguien más cerca de tu CP',
+        };
+        host.mostrarModalCodigoInvitacion(data.codigo, true);
+        const modalText = document.querySelector('#modal-code .modal-text');
+        if (modalText) {
+          modalText.innerHTML =
+            'Comparte este código con <strong>alguien que conozcas más cerca de tu código postal</strong> para que se registre en RUANA.' +
+            (oficio ? '<br><strong>Oficio:</strong> ' + host.escapeHtml(oficio) : '') +
+            '<br><br>La solicitud quedará como <strong>candidato pendiente</strong> hasta que se incorpore (máximo <strong>24 horas</strong>). Si no se registra, volverás a ver la recomendación del aliado más cercano.';
+        }
+        try {
+          if (typeof host.fetchSolicitudesSnapshot === 'function') {
+            await host.fetchSolicitudesSnapshot();
+          }
+          if (typeof host.renderSolicitudes === 'function') {
+            host.renderSolicitudes();
+          }
+        } catch (_) {
+          if (typeof host.renderSolicitudes === 'function') host.renderSolicitudes();
+        }
+      } else {
+        alert(data.message || data.error || 'No se pudo generar el código. Intenta de nuevo.');
+      }
+    } catch (e) {
+      alert('Error de conexión: ' + (e.message || e));
+    }
+  }
+
   function mostrarModalCodigoInvitacion(host, codigo, desdeSolicitud) {
     const modal = document.getElementById('modal-code');
     const codeEl = document.getElementById('code-value');
@@ -292,6 +370,7 @@
     generarCodigoInvitacionPerfil: generarCodigoInvitacionPerfil,
     generarCodigoInvitacionCrecimientoGrupo: generarCodigoInvitacionCrecimientoGrupo,
     generateInviteCode: generateInviteCode,
+    generarCodigoInvitarCercanoCp: generarCodigoInvitarCercanoCp,
     mostrarModalCodigoInvitacion: mostrarModalCodigoInvitacion,
     registerInviteCodeWithBackend: registerInviteCodeWithBackend,
     getFechaExpiracion: getFechaExpiracion,

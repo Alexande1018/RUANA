@@ -11,11 +11,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="icon" href="/static/images/ruana-logo.svg" type="image/svg+xml">
-    <link rel="preload" href="/static/css/aliado-shell.css?v=20260910c" as="style">
-    <link rel="stylesheet" href="/static/css/aliado-panel.css?v=20260910c">
+    <link rel="preload" href="/static/css/aliado-shell.css?v=20260910d" as="style">
+    <link rel="stylesheet" href="/static/css/aliado-panel.css?v=20260910d">
     <link rel="stylesheet" href="/static/css/panel-premium.css">
     <link rel="stylesheet" href="/static/css/auth-premium.css">
-    <link rel="stylesheet" href="/static/css/aliado-shell.css?v=20260910c">
+    <link rel="stylesheet" href="/static/css/aliado-shell.css?v=20260910d">
     <link rel="stylesheet" href="/static/css/encargo-seguimiento.css">
     <link rel="stylesheet" href="/static/css/ruana-score-callout.css">
     <link rel="stylesheet" href="/static/css/ruana-identity.css">
@@ -38,12 +38,12 @@
     <script src="/static/js/referidos-module.js" defer></script>
     <script src="/static/js/aliado-referidos-module.js" defer></script>
     <script src="/static/js/aliado-directorio-module.js" defer></script>
-    <script src="/static/js/aliado-solicitudes-module.js?v=20260910d" defer></script>
+    <script src="/static/js/aliado-solicitudes-module.js?v=20260910e" defer></script>
     <script src="/static/js/aliado-solicitudes-semanales-module.js?v=20260909a" defer></script>
     <script src="/static/js/aliado-acuerdos-module.js" defer></script>
     <script src="/static/js/aliado-conexiones-module.js?v=20260910b" defer></script>
     <script src="/static/js/aliado-centro-comunicacion-module.js" defer></script>
-    <script src="/static/js/aliado-invitaciones-module.js" defer></script>
+    <script src="/static/js/aliado-invitaciones-module.js?v=20260910a" defer></script>
     <script src="/static/js/aliado-alertas-module.js" defer></script>
     <script src="/static/js/aliado-catalogo-module.js" defer></script>
     <script src="/static/js/aliado-contactos-module.js?v=20260903a" defer></script>
@@ -2105,6 +2105,12 @@
                 const mod = this._invitacionesModule();
                 if (mod && typeof mod.generateInviteCode === 'function') {
                     return mod.generateInviteCode(this, solicitudId);
+                }
+            }
+            async generarCodigoInvitarCercanoCp(solicitudId) {
+                const mod = this._invitacionesModule();
+                if (mod && typeof mod.generarCodigoInvitarCercanoCp === 'function') {
+                    return mod.generarCodigoInvitarCercanoCp(this, solicitudId);
                 }
             }
             mostrarModalCodigoInvitacion(codigo, desdeSolicitud) {

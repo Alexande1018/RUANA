@@ -133,6 +133,7 @@
       '<div class="recomendacion-actions solicitud-actions">' +
         '<button type="button" class="btn-aceptar-proximidad" data-id="' + ((solicitud && solicitud.id) || 0) + '">Aceptar a ' + escapeHtmlSafe(host, nombre) + '</button>' +
         '<button type="button" class="btn-pedir-recomendacion" data-id="' + ((solicitud && solicitud.id) || 0) + '">Pedir al grupo que recomienden a alguien</button>' +
+        '<button type="button" class="btn-invitar-cercano" data-id="' + ((solicitud && solicitud.id) || 0) + '">Invita a alguien que conozcas más cerca de tu CP</button>' +
       '</div>';
     container.appendChild(card);
   }
@@ -304,6 +305,20 @@
         if (!id) return;
         btn.disabled = true;
         postAccionSolicitud(host, 'pedir-recomendacion-grupo', id);
+      });
+    });
+    container.querySelectorAll('.btn-invitar-cercano').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = parseInt(btn.getAttribute('data-id'), 10);
+        if (!id) return;
+        btn.disabled = true;
+        var done = Promise.resolve();
+        if (typeof host.generarCodigoInvitarCercanoCp === 'function') {
+          done = Promise.resolve(host.generarCodigoInvitarCercanoCp(id));
+        }
+        done.catch(function () {}).then(function () {
+          btn.disabled = false;
+        });
       });
     });
   }
