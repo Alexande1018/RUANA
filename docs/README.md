@@ -39,6 +39,7 @@ Documentación para handoff, auditoría y continuidad operativa:
 | [`operaciones/roadmap.md`](operaciones/roadmap.md) | Roadmap operativo vivo |
 | [`operaciones/cloud_scheduler_jobs.md`](operaciones/cloud_scheduler_jobs.md) | Jobs cron HTTP |
 | [`operaciones/fase-14-stripe-live.md`](operaciones/fase-14-stripe-live.md) | Estado real Stripe Live (FASE 14): Test activo, Live bloqueado |
+| [`operaciones/PRELAUNCH_RESET_PLAN.md`](operaciones/PRELAUNCH_RESET_PLAN.md) | Auditoría y plan de reset pre-producción (sin ejecutar) |
 | [`qa/plan-testing.md`](qa/plan-testing.md) | Plan QA / Playwright |
 | [`qa/solicitudes-flow.md`](qa/solicitudes-flow.md) | Nota QA solicitudes |
 
