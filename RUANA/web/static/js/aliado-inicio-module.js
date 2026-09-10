@@ -276,6 +276,138 @@
     }
   }
 
+  /** Banner de primer login: grupo de CP en formación. Clave estable por aliado, como el tour. */
+  var GRUPO_BANNER_SEEN_BASE = 'ruana_grupo_en_creacion_seen';
+  var GRUPO_BANNER_ID = 'inicio-grupo-en-creacion-banner';
+  var _grupoBannerBound = false;
+
+  function getGrupoBannerCodigo(host) {
+    return (
+      (host && (host.codigoAliado || (host.aliado && host.aliado.codigo))) ||
+      (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('ruana_codigo_aliado')) ||
+      ''
+    ).toString().trim();
+  }
+
+  function getGrupoBannerSeenKey(codigo) {
+    var code = (codigo || '').toString().trim();
+    return code ? GRUPO_BANNER_SEEN_BASE + '_' + code : null;
+  }
+
+  function hasSeenGrupoBanner(codigo) {
+    var key = getGrupoBannerSeenKey(codigo);
+    if (!key) return true;
+    try {
+      return localStorage.getItem(key) === 'true';
+    } catch (_) {
+      return true;
+    }
+  }
+
+  function markGrupoBannerSeen(codigo) {
+    var key = getGrupoBannerSeenKey(codigo);
+    if (!key) return;
+    try {
+      localStorage.setItem(key, 'true');
+    } catch (_) {}
+  }
+
+  function getGrupoBannerEl() {
+    return document.getElementById(GRUPO_BANNER_ID);
+  }
+
+  function hideGrupoEnCreacionBanner() {
+    var banner = getGrupoBannerEl();
+    if (!banner) return;
+    banner.hidden = true;
+    banner.classList.remove('is-visible');
+  }
+
+  function isPanelLoading() {
+    try {
+      return document.body.classList.contains('panel-loading');
+    } catch (_) {
+      return true;
+    }
+  }
+
+  function isTourBlockingBanner(host) {
+    try {
+      if (document.body.classList.contains('ruana-tour-active')) return true;
+      var tour = host && host.onboardingTour;
+      if (tour && (tour.cloud || tour.overlay)) return true;
+      if (tour && typeof tour.shouldAutoStart === 'function' && tour.shouldAutoStart()) return true;
+    } catch (_) {}
+    return false;
+  }
+
+  function isPanelDataOk(host) {
+    if (!host) return false;
+    if (host.isDataLoaded !== true) return false;
+    if (host.datosOk === false) return false;
+    if (isPanelLoading()) return false;
+    var codigo = getGrupoBannerCodigo(host);
+    if (!codigo) return false;
+    if (!host.aliado) return false;
+    return true;
+  }
+
+  function grupoEnCreacionAllowsBanner(host) {
+    var info = host && host.aliado && host.aliado.grupo_info;
+    if (!info || typeof info.en_creacion === 'undefined' || info.en_creacion === null) {
+      return true;
+    }
+    return !!info.en_creacion;
+  }
+
+  function shouldShowGrupoEnCreacionBanner(host) {
+    if (!isPanelDataOk(host)) return false;
+    if (!grupoEnCreacionAllowsBanner(host)) return false;
+    if (hasSeenGrupoBanner(getGrupoBannerCodigo(host))) return false;
+    if (isTourBlockingBanner(host)) return false;
+    return true;
+  }
+
+  function dismissGrupoEnCreacionBanner(host) {
+    markGrupoBannerSeen(getGrupoBannerCodigo(host));
+    hideGrupoEnCreacionBanner();
+  }
+
+  function bindGrupoEnCreacionBanner(host) {
+    var banner = getGrupoBannerEl();
+    if (!banner || _grupoBannerBound) return;
+    _grupoBannerBound = true;
+    banner.addEventListener('click', function (ev) {
+      var target = ev.target && ev.target.closest
+        ? ev.target.closest('[data-action="grupo-banner-entendido"], [data-action="invitar-aliado"]')
+        : null;
+      if (!target) return;
+      dismissGrupoEnCreacionBanner(host || global.__ruanaPanel);
+    });
+  }
+
+  function maybeShowGrupoEnCreacionBanner(host) {
+    bindGrupoEnCreacionBanner(host);
+    if (!shouldShowGrupoEnCreacionBanner(host)) {
+      hideGrupoEnCreacionBanner();
+      return false;
+    }
+    var banner = getGrupoBannerEl();
+    if (!banner) return false;
+    banner.hidden = false;
+    banner.classList.add('is-visible');
+    if (typeof global.RuanaUI !== 'undefined' && typeof global.RuanaUI.initIcons === 'function') {
+      global.RuanaUI.initIcons(banner);
+    }
+    return true;
+  }
+
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('ruana-onboarding-finished', function () {
+      maybeShowGrupoEnCreacionBanner(global.__ruanaPanel);
+    });
+  }
+
   function render(host) {
     renderMetricas(host);
     renderActividadCinta(host);
@@ -301,5 +433,13 @@
       return teardownScoreCallout(host, callout, anchor);
     },
     markNotificationRead: markNotificationRead,
+    GRUPO_BANNER_SEEN_BASE: GRUPO_BANNER_SEEN_BASE,
+    getGrupoBannerSeenKey: getGrupoBannerSeenKey,
+    hasSeenGrupoBanner: hasSeenGrupoBanner,
+    markGrupoBannerSeen: markGrupoBannerSeen,
+    shouldShowGrupoEnCreacionBanner: shouldShowGrupoEnCreacionBanner,
+    maybeShowGrupoEnCreacionBanner: maybeShowGrupoEnCreacionBanner,
+    dismissGrupoEnCreacionBanner: dismissGrupoEnCreacionBanner,
+    hideGrupoEnCreacionBanner: hideGrupoEnCreacionBanner,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
