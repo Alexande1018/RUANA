@@ -11,11 +11,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="icon" href="/static/images/ruana-logo.svg" type="image/svg+xml">
-    <link rel="preload" href="/static/css/aliado-shell.css?v=20260820a" as="style">
+    <link rel="preload" href="/static/css/aliado-shell.css?v=20260910a" as="style">
     <link rel="stylesheet" href="/static/css/aliado-panel.css">
     <link rel="stylesheet" href="/static/css/panel-premium.css">
     <link rel="stylesheet" href="/static/css/auth-premium.css">
-    <link rel="stylesheet" href="/static/css/aliado-shell.css?v=20260820a">
+    <link rel="stylesheet" href="/static/css/aliado-shell.css?v=20260910a">
     <link rel="stylesheet" href="/static/css/encargo-seguimiento.css">
     <link rel="stylesheet" href="/static/css/ruana-score-callout.css">
     <link rel="stylesheet" href="/static/css/ruana-identity.css">
@@ -32,7 +32,7 @@
     <script src="/static/js/ruana-pulse.js?v=20260904a" defer></script>
     <script src="/static/js/ruana-api-client.js" defer></script>
     <script src="/static/js/aliado-modules.js" defer></script>
-    <script src="/static/js/aliado-inicio-module.js" defer></script>
+    <script src="/static/js/aliado-inicio-module.js?v=20260910a" defer></script>
     <script src="/static/js/ruana-actividad-cinta.js" defer></script>
     <script src="/static/js/aliado-perfil-module.js" defer></script>
     <script src="/static/js/referidos-module.js" defer></script>
@@ -49,7 +49,7 @@
     <script src="/static/js/aliado-contactos-module.js?v=20260903a" defer></script>
     <script src="/static/js/aliado-stripe-pagos-module.js?v=20260903a" defer></script>
     <script src="/static/js/aliado-grupo-module.js" defer></script>
-    <script src="/static/js/aliado-sync-module.js?v=20260909a" defer></script>
+    <script src="/static/js/aliado-sync-module.js?v=20260910a" defer></script>
     <script src="/static/js/aliado-events-module.js?v=20260909e" defer></script>
     <script src="/static/js/aliado-shell.js?v=20260820a" defer></script>
     <link rel="stylesheet" href="/static/css/negociacion-guiada.css">
@@ -258,6 +258,29 @@
                         <strong id="inicio-score">0</strong>
                     </button>
                 </div>
+
+                <aside
+                    id="inicio-grupo-en-creacion-banner"
+                    class="inicio-grupo-banner"
+                    hidden
+                    role="region"
+                    aria-labelledby="inicio-grupo-banner-title"
+                    aria-live="polite"
+                >
+                    <div class="inicio-grupo-banner-copy">
+                        <h3 id="inicio-grupo-banner-title">Tu zona todavía se está formando</h3>
+                        <p>Estás en el grupo de tu código postal. Mientras haya poca gente cerca, la red de oficios es más pequeña. Por eso importa invitar a vecinos de tu zona: cuantos más seamos, más fácil encontrar y encargar trabajo.</p>
+                    </div>
+                    <div class="inicio-grupo-banner-actions">
+                        <button type="button" class="inicio-grupo-banner-cta" id="btn-invitar-grupo-banner" data-action="invitar-aliado">
+                            <i data-lucide="user-plus"></i>
+                            Ampliar mi red
+                        </button>
+                        <button type="button" class="inicio-grupo-banner-dismiss" id="btn-grupo-banner-entendido" data-action="grupo-banner-entendido">
+                            Entendido
+                        </button>
+                    </div>
+                </aside>
 
                 <div
                     class="ruana-actividad-cinta ruana-actividad-cinta--in-pulse"
@@ -1354,6 +1377,13 @@
                 // El replay manual (force) también marca visto para no dejar pendiente activo.
                 this.markSeen();
                 document.body.classList.add('ruana-tour-active');
+                // No apilar el banner de bienvenida encima del tour.
+                try {
+                    const bannerMod = (typeof RuanaAliadoModules !== 'undefined' && RuanaAliadoModules.inicio) || null;
+                    if (bannerMod && typeof bannerMod.hideGrupoEnCreacionBanner === 'function') {
+                        bannerMod.hideGrupoEnCreacionBanner();
+                    }
+                } catch (_) {}
                 this.stepIndex = 0;
                 this.createLayer();
                 document.addEventListener('keydown', this.boundEsc);
@@ -1580,6 +1610,15 @@
                 if (window.AliadoShell && typeof window.AliadoShell.show === 'function') {
                     window.AliadoShell.show('inicio', { skipScroll: true, instant: true });
                 }
+                // Banner de grupo en creación: después del tour, no a la vez.
+                try {
+                    const delay = markComplete ? 1100 : 80;
+                    window.setTimeout(() => {
+                        document.dispatchEvent(new CustomEvent('ruana-onboarding-finished', {
+                            detail: { markComplete: !!markComplete }
+                        }));
+                    }, delay);
+                } catch (_) {}
             }
         }
 
@@ -1985,6 +2024,12 @@
                 const mod = this._inicioModule();
                 if (mod && typeof mod.maybeShowScoreChangeNotification === 'function') {
                     return mod.maybeShowScoreChangeNotification(this);
+                }
+            }
+            maybeShowGrupoEnCreacionBanner() {
+                const mod = this._inicioModule();
+                if (mod && typeof mod.maybeShowGrupoEnCreacionBanner === 'function') {
+                    return mod.maybeShowGrupoEnCreacionBanner(this);
                 }
             }
             _solicitudesSemanalesModule() {

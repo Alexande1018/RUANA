@@ -221,14 +221,24 @@
     }
   }
 
+  function maybeShowGrupoBanner(host) {
+    var inicioMod = global.RuanaAliadoModules && global.RuanaAliadoModules.inicio;
+    if (inicioMod && typeof inicioMod.maybeShowGrupoEnCreacionBanner === 'function') {
+      inicioMod.maybeShowGrupoEnCreacionBanner(host);
+    }
+  }
+
   function initOnboarding(host) {
     host.onboardingTour = new RuanaOnboardingTour(host);
     const replayBtn = document.getElementById('btn-replay-onboarding');
     if (replayBtn) {
         replayBtn.addEventListener('click', () => host.onboardingTour.start(true));
     }
-    if (host.onboardingTour.shouldAutoStart()) {
+    const tourWillAutoStart = host.onboardingTour.shouldAutoStart();
+    if (tourWillAutoStart) {
         setTimeout(() => host.onboardingTour.start(), 450);
+    } else {
+        maybeShowGrupoBanner(host);
     }
     window.addEventListener('resize', () => {
         if (host.onboardingTour && (host.onboardingTour.overlay || host.onboardingTour.cloud)) {
@@ -376,10 +386,12 @@
 
         // Métricas se calculan directamente a partir de datos reales
         host.isDataLoaded = true;
+        host.datosOk = !!(host.aliado && (host.aliado.codigo || host.codigoAliado));
         renderActividadCinta(host);
     } catch (error) {
         console.error('Error cargando datos:', error);
         host.isDataLoaded = false;
+        host.datosOk = false;
     }
   }
 
@@ -726,6 +738,7 @@
 
     host.currentCode = null;
     host.isDataLoaded = false;
+    host.datosOk = false;
     host._referidosTree = null;
 
     // Onboarding premium

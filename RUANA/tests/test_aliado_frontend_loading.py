@@ -63,7 +63,7 @@ def test_aliado_inicio_module_is_wired():
     modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
 
     assert 'src="/static/js/aliado-modules.js"' in aliado
-    assert 'src="/static/js/aliado-inicio-module.js"' in aliado
+    assert 'src="/static/js/aliado-inicio-module.js' in aliado
     assert '/static/js/aliado-shell.js' in aliado
     assert "RuanaAliadoModules" in modules_js
     assert "RuanaAliadoModules.inicio" in inicio_js or "modules.inicio" in inicio_js
