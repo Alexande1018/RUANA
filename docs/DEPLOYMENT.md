@@ -100,6 +100,15 @@ No se activa CPU always allocated. El preview (`ruana-preview`) **no** usa min-i
 
 **Coste:** 1 instancia mínima en reposo (CPU throttling por defecto) ronda unos 10 USD/mes en `europe-west1`. El panel aliado reintenta `/api/aliado/datos` por si la primera petición aún tarda. No se tocan secretos Stripe ni el modo Live.
 
+**Evidencia ops (Pasarela, 2026-09-10, servicio `ruana` europe-west1):**
+
+| Ruta | 1ª llamada (frío) | Caliente |
+|------|-------------------|----------|
+| `GET /api/aliado/datos` | ~15 s (sonda: 401 sin sesión) | ~0,32–0,35 s ×3 |
+| `GET /api/health` | ~4 s | ~0,3 s |
+
+El login puede ir bien y el bootstrap igual falla con «No pudimos cargar tu panel» si `datos` es lento. Un ping a `/api/health` no sustituye min-instances: `#inicio` espera `datos`, que en frío es ~4× más lento que health.
+
 ---
 
 ## 4. Despliegue manual

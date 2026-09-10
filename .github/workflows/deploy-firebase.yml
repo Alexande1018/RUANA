@@ -119,6 +119,11 @@ jobs:
 
       - name: Deploy Cloud Run
         run: |
+          # Pasarela 2026-09-10 (servicio ruana, europe-west1):
+          #   GET /api/aliado/datos  1ª ~15s → 401 (sonda sin sesión); caliente ×3 ~0.32–0.35s
+          #   GET /api/health        1ª ~4s; luego ~0.3s
+          # Un cron a /api/health NO basta: el panel #inicio espera /api/aliado/datos.
+          # Sin --no-cpu-throttling (coste). Preview (ruana-preview) no usa min-instances.
           gcloud run deploy "$SERVICE" \
             --image "$IMAGE" \
             --region "$REGION" \

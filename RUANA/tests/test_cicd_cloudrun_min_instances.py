@@ -15,12 +15,31 @@ def _deploy_step(content: str) -> str:
 
 
 def test_production_workflow_keeps_one_warm_instance():
+    """min-instances=1 en el deploy de `ruana`; no se usa CPU always-on."""
     content = DEPLOY_WORKFLOW.read_text(encoding="utf-8")
     assert "SERVICE: ruana" in content
     step = _deploy_step(content)
     assert "--min-instances 1" in step
     assert "--max-instances 3" in step
     assert "--no-cpu-throttling" not in step
+    # Evidencia Pasarela 2026-09-10: datos ~15s frío / health ~4s — health no basta.
+    assert "/api/aliado/datos" in content
+    assert "/api/health" in content
+    assert "cron a /api/health NO basta" in content
+
+
+def test_aliado_datos_bootstrap_is_the_critical_path_not_health():
+    """#inicio pinta con /api/aliado/datos (reintento 45s), no con un warmup de health."""
+    sync = (
+        ROOT / "RUANA" / "web" / "static" / "js" / "aliado-sync-module.js"
+    ).read_text(encoding="utf-8")
+    start = sync.index("Pasarela 2026-09-10")
+    boot = sync[start : sync.index("function initState(host)")]
+    assert "BOOTSTRAP_FETCH_TIMEOUT_MS = 45000" in boot
+    assert "Pasarela 2026-09-10" in boot
+    assert boot.index("/api/aliado/datos") < boot.index("showBootstrapError")
+    assert "fetchBootstrapWithRetry" in boot
+    assert "/api/health" not in boot
 
 
 def test_manual_cloudrun_script_keeps_one_warm_instance():

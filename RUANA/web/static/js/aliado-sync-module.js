@@ -582,7 +582,10 @@
       }
   }
 
-  // Cold start Cloud Run: un GET puede tardar 15–25s al despertar. No fallar a la primera.
+  // Pasarela 2026-09-10: 1ª GET /api/aliado/datos ~15s (health frío ~4s).
+  // Login puede ir bien y el bootstrap igual pinta «No pudimos cargar tu panel»
+  // si el timeout aborta datos. Health-only warmup no cubre #inicio.
+  // Timeout 45s + 3 intentos; 401 de sesión caducada no se reintenta.
   var BOOTSTRAP_FETCH_TIMEOUT_MS = 45000;
   var BOOTSTRAP_MAX_ATTEMPTS = 3;
   var BOOTSTRAP_BACKOFF_MS = [1000, 3000];
