@@ -128,9 +128,10 @@ def _zona_proximidad(rec: Dict[str, Any]) -> str:
 def mensaje_recomendacion_proximidad(oficio: str, rec: Dict[str, Any]) -> str:
     oficio_h = _etiqueta_oficio_humano(oficio)
     nombre = (rec.get("nombre") or "un profesional").strip()
+    zona = _zona_proximidad(rec)
     return (
         f"No hay {oficio_h} en tu grupo. Te recomendamos a {nombre}, "
-        f"el más cercano a tu código postal ({_zona_proximidad(rec)})."
+        f"el más cercano a tu código postal · {zona}."
     )
 
 
