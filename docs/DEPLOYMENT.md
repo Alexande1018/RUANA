@@ -93,13 +93,12 @@ Dockerfile: Python 3.13-slim, gunicorn multi-worker, `PORT` default 8080, `GUNIC
 
 El workflow de producción y `scripts/deploy_cloudrun.ps1` fijan:
 
-- `--min-instances 1` — no escala a cero; evita el arranque en frío de la primera visita del día.
-- `--no-cpu-throttling` — CPU always allocated: la instancia caliente puede responder al instante (no espera a que Cloud Run le devuelva CPU).
+- `--min-instances 1` — no escala a cero; el contenedor sigue en memoria entre visitas.
 - `--max-instances 3` — tope de escala (sin cambio).
 
-El preview (`ruana-preview`) **no** usa min-instances: sigue pudiendo escalar a cero para no duplicar el coste fijo.
+No se activa CPU always allocated. El preview (`ruana-preview`) **no** usa min-instances: sigue pudiendo escalar a cero para no duplicar el coste fijo.
 
-**Coste (orden de magnitud, europe-west1, 1 vCPU / 512 MiB):** con CPU always allocated y 1 instancia mínima, unos 60–70 USD/mes de base aunque no haya tráfico. Si más adelante se quiere recortar, se puede quitar `--no-cpu-throttling` y dejar solo `--min-instances 1` (unos 10 USD/mes en idle); el contenedor no se apaga, pero la primera petición tras un rato inactivo puede ir un poco más lenta. No se tocan secretos Stripe ni el modo Live.
+**Coste:** 1 instancia mínima en reposo (CPU throttling por defecto) ronda unos 10 USD/mes en `europe-west1`. El panel aliado reintenta `/api/aliado/datos` por si la primera petición aún tarda. No se tocan secretos Stripe ni el modo Live.
 
 ---
 

@@ -20,14 +20,14 @@ def test_production_workflow_keeps_one_warm_instance():
     step = _deploy_step(content)
     assert "--min-instances 1" in step
     assert "--max-instances 3" in step
-    assert "--no-cpu-throttling" in step
+    assert "--no-cpu-throttling" not in step
 
 
 def test_manual_cloudrun_script_keeps_one_warm_instance():
     content = DEPLOY_PS1.read_text(encoding="utf-8")
     assert '"--min-instances", "1"' in content
     assert '"--max-instances", "3"' in content
-    assert '"--no-cpu-throttling"' in content
+    assert "--no-cpu-throttling" not in content
     assert '$service = "ruana"' in content
 
 

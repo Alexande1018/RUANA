@@ -67,7 +67,6 @@ Invoke-RuanaNativeCommand -FilePath $gcloud -Arguments @(
     "--allow-unauthenticated",
     "--min-instances", "1",
     "--max-instances", "3",
-    "--no-cpu-throttling",
     "--service-account", $runtimeServiceAccount,
     "--set-env-vars", "FIREBASE_PROJECT_ID=$projectId,GOOGLE_CLOUD_REGION=$region,SUPABASE_URL=$($env:SUPABASE_URL)",
     "--set-secrets", "DATABASE_URL=ruana-database-url:latest,SUPABASE_SERVICE_ROLE_KEY=ruana-supabase-service-role-key:latest,SUPABASE_ANON_KEY=ruana-supabase-anon-key:latest,FLASK_SECRET_KEY=ruana-flask-secret-key:latest,RUANA_ADMIN_CREDENTIALS_JSON=ruana-admin-credentials:latest,RUANA_SMTP_PASSWORD=ruana-smtp-password:latest"
