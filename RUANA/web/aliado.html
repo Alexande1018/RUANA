@@ -11,11 +11,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="icon" href="/static/images/ruana-logo.svg" type="image/svg+xml">
-    <link rel="preload" href="/static/css/aliado-shell.css?v=20260910b" as="style">
-    <link rel="stylesheet" href="/static/css/aliado-panel.css?v=20260910b">
+    <link rel="preload" href="/static/css/aliado-shell.css?v=20260910c" as="style">
+    <link rel="stylesheet" href="/static/css/aliado-panel.css?v=20260910c">
     <link rel="stylesheet" href="/static/css/panel-premium.css">
     <link rel="stylesheet" href="/static/css/auth-premium.css">
-    <link rel="stylesheet" href="/static/css/aliado-shell.css?v=20260910b">
+    <link rel="stylesheet" href="/static/css/aliado-shell.css?v=20260910c">
     <link rel="stylesheet" href="/static/css/encargo-seguimiento.css">
     <link rel="stylesheet" href="/static/css/ruana-score-callout.css">
     <link rel="stylesheet" href="/static/css/ruana-identity.css">
@@ -38,7 +38,7 @@
     <script src="/static/js/referidos-module.js" defer></script>
     <script src="/static/js/aliado-referidos-module.js" defer></script>
     <script src="/static/js/aliado-directorio-module.js" defer></script>
-    <script src="/static/js/aliado-solicitudes-module.js?v=20260910b" defer></script>
+    <script src="/static/js/aliado-solicitudes-module.js?v=20260910d" defer></script>
     <script src="/static/js/aliado-solicitudes-semanales-module.js?v=20260909a" defer></script>
     <script src="/static/js/aliado-acuerdos-module.js" defer></script>
     <script src="/static/js/aliado-conexiones-module.js?v=20260910b" defer></script>
@@ -297,10 +297,7 @@
                     role="region"
                     aria-labelledby="inicio-recomendacion-title"
                 >
-                    <div class="inicio-recomendacion-copy">
-                        <h3 id="inicio-recomendacion-title">Te recomendamos a un aliado cercano</h3>
-                        <p>No hay este oficio en tu grupo. El más cercano a tu código postal espera tu decisión: acéptalo o pide al grupo que recomiende a alguien que entre.</p>
-                    </div>
+                    <h3 id="inicio-recomendacion-title" class="ruana-visually-hidden">Te recomendamos a un aliado cercano</h3>
                     <div id="inicio-recomendacion-list" class="inicio-recomendacion-list"></div>
                 </aside>
 
@@ -654,8 +651,7 @@
             </header>
             <div class="solicitudes-zone">
                 <div class="solicitudes-subsection solicitudes-recomendacion-wrap" id="solicitudes-recomendacion-wrap" hidden>
-                    <h3 class="solicitudes-subtitle">Te recomendamos <span class="solicitudes-count-badge" data-solicitudes-count hidden></span></h3>
-                    <p class="solicitudes-desc">No hay este oficio en tu grupo. El profesional más cercano a tu código postal espera tu decisión: acéptalo o pide al grupo que recomiende a alguien que entre.</p>
+                    <h3 class="solicitudes-subtitle ruana-visually-hidden">Te recomendamos <span class="solicitudes-count-badge" data-solicitudes-count hidden></span></h3>
                     <div class="solicitudes-list" id="solicitudes-recomendacion-list"></div>
                 </div>
                 <div class="solicitudes-subsection" id="solicitudes-semanales-wrap">

@@ -102,8 +102,39 @@
       'este profesional';
   }
 
+  function zonaRecomendado(solicitud) {
+    var prox = (solicitud && solicitud.proximidad) || {};
+    var cp = String(prox.codigo_postal || (solicitud && solicitud.proximidad_cp) || '').trim();
+    var etq = String(prox.etiqueta_proximidad || (solicitud && solicitud.proximidad_zona) || '').trim();
+    if (cp && etq) return cp + ' · ' + etq;
+    return cp || etq || '';
+  }
+
   function recomendacionesPendientesDe(propias) {
     return (Array.isArray(propias) ? propias : []).filter(esRecomendacionPendiente);
+  }
+
+  function appendRecomendacionCard(host, container, solicitud) {
+    if (!container) return;
+    var card = document.createElement('article');
+    card.className = 'solicitud-card recomendacion-card';
+    var nombre = nombreRecomendado(solicitud);
+    var oficio = (solicitud && (solicitud.oficio || solicitud.zona)) || '';
+    var zona = zonaRecomendado(solicitud);
+    var meta = [oficio, zona].filter(Boolean).join(' · ');
+    var msg = (solicitud && solicitud.mensaje_solicitante) ||
+      ('No hay este oficio en tu grupo. Te recomendamos a ' + nombre +
+        ', el más cercano a tu código postal.');
+    card.innerHTML =
+      '<p class="recomendacion-kicker">Cercano a tu código postal</p>' +
+      '<h3 class="recomendacion-nombre">Te recomendamos a ' + escapeHtmlSafe(host, nombre) + '</h3>' +
+      '<p class="recomendacion-msg">' + escapeHtmlSafe(host, msg) + '</p>' +
+      (meta ? '<p class="recomendacion-meta">' + escapeHtmlSafe(host, meta) + '</p>' : '') +
+      '<div class="recomendacion-actions solicitud-actions">' +
+        '<button type="button" class="btn-aceptar-proximidad" data-id="' + ((solicitud && solicitud.id) || 0) + '">Aceptar a ' + escapeHtmlSafe(host, nombre) + '</button>' +
+        '<button type="button" class="btn-pedir-recomendacion" data-id="' + ((solicitud && solicitud.id) || 0) + '">Pedir al grupo que recomienden a alguien</button>' +
+      '</div>';
+    container.appendChild(card);
   }
 
   function actualizarContadorSubseccion(wrapId, count) {
@@ -138,6 +169,10 @@
    */
   function appendSolicitudCard(host, container, solicitud, conBotonConocer) {
     if (!container) return;
+    if (!conBotonConocer && esRecomendacionPendiente(solicitud)) {
+      appendRecomendacionCard(host, container, solicitud);
+      return;
+    }
     var card = document.createElement('div');
     var texto = solicitud.descripcion || solicitud.texto || '(sin descripción)';
     var por = solicitud.solicitante_nombre || solicitud.por || '(sin autor)';
@@ -175,21 +210,9 @@
     var metaExtra = metaExtraParts.join('');
     var mostrarAtender = conBotonConocer && estado === 'pendiente' && asignadaAMi;
     var mostrarConocer = conBotonConocer && estado === 'pendiente' && !asignadaAMi;
-    var requiereAprob = esRecomendacionPendiente(solicitud);
     var esPropiaPendiente = !conBotonConocer && estado === 'pendiente';
     var bloqueRecomienda = '';
-    if (esPropiaPendiente && requiereAprob) {
-      var msgRec = solicitud.mensaje_solicitante ||
-        ('No hay este oficio en tu grupo. Te recomendamos a ' + nombreRecomendado(solicitud) +
-          ', el más cercano a tu código postal.');
-      var proxNombre = nombreRecomendado(solicitud);
-      bloqueRecomienda =
-        '<p class="solicitud-recomienda">' + escapeHtmlSafe(host, msgRec) + '</p>' +
-        '<div class="solicitud-actions">' +
-          '<button type="button" class="btn-aceptar-proximidad" data-id="' + (solicitud.id || 0) + '">Aceptar a ' + escapeHtmlSafe(host, proxNombre) + '</button>' +
-          '<button type="button" class="btn-pedir-recomendacion" data-id="' + (solicitud.id || 0) + '">Pedir al grupo que recomienden a alguien</button>' +
-        '</div>';
-    } else if (esPropiaPendiente && (solicitud.destino === 'buscando_ayuda' || solicitud.etiqueta_busqueda)) {
+    if (esPropiaPendiente && (solicitud.destino === 'buscando_ayuda' || solicitud.etiqueta_busqueda)) {
       bloqueRecomienda = '<p class="solicitud-buscando">Buscando ayuda</p>';
     } else if (esPropiaPendiente && solicitud.mensaje_solicitante) {
       bloqueRecomienda = '<p class="solicitud-buscando">' + escapeHtmlSafe(host, solicitud.mensaje_solicitante) + '</p>';

@@ -188,6 +188,10 @@ def test_aliado_solicitudes_module_is_wired():
     assert "pedir-recomendacion-grupo" in solicitudes_js
     assert "Pedir al grupo que recomienden a alguien" in solicitudes_js
     assert "esRecomendacionPendiente" in solicitudes_js
+    assert "appendRecomendacionCard" in solicitudes_js
+    assert "recomendacionesPendientesDe" in solicitudes_js
+    assert "Cercano a tu código postal" in solicitudes_js
+    assert "ruana-visually-hidden" in aliado
     assert "solicitudes-recomendacion-wrap" in solicitudes_js
     assert "inicio-recomendacion-wrap" in solicitudes_js
     assert "Buscando ayuda" in solicitudes_js
