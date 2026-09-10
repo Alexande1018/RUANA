@@ -10,7 +10,9 @@
 
 ## A. Resumen ejecutivo
 
-**¿Es seguro realizar el reset con la arquitectura actual?** Sí, **si** se respeta la clasificación conservar/vaciar de este documento, se usa `TRUNCATE` (no `DELETE` fila a fila) para el ledger, se hace backup restaurable y se congela preview + cron. RUANA **arranca con tablas operativas vacías**: el catálogo de oficios y las reglas viven en ficheros; el admin vive fuera de Postgres; los grupos territoriales se crean al registrar el primer aliado de un CP; el aliado sintético `RUANA-ADMIN` se recrea bajo demanda.
+**¿Es seguro realizar el reset con la arquitectura actual?** Sí, **si** se respeta la clasificación conservar/vaciar de este documento, se usa `TRUNCATE` (no `DELETE` fila a fila) para el ledger, se hace backup restaurable y se congela preview + cron. RUANA **arranca con tablas operativas vacías**: el catálogo de oficios y las reglas viven en ficheros; el admin del panel vive fuera de Postgres (Secret Manager), no es un aliado.
+
+**Todos los aliados se borran. Cero excepciones.** No se conserva `RUANA-ADMIN`, ni seeds, ni placeholders, ni bajas, ni nadie “de sistema”. Tras el reset, `COUNT(*) FROM aliados` debe ser **0**. El login `/admin` sigue funcionando porque no usa esa tabla. Un grupo territorial solo nacerá cuando se registre el **primer aliado real**. El sintético `RUANA-ADMIN` **no forma parte del reset**: si más adelante el panel crea una invitación, la app puede insertarlo sola; el script no debe dejar ni recrear ningún aliado.
 
 **No es seguro** un wipe genérico de `public.*`. Eso destruiría `migraciones` (el arranque reaplicaría lógicas one-shot) y `ruana_metodos_pago_manual` (IBAN/Bizum/QR reales de cobro).
 
@@ -24,11 +26,13 @@
 
 Todo lo generado por QA, E2E, seeds, registro de prueba, encargos, pagos test, linaje, score, chats y archivos de aliados.
 
+**Regla de aliados:** `TRUNCATE aliados` (tras vaciar hijas). Sin `WHERE`. Sin allowlist de códigos. Incluye *todos* los estados (`activo`, `en_espera`, `pendiente_completar`, `pendiente_validacion`, `expulsado`, `rechazado`, `eliminado`, `suspendido_temporal`, `sistema`, …).
+
 ### B.1 Tablas Postgres a vaciar (categoría A)
 
 | Tabla | Qué contiene | Por qué vaciar |
 |-------|----------------|----------------|
-| `aliados` | Perfiles, PIN hash, Stripe Connect, foto, score, grupo, linaje (`invitado_por_codigo`) | Identidad operativa de prueba. Incluye placeholders `pendiente_completar`, seeds `ALFA01`–`DELTA04`, `estado=eliminado` y el sintético `RUANA-ADMIN` (`estado=sistema`). Este último se recrea al crear invitaciones admin. |
+| `aliados` | **Todas** las filas: perfiles QA, PIN, Stripe Connect, foto, score, grupo, linaje. Incluye placeholders, seeds `ALFA01`–`DELTA04`, bajas blandas y el sintético `RUANA-ADMIN` (`estado=sistema`). | No hay aliado estructural. El panel admin no es esta tabla. **Objetivo: 0 filas.** El script no debe reinsertar `RUANA-ADMIN` ni ningún seed. |
 | `aliados_eliminados` | Archivo de bajas admin | Residuo QA |
 | `profiles` | Espejo futuro Supabase Auth (`aliado_codigo` / `admin_codigo`) | Filas de prueba si existen. **Hoy el login Flask no las usa.** |
 | `auth.users` | Usuarios Supabase Auth | Solo si `aliados.auth_user_id` apunta a alguno. El login actual es código+PIN, no Auth. |
@@ -146,7 +150,8 @@ Todo lo generado por QA, E2E, seeds, registro de prueba, encargos, pagos test, l
 - **Grupos / plazas ocupadas:** se derivan de aliados. Vaciar.
 - **Ciudades en `grupos.ciudad`:** se rellenan al crear grupo desde el catálogo CP.
 - **Feature flags:** no existe tabla ni sistema de flags. El comportamiento lo marcan env vars (`RUANA_STRIPE_PAYMENTS_ENABLED`, etc.).
-- **Usuario admin en `aliados`:** el panel admin no es una fila; `RUANA-ADMIN` es un aliado sintético para FK de referidos. Se puede vaciar.
+- **Ningún aliado.** Ni `RUANA-ADMIN` ni `estado=sistema`. El acceso al panel es Secret Manager (`RUANA_ADMIN_CREDENTIALS_JSON`), independiente de `aliados`.
+- **No reseedar** `seed_aliados.py` (ALFA01…) ni `FIRST_RUN` tras el reset.
 
 ---
 
@@ -334,7 +339,7 @@ Si el motor exige resolver FKs, el orden **de hojas a raíces** es:
 
 | ID | Riesgo | Mitigación |
 |----|--------|------------|
-| M1 | `RUANA-ADMIN` ausente hasta la primera invitación admin | Aceptable; o recrear tras el reset con `obtener_o_crear_invitador_admin` |
+| M1 | `RUANA-ADMIN` ausente tras el wipe | **Correcto y obligatorio.** No recrearlo en el script. Solo si más tarde un admin genera invitaciones, `obtener_o_crear_invitador_admin` podrá insertarlo; eso ya es operación post-lanzamiento, no el reset. |
 | M2 | `ruana_reglas_v1.json` en imagen Cloud Run vs cambios runtime | Verificar reglas en el artefacto desplegado |
 | M3 | Secuencias financieras ya tuvieron un arreglo (`*_id_seq`) | `RESTART IDENTITY` en TRUNCATE |
 | M4 | Consentimientos QA se borran (correcto); no hay usuarios reales aún | OK si C5 se confirma |
@@ -405,11 +410,12 @@ Flags adicionales recomendados:
 4. Conexión directa Postgres.
 5. `BEGIN`
 6. Assert KEEP: `migraciones` tiene filas; `ruana_metodos_pago_manual` se lee a memoria y se re-verifica al final.
-7. `TRUNCATE` lista A + `RESTART IDENTITY`.
-8. Asserts estado cero (§I) **dentro de la misma transacción**.
-9. `COMMIT` o `ROLLBACK` ante cualquier error (`SET` abort on error).
-10. Storage opt-in **después** del commit (no transaccional con PG).
-11. No `DROP`, no `ALTER`, no tocar ficheros de migración, no escribir reglas.
+7. `TRUNCATE` lista A + `RESTART IDENTITY`. **Incluye `aliados` completo.** Prohibido `DELETE FROM aliados WHERE …` que deje `sistema` o códigos concretos.
+8. Asserts estado cero (§I) **dentro de la misma transacción**, en particular `COUNT(*) FROM aliados = 0`.
+9. **No** llamar a `obtener_o_crear_invitador_admin`, `crear_aliado_seed` ni `seed_aliados.py`.
+10. `COMMIT` o `ROLLBACK` ante cualquier error (`SET` abort on error).
+11. Storage opt-in **después** del commit (no transaccional con PG).
+12. No `DROP`, no `ALTER`, no tocar ficheros de migración, no escribir reglas.
 
 ### G.4 Protecciones
 
@@ -419,6 +425,7 @@ Flags adicionales recomendados:
 - No imprimir `DATABASE_URL` completa, service role, admin JSON, PIN hashes
 - Log local, no a una tabla nueva
 - Prohibido endpoint HTTP admin
+- Prohibido leave-behind de aliados (`estado=sistema`, códigos fijos, seeds)
 
 ---
 
@@ -482,9 +489,9 @@ Stripe no se habrá tocado: no hay rollback Stripe.
 Tras el reset, RUANA debe poder:
 
 1. Servir `/api/health` y `/api/catalogo/oficios` (catálogo de fichero).
-2. Login admin con Secret Manager (no depende de `aliados`).
-3. Admin crea campaña o código de invitación (recrea `RUANA-ADMIN` si hace falta).
-4. Un aliado **nuevo** se registra **sin** invitación (el código de invitación es opcional en `POST /api/aliados/registrar`) con CP + oficio de catálogo → se crea grupo territorial y `cp_estado`.
+2. Login admin con Secret Manager (no depende de `aliados`). **0 aliados en BD.**
+3. El script **no** llama a `obtener_o_crear_invitador_admin`. Queda `aliados` vacío.
+4. Un aliado **nuevo real** se registra **sin** invitación (`POST /api/aliados/registrar`) con CP + oficio de catálogo → se crea el primer grupo territorial y `cp_estado`.
 
 ### I.1 Queries de certificación (objetivo)
 
@@ -506,6 +513,7 @@ UNION ALL SELECT 'payment_conflicts', COUNT(*) FROM payment_conflicts
 UNION ALL SELECT 'financial_transfers', COUNT(*) FROM financial_transfers
 UNION ALL SELECT 'ledger_transactions', COUNT(*) FROM ledger_transactions
 UNION ALL SELECT 'stripe_webhook_events', COUNT(*) FROM stripe_webhook_events
+UNION ALL SELECT 'aliados_sistema', COUNT(*) FROM aliados WHERE estado = 'sistema'
 UNION ALL SELECT 'placeholders', COUNT(*) FROM aliados WHERE estado = 'pendiente_completar'
 UNION ALL SELECT 'aliados_eliminados', COUNT(*) FROM aliados_eliminados
 UNION ALL SELECT 'ruana_pago_manual_allowlist', COUNT(*) FROM ruana_pago_manual_aliados_habilitados;
@@ -520,7 +528,8 @@ Mapeo a los indicadores pedidos:
 
 | Indicador | Query / criterio |
 |-----------|------------------|
-| Aliados: 0 | `COUNT(*) FROM aliados` |
+| Aliados: 0 | `COUNT(*) FROM aliados` — **todas** las filas, incluido `sistema` / `RUANA-ADMIN` |
+| Aliados sistema: 0 | `COUNT(*) FROM aliados WHERE estado = 'sistema'` |
 | Solicitudes: 0 | `solicitudes` + `solicitudes_semanales` |
 | Chats: 0 | no hay tabla `chats`; el chat es `chat_mensajes` (y el encargo es `contactos_ruana`) |
 | Mensajes: 0 | `chat_mensajes` + `ruana_soporte_mensajes` + `negociacion_eventos` |
@@ -572,7 +581,7 @@ No tocar: migraciones SQL existentes, `schema_service.py` DDL, `proyecto_origina
 
 ### READY TO IMPLEMENT RESET
 
-**Motivo:** el modelo de datos permite un wipe operativo dejando intactos esquema, `migraciones`, catálogos en fichero, `cp_ciudad`, métodos de cobro manual y secretos. La app no exige un grupo ni un aliado preexistentes para arrancar. El admin no vive en Postgres. No hay Redis ni Firestore con estado de aliados.
+**Motivo:** el modelo de datos permite un wipe operativo dejando intactos esquema, `migraciones`, catálogos en fichero, `cp_ciudad`, métodos de cobro manual y secretos. **Ningún aliado se conserva.** La app no exige un grupo ni un aliado preexistentes para arrancar. El admin del panel no vive en Postgres. No hay Redis ni Firestore con estado de aliados.
 
 **No significa “listo para `--execute` hoy”.** Antes de la primera ejecución real hace falta:
 
@@ -614,7 +623,7 @@ No tocar: migraciones SQL existentes, `schema_service.py` DDL, `proyecto_origina
 | `cp_ciudad` | CP→ciudad | Referencia | Sí | No | JSON `cp_ciudad_es.json` | Bajo |
 | `cp_estado` | Contadores territoriales | Sí (sesgados) | Estructura | Sí | `grupos` | A3 |
 | `grupos` | Grupos runtime | Sí | Estructura | Sí | Muchas FK | Medio |
-| `aliados` | Perfiles/PIN/Stripe | Sí | Estructura | Sí | Raíz operativa | C5 |
+| `aliados` | **Todos** los perfiles (QA, seeds, `sistema`, bajas) | Sí — todos | Solo la tabla vacía | **Todas las filas** | Raíz operativa | C5 |
 | `profiles` / `auth.users` | Auth futuro | Posible | Estructura | Sí si hay filas | `aliados.auth_user_id` | Medio |
 | `solicitudes*` | Conexiones / semanales | Sí | Estructura | Sí | `grupos`, `aliados` | Bajo |
 | `contactos_ruana` | Encargos/pagos/negociación | Sí | Estructura | Sí | Hub FK | Alto (RESTRICT) |
