@@ -40,6 +40,36 @@ def test_aliado_bootstrap_sesion_y_datos_en_paralelo():
     assert "__ruanaBootstrapNotificaciones" in boot
 
 
+def test_aliado_bootstrap_retries_cold_start_before_hard_fail():
+    """La primera carga no aborta a ~15–25s: timeout largo, reintento y copy de espera."""
+    sync_js = _read("static/js/aliado-sync-module.js")
+    html = _read("aliado.html")
+    start = sync_js.index("var BOOTSTRAP_FETCH_TIMEOUT_MS")
+    end = sync_js.index("function initState(host)")
+    boot = sync_js[start:end]
+    assert "BOOTSTRAP_FETCH_TIMEOUT_MS = 45000" in boot
+    assert "BOOTSTRAP_MAX_ATTEMPTS = 3" in boot
+    assert "function fetchBootstrapWithRetry" in boot
+    assert "function updateBootstrapLoadingCopy" in boot
+    assert "Despertando el servidor" in boot
+    assert "isRetryableBootstrapStatus" in boot
+    assert "status === 502" in boot
+    assert "status === 503" in boot
+    assert "status === 504" in boot
+    assert boot.index("function fetchBootstrapWithRetry") < boot.index("showBootstrapError")
+    assert "fetchBootstrapWithRetry" in boot
+    assert "/api/aliado/datos" in boot
+    assert "/api/aliado/sesion" in boot
+    # 401 (sesión caducada) sigue yendo al inicio; 5xx/timeout no
+    assert "sesionRes.status === 401" in boot
+    assert boot.index("sesionRes.status === 401") < boot.index("window.location.replace('/')")
+    assert "showBootstrapError(errorContainer, failMsg)" in boot
+    assert "25000" not in boot
+    assert 'id="panel-loading-text"' in html
+    assert 'id="panel-loading-subtext"' in html
+    assert "aliado-sync-module.js?v=20260910a" in html
+
+
 def test_aliado_load_data_omite_notificaciones_del_bootstrap():
     sync_js = _read("static/js/aliado-sync-module.js")
     start = sync_js.index("async function loadData")

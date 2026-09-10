@@ -28,7 +28,7 @@ Documento de referencia técnica para desarrolladores y auditores. Describe la i
 ┌─────────────────────────────────────────────────────────────┐
 │  Google Cloud Run — servicio "ruana" (europe-west1)         │
 │  gunicorn → web.app:app (Flask)                             │
-│  max-instances: 3 (deploy workflow)                         │
+│  min-instances: 1, max-instances: 3, CPU always allocated   │
 └───────┬─────────────────────────────┬───────────────────────┘
         │                             │
         ▼                             ▼

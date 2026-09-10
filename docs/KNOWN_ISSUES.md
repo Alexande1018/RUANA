@@ -69,7 +69,7 @@ Tablas/columnas pueden existir en runtime SQLite sin migración Postgres equival
 ### K-06 — Sesiones revocadas en memoria
 
 **Estado:** Abierto  
-**Verificado:** `auth_session.py`, gunicorn multi-worker, Cloud Run `max-instances: 3`
+**Verificado:** `auth_session.py`, gunicorn multi-worker, Cloud Run `min-instances: 1` / `max-instances: 3`
 
 Logout/revocación no se propaga entre workers ni instancias. JWT puede seguir válido hasta expiración TTL.
 

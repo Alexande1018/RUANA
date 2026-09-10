@@ -564,6 +564,9 @@ def test_panel_quita_loader_antes_del_sync_secundario():
     assert "finally" in init_fn
     assert "AbortController" in sync_js
     assert "showBootstrapError" in sync_js
+    assert "BOOTSTRAP_FETCH_TIMEOUT_MS = 45000" in sync_js
+    assert "fetchBootstrapWithRetry" in sync_js
+    assert "updateBootstrapLoadingCopy" in sync_js
 
 
 def test_get_aliado_datos_no_ejecuta_jobs_globales():

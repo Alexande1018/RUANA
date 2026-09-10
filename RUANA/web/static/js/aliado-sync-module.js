@@ -582,17 +582,85 @@
       }
   }
 
-  async function fetchAliadoDatos(codigo) {
+  // Cold start Cloud Run: un GET puede tardar 15–25s al despertar. No fallar a la primera.
+  var BOOTSTRAP_FETCH_TIMEOUT_MS = 45000;
+  var BOOTSTRAP_MAX_ATTEMPTS = 3;
+  var BOOTSTRAP_BACKOFF_MS = [1000, 3000];
+
+  function sleepMs(ms) {
+      return new Promise(function (resolve) { setTimeout(resolve, ms); });
+  }
+
+  function isRetryableBootstrapStatus(status) {
+      return status === 408 || status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+  }
+
+  function updateBootstrapLoadingCopy(attempt) {
+      var titleEl = document.getElementById('panel-loading-text') || document.querySelector('.panel-loading-text');
+      var subEl = document.getElementById('panel-loading-subtext') || document.querySelector('.panel-loading-subtext');
+      if (!attempt || attempt <= 1) {
+          if (titleEl) titleEl.textContent = 'Preparando tu panel...';
+          if (subEl) subEl.textContent = 'Estamos cargando tu sesión y sincronizando tus datos de RUANA.';
+          return;
+      }
+      if (titleEl) titleEl.textContent = 'Despertando el servidor...';
+      if (subEl) {
+          subEl.textContent = attempt >= 3
+              ? 'La primera apertura del día puede tardar un poco. Seguimos intentándolo, no recargues aún.'
+              : 'El servidor está arrancando. Un momento más, no hace falta recargar.';
+      }
+  }
+
+  async function fetchWithTimeout(url, options, timeoutMs) {
       var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-      var timer = controller ? setTimeout(function () { controller.abort(); }, 25000) : null;
+      var timer = controller ? setTimeout(function () { controller.abort(); }, timeoutMs) : null;
+      var opts = {};
+      var key;
+      for (key in (options || {})) {
+          if (Object.prototype.hasOwnProperty.call(options, key)) opts[key] = options[key];
+      }
+      if (controller) opts.signal = controller.signal;
+      try {
+          return await fetch(url, opts);
+      } finally {
+          if (timer) clearTimeout(timer);
+      }
+  }
+
+  async function fetchBootstrapWithRetry(url, options, onAttempt) {
+      var lastError = null;
+      var attempt;
+      for (attempt = 1; attempt <= BOOTSTRAP_MAX_ATTEMPTS; attempt++) {
+          if (typeof onAttempt === 'function') onAttempt(attempt, BOOTSTRAP_MAX_ATTEMPTS);
+          try {
+              var response = await fetchWithTimeout(url, options, BOOTSTRAP_FETCH_TIMEOUT_MS);
+              if (response.ok || !isRetryableBootstrapStatus(response.status)) {
+                  return response;
+              }
+              lastError = new Error('HTTP ' + response.status);
+              if (attempt === BOOTSTRAP_MAX_ATTEMPTS) return response;
+          } catch (error) {
+              lastError = error;
+              if (attempt === BOOTSTRAP_MAX_ATTEMPTS) throw error;
+          }
+          var wait = BOOTSTRAP_BACKOFF_MS[Math.min(attempt - 1, BOOTSTRAP_BACKOFF_MS.length - 1)] || 1000;
+          await sleepMs(wait);
+      }
+      throw lastError;
+  }
+
+  async function fetchAliadoDatos(codigo) {
       try {
           const base = getApiBase();
-          const response = await fetch(base + '/api/aliado/datos', {
-              method: 'GET',
-              headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
-              credentials: 'same-origin',
-              signal: controller ? controller.signal : undefined
-          });
+          const response = await fetchBootstrapWithRetry(
+              base + '/api/aliado/datos',
+              {
+                  method: 'GET',
+                  headers: getRuanaAuthHeaders({ 'Content-Type': 'application/json' }),
+                  credentials: 'same-origin'
+              },
+              updateBootstrapLoadingCopy
+          );
 
           if (!response.ok) {
               if (response.status === 401) return null;
@@ -609,8 +677,6 @@
       } catch (error) {
           console.error('Error fetching aliado datos:', error);
           return null;
-      } finally {
-          if (timer) clearTimeout(timer);
       }
   }
 
@@ -628,22 +694,30 @@
   function bootstrapPrivatePanel() {
     document.addEventListener('DOMContentLoaded', async () => {
       const errorContainer = document.getElementById('error-bootstrap');
-      const failMsg = 'No se pudieron cargar tus datos. Intenta de nuevo desde el inicio.';
+      const failMsg = 'El servidor tardó en responder. Espera unos segundos y recarga la página.';
       try {
       const apiBase = (typeof getApiBase === 'function') ? getApiBase() : '';
 
-      const sesionPromise = fetch(apiBase + '/api/aliado/sesion', { method: 'GET', credentials: 'same-origin', headers: getAuthHeadersSafe() });
+      const sesionPromise = fetchBootstrapWithRetry(
+        apiBase + '/api/aliado/sesion',
+        { method: 'GET', credentials: 'same-origin', headers: getAuthHeadersSafe() },
+        updateBootstrapLoadingCopy
+      );
       const datosPromise = global.PrivatePanel.fetchAliadoDatos(null);
       const sesionRes = await sesionPromise;
-      if (!sesionRes.ok) {
+      if (sesionRes.status === 401) {
         window.location.replace('/');
+        return;
+      }
+      if (!sesionRes.ok) {
+        showBootstrapError(errorContainer, failMsg);
         return;
       }
       let sesionData;
       try {
         sesionData = await sesionRes.json();
       } catch (_) {
-        window.location.replace('/');
+        showBootstrapError(errorContainer, failMsg);
         return;
       }
       if (!sesionData || sesionData.status !== 'ok' || !sesionData.codigo) {

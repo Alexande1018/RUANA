@@ -29,7 +29,7 @@ Referencia consolidada de variables usadas por RUANA. Origen: grep sobre `RUANA/
 |----------|---------|-------------|
 | `WEB_CONCURRENCY` | `(2×CPU)+1` o `2` | Workers gunicorn |
 | `GUNICORN_THREADS` | `4` | Threads por worker |
-| `GUNICORN_TIMEOUT` | `30` | Timeout worker (seg) |
+| `GUNICORN_TIMEOUT` | `60` | Timeout worker (seg). 60s cubre un GET frío de `/api/aliado/datos` sin matar el worker a los 30s |
 
 ---
 
