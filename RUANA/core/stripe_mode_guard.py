@@ -1,10 +1,13 @@
 """Barrera Test/Live para Stripe (FASE 13A P0-1)."""
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any, Dict, Optional
 
 from core.runtime_environment import is_production, is_test_context
+
+logger = logging.getLogger(__name__)
 
 _ALERT_TYPE = "stripe_livemode_mismatch"
 
@@ -102,5 +105,9 @@ def registrar_alerta_livemode(db, *, event_id: str, expected_mode: str, event_li
                 conn.commit()
             finally:
                 conn.close()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(
+            "Fallo al persistir alerta de livemode Stripe",
+            extra={"event_id": event_id, "error": str(e)},
+            exc_info=True,
+        )

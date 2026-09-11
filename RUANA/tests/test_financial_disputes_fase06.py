@@ -302,16 +302,16 @@ def test_15_dos_envios_simultaneos_no_duplican(sqlite_db):
     results = []
 
     def run():
-        with patch("core.stripe_client.update_dispute_evidence", return_value={}), \
-             patch("core.stripe_client.submit_dispute_evidence", return_value={}):
-            results.append(fds.enviar_evidencia_stripe(
-                sqlite_db, did, actor="admin", evidence_payload={"uncategorized_text": "ok"},
-                idempotency_key="sim-submit",
-            ))
+        results.append(fds.enviar_evidencia_stripe(
+            sqlite_db, did, actor="admin", evidence_payload={"uncategorized_text": "ok"},
+            idempotency_key="sim-submit",
+        ))
 
-    t1 = threading.Thread(target=run)
-    t2 = threading.Thread(target=run)
-    t1.start(); t2.start(); t1.join(30); t2.join(30)
+    with patch("core.stripe_client.update_dispute_evidence", return_value={}), \
+         patch("core.stripe_client.submit_dispute_evidence", return_value={}):
+        t1 = threading.Thread(target=run)
+        t2 = threading.Thread(target=run)
+        t1.start(); t2.start(); t1.join(30); t2.join(30)
     success = sum(1 for r in results if r.get("status") == "success")
     assert success >= 1
 

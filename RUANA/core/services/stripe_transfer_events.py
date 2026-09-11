@@ -10,6 +10,7 @@ Legacy (no configurar en endpoint moderno):
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from typing import Any, Dict, Optional, Tuple
 
@@ -29,6 +30,7 @@ from core.services import financial_reconciliation_service as reconciliation
 from core.services import financial_transaction_service as fts
 from core.services import financial_transfer_service as transfer_svc
 
+logger = logging.getLogger(__name__)
 _fin_repo = FinancialTransactionRepo()
 _transfer_repo = FinancialTransferRepo()
 _sm = FinancialStateMachine()
@@ -152,8 +154,17 @@ def manejar_reversion_transfer(
                     "nota": "Score/notificación previos no se revierten automáticamente; revisión administrativa",
                 },
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(
+                "Fallo al registrar evento de reversión crítica de transferencia",
+                extra={
+                    "contacto_id": contacto_id,
+                    "event_id": event_id,
+                    "transfer_id": transfer_id,
+                    "error": str(e),
+                },
+                exc_info=True,
+            )
         reconciliation.registrar_discrepancia(
             db, contacto_id, TipoDiscrepancia.STATUS_MISMATCH,
             stripe_transfer_id=transfer_id,

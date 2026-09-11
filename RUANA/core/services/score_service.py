@@ -9,9 +9,12 @@ aplicar_cambio_score_db(db) orquesta commit + competencia por umbral.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 from core.repositories.score_repo import ScoreRepo
 
@@ -61,7 +64,12 @@ def _notificar_grupo_cambio_score(
             excluir_codigo=codigo_aliado.strip(),
             cursor=cursor,
         )
-    except Exception:
+    except Exception as e:
+        logger.warning(
+            "Fallo al notificar al grupo un cambio de score",
+            extra={"aliado_codigo": codigo_aliado, "error": str(e)},
+            exc_info=True,
+        )
         return
 
 
@@ -184,6 +192,11 @@ def aplicar_cambio_score_db(db, codigo_aliado: str, delta: int, motivo: str = ""
                 'score_final': score_nuevo,
             }
         except Exception as e:
+            logger.error(
+                "Fallo al aplicar cambio de score",
+                extra={"aliado_codigo": codigo_aliado, "error": str(e)},
+                exc_info=True,
+            )
             return {'status': 'error', 'message': str(e)}
         finally:
             if conn is not None:
@@ -273,24 +286,40 @@ def aplicar_penalizaciones_contactos_abiertos(db, codigo_aliado: str) -> None:
                     repo.insertar_penalizacion_aplicada(cursor, cid, tipo)
                     conn.commit()
         except Exception as e:
-            pass
+            logger.error(
+                "Fallo al aplicar penalizaciones de contactos abiertos",
+                extra={"aliado_codigo": codigo_aliado, "error": str(e)},
+                exc_info=True,
+            )
         finally:
             conn.close()
     # Penalización 5: chat sin respuesta ≥ 48 h
     try:
         db.aplicar_penalizacion_chat_sin_respuesta_48h(codigo_aliado)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(
+            "Fallo al aplicar penalización de chat sin respuesta 48h",
+            extra={"aliado_codigo": codigo_aliado, "error": str(e)},
+            exc_info=True,
+        )
     # Penalización 6: semana(s) sin acceso a la app
     try:
         db.aplicar_penalizacion_sin_acceso_semanal(codigo_aliado)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(
+            "Fallo al aplicar penalización por semanas sin acceso",
+            extra={"aliado_codigo": codigo_aliado, "error": str(e)},
+            exc_info=True,
+        )
     # Penalización 9: sin comprobante de Apoyo ≥ 3 días
     try:
         db.aplicar_penalizacion_comprobante_apoyo_3d(codigo_aliado)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(
+            "Fallo al aplicar penalización por comprobante de apoyo 3d",
+            extra={"aliado_codigo": codigo_aliado, "error": str(e)},
+            exc_info=True,
+        )
 
 def aplicar_penalizacion_comprobante_apoyo_3d(db, codigo_aliado: str) -> None:
     """
@@ -335,8 +364,12 @@ def aplicar_penalizacion_comprobante_apoyo_3d(db, codigo_aliado: str) -> None:
                     continue
                 repo.insertar_penalizacion_aplicada(cursor, cid, 'comprobante_3d')
                 conn.commit()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(
+                "Fallo al aplicar penalización de comprobante de apoyo 3d",
+                extra={"aliado_codigo": codigo_aliado, "error": str(e)},
+                exc_info=True,
+            )
         finally:
             try:
                 conn.close()
@@ -405,8 +438,12 @@ def aplicar_penalizacion_chat_sin_respuesta_48h(db, codigo_aliado: str) -> None:
                 db.aplicar_cambio_score(codigo_aliado, -2, motivo)
                 repo.insertar_penalizacion_aplicada(cursor, cid, 'chat_48h')
                 conn.commit()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(
+                "Fallo al aplicar penalización de chat sin respuesta 48h",
+                extra={"aliado_codigo": codigo_aliado, "error": str(e)},
+                exc_info=True,
+            )
         finally:
             try:
                 conn.close()
@@ -489,7 +526,12 @@ def aplicar_penalizacion_chat_agotado_sin_resultado(db, contacto_id: int, codigo
                 return None
             if codigo_aliado not in (sol, prof):
                 return None
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al consultar contacto para penalización de chat agotado",
+                extra={"aliado_codigo": codigo_aliado, "contacto_id": contacto_id, "error": str(e)},
+                exc_info=True,
+            )
             return None
         finally:
             try:
@@ -507,7 +549,12 @@ def aplicar_penalizacion_chat_agotado_sin_resultado(db, contacto_id: int, codigo
             cursor = conn.cursor()
             if repo.existe_penalizacion_aplicada(cursor, int(contacto_id), 'chat_agotado'):
                 return None
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al comprobar penalización de chat agotado ya aplicada",
+                extra={"aliado_codigo": codigo_aliado, "contacto_id": contacto_id, "error": str(e)},
+                exc_info=True,
+            )
             return None
         finally:
             try:
@@ -522,8 +569,12 @@ def aplicar_penalizacion_chat_agotado_sin_resultado(db, contacto_id: int, codigo
                 cursor = conn.cursor()
                 repo.insertar_penalizacion_aplicada(cursor, int(contacto_id), 'chat_agotado')
                 conn.commit()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(
+                    "Fallo al registrar penalización aplicada de chat agotado",
+                    extra={"aliado_codigo": codigo_aliado, "contacto_id": contacto_id, "error": str(e)},
+                    exc_info=True,
+                )
             finally:
                 try:
                     conn.close()
@@ -543,7 +594,12 @@ def _ya_aplicado_motivo_score(db, codigo_aliado: str, motivo: str) -> bool:
             conn = db._connect()
             cursor = conn.cursor()
             return repo.existe_movimiento_motivo(cursor, codigo_aliado, motivo)
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al comprobar si el motivo de score ya está aplicado",
+                extra={"aliado_codigo": codigo_aliado, "error": str(e)},
+                exc_info=True,
+            )
             return True
         finally:
             try:
@@ -577,7 +633,12 @@ def listar_respuestas_rapidas_regla5(db, codigo_profesional: str) -> List[Dict[s
                 (codigo_profesional,),
             )
             rows = [dict(r) for r in cursor.fetchall()]
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al listar respuestas rápidas de Regla 5",
+                extra={"aliado_codigo": codigo_profesional, "error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             try:
@@ -691,7 +752,12 @@ def aplicar_penalizacion_disputa_perdida(db, contacto_id: int, decision: str
                 return None
             sol = str(row[0] or '').strip()
             prof = str(row[1] or '').strip()
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al consultar contacto para penalización de disputa perdida",
+                extra={"contacto_id": contacto_id, "error": str(e)},
+                exc_info=True,
+            )
             return None
         finally:
             try:
@@ -711,7 +777,12 @@ def aplicar_penalizacion_disputa_perdida(db, contacto_id: int, decision: str
             cursor = conn.cursor()
             if repo.existe_penalizacion_aplicada(cursor, int(contacto_id), 'disputa_perdida'):
                 return None
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al comprobar penalización de disputa perdida ya aplicada",
+                extra={"contacto_id": contacto_id, "error": str(e)},
+                exc_info=True,
+            )
             return None
         finally:
             try:
@@ -726,8 +797,12 @@ def aplicar_penalizacion_disputa_perdida(db, contacto_id: int, decision: str
                 cursor = conn.cursor()
                 repo.insertar_penalizacion_aplicada(cursor, int(contacto_id), 'disputa_perdida')
                 conn.commit()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(
+                    "Fallo al registrar penalización aplicada de disputa perdida",
+                    extra={"contacto_id": contacto_id, "error": str(e)},
+                    exc_info=True,
+                )
             finally:
                 try:
                     conn.close()
@@ -761,7 +836,12 @@ def evaluar_regla7_declaracion_24h(db,
             if not row:
                 return None
             d = dict(row)
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al evaluar Regla 7 de declaración en 24h",
+                extra={"contacto_id": contacto_id, "error": str(e)},
+                exc_info=True,
+            )
             return None
         finally:
             try:
@@ -811,7 +891,12 @@ def _tiene_premio_regla8_reciente(db, codigo_aliado: str, dia_fin: str) -> bool:
             conn = db._connect()
             cursor = conn.cursor()
             motivos = repo.listar_motivos_score_con_prefijo(cursor, codigo_aliado, prefijo)
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al comprobar premio reciente de Regla 8",
+                extra={"aliado_codigo": codigo_aliado, "error": str(e)},
+                exc_info=True,
+            )
             return True
         finally:
             try:
@@ -902,7 +987,12 @@ def evaluar_regla8_racha_7dias(db,
             conn = db._connect()
             cursor = conn.cursor()
             presentes = set(repo.listar_dias_acceso(cursor, codigo_aliado, dias=dias_requeridos))
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al evaluar racha de Regla 8",
+                extra={"aliado_codigo": codigo_aliado, "error": str(e)},
+                exc_info=True,
+            )
             return None
         finally:
             try:
@@ -943,7 +1033,12 @@ def evaluar_regla6_urgente_mismo_dia(db,
             if not row:
                 return None
             d = dict(row)
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al evaluar Regla 6 de urgente el mismo día",
+                extra={"contacto_id": contacto_id, "error": str(e)},
+                exc_info=True,
+            )
             return None
         finally:
             try:
@@ -983,7 +1078,12 @@ def _ya_aplicada_regla4_mes(db, codigo_aliado: str, anio_mes: str) -> bool:
             conn = db._connect()
             cursor = conn.cursor()
             return repo.existe_movimiento_motivo(cursor, codigo_aliado, motivo)
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al comprobar si la Regla 4 del mes ya está aplicada",
+                extra={"aliado_codigo": codigo_aliado, "error": str(e)},
+                exc_info=True,
+            )
             return True
         finally:
             try:
@@ -1021,8 +1121,12 @@ def contacto_tiene_incidencia_pago(db, contacto_id: int) -> bool:
                 )
                 if cursor.fetchone() is not None:
                     return True
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "No se pudo consultar payment_conflicts al evaluar incidencia de pago",
+                    extra={"contacto_id": contacto_id, "error": str(e)},
+                    exc_info=True,
+                )
             cursor.execute(
                 """
                 SELECT 1 FROM audit_log
@@ -1033,7 +1137,12 @@ def contacto_tiene_incidencia_pago(db, contacto_id: int) -> bool:
                 (contacto_id,),
             )
             return cursor.fetchone() is not None
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al comprobar incidencia de pago del contacto",
+                extra={"contacto_id": contacto_id, "error": str(e)},
+                exc_info=True,
+            )
             return False
         finally:
             try:
@@ -1075,7 +1184,12 @@ def listar_encargos_pagados_mes(db, codigo_aliado: str, anio_mes: str) -> List[D
                 if db._anio_mes_de(item.get('fecha_validacion_pago')) == anio_mes:
                     out.append(item)
             return out
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al listar encargos pagados del mes",
+                extra={"aliado_codigo": codigo_aliado, "error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             try:
@@ -1137,7 +1251,12 @@ def _baseline_acceso_dia(db, codigo_aliado: str) -> Optional[str]:
             if not row or not row[0]:
                 return None
             return db._fecha_dia_servidor(row[0]) or db._dia_hoy_servidor()
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al obtener el día baseline de acceso",
+                extra={"aliado_codigo": codigo_aliado, "error": str(e)},
+                exc_info=True,
+            )
             return None
         finally:
             try:

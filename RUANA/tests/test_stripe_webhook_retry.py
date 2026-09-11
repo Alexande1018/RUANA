@@ -182,6 +182,7 @@ def test_05_exito_tras_fallo_bloquea_reenvios_posteriores(sqlite_db):
 def test_06_concurrencia_mismo_evento_nuevo_un_solo_handler(sqlite_db):
     cid = _seed_stripe(sqlite_db)
     obj = _checkout_obj(cid)
+    event = _mock_event("evt_conc_new", "checkout.session.completed", obj)
     calls = []
     call_lock = threading.Lock()
     barrier = threading.Barrier(2)
@@ -194,18 +195,19 @@ def test_06_concurrencia_mismo_evento_nuevo_un_solo_handler(sqlite_db):
 
     def run():
         barrier.wait()
-        results.append(_procesar(sqlite_db, "evt_conc_new", "checkout.session.completed", obj))
+        results.append(stripe_webhook_service.procesar_webhook(sqlite_db, b"{}", "sig_valid"))
 
-    with patch(
-        "core.services.stripe_webhook_service.pago_service._procesar_pago_confirmado",
-        side_effect=track_pago,
-    ):
-        t1 = threading.Thread(target=run)
-        t2 = threading.Thread(target=run)
-        t1.start()
-        t2.start()
-        t1.join()
-        t2.join()
+    with patch("core.stripe_client.construct_webhook_event", return_value=event):
+        with patch(
+            "core.services.stripe_webhook_service.pago_service._procesar_pago_confirmado",
+            side_effect=track_pago,
+        ):
+            t1 = threading.Thread(target=run)
+            t2 = threading.Thread(target=run)
+            t1.start()
+            t2.start()
+            t1.join()
+            t2.join()
 
     assert len(calls) == 1
     assert len(results) == 2
@@ -236,20 +238,19 @@ def test_07_concurrencia_reintento_failed_un_solo_handler(sqlite_db):
 
     def run():
         barrier.wait()
-        results.append(
-            _procesar(sqlite_db, "evt_conc_fail", "checkout.session.completed", _checkout_obj(cid))
-        )
+        results.append(stripe_webhook_service.procesar_webhook(sqlite_db, b"{}", "sig_valid"))
 
-    with patch(
-        "core.services.stripe_webhook_service.pago_service._procesar_pago_confirmado",
-        side_effect=track_pago,
-    ):
-        t1 = threading.Thread(target=run)
-        t2 = threading.Thread(target=run)
-        t1.start()
-        t2.start()
-        t1.join()
-        t2.join()
+    with patch("core.stripe_client.construct_webhook_event", return_value=event):
+        with patch(
+            "core.services.stripe_webhook_service.pago_service._procesar_pago_confirmado",
+            side_effect=track_pago,
+        ):
+            t1 = threading.Thread(target=run)
+            t2 = threading.Thread(target=run)
+            t1.start()
+            t2.start()
+            t1.join()
+            t2.join()
 
     assert len(calls) == 1
     assert len(results) == 2

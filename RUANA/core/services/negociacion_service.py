@@ -4,6 +4,7 @@ Extracción progresiva desde DBManager. Las fachadas permanecen en DBManager.
 SQL de negociación vía NegociacionRepo (negociacion_manager permanece aparte).
 """
 from __future__ import annotations
+import logging
 import re
 
 
@@ -16,6 +17,7 @@ from typing import Any, Dict, List, Optional
 from core import negociacion_manager as neg_mgr
 from core.repositories.negociacion_repo import NegociacionRepo
 
+logger = logging.getLogger(__name__)
 _repo = NegociacionRepo()
 
 # --- Extraído de DBManager (negociacion) ---
@@ -44,7 +46,11 @@ def listar_eventos_negociacion(db, contacto_id: int) -> List[Dict[str, Any]]:
             cursor = conn.cursor()
             return [dict(r) for r in _repo.listar_eventos(cursor, contacto_id)]
         except Exception as e:
-            print(f"Error listar_eventos_negociacion: {e}")
+            logger.error(
+                "Fallo al listar eventos de negociación",
+                extra={"contacto_id": contacto_id, "error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             conn.close()
@@ -89,6 +95,11 @@ def obtener_negociacion_contacto(db, contacto_id: int, codigo_aliado: str) -> Di
                         result['puede_iniciar_onboarding_stripe'] = True
             return result
         except Exception as e:
+            logger.error(
+                "Fallo al obtener negociación del contacto",
+                extra={"contacto_id": contacto_id, "aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             return {'status': 'error', 'message': str(e)}
         finally:
             conn.close()
@@ -126,6 +137,11 @@ def proponer_negociacion(db, contacto_id: int, codigo_aliado: str,
                 conn.rollback()
             return {'status': 'error', 'message': str(ve)}
         except Exception as e:
+            logger.error(
+                "Fallo al proponer campo de negociación",
+                extra={"contacto_id": contacto_id, "aliado_codigo": codigo_aliado, "error": str(e)},
+                exc_info=True,
+            )
             if conn:
                 conn.rollback()
             return {'status': 'error', 'message': str(e)}
@@ -175,6 +191,11 @@ def proponer_propuesta_completa_negociacion(db, contacto_id: int, codigo_aliado:
                 conn.rollback()
             return {'status': 'error', 'message': str(ve)}
         except Exception as e:
+            logger.error(
+                "Fallo al proponer propuesta completa de negociación",
+                extra={"contacto_id": contacto_id, "aliado_codigo": codigo_aliado, "error": str(e)},
+                exc_info=True,
+            )
             if conn:
                 conn.rollback()
             return {'status': 'error', 'message': str(e)}
@@ -224,6 +245,11 @@ def contraoferta_negociacion(db, contacto_id: int, codigo_aliado: str,
                 conn.rollback()
             return {'status': 'error', 'message': str(ve)}
         except Exception as e:
+            logger.error(
+                "Fallo al registrar contraoferta de negociación",
+                extra={"contacto_id": contacto_id, "aliado_codigo": codigo_aliado, "error": str(e)},
+                exc_info=True,
+            )
             if conn:
                 conn.rollback()
             return {'status': 'error', 'message': str(e)}
@@ -355,6 +381,11 @@ def aceptar_negociacion(db, contacto_id: int, codigo_aliado: str, campo: str,
                 conn.rollback()
             return {'status': 'error', 'message': str(ve)}
         except Exception as e:
+            logger.error(
+                "Fallo al aceptar punto de negociación",
+                extra={"contacto_id": contacto_id, "aliado_codigo": codigo_aliado, "error": str(e)},
+                exc_info=True,
+            )
             if conn:
                 conn.rollback()
             return {'status': 'error', 'message': str(e)}
@@ -528,6 +559,11 @@ def cerrar_negociacion(db, contacto_id: int, actor_codigo: str,
                                 'aliado', codigo, detalles)
                 conn.commit()
         except Exception as e:
+            logger.error(
+                "Fallo al cerrar negociación",
+                extra={"contacto_id": contacto_id, "aliado_codigo": actor_codigo, "error": str(e)},
+                exc_info=True,
+            )
             if conn:
                 conn.rollback()
             return {'status': 'error', 'message': str(e)}
@@ -577,6 +613,11 @@ def dismiss_resumen_acuerdo(db, contacto_id: int, actor_codigo: str) -> Dict[str
             conn.commit()
             return {'status': 'success', 'id': contacto_id, 'dismissed': True}
         except Exception as e:
+            logger.error(
+                "Fallo al ocultar resumen de acuerdo",
+                extra={"contacto_id": contacto_id, "aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             if conn:
                 conn.rollback()
             return {'status': 'error', 'message': str(e)}
@@ -603,7 +644,11 @@ def listar_negociaciones_admin(db, limite: int = 20, offset: int = 0) -> List[Di
                 result.append(d)
             return result
         except Exception as e:
-            print(f"Error listar_negociaciones_admin: {e}")
+            logger.error(
+                "Fallo al listar negociaciones para admin",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             conn.close()
@@ -624,25 +669,41 @@ def eliminar_negociacion_admin(db, contacto_id: int, admin_codigo: str = '') -> 
             ):
                 try:
                     _repo.delete_relacionados_por_contacto(cursor, tabla, contacto_id)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(
+                        "No se pudo limpiar tabla relacionada al eliminar negociación",
+                        extra={
+                            "tabla": tabla,
+                            "contacto_id": contacto_id,
+                            "error": str(e),
+                        },
+                        exc_info=True,
+                    )
             try:
                 _repo.delete_notificaciones_contacto(cursor, contacto_id)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "No se pudo limpiar notificaciones al eliminar negociación",
+                    extra={"tabla": "notificaciones", "contacto_id": contacto_id, "error": str(e)},
+                    exc_info=True,
+                )
             _repo.delete_contacto(cursor, contacto_id)
             db._audit_log(cursor, 'contacto', contacto_id, 'negociacion_eliminada_admin',
                             'admin', admin_codigo or '', f'contacto_id={contacto_id}')
             conn.commit()
             return {'status': 'success', 'message': 'Negociación eliminada', 'contacto_id': contacto_id}
         except Exception as e:
+            logger.error(
+                "Fallo al eliminar negociación (admin)",
+                extra={"contacto_id": contacto_id, "admin_codigo": admin_codigo, "error": str(e)},
+                exc_info=True,
+            )
             if conn:
                 conn.rollback()
             return {'status': 'error', 'message': str(e)}
         finally:
             if conn:
                 conn.close()
-# --- Extraído de DBManager (negociacion) ---
 
 def _cerrar_encargo_tras_acuerdo(db,
     contacto_id: int,
@@ -822,7 +883,11 @@ def listar_acuerdos_aliado(db,
                 })
             return out
         except Exception as e:
-            print(f"Error listar_acuerdos_aliado: {e}")
+            logger.error(
+                "Fallo al listar acuerdos del aliado",
+                extra={"aliado_codigo": codigo_aliado, "error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             if conn:
@@ -861,7 +926,11 @@ def listar_resumenes_acuerdo_visibles(db, codigo_aliado: str) -> List[Dict[str, 
                 })
             return out
         except Exception as e:
-            print(f"Error listar_resumenes_acuerdo_visibles: {e}")
+            logger.error(
+                "Fallo al listar resúmenes de acuerdo visibles",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             if conn:

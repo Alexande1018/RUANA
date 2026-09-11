@@ -11,8 +11,11 @@ from pathlib import Path
 from core.db_constants import RUANA_ROOT
 
 import json
+import logging
 import sqlite3
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 from core.repositories.admin_repo import AdminRepo
 
@@ -38,7 +41,12 @@ def obtener_o_crear_invitador_admin(db, admin_codigo: str, nombre: str = "") -> 
             _repo.insertar_invitador_admin(cursor, admin_codigo, nombre_final)
             conn.commit()
             return admin_codigo
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al obtener o crear invitador admin",
+                extra={"admin_codigo": admin_codigo, "error": str(e)},
+                exc_info=True,
+            )
             return None
         finally:
             if conn:
@@ -67,7 +75,12 @@ def listar_conversaciones_soporte_admin(db, aliado_codigo: str = '', estado: str
                 where.append("COALESCE(c.tiene_no_leido_admin, 0) = 1")
             params.extend([max(1, min(int(limite or 100), 300)), max(0, int(offset or 0))])
             return [dict(r) for r in _repo.listar_conversaciones_soporte(cursor, ' AND '.join(where), params)]
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al listar conversaciones de soporte (admin)",
+                extra={"aliado_codigo": aliado_f, "error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             if conn:
@@ -117,6 +130,11 @@ def responder_soporte_admin(db, conversacion_id: int, admin_codigo: str, mensaje
             conn.commit()
             return {'status': 'success'}
         except Exception as e:
+            logger.error(
+                "Fallo al responder soporte (admin)",
+                extra={"admin_codigo": admin_codigo, "error": str(e)},
+                exc_info=True,
+            )
             return {'status': 'error', 'message': str(e)}
         finally:
             if conn:
@@ -146,6 +164,11 @@ def actualizar_estado_soporte_admin(db, conversacion_id: int, nuevo_estado: str,
             conn.commit()
             return {'status': 'success'}
         except Exception as e:
+            logger.error(
+                "Fallo al actualizar estado de soporte (admin)",
+                extra={"admin_codigo": admin_codigo, "error": str(e)},
+                exc_info=True,
+            )
             return {'status': 'error', 'message': str(e)}
         finally:
             if conn:
@@ -161,6 +184,11 @@ def eliminar_conversacion_soporte_admin(db, conversacion_id: int, admin_codigo: 
             conn.commit()
             return {'status': 'success'}
         except Exception as e:
+            logger.error(
+                "Fallo al eliminar conversación de soporte (admin)",
+                extra={"admin_codigo": admin_codigo, "error": str(e)},
+                exc_info=True,
+            )
             return {'status': 'error', 'message': str(e)}
         finally:
             if conn:
@@ -229,7 +257,11 @@ def listar_conversaciones_admin(db, limite: int = 500, offset: int = 0) -> List[
                 })
             return out
         except Exception as e:
-            print(f"Error listar_conversaciones_admin: {e}")
+            logger.error(
+                "Fallo al listar conversaciones (admin)",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             conn.close()
@@ -281,7 +313,11 @@ def obtener_metricas_contactos(db) -> Dict[str, Any]:
                 'contactos_en_disputa_prolongada': disputa_prolongada
             }
         except Exception as e:
-            print(f"Error obteniendo métricas de contactos: {e}")
+            logger.error(
+                "Fallo al obtener métricas de contactos",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return {
                 'status': 'error',
                 'message': str(e)
@@ -332,7 +368,12 @@ def obtener_metricas_motor_por_aliado(db, codigo_aliado: str) -> Dict[str, Any]:
                 "tasa_confirmacion": round(tasa_confirmacion, 4),
                 "meses_sin_trabajo": meses_sin_trabajo,
             }
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al obtener métricas del motor por aliado",
+                extra={"aliado_codigo": codigo_aliado, "error": str(e)},
+                exc_info=True,
+            )
             return {"tasa_respuesta": 0.0, "tasa_confirmacion": 0.0, "meses_sin_trabajo": 24}
         finally:
             try:
@@ -424,7 +465,11 @@ def obtener_stats_24h_admin(db) -> Dict[str, Any]:
                 'invitaciones_expiradas': invitaciones_expiradas,
             }
         except Exception as e:
-            print(f"Error obtener_stats_24h_admin: {e}")
+            logger.error(
+                "Fallo al obtener stats 24h (admin)",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return {
                 'solicitudes_nuevas': 0,
                 'solicitudes_atendidas': 0,
@@ -518,7 +563,11 @@ def obtener_stats_24h_panel(db) -> Dict[str, Any]:
                 'top_invitadores': top_invitadores,
             }
         except Exception as e:
-            print(f"Error obtener_stats_24h_panel: {e}")
+            logger.error(
+                "Fallo al obtener stats 24h del panel",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return {
                 'solicitudes': {'nuevas': 0, 'atendidas': 0, 'sin_respuesta': 0},
                 'invitaciones': {'generadas': 0, 'usadas': 0, 'expiradas': 0},
@@ -625,7 +674,11 @@ def obtener_metricas_salud(db) -> Dict[str, Any]:
                 'tasa_retencion': tasa_retencion,
             }
         except Exception as e:
-            print(f"Error obtener_metricas_salud: {e}")
+            logger.error(
+                "Fallo al obtener métricas de salud",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return {
                 'ratio_solicitud_invitacion': 0,
                 'ratio_invitacion_registro': 0,
@@ -739,7 +792,11 @@ def obtener_health_metrics_admin(db, umbral_suplentes: int = 1) -> Dict[str, Any
                 'tasa_retencion': tasa_retencion,
             }
         except Exception as e:
-            print(f"Error obtener_health_metrics_admin: {e}")
+            logger.error(
+                "Fallo al obtener health metrics (admin)",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return {
                 'ratio_solicitud_invitacion': 0,
                 'ratio_invitacion_registro': 0,
@@ -807,7 +864,11 @@ def registrar_evento_sistema(db,
             db._insert_evento_sistema(cursor, tipo, descripcion, actor_tipo, actor_codigo, metadata)
             conn.commit()
         except Exception as e:
-            print(f"Error registrando evento de sistema: {e}")
+            logger.error(
+                "Fallo al registrar evento de sistema",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
         finally:
             try:
                 conn.close()
@@ -843,7 +904,11 @@ def obtener_eventos_recientes(db, limite: int = 10) -> List[Dict[str, Any]]:
                 eventos.append(item)
             return eventos
         except Exception as e:
-            print(f"Error obteniendo eventos recientes: {e}")
+            logger.error(
+                "Fallo al obtener eventos recientes",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             try:
@@ -942,7 +1007,11 @@ def obtener_movimiento_24h(db) -> Dict[str, Any]:
                 'top_invitadores': top_invitadores,
             }
         except Exception as e:
-            print(f"Error obtener_movimiento_24h: {e}")
+            logger.error(
+                "Fallo al obtener movimiento 24h",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return {
                 'solicitudes': {'nuevas': 0, 'atendidas': 0, 'sin_respuesta': 0},
                 'invitaciones': {'generadas': 0, 'usadas': 0, 'expiradas': 0},
@@ -1040,7 +1109,11 @@ def obtener_movimiento_24h_por_hora(db) -> Dict[str, Dict[str, int]]:
 
             return resultado
         except Exception as e:
-            print(f"Error obtener_movimiento_24h_por_hora: {e}")
+            logger.error(
+                "Fallo al obtener movimiento 24h por hora",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return resultado
         finally:
             try:
@@ -1082,10 +1155,19 @@ def generar_reporte(db) -> Dict[str, Any]:
             }
             try:
                 db.registrar_evento_sistema('generar_reporte', 'Reporte administrativo generado', actor_tipo='admin', metadata=reporte)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "Fallo al registrar evento al generar reporte admin",
+                    extra={"error": str(e)},
+                    exc_info=True,
+                )
             return {'status': 'success', 'reporte': reporte}
         except Exception as e:
+            logger.error(
+                "Fallo al generar reporte admin",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return {'status': 'error', 'message': str(e)}
         finally:
             try:
@@ -1132,6 +1214,11 @@ def cambiar_regla(db, clave: str, valor: Any, admin_codigo: Optional[str] = None
         )
         return {'status': 'success', 'message': f'Regla {clave} actualizada', 'clave': clave, 'valor': data[clave]}
     except Exception as e:
+        logger.error(
+            "Fallo al cambiar regla",
+            extra={"admin_codigo": admin_codigo, "error": str(e)},
+            exc_info=True,
+        )
         return {'status': 'error', 'message': str(e)}
 
 
@@ -1161,7 +1248,11 @@ def exportar_a_json(db) -> Dict[str, Any]:
             }
             
         except Exception as e:
-            print(f"Error exportando: {e}")
+            logger.error(
+                "Fallo al exportar BD a JSON",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return {}
         finally:
             conn.close()
@@ -1184,7 +1275,11 @@ def limpiar_bd(db):
             print("⚠️ Base de datos limpiada")
             
         except Exception as e:
-            print(f"Error limpiando BD: {e}")
+            logger.error(
+                "Fallo al limpiar BD",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
         finally:
             conn.close()
 
@@ -1201,7 +1296,12 @@ def contar_aliados_en_riesgo(db) -> int:
                 AND CAST(score AS INTEGER) >= 15 AND CAST(score AS INTEGER) < 50
             """)
             return cursor.fetchone()[0] or 0
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al contar aliados en riesgo",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return 0
         finally:
             conn.close()
@@ -1218,7 +1318,12 @@ def contar_retadores_activos(db) -> int:
                 f"SELECT COUNT(DISTINCT {col_retador}) FROM competencia WHERE estado = 'activa'"
             )
             return cursor.fetchone()[0] or 0
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al contar retadores activos",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return 0
         finally:
             conn.close()
@@ -1232,7 +1337,12 @@ def contar_aliados_en_espera(db) -> int:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM aliados WHERE estado = 'en_espera'")
             return cursor.fetchone()[0] or 0
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al contar aliados en espera",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return 0
         finally:
             conn.close()
@@ -1253,7 +1363,12 @@ def listar_codigos_aliados_activos(db) -> List[str]:
                 "SELECT codigo FROM aliados WHERE estado = 'activo' AND codigo IS NOT NULL AND TRIM(codigo) != '' ORDER BY id"
             )
             return [row[0] for row in cursor.fetchall()]
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al listar códigos de aliados activos",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             conn.close()
