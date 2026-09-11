@@ -371,6 +371,20 @@ html.admin-shell-enabled .admin-module[data-admin-module="errores"] {
     color: #cbd5e1;
     background: rgba(148, 163, 184, 0.18);
 }
+#errores-logs-filtros {
+    align-items: center;
+}
+
+#errores-logs-filtros input[type="text"] {
+    flex: 1 1 220px;
+    min-width: 180px;
+    max-width: 320px;
+}
+
+#errores-logs-filtros #btn-actualizar-errores {
+    flex: 0 0 auto;
+}
+
 .errores-log-row {
     cursor: pointer;
 }
