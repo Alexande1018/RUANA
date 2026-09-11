@@ -24,6 +24,23 @@ def test_admin_navigation_home_and_back_buttons():
     assert "pushHistory: true" in financial_js
 
 
+def test_admin_errores_module_contract():
+    """Visor de errores: pestaña, filtros y fetch autenticado a Cloud Logging."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    admin_html = (root / "admin.html").read_text(encoding="utf-8")
+    shell_js = (root / "static" / "js" / "admin-shell.js").read_text(encoding="utf-8")
+    errores_js = (root / "static" / "js" / "admin-errores-module.js").read_text(encoding="utf-8")
+
+    assert 'id="errores-logs-wrap"' in admin_html
+    assert 'id="btn-actualizar-errores"' in admin_html
+    assert 'id="filtro-errores-severity"' in admin_html
+    assert 'src="/static/js/admin-errores-module.js"' in admin_html
+    assert "id: 'errores'" in shell_js
+    assert "/api/admin/logs/errores" in errores_js
+    assert "incluir_stack" in errores_js
+    assert "getRuanaAuthHeaders" in errores_js
+
+
 def test_admin_financial_module_uses_shared_auth_headers():
     """El panel financiero debe reutilizar la misma cabecera de sesión que el resto del admin."""
     root = Path(__file__).resolve().parents[1] / "web"

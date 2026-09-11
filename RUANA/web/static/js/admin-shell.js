@@ -95,6 +95,14 @@
             targets: ['#incidencias-wrap']
         },
         {
+            id: 'errores',
+            label: 'Errores',
+            kicker: 'Observabilidad',
+            subtitle: 'Errores y warnings recientes desde Cloud Logging.',
+            icon: 'alert',
+            targets: ['#errores-logs-wrap']
+        },
+        {
             id: 'intelligence',
             label: 'Intelligence',
             kicker: 'Análisis',
@@ -125,6 +133,7 @@
         { id: 'competencia', label: 'Competencia / suplentes', module: 'competencia', target: '#competencias-activas-wrap', icon: 'zap' },
         { id: 'comunicaciones', label: 'Comunicaciones', module: 'comunicaciones', target: '#centro-comunicacion-admin-wrap', icon: 'message' },
         { id: 'incidencias', label: 'Incidencias', module: 'incidencias', target: '#incidencias-wrap', icon: 'alert' },
+        { id: 'errores', label: 'Errores', module: 'errores', target: '#errores-logs-wrap', icon: 'alert' },
         { id: 'intelligence', label: 'Métricas / Intelligence', module: 'intelligence', target: '#intelligence-wrap', icon: 'activity' },
         { id: 'config', label: 'Configuración', module: 'sistema', target: '#invitaciones-admin-wrap', icon: 'settings' }
     ];
@@ -154,6 +163,7 @@
         { id: 'suplentes', label: 'Suplentes en espera', group: 'Competencia', module: 'competencia', target: '#suplentes-espera-wrap', icon: 'users' },
         { id: 'centro-comunicacion', label: 'Centro de comunicación', group: 'Comunicaciones', module: 'comunicaciones', target: '#centro-comunicacion-admin-wrap', icon: 'message' },
         { id: 'incidencias-list', label: 'Incidencias abiertas', group: 'Incidencias', module: 'incidencias', target: '#incidencias-wrap', icon: 'alert' },
+        { id: 'errores-list', label: 'Errores y warnings', group: 'Errores', module: 'errores', target: '#errores-logs-wrap', icon: 'alert' },
         { id: 'intel', label: 'Panel Intelligence', group: 'Intelligence', module: 'intelligence', target: '#intelligence-wrap', icon: 'activity' },
         { id: 'salud', label: 'Métricas de salud', group: 'Intelligence', module: 'intelligence', target: '.metricas-salud', icon: 'heart' },
         { id: 'trazabilidad', label: 'Trazabilidad', group: 'Configuración', module: 'sistema', target: '.eventos-trazabilidad', icon: 'list' },
@@ -980,6 +990,9 @@
         }
         if (moduleId === 'finanzas' && window.RuanaAdminModules?.financial?.onModuleActivated) {
             window.RuanaAdminModules.financial.onModuleActivated();
+        }
+        if (moduleId === 'errores' && window.RuanaAdminModules?.errores?.onModuleActivated) {
+            window.RuanaAdminModules.errores.onModuleActivated();
         }
     }
 

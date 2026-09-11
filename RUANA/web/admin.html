@@ -43,6 +43,7 @@
     <script src="/static/js/admin-score-bands-module.js" defer></script>
     <script src="/static/js/admin-command-center-module.js" defer></script>
     <script src="/static/js/admin-intelligence-module.js" defer></script>
+    <script src="/static/js/admin-errores-module.js" defer></script>
     <script src="/static/js/admin-financial-module.js" defer></script>
     <script src="/static/js/referidos-module.js" defer></script>
     <script src="/static/js/admin-red-explorer-module.js?v=20260909e" defer></script>
@@ -1076,6 +1077,46 @@
                 </div>
             </div>
             <p class="admin-subtitle" id="incidencias-empty" style="margin-top:8px;color:#666;">No hay incidencias abiertas.</p>
+        </div>
+
+        <!-- Errores (Cloud Logging) -->
+        <div class="control-aliados" id="errores-logs-wrap">
+            <h2 class="seccion-titulo">Errores</h2>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Errores y warnings recientes leídos de Cloud Logging. Solo lectura; actualizar a mano.</p>
+            <div class="filtros-solicitudes-admin admin-filter-row" id="errores-logs-filtros">
+                <select id="filtro-errores-horas" aria-label="Rango de horas">
+                    <option value="6">Últimas 6 h</option>
+                    <option value="24" selected>Últimas 24 h</option>
+                    <option value="72">Últimas 72 h</option>
+                    <option value="168">Últimos 7 días</option>
+                </select>
+                <select id="filtro-errores-severity" aria-label="Severidad">
+                    <option value="ERROR" selected>ERROR</option>
+                    <option value="WARNING">WARNING</option>
+                    <option value="ALL">ERROR + WARNING</option>
+                </select>
+                <input type="text" id="filtro-errores-identificador" placeholder="aliado_codigo, contacto_id o admin_codigo" />
+                <button type="button" class="btn-admin-action" id="btn-actualizar-errores">Actualizar</button>
+            </div>
+            <p class="admin-subtitle" id="errores-logs-status" style="margin: 8px 0; color: #999;"></p>
+            <div class="movimiento-24h-tabla-wrap">
+                <div class="movimiento-24h-tabla-scroll">
+                    <table class="movimiento-24h-tabla" id="tabla-errores-logs">
+                        <thead>
+                            <tr>
+                                <th>Hora</th>
+                                <th>Severidad</th>
+                                <th>Mensaje</th>
+                                <th>Módulo</th>
+                                <th>Identificadores</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-errores-logs"></tbody>
+                    </table>
+                </div>
+            </div>
+            <p class="admin-subtitle" id="errores-logs-empty" style="margin-top:8px;color:#666;display:none;">No hay entradas con estos filtros.</p>
+            <button type="button" class="btn-admin-action" id="btn-errores-cargar-mas" style="display:none;margin-top:10px;">Cargar más</button>
         </div>
 
         <!-- CAPA 4: Control de Aliados (navegación jerárquica: CP → Grupo → Oficio → Tarjetas + árbol genealógico) -->
