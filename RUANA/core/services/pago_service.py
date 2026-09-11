@@ -18,11 +18,13 @@ from core.financial.money import (
 from core.services import financial_transaction_service as fts
 
 import json
+import logging
 import os
 import sqlite3
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
+logger = logging.getLogger(__name__)
 _repo = PagoRepo()
 
 # --- Extraído de DBManager (pago) ---
@@ -129,7 +131,12 @@ def obtener_metodos_pago_ruana(db, aliado_codigo: Optional[str] = None) -> Dict[
             datos = _fila_metodos_pago(_repo.select_metodos_pago_manual(cursor))
             datos["habilitado"] = True
             return datos
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al obtener métodos de pago manual visibles",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             return _metodos_pago_ocultos()
         finally:
             conn.close()
@@ -163,6 +170,11 @@ def actualizar_metodos_pago_ruana(db, valores: Dict[str, Any], admin_codigo: Opt
             )
             conn.commit()
         except Exception as e:
+            logger.error(
+                "Fallo al actualizar métodos de pago manual",
+                extra={"admin_codigo": admin_codigo, "error": str(e)},
+                exc_info=True,
+            )
             if conn is not None:
                 try:
                     conn.rollback()
@@ -175,6 +187,11 @@ def actualizar_metodos_pago_ruana(db, valores: Dict[str, Any], admin_codigo: Opt
     try:
         leido = obtener_config_pago_manual(db)
     except Exception as e:
+        logger.error(
+            "Fallo al verificar métodos de pago tras guardar",
+            extra={"admin_codigo": admin_codigo, "error": str(e)},
+            exc_info=True,
+        )
         return {
             "status": "error",
             "message": f"Guardado no se pudo verificar: {e}",
@@ -198,7 +215,11 @@ def actualizar_metodos_pago_ruana(db, valores: Dict[str, Any], admin_codigo: Opt
             metadata={"claves": sorted(cambios.keys())},
         )
     except Exception as log_exc:
-        print(f"[RUANA][pago] Evento de metodos de pago no registrado: {log_exc}")
+        logger.error(
+            "Fallo al registrar evento de métodos de pago",
+            extra={"admin_codigo": admin_codigo, "error": str(log_exc)},
+            exc_info=True,
+        )
     return {
         "status": "success",
         "message": "Metodos de pago actualizados",
@@ -241,6 +262,11 @@ def habilitar_pago_manual_aliado(db, aliado_codigo: str, admin_codigo: Optional[
             conn.commit()
             return {"status": "success", "message": f"Pago manual habilitado para {codigo}", "aliado_codigo": codigo}
         except Exception as e:
+            logger.error(
+                "Fallo al habilitar pago manual para aliado",
+                extra={"aliado_codigo": codigo, "admin_codigo": admin_codigo, "error": str(e)},
+                exc_info=True,
+            )
             conn.rollback()
             return {"status": "error", "message": str(e)}
         finally:
@@ -273,6 +299,11 @@ def deshabilitar_pago_manual_aliado(db, aliado_codigo: str, admin_codigo: Option
                 "aliado_codigo": codigo,
             }
         except Exception as e:
+            logger.error(
+                "Fallo al deshabilitar pago manual para aliado",
+                extra={"aliado_codigo": codigo, "admin_codigo": admin_codigo, "error": str(e)},
+                exc_info=True,
+            )
             conn.rollback()
             return {"status": "error", "message": str(e)}
         finally:
@@ -308,7 +339,12 @@ def listar_aliados_con_pago_manual(db) -> List[Dict[str, Any]]:
                         }
                     )
             return filas
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al listar aliados con pago manual",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             conn.close()
@@ -322,7 +358,12 @@ def listar_contactos_conflicto_pago(db) -> List[Dict[str, Any]]:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             return [dict(row) for row in _repo.listar_contactos_conflicto_pago(cursor)]
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al listar contactos en conflicto de pago",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             conn.close()
@@ -340,7 +381,11 @@ def listar_payment_conflicts_admin(db) -> List[Dict[str, Any]]:
                 return []
             return [dict(row) for row in _repo.listar_payment_conflicts_admin(cursor)]
         except Exception as e:
-            print(f"Error listar_payment_conflicts_admin: {e}")
+            logger.error(
+                "Fallo al listar conflictos de pago para admin",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             conn.close()
@@ -362,7 +407,12 @@ def obtener_payment_conflict_por_trabajo(db, trabajo_id: int, codigo_aliado: str
                 return None
             row = _repo.select_conflict_por_trabajo_y_aliado(cursor, trabajo_id, aliado_id)
             return dict(row) if row else None
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al obtener conflicto de pago por trabajo",
+                extra={"contacto_id": trabajo_id, "aliado_codigo": codigo_aliado, "error": str(e)},
+                exc_info=True,
+            )
             return None
         finally:
             conn.close()
@@ -381,7 +431,11 @@ def obtener_payment_conflict(db, conflict_id: int) -> Optional[Dict[str, Any]]:
             row = _repo.select_conflict_detalle(cursor, conflict_id)
             return dict(row) if row else None
         except Exception as e:
-            print(f"Error obtener_payment_conflict: {e}")
+            logger.error(
+                "Fallo al obtener detalle de conflicto de pago",
+                extra={"conflict_id": conflict_id, "error": str(e)},
+                exc_info=True,
+            )
             return None
         finally:
             conn.close()
@@ -484,6 +538,11 @@ def resolver_payment_conflict_admin(db, conflict_id: int, decision: str, comenta
                 decision_penal_disputa = decision
                 contacto_penal_disputa = int(trabajo_id)
         except Exception as e:
+            logger.error(
+                "Fallo al resolver conflicto de pago (admin)",
+                extra={"conflict_id": conflict_id, "admin_codigo": admin_codigo, "error": str(e)},
+                exc_info=True,
+            )
             resultado = {'status': 'error', 'message': str(e)}
         finally:
             conn.close()
@@ -559,6 +618,11 @@ def resolver_conflicto_pago(db, contacto_id: int, importe_valido: float,
                 _repo.insertar_notif_apoyo(cursor, prof_codigo, mensaje, meta)
             conn.commit()
         except Exception as e:
+            logger.error(
+                "Fallo al resolver conflicto de pago y generar Apoyo RUANA",
+                extra={"contacto_id": contacto_id, "admin_codigo": admin_codigo, "error": str(e)},
+                exc_info=True,
+            )
             return {'status': 'error', 'message': str(e)}
         finally:
             try:
@@ -586,7 +650,11 @@ def listar_contactos_pagos_apoyo(db) -> List[Dict[str, Any]]:
                         pass
             return lista
         except Exception as e:
-            print(f"Error listar_contactos_pagos_apoyo: {e}")
+            logger.error(
+                "Fallo al listar contactos con Apoyo RUANA",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             conn.close()
@@ -608,7 +676,11 @@ def listar_contactos_pagos_en_revision(db) -> List[Dict[str, Any]]:
                         pass
             return lista
         except Exception as e:
-            print(f"Error listar_contactos_pagos_en_revision: {e}")
+            logger.error(
+                "Fallo al listar contactos con pago en revisión",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             conn.close()
@@ -692,6 +764,11 @@ def actualizar_estado_pago_contacto(db, contacto_id: int, nuevo_estado: str,
             conn.commit()
             resultado = {'status': 'success', 'contacto_id': contacto_id, 'estado_pago': nuevo_estado}
         except Exception as e:
+            logger.error(
+                "Fallo al actualizar estado de pago del contacto",
+                extra={"contacto_id": contacto_id, "admin_codigo": admin_codigo, "error": str(e)},
+                exc_info=True,
+            )
             return {'status': 'error', 'message': str(e)}
         finally:
             conn.close()
@@ -734,7 +811,12 @@ def tiene_pagos_ruana_pendientes(db, codigo_profesional: str) -> bool:
             conn = db._connect()
             cursor = conn.cursor()
             return _repo.tiene_pagos_pendientes(cursor, codigo_profesional.strip())
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al comprobar pagos RUANA pendientes del profesional",
+                extra={"aliado_codigo": codigo_profesional, "error": str(e)},
+                exc_info=True,
+            )
             return False
         finally:
             conn.close()
@@ -805,6 +887,11 @@ def impugnar_apoyo_ruana(db, contacto_id: int, profesional_codigo: str,
             conn.commit()
             return {'status': 'success', 'contacto_id': contacto_id, 'estado': 'importe_en_disputa'}
         except Exception as e:
+            logger.error(
+                "Fallo al impugnar Apoyo RUANA",
+                extra={"contacto_id": contacto_id, "aliado_codigo": prof_norm, "error": str(e)},
+                exc_info=True,
+            )
             return {'status': 'error', 'message': str(e)}
         finally:
             if conn:
@@ -830,7 +917,11 @@ def listar_contactos_pago_pendiente_profesional(db, codigo_aliado: str) -> List[
                         pass
             return lista
         except Exception as e:
-            print(f"Error listar_contactos_pago_pendiente_profesional: {e}")
+            logger.error(
+                "Fallo al listar pagos pendientes del profesional",
+                extra={"aliado_codigo": codigo_norm, "error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             conn.close()
@@ -873,6 +964,11 @@ def subir_comprobante_apoyo_ruana(db, contacto_id: int, profesional_codigo: str,
             conn.commit()
             return {'status': 'success', 'contacto_id': contacto_id, 'estado_pago': 'en_revision'}
         except Exception as e:
+            logger.error(
+                "Fallo al subir comprobante de Apoyo RUANA",
+                extra={"contacto_id": contacto_id, "aliado_codigo": profesional_codigo, "error": str(e)},
+                exc_info=True,
+            )
             return {'status': 'error', 'message': str(e)}
         finally:
             conn.close()
@@ -913,6 +1009,11 @@ def subir_prueba_conflicto(db, conflict_id: int, contratante_codigo: str, prueba
             conn.commit()
             return {'status': 'success', 'id': conflict_id, 'estado': 'EN_REVISION'}
         except Exception as e:
+            logger.error(
+                "Fallo al subir prueba de conflicto de pago",
+                extra={"conflict_id": conflict_id, "aliado_codigo": contratante_codigo, "error": str(e)},
+                exc_info=True,
+            )
             return {'status': 'error', 'message': str(e)}
         finally:
             conn.close()
@@ -973,7 +1074,12 @@ def profesional_stripe_listo(db, codigo_profesional: str) -> bool:
                 (data.get("stripe_account_id") or "").strip()
                 and int(data.get("stripe_charges_enabled") or 0) == 1
             )
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al comprobar si el profesional está listo para Stripe",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             return False
         finally:
             conn.close()
@@ -1019,6 +1125,11 @@ def sincronizar_estado_stripe_profesional(db, codigo_profesional: str) -> Dict[s
                 "stripe_charges_enabled": 1 if charges else 0,
             }
         except Exception as e:
+            logger.error(
+                "Fallo al sincronizar estado Stripe del profesional",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             if conn:
                 conn.rollback()
             return {"status": "error", "message": str(e)}
@@ -1092,6 +1203,11 @@ def activar_pago_stripe_tras_acuerdo(
                 "importe_acordado": importe_val,
             }
         except Exception as e:
+            logger.error(
+                "Fallo al activar pago Stripe tras acuerdo",
+                extra={"contacto_id": contacto_id, "aliado_codigo": solicitante_codigo, "error": str(e)},
+                exc_info=True,
+            )
             if conn:
                 conn.rollback()
             return {"status": "error", "message": str(e)}
@@ -1154,6 +1270,11 @@ def crear_checkout_stripe(
                 "importe": importe_val,
             }
         except Exception as e:
+            logger.error(
+                "Fallo al crear checkout Stripe",
+                extra={"contacto_id": contacto_id, "aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             if conn:
                 conn.rollback()
             return {"status": "error", "message": str(e)}
@@ -1294,6 +1415,11 @@ def _procesar_pago_confirmado(
 
             if isinstance(e, LedgerHookError):
                 raise
+            logger.error(
+                "Fallo al procesar pago Stripe confirmado",
+                extra={"contacto_id": contacto_id, "error": str(e)},
+                exc_info=True,
+            )
             if conn:
                 conn.rollback()
             return {"status": "error", "message": str(e)}
@@ -1351,9 +1477,13 @@ def procesar_timeouts_sin_confirmacion_stripe(db) -> int:
                 procesados += 1
             conn.commit()
         except Exception as e:
+            logger.error(
+                "Fallo al procesar timeouts Stripe sin confirmación",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             if conn:
                 conn.rollback()
-            print(f"[RUANA] Error procesar_timeouts_sin_confirmacion_stripe: {e}")
         finally:
             if conn:
                 conn.close()
@@ -1396,6 +1526,11 @@ def iniciar_onboarding_stripe_profesional(db, codigo_profesional: str) -> Dict[s
                 "stripe_account_id": account_id,
             }
         except Exception as e:
+            logger.error(
+                "Fallo al iniciar onboarding Stripe del profesional",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             if conn:
                 conn.rollback()
             return {"status": "error", "message": str(e)}
@@ -1436,6 +1571,11 @@ def estado_pago_stripe_contacto(db, contacto_id: int, codigo_aliado: str) -> Dic
                 "es_contratante": es_contratante,
             }
         except Exception as e:
+            logger.error(
+                "Fallo al obtener estado de pago Stripe del contacto",
+                extra={"contacto_id": contacto_id, "aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             return {"status": "error", "message": str(e)}
         finally:
             conn.close()
@@ -1502,6 +1642,11 @@ def resumen_stripe_admin(db) -> Dict[str, Any]:
                 },
             }
         except Exception as e:
+            logger.error(
+                "Fallo al generar resumen Stripe admin",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return {"status": "error", "message": str(e)}
         finally:
             if conn:
@@ -1569,6 +1714,11 @@ def resumen_stripe_admin(db) -> Dict[str, Any]:
                 },
             }
         except Exception as e:
+            logger.error(
+                "Fallo al generar resumen Stripe admin",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return {"status": "error", "message": str(e)}
         finally:
             if conn:
