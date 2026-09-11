@@ -65,6 +65,7 @@ def test_register_with_invitation_creates_distinct_personal_code(
             "telefono": "+34600999999",
             "codigo_invitacion": "12345",
             "acepta_privacidad_y_terminos": True,
+            "declara_mayoria_edad": True,
         },
     )
 
@@ -141,6 +142,7 @@ def test_legacy_placeholder_is_removed_after_registration(
             "telefono": "+34600999999",
             "codigo_invitacion": "12345",
             "acepta_privacidad_y_terminos": True,
+            "declara_mayoria_edad": True,
         },
     )
 

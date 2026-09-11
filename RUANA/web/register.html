@@ -746,6 +746,19 @@
                     </div>
                 </div>
 
+                <!-- Checkbox mayoría de edad: obligatorio, no premarcado -->
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input
+                            type="checkbox"
+                            id="mayoria_edad"
+                            name="declara_mayoria_edad"
+                            required
+                        >
+                        <label for="mayoria_edad">Declaro ser mayor de 18 años.</label>
+                    </div>
+                </div>
+
                 <!-- Botón submit -->
                 <button type="submit" class="register-btn" id="submit-btn">Solicitar registro</button>
                 
@@ -962,6 +975,7 @@
                 if (this.phoneInput) this.phoneInput.syncHiddenInput();
                 const telefono = document.getElementById('telefono').value.trim();
                 const condiciones = document.getElementById('condiciones').checked;
+                const mayoriaEdad = document.getElementById('mayoria_edad').checked;
 
                 // Validaciones básicas
                 if (!nombre || nombre.length < 2) {
@@ -1019,6 +1033,11 @@
                     return;
                 }
 
+                if (!mayoriaEdad) {
+                    this.showError('Debes declarar que eres mayor de 18 años para continuar');
+                    return;
+                }
+
                 // Si todo es válido, procesar registro
                 this.submitRegistration({
                     nombre,
@@ -1054,7 +1073,8 @@
                         email: data.email,
                         telefono: data.telefono,
                         codigo_invitacion: data.codigo_invitacion || sessionStorage.getItem('ruana_invite_code') || sessionStorage.getItem('ruana_invite_codigo') || '',
-                        acepta_privacidad_y_terminos: true
+                        acepta_privacidad_y_terminos: true,
+                        declara_mayoria_edad: true
                     })
                 })
                 .then(response => response.json().then(result => ({ response, result })))

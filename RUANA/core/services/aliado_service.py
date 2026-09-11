@@ -1159,9 +1159,10 @@ def rechazar_aliado_pendiente(db, codigo: str) -> Dict[str, Any]:
             conn.close()
 
 
-LEGAL_DOCUMENT_VERSION = "v1-2026-08"
+LEGAL_DOCUMENT_VERSION = "v1-2026-09"
 _CAMPOS_PERFIL_EXCLUIDOS_EXPORT = frozenset({"pin_hash"})
 _ESTADOS_SOLICITUD_BAJA = frozenset({"pendiente", "en_revision", "completada", "rechazada"})
+_VALORES_AFIRMATIVOS = frozenset({"true", "1", "on", "yes", "si", "sí"})
 
 
 def _row_as_dict(row: Any) -> Optional[Dict[str, Any]]:
@@ -1183,18 +1184,30 @@ def _rows_as_dicts(rows: Optional[List[Any]]) -> List[Dict[str, Any]]:
     return out
 
 
+def _valor_afirmativo(val: Any) -> bool:
+    """Misma verdad que el checkbox de consentimiento: True, 1 o string afirmativo."""
+    if val is True:
+        return True
+    if val == 1:
+        return True
+    if isinstance(val, str) and val.strip().lower() in _VALORES_AFIRMATIVOS:
+        return True
+    return False
+
+
 def consentimiento_registro_aceptado(data: Optional[Dict[str, Any]]) -> bool:
     """True solo si el aliado marcó explícitamente el checkbox (nunca premarcado)."""
     if not isinstance(data, dict):
         return False
     val = data.get("acepta_privacidad_y_terminos", data.get("acepta_terminos"))
-    if val is True:
-        return True
-    if val == 1:
-        return True
-    if isinstance(val, str) and val.strip().lower() in ("true", "1", "on", "yes", "si", "sí"):
-        return True
-    return False
+    return _valor_afirmativo(val)
+
+
+def declara_mayoria_edad_aceptada(data: Optional[Dict[str, Any]]) -> bool:
+    """True solo si el aliado declaró ser mayor de 18 años (nunca premarcado)."""
+    if not isinstance(data, dict):
+        return False
+    return _valor_afirmativo(data.get("declara_mayoria_edad"))
 
 
 def registrar_consentimiento_aliado(

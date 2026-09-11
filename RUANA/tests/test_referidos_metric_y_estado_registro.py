@@ -64,6 +64,7 @@ def test_registro_con_codigo_suma_referidos_y_queda_activo(client, sqlite_db, mo
             "telefono": "+34600999888",
             "codigo_invitacion": codigo_inv,
             "acepta_privacidad_y_terminos": True,
+            "declara_mayoria_edad": True,
         },
     )
     assert register.status_code == 201, register.get_json()
