@@ -18,6 +18,8 @@ RUANA/web/static/uploads/*
 *.db
 *.sqlite
 *.sqlite3
+*.dump
+backup_pre_reset_*.dump
 
 qa-artifacts/
 output/playwright/
