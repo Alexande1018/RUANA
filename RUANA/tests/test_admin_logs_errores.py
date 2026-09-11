@@ -122,6 +122,29 @@ def test_pagina_desde_iterador_acepta_list_log_entries_response():
     assert token == "tok-3"
 
 
+def test_parsear_entrada_severity_numerica_y_http_request():
+    entry = SimpleNamespace(
+        timestamp=datetime(2026, 9, 11, 21, 0, tzinfo=timezone.utc),
+        severity=400,
+        json_payload=None,
+        text_payload="",
+        insert_id="req-1",
+        log_name="projects/ruana-4293f/logs/run.googleapis.com%2Frequests",
+        payload=None,
+        logger=None,
+        http_request=SimpleNamespace(
+            request_method="GET",
+            status=400,
+            request_url="https://ruana-4293f.web.app/api/admin/logs/errores",
+        ),
+    )
+    item = cls.parsear_entrada(entry, incluir_stack=False)
+    assert item["severity"] == "WARNING"
+    assert item["logger"] == "run.googleapis.com/requests"
+    assert "GET" in item["mensaje"]
+    assert "400" in item["mensaje"]
+
+
 def test_parsear_entrada_json_payload_estilo_gapic():
     entry = SimpleNamespace(
         timestamp=datetime(2026, 9, 11, 12, 0, tzinfo=timezone.utc),
