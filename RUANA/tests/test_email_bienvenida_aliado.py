@@ -118,6 +118,7 @@ def test_registro_envia_correo_sin_bloquear_si_falla(client, sqlite_db, monkeypa
                 "email": "testcorreo@example.com",
                 "telefono": "+34600111222",
                 "acepta_privacidad_y_terminos": True,
+                "declara_mayoria_edad": True,
             },
         )
 
@@ -143,6 +144,7 @@ def test_registro_llama_envio_correo_con_codigo(client, sqlite_db, monkeypatch):
                 "email": "ana.ruana@example.com",
                 "telefono": "+34600333444",
                 "acepta_privacidad_y_terminos": True,
+                "declara_mayoria_edad": True,
             },
         )
 

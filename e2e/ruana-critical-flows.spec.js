@@ -293,6 +293,7 @@ async function registerAliadoViaUi(page, scenario, data) {
     await fillVisible(page, '#email', data.email);
     await fillVisible(page, '#telefono-nacional', nationalPhoneFromE164(data.telefono));
     await checkVisible(page, '#condiciones');
+    await checkVisible(page, '#mayoria_edad');
 
     await narrate(page, scenario, {
       step: 'Enviar solicitud de registro',

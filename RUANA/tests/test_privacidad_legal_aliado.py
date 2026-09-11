@@ -33,6 +33,7 @@ def _payload_registro(**extra):
         "email": "ana.legal@example.com",
         "telefono": "+34600111000",
         "acepta_privacidad_y_terminos": True,
+        "declara_mayoria_edad": True,
     }
     data.update(extra)
     return data
@@ -69,6 +70,29 @@ def test_registrar_consentimiento_false_devuelve_400(client, sqlite_db, monkeypa
     assert resp.status_code == 400
 
 
+def test_registrar_sin_mayoria_edad_devuelve_400(client, sqlite_db, monkeypatch):
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    payload = _payload_registro()
+    payload.pop("declara_mayoria_edad")
+    resp = client.post("/api/aliados/registrar", json=payload)
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data["status"] == "error"
+    assert "mayor de 18" in data["message"]
+
+
+def test_registrar_mayoria_edad_false_devuelve_400(client, sqlite_db, monkeypatch):
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    resp = client.post(
+        "/api/aliados/registrar",
+        json=_payload_registro(declara_mayoria_edad=False),
+    )
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data["status"] == "error"
+    assert "mayor de 18" in data["message"]
+
+
 def test_registrar_con_consentimiento_guarda_version(client, sqlite_db, monkeypatch):
     monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
     monkeypatch.setattr(app_module, "_generar_codigo_unico", lambda: "73011")
@@ -86,6 +110,7 @@ def test_registrar_con_consentimiento_guarda_version(client, sqlite_db, monkeypa
     assert row is not None
     assert row[0] == codigo
     assert row[1] == aliado_service.LEGAL_DOCUMENT_VERSION
+    assert row[1] == "v1-2026-09"
     assert row[2]
 
 
@@ -188,34 +213,44 @@ def test_admin_lista_y_resuelve_solicitud_baja(client, sqlite_db, monkeypatch):
     assert resolved.get_json()["solicitud"]["estado"] == "completada"
 
 
-def test_paginas_legales_son_borrador_y_tienen_footer():
+def test_paginas_legales_son_piloto_y_tienen_footer():
+    aviso_piloto = "Documento del piloto RUANA. Pendiente de revisión por abogado colegiado."
     for name in ("aviso-legal.html", "politica-privacidad.html", "terminos.html"):
         text = (WEB / name).read_text(encoding="utf-8")
-        assert "[BORRADOR — PENDIENTE DE REVISIÓN POR UN ABOGADO ANTES DE PUBLICAR]" in text
+        assert "[BORRADOR — PENDIENTE DE REVISIÓN POR UN ABOGADO ANTES DE PUBLICAR]" not in text
+        assert aviso_piloto in text
         assert "id=\"ruana-legal-footer\"" in text
         assert "/aviso-legal.html" in text
         assert "/politica-privacidad.html" in text
         assert "/terminos.html" in text
-        assert "[NIF_TITULAR]" in text
+        assert "18508170R" in text
+        assert "[NIF_TITULAR]" not in text
         assert "LSSICE art.10 exige NIF" in text
+        assert "v1-2026-09" in text
         assert "642868261" not in text.replace("642868261", "") or "642868261" in text
 
 
-def test_aviso_legal_no_publica_nif_real():
+def test_aviso_legal_publica_nif_y_jurisdiccion_piloto():
     text = (WEB / "aviso-legal.html").read_text(encoding="utf-8")
-    assert "[NIF_TITULAR]" in text
+    assert "18508170R" in text
+    assert "[NIF_TITULAR]" not in text
     assert "Carlos Alexander Acero" in text
-    assert "Calle Diputado José Luis Barceló 14" in text
+    assert "Calle Diputado José Luis Barceló 14, P5 B, Alicante, España" in text
+    assert "Juzgados y Tribunales de Alicante" in text
+    assert "[JURISDICCIÓN_PENDIENTE]" not in text
 
 
-def test_terminos_no_inventan_apelacion_ni_edad():
+def test_terminos_mayoria_edad_y_jurisdiccion_alicante():
     text = (WEB / "terminos.html").read_text(encoding="utf-8")
     assert "No existe un proceso formal de apelación automática" in text
     assert "centro de comunicación" in text.lower() or "canal de soporte" in text.lower()
-    assert "mayoría de edad" not in text.lower()
-    assert "menor de" not in text.lower()
-    assert "[JURISDICCIÓN_PENDIENTE]" in text
+    assert "mayoría de edad" in text.lower()
+    assert "mayor de 18" in text.lower()
+    assert "[JURISDICCIÓN_PENDIENTE]" not in text
+    assert "Juzgados y Tribunales de Alicante" in text
     assert "intermediario tecnológico" in text
+    assert "18508170R" in text
+    assert "Calle Diputado José Luis Barceló 14, P5 B, Alicante, España" in text
 
 
 def test_privacidad_cita_encargados_y_retencion():
@@ -241,9 +276,15 @@ def test_register_checkbox_obligatorio_no_premarcado():
     assert "/terminos.html" in html
     assert 'id="condiciones"' in html
     assert "acepta_privacidad_y_terminos: true" in html
+    assert 'id="mayoria_edad"' in html
+    assert 'name="declara_mayoria_edad"' in html
+    assert "Declaro ser mayor de 18 años." in html
+    assert "declara_mayoria_edad: true" in html
     # No premarcado
     assert "id=\"condiciones\" checked" not in html
     assert "id='condiciones' checked" not in html
+    assert 'id="mayoria_edad" checked' not in html
+    assert "id='mayoria_edad' checked" not in html
     assert "register-legal-layer" in html
     assert "Información básica sobre protección de datos" in html
     assert "Responsable:" in html
@@ -270,7 +311,10 @@ def test_rutas_html_legales(client):
     for path in ("/aviso-legal.html", "/politica-privacidad.html", "/terminos.html"):
         resp = client.get(path)
         assert resp.status_code == 200
-        assert b"BORRADOR" in resp.data
+        assert b"BORRADOR" not in resp.data
+        assert "Documento del piloto RUANA".encode("utf-8") in resp.data
+        assert b"18508170R" in resp.data
+        assert b"v1-2026-09" in resp.data
 
 
 def test_no_se_anade_banner_cookies():

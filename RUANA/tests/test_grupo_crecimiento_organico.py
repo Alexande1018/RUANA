@@ -130,6 +130,7 @@ def _registrar_invitado(client, codigo_inv, codigo_suffix, oficio_idx=0):
             "telefono": f"+34601{codigo_suffix}",
             "codigo_invitacion": codigo_inv,
             "acepta_privacidad_y_terminos": True,
+            "declara_mayoria_edad": True,
         },
     )
 

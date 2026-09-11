@@ -55,6 +55,7 @@ function buildAliadoData(overrides = {}) {
     descripcion: overrides.descripcion || 'Servicio de prueba QA automatizada',
     codigo_invitacion: overrides.codigo_invitacion || '',
     acepta_privacidad_y_terminos: overrides.acepta_privacidad_y_terminos ?? true,
+    declara_mayoria_edad: overrides.declara_mayoria_edad ?? true,
   };
 }
 

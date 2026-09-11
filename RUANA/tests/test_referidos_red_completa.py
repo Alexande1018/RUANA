@@ -66,6 +66,7 @@ def test_ally_invitation_places_referral_under_inviter_not_admin(client, sqlite_
             "telefono": "+34600999901",
             "codigo_invitacion": codigo_invitacion,
             "acepta_privacidad_y_terminos": True,
+            "declara_mayoria_edad": True,
         },
     )
     assert register.status_code == 201

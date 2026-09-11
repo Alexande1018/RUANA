@@ -322,6 +322,7 @@ def test_registro_api_sin_suboficios_no_falla(client, sqlite_db, monkeypatch):
             "telefono": "+34600040001",
             "codigo_invitacion": "INV01",
             "acepta_privacidad_y_terminos": True,
+            "declara_mayoria_edad": True,
         },
     )
     data = response.get_json()

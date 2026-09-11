@@ -435,6 +435,11 @@ def registrar_aliado():
                 'status': 'error',
                 'message': 'Debes aceptar la Política de Privacidad y los Términos de Uso para registrarte.'
             }), 400
+        if not aliado_service.declara_mayoria_edad_aceptada(data):
+            return jsonify({
+                'status': 'error',
+                'message': 'Debes declarar que eres mayor de 18 años para registrarte.'
+            }), 400
         db = get_db()
         
         # Validar campos requeridos
