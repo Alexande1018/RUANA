@@ -24,6 +24,7 @@ from core.services import (
     aliado_service,
     catalogo_service,
     chat_service,
+    cloud_logging_service,
     competencia_service,
     contacto_service,
     evaluacion_service,
@@ -71,6 +72,41 @@ def admin_me():
     if not permisos and _admin_codigo():
         permisos = ["leer", "escribir", "eliminar", "configurar"]
     return jsonify({"permisos": permisos or []})
+
+
+@admin_bp.route("/api/admin/logs/errores", methods=["GET"])
+@require_admin
+def admin_logs_errores():
+    """GET errores y warnings recientes desde Cloud Logging (solo lectura)."""
+    args = request.args
+    try:
+        resultado = cloud_logging_service.consultar_logs_errores(
+            severity=args.get("severity"),
+            horas=args.get("horas"),
+            limite=args.get("limite") or args.get("limit"),
+            aliado_codigo=args.get("aliado_codigo"),
+            contacto_id=args.get("contacto_id"),
+            admin_codigo=args.get("admin_codigo"),
+            identificador=args.get("identificador"),
+            page_token=args.get("page_token") or args.get("cursor"),
+            insert_id=args.get("insert_id"),
+            incluir_stack=args.get("incluir_stack"),
+        )
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+    except cloud_logging_service.CloudLoggingPermissionError as e:
+        return jsonify({
+            "status": "error",
+            "code": "logging_viewer_missing",
+            "message": str(e),
+        }), 503
+    except cloud_logging_service.CloudLoggingQueryError as e:
+        return jsonify({
+            "status": "error",
+            "code": "cloud_logging_error",
+            "message": str(e),
+        }), 502
+    return jsonify(resultado)
 
 
 @admin_bp.route("/api/admin/health-metrics", methods=["GET"])

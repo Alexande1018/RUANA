@@ -50,6 +50,8 @@ def test_admin_shell_js_has_modules():
     assert "data-admin-module" in text
     assert "acciones-admin-wrap" in text
     assert "adminBottomNav" in text
+    assert "id: 'errores'" in text
+    assert "#errores-logs-wrap" in text
 
 
 def test_admin_html_acciones_wrap_id():

@@ -31,6 +31,8 @@
     --mod-comunicacion-glow: rgba(126, 184, 212, 0.12);
     --mod-atencion-accent: #d4926e;
     --mod-atencion-glow: rgba(212, 146, 110, 0.14);
+    --mod-errores-accent: #f87171;
+    --mod-errores-glow: rgba(248, 113, 113, 0.14);
     --mod-analisis-accent: #9b8fd4;
     --mod-analisis-glow: rgba(155, 143, 212, 0.12);
     --mod-sistema-accent: #94a3b8;
@@ -342,6 +344,66 @@ html.admin-shell-enabled .admin-module[data-admin-module="comunicaciones"] {
 html.admin-shell-enabled .admin-module[data-admin-module="incidencias"] {
     --mod-accent: var(--mod-atencion-accent);
     --mod-glow: var(--mod-atencion-glow);
+}
+
+html.admin-shell-enabled .admin-module[data-admin-module="errores"] {
+    --mod-accent: var(--mod-errores-accent);
+    --mod-glow: var(--mod-errores-glow);
+}
+
+.log-sev-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+.log-sev-error {
+    color: #fecaca;
+    background: rgba(239, 68, 68, 0.22);
+}
+.log-sev-warning {
+    color: #fde68a;
+    background: rgba(245, 158, 11, 0.22);
+}
+.log-sev-other {
+    color: #cbd5e1;
+    background: rgba(148, 163, 184, 0.18);
+}
+#errores-logs-filtros {
+    align-items: center;
+}
+
+#errores-logs-filtros input[type="text"] {
+    flex: 1 1 220px;
+    min-width: 180px;
+    max-width: 320px;
+}
+
+#errores-logs-filtros #btn-actualizar-errores {
+    flex: 0 0 auto;
+}
+
+.errores-log-row {
+    cursor: pointer;
+}
+.errores-log-msg {
+    max-width: 420px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.errores-stack {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: #e4e4e7;
+    background: rgba(0, 0, 0, 0.28);
+    padding: 12px;
+    border-radius: 8px;
 }
 
 html.admin-shell-enabled .admin-module[data-admin-module="intelligence"] {
