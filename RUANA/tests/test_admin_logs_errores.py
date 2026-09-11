@@ -80,6 +80,53 @@ def test_logs_errores_parsea_extra_desde_cloud_logging(client, session_headers, 
     assert "stack" not in item
 
 
+def test_pagina_desde_iterador_acepta_generador_sin_pages():
+    """google-cloud-logging 3.x devuelve un generator, no un pager con .pages."""
+    def gen():
+        yield _entrada_score()
+        yield _entrada_score()
+
+    entradas, token = cls.pagina_desde_iterador(gen(), page_size=1)
+    assert len(entradas) == 1
+    assert token is None
+
+
+def test_pagina_desde_iterador_usa_pages_si_existen():
+    class Pager:
+        next_page_token = "tok-2"
+
+        @property
+        def pages(self):
+            yield [_entrada_score(), _entrada_score()]
+
+    entradas, token = cls.pagina_desde_iterador(Pager(), page_size=50)
+    assert len(entradas) == 2
+    assert token == "tok-2"
+
+
+def test_parsear_entrada_json_payload_estilo_gapic():
+    entry = SimpleNamespace(
+        timestamp=datetime(2026, 9, 11, 12, 0, tzinfo=timezone.utc),
+        severity=SimpleNamespace(name="ERROR"),
+        json_payload={
+            "message": "Fallo al aplicar cambio de score",
+            "extra": {"aliado_codigo": "A1001", "contacto_id": 44},
+            "logger": "core.services.score_service",
+        },
+        text_payload="",
+        insert_id="gapic-1",
+        log_name="projects/ruana-4293f/logs/python",
+        payload=None,
+        logger=None,
+    )
+    item = cls.parsear_entrada(entry, incluir_stack=False)
+    assert item["mensaje"] == "Fallo al aplicar cambio de score"
+    assert item["severity"] == "ERROR"
+    assert item["extra"]["aliado_codigo"] == "A1001"
+    assert item["insert_id"] == "gapic-1"
+    assert item["logger"] == "core.services.score_service"
+
+
 def test_logs_errores_permiso_logging_viewer(client, session_headers, monkeypatch):
     class PermissionDenied(Exception):
         pass

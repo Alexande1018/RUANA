@@ -5,6 +5,7 @@ No escribe logs ni persiste nada en Postgres. Solo consulta el proyecto GCP.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from itertools import islice
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from core.settings import get_settings
@@ -156,14 +157,39 @@ def construir_filtro(
     return " AND ".join(parts)
 
 
+def _como_dict(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {str(k): _como_dict(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_como_dict(v) for v in value]
+    items = getattr(value, "items", None)
+    if callable(items):
+        try:
+            return {str(k): _como_dict(v) for k, v in items()}
+        except Exception:
+            pass
+    return value
+
+
 def _payload_de(entry: Any) -> Any:
     if isinstance(entry, dict):
         if "payload" in entry:
             return entry.get("payload")
         if "jsonPayload" in entry:
-            return entry.get("jsonPayload")
+            return _como_dict(entry.get("jsonPayload"))
         return entry
-    return getattr(entry, "payload", None)
+    payload = getattr(entry, "payload", None)
+    if payload is not None:
+        return _como_dict(payload) if not isinstance(payload, str) else payload
+    json_payload = getattr(entry, "json_payload", None)
+    if json_payload:
+        return _como_dict(json_payload)
+    text = getattr(entry, "text_payload", None)
+    if text:
+        return text
+    return None
 
 
 def extra_desde_payload(payload: Any) -> Dict[str, Any]:
@@ -209,14 +235,27 @@ def _logger_desde_entry(entry: Any, payload: Any) -> str:
             if val:
                 return str(val)
     if isinstance(entry, dict):
-        return str(entry.get("logger") or entry.get("logName") or "")
-    return str(getattr(entry, "logger", "") or "")
+        raw = entry.get("logger") or entry.get("logName") or entry.get("log_name") or ""
+        return str(getattr(raw, "name", raw) or "")
+    logger_obj = getattr(entry, "logger", None)
+    if logger_obj:
+        return str(getattr(logger_obj, "name", logger_obj) or "")
+    log_name = getattr(entry, "log_name", None) or getattr(entry, "logName", None)
+    if log_name:
+        name = str(log_name)
+        if "/logs/" in name:
+            name = name.rsplit("/logs/", 1)[-1]
+        return name
+    return ""
 
 
 def _timestamp_iso(entry: Any) -> str:
     raw = entry.get("timestamp") if isinstance(entry, dict) else getattr(entry, "timestamp", None)
     if raw is None:
         return ""
+    to_dt = getattr(raw, "ToDatetime", None) or getattr(raw, "to_datetime", None)
+    if callable(to_dt):
+        raw = to_dt()
     if isinstance(raw, datetime):
         if raw.tzinfo is None:
             raw = raw.replace(tzinfo=timezone.utc)
@@ -230,8 +269,14 @@ def _severity_de(entry: Any, payload: Any) -> str:
         raw = entry.get("severity")
     else:
         raw = getattr(entry, "severity", None)
-    if raw:
-        return str(raw).upper()
+    if raw is not None and raw != "":
+        name = getattr(raw, "name", None)
+        text = str(name or raw)
+        if "." in text:
+            text = text.rsplit(".", 1)[-1]
+        text = text.upper()
+        if text and text != "SEVERITY_UNSPECIFIED":
+            return text
     if isinstance(payload, dict) and payload.get("severity"):
         return str(payload.get("severity")).upper()
     return ""
@@ -253,9 +298,10 @@ def parsear_entrada(entry: Any, incluir_stack: bool = False) -> Dict[str, Any]:
     extra = extra_desde_payload(payload)
     text_payload = ""
     if isinstance(entry, dict):
-        text_payload = str(entry.get("textPayload") or "")
+        text_payload = str(entry.get("textPayload") or entry.get("text_payload") or "")
     else:
-        if isinstance(payload, str):
+        text_payload = str(getattr(entry, "text_payload", "") or "")
+        if not text_payload and isinstance(payload, str):
             text_payload = payload
     mensaje = _mensaje_de(payload) or text_payload.split("\n", 1)[0]
     item = {
@@ -300,6 +346,19 @@ def _es_error_permiso(exc: BaseException) -> bool:
     )
 
 
+def pagina_desde_iterador(iterator: Any, page_size: int) -> Tuple[List[Any], Optional[str]]:
+    """Lee una página tanto de pagers GAPIC (.pages) como de generadores planos."""
+    pages = getattr(iterator, "pages", None)
+    if pages is not None:
+        page = next(pages, None)
+        entries = list(page) if page is not None else []
+        token = getattr(iterator, "next_page_token", None) or None
+        return entries, token or None
+    entries = list(islice(iterator, page_size))
+    token = getattr(iterator, "next_page_token", None) or None
+    return entries, token or None
+
+
 def listar_entradas(
     *,
     project_id: str,
@@ -307,19 +366,19 @@ def listar_entradas(
     page_size: int,
     page_token: Optional[str] = None,
 ) -> Tuple[List[Any], Optional[str]]:
-    from google.cloud import logging as glogging
+    from google.cloud.logging_v2.services.logging_service_v2 import LoggingServiceV2Client
+    from google.cloud.logging_v2.types.logging import ListLogEntriesRequest
 
-    client = glogging.Client(project=project_id)
-    iterator = client.list_entries(
-        filter_=filtro,
+    client = LoggingServiceV2Client()
+    request = ListLogEntriesRequest(
+        resource_names=[f"projects/{project_id}"],
+        filter=filtro,
+        order_by="timestamp desc",
         page_size=page_size,
-        page_token=page_token or None,
-        order_by=glogging.DESCENDING,
+        page_token=page_token or "",
     )
-    page = next(iterator.pages, None)
-    entries = list(page) if page is not None else []
-    token = getattr(iterator, "next_page_token", None) or None
-    return entries, token
+    iterator = client.list_log_entries(request=request)
+    return pagina_desde_iterador(iterator, page_size)
 
 
 def consultar_logs_errores(
