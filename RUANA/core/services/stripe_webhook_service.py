@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from typing import Any, Dict, Optional, Tuple
 
@@ -19,6 +20,7 @@ from core.services import financial_reconciliation_service as reconciliation
 from core.services import financial_transaction_service as fts
 from core.services import pago_service
 
+logger = logging.getLogger(__name__)
 _wh_repo = StripeWebhookRepo()
 _fin_repo = FinancialTransactionRepo()
 _sm = FinancialStateMachine()
@@ -97,6 +99,11 @@ def procesar_webhook(
         }
     except (StartupConfigurationError, RuntimeError) as exc:
         _log_incidente_firma(db, type(exc).__name__)
+        logger.error(
+            "Fallo al construir evento webhook Stripe (configuración)",
+            extra={"error": str(exc)},
+            exc_info=True,
+        )
         return _processing_error_response(
             db,
             log_kwargs={**base_log, "payload_len": payload_len, "has_stripe_signature": True},
@@ -104,6 +111,11 @@ def procesar_webhook(
         )
     except Exception as exc:
         _log_incidente_firma(db, type(exc).__name__)
+        logger.error(
+            "Fallo al construir evento webhook Stripe",
+            extra={"error": str(exc)},
+            exc_info=True,
+        )
         return _processing_error_response(
             db,
             log_kwargs={**base_log, "payload_len": payload_len, "has_stripe_signature": True},
@@ -141,6 +153,11 @@ def procesar_webhook(
     try:
         mode_check = validate_event_livemode(event)
     except Exception as exc:
+        logger.error(
+            "Fallo al validar livemode del evento webhook Stripe",
+            extra={"event_id": event_id, "event_type": event_type, "error": str(exc)},
+            exc_info=True,
+        )
         return _processing_error_response(
             db,
             log_kwargs={**base_log, "payload_len": payload_len, "has_stripe_signature": True},
@@ -206,6 +223,11 @@ def procesar_webhook(
                 if conn:
                     conn.close()
     except Exception as exc:
+        logger.error(
+            "Fallo al reclamar evento webhook Stripe",
+            extra={"event_id": event_id, "event_type": event_type, "error": str(exc)},
+            exc_info=True,
+        )
         return _processing_error_response(
             db,
             log_kwargs={**base_log, "payload_len": payload_len, "has_stripe_signature": True},
@@ -225,6 +247,17 @@ def procesar_webhook(
         handler = _HANDLERS.get(event_type, _handle_desconocido)
         contacto_id, resultado, estado_anterior, estado_nuevo = handler(db, obj, event_id)
     except Exception as exc:
+        logger.error(
+            "Fallo al procesar handler de webhook Stripe",
+            extra={
+                "event_id": event_id,
+                "event_type": event_type,
+                "contacto_id": contacto_id,
+                "object_id": object_id,
+                "error": str(exc),
+            },
+            exc_info=True,
+        )
         try:
             with db._lock:
                 conn = db._connect()
@@ -232,8 +265,16 @@ def procesar_webhook(
                 _wh_repo.marcar_evento_fallido(cursor, event_id, type(exc).__name__)
                 conn.commit()
                 conn.close()
-        except Exception:
-            pass
+        except Exception as mark_exc:
+            logger.error(
+                "Fallo al marcar evento webhook como fallido",
+                extra={
+                    "event_id": event_id,
+                    "event_type": event_type,
+                    "error": str(mark_exc),
+                },
+                exc_info=True,
+            )
         return _processing_error_response(
             db,
             log_kwargs={**base_log, "payload_len": payload_len, "has_stripe_signature": True},
@@ -277,6 +318,16 @@ def procesar_webhook(
                 if conn:
                     conn.close()
     except Exception as exc:
+        logger.error(
+            "Fallo al finalizar evento webhook Stripe",
+            extra={
+                "event_id": event_id,
+                "event_type": event_type,
+                "contacto_id": contacto_id,
+                "error": str(exc),
+            },
+            exc_info=True,
+        )
         return _processing_error_response(
             db,
             log_kwargs={**base_log, "payload_len": payload_len, "has_stripe_signature": True},
@@ -886,5 +937,9 @@ def _log_incidente_firma(db, mensaje: str) -> None:
             mensaje[:500],
             actor_tipo="sistema",
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(
+            "Fallo al registrar incidente de firma webhook Stripe",
+            extra={"error": str(e)},
+            exc_info=True,
+        )

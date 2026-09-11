@@ -50,13 +50,15 @@ def log_stripe_webhook(
             logger.error(line)
         else:
             logger.info(line)
-    except Exception:
+    except Exception as e:
         logger.error(
             "stripe_webhook resultado=%s path=%s payload_len=%s error_kind=%s",
             resultado,
             path,
             payload_len,
             error_kind,
+            extra={"error": str(e)},
+            exc_info=True,
         )
 
 
