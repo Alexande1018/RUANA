@@ -8,9 +8,12 @@ from __future__ import annotations
 from core.db_constants import RUANA_ROOT, MAX_GRUPOS_POR_CP, CP_POSTAL_SENTINEL_MADRE
 
 import json
+import logging
 import sqlite3
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 from core.repositories.competencia_repo import CompetenciaRepo
 
@@ -99,10 +102,18 @@ def _cancelar_competencia_pendiente(db, codigo_aliado: str, motivo: str = 'score
                         actor_tipo='sistema',
                         metadata={'aliado_codigo': codigo, 'motivo': motivo},
                     )
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                except Exception as e:
+                    logger.warning(
+                        "Fallo al registrar evento al cancelar competencia pendiente",
+                        extra={"aliado_codigo": codigo, "error": str(e)},
+                        exc_info=True,
+                    )
+        except Exception as e:
+            logger.error(
+                "Fallo al cancelar competencia pendiente",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
         finally:
             conn.close()
 
@@ -115,7 +126,12 @@ def tiene_competencia_pendiente(db, codigo_aliado: str) -> bool:
             conn = db._connect()
             cursor = conn.cursor()
             return _repo.tiene_pendiente(cursor, codigo)
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al comprobar competencia pendiente",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             return False
         finally:
             conn.close()
@@ -131,7 +147,12 @@ def _procesar_competencias_pendientes(db, codigo_postal: Optional[str] = None, o
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             pendientes = [dict(r) for r in _repo.listar_pendientes(cursor, codigo_postal, oficio)]
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al listar competencias pendientes a procesar",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             conn.close()
@@ -169,7 +190,12 @@ def aliado_en_competencia_activa(db, codigo_aliado: str) -> bool:
             cursor = conn.cursor()
             col = db._columna_retador_competencia(cursor)
             return _repo.en_competencia_activa(cursor, col, codigo)
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al comprobar si el aliado está en competencia activa",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             return False
         finally:
             conn.close()
@@ -195,7 +221,12 @@ def listar_competencias_pendientes_admin(db) -> List[Dict[str, Any]]:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             return [dict(row) for row in _repo.listar_pendientes_admin(cursor)]
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al listar competencias pendientes (admin)",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             conn.close()
@@ -209,7 +240,12 @@ def listar_competencias_historial_admin(db, limite: int = 50) -> List[Dict[str, 
             cursor = conn.cursor()
             col_ret = db._columna_retador_competencia(cursor)
             return [dict(row) for row in _repo.listar_historial_admin(cursor, col_ret, limite)]
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al listar historial de competencias (admin)",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             conn.close()
@@ -303,7 +339,11 @@ def listar_competencias_activas_admin(db) -> List[Dict[str, Any]]:
                 })
             return resultado
         except Exception as e:
-            print(f"[RUANA] Error listando competencias activas: {e}")
+            logger.error(
+                "Fallo al listar competencias activas (admin)",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             conn.close()
@@ -377,13 +417,21 @@ def _iniciar_competencia_si_procede(db, codigo_aliado: str) -> Optional[Dict[str
                     actor_tipo='sistema',
                     metadata={'grupo_id': grupo_id, 'oficio': oficio.strip(), 'titular_codigo': codigo_aliado, 'retador_codigo': retador_codigo}
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "Fallo al registrar evento de competencia iniciada",
+                    extra={"aliado_codigo": codigo_aliado, "competencia_id": competencia_id, "error": str(e)},
+                    exc_info=True,
+                )
             # Penalización 4: -2 a padre/abuelo si un hijo/nieto entra en competencia
             try:
                 db.aplicar_penalizacion_descendiente_en_competencia(codigo_aliado, competencia_id)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(
+                    "Fallo al aplicar penalización a ascendientes por competencia",
+                    extra={"aliado_codigo": codigo_aliado, "competencia_id": competencia_id, "error": str(e)},
+                    exc_info=True,
+                )
             return {
                 'grupo_id': grupo_id,
                 'retador_codigo': retador_codigo,
@@ -392,6 +440,11 @@ def _iniciar_competencia_si_procede(db, codigo_aliado: str) -> Optional[Dict[str
                 'competencia_id': competencia_id,
             }
         except Exception as e:
+            logger.error(
+                "Fallo al iniciar competencia",
+                extra={"aliado_codigo": codigo_aliado, "error": str(e)},
+                exc_info=True,
+            )
             try:
                 conn.rollback()
             except Exception:
@@ -408,7 +461,12 @@ def finalizar_competencia_activas_vencidas(db) -> List[Dict[str, Any]]:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             filas = _repo.listar_vencidas(cursor)
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al listar competencias vencidas a finalizar",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             conn.close()
@@ -516,8 +574,12 @@ def _finalizar_una_competencia(db,
                     'score_retador': score_ret,
                 },
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(
+                "Fallo al registrar evento de competencia finalizada",
+                extra={"competencia_id": competencia_id, "error": str(e)},
+                exc_info=True,
+            )
 
         return {
             'status': 'ok',
@@ -528,6 +590,11 @@ def _finalizar_una_competencia(db,
             'motivo_cierre': motivo_cierre,
         }
     except Exception as e:
+        logger.error(
+            "Fallo al finalizar una competencia",
+            extra={"competencia_id": competencia_id, "error": str(e)},
+            exc_info=True,
+        )
         try:
             conn.rollback()
         except Exception:
@@ -577,10 +644,19 @@ def forzar_competencia(db,
                     actor_tipo='admin',
                     metadata={'grupo_id': grupo_id, 'oficio': oficio_s, 'original': aliado_original_codigo, 'retador': retador_codigo},
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "Fallo al registrar evento de competencia forzada",
+                    extra={"grupo_id": grupo_id, "admin_codigo": admin_codigo, "error": str(e)},
+                    exc_info=True,
+                )
             return {'status': 'success', 'message': 'Competencia forzada correctamente', 'competencia_id': last_id}
         except Exception as e:
+            logger.error(
+                "Fallo al forzar competencia",
+                extra={"grupo_id": grupo_id, "admin_codigo": admin_codigo, "error": str(e)},
+                exc_info=True,
+            )
             return {'status': 'error', 'message': str(e)}
         finally:
             try:
@@ -650,7 +726,12 @@ def obtener_competencia_info_aliado(db, codigo_aliado: str) -> Optional[Dict[str
                 'dias_restantes': dias,
                 'contrincante_codigo': r.get('retador_codigo') if rol == 'titular' else r.get('aliado_original_codigo'),
             }
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al obtener info de competencia del aliado",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             return None
         finally:
             conn.close()
@@ -665,7 +746,12 @@ def competencia_activa_para_grupo_oficio(db, grupo_id: int, oficio: str) -> Opti
             cols = db._columnas_compat_competencia(cursor)
             row = _repo.select_activa_grupo_oficio(cursor, cols, grupo_id, oficio)
             return dict(row) if row else None
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al consultar competencia activa de grupo y oficio",
+                extra={"grupo_id": grupo_id, "error": str(e)},
+                exc_info=True,
+            )
             return None
         finally:
             conn.close()
@@ -697,7 +783,12 @@ def _buscar_retador(db, codigo_aliado_en_riesgo: str, grupo_id: int, oficio: str
                 cursor, oficio, codigo_postal, codigo_aliado_en_riesgo, grupo_id
             )
             return dict(row) if row else None
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al buscar retador de competencia",
+                extra={"aliado_codigo": codigo_aliado_en_riesgo, "grupo_id": grupo_id, "error": str(e)},
+                exc_info=True,
+            )
             return None
         finally:
             conn.close()
@@ -711,7 +802,12 @@ def _gano_competencia_ultimos_meses(db, codigo_aliado: str, meses: int) -> bool:
             conn = db._connect()
             cursor = conn.cursor()
             return _repo.gano_ultimos_meses(cursor, codigo_aliado, meses)
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al comprobar si el aliado ganó competencia reciente",
+                extra={"aliado_codigo": codigo_aliado, "error": str(e)},
+                exc_info=True,
+            )
             return False
         finally:
             conn.close()
@@ -749,6 +845,11 @@ def purga_mensual(db) -> Dict[str, Any]:
                     _repo.suspender_temporal(cursor, item['codigo'])
                 conn.commit()
             except Exception as e:
+                logger.error(
+                    "Fallo al aplicar purga mensual de competencias",
+                    extra={"error": str(e)},
+                    exc_info=True,
+                )
                 try:
                     conn.rollback()
                 except Exception:
@@ -895,7 +996,12 @@ def _avisar_grupos_cp_competencia(
                 "INSERT INTO avisos_grupo (grupo_id, tipo, texto) VALUES (?, 'competencia', ?)",
                 (gid, texto),
             )
-    except Exception:
+    except Exception as e:
+        logger.warning(
+            "Fallo al avisar grupos del CP sobre competencia",
+            extra={"error": str(e)},
+            exc_info=True,
+        )
         return
 
 
@@ -1029,10 +1135,18 @@ def _registrar_competencia_pendiente(db, codigo_aliado: str) -> None:
                     actor_tipo='sistema',
                     metadata={'aliado_codigo': codigo, 'oficio': row[1], 'codigo_postal': row[3]},
                 )
-            except Exception:
-                pass
-        except Exception:
-            pass
+            except Exception as e:
+                logger.warning(
+                    "Fallo al registrar evento de competencia pendiente",
+                    extra={"aliado_codigo": codigo, "error": str(e)},
+                    exc_info=True,
+                )
+        except Exception as e:
+            logger.error(
+                "Fallo al registrar competencia pendiente",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
         finally:
             conn.close()
 
@@ -1051,8 +1165,12 @@ def _marcar_competencia_pendiente_resuelta(db, codigo_aliado: str, estado: str =
                 (estado, codigo),
             )
             conn.commit()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(
+                "Fallo al marcar competencia pendiente como resuelta",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
         finally:
             conn.close()
 
@@ -1073,7 +1191,12 @@ def _sanear_competencias_participantes_ausentes(db) -> List[Dict[str, Any]]:
                 f"{col_prev} AS retador_grupo_anterior_id FROM competencia WHERE estado = 'activa'"
             )
             activas = [dict(r) for r in cursor.fetchall()]
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al listar competencias activas para saneado de ausentes",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             conn.close()
@@ -1110,8 +1233,12 @@ def _cancelar_competencia_sin_participantes(db, competencia_id: int, grupo_id: i
             )
             cursor.execute("UPDATE grupos SET estado = 'activo' WHERE id = ?", (grupo_id,))
             conn.commit()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(
+                "Fallo al cancelar competencia sin participantes",
+                extra={"competencia_id": competencia_id, "grupo_id": grupo_id, "error": str(e)},
+                exc_info=True,
+            )
         finally:
             conn.close()
 
@@ -1124,7 +1251,12 @@ def grupo_tiene_competencia_activa(db, grupo_id: int) -> bool:
             cursor = conn.cursor()
             cursor.execute("SELECT 1 FROM competencia WHERE grupo_id = ? AND estado = 'activa' LIMIT 1", (grupo_id,))
             return cursor.fetchone() is not None
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al comprobar si el grupo tiene competencia activa",
+                extra={"grupo_id": grupo_id, "error": str(e)},
+                exc_info=True,
+            )
             return False
         finally:
             conn.close()

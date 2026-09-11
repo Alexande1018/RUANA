@@ -12,8 +12,11 @@ from core.services import territorio_service
 
 
 from datetime import datetime, timedelta, timezone
+import logging
 import sqlite3
 from typing import Any, Dict, List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 _repo = AliadoRepo()
 
@@ -116,8 +119,12 @@ def crear_aliado(db, codigo: str, nombre: str, marca: str = "",
                             (ubic or {}).get("ciudad") or "",
                             (ubic or {}).get("provincia") or "",
                         )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(
+                        "Fallo al registrar histórico de CP elegible",
+                        extra={"aliado_codigo": codigo, "error": str(e)},
+                        exc_info=True,
+                    )
 
             row = _repo.select_fila_basica_por_id(cursor, aliado_id)
             if row and hasattr(row, 'keys'):
@@ -137,11 +144,20 @@ def crear_aliado(db, codigo: str, nombre: str, marca: str = "",
                 out['mensaje_lista_espera'] = mensaje_lista_espera
                 try:
                     db._procesar_competencias_pendientes(codigo_postal, oficio_stripped)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(
+                        "Fallo al procesar competencias pendientes tras lista de espera",
+                        extra={"aliado_codigo": codigo, "error": str(e)},
+                        exc_info=True,
+                    )
             return out
 
         except sqlite3.IntegrityError as e:
+            logger.error(
+                "Fallo de integridad al crear aliado",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             try:
                 if conn is not None:
                     conn.rollback()
@@ -149,6 +165,11 @@ def crear_aliado(db, codigo: str, nombre: str, marca: str = "",
                 pass
             return {'status': 'error', 'message': f'Error de integridad: {e}'}
         except Exception as e:
+            logger.error(
+                "Fallo al crear aliado",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             try:
                 if conn is not None:
                     conn.rollback()
@@ -259,8 +280,12 @@ def completar_aliado_pendiente(db, codigo: str, nombre: str, marca: str = "",
                             (ubic or {}).get("ciudad") or "",
                             (ubic or {}).get("provincia") or "",
                         )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(
+                        "Fallo al registrar histórico de CP elegible",
+                        extra={"aliado_codigo": codigo, "error": str(e)},
+                        exc_info=True,
+                    )
 
             row = _repo.select_fila_basica_por_id(cursor, aliado_id)
             if row and hasattr(row, 'keys'):
@@ -280,12 +305,26 @@ def completar_aliado_pendiente(db, codigo: str, nombre: str, marca: str = "",
                 out['mensaje_lista_espera'] = mensaje_lista_espera
                 try:
                     db._procesar_competencias_pendientes(codigo_postal, oficio_stripped)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(
+                        "Fallo al procesar competencias pendientes tras lista de espera",
+                        extra={"aliado_codigo": codigo, "error": str(e)},
+                        exc_info=True,
+                    )
             return out
         except sqlite3.IntegrityError as e:
+            logger.error(
+                "Fallo de integridad al completar aliado pendiente",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             return {'status': 'error', 'message': f'Error de integridad: {e}'}
         except Exception as e:
+            logger.error(
+                "Fallo al completar aliado pendiente",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             return {'status': 'error', 'message': str(e)}
         finally:
             if conn:
@@ -401,8 +440,18 @@ def crear_aliado_seed(db, codigo: str, nombre: str, marca: str = "",
                 'creado_en': datetime.now().isoformat()
             }
         except sqlite3.IntegrityError as e:
+            logger.error(
+                "Fallo de integridad al crear aliado seed",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             return {'status': 'error', 'message': f'Error de integridad: {e}'}
         except Exception as e:
+            logger.error(
+                "Fallo al crear aliado seed",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             return {'status': 'error', 'message': str(e)}
         finally:
             conn.close()
@@ -437,7 +486,11 @@ def obtener_aliado_por_codigo(db, codigo: str) -> Optional[Dict[str, Any]]:
             return item
             
         except Exception as e:
-            print(f"Error obteniendo aliado: {e}")
+            logger.error(
+                "Fallo al obtener aliado por código",
+                extra={"aliado_codigo": codigo_str, "error": str(e)},
+                exc_info=True,
+            )
             return None
         finally:
             conn.close()
@@ -455,7 +508,11 @@ def obtener_aliado_por_id(db, aliado_id: int) -> Optional[Dict[str, Any]]:
             return dict(row) if row else None
             
         except Exception as e:
-            print(f"Error obteniendo aliado por ID: {e}")
+            logger.error(
+                "Fallo al obtener aliado por ID",
+                extra={"aliado_id": aliado_id, "error": str(e)},
+                exc_info=True,
+            )
             return None
         finally:
             conn.close()
@@ -507,6 +564,11 @@ def actualizar_aliado(db, codigo: str, **kwargs) -> Dict[str, Any]:
             }
 
         except Exception as e:
+            logger.error(
+                "Fallo al actualizar aliado",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             return {'status': 'error', 'message': str(e)}
 
 def listar_aliados_en_pool(db) -> List[Dict[str, Any]]:
@@ -517,7 +579,12 @@ def listar_aliados_en_pool(db) -> List[Dict[str, Any]]:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             return [dict(row) for row in _repo.listar_en_pool(cursor)]
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Fallo al listar aliados en pool",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             conn.close()
@@ -534,8 +601,12 @@ def listar_aliados(db, filtro_postal: str = None) -> List[Dict[str, Any]]:
     """
     try:
         db.backfill_invitado_por_linaje()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(
+            "Fallo al rellenar linaje de invitados al listar aliados",
+            extra={"error": str(e)},
+            exc_info=True,
+        )
     with db._lock:
         try:
             conn = db._connect()
@@ -616,7 +687,11 @@ def listar_aliados(db, filtro_postal: str = None) -> List[Dict[str, Any]]:
             return aliados
             
         except Exception as e:
-            print(f"Error listando aliados: {e}")
+            logger.error(
+                "Fallo al listar aliados",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             conn.close()
@@ -684,7 +759,11 @@ def listar_aliados_directorio_grupo(db, codigo_aliado: str) -> List[Dict[str, An
                 result.append(item)
             return result
         except Exception as e:
-            print(f"Error listar_aliados_directorio_grupo: {e}")
+            logger.error(
+                "Fallo al listar directorio de grupo",
+                extra={"aliado_codigo": codigo_aliado, "error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             conn.close()
@@ -699,7 +778,11 @@ def listar_aliados_pendiente_validacion(db) -> List[Dict[str, Any]]:
             rows = _repo.listar_pendiente_validacion(cursor)
             return [dict(r) for r in rows] if rows else []
         except Exception as e:
-            print(f"Error listando aliados pendientes: {e}")
+            logger.error(
+                "Fallo al listar aliados pendientes de validación",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             conn.close()
@@ -759,6 +842,11 @@ def activar_aliado_por_id(db, aliado_id: int) -> Dict[str, Any]:
             conn.commit()
             return result
         except Exception as e:
+            logger.error(
+                "Fallo al activar aliado pendiente por ID",
+                extra={"aliado_id": aliado_id, "error": str(e)},
+                exc_info=True,
+            )
             return {'status': 'error', 'message': str(e)}
         finally:
             conn.close()
@@ -782,6 +870,11 @@ def activar_aliado_pendiente(db, codigo: str) -> Dict[str, Any]:
             conn.commit()
             return result
         except Exception as e:
+            logger.error(
+                "Fallo al activar aliado pendiente",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             return {'status': 'error', 'message': str(e)}
         finally:
             conn.close()
@@ -814,9 +907,12 @@ def pausar_aliado(db, codigo_aliado: str, razon: Optional[str] = None, admin_cod
             if razon:
                 try:
                     _repo.insertar_historico_pausa(cursor, razon, codigo_aliado)
-                except Exception:
-                    # No romper por fallos en histórico
-                    pass
+                except Exception as e:
+                    logger.warning(
+                        "Fallo al registrar histórico de pausa de aliado",
+                        extra={"aliado_codigo": codigo_aliado, "error": str(e)},
+                        exc_info=True,
+                    )
 
             # Registrar evento de sistema dentro de la misma transacción
             try:
@@ -828,9 +924,12 @@ def pausar_aliado(db, codigo_aliado: str, razon: Optional[str] = None, admin_cod
                     actor_codigo=admin_codigo,
                     metadata={"codigo_aliado": codigo_aliado, "razon": razon},
                 )
-            except Exception:
-                # No romper operación principal por fallo en log
-                pass
+            except Exception as e:
+                logger.warning(
+                    "Fallo al registrar evento de pausa de aliado",
+                    extra={"aliado_codigo": codigo_aliado, "admin_codigo": admin_codigo, "error": str(e)},
+                    exc_info=True,
+                )
 
             conn.commit()
 
@@ -840,7 +939,11 @@ def pausar_aliado(db, codigo_aliado: str, razon: Optional[str] = None, admin_cod
                 'nuevo_estado': 'suspendido_temporal',
             }
         except Exception as e:
-            print(f"Error pausando aliado {codigo_aliado}: {e}")
+            logger.error(
+                "Fallo al pausar aliado",
+                extra={"aliado_codigo": codigo_aliado, "admin_codigo": admin_codigo, "error": str(e)},
+                exc_info=True,
+            )
             return {'status': 'error', 'message': str(e)}
         finally:
             try:
@@ -858,7 +961,11 @@ def listar_aliados_eliminados(db, limite: int = 200) -> List[Dict[str, Any]]:
             rows = _repo.listar_eliminados(cursor, limite)
             return [dict(r) for r in rows] if rows else []
         except Exception as e:
-            print(f"Error listando aliados eliminados: {e}")
+            logger.error(
+                "Fallo al listar aliados eliminados",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             try:
@@ -927,8 +1034,12 @@ def eliminar_perfil_aliado_admin(db,
                         "motivo": motivo_txt,
                     },
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "Fallo al registrar evento de perfil de aliado eliminado",
+                    extra={"aliado_codigo": codigo, "admin_codigo": admin_codigo, "error": str(e)},
+                    exc_info=True,
+                )
 
             conn.commit()
             return {
@@ -939,6 +1050,11 @@ def eliminar_perfil_aliado_admin(db,
                 'nuevo_estado': 'eliminado',
             }
         except Exception as e:
+            logger.error(
+                "Fallo al eliminar perfil de aliado (admin)",
+                extra={"aliado_codigo": codigo, "admin_codigo": admin_codigo, "error": str(e)},
+                exc_info=True,
+            )
             try:
                 conn.rollback()
             except Exception:
@@ -959,7 +1075,11 @@ def listar_aliados_en_espera(db) -> List[Dict[str, Any]]:
             cursor = conn.cursor()
             return [dict(row) for row in _repo.listar_en_espera(cursor)]
         except Exception as e:
-            print(f"[RUANA][DB] Error listar_aliados_en_espera: {e}")
+            logger.error(
+                "Fallo al listar aliados en espera",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             conn.close()
@@ -1024,8 +1144,12 @@ def incorporar_aliado_espera(db, codigo: str, grupo_id: Optional[int] = None,
                     actor_codigo=admin_codigo,
                     metadata={'codigo': codigo, 'grupo_id': grupo_asignado},
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "Fallo al registrar evento al incorporar aliado en espera",
+                    extra={"aliado_codigo": codigo, "admin_codigo": admin_codigo, "error": str(e)},
+                    exc_info=True,
+                )
             try:
                 aliado_row = db.obtener_aliado_por_codigo(codigo)
                 if aliado_row:
@@ -1033,10 +1157,19 @@ def incorporar_aliado_espera(db, codigo: str, grupo_id: Optional[int] = None,
                     of = (aliado_row.get('oficio') or '').strip()
                     if cp and of:
                         db._procesar_competencias_pendientes(cp, of)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "Fallo al procesar competencias pendientes al incorporar aliado en espera",
+                    extra={"aliado_codigo": codigo, "error": str(e)},
+                    exc_info=True,
+                )
             return {'status': 'success', 'message': 'Aliado incorporado correctamente', 'grupo_id': grupo_asignado}
         except Exception as e:
+            logger.error(
+                "Fallo al incorporar aliado en espera",
+                extra={"aliado_codigo": codigo, "admin_codigo": admin_codigo, "error": str(e)},
+                exc_info=True,
+            )
             return {'status': 'error', 'message': str(e)}
         finally:
             if conn:
@@ -1052,7 +1185,11 @@ def codigo_existe(db, codigo: str) -> bool:
             cursor = conn.cursor()
             return _repo.existe_codigo(cursor, codigo)
         except Exception as e:
-            print(f"Error verificando código: {e}")
+            logger.error(
+                "Fallo al verificar si existe el código de aliado",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             return False
         finally:
             if conn:
@@ -1084,8 +1221,12 @@ def registrar_acceso_login(db,
     # Penalización 6 ANTES de registrar el acceso de hoy (si no, MAX(dia)=hoy y no penaliza)
     try:
         db.aplicar_penalizacion_sin_acceso_semanal(codigo_aliado, dia_ref=dia_val)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(
+            "Fallo al aplicar penalización por semanas sin acceso",
+            extra={"aliado_codigo": codigo_aliado, "error": str(e)},
+            exc_info=True,
+        )
 
     with db._lock:
         conn = None
@@ -1097,6 +1238,11 @@ def registrar_acceso_login(db,
             _repo.insertar_acceso_dia(cursor, codigo_aliado, dia_val)
             conn.commit()
         except Exception as e:
+            logger.error(
+                "Fallo al registrar acceso de login",
+                extra={"aliado_codigo": codigo_aliado, "error": str(e)},
+                exc_info=True,
+            )
             return {'status': 'error', 'message': str(e)}
         finally:
             if conn is not None:
@@ -1113,8 +1259,12 @@ def registrar_acceso_login(db,
             db.aplicar_cambio_score(hito[0], hito[1], hito[2])
             aplicado = True
             motivo = hito[2]
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(
+            "Fallo al aplicar cambio de score de Regla 8",
+            extra={"aliado_codigo": codigo_aliado, "error": str(e)},
+            exc_info=True,
+        )
     return {
         'status': 'success',
         'codigo': codigo_aliado,
@@ -1154,6 +1304,11 @@ def rechazar_aliado_pendiente(db, codigo: str) -> Dict[str, Any]:
                 return {'status': 'success', 'message': f'Aliado {codigo} rechazado. No podrá acceder al panel.'}
             return {'status': 'error', 'message': f'Aliado {codigo} no encontrado o no está pendiente de validación'}
         except Exception as e:
+            logger.error(
+                "Fallo al rechazar aliado pendiente",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             return {'status': 'error', 'message': str(e)}
         finally:
             conn.close()
@@ -1233,6 +1388,11 @@ def registrar_consentimiento_aliado(
             }
             return {"status": "success", "consentimiento": item}
         except Exception as e:
+            logger.error(
+                "Fallo al registrar consentimiento de aliado",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             return {"status": "error", "message": str(e)}
         finally:
             if conn is not None:
@@ -1274,6 +1434,11 @@ def exportar_datos_aliado(db, codigo_aliado: str) -> Dict[str, Any]:
                 },
             }
         except Exception as e:
+            logger.error(
+                "Fallo al exportar datos de aliado",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             return {"status": "error", "message": str(e)}
         finally:
             if conn is not None:
@@ -1315,6 +1480,11 @@ def crear_solicitud_baja_aliado(
                 "message": "Solicitud de baja registrada. Un administrador la revisará; la cuenta no se borra de inmediato.",
             }
         except Exception as e:
+            logger.error(
+                "Fallo al crear solicitud de baja de aliado",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
             return {"status": "error", "message": str(e)}
         finally:
             if conn is not None:
@@ -1330,7 +1500,11 @@ def listar_solicitudes_baja_aliado(db, limite: int = 200) -> List[Dict[str, Any]
             cursor = conn.cursor()
             return _rows_as_dicts(_repo.listar_solicitudes_baja(cursor, limite))
         except Exception as e:
-            print(f"Error listando solicitudes de baja: {e}")
+            logger.error(
+                "Fallo al listar solicitudes de baja de aliado",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return []
         finally:
             if conn is not None:
@@ -1367,6 +1541,11 @@ def resolver_solicitud_baja_aliado(
             actualizada = _row_as_dict(_repo.select_solicitud_baja_por_id(cursor, int(solicitud_id)))
             return {"status": "success", "solicitud": actualizada}
         except Exception as e:
+            logger.error(
+                "Fallo al resolver solicitud de baja de aliado",
+                extra={"admin_codigo": admin_codigo, "error": str(e)},
+                exc_info=True,
+            )
             return {"status": "error", "message": str(e)}
         finally:
             if conn is not None:
