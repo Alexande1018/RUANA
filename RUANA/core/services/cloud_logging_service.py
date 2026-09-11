@@ -346,14 +346,34 @@ def _es_error_permiso(exc: BaseException) -> bool:
     )
 
 
+def _entradas_de_pagina(page: Any) -> List[Any]:
+    if page is None:
+        return []
+    entries = getattr(page, "entries", None)
+    if entries is not None and not isinstance(page, (list, tuple)):
+        return list(entries)
+    try:
+        return list(page)
+    except TypeError:
+        return [page]
+
+
 def pagina_desde_iterador(iterator: Any, page_size: int) -> Tuple[List[Any], Optional[str]]:
-    """Lee una página tanto de pagers GAPIC (.pages) como de generadores planos."""
+    """Lee una página de pagers GAPIC, ListLogEntriesResponse o generadores planos."""
     pages = getattr(iterator, "pages", None)
     if pages is not None:
-        page = next(pages, None)
-        entries = list(page) if page is not None else []
-        token = getattr(iterator, "next_page_token", None) or None
-        return entries, token or None
+        try:
+            page = next(pages, None)
+        except TypeError:
+            page = None
+        else:
+            if page is not None:
+                token = (
+                    getattr(iterator, "next_page_token", None)
+                    or getattr(page, "next_page_token", None)
+                    or None
+                )
+                return _entradas_de_pagina(page), token or None
     entries = list(islice(iterator, page_size))
     token = getattr(iterator, "next_page_token", None) or None
     return entries, token or None

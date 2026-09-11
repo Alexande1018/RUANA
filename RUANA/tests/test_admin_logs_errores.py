@@ -104,6 +104,24 @@ def test_pagina_desde_iterador_usa_pages_si_existen():
     assert token == "tok-2"
 
 
+def test_pagina_desde_iterador_acepta_list_log_entries_response():
+    """El pager GAPIC entrega ListLogEntriesResponse, no un iterable de entradas."""
+    class Response:
+        entries = [_entrada_score(), _entrada_score()]
+        next_page_token = "tok-3"
+
+    class Pager:
+        next_page_token = "tok-3"
+
+        @property
+        def pages(self):
+            yield Response()
+
+    entradas, token = cls.pagina_desde_iterador(Pager(), page_size=50)
+    assert len(entradas) == 2
+    assert token == "tok-3"
+
+
 def test_parsear_entrada_json_payload_estilo_gapic():
     entry = SimpleNamespace(
         timestamp=datetime(2026, 9, 11, 12, 0, tzinfo=timezone.utc),
