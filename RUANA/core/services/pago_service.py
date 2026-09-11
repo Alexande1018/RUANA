@@ -555,8 +555,16 @@ def resolver_payment_conflict_admin(db, conflict_id: int, decision: str, comenta
             db.aplicar_penalizacion_disputa_perdida(
                 contacto_penal_disputa, decision_penal_disputa
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(
+                "Fallo al aplicar penalización de disputa perdida",
+                extra={
+                    "contacto_id": contacto_penal_disputa,
+                    "conflict_id": conflict_id,
+                    "error": str(e),
+                },
+                exc_info=True,
+            )
     return resultado
 
 def resolver_conflicto_pago(db, contacto_id: int, importe_valido: float,
@@ -797,8 +805,12 @@ def actualizar_estado_pago_contacto(db, contacto_id: int, nuevo_estado: str,
     for codigo, delta, motivo in scores_aplicar:
         try:
             db.aplicar_cambio_score(codigo, delta, motivo)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(
+                "Fallo al aplicar cambio de score tras pago de Apoyo RUANA",
+                extra={"contacto_id": contacto_id, "aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
     return resultado
 
 def tiene_pagos_ruana_pendientes(db, codigo_profesional: str) -> bool:
@@ -1058,6 +1070,7 @@ def profesional_stripe_listo(db, codigo_profesional: str) -> bool:
     codigo = (codigo_profesional or "").strip()
     if not codigo:
         return False
+    stripe_account_id = ""
     with db._lock:
         conn = None
         try:
@@ -1070,14 +1083,19 @@ def profesional_stripe_listo(db, codigo_profesional: str) -> bool:
                 "stripe_account_id": row[3],
                 "stripe_charges_enabled": row[4],
             }
+            stripe_account_id = (data.get("stripe_account_id") or "").strip()
             return bool(
-                (data.get("stripe_account_id") or "").strip()
+                stripe_account_id
                 and int(data.get("stripe_charges_enabled") or 0) == 1
             )
         except Exception as e:
             logger.error(
                 "Fallo al comprobar si el profesional está listo para Stripe",
-                extra={"aliado_codigo": codigo, "error": str(e)},
+                extra={
+                    "aliado_codigo": codigo,
+                    "stripe_account_id": stripe_account_id,
+                    "error": str(e),
+                },
                 exc_info=True,
             )
             return False
@@ -1090,6 +1108,7 @@ def sincronizar_estado_stripe_profesional(db, codigo_profesional: str) -> Dict[s
     codigo = (codigo_profesional or "").strip()
     if not codigo or not stripe_habilitado_global():
         return {"status": "skipped", "stripe_pago_listo": False}
+    account_id = ""
     with db._lock:
         conn = None
         try:
@@ -1127,7 +1146,11 @@ def sincronizar_estado_stripe_profesional(db, codigo_profesional: str) -> Dict[s
         except Exception as e:
             logger.error(
                 "Fallo al sincronizar estado Stripe del profesional",
-                extra={"aliado_codigo": codigo, "error": str(e)},
+                extra={
+                    "aliado_codigo": codigo,
+                    "stripe_account_id": account_id,
+                    "error": str(e),
+                },
                 exc_info=True,
             )
             if conn:
@@ -1302,8 +1325,12 @@ def _aplicar_score_tras_transfer(db, contacto_id: int, solicitante_codigo: str, 
     for codigo, delta, motivo in scores_aplicar:
         try:
             db.aplicar_cambio_score(codigo, delta, motivo)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(
+                "Fallo al aplicar cambio de score tras transferencia Stripe",
+                extra={"contacto_id": contacto_id, "aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
 
 
 def confirmar_trabajo_y_transferir(
@@ -1413,13 +1440,17 @@ def _procesar_pago_confirmado(
         except Exception as e:
             from core.services.financial_ledger_hooks import LedgerHookError
 
-            if isinstance(e, LedgerHookError):
-                raise
             logger.error(
                 "Fallo al procesar pago Stripe confirmado",
-                extra={"contacto_id": contacto_id, "error": str(e)},
+                extra={
+                    "contacto_id": contacto_id,
+                    "payment_intent_id": payment_intent_id,
+                    "error": str(e),
+                },
                 exc_info=True,
             )
+            if isinstance(e, LedgerHookError):
+                raise
             if conn:
                 conn.rollback()
             return {"status": "error", "message": str(e)}
@@ -1497,6 +1528,7 @@ def iniciar_onboarding_stripe_profesional(db, codigo_profesional: str) -> Dict[s
         return {"status": "error", "message": "Pagos Stripe no habilitados"}
     settings = get_settings()
     base_url = (settings.public_app_url or "http://localhost:5000").rstrip("/")
+    account_id = ""
     with db._lock:
         conn = None
         try:
@@ -1528,7 +1560,11 @@ def iniciar_onboarding_stripe_profesional(db, codigo_profesional: str) -> Dict[s
         except Exception as e:
             logger.error(
                 "Fallo al iniciar onboarding Stripe del profesional",
-                extra={"aliado_codigo": codigo, "error": str(e)},
+                extra={
+                    "aliado_codigo": codigo,
+                    "stripe_account_id": account_id,
+                    "error": str(e),
+                },
                 exc_info=True,
             )
             if conn:
