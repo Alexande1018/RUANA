@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 from typing import Any, Dict, List, Optional, Sequence
 
 from core.financial.ledger_accounts import CuentaLedger, cuenta_valida
@@ -10,6 +11,7 @@ from core.financial.ledger_types import TipoLedgerTransaction
 from core.financial.reconciliation_snapshot import comision_ruana_cents
 from core.repositories.financial_ledger_repo import FinancialLedgerRepo
 
+logger = logging.getLogger(__name__)
 _repo = FinancialLedgerRepo()
 
 LEDGER_VERSION = "fase08-1"
@@ -171,6 +173,11 @@ def publicar_transaccion(
                 "credit_cents": haber,
             }
         except Exception as e:
+            logger.error(
+                "Fallo al publicar transacción del ledger",
+                extra={"contacto_id": contacto_id, "error": str(e)},
+                exc_info=True,
+            )
             if conn:
                 conn.rollback()
             return {"status": "error", "message": str(e)[:300]}

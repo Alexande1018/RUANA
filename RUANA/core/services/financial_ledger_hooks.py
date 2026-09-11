@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any, Callable, Dict, Optional
 
 from core.services import financial_ledger_service as fls
+
+logger = logging.getLogger(__name__)
 
 
 class LedgerHookError(RuntimeError):
@@ -46,16 +49,24 @@ def _registrar_alerta_ledger_inmediata(
                     conn.commit()
             finally:
                 conn.close()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(
+            "Fallo al persistir alerta inmediata de hook de ledger",
+            extra={"hook": hook, "contacto_id": contacto_id, "error": str(e)},
+            exc_info=True,
+        )
     try:
         db.registrar_evento_sistema(
             "ledger_hook_fallido",
             json.dumps(meta, ensure_ascii=False)[:500],
             actor_tipo="sistema",
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(
+            "Fallo al registrar evento de sistema de hook de ledger",
+            extra={"hook": hook, "contacto_id": contacto_id, "error": str(e)},
+            exc_info=True,
+        )
 
 
 def _run_ledger(
@@ -69,6 +80,11 @@ def _run_ledger(
     try:
         result = call()
     except Exception as exc:
+        logger.error(
+            "Fallo en hook de ledger",
+            extra={"hook": hook, "contacto_id": contacto_id, "error": str(exc)},
+            exc_info=True,
+        )
         _registrar_alerta_ledger_inmediata(
             db, hook=hook, contacto_id=contacto_id, error=str(exc),
         )

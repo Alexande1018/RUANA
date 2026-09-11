@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from typing import Any, Dict, Optional, Tuple
 
@@ -19,6 +20,7 @@ from core.repositories.pago_repo import PagoRepo
 from core.services import financial_transaction_service as fts
 from core.services import schema_service
 
+logger = logging.getLogger(__name__)
 _pago_repo = PagoRepo()
 _fin_repo = FinancialTransactionRepo()
 _transfer_repo = FinancialTransferRepo()
@@ -169,6 +171,16 @@ def ejecutar_liberacion_y_transferencia(
 
             conn.commit()
         except Exception as e:
+            logger.error(
+                "Fallo al autorizar liberación y reclamar transferencia",
+                extra={
+                    "contacto_id": contacto_id,
+                    "aliado_codigo": codigo,
+                    "stripe_account_id": account_id,
+                    "error": str(e),
+                },
+                exc_info=True,
+            )
             if conn:
                 conn.rollback()
             return {"status": "error", "message": str(e)}
@@ -252,6 +264,16 @@ def ejecutar_liberacion_y_transferencia(
                 "idempotent": False,
             }
         except Exception as e:
+            logger.error(
+                "Fallo al registrar transferencia Stripe enviada",
+                extra={
+                    "contacto_id": contacto_id,
+                    "aliado_codigo": codigo,
+                    "stripe_account_id": account_id,
+                    "error": str(e),
+                },
+                exc_info=True,
+            )
             if conn:
                 conn.rollback()
             return {"status": "error", "message": str(e)}
@@ -362,6 +384,15 @@ def finalizar_transferencia_completada(
                 "estado_financiero": EstadoFinanciero.TRANSFERIDO.value,
             }
         except Exception as e:
+            logger.error(
+                "Fallo al marcar transferencia Stripe como TRANSFERIDO",
+                extra={
+                    "contacto_id": contacto_id,
+                    "transfer_id": transfer_id,
+                    "error": str(e),
+                },
+                exc_info=True,
+            )
             if conn:
                 conn.rollback()
             return {"status": "error", "message": str(e)}
@@ -709,6 +740,15 @@ def _crear_o_recuperar_transferencia_stripe(
         return transfer_id, ""
     except Exception as e:
         err = str(e)
+        logger.error(
+            "Fallo al crear transferencia Stripe, reintentando por idempotencia",
+            extra={
+                "contacto_id": contacto_id,
+                "stripe_account_id": account_id,
+                "error": str(e),
+            },
+            exc_info=True,
+        )
         try:
             recovered = stripe_client.retrieve_transfer_by_idempotency_metadata(
                 contacto_id=contacto_id,
@@ -718,8 +758,17 @@ def _crear_o_recuperar_transferencia_stripe(
             )
             if recovered and recovered.get("id"):
                 return str(recovered["id"]), ""
-        except Exception:
-            pass
+        except Exception as e2:
+            logger.error(
+                "Fallo también la recuperación por idempotencia tras error de creación",
+                extra={
+                    "contacto_id": contacto_id,
+                    "stripe_account_id": account_id,
+                    "error_original": str(e),
+                    "error_recuperacion": str(e2),
+                },
+                exc_info=True,
+            )
         return "", err
 
 
