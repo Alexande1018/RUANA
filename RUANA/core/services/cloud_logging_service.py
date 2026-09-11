@@ -7,6 +7,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from itertools import islice
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from urllib.parse import unquote
 
 from core.settings import get_settings
 
@@ -16,6 +17,17 @@ _HORAS_MAX = 168
 _LIMITE_DEFAULT = 50
 _LIMITE_MAX = 100
 _SERVICE_DEFAULT = "ruana"
+_SEVERIDAD_NUM = {
+    0: "DEFAULT",
+    100: "DEBUG",
+    200: "INFO",
+    300: "NOTICE",
+    400: "WARNING",
+    500: "ERROR",
+    600: "CRITICAL",
+    700: "ALERT",
+    800: "EMERGENCY",
+}
 
 _PAYLOAD_RESERVADO = frozenset({
     "message",
@@ -228,6 +240,13 @@ def _stack_desde_payload(payload: Any, text_payload: str = "") -> Optional[str]:
     return None
 
 
+def _nombre_log(raw: Any) -> str:
+    name = str(getattr(raw, "name", raw) or "")
+    if "/logs/" in name:
+        name = name.rsplit("/logs/", 1)[-1]
+    return unquote(name)
+
+
 def _logger_desde_entry(entry: Any, payload: Any) -> str:
     if isinstance(payload, dict):
         for key in ("logger", "loggerName", "python_logger", "name"):
@@ -236,16 +255,13 @@ def _logger_desde_entry(entry: Any, payload: Any) -> str:
                 return str(val)
     if isinstance(entry, dict):
         raw = entry.get("logger") or entry.get("logName") or entry.get("log_name") or ""
-        return str(getattr(raw, "name", raw) or "")
+        return _nombre_log(raw)
     logger_obj = getattr(entry, "logger", None)
     if logger_obj:
-        return str(getattr(logger_obj, "name", logger_obj) or "")
+        return _nombre_log(logger_obj)
     log_name = getattr(entry, "log_name", None) or getattr(entry, "logName", None)
     if log_name:
-        name = str(log_name)
-        if "/logs/" in name:
-            name = name.rsplit("/logs/", 1)[-1]
-        return name
+        return _nombre_log(log_name)
     return ""
 
 
@@ -271,15 +287,44 @@ def _severity_de(entry: Any, payload: Any) -> str:
         raw = getattr(entry, "severity", None)
     if raw is not None and raw != "":
         name = getattr(raw, "name", None)
+        if isinstance(raw, int) or (isinstance(raw, str) and str(raw).isdigit()):
+            mapped = _SEVERIDAD_NUM.get(int(raw))
+            if mapped:
+                return mapped
         text = str(name or raw)
         if "." in text:
             text = text.rsplit(".", 1)[-1]
         text = text.upper()
+        if text.isdigit():
+            mapped = _SEVERIDAD_NUM.get(int(text))
+            if mapped:
+                return mapped
         if text and text != "SEVERITY_UNSPECIFIED":
             return text
     if isinstance(payload, dict) and payload.get("severity"):
         return str(payload.get("severity")).upper()
     return ""
+
+
+def _http_request_de(entry: Any) -> Any:
+    if isinstance(entry, dict):
+        return entry.get("httpRequest") or entry.get("http_request")
+    return getattr(entry, "http_request", None)
+
+
+def _mensaje_http(http: Any) -> str:
+    if not http:
+        return ""
+    if isinstance(http, dict):
+        method = http.get("requestMethod") or http.get("request_method") or ""
+        status = http.get("status")
+        url = http.get("requestUrl") or http.get("request_url") or ""
+    else:
+        method = getattr(http, "request_method", "") or ""
+        status = getattr(http, "status", None)
+        url = getattr(http, "request_url", "") or ""
+    parts = [str(part) for part in (method, status, url) if part not in (None, "")]
+    return " ".join(parts)
 
 
 def _mensaje_de(payload: Any) -> str:
@@ -303,7 +348,11 @@ def parsear_entrada(entry: Any, incluir_stack: bool = False) -> Dict[str, Any]:
         text_payload = str(getattr(entry, "text_payload", "") or "")
         if not text_payload and isinstance(payload, str):
             text_payload = payload
-    mensaje = _mensaje_de(payload) or text_payload.split("\n", 1)[0]
+    mensaje = (
+        _mensaje_de(payload)
+        or (text_payload.split("\n", 1)[0] if text_payload else "")
+        or _mensaje_http(_http_request_de(entry))
+    )
     item = {
         "timestamp": _timestamp_iso(entry),
         "severity": _severity_de(entry, payload),
