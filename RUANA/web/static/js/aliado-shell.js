@@ -20,7 +20,9 @@
         '#directorio-panel': 'directorio',
         '#directorio-search': 'directorio',
         '#module-directorio': 'directorio',
-        '#solicitudes-entrantes-wrap': 'solicitudes',
+        '#solicitudes-recomendacion-wrap': 'solicitudes',
+        '#solicitudes-recomendacion-list': 'solicitudes',
+        '#inicio-recomendacion-wrap': 'inicio',
         '#solicitudes-encargos-wrap': 'solicitudes',
         '#solicitudes-semanales-wrap': 'solicitudes',
         '#solicitudes-propias-wrap': 'solicitudes',
@@ -270,6 +272,28 @@
                     : [];
             }());
 
+        const recPendientes = (function () {
+            if (panel && Array.isArray(panel.solicitudesPropias)) {
+                return panel.solicitudesPropias.filter(function (s) {
+                    if (!s) return false;
+                    var estado = String(s.estado || 'pendiente').toLowerCase();
+                    if (estado === 'contestada') estado = 'atendida';
+                    if (estado !== 'pendiente') return false;
+                    return !!(s.requiere_aprobacion_proximidad || s.proximidad_estado === 'pendiente_aprobacion');
+                });
+            }
+            return [];
+        }());
+        recPendientes.forEach(function (s) {
+            var nombre = (s.proximidad && s.proximidad.nombre) || s.proximidad_nombre || 'un profesional cercano';
+            tasks.unshift({
+                text: 'Te recomendamos a ' + nombre + ' (el más cercano a tu CP)',
+                action: 'solicitudes',
+                label: 'Decidir',
+                scrollRecomendacion: true,
+            });
+        });
+
         const contacto = document.getElementById('contacto-aviso-persistente');
         if (contacto && isVisible(contacto)) {
             const requiere = contacto.dataset.requiereRespuesta === '1';
@@ -367,6 +391,11 @@
                     return;
                 }
                 showModule(task.action);
+                if (task.scrollRecomendacion) {
+                    const recBlock = qs('#solicitudes-recomendacion-wrap');
+                    if (recBlock) recBlock.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    return;
+                }
                 if (task.scrollSolSem) {
                     const block = qs('#inicio-solicitudes-semanales-wrap');
                     if (block) block.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -408,7 +437,8 @@
     function updateNavBadges() {
         const entrantes = countListItems('solicitudes-list');
         const encargosTurno = countEncargosRequierenRespuesta();
-        const totalSolicitudes = entrantes + encargosTurno;
+        const recPendientes = countListItems('solicitudes-recomendacion-list') || countListItems('inicio-recomendacion-list');
+        const totalSolicitudes = entrantes + encargosTurno + recPendientes;
         qsa('[data-aliado-badge="solicitudes"]').forEach((badge) => {
             if (totalSolicitudes > 0) {
                 badge.textContent = String(totalSolicitudes > 99 ? '99+' : totalSolicitudes);

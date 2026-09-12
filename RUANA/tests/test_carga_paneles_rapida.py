@@ -19,7 +19,7 @@ def test_aliado_lucide_es_local_y_preloads_shell():
     html = _read("aliado.html")
     assert 'src="/static/js/vendor/lucide.min.js?v=0.469.0"' in html
     assert "unpkg.com/lucide" not in html
-    assert 'rel="preload" href="/static/css/aliado-shell.css?v=20260910a" as="style"' in html
+    assert 'rel="preload" href="/static/css/aliado-shell.css?v=20260910d" as="style"' in html
     lucide = WEB / "static" / "js" / "vendor" / "lucide.min.js"
     assert lucide.is_file()
     text = lucide.read_text(encoding="utf-8")

@@ -89,6 +89,55 @@
     return { label: 'Pendiente', badgeClass: 'ruana-badge pendiente' };
   }
 
+  function esRecomendacionPendiente(solicitud) {
+    if (!solicitud) return false;
+    if (normalizarEstadoSolicitud(solicitud) !== 'pendiente') return false;
+    return !!(solicitud.requiere_aprobacion_proximidad ||
+      solicitud.proximidad_estado === 'pendiente_aprobacion');
+  }
+
+  function nombreRecomendado(solicitud) {
+    return (solicitud && solicitud.proximidad && solicitud.proximidad.nombre) ||
+      (solicitud && solicitud.proximidad_nombre) ||
+      'este profesional';
+  }
+
+  function zonaRecomendado(solicitud) {
+    var prox = (solicitud && solicitud.proximidad) || {};
+    var cp = String(prox.codigo_postal || (solicitud && solicitud.proximidad_cp) || '').trim();
+    var etq = String(prox.etiqueta_proximidad || (solicitud && solicitud.proximidad_zona) || '').trim();
+    if (cp && etq) return cp + ' · ' + etq;
+    return cp || etq || '';
+  }
+
+  function recomendacionesPendientesDe(propias) {
+    return (Array.isArray(propias) ? propias : []).filter(esRecomendacionPendiente);
+  }
+
+  function appendRecomendacionCard(host, container, solicitud) {
+    if (!container) return;
+    var card = document.createElement('article');
+    card.className = 'solicitud-card recomendacion-card';
+    var nombre = nombreRecomendado(solicitud);
+    var oficio = (solicitud && (solicitud.oficio || solicitud.zona)) || '';
+    var zona = zonaRecomendado(solicitud);
+    var meta = [oficio, zona].filter(Boolean).join(' · ');
+    var msg = (solicitud && solicitud.mensaje_solicitante) ||
+      ('No hay este oficio en tu grupo. Te recomendamos a ' + nombre +
+        ', el más cercano a tu código postal.');
+    card.innerHTML =
+      '<p class="recomendacion-kicker">Cercano a tu código postal</p>' +
+      '<h3 class="recomendacion-nombre">Te recomendamos a ' + escapeHtmlSafe(host, nombre) + '</h3>' +
+      '<p class="recomendacion-msg">' + escapeHtmlSafe(host, msg) + '</p>' +
+      (meta ? '<p class="recomendacion-meta">' + escapeHtmlSafe(host, meta) + '</p>' : '') +
+      '<div class="recomendacion-actions solicitud-actions">' +
+        '<button type="button" class="btn-aceptar-proximidad" data-id="' + ((solicitud && solicitud.id) || 0) + '">Aceptar a ' + escapeHtmlSafe(host, nombre) + '</button>' +
+        '<button type="button" class="btn-pedir-recomendacion" data-id="' + ((solicitud && solicitud.id) || 0) + '">Pedir al grupo que recomienden a alguien</button>' +
+        '<button type="button" class="btn-invitar-cercano" data-id="' + ((solicitud && solicitud.id) || 0) + '">Invita a alguien que conozcas más cerca de tu CP</button>' +
+      '</div>';
+    container.appendChild(card);
+  }
+
   function actualizarContadorSubseccion(wrapId, count) {
     var wrap = document.getElementById(wrapId);
     if (!wrap) return;
@@ -121,6 +170,10 @@
    */
   function appendSolicitudCard(host, container, solicitud, conBotonConocer) {
     if (!container) return;
+    if (!conBotonConocer && esRecomendacionPendiente(solicitud)) {
+      appendRecomendacionCard(host, container, solicitud);
+      return;
+    }
     var card = document.createElement('div');
     var texto = solicitud.descripcion || solicitud.texto || '(sin descripción)';
     var por = solicitud.solicitante_nombre || solicitud.por || '(sin autor)';
@@ -158,20 +211,9 @@
     var metaExtra = metaExtraParts.join('');
     var mostrarAtender = conBotonConocer && estado === 'pendiente' && asignadaAMi;
     var mostrarConocer = conBotonConocer && estado === 'pendiente' && !asignadaAMi;
-    var requiereAprob = solicitud.requiere_aprobacion_proximidad ||
-      (solicitud.proximidad_estado === 'pendiente_aprobacion');
     var esPropiaPendiente = !conBotonConocer && estado === 'pendiente';
     var bloqueRecomienda = '';
-    if (esPropiaPendiente && requiereAprob) {
-      var msgRec = solicitud.mensaje_solicitante || '';
-      var proxNombre = (solicitud.proximidad && solicitud.proximidad.nombre) || solicitud.proximidad_nombre || 'este profesional';
-      bloqueRecomienda =
-        '<p class="solicitud-recomienda">' + escapeHtmlSafe(host, msgRec) + '</p>' +
-        '<div class="solicitud-actions">' +
-          '<button type="button" class="btn-aceptar-proximidad" data-id="' + (solicitud.id || 0) + '">Aceptar a ' + escapeHtmlSafe(host, proxNombre) + '</button>' +
-          '<button type="button" class="btn-pedir-recomendacion" data-id="' + (solicitud.id || 0) + '">Pedir recomendación al grupo</button>' +
-        '</div>';
-    } else if (esPropiaPendiente && (solicitud.destino === 'buscando_ayuda' || solicitud.etiqueta_busqueda)) {
+    if (esPropiaPendiente && (solicitud.destino === 'buscando_ayuda' || solicitud.etiqueta_busqueda)) {
       bloqueRecomienda = '<p class="solicitud-buscando">Buscando ayuda</p>';
     } else if (esPropiaPendiente && solicitud.mensaje_solicitante) {
       bloqueRecomienda = '<p class="solicitud-buscando">' + escapeHtmlSafe(host, solicitud.mensaje_solicitante) + '</p>';
@@ -247,9 +289,9 @@
     });
   }
 
-  function bindAccionesPropias(host) {
-    if (!host.solicitudesPropiasList) return;
-    host.solicitudesPropiasList.querySelectorAll('.btn-aceptar-proximidad').forEach(function (btn) {
+  function bindAccionesEn(container, host) {
+    if (!container) return;
+    container.querySelectorAll('.btn-aceptar-proximidad').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var id = parseInt(btn.getAttribute('data-id'), 10);
         if (!id) return;
@@ -257,7 +299,7 @@
         postAccionSolicitud(host, 'aceptar-proximidad', id);
       });
     });
-    host.solicitudesPropiasList.querySelectorAll('.btn-pedir-recomendacion').forEach(function (btn) {
+    container.querySelectorAll('.btn-pedir-recomendacion').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var id = parseInt(btn.getAttribute('data-id'), 10);
         if (!id) return;
@@ -265,20 +307,88 @@
         postAccionSolicitud(host, 'pedir-recomendacion-grupo', id);
       });
     });
+    container.querySelectorAll('.btn-invitar-cercano').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = parseInt(btn.getAttribute('data-id'), 10);
+        if (!id) return;
+        btn.disabled = true;
+        var done = Promise.resolve();
+        if (typeof host.generarCodigoInvitarCercanoCp === 'function') {
+          done = Promise.resolve(host.generarCodigoInvitarCercanoCp(id));
+        }
+        done.catch(function () {}).then(function () {
+          btn.disabled = false;
+        });
+      });
+    });
+  }
+
+  function bindAccionesPropias(host) {
+    bindAccionesEn(host.solicitudesPropiasList, host);
+    bindAccionesEn(document.getElementById('solicitudes-recomendacion-list'), host);
+    bindAccionesEn(document.getElementById('inicio-recomendacion-list'), host);
+  }
+
+  function renderListaRecomendaciones(host, recomendaciones) {
+    var wrap = document.getElementById('solicitudes-recomendacion-wrap');
+    var list = document.getElementById('solicitudes-recomendacion-list');
+    if (!wrap || !list) return false;
+    list.innerHTML = '';
+    if (!recomendaciones.length) {
+      wrap.hidden = true;
+      actualizarContadorSubseccion('solicitudes-recomendacion-wrap', 0);
+      return true;
+    }
+    wrap.hidden = false;
+    recomendaciones.forEach(function (solicitud) {
+      appendSolicitudCard(host, list, solicitud, false);
+    });
+    actualizarContadorSubseccion('solicitudes-recomendacion-wrap', recomendaciones.length);
+    return true;
+  }
+
+  function renderInicioRecomendacion(host, recomendaciones) {
+    var wrap = document.getElementById('inicio-recomendacion-wrap');
+    var list = document.getElementById('inicio-recomendacion-list');
+    if (!wrap || !list) return;
+    list.innerHTML = '';
+    if (!recomendaciones.length) {
+      wrap.hidden = true;
+      wrap.classList.remove('is-visible');
+      return;
+    }
+    wrap.hidden = false;
+    wrap.classList.add('is-visible');
+    recomendaciones.forEach(function (solicitud) {
+      appendSolicitudCard(host, list, solicitud, false);
+    });
   }
 
   function renderListaPropias(host, propias) {
+    var recomendaciones = recomendacionesPendientesDe(propias);
+    var tieneBloqueRecomendacion = renderListaRecomendaciones(host, recomendaciones);
+    renderInicioRecomendacion(host, recomendaciones);
     if (!host.solicitudesPropiasList) return;
     host.solicitudesPropiasList.innerHTML = '';
-    if (propias.length === 0) {
-      host.solicitudesPropiasList.innerHTML = '<p class="solicitudes-empty">Aún no has enviado ninguna solicitud. Usa Conexiones para crear una.</p>';
+    var resto = tieneBloqueRecomendacion
+      ? propias.filter(function (s) { return !esRecomendacionPendiente(s); })
+      : propias.slice();
+    var propiasWrap = document.getElementById('solicitudes-propias-wrap');
+    if (resto.length === 0) {
+      if (!recomendaciones.length) {
+        host.solicitudesPropiasList.innerHTML = '<p class="solicitudes-empty">Aún no has enviado ninguna solicitud. Usa Conexiones para crear una.</p>';
+        if (propiasWrap) propiasWrap.hidden = false;
+      } else if (propiasWrap) {
+        propiasWrap.hidden = true;
+      }
       return;
     }
-    var enCurso = propias.filter(function (s) {
+    if (propiasWrap) propiasWrap.hidden = false;
+    var enCurso = resto.filter(function (s) {
       var e = normalizarEstadoSolicitud(s);
       return e === 'pendiente' || e === 'candidato_pendiente';
     });
-    var atendidas = propias.filter(function (s) {
+    var atendidas = resto.filter(function (s) {
       return normalizarEstadoSolicitud(s) === 'atendida';
     });
     if (enCurso.length) {
@@ -372,8 +482,13 @@
       }
     }
 
-    if (typeof global.RuanaUI !== 'undefined') global.RuanaUI.initIcons(document.querySelector('.solicitudes-zone'));
-    if (global.AliadoShell && typeof global.AliadoShell.updateNavBadges === 'function') {
+    if (typeof global.RuanaUI !== 'undefined') {
+      global.RuanaUI.initIcons(document.querySelector('.solicitudes-zone'));
+      global.RuanaUI.initIcons(document.getElementById('inicio-recomendacion-wrap'));
+    }
+    if (global.AliadoShell && typeof global.AliadoShell.refresh === 'function') {
+      global.AliadoShell.refresh();
+    } else if (global.AliadoShell && typeof global.AliadoShell.updateNavBadges === 'function') {
       global.AliadoShell.updateNavBadges();
     }
   }

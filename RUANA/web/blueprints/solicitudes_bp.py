@@ -90,6 +90,7 @@ def api_solicitudes():
                         result.get("requiere_aprobacion_proximidad")
                     ),
                     "proximidad_notificado": bool(result.get("proximidad_notificado")),
+                    "opciones_solicitante": result.get("opciones_solicitante") or {},
                 }
             ), 200
         except Exception as e:

@@ -1272,17 +1272,6 @@
             gap: 8px;
         }
 
-        .solicitud-recomienda {
-            margin: 8px 0 0;
-            padding: 10px 12px;
-            border-radius: 8px;
-            background: rgba(250, 204, 21, 0.12);
-            border: 1px solid rgba(250, 204, 21, 0.28);
-            color: #fde68a;
-            font-size: 0.85rem;
-            line-height: 1.4;
-        }
-
         .solicitud-buscando {
             margin: 8px 0 0;
             color: #fbbf24;
@@ -1322,8 +1311,8 @@
 
         .btn-pedir-recomendacion {
             background: transparent;
-            border: 1px solid rgba(250, 204, 21, 0.55);
-            color: #fde68a;
+            border: 1px solid rgba(162, 255, 0, 0.35);
+            color: var(--ruana-brand-lime, #a2ff00);
             text-transform: none;
             letter-spacing: 0;
         }

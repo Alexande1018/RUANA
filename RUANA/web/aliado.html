@@ -11,11 +11,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="icon" href="/static/images/ruana-logo.svg" type="image/svg+xml">
-    <link rel="preload" href="/static/css/aliado-shell.css?v=20260910a" as="style">
-    <link rel="stylesheet" href="/static/css/aliado-panel.css">
+    <link rel="preload" href="/static/css/aliado-shell.css?v=20260910d" as="style">
+    <link rel="stylesheet" href="/static/css/aliado-panel.css?v=20260910d">
     <link rel="stylesheet" href="/static/css/panel-premium.css">
     <link rel="stylesheet" href="/static/css/auth-premium.css">
-    <link rel="stylesheet" href="/static/css/aliado-shell.css?v=20260910a">
+    <link rel="stylesheet" href="/static/css/aliado-shell.css?v=20260910d">
     <link rel="stylesheet" href="/static/css/encargo-seguimiento.css">
     <link rel="stylesheet" href="/static/css/ruana-score-callout.css">
     <link rel="stylesheet" href="/static/css/ruana-identity.css">
@@ -38,12 +38,12 @@
     <script src="/static/js/referidos-module.js" defer></script>
     <script src="/static/js/aliado-referidos-module.js" defer></script>
     <script src="/static/js/aliado-directorio-module.js" defer></script>
-    <script src="/static/js/aliado-solicitudes-module.js?v=20260909a" defer></script>
+    <script src="/static/js/aliado-solicitudes-module.js?v=20260910e" defer></script>
     <script src="/static/js/aliado-solicitudes-semanales-module.js?v=20260909a" defer></script>
     <script src="/static/js/aliado-acuerdos-module.js" defer></script>
-    <script src="/static/js/aliado-conexiones-module.js?v=20260909e" defer></script>
+    <script src="/static/js/aliado-conexiones-module.js?v=20260910b" defer></script>
     <script src="/static/js/aliado-centro-comunicacion-module.js" defer></script>
-    <script src="/static/js/aliado-invitaciones-module.js" defer></script>
+    <script src="/static/js/aliado-invitaciones-module.js?v=20260910a" defer></script>
     <script src="/static/js/aliado-alertas-module.js" defer></script>
     <script src="/static/js/aliado-catalogo-module.js" defer></script>
     <script src="/static/js/aliado-contactos-module.js?v=20260903a" defer></script>
@@ -51,7 +51,7 @@
     <script src="/static/js/aliado-grupo-module.js" defer></script>
     <script src="/static/js/aliado-sync-module.js?v=20260910a" defer></script>
     <script src="/static/js/aliado-events-module.js?v=20260909e" defer></script>
-    <script src="/static/js/aliado-shell.js?v=20260820a" defer></script>
+    <script src="/static/js/aliado-shell.js?v=20260910b" defer></script>
     <link rel="stylesheet" href="/static/css/negociacion-guiada.css">
     <script src="/static/js/ruana-conversacion-ui.js" defer></script>
     <script src="/static/js/negociacion-guiada.js" defer></script>
@@ -289,6 +289,17 @@
                     aria-label="Noticias de actividad RUANA"
                     hidden
                 ></div>
+
+                <aside
+                    id="inicio-recomendacion-wrap"
+                    class="inicio-recomendacion-banner"
+                    hidden
+                    role="region"
+                    aria-labelledby="inicio-recomendacion-title"
+                >
+                    <h3 id="inicio-recomendacion-title" class="ruana-visually-hidden">Te recomendamos a un aliado cercano</h3>
+                    <div id="inicio-recomendacion-list" class="inicio-recomendacion-list"></div>
+                </aside>
 
                 <div class="inicio-quick-grid" aria-label="Accesos rápidos">
                     <button type="button" class="inicio-quick-btn inicio-quick-btn-invite" data-action="invitar-aliado" id="btn-invitar-inicio">
@@ -639,6 +650,10 @@
                 <p class="aliado-module-subtitle">Recibidas, enviadas e historial — cada una como unidad de trabajo.</p>
             </header>
             <div class="solicitudes-zone">
+                <div class="solicitudes-subsection solicitudes-recomendacion-wrap" id="solicitudes-recomendacion-wrap" hidden>
+                    <h3 class="solicitudes-subtitle ruana-visually-hidden">Te recomendamos <span class="solicitudes-count-badge" data-solicitudes-count hidden></span></h3>
+                    <div class="solicitudes-list" id="solicitudes-recomendacion-list"></div>
+                </div>
                 <div class="solicitudes-subsection" id="solicitudes-semanales-wrap">
                     <h3 class="solicitudes-subtitle">Solicitudes para esta semana</h3>
                     <p class="solicitudes-desc">Necesidades profesionales de tu grupo esta semana. Solo visible para miembros del mismo grupo.</p>
@@ -2090,6 +2105,12 @@
                 const mod = this._invitacionesModule();
                 if (mod && typeof mod.generateInviteCode === 'function') {
                     return mod.generateInviteCode(this, solicitudId);
+                }
+            }
+            async generarCodigoInvitarCercanoCp(solicitudId) {
+                const mod = this._invitacionesModule();
+                if (mod && typeof mod.generarCodigoInvitarCercanoCp === 'function') {
+                    return mod.generarCodigoInvitarCercanoCp(this, solicitudId);
                 }
             }
             mostrarModalCodigoInvitacion(codigo, desdeSolicitud) {
