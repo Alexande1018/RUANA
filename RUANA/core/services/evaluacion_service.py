@@ -6,6 +6,7 @@ SQL de evaluaciones vía EvaluacionRepo.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from typing import Any, Dict, List, Optional
 
@@ -239,7 +240,7 @@ def ejecutar_motor_periodico(db) -> Dict[str, Any]:
     for codigo in codigos:
         metricas[codigo] = admin_service.obtener_metricas_motor_por_aliado(db, codigo)
 
-    motor = MotorEvaluacion()
+    motor = MotorEvaluacion(logger=logging.getLogger(__name__))
     decisiones = motor.evaluate_all(metricas)
     resumen = {"verde": 0, "amarillo": 0, "rojo": 0}
     for decision in decisiones:

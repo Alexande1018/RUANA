@@ -9,6 +9,7 @@ Aquí: setup Flask, middleware, páginas HTML, auth admin frágil.
 
 from flask import Flask, jsonify, send_from_directory, request, redirect, url_for, make_response
 from pathlib import Path
+import logging
 import sys
 import os
 import time
@@ -92,6 +93,55 @@ from web.auth_decorators import (
 from web.limiter import init_limiter
 from web.limiter import limiter
 
+_RUANA_LOG_HANDLER_MARK = "_ruana_app_logging"
+
+
+def _quitar_handlers_ruana(root: logging.Logger) -> None:
+    for handler in list(root.handlers):
+        if getattr(handler, _RUANA_LOG_HANDLER_MARK, False):
+            root.removeHandler(handler)
+            try:
+                handler.close()
+            except Exception:
+                pass
+
+
+def _handler_stdout_normal(root: logging.Logger) -> logging.Handler:
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(logging.INFO)
+    setattr(handler, _RUANA_LOG_HANDLER_MARK, True)
+    root.addHandler(handler)
+    if root.level == logging.NOTSET or root.level > logging.INFO:
+        root.setLevel(logging.INFO)
+    return handler
+
+
+def configure_app_logging() -> str:
+    """Instala un único handler en el root logger.
+
+    En Cloud Run / local usa StructuredLogHandler → JSON a stdout (sin API).
+    En tests o si falla el handler estructurado, cae a StreamHandler(stdout).
+    """
+    root = logging.getLogger()
+    _quitar_handlers_ruana(root)
+    if os.environ.get("RUANA_ENV", "").strip().lower() == "test":
+        _handler_stdout_normal(root)
+        return "stdout"
+    try:
+        from google.cloud.logging_v2.handlers import StructuredLogHandler
+
+        handler = StructuredLogHandler(stream=sys.stdout)
+        handler.setLevel(logging.INFO)
+        setattr(handler, _RUANA_LOG_HANDLER_MARK, True)
+        root.addHandler(handler)
+        if root.level == logging.NOTSET or root.level > logging.INFO:
+            root.setLevel(logging.INFO)
+        return "structured"
+    except Exception:
+        _handler_stdout_normal(root)
+        return "stdout"
+
+
 # Obtener ruta absoluta de la carpeta web
 web_dir = Path(__file__).parent.absolute()
 settings = get_settings()
@@ -105,6 +155,7 @@ app.secret_key = settings.flask_secret_key
 configure_session_secret(app.secret_key)
 if Compress is not None:
     Compress(app)
+configure_app_logging()
 app.register_blueprint(catalogo_bp)
 app.register_blueprint(negociacion_bp)
 app.register_blueprint(referidos_bp)
