@@ -1,6 +1,6 @@
 # Política de retención de datos (borrador operativo)
 
-Borrador operativo del piloto. No sustituye un dictamen profesional. Alineado con los documentos públicos `v1-2026-09`.
+Política operativa del piloto. Alineada con los documentos públicos `v1-2026-09`.
 
 Titular actual: Carlos Alexander Acero, nombre comercial RUANA. Ámbito: España.
 

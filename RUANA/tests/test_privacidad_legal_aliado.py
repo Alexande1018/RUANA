@@ -214,18 +214,18 @@ def test_admin_lista_y_resuelve_solicitud_baja(client, sqlite_db, monkeypatch):
 
 
 def test_paginas_legales_son_piloto_y_tienen_footer():
-    aviso_piloto = "Documento del piloto RUANA. Pendiente de revisión por abogado colegiado."
     for name in ("aviso-legal.html", "politica-privacidad.html", "terminos.html"):
         text = (WEB / name).read_text(encoding="utf-8")
         assert "[BORRADOR — PENDIENTE DE REVISIÓN POR UN ABOGADO ANTES DE PUBLICAR]" not in text
-        assert aviso_piloto in text
+        assert "Pendiente de revisión por abogado" not in text
+        assert "confirmar con abogado" not in text
+        assert "legal-draft-banner" not in text
         assert "id=\"ruana-legal-footer\"" in text
         assert "/aviso-legal.html" in text
         assert "/politica-privacidad.html" in text
         assert "/terminos.html" in text
         assert "18508170R" in text
         assert "[NIF_TITULAR]" not in text
-        assert "LSSICE art.10 exige NIF" in text
         assert "v1-2026-09" in text
         assert "642868261" not in text.replace("642868261", "") or "642868261" in text
 
@@ -292,11 +292,17 @@ def test_documentos_legales_sin_placeholders_pendientes():
         assert "[DECISIÓN PENDIENTE]" not in text
         assert "[CONFIRMAR CON ASESOR FISCAL]" not in text
         assert "[BORRADOR — PENDIENTE DE REVISIÓN POR UN ABOGADO ANTES DE PUBLICAR]" not in text
+        assert "abogado" not in text.lower()
+        assert "asesor fiscal" not in text.lower()
         if name == "aviso-legal.html":
             assert aviso_cif in text
             assert "eu-west-1" in text
         else:
             assert aviso_cif not in text
+    admin = (WEB / "admin.html").read_text(encoding="utf-8")
+    assert "[CONFIRMAR CON ASESOR FISCAL]" not in admin
+    assert "asesor fiscal" not in admin.lower()
+    assert "abogado" not in admin.lower()
     retencion = (
         Path(__file__).resolve().parents[2] / "docs" / "legal" / "politica-retencion-datos.md"
     ).read_text(encoding="utf-8")
@@ -304,6 +310,7 @@ def test_documentos_legales_sin_placeholders_pendientes():
     assert "[DECISIÓN PENDIENTE]" not in retencion
     assert "[CONFIRMAR CON ASESOR FISCAL]" not in retencion
     assert "[BORRADOR — PENDIENTE DE REVISIÓN POR UN ABOGADO ANTES DE PUBLICAR]" not in retencion
+    assert "abogado" not in retencion.lower()
     assert "eu-west-1" in retencion
     assert "https://supabase.com/legal/customer-resources/data-processing-addendum" in retencion
     assert "https://stripe.com/legal/dpa" in retencion
