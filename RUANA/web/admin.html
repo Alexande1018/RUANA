@@ -868,14 +868,20 @@
 
         <div class="conversaciones-ruana-wrap" id="centro-comunicacion-admin-wrap">
             <h2 class="seccion-titulo">Centro de comunicación RUANA</h2>
-            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Mensajes directos de aliados al equipo RUANA. Filtra por estado, busca por aliado y responde desde aquí.</p>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Mensajes directos de aliados al equipo RUANA. Filtra por estado o por apelaciones de expulsión, busca por aliado y responde desde aquí.</p>
             <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
                 <input id="cc-admin-search" type="text" placeholder="Buscar por aliado o asunto" style="min-width:240px; flex:1; padding:9px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.18); background:rgba(0,0,0,0.25); color:#e5e7eb;">
+                <select id="cc-admin-tipo" style="min-width:210px;">
+                    <option value="">Todos los tipos</option>
+                    <option value="apelacion_expulsion">Apelaciones de expulsión</option>
+                </select>
                 <select id="cc-admin-status" style="min-width:180px;">
                     <option value="">Todos los estados</option>
                     <option value="pendiente">Pendiente</option>
                     <option value="en_revision">En revisión</option>
                     <option value="respondido">Respondido</option>
+                    <option value="resuelta">Resuelta</option>
+                    <option value="vencida_sin_apelacion">Vencida sin apelación</option>
                     <option value="cerrado">Cerrado</option>
                     <option value="reabierto">Reabierto</option>
                 </select>
@@ -893,6 +899,7 @@
                                 <th>Aliado</th>
                                 <th>Asunto</th>
                                 <th>Estado</th>
+                                <th>Plazo apelación</th>
                                 <th>Último mensaje</th>
                                 <th>Fecha</th>
                                 <th>Nuevo</th>
@@ -923,6 +930,14 @@
             <div class="modal-content" style="max-width:640px; max-height:82vh; display:flex; flex-direction:column;">
                 <h3 class="modal-title" id="cc-admin-modal-title">Conversación RUANA</h3>
                 <div id="cc-admin-modal-messages" style="flex:1; min-height:220px; max-height:360px; overflow:auto; margin:10px 0; padding:10px; background:rgba(0,0,0,0.2); border-radius:10px;"></div>
+                <div id="cc-admin-apelacion-box" style="display:none; margin-bottom:10px; padding:10px; border-radius:10px; background:rgba(251,191,36,0.12); border:1px solid rgba(251,191,36,0.35);">
+                    <p id="cc-admin-apelacion-plazo" style="margin:0 0 8px; font-size:0.88rem; color:#fde68a;"></p>
+                    <textarea id="cc-admin-apelacion-motivo" rows="2" placeholder="Motivo de la decisión (obligatorio)" style="width:100%; padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color:#e0e0e0;"></textarea>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+                        <button type="button" class="btn-admin-action" id="cc-admin-apelacion-aceptar" style="background:rgba(34,197,94,0.25); color:#86efac;">Aceptar apelación</button>
+                        <button type="button" class="btn-admin-action" id="cc-admin-apelacion-rechazar" style="background:rgba(239,68,68,0.2); color:#f87171;">Rechazar apelación</button>
+                    </div>
+                </div>
                 <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
                     <select id="cc-admin-modal-status" style="min-width:170px;">
                         <option value="pendiente">Pendiente</option>
@@ -2331,6 +2346,13 @@
                 const mod = this._operacionesModule();
                 if (mod && typeof mod.eliminarCentroComunicacionAdmin === 'function') {
                     return mod.eliminarCentroComunicacionAdmin(this);
+                }
+            }
+
+            async resolverApelacionExpulsionAdmin(decision) {
+                const mod = this._operacionesModule();
+                if (mod && typeof mod.resolverApelacionExpulsionAdmin === 'function') {
+                    return mod.resolverApelacionExpulsionAdmin(this, decision);
                 }
             }
 

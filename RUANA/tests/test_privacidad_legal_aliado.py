@@ -238,6 +238,10 @@ def test_aviso_legal_publica_nif_y_jurisdiccion_piloto():
     assert "Calle Diputado José Luis Barceló 14, P5 B, Alicante, España" in text
     assert "Juzgados y Tribunales de Alicante" in text
     assert "[JURISDICCIÓN_PENDIENTE]" not in text
+    assert "eu-west-1" in text
+    assert "[REGION_SUPABASE_PENDIENTE_CONFIRMAR]" not in text
+    assert "eu-west-1" in text
+    assert "[REGION_SUPABASE_PENDIENTE_CONFIRMAR]" not in text
 
 
 def test_terminos_mayoria_edad_y_jurisdiccion_alicante():
@@ -256,17 +260,55 @@ def test_terminos_mayoria_edad_y_jurisdiccion_alicante():
 def test_privacidad_cita_encargados_y_retencion():
     text = (WEB / "politica-privacidad.html").read_text(encoding="utf-8")
     assert "Supabase" in text
-    assert "[REGION_SUPABASE_PENDIENTE_CONFIRMAR]" in text
+    assert "eu-west-1" in text
+    assert "[REGION_SUPABASE_PENDIENTE_CONFIRMAR]" not in text
     assert "Google Cloud" in text
     assert "Stripe Connect" in text
     assert "team.ruana@gmail.com" in text
-    assert "[CONFIRMAR CON ASESOR FISCAL]" in text
-    assert "[DECISIÓN PENDIENTE]" in text
-    assert "no hay banner de cookies" in text.lower() or "no incluye banner de cookies" in text.lower()
+    assert "[CONFIRMAR CON ASESOR FISCAL]" not in text
+    assert "[DECISIÓN PENDIENTE]" not in text
+    assert "6 años" in text
+    assert "12 meses" in text
+    assert "no es obligatorio nombrar DPO" in text
+    assert "decisiones basadas únicamente en tratamiento automatizado" in text
+    assert "mecanismo de apelación" in text
+    assert "5 días hábiles" in text
+    assert "apelacion_expulsion" in text
+    assert "/apelar/" in text
+    assert "no hay un proceso de apelación formal" not in text
+    assert "no usa cookies no esenciales" in text
+    assert "no incluye banner de cookies" in text.lower()
     assert "legal-layer-1" in text
     assert "art. 6.1.b" in text
     assert "artículo 22" in text or "art. 22" in text
     assert "no son encargados" in text.lower() or "no es un encargo" in text.lower()
+
+
+def test_documentos_legales_sin_placeholders_pendientes():
+    aviso_cif = "[PENDIENTE: actualizar esta sección cuando se constituya la sociedad y se asigne CIF.]"
+    for name in ("aviso-legal.html", "politica-privacidad.html", "terminos.html"):
+        text = (WEB / name).read_text(encoding="utf-8")
+        assert "[REGION_SUPABASE_PENDIENTE_CONFIRMAR]" not in text
+        assert "[DECISIÓN PENDIENTE]" not in text
+        assert "[CONFIRMAR CON ASESOR FISCAL]" not in text
+        assert "[BORRADOR — PENDIENTE DE REVISIÓN POR UN ABOGADO ANTES DE PUBLICAR]" not in text
+        if name == "aviso-legal.html":
+            assert aviso_cif in text
+            assert "eu-west-1" in text
+        else:
+            assert aviso_cif not in text
+    retencion = (
+        Path(__file__).resolve().parents[2] / "docs" / "legal" / "politica-retencion-datos.md"
+    ).read_text(encoding="utf-8")
+    assert "[REGION_SUPABASE_PENDIENTE_CONFIRMAR]" not in retencion
+    assert "[DECISIÓN PENDIENTE]" not in retencion
+    assert "[CONFIRMAR CON ASESOR FISCAL]" not in retencion
+    assert "[BORRADOR — PENDIENTE DE REVISIÓN POR UN ABOGADO ANTES DE PUBLICAR]" not in retencion
+    assert "eu-west-1" in retencion
+    assert "https://supabase.com/legal/customer-resources/data-processing-addendum" in retencion
+    assert "https://stripe.com/legal/dpa" in retencion
+    assert "https://cloud.google.com/terms/data-processing-addendum" in retencion
+    assert "No hay DPA de encargado" in retencion
 
 
 def test_register_checkbox_obligatorio_no_premarcado():

@@ -414,9 +414,11 @@ async function confirmarResolverConflicto(host) {
 async function cargarCentroComunicacionAdmin(host) {
       const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
       const status = (document.getElementById('cc-admin-status')?.value || '').trim();
+      const tipo = (document.getElementById('cc-admin-tipo')?.value || '').trim();
       const unreadOnly = document.getElementById('cc-admin-only-unread')?.checked ? '1' : '0';
       const params = new URLSearchParams({ limite: '120', solo_no_leidas: unreadOnly });
       if (status) params.set('estado', status);
+      if (tipo) params.set('tipo', tipo);
       try {
           const r = await fetch('/api/admin/centro-comunicacion?' + params.toString(), { method: 'GET', credentials: 'same-origin', headers: authHeaders });
           if (r.status === 401) { host._adminSessionExpired(); return; }
@@ -445,11 +447,20 @@ function renderCentroComunicacionAdmin(host, conversaciones) {
           const fecha = c.ultimo_mensaje_en ? host.formatearHora(c.ultimo_mensaje_en) : '—';
           const estadoClass = (c.estado || 'pendiente').replace(/[^a-z_]/g, '');
           const nuevo = Number(c.tiene_no_leido_admin || 0) > 0 ? '<span class="estado-pago-badge" style="background:rgba(251,191,36,0.2);color:#fbbf24;">Nuevo</span>' : '—';
+          let plazoHtml = '—';
+          if ((c.tipo || '') === 'apelacion_expulsion' && c.fecha_limite_apelacion) {
+              const vencida = Boolean(c.apelacion_vencida);
+              const plazoTxt = host.formatearHora(c.fecha_limite_apelacion);
+              plazoHtml = vencida
+                  ? `<span class="estado-pago-badge" style="background:rgba(239,68,68,0.2);color:#f87171;">Vencida · ${host.escapeHtml(plazoTxt)}</span>`
+                  : `<span class="estado-pago-badge" style="background:rgba(251,191,36,0.2);color:#fbbf24;">${host.escapeHtml(plazoTxt)}</span>`;
+          }
           tr.innerHTML = `
               <td>#${c.id}</td>
               <td>${host.escapeHtml((c.aliado_nombre || c.aliado_codigo || '—'))}<br><span style="color:#94a3b8;font-size:0.75rem;">${host.escapeHtml(c.aliado_codigo || '')}</span></td>
               <td>${host.escapeHtml(c.asunto || 'Consulta')}</td>
               <td><span class="estado-pago-badge estado-pago-${estadoClass.replace('_', '-')}">${host.escapeHtml((c.estado || 'pendiente').replace('_', ' '))}</span></td>
+              <td>${plazoHtml}</td>
               <td>${host.escapeHtml(c.ultimo_mensaje_preview || '—')}</td>
               <td>${fecha}</td>
               <td>${nuevo}</td>
@@ -469,6 +480,24 @@ async function abrirModalCentroComunicacionAdmin(host, conv) {
       if (!modal || !conv) return;
       if (title) title.textContent = `Conversación #${conv.id} · ${conv.aliado_nombre || conv.aliado_codigo || ''}`;
       if (status) status.value = conv.estado || 'pendiente';
+      const apelacionBox = document.getElementById('cc-admin-apelacion-box');
+      const apelacionPlazo = document.getElementById('cc-admin-apelacion-plazo');
+      const esApelacion = (conv.tipo || '') === 'apelacion_expulsion';
+      const apelacionCerrada = ['resuelta', 'vencida_sin_apelacion'].includes((conv.estado || '').toLowerCase());
+      if (apelacionBox) {
+          apelacionBox.style.display = esApelacion ? 'block' : 'none';
+          const aceptarBtn = document.getElementById('cc-admin-apelacion-aceptar');
+          const rechazarBtn = document.getElementById('cc-admin-apelacion-rechazar');
+          const motivoEl = document.getElementById('cc-admin-apelacion-motivo');
+          if (aceptarBtn) aceptarBtn.style.display = apelacionCerrada ? 'none' : '';
+          if (rechazarBtn) rechazarBtn.style.display = apelacionCerrada ? 'none' : '';
+          if (motivoEl) motivoEl.style.display = apelacionCerrada ? 'none' : '';
+      }
+      if (apelacionPlazo && esApelacion) {
+          const plazoTxt = conv.fecha_limite_apelacion ? host.formatearHora(conv.fecha_limite_apelacion) : '—';
+          const decision = conv.decision_apelacion ? ` · Decisión: ${conv.decision_apelacion}` : '';
+          apelacionPlazo.textContent = (conv.apelacion_vencida ? 'Plazo vencido: ' : 'Plazo de apelación: ') + plazoTxt + decision;
+      }
       if (msgBox) msgBox.innerHTML = '<p style="color:#94a3b8;">Cargando mensajes…</p>';
       modal.style.display = 'flex';
       const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
@@ -477,11 +506,16 @@ async function abrirModalCentroComunicacionAdmin(host, conv) {
       const mensajes = data.status === 'success' && Array.isArray(data.mensajes) ? data.mensajes : [];
       if (msgBox) {
           msgBox.innerHTML = mensajes.map((m) => {
-              const esAdmin = (m.emisor_tipo || '') === 'admin';
+              const tipoEmisor = (m.emisor_tipo || '');
+              const esAdmin = tipoEmisor === 'admin';
+              const esSistema = tipoEmisor === 'sistema';
               const fecha = m.creado_en ? new Date(m.creado_en).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '';
-              return `<div style="padding:8px 10px; border-radius:8px; margin-bottom:8px; background:${esAdmin ? 'rgba(34,197,94,0.15)' : 'rgba(59,130,246,0.16)'}; border:1px solid ${esAdmin ? 'rgba(74,222,128,0.38)' : 'rgba(147,197,253,0.35)'};">
+              const etiqueta = esSistema ? 'Sistema' : (esAdmin ? 'RUANA' : 'Aliado');
+              const fondo = esSistema ? 'rgba(251,191,36,0.14)' : (esAdmin ? 'rgba(34,197,94,0.15)' : 'rgba(59,130,246,0.16)');
+              const borde = esSistema ? 'rgba(251,191,36,0.4)' : (esAdmin ? 'rgba(74,222,128,0.38)' : 'rgba(147,197,253,0.35)');
+              return `<div style="padding:8px 10px; border-radius:8px; margin-bottom:8px; background:${fondo}; border:1px solid ${borde};">
                   ${host.escapeHtml(m.mensaje || '')}
-                  <div style="font-size:0.76rem;color:#94a3b8;margin-top:4px;">${esAdmin ? 'RUANA' : 'Aliado'} · ${fecha}</div>
+                  <div style="font-size:0.76rem;color:#94a3b8;margin-top:4px;">${etiqueta} · ${fecha}</div>
               </div>`;
           }).join('') || '<p style="color:#94a3b8;">Sin mensajes.</p>';
           msgBox.scrollTop = msgBox.scrollHeight;
@@ -531,6 +565,26 @@ async function actualizarEstadoCentroComunicacionAdmin(host) {
       if (data.status !== 'success') { host.showToast(data.message || 'No se pudo actualizar estado.', 'error'); return; }
       host.showToast('Estado actualizado.', 'success');
       await host.cargarCentroComunicacionAdmin();
+}
+
+async function resolverApelacionExpulsionAdmin(host, decision) {
+      const conv = host._centroComunicacionActiva;
+      if (!conv) return;
+      const motivo = (document.getElementById('cc-admin-apelacion-motivo')?.value || '').trim();
+      if (!motivo) { host.showToast('Indica el motivo de la decisión.', 'error'); return; }
+      const authHeaders = Object.assign({}, AdminAuthenticator.getAdminAuthHeaders(), { 'Content-Type': 'application/json' });
+      const r = await fetch('/api/admin/centro-comunicacion/' + conv.id + '/resolver-apelacion', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: authHeaders,
+          body: JSON.stringify({ decision, motivo })
+      });
+      const data = await r.json().catch(() => ({}));
+      if (data.status !== 'success') { host.showToast(data.message || 'No se pudo resolver la apelación.', 'error'); return; }
+      host.showToast(decision === 'aceptada' ? 'Apelación aceptada. El aliado vuelve a estar activo.' : 'Apelación rechazada. La expulsión queda firme.', 'success');
+      await host.cargarCentroComunicacionAdmin();
+      const actualizada = (host._centroComunicacion || []).find(c => Number(c.id) === Number(conv.id));
+      if (actualizada) await host.abrirModalCentroComunicacionAdmin(actualizada);
 }
 
 async function eliminarCentroComunicacionAdmin(host) {
@@ -637,6 +691,7 @@ modules.operaciones = {
     cerrarModalCentroComunicacionAdmin: cerrarModalCentroComunicacionAdmin,
     responderCentroComunicacionAdmin: responderCentroComunicacionAdmin,
     actualizarEstadoCentroComunicacionAdmin: actualizarEstadoCentroComunicacionAdmin,
+    resolverApelacionExpulsionAdmin: resolverApelacionExpulsionAdmin,
     eliminarCentroComunicacionAdmin: eliminarCentroComunicacionAdmin,
     abrirModalVerChat: abrirModalVerChat,
     eliminarNegociacion: eliminarNegociacion,

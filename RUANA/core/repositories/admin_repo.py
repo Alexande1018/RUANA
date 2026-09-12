@@ -23,18 +23,20 @@ class AdminRepo:
         )
 
     def listar_conversaciones_soporte(
-        self, cursor, where_sql: str, params: Sequence[Any]
+        self, cursor, where_sql: str, params: Sequence[Any], order_sql: Optional[str] = None
     ) -> List[Any]:
+        order = order_sql or "c.ultimo_mensaje_en DESC, c.id DESC"
         cursor.execute(
             f"""
             SELECT c.id, c.aliado_codigo, a.nombre AS aliado_nombre, c.asunto, c.categoria, c.estado,
                    c.ultimo_mensaje_preview, c.ultimo_mensaje_en, c.tiene_no_leido_admin, c.tiene_no_leido_aliado,
-                   c.creado_en, c.actualizado_en,
+                   c.creado_en, c.actualizado_en, c.tipo, c.fecha_limite_apelacion, c.decision_apelacion,
+                   c.decision_admin_codigo, c.decision_motivo,
                    (SELECT COUNT(1) FROM ruana_soporte_mensajes m WHERE m.conversacion_id = c.id) AS total_mensajes
             FROM ruana_soporte_conversaciones c
             LEFT JOIN aliados a ON TRIM(CAST(a.codigo AS TEXT)) = TRIM(CAST(c.aliado_codigo AS TEXT))
             WHERE {where_sql}
-            ORDER BY c.ultimo_mensaje_en DESC, c.id DESC
+            ORDER BY {order}
             LIMIT ? OFFSET ?
             """,
             params,

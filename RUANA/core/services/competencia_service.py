@@ -819,6 +819,8 @@ def purga_mensual(db) -> Dict[str, Any]:
     No permite acumulación indefinida en el pool.
     """
     resultados_finalizar = db.finalizar_competencia_activas_vencidas()
+    from core.services import apelacion_service
+    apelaciones_vencidas = apelacion_service.cerrar_apelaciones_expulsion_vencidas(db)
     meses_sin_ganar = db._get_purga_meses_sin_ganar()
     umbral_score_bajo = db._get_purga_score_bajo_umbral()
     pool = db.listar_aliados_en_pool()
@@ -862,6 +864,7 @@ def purga_mensual(db) -> Dict[str, Any]:
                     'pool_revisado': len(pool),
                     'expulsados_temporal': 0,
                     'detalle_expulsados': [],
+                    'apelaciones_vencidas': apelaciones_vencidas.get('cerradas', 0),
                 }
             finally:
                 conn.close()
@@ -872,6 +875,7 @@ def purga_mensual(db) -> Dict[str, Any]:
         'pool_revisado': len(pool),
         'expulsados_temporal': len(expulsados_temporal),
         'detalle_expulsados': expulsados_temporal,
+        'apelaciones_vencidas': apelaciones_vencidas.get('cerradas', 0),
     }
 
 def _purga_datos_aliado_completa(db, cursor, codigo: str, aliado_id: int) -> None:

@@ -30,6 +30,102 @@
     return extra || {};
   }
 
+  function soporteToken(host) {
+    if (host && host.soporteToken) return String(host.soporteToken);
+    if (global.RUANA_APELACION_TOKEN) return String(global.RUANA_APELACION_TOKEN);
+    return '';
+  }
+
+  function soporteEnModoToken(host) {
+    return Boolean(soporteToken(host));
+  }
+
+  function soporteHeaders(host, extra) {
+    if (soporteEnModoToken(host)) {
+      return extra || {};
+    }
+    return getAuthHeadersSafe(extra);
+  }
+
+  function soporteUrls(host, conversacionId) {
+    var token = soporteToken(host);
+    if (token) {
+      var tokenBase = '/api/apelar/' + encodeURIComponent(token) + '/centro-comunicacion';
+      return {
+        list: tokenBase,
+        create: tokenBase,
+        messages: tokenBase + '/' + Number(conversacionId) + '/mensajes',
+        markRead: tokenBase + '/' + Number(conversacionId) + '/marcar-leida'
+      };
+    }
+    var codigo = (host && (host.codigoAliado || (host.aliado && host.aliado.codigo))) || '';
+    var aliadoBase = '/api/aliados/' + encodeURIComponent(codigo) + '/centro-comunicacion';
+    return {
+      list: aliadoBase,
+      create: aliadoBase,
+      messages: aliadoBase + '/' + Number(conversacionId) + '/mensajes',
+      markRead: aliadoBase + '/' + Number(conversacionId) + '/marcar-leida'
+    };
+  }
+
+  function applyTokenModeUi(host) {
+    var nuevo = document.getElementById('ruana-help-new-wrap');
+    if (nuevo) nuevo.hidden = soporteEnModoToken(host);
+    var sub = document.getElementById('ruana-help-sub');
+    if (sub && soporteEnModoToken(host)) {
+      sub.textContent = 'Escribe tu apelación aquí. Tienes 5 días hábiles desde la notificación de expulsión.';
+    }
+  }
+
+  function ensureHelpWidget() {
+    if (document.getElementById('ruana-help-fab')) return;
+    var mount = document.getElementById('ruana-help-mount') || document.body;
+    var wrap = document.createElement('div');
+    wrap.innerHTML =
+      '<button type="button" class="ruana-help-fab" id="ruana-help-fab" aria-label="Hablar con el equipo de RUANA" title="Hablar con RUANA">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>' +
+        '<span class="ruana-help-fab-badge" id="ruana-help-fab-badge" aria-hidden="true">0</span>' +
+      '</button>' +
+      '<div class="ruana-help-overlay" id="ruana-help-overlay" aria-hidden="true">' +
+        '<section class="ruana-help-center" id="ruana-help-center" role="dialog" aria-modal="true" aria-labelledby="ruana-help-title">' +
+          '<div class="ruana-help-header">' +
+            '<h2 class="ruana-help-title" id="ruana-help-title">Habla con el equipo de RUANA</h2>' +
+            '<div class="ruana-help-header-actions">' +
+              '<span class="ruana-help-pill" id="ruana-help-unread-pill">0 sin leer</span>' +
+              '<button type="button" class="ruana-help-close" id="ruana-help-close" aria-label="Cerrar">✕</button>' +
+            '</div>' +
+          '</div>' +
+          '<p class="ruana-help-sub" id="ruana-help-sub">Consultas, incidencias e ideas.</p>' +
+          '<div class="ruana-help-layout">' +
+            '<div class="ruana-help-card" id="ruana-help-new-wrap">' +
+              '<h3 style="margin:0 0 10px;">Nuevo mensaje</h3>' +
+              '<div class="ruana-help-form-row">' +
+                '<input id="ruana-help-subject" class="ruana-help-input" maxlength="160" placeholder="Asunto" />' +
+                '<select id="ruana-help-category" class="ruana-help-select">' +
+                  '<option value="consulta">Consulta</option>' +
+                '</select>' +
+                '<textarea id="ruana-help-message" class="ruana-help-textarea" rows="4" maxlength="3000"></textarea>' +
+                '<button type="button" class="btn-admin-action" id="ruana-help-send-btn">Enviar al equipo RUANA</button>' +
+              '</div>' +
+            '</div>' +
+            '<div class="ruana-help-card">' +
+              '<h3 style="margin:0 0 8px;">Conversación</h3>' +
+              '<div class="ruana-help-list" id="ruana-help-threads"></div>' +
+            '</div>' +
+            '<div class="ruana-help-card">' +
+              '<div id="ruana-help-thread-header" class="ruana-help-empty">Selecciona una conversación para ver el historial.</div>' +
+              '<div class="ruana-help-messages" id="ruana-help-messages"></div>' +
+              '<div class="ruana-help-form-row">' +
+                '<textarea id="ruana-help-reply" class="ruana-help-textarea" rows="3" maxlength="3000" placeholder="Escribe tu apelación..." disabled></textarea>' +
+                '<button type="button" class="btn-admin-action" id="ruana-help-reply-btn" disabled>Enviar apelación</button>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+        '</section>' +
+      '</div>';
+    mount.appendChild(wrap);
+  }
+
   function escapeHtmlSafe(host, str) {
     if (host && typeof host.escapeHtml === 'function') {
       return host.escapeHtml(str);
@@ -55,6 +151,8 @@
   }
 
   function abrirCentroComunicacion(host) {
+    ensureHelpWidget();
+    applyTokenModeUi(host);
     var overlay = document.getElementById('ruana-help-overlay');
     var fab = document.getElementById('ruana-help-fab');
     if (!overlay) return;
@@ -120,6 +218,7 @@
    */
   function renderCentroComunicacion(host) {
     if (!host) return;
+    applyTokenModeUi(host);
     var list = document.getElementById('ruana-help-threads');
     var unreadPill = document.getElementById('ruana-help-unread-pill');
     var fabBadge = document.getElementById('ruana-help-fab-badge');
@@ -162,20 +261,21 @@
   function seleccionarConversacionSoporte(host, conversacionId) {
     if (!host) return Promise.resolve();
     var codigo = host.codigoAliado || (host.aliado && host.aliado.codigo) || '';
-    if (!codigo || !conversacionId) return Promise.resolve();
+    if ((!codigo && !soporteEnModoToken(host)) || !conversacionId) return Promise.resolve();
     host.soporteSelectedId = Number(conversacionId);
     var apiBase = getApiBaseSafe();
-    return fetch(apiBase + '/api/aliados/' + encodeURIComponent(codigo) + '/centro-comunicacion/' + Number(conversacionId) + '/mensajes', {
+    var urls = soporteUrls(host, conversacionId);
+    return fetch(apiBase + urls.messages, {
       credentials: 'same-origin',
-      headers: getAuthHeadersSafe()
+      headers: soporteHeaders(host)
     })
       .then(function (r) { return r.json().catch(function () { return {}; }); })
       .then(function (data) {
         host.soporteMensajes = data.status === 'success' && Array.isArray(data.mensajes) ? data.mensajes : [];
-        return fetch(apiBase + '/api/aliados/' + encodeURIComponent(codigo) + '/centro-comunicacion/' + Number(conversacionId) + '/marcar-leida', {
+        return fetch(apiBase + urls.markRead, {
           method: 'POST',
           credentials: 'same-origin',
-          headers: getAuthHeadersSafe()
+          headers: soporteHeaders(host)
         }).catch(function () { return null; });
       })
       .then(function () {
@@ -191,6 +291,9 @@
 
   function enviarNuevoMensajeSoporte(host) {
     if (!host) return Promise.resolve();
+    if (soporteEnModoToken(host)) {
+      return responderConversacionSoporte(host);
+    }
     var codigo = host.codigoAliado || (host.aliado && host.aliado.codigo) || '';
     if (!codigo) return Promise.resolve();
     var asuntoEl = document.getElementById('ruana-help-subject');
@@ -204,10 +307,11 @@
       return Promise.resolve();
     }
     var apiBase = getApiBaseSafe();
-    return fetch(apiBase + '/api/aliados/' + encodeURIComponent(codigo) + '/centro-comunicacion', {
+    var urls = soporteUrls(host);
+    return fetch(apiBase + urls.create, {
       method: 'POST',
       credentials: 'same-origin',
-      headers: getAuthHeadersSafe({ 'Content-Type': 'application/json' }),
+      headers: soporteHeaders(host, { 'Content-Type': 'application/json' }),
       body: JSON.stringify({ asunto: asunto, categoria: categoriaEl.value || 'consulta', mensaje: mensaje })
     })
       .then(function (r) { return r.json().catch(function () { return {}; }); })
@@ -237,16 +341,17 @@
     if (!host) return Promise.resolve();
     var codigo = host.codigoAliado || (host.aliado && host.aliado.codigo) || '';
     var convId = Number(host.soporteSelectedId || 0);
-    if (!codigo || !convId) return Promise.resolve();
+    if ((!codigo && !soporteEnModoToken(host)) || !convId) return Promise.resolve();
     var replyEl = document.getElementById('ruana-help-reply');
     if (!replyEl) return Promise.resolve();
     var mensaje = (replyEl.value || '').trim();
     if (!mensaje) return Promise.resolve();
     var apiBase = getApiBaseSafe();
-    return fetch(apiBase + '/api/aliados/' + encodeURIComponent(codigo) + '/centro-comunicacion/' + convId + '/mensajes', {
+    var urls = soporteUrls(host, convId);
+    return fetch(apiBase + urls.messages, {
       method: 'POST',
       credentials: 'same-origin',
-      headers: getAuthHeadersSafe({ 'Content-Type': 'application/json' }),
+      headers: soporteHeaders(host, { 'Content-Type': 'application/json' }),
       body: JSON.stringify({ mensaje: mensaje })
     })
       .then(function (r) { return r.json().catch(function () { return {}; }); })
@@ -273,6 +378,7 @@
     render: render,
     refresh: refresh,
     formatHelpStatus: formatHelpStatus,
+    ensureHelpWidget: ensureHelpWidget,
     abrirCentroComunicacion: abrirCentroComunicacion,
     cerrarCentroComunicacion: cerrarCentroComunicacion,
     toggleCentroComunicacion: toggleCentroComunicacion,
