@@ -361,7 +361,8 @@ def test_rutas_html_legales(client):
         resp = client.get(path)
         assert resp.status_code == 200
         assert b"BORRADOR" not in resp.data
-        assert "Documento del piloto RUANA".encode("utf-8") in resp.data
+        assert "Pendiente de revisión por abogado".encode("utf-8") not in resp.data
+        assert "Documento del piloto RUANA".encode("utf-8") not in resp.data
         assert b"18508170R" in resp.data
         assert b"v1-2026-09" in resp.data
 
