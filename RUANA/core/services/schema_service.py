@@ -878,6 +878,8 @@ def _migrar_apelacion_expulsion(db, conn, cursor) -> None:
         ("decision_apelacion", "TEXT"),
         ("decision_admin_codigo", "TEXT"),
         ("decision_motivo", "TEXT"),
+        ("apelacion_token_hash", "TEXT"),
+        ("token_usado_en", "TIMESTAMP"),
     )
     if db.backend == "postgres":
         for nombre, definicion in nuevas:
@@ -901,6 +903,10 @@ def _migrar_apelacion_expulsion(db, conn, cursor) -> None:
     _repo.execute(
         cursor,
         "CREATE INDEX IF NOT EXISTS idx_soporte_conv_limite ON ruana_soporte_conversaciones(fecha_limite_apelacion)",
+    )
+    _repo.execute(
+        cursor,
+        "CREATE INDEX IF NOT EXISTS idx_soporte_conv_token ON ruana_soporte_conversaciones(apelacion_token_hash)",
     )
 
 def _migrar_contactos_posponer_recordatorio(db, conn, cursor) -> None:

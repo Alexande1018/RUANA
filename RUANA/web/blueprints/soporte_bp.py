@@ -210,3 +210,81 @@ def admin_eliminar_conversacion_centro(conversacion_id):
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+
+def _respuesta_token_invalido():
+    return jsonify({
+        'status': 'error',
+        'message': apelacion_service.MENSAJE_ENLACE_INVALIDO,
+    }), 404
+
+
+@soporte_bp.route('/api/apelar/<token>', methods=['GET'])
+@limiter.limit("30 per hour")
+@limiter.limit("10 per minute")
+def apelar_validar_token(token):
+    try:
+        db = get_db()
+        conv = apelacion_service.obtener_apelacion_por_token(db, token)
+        if not conv:
+            return _respuesta_token_invalido()
+        return jsonify({
+            'status': 'success',
+            'conversacion_id': conv['id'],
+            'fecha_limite_apelacion': conv.get('fecha_limite_apelacion'),
+            'asunto': conv.get('asunto'),
+            'estado': conv.get('estado'),
+        })
+    except Exception:
+        return _respuesta_token_invalido()
+
+
+@soporte_bp.route('/api/apelar/<token>/centro-comunicacion', methods=['GET'])
+@limiter.limit("60 per hour")
+def apelar_listar_centro(token):
+    try:
+        db = get_db()
+        conv = apelacion_service.obtener_apelacion_por_token(db, token)
+        if not conv:
+            return _respuesta_token_invalido()
+        return jsonify({'status': 'success', 'conversaciones': [conv]})
+    except Exception:
+        return _respuesta_token_invalido()
+
+
+@soporte_bp.route('/api/apelar/<token>/centro-comunicacion/<int:conversacion_id>/mensajes', methods=['GET', 'POST'])
+@limiter.limit("60 per hour")
+def apelar_mensajes_centro(token, conversacion_id):
+    try:
+        db = get_db()
+        conv = apelacion_service.obtener_apelacion_por_token(db, token)
+        if not conv or int(conv['id']) != int(conversacion_id):
+            return _respuesta_token_invalido()
+        if request.method == 'GET':
+            mensajes = apelacion_service.listar_mensajes_apelacion_por_token(
+                db, token, conversacion_id
+            )
+            return jsonify({'status': 'success', 'mensajes': mensajes})
+        data = request.get_json() or {}
+        result = apelacion_service.enviar_mensaje_apelacion_por_token(
+            db, token, conversacion_id, data.get('mensaje') or ''
+        )
+        if result.get('status') != 'success':
+            code = 404 if result.get('message') == apelacion_service.MENSAJE_ENLACE_INVALIDO else 400
+            return jsonify(result), code
+        return jsonify(result)
+    except Exception:
+        return _respuesta_token_invalido()
+
+
+@soporte_bp.route('/api/apelar/<token>/centro-comunicacion/<int:conversacion_id>/marcar-leida', methods=['POST'])
+@limiter.limit("60 per hour")
+def apelar_marcar_leida(token, conversacion_id):
+    try:
+        db = get_db()
+        result = apelacion_service.marcar_leida_apelacion_por_token(db, token, conversacion_id)
+        if result.get('status') != 'success':
+            return _respuesta_token_invalido()
+        return jsonify(result)
+    except Exception:
+        return _respuesta_token_invalido()
+

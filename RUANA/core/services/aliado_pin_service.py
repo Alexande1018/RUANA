@@ -72,13 +72,11 @@ def validar_login_aliado(db, codigo: str, pin: Optional[str]) -> Dict[str, Any]:
 
     estado = aliado.get("estado")
     if estado == "expulsado":
-        from core.services import apelacion_service
-        if not apelacion_service.aliado_tiene_apelacion_abierta(db, codigo):
-            return {
-                "ok": False,
-                "message": "Código desactivado. Se requiere nueva invitación para volver.",
-                "http_status": 403,
-            }
+        return {
+            "ok": False,
+            "message": "Código desactivado. Se requiere nueva invitación para volver.",
+            "http_status": 403,
+        }
     if estado == "pendiente_validacion":
         return {
             "ok": False,

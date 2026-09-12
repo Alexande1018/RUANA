@@ -203,9 +203,9 @@
             <p>Estas reglas forman parte del contrato de uso del servicio. El cálculo del score, el cierre de una competencia por comparación de puntuaciones, la pérdida de plaza y la expulsión automática a la segunda derrota son decisiones basadas únicamente en tratamiento automatizado. Tienen efectos equivalentes a los jurídicos del artículo 22 del RGPD: el aliado pierde la plaza o queda expulsado. RUANA declara esa calificación de forma expresa.</p>
             <p>Desde el <strong>12 de septiembre de 2026</strong> existe un mecanismo de apelación de esa expulsión automática, como garantía del artículo 22.3 del RGPD (intervención humana, expresar el punto de vista y impugnar la decisión):</p>
             <ul>
-                <li>en el momento de la expulsión se abre una conversación de soporte de tipo <code>apelacion_expulsion</code> y se notifica al aliado;</li>
-                <li>el aliado tiene <strong>5 días hábiles</strong> desde esa notificación para apelar respondiendo al mensaje;</li>
-                <li>durante ese plazo (o mientras la apelación esté pendiente de decisión) puede acceder al panel para usar el canal de soporte;</li>
+                <li>en el momento de la expulsión se abre una conversación de soporte de tipo <code>apelacion_expulsion</code> y se envía un email con un enlace de un solo uso <code>/apelar/&lt;token&gt;</code>;</li>
+                <li>el aliado tiene <strong>5 días hábiles</strong> desde esa notificación para apelar en esa página pública, sin iniciar sesión, reutilizando el mismo canal de soporte;</li>
+                <li>un expulsado no puede entrar al panel con su código; la apelación vive solo en ese enlace mientras el token no expire;</li>
                 <li>un administrador acepta o rechaza la apelación de forma expresa, con motivo y constancia de quién decide;</li>
                 <li>si se acepta, se readmite al aliado (estado activo, score restaurado al del cierre y una derrota menos). La plaza ganada por el otro aliado no se revierte;</li>
                 <li>si se rechaza, o si el plazo vence sin respuesta, la expulsión queda firme.</li>

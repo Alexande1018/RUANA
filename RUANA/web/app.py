@@ -363,6 +363,12 @@ def politica_privacidad():
     return send_from_directory(str(web_dir), 'politica-privacidad.html')
 
 
+@app.route('/apelar/<token>')
+def apelar_expulsion(token):
+    """Página pública de apelación (art. 22). El token se valida en la API, no aquí."""
+    return send_from_directory(str(web_dir), 'apelar.html')
+
+
 @app.route('/terminos')
 @app.route('/terminos.html')
 def terminos_uso():

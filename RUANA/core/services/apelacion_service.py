@@ -5,8 +5,10 @@ de 5 días hábiles y permite al admin aceptar o rechazar la apelación.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
+import secrets
 import sqlite3
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
@@ -17,11 +19,22 @@ logger = logging.getLogger(__name__)
 
 TIPO_APELACION = "apelacion_expulsion"
 ESTADOS_ABIERTOS = ("pendiente", "en_revision", "respondido", "reabierto")
+MENSAJE_ENLACE_INVALIDO = (
+    "Este enlace no es válido o el plazo de apelación ha vencido."
+)
 MENSAJE_APELACION = (
     "Has sido expulsado de RUANA por perder dos competencias de plaza. "
     "Tienes 5 días hábiles desde esta notificación para apelar respondiendo a este mensaje. "
     "Si no se recibe apelación en ese plazo, la expulsión queda firme."
 )
+
+
+def hash_token(token: str) -> str:
+    return hashlib.sha256((token or "").encode("utf-8")).hexdigest()
+
+
+def generar_token_apelacion() -> str:
+    return secrets.token_urlsafe(32)
 
 
 def sumar_dias_habiles(inicio: datetime, dias: int) -> datetime:
@@ -202,7 +215,8 @@ def abrir_apelacion_expulsion_automatica(
 
             cursor.execute(
                 """
-                SELECT estado, score, grupo_id, COALESCE(derrotas_competencia, 0) AS derrotas, oficio
+                SELECT estado, score, grupo_id, COALESCE(derrotas_competencia, 0) AS derrotas,
+                       oficio, email, nombre
                 FROM aliados WHERE codigo = ?
                 """,
                 (codigo,),
@@ -215,6 +229,8 @@ def abrir_apelacion_expulsion_automatica(
             score_cierre = _score_al_cierre(cursor, competencia_id, codigo)
             ahora = _ahora()
             fecha_limite = sumar_dias_habiles(ahora, 5)
+            token_raw = generar_token_apelacion()
+            token_hash = hash_token(token_raw)
             metadata = {
                 "competencia_id": int(competencia_id),
                 "oficio": oficio,
@@ -235,8 +251,8 @@ def abrir_apelacion_expulsion_automatica(
                 INSERT INTO ruana_soporte_conversaciones
                     (aliado_codigo, asunto, categoria, tipo, estado, ultimo_mensaje_preview,
                      tiene_no_leido_admin, tiene_no_leido_aliado, fecha_limite_apelacion,
-                     apelacion_metadata)
-                VALUES (?, ?, 'apelacion_expulsion', ?, 'pendiente', ?, 1, 1, ?, ?)
+                     apelacion_metadata, apelacion_token_hash)
+                VALUES (?, ?, 'apelacion_expulsion', ?, 'pendiente', ?, 1, 1, ?, ?, ?)
                 """,
                 (
                     codigo,
@@ -245,6 +261,7 @@ def abrir_apelacion_expulsion_automatica(
                     mensaje[:220],
                     fecha_limite.strftime("%Y-%m-%d %H:%M:%S"),
                     _json_dumps(metadata),
+                    token_hash,
                 ),
             )
             conv_id = int(cursor.lastrowid)
@@ -280,10 +297,24 @@ def abrir_apelacion_expulsion_automatica(
                 cursor=cursor,
             )
             conn.commit()
+            from core.email_service import enviar_correo_apelacion_expulsion
+            from core.settings import get_settings
+            base = (get_settings().public_app_url or "").rstrip("/")
+            enlace = f"{base}/apelar/{token_raw}" if base else f"/apelar/{token_raw}"
+            email_aliado = (aliado["email"] or "").strip()
+            enviar_correo_apelacion_expulsion(
+                email=email_aliado,
+                nombre=(aliado["nombre"] or "").strip(),
+                enlace=enlace,
+                oficio=oficio,
+                competencia_id=int(competencia_id),
+                fecha_limite=fecha_limite.strftime("%d/%m/%Y %H:%M"),
+            )
             return {
                 "status": "success",
                 "conversacion_id": conv_id,
                 "fecha_limite_apelacion": fecha_limite.strftime("%Y-%m-%d %H:%M:%S"),
+                "enlace": enlace,
             }
         except Exception as e:
             logger.error(
@@ -530,3 +561,106 @@ def cerrar_apelaciones_expulsion_vencidas(
         finally:
             if conn:
                 conn.close()
+
+
+def obtener_apelacion_por_token(
+    db, token: str, ahora: Optional[datetime] = None
+) -> Optional[Dict[str, Any]]:
+    """Devuelve la apelación si el token es válido y no ha expirado. Si no, None."""
+    raw = (token or "").strip()
+    if not raw:
+        return None
+    limite = ahora or _ahora()
+    token_hash = hash_token(raw)
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT id, aliado_codigo, asunto, estado, tipo, fecha_limite_apelacion,
+                       ultimo_mensaje_preview, ultimo_mensaje_en, tiene_no_leido_aliado
+                FROM ruana_soporte_conversaciones
+                WHERE apelacion_token_hash = ?
+                  AND COALESCE(tipo, '') = ?
+                  AND COALESCE(eliminada_por_admin, 0) = 0
+                LIMIT 1
+                """,
+                (token_hash, TIPO_APELACION),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            fecha_limite = _parse_dt(row["fecha_limite_apelacion"])
+            if not fecha_limite or fecha_limite < limite:
+                return None
+            estado = (row["estado"] or "").strip().lower()
+            if estado not in ESTADOS_ABIERTOS:
+                return None
+            return dict(row)
+        except Exception as e:
+            logger.warning(
+                "Fallo al resolver token de apelación",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
+            return None
+        finally:
+            if conn:
+                conn.close()
+
+
+def listar_mensajes_apelacion_por_token(db, token: str, conversacion_id: int) -> List[Dict[str, Any]]:
+    conv = obtener_apelacion_por_token(db, token)
+    if not conv or int(conv["id"]) != int(conversacion_id):
+        return []
+    from core.services import chat_service
+    return chat_service.listar_mensajes_soporte_aliado(db, conversacion_id, conv["aliado_codigo"])
+
+
+def enviar_mensaje_apelacion_por_token(
+    db, token: str, conversacion_id: int, mensaje: str
+) -> Dict[str, Any]:
+    conv = obtener_apelacion_por_token(db, token)
+    if not conv or int(conv["id"]) != int(conversacion_id):
+        return {"status": "error", "message": MENSAJE_ENLACE_INVALIDO}
+    from core.services import chat_service
+    result = chat_service.enviar_mensaje_soporte_aliado(
+        db, conversacion_id, conv["aliado_codigo"], mensaje
+    )
+    if result.get("status") != "success":
+        return result
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                UPDATE ruana_soporte_conversaciones
+                SET token_usado_en = COALESCE(token_usado_en, CURRENT_TIMESTAMP)
+                WHERE id = ?
+                """,
+                (int(conversacion_id),),
+            )
+            conn.commit()
+        except Exception as e:
+            logger.warning(
+                "Fallo al marcar token de apelación como usado",
+                extra={"conversacion_id": conversacion_id, "error": str(e)},
+                exc_info=True,
+            )
+        finally:
+            if conn:
+                conn.close()
+    return result
+
+
+def marcar_leida_apelacion_por_token(db, token: str, conversacion_id: int) -> Dict[str, Any]:
+    conv = obtener_apelacion_por_token(db, token)
+    if not conv or int(conv["id"]) != int(conversacion_id):
+        return {"status": "error", "message": MENSAJE_ENLACE_INVALIDO}
+    from core.services import chat_service
+    return chat_service.marcar_soporte_leido_aliado(db, conversacion_id, conv["aliado_codigo"])

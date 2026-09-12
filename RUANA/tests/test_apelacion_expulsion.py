@@ -5,10 +5,19 @@ from types import SimpleNamespace
 import pytest
 
 from core import db_manager as db_module
+from unittest.mock import patch
+
 from core.aliado_pin_auth import hash_pin
 from core.services import admin_service, apelacion_service, chat_service, competencia_service
 from core.services.aliado_pin_service import validar_login_aliado
-from core.services.apelacion_service import MENSAJE_APELACION, TIPO_APELACION, sumar_dias_habiles
+from core.services.apelacion_service import (
+    MENSAJE_APELACION,
+    MENSAJE_ENLACE_INVALIDO,
+    TIPO_APELACION,
+    hash_token,
+    sumar_dias_habiles,
+)
+from RUANA.web import app as app_module
 
 
 @pytest.fixture
@@ -302,7 +311,7 @@ def test_purga_mensual_cierra_apelaciones_vencidas(sqlite_db):
     assert convs[0]["estado"] == "vencida_sin_apelacion"
 
 
-def test_login_permitido_solo_con_apelacion_abierta(sqlite_db):
+def test_login_expulsado_sigue_bloqueado(sqlite_db):
     ctx = _forzar_segunda_derrota(sqlite_db)
     conn = sqlite_db._connect()
     cur = conn.cursor()
@@ -313,13 +322,85 @@ def test_login_permitido_solo_con_apelacion_abierta(sqlite_db):
     conn.commit()
     conn.close()
 
-    ok = validar_login_aliado(sqlite_db, ctx["titular"], "1234")
-    assert ok.get("ok") is True
-
-    conv = _conv_apelacion(sqlite_db, ctx["titular"])
-    apelacion_service.resolver_apelacion_expulsion(
-        sqlite_db, conv["id"], "admin-test", "rechazada", "Sin motivo válido"
-    )
     bloqueado = validar_login_aliado(sqlite_db, ctx["titular"], "1234")
     assert bloqueado.get("ok") is False
     assert bloqueado.get("http_status") == 403
+
+
+def test_expulsion_genera_token_y_email(sqlite_db, monkeypatch):
+    monkeypatch.setattr(apelacion_service, "generar_token_apelacion", lambda: "token-publico-test")
+    with patch("core.email_service.enviar_correo_apelacion_expulsion", return_value=True) as mock_mail:
+        ctx = _forzar_segunda_derrota(sqlite_db)
+        assert mock_mail.called
+        kwargs = mock_mail.call_args.kwargs
+        assert "token-publico-test" in kwargs["enlace"]
+        assert "/apelar/token-publico-test" in kwargs["enlace"]
+        assert kwargs["email"] == f"{ctx['titular']}@t.com"
+
+    conv = _conv_apelacion(sqlite_db, ctx["titular"])
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT apelacion_token_hash FROM ruana_soporte_conversaciones WHERE id = ?",
+        (conv["id"],),
+    )
+    stored = cur.fetchone()[0]
+    conn.close()
+    assert stored == hash_token("token-publico-test")
+    assert stored != "token-publico-test"
+
+
+def test_ruta_publica_token_valido_invalido_y_expirado(sqlite_db, client, monkeypatch):
+    from web.blueprints import soporte_bp as soporte_bp_mod
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    monkeypatch.setattr(soporte_bp_mod, "get_db", lambda: sqlite_db)
+    monkeypatch.setattr(apelacion_service, "generar_token_apelacion", lambda: "token-publico-test")
+    _forzar_segunda_derrota(sqlite_db)
+    conv = _conv_apelacion(sqlite_db, "60041")
+
+    pagina = client.get("/apelar/token-publico-test")
+    assert pagina.status_code == 200
+    html = pagina.get_data(as_text=True)
+    assert "apelar-expulsion.js" in html
+    assert "aliado-centro-comunicacion-module.js" in html
+
+    ok = client.get("/api/apelar/token-publico-test")
+    data = ok.get_json()
+    assert ok.status_code == 200
+    assert data["status"] == "success"
+    assert data["conversacion_id"] == conv["id"]
+
+    lista = client.get("/api/apelar/token-publico-test/centro-comunicacion")
+    assert lista.status_code == 200
+    assert lista.get_json()["conversaciones"][0]["id"] == conv["id"]
+
+    msg = client.post(
+        f"/api/apelar/token-publico-test/centro-comunicacion/{conv['id']}/mensajes",
+        json={"mensaje": "Apelo esta expulsión."},
+    )
+    assert msg.status_code == 200
+    assert msg.get_json()["status"] == "success"
+
+    hilos = apelacion_service.listar_mensajes_apelacion_por_token(
+        sqlite_db, "token-publico-test", conv["id"]
+    )
+    assert any("Apelo esta expulsión." in (m.get("mensaje") or "") for m in hilos)
+
+    invalido = client.get("/api/apelar/token-que-no-existe")
+    expirado_pagina = client.get("/apelar/token-que-no-existe")
+    assert invalido.status_code == 404
+    assert invalido.get_json()["message"] == MENSAJE_ENLACE_INVALIDO
+    assert expirado_pagina.status_code == 200
+
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE ruana_soporte_conversaciones SET fecha_limite_apelacion = ? WHERE id = ?",
+        ("2020-01-01 00:00:00", conv["id"]),
+    )
+    conn.commit()
+    conn.close()
+    vencido = client.get("/api/apelar/token-publico-test")
+    assert vencido.status_code == 404
+    assert vencido.get_json()["message"] == MENSAJE_ENLACE_INVALIDO
+    assert vencido.get_json() == invalido.get_json()

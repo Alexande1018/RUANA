@@ -218,6 +218,7 @@ def test_soporte_bp_importa_y_usa_chat_y_admin_service():
     assert "apelacion_service" in src
     assert "chat_service.listar_mensajes_soporte_admin" in src
     assert "apelacion_service.resolver_apelacion_expulsion" in src
+    assert "apelacion_service.obtener_apelacion_por_token" in src
     assert "db.listar_mensajes_soporte_admin(" not in src
     assert "db.resolver_apelacion_expulsion(" not in src
     assert hasattr(soporte_bp_mod, "chat_service")

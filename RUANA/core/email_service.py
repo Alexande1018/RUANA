@@ -177,3 +177,59 @@ def enviar_correo_recuperacion_acceso(
     except Exception as exc:
         logger.exception("[RUANA][EMAIL] Error al enviar correo de recuperación: %s", exc)
         return False
+
+
+def enviar_correo_apelacion_expulsion(
+    email: str,
+    nombre: str,
+    enlace: str,
+    oficio: str,
+    competencia_id: int,
+    fecha_limite: str,
+) -> bool:
+    """Envía el enlace público de apelación (art. 22). Reutiliza el SMTP existente."""
+    email_limpio = (email or "").strip()
+    if not email_limpio:
+        logger.error("[RUANA][EMAIL] Apelación omitida: email vacío")
+        return False
+    if not _smtp_configurado():
+        logger.warning(
+            "[RUANA][EMAIL] SMTP no configurado; omitiendo correo de apelación"
+        )
+        return False
+
+    nombre_limpio = (nombre or "").strip() or "Aliado"
+    oficio_txt = (oficio or "").strip() or "—"
+    asunto = "Has sido expulsado de RUANA — puedes apelar"
+    cuerpo = (
+        f"Hola, {nombre_limpio}.\n\n"
+        "Has sido expulsado de RUANA por perder dos competencias de plaza.\n"
+        f"Competencia #{int(competencia_id)} · oficio {oficio_txt}.\n\n"
+        "Tienes 5 días hábiles desde esta notificación para apelar. "
+        f"El plazo termina el {fecha_limite}.\n\n"
+        "Abre este enlace para escribir tu apelación (no necesitas iniciar sesión):\n"
+        f"{enlace}\n\n"
+        "Si no se recibe apelación en ese plazo, la expulsión queda firme.\n\n"
+        "Equipo RUANA."
+    )
+
+    settings = get_settings()
+    from_email = settings.smtp_from_email or settings.smtp_user
+    msg = EmailMessage()
+    msg["Subject"] = asunto
+    msg["From"] = from_email
+    msg["To"] = email_limpio
+    msg.set_content(cuerpo)
+
+    try:
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(settings.smtp_user, settings.smtp_password)
+            server.send_message(msg)
+        logger.info("[RUANA][EMAIL] Correo de apelación de expulsión enviado")
+        return True
+    except Exception as exc:
+        logger.exception("[RUANA][EMAIL] Error al enviar correo de apelación: %s", exc)
+        return False
