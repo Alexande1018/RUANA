@@ -5,6 +5,7 @@ Maneja toda la persistencia de datos usando SQLite
 
 import sqlite3
 import json
+import logging
 import os
 import random
 import re
@@ -180,6 +181,10 @@ class DBManager:
     def _migrar_centro_comunicacion_ruana(self, conn, cursor) -> None:
         """Fachada Campamento Base → schema_service._migrar_centro_comunicacion_ruana."""
         return schema_service._migrar_centro_comunicacion_ruana(self, conn, cursor)
+
+    def _migrar_apelacion_expulsion(self, conn, cursor) -> None:
+        """Fachada Campamento Base → schema_service._migrar_apelacion_expulsion."""
+        return schema_service._migrar_apelacion_expulsion(self, conn, cursor)
 
     def _migrar_contactos_posponer_recordatorio(self, conn, cursor) -> None:
         """Fachada Campamento Base → schema_service._migrar_contactos_posponer_recordatorio."""
@@ -896,8 +901,35 @@ class DBManager:
         ganador_forzado: Optional[str] = None,
         motivo_cierre: str = 'plazo_vencido',
     ) -> Dict[str, Any]:
-        """Fachada Campamento Base → competencia_service._finalizar_una_competencia."""
-        return competencia_service._finalizar_una_competencia(self, competencia_id, grupo_id, aliado_original_codigo, retador_codigo, retador_grupo_anterior_id, ganador_forzado, motivo_cierre)
+        """Fachada: cierra la competencia y, si hay expulsión, abre apelación RGPD.
+
+        No altera comparación de scores, movimiento de grupo ni reinicio del perdedor.
+        El disparo de apelación ocurre *después* de persistir estado='expulsado'.
+        """
+        from .services import apelacion_service
+        resultado = competencia_service._finalizar_una_competencia(
+            self,
+            competencia_id,
+            grupo_id,
+            aliado_original_codigo,
+            retador_codigo,
+            retador_grupo_anterior_id,
+            ganador_forzado,
+            motivo_cierre,
+        )
+        if resultado.get("status") == "ok" and resultado.get("perdedor_expulsado"):
+            try:
+                apelacion_service.abrir_apelacion_expulsion_automatica(
+                    self,
+                    resultado.get("perdedor_codigo"),
+                    competencia_id,
+                )
+            except Exception:
+                logging.getLogger(__name__).exception(
+                    "No se pudo abrir apelación automática de expulsión (competencia_id=%s)",
+                    competencia_id,
+                )
+        return resultado
 
     def obtener_avisos_grupo(self, grupo_id: int, tipo: Optional[str] = None) -> List[Dict[str, Any]]:
         """Fachada Campamento Base → grupo_service.obtener_avisos_grupo."""
@@ -1202,9 +1234,24 @@ class DBManager:
 
     def listar_conversaciones_soporte_admin(self, aliado_codigo: str = '', estado: str = '',
                                             solo_no_leidas: bool = False, limite: int = 100,
-                                            offset: int = 0) -> List[Dict[str, Any]]:
+                                            offset: int = 0, tipo: str = '') -> List[Dict[str, Any]]:
         """Fachada Campamento Base → admin_service.listar_conversaciones_soporte_admin."""
-        return admin_service.listar_conversaciones_soporte_admin(self, aliado_codigo, estado, solo_no_leidas, limite, offset)
+        return admin_service.listar_conversaciones_soporte_admin(
+            self, aliado_codigo, estado, solo_no_leidas, limite, offset, tipo
+        )
+
+    def resolver_apelacion_expulsion(
+        self,
+        conversacion_id: int,
+        admin_codigo: str,
+        decision: str,
+        motivo: str,
+    ) -> Dict[str, Any]:
+        """Fachada Campamento Base → apelacion_service.resolver_apelacion_expulsion."""
+        from .services import apelacion_service
+        return apelacion_service.resolver_apelacion_expulsion(
+            self, conversacion_id, admin_codigo, decision, motivo
+        )
 
     def responder_soporte_admin(self, conversacion_id: int, admin_codigo: str, mensaje: str,
                                 nuevo_estado: Optional[str] = None) -> Dict[str, Any]:

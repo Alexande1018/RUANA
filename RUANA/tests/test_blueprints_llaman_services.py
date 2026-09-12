@@ -215,8 +215,11 @@ def test_soporte_bp_importa_y_usa_chat_y_admin_service():
     src = _source("soporte_bp.py")
     assert "chat_service" in src
     assert "admin_service" in src
+    assert "apelacion_service" in src
     assert "chat_service.listar_mensajes_soporte_admin" in src
+    assert "apelacion_service.resolver_apelacion_expulsion" in src
     assert "db.listar_mensajes_soporte_admin(" not in src
+    assert "db.resolver_apelacion_expulsion(" not in src
     assert hasattr(soporte_bp_mod, "chat_service")
     assert soporte_bp_mod.chat_service is chat_service
 
@@ -330,6 +333,7 @@ def test_blueprints_objetivo_sin_fachadas_dominio_en_ast():
             "responder_soporte_admin",
             "actualizar_estado_soporte_admin",
             "eliminar_conversacion_soporte_admin",
+            "resolver_apelacion_expulsion",
         },
         "auth_bp.py": {
             "obtener_aliado_por_codigo",

@@ -397,6 +397,7 @@ def _init_db(db):
             db._migrar_aliados_pago(conn, cursor)
             db._migrar_notificaciones_aliado(conn, cursor)
             db._migrar_centro_comunicacion_ruana(conn, cursor)
+            db._migrar_apelacion_expulsion(conn, cursor)
             db._migrar_contactos_posponer_recordatorio(conn, cursor)
             db._migrar_contactos_fecha_pospuesto_hasta(conn, cursor)
             db._migrar_chat_mensajes(conn, cursor)
@@ -866,6 +867,41 @@ def _migrar_centro_comunicacion_ruana(db, conn, cursor) -> None:
     _repo.execute(cursor, "CREATE INDEX IF NOT EXISTS idx_soporte_conv_ultimo ON ruana_soporte_conversaciones(ultimo_mensaje_en DESC)")
     _repo.execute(cursor, "CREATE INDEX IF NOT EXISTS idx_soporte_msg_conv ON ruana_soporte_mensajes(conversacion_id)")
     _repo.execute(cursor, "CREATE INDEX IF NOT EXISTS idx_soporte_msg_fecha ON ruana_soporte_mensajes(creado_en DESC)")
+    _migrar_apelacion_expulsion(db, conn, cursor)
+
+def _migrar_apelacion_expulsion(db, conn, cursor) -> None:
+    """Art. 22 RGPD: tipo, plazo y snapshot de apelación de expulsión automática."""
+    nuevas = (
+        ("tipo", "TEXT DEFAULT 'consulta'"),
+        ("fecha_limite_apelacion", "TIMESTAMP"),
+        ("apelacion_metadata", "TEXT"),
+        ("decision_apelacion", "TEXT"),
+        ("decision_admin_codigo", "TEXT"),
+        ("decision_motivo", "TEXT"),
+    )
+    if db.backend == "postgres":
+        for nombre, definicion in nuevas:
+            _repo.execute(
+                cursor,
+                f"ALTER TABLE ruana_soporte_conversaciones ADD COLUMN IF NOT EXISTS {nombre} {definicion}",
+            )
+    else:
+        columnas = _repo.columnas_tabla(cursor, "ruana_soporte_conversaciones")
+        for nombre, definicion in nuevas:
+            if nombre in columnas:
+                continue
+            _repo.execute(
+                cursor,
+                f"ALTER TABLE ruana_soporte_conversaciones ADD COLUMN {nombre} {definicion}",
+            )
+    _repo.execute(
+        cursor,
+        "CREATE INDEX IF NOT EXISTS idx_soporte_conv_tipo ON ruana_soporte_conversaciones(tipo)",
+    )
+    _repo.execute(
+        cursor,
+        "CREATE INDEX IF NOT EXISTS idx_soporte_conv_limite ON ruana_soporte_conversaciones(fecha_limite_apelacion)",
+    )
 
 def _migrar_contactos_posponer_recordatorio(db, conn, cursor) -> None:
     """Añade posponer_recordatorio para 'Sigue en conversación' (ocultar alerta en sesión)."""
@@ -3122,6 +3158,7 @@ def _init_postgres_schema(db):
         db._migrar_importe_acordado(conn, cursor)
         db._migrar_aliado_accesos_dia(conn, cursor)
         db._migrar_centro_comunicacion_ruana(conn, cursor)
+        db._migrar_apelacion_expulsion(conn, cursor)
         db._migrar_aliados_eliminados(conn, cursor)
         db._migrar_privacidad_rgpd_aliado(conn, cursor)
         db._migrar_stripe_pagos(conn, cursor)

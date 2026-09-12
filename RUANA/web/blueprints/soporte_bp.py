@@ -9,7 +9,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 from core import db_manager as db_manager_mod
-from core.services import admin_service, chat_service
+from core.services import admin_service, apelacion_service, chat_service
 from web.auth_decorators import (
     _admin_codigo,
     _aliado_codigo,
@@ -50,6 +50,7 @@ def admin_listar_centro_comunicacion():
             solo_no_leidas=(request.args.get('solo_no_leidas', '0') == '1'),
             limite=request.args.get('limite', 100, type=int),
             offset=request.args.get('offset', 0, type=int),
+            tipo=request.args.get('tipo', ''),
         )
         return jsonify({'status': 'success', 'conversaciones': conversaciones})
     except Exception as e:
@@ -173,6 +174,25 @@ def admin_estado_centro_comunicacion(conversacion_id):
         data = request.get_json() or {}
         db = get_db()
         result = admin_service.actualizar_estado_soporte_admin(db, conversacion_id, data.get('estado') or '', _admin_codigo())
+        status_code = 200 if result.get('status') == 'success' else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@soporte_bp.route('/api/admin/centro-comunicacion/<int:conversacion_id>/resolver-apelacion', methods=['POST'])
+@require_admin_escritura
+def admin_resolver_apelacion_expulsion(conversacion_id):
+    try:
+        data = request.get_json() or {}
+        db = get_db()
+        result = apelacion_service.resolver_apelacion_expulsion(
+            db,
+            conversacion_id=conversacion_id,
+            admin_codigo=_admin_codigo(),
+            decision=data.get('decision') or '',
+            motivo=data.get('motivo') or '',
+        )
         status_code = 200 if result.get('status') == 'success' else 400
         return jsonify(result), status_code
     except Exception as e:

@@ -54,12 +54,14 @@ def obtener_o_crear_invitador_admin(db, admin_codigo: str, nombre: str = "") -> 
 
 def listar_conversaciones_soporte_admin(db, aliado_codigo: str = '', estado: str = '',
                                         solo_no_leidas: bool = False, limite: int = 100,
-                                        offset: int = 0) -> List[Dict[str, Any]]:
+                                        offset: int = 0, tipo: str = '') -> List[Dict[str, Any]]:
     aliado_f = str(aliado_codigo or '').strip()
     estado_f = str(estado or '').strip().lower()
+    tipo_f = str(tipo or '').strip().lower()
     with db._lock:
         conn = None
         try:
+            from core.services.apelacion_service import TIPO_APELACION, _parse_dt
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
@@ -71,10 +73,25 @@ def listar_conversaciones_soporte_admin(db, aliado_codigo: str = '', estado: str
             if estado_f:
                 where.append("LOWER(TRIM(COALESCE(c.estado, ''))) = ?")
                 params.append(estado_f)
+            if tipo_f:
+                where.append("LOWER(TRIM(COALESCE(c.tipo, ''))) = ?")
+                params.append(tipo_f)
             if solo_no_leidas:
                 where.append("COALESCE(c.tiene_no_leido_admin, 0) = 1")
             params.extend([max(1, min(int(limite or 100), 300)), max(0, int(offset or 0))])
-            return [dict(r) for r in _repo.listar_conversaciones_soporte(cursor, ' AND '.join(where), params)]
+            order_sql = None
+            if tipo_f == TIPO_APELACION:
+                order_sql = "c.fecha_limite_apelacion ASC, c.id ASC"
+            ahora = datetime.now()
+            filas = []
+            for r in _repo.listar_conversaciones_soporte(
+                cursor, ' AND '.join(where), params, order_sql
+            ):
+                item = dict(r)
+                fecha_limite = _parse_dt(item.get("fecha_limite_apelacion"))
+                item["apelacion_vencida"] = bool(fecha_limite and fecha_limite < ahora)
+                filas.append(item)
+            return filas
         except Exception as e:
             logger.error(
                 "Fallo al listar conversaciones de soporte (admin)",

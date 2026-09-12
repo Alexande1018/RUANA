@@ -200,14 +200,23 @@
 
             <h2 id="automatizadas">9. Decisiones automatizadas y score</h2>
             <p>La plataforma calcula un score numérico y aplica reglas automáticas de plazas y competencia descritas en los <a href="/terminos.html">Términos de uso</a>. En el funcionamiento actual del código, una segunda derrota acumulada en competencia conlleva la expulsión automática del aliado, y una purga periódica de calidad puede suspender temporalmente a aliados del pool.</p>
-            <p>Estas reglas forman parte del contrato de uso del servicio. El cálculo del score, el cierre de una competencia por comparación de puntuaciones, la pérdida de plaza y la expulsión automática a la segunda derrota son decisiones basadas únicamente en tratamiento automatizado. Tienen efectos equivalentes a los jurídicos del artículo 22 del RGPD: el aliado pierde la plaza o queda expulsado y no puede acceder al panel con el mismo código. RUANA declara esa calificación de forma expresa.</p>
-            <p>Garantías que existen hoy en el código:</p>
+            <p>Estas reglas forman parte del contrato de uso del servicio. El cálculo del score, el cierre de una competencia por comparación de puntuaciones, la pérdida de plaza y la expulsión automática a la segunda derrota son decisiones basadas únicamente en tratamiento automatizado. Tienen efectos equivalentes a los jurídicos del artículo 22 del RGPD: el aliado pierde la plaza o queda expulsado. RUANA declara esa calificación de forma expresa.</p>
+            <p>Desde el <strong>12 de septiembre de 2026</strong> existe un mecanismo de apelación de esa expulsión automática, como garantía del artículo 22.3 del RGPD (intervención humana, expresar el punto de vista y impugnar la decisión):</p>
+            <ul>
+                <li>en el momento de la expulsión se abre una conversación de soporte de tipo <code>apelacion_expulsion</code> y se notifica al aliado;</li>
+                <li>el aliado tiene <strong>5 días hábiles</strong> desde esa notificación para apelar respondiendo al mensaje;</li>
+                <li>durante ese plazo (o mientras la apelación esté pendiente de decisión) puede acceder al panel para usar el canal de soporte;</li>
+                <li>un administrador acepta o rechaza la apelación de forma expresa, con motivo y constancia de quién decide;</li>
+                <li>si se acepta, se readmite al aliado (estado activo, score restaurado al del cierre y una derrota menos). La plaza ganada por el otro aliado no se revierte;</li>
+                <li>si se rechaza, o si el plazo vence sin respuesta, la expulsión queda firme.</li>
+            </ul>
+            <p>Garantías adicionales que existen hoy en el código:</p>
             <ul>
                 <li>un administrador puede forzar el inicio de una competencia (<code>forzar_competencia</code>) y cerrar las vencidas;</li>
-                <li>el panel de administración lista competencias activas, pendientes e historial;</li>
-                <li>el aliado puede escribir al canal de soporte (centro de comunicación del panel) para que un administrador revise el caso a mano.</li>
+                <li>el panel de administración lista competencias activas, pendientes e historial, y filtra las apelaciones de expulsión con su fecha límite;</li>
+                <li>el aliado también puede escribir al canal de soporte (botón de ayuda del panel) para otras consultas.</li>
             </ul>
-            <p>Limitaciones conocidas, sin ocultarlas: no hay un proceso de apelación formal; no hay revisión humana previa a la expulsión ni a la pérdida de plaza; el resultado del cierre se calcula por score, sin intervención humana; <code>activar_aliado</code> solo pasa de pendiente de validación a activo y no readmite a un expulsado; un expulsado no puede pausarse ni revertirse por un endpoint de apelación. La vía de soporte no tiene plazo de respuesta ni resultado garantizado. Esa vía no sustituye el ejercicio de los derechos del RGPD, incluido el de obtener intervención humana y expresar el punto de vista (art. 22.3) cuando resulte aplicable.</p>
+            <p>Sigue sin haber revisión humana previa a la expulsión ni a la pérdida de plaza: el resultado del cierre se calcula por score. <code>activar_aliado</code> solo pasa de pendiente de validación a activo; la readmisión de un expulsado se hace por este mecanismo de apelación, no por esa función. Este mecanismo no sustituye el ejercicio de los demás derechos del RGPD ante el responsable o ante la AEPD.</p>
             <p>RUANA no utiliza el score ni el perfil del aliado para publicidad comportamental ni para cesión a anunciantes.</p>
 
             <h2 id="cookies">10. Cookies y almacenamiento local</h2>

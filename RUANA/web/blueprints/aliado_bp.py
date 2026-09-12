@@ -16,7 +16,7 @@ from flask import Blueprint, jsonify, request
 from core import db_manager as db_manager_mod
 from core.db_manager import RUANA_CODIGO_INVITACION_REGEX
 from core.phone_utils import normalize_phone
-from core.services import aliado_service, notificacion_service
+from core.services import aliado_service, apelacion_service, notificacion_service
 from web.auth_decorators import (
     _admin_codigo,
     _aliado_codigo,
@@ -128,7 +128,7 @@ def get_aliado_datos():
         
         if aliado:
             estado = aliado.get('estado')
-            if estado == 'expulsado':
+            if estado == 'expulsado' and not apelacion_service.aliado_tiene_apelacion_abierta(db, codigo):
                 return jsonify({
                     'status': 'error',
                     'message': 'C?digo desactivado. Se requiere nueva invitaci?n para volver.'
@@ -255,7 +255,7 @@ def get_aliado_by_codigo(codigo):
         
         if aliado:
             estado = aliado.get('estado')
-            if estado == 'expulsado':
+            if estado == 'expulsado' and not apelacion_service.aliado_tiene_apelacion_abierta(db, codigo):
                 return jsonify({
                     'status': 'error',
                     'message': 'C?digo desactivado. Se requiere nueva invitaci?n para volver.'

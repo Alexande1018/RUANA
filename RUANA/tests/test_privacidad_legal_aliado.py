@@ -271,7 +271,10 @@ def test_privacidad_cita_encargados_y_retencion():
     assert "12 meses" in text
     assert "no es obligatorio nombrar DPO" in text
     assert "decisiones basadas únicamente en tratamiento automatizado" in text
-    assert "no hay un proceso de apelación formal" in text
+    assert "mecanismo de apelación" in text
+    assert "5 días hábiles" in text
+    assert "apelacion_expulsion" in text
+    assert "no hay un proceso de apelación formal" not in text
     assert "no usa cookies no esenciales" in text
     assert "no incluye banner de cookies" in text.lower()
     assert "legal-layer-1" in text
