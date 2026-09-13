@@ -36,6 +36,10 @@ def test_aceptar_y_pagar_opens_manual_payment_modal_with_bizum_first():
     assert 'id="modal-pago-apoyo"' in aliado_html
     assert 'id="pago-apoyo-bizum-panel"' in aliado_html
     assert 'id="pago-apoyo-revolut-panel"' in aliado_html
+    assert 'id="pago-apoyo-revolut-qr"' in aliado_html
+    assert "/static/images/PayPal.png" not in aliado_html
+    assert "if (qrRevolut)" in alertas_js
+    assert "qrRevolutEl.removeAttribute('src')" in alertas_js
     assert 'id="pago-apoyo-transferencia-panel"' in aliado_html
     # Tabs en setupEventListeners (aliado-events-module) + default bizum en módulo
     events_js = (root / "static" / "js" / "aliado-events-module.js").read_text(encoding="utf-8")
