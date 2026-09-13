@@ -76,6 +76,21 @@ Ejecuta el ciclo de monitorización financiera (`financial_monitoring_cycle`): d
 
 ---
 
+## Job 5 — Keepalive del servicio Cloud Run (sin min-instances)
+
+| Campo | Valor |
+| --- | --- |
+| Nombre sugerido | `ruana-keepalive-health` |
+| Frecuencia | `*/10 * * * *` (cada 10 min, UTC) |
+| URL | `https://<CLOUD_RUN_URL>/api/health` |
+| Método | `GET` |
+| Headers | ninguno (`/api/health` es público y no toca BD) |
+| Body | vacío |
+
+Evita arranques en frío frecuentes sin declarar `min-instances`. El workflow de deploy también lo upserta con `.github/scripts/provision-keepalive-scheduler.sh`.
+
+---
+
 ## Provisionamiento idempotente (script)
 
 Tras desplegar Cloud Run y configurar `RUANA_CRON_SECRET`:
@@ -90,7 +105,13 @@ export SCHEDULER_OIDC_SERVICE_ACCOUNT=ruana-runner@ruana-4293f.iam.gserviceaccou
 bash .github/scripts/provision-cloud-scheduler-jobs.sh
 ```
 
-El script crea o actualiza los **cuatro** jobs anteriores.
+El script crea o actualiza los **cinco** jobs anteriores (cuatro operativos + keepalive). Solo keepalive:
+
+```bash
+export PROJECT_ID=ruana-4293f
+export CLOUD_RUN_URL=https://ruana-288784334163.europe-west1.run.app
+bash .github/scripts/provision-keepalive-scheduler.sh
+```
 
 ---
 

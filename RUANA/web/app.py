@@ -32,6 +32,7 @@ from core.db_manager import get_db, DB_PATH
 from core.settings import get_settings
 from core.runtime_environment import is_production
 from core.startup_validation import StartupConfigurationError, validate_startup_configuration
+from core.request_timing import register_request_timing
 from core.storage_manager import upload_ruana_file, upload_foto_perfil_file, resolve_admin_document_access_url
 from core.admin_auth import verify_admin_login, change_admin_password
 from core.email_service import enviar_correo_bienvenida_aliado
@@ -155,6 +156,7 @@ app.secret_key = settings.flask_secret_key
 configure_session_secret(app.secret_key)
 if Compress is not None:
     Compress(app)
+register_request_timing(app)
 configure_app_logging()
 app.register_blueprint(catalogo_bp)
 app.register_blueprint(negociacion_bp)

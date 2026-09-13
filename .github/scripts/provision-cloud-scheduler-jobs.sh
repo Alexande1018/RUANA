@@ -65,4 +65,29 @@ upsert_http_job "ruana-motor-evaluacion-periodico" "0 4 * * 1" \
 upsert_http_job "ruana-financial-automation-cycle" "0 */6 * * *" \
   "${CLOUD_RUN_URL}/api/admin/financial-automation/ejecutar-ciclo"
 
-echo "Cloud Scheduler: 4 jobs sincronizados en ${REGION} (${PROJECT_ID})."
+# Keepalive: GET público, no requiere secreto cron.
+KEEPALIVE_NAME="${KEEPALIVE_JOB_NAME:-ruana-keepalive-health}"
+KEEPALIVE_URI="${CLOUD_RUN_URL}/api/health"
+if gcloud scheduler jobs describe "$KEEPALIVE_NAME" --location="$REGION" --project="$PROJECT_ID" >/dev/null 2>&1; then
+  gcloud scheduler jobs update http "$KEEPALIVE_NAME" \
+    --location="$REGION" \
+    --project="$PROJECT_ID" \
+    --schedule="*/10 * * * *" \
+    --time-zone="Etc/UTC" \
+    --uri="$KEEPALIVE_URI" \
+    --http-method=GET \
+    --attempt-deadline=30s
+  echo "Actualizado job: ${KEEPALIVE_NAME}"
+else
+  gcloud scheduler jobs create http "$KEEPALIVE_NAME" \
+    --location="$REGION" \
+    --project="$PROJECT_ID" \
+    --schedule="*/10 * * * *" \
+    --time-zone="Etc/UTC" \
+    --uri="$KEEPALIVE_URI" \
+    --http-method=GET \
+    --attempt-deadline=30s
+  echo "Creado job: ${KEEPALIVE_NAME}"
+fi
+
+echo "Cloud Scheduler: 5 jobs sincronizados en ${REGION} (${PROJECT_ID})."

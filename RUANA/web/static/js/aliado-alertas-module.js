@@ -529,7 +529,15 @@
     bizumEl.textContent = bizumNum;
     importeEl.textContent = importeStr;
     conceptoEl.textContent = concepto;
-    qrRevolutEl.src = qrRevolut;
+    if (qrRevolut) {
+        qrRevolutEl.src = qrRevolut;
+        qrRevolutEl.hidden = false;
+        qrRevolutEl.style.display = 'block';
+    } else {
+        qrRevolutEl.removeAttribute('src');
+        qrRevolutEl.hidden = true;
+        qrRevolutEl.style.display = 'none';
+    }
     revolutImporteEl.textContent = importeStr;
     ibanEl.textContent = iban;
     transferenciaImporteEl.textContent = importeStr;
