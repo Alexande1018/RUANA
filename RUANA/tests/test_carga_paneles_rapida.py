@@ -45,6 +45,7 @@ def test_aliado_bootstrap_sesion_y_datos_en_paralelo():
     assert "const datosPromise =" in boot
     assert boot.index("sesionPromise") < boot.index("await sesionPromise")
     assert boot.index("datosPromise") < boot.index("await sesionPromise")
+    assert "hasCachedAliado" in boot
     assert "ruana_aliado_notificaciones" in boot
     assert "__ruanaBootstrapNotificaciones" in boot
 
@@ -57,6 +58,16 @@ def test_aliado_load_data_omite_notificaciones_del_bootstrap():
     assert "fetchedRecently && Array.isArray(host.notificaciones)" in snippet
     init_state = sync_js[sync_js.index("function initState(host)") :]
     assert "host._notificacionesFromBootstrap = true" in init_state
+
+
+def test_aliado_auto_sync_solo_modulo_visible_cada_60s():
+    sync_js = _read("static/js/aliado-sync-module.js")
+    start = sync_js.index("function startAutoSync(host)")
+    fn = sync_js[start : start + 900]
+    assert "60000" in fn
+    assert "20000" not in fn
+    assert "sectionsForVisibleModule()" in fn
+    assert "AliadoShell.current" in sync_js
 
 
 def test_aliado_init_semanales_no_refetch_si_ya_hay_snapshot():
@@ -83,20 +94,25 @@ def test_admin_hidratacion_en_dos_fases():
     start = resumen.index("async function cargarDesdeApi(host)")
     end = resumen.index("function buildIndicadoresAdmin(")
     fn = resumen[start:end]
+    assert "readAdminSnapshot()" in fn
+    assert "ADMIN_SNAPSHOT_TTL_MS" in resumen
+    assert "fetch('/api/admin/bootstrap'" in fn
     assert "criticalIdx = [0, 1, 2, 3, 4, 5, 16]" in fn
     assert "fetchOptsAliados" in fn
-    assert "applyAliadosList(host, parsed[2])" in fn
-    assert fn.index("applyAliadosList(host, parsed[2])") < fn.index("hideAdminLoader(loader)")
+    assert "applyAliadosList(host, aliadosDataBoot)" in fn
     assert "hideAdminLoader(loader)" in fn
-    assert fn.index("hideAdminLoader(loader)") < fn.index("settleIndexes(secondaryIdx)")
+    assert fn.index("applyAliadosList(host, aliadosDataBoot)") < fn.rindex("hideAdminLoader(loader)")
+    assert "ensureModuleData" in fn
     assert "heavy: false" in fn
-    assert "heavy: true" in fn
-    assert "fetch('/api/admin/dashboard-summary', fetchOpts)" in fn
-    assert "fetch('/api/admin/pagos-en-revision', fetchOpts)" in fn
-    assert "fetch('/api/admin/solicitudes-semanales', fetchOpts)" in fn
-    assert "fetch('/api/admin/metodos-pago', fetchOpts)" in fn
+    assert "heavy: true" in resumen
+    assert "fetch('/api/admin/dashboard-summary', fetchOpts)" in resumen
+    assert "fetch('/api/admin/pagos-en-revision', fetchOpts)" in resumen
+    assert "fetch('/api/admin/solicitudes-semanales', fetchOpts)" in resumen
+    assert "fetch('/api/admin/metodos-pago', fetchOpts)" in resumen
     assert "async function refreshCommandCenterPanels(host, payload, options)" in resumen
     assert "options.heavy === false" in resumen
+    assert "MODULE_SECONDARY_IDX" in resumen
+    assert "async function ensureModuleData" in resumen
 
 
 def test_admin_panel_territorial_carga_aliados_en_critico():
@@ -109,7 +125,7 @@ def test_admin_panel_territorial_carga_aliados_en_critico():
     assert "Cargando grupos territoriales" in explorer
     assert "function ensureAliadosTerritoriales(host)" in explorer
     assert "fetch('/api/aliados/listar'" in explorer
-    assert 'src="/static/js/admin-resumen-module.js?v=20260909e"' in html
+    assert 'src="/static/js/admin-resumen-module.js?v=20260913b"' in html
     assert 'src="/static/js/admin-red-explorer-module.js?v=20260909e"' in html
 
 

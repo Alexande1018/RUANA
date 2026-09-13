@@ -18,6 +18,7 @@ HOT_PATHS = frozenset({
     "/aliado.html",
     "/api/aliado/datos",
     "/api/admin/dashboard-summary",
+    "/api/admin/bootstrap",
     "/api/aliados/listar",
     "/api/stats",
 })

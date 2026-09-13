@@ -978,6 +978,9 @@
 
     function onModuleActivated(moduleId) {
         const panel = getPanel();
+        if (window.RuanaAdminModules && window.RuanaAdminModules.resumen && typeof window.RuanaAdminModules.resumen.ensureModuleData === 'function' && panel) {
+            window.RuanaAdminModules.resumen.ensureModuleData(panel, moduleId);
+        }
         if (moduleId === 'red') {
             if (window.RuanaAdminModules?.redExplorer?.onRedModuleActivated) {
                 window.RuanaAdminModules.redExplorer.onRedModuleActivated();
@@ -1663,13 +1666,10 @@
             return result;
         };
 
-        fetch('/api/admin/me', {
-            method: 'GET',
-            credentials: 'same-origin',
-            headers: typeof AdminAuthenticator !== 'undefined' ? AdminAuthenticator.getAdminAuthHeaders() : {}
-        }).then((r) => r.ok ? r.json() : null).then((data) => {
-            if (data && data.admin_codigo) adminCodigo = data.admin_codigo;
-        }).catch(() => {});
+        try {
+            const storedCodigo = sessionStorage.getItem('admin_codigo');
+            if (storedCodigo) adminCodigo = storedCodigo;
+        } catch (e) { /* ignore */ }
 
         scheduleEnhance();
     }

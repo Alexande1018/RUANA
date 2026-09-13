@@ -47,6 +47,7 @@ def test_admin_shell_js_has_modules():
     assert "MODULE_DEFS" in text
     assert "buildModules" in text
     assert "showModule" in text
+    assert "ensureModuleData" in text
     assert "data-admin-module" in text
     assert "acciones-admin-wrap" in text
     assert "adminBottomNav" in text

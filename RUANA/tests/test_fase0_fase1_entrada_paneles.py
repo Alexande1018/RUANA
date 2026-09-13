@@ -18,6 +18,7 @@ HOT_PATHS = (
     "/aliado",
     "/api/aliado/datos",
     "/api/admin/dashboard-summary",
+    "/api/admin/bootstrap",
     "/api/aliados/listar",
     "/api/stats",
 )
@@ -142,9 +143,9 @@ def test_health_no_lleva_server_timing(client):
 def test_cache_busting_versioned_sigue_en_paneles():
     aliado = (WEB / "aliado.html").read_text(encoding="utf-8")
     admin = (WEB / "admin.html").read_text(encoding="utf-8")
-    assert "aliado-sync-module.js?v=20260910a" in aliado
+    assert "aliado-sync-module.js?v=20260913b" in aliado
     assert "lucide.min.js?v=0.469.0" in aliado
-    assert "admin-resumen-module.js?v=20260909e" in admin
+    assert "admin-resumen-module.js?v=20260913b" in admin
     assert "ruana-fonts.css?v=20260913a" in aliado
     assert "ruana-fonts.css?v=20260913a" in admin
 

@@ -20,6 +20,7 @@ from core.auth_session import _ruana_session_invalidate_for_codigo
 
 from core import db_manager as db_manager_mod
 from core.services import (
+    admin_dashboard_service,
     admin_service,
     aliado_service,
     catalogo_service,
@@ -56,6 +57,17 @@ def get_db():
             if callable(fn):
                 return fn()
     return db_manager_mod.get_db()
+
+
+@admin_bp.after_request
+def _clear_admin_bootstrap_cache(response):
+    """Las mutaciones invalidan el cache corto del bootstrap (TTL 20s)."""
+    if request.method in ("POST", "PATCH", "PUT", "DELETE") and response.status_code < 400:
+        try:
+            admin_dashboard_service.clear_admin_bootstrap_cache()
+        except Exception:
+            pass
+    return response
 
 
 @admin_bp.route("/api/admin/bp-health", methods=["GET"])
@@ -155,50 +167,23 @@ def admin_dashboard_summary():
     """GET resumen del dashboard global para el panel admin."""
     try:
         db = get_db()
-        aliados = aliado_service.listar_aliados(db)
-        total_users = len(aliados)
-        active_users = len([a for a in aliados if a.get("estado") == "activo"])
-        retadores = db.contar_retadores_activos()
-        suplentes = retadores  # alias
-        en_espera = db.contar_aliados_en_espera() if hasattr(db, "contar_aliados_en_espera") else 0
-        en_riesgo = db.contar_aliados_en_riesgo()
-        solicitudes_activas = solicitud_service.contar_solicitudes_activas(db)
-        oficios_ocupados = catalogo_service.contar_oficios_ocupados(db)
-        grupos_data = grupo_service.contar_grupos(db)
-        grupos = int(grupos_data.get("total", 0) or 0)
-        from core.services import territorio_migracion_service
-        check = territorio_migracion_service.comprobar_migracion(db)
-        sin_territorial = int(check.get("total") or 0)
+        summary, _aliados = admin_dashboard_service.build_dashboard_summary(db)
+        return jsonify(summary)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-        contactos_metricas = admin_service.obtener_metricas_contactos(db)
-        contactos_disputa = contactos_metricas.get("contactos_en_disputa", 0) or 0
-        contactos_disputa_prolongada = contactos_metricas.get(
-            "contactos_en_disputa_prolongada", 0
-        ) or 0
-        pct_riesgo = (en_riesgo / active_users * 100) if active_users else 0
-        if pct_riesgo <= 10 and contactos_disputa <= 2 and contactos_disputa_prolongada == 0:
-            estado_sistema = "Estable"
-        elif pct_riesgo <= 25 and contactos_disputa <= 5:
-            estado_sistema = "Alerta"
-        else:
-            estado_sistema = "Cr?tico"
 
-        return jsonify({
-            "total_users": total_users,
-            "active_users": active_users,
-            "retadores": retadores,
-            "suplentes": suplentes,
-            "en_espera": en_espera,
-            "en_riesgo": en_riesgo,
-            "solicitudes_activas": solicitudes_activas,
-            "oficios_ocupados": oficios_ocupados,
-            "grupos": grupos,
-            "grupos_activos": int(grupos_data.get("activos", 0) or 0),
-            "grupos_en_competencia": int(grupos_data.get("en_competencia", 0) or 0),
-            "grupos_disueltos": int(grupos_data.get("disueltos", 0) or 0),
-            "aliados_sin_grupo_territorial": sin_territorial,
-            "estado_sistema": estado_sistema,
-        })
+@admin_bp.route("/api/admin/bootstrap", methods=["GET"])
+@require_admin
+def admin_bootstrap():
+    """GET único de apertura: mismos conteos que dashboard-summary + listas."""
+    try:
+        db = get_db()
+        permisos = _admin_permisos()
+        if not permisos and _admin_codigo():
+            permisos = ["leer", "escribir", "eliminar", "configurar"]
+        payload = admin_dashboard_service.get_admin_bootstrap_cached(db, permisos=permisos)
+        return jsonify(payload)
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 

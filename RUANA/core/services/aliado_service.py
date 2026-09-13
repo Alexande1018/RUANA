@@ -599,14 +599,7 @@ def listar_aliados(db, filtro_postal: str = None) -> List[Dict[str, Any]]:
     Returns:
         Lista de aliados
     """
-    try:
-        db.backfill_invitado_por_linaje()
-    except Exception as e:
-        logger.warning(
-            "Fallo al rellenar linaje de invitados al listar aliados",
-            extra={"error": str(e)},
-            exc_info=True,
-        )
+    # El backfill de linaje es un job de reparación (cron / login admin), no el GET.
     with db._lock:
         try:
             conn = db._connect()
