@@ -116,18 +116,6 @@ html.admin-shell-enabled .ruana-legal-footer {
     margin-bottom: 20px;
 }
 
-.legal-draft-banner {
-    margin: 0 0 20px;
-    padding: 12px 14px;
-    border-radius: 8px;
-    border: 1px solid rgba(250, 204, 21, 0.35);
-    background: rgba(250, 204, 21, 0.08);
-    color: #fde68a;
-    font-size: 0.85rem;
-    font-weight: 600;
-    line-height: 1.45;
-}
-
 .legal-table-wrap {
     overflow-x: auto;
     margin: 12px 0 16px;
