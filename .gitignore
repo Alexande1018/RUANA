@@ -23,3 +23,6 @@ backup_pre_reset_*.dump
 
 qa-artifacts/
 output/playwright/
+
+# Copia de deploy: se genera con sync-firebase-hosting-static.sh
+firebase-public/static/

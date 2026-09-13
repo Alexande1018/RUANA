@@ -19,12 +19,21 @@ def test_aliado_lucide_es_local_y_preloads_shell():
     html = _read("aliado.html")
     assert 'src="/static/js/vendor/lucide.min.js?v=0.469.0"' in html
     assert "unpkg.com/lucide" not in html
+    assert "fonts.googleapis.com" not in html
+    assert 'rel="stylesheet" href="/static/css/ruana-fonts.css?v=20260913a"' in html
+    assert 'rel="preload" href="/static/fonts/plus-jakarta-sans-latin-wght-normal.woff2?v=5.3.0"' in html
     assert 'rel="preload" href="/static/css/aliado-shell.css?v=20260910d" as="style"' in html
     lucide = WEB / "static" / "js" / "vendor" / "lucide.min.js"
     assert lucide.is_file()
     text = lucide.read_text(encoding="utf-8")
     assert "lucide v0.469.0" in text
     assert "createIcons" in text
+    fonts_css = WEB / "static" / "css" / "ruana-fonts.css"
+    font_file = WEB / "static" / "fonts" / "plus-jakarta-sans-latin-wght-normal.woff2"
+    assert fonts_css.is_file()
+    assert "font-display: swap" in fonts_css.read_text(encoding="utf-8")
+    assert font_file.is_file()
+    assert font_file.stat().st_size > 1000
 
 
 def test_aliado_bootstrap_sesion_y_datos_en_paralelo():
@@ -61,6 +70,8 @@ def test_aliado_init_semanales_no_refetch_si_ya_hay_snapshot():
 
 def test_admin_precarga_css_de_shell_sin_quitar_import():
     html = _read("admin.html")
+    assert "fonts.googleapis.com" not in html
+    assert 'rel="stylesheet" href="/static/css/ruana-fonts.css?v=20260913a"' in html
     assert 'rel="preload" href="/static/css/admin-shell.css" as="style"' in html
     assert 'rel="preload" href="/static/css/admin-panel.css" as="style"' in html
     assert 'url("/static/css/admin-shell.css")' in html

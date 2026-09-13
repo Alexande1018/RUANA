@@ -124,6 +124,7 @@ jobs:
             --region "$REGION" \
             --project "$PROJECT_ID" \
             --allow-unauthenticated \
+            --cpu-boost \
             --max-instances 3 \
             --service-account "$RUNTIME_SERVICE_ACCOUNT" \
             --set-env-vars "FIREBASE_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_REGION=$REGION,SUPABASE_URL=$SUPABASE_URL,RUANA_PUBLIC_APP_URL=$FIREBASE_HOSTING_URL,RUANA_STRIPE_PAYMENTS_ENABLED=1,STRIPE_API_VERSION=2024-11-20.acacia,RUANA_ENV=production,RUANA_STRIPE_MODE=${{ steps.stripe_mode.outputs.mode }},RUANA_SESSION_COOKIE_SECURE=true,RUANA_SCHEDULER_SA=ruana-scheduler-invoker@ruana-4293f.iam.gserviceaccount.com,RUANA_CORS_ALLOWED_ORIGINS=https://ruana-4293f.web.app" \
@@ -140,8 +141,19 @@ jobs:
         continue-on-error: true
         run: bash .github/scripts/upsert-postgres-schema-init-alert.sh
 
+      - name: Sync estáticos a Firebase Hosting
+        run: bash .github/scripts/sync-firebase-hosting-static.sh
+
       - name: Deploy Firebase Hosting
         run: npx firebase-tools@15.18.0 deploy --project "$PROJECT_ID" --only hosting --non-interactive
+
+      - name: Upsert keepalive Cloud Scheduler
+        continue-on-error: true
+        env:
+          PROJECT_ID: ${{ env.PROJECT_ID }}
+          GOOGLE_CLOUD_REGION: ${{ env.REGION }}
+          CLOUD_RUN_URL: https://ruana-288784334163.europe-west1.run.app
+        run: bash .github/scripts/provision-keepalive-scheduler.sh
 
       - name: Verify public runtime
         env:
@@ -185,3 +197,9 @@ jobs:
           }
           fetch_and_grep "$FIREBASE_HOSTING_URL/aliado" "input-foto-perfil"
           fetch_and_grep "$FIREBASE_HOSTING_URL/" "ruana-brand-mark"
+          fetch_and_grep "$FIREBASE_HOSTING_URL/aliado" "ruana-fonts.css"
+          fetch_and_grep "$FIREBASE_HOSTING_URL/admin" "ruana-fonts.css"
+          curl --fail --retry 3 --retry-delay 5 --retry-all-errors -sS -o /dev/null --max-time 30 \
+            "$FIREBASE_HOSTING_URL/static/css/ruana-fonts.css?v=20260913a"
+          curl --fail --retry 3 --retry-delay 5 --retry-all-errors -sS -o /dev/null --max-time 30 \
+            "$FIREBASE_HOSTING_URL/static/fonts/plus-jakarta-sans-latin-wght-normal.woff2?v=5.3.0"
