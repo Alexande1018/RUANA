@@ -7,7 +7,10 @@ import pytest
 from core import db_manager as db_module
 from core.services.admin_dashboard_service import (
     SUMMARY_COUNT_KEYS,
+    _bootstrap_cache,
+    bump_admin_bootstrap_generation,
     clear_admin_bootstrap_cache,
+    read_admin_bootstrap_generation,
 )
 from RUANA.web import app as app_module
 
@@ -99,8 +102,38 @@ def test_admin_bootstrap_cache_hit_and_mutation_bust(
     for key in SUMMARY_COUNT_KEYS:
         assert first["summary"][key] == second["summary"][key]
 
-    # Una mutación admin (aunque falle el body) no debe dejar cache sucio si responde <400.
-    # POST cambiar-reglas exige escritura; usamos un no-op seguro: after_request limpia en 2xx/3xx.
     clear_admin_bootstrap_cache()
     third = client.get("/api/admin/bootstrap", headers=headers).get_json()
     assert third.get("cache") == "miss"
+
+
+def test_bootstrap_cache_otra_mutacion_en_otro_worker_invalida(
+    client, sqlite_db, monkeypatch, session_headers
+):
+    """El dict in-process no basta: la generación vive en BD (gunicorn multi-worker)."""
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    clear_admin_bootstrap_cache()
+    headers = session_headers("admin", "ADMIN001", permisos=["leer"])
+
+    first = client.get("/api/admin/bootstrap", headers=headers).get_json()
+    assert first.get("cache") == "miss"
+    gen_antes = read_admin_bootstrap_generation(sqlite_db)
+    stale = {
+        "ts": _bootstrap_cache["ts"],
+        "generation": _bootstrap_cache["generation"],
+        "payload": dict(_bootstrap_cache["payload"] or {}),
+    }
+    assert stale["generation"] == gen_antes
+    assert stale["payload"]
+
+    bump_admin_bootstrap_generation(sqlite_db)
+    assert read_admin_bootstrap_generation(sqlite_db) == gen_antes + 1
+
+    # Este proceso simula un worker que no ejecutó el bump: sigue con el dict viejo.
+    _bootstrap_cache["ts"] = stale["ts"]
+    _bootstrap_cache["generation"] = stale["generation"]
+    _bootstrap_cache["payload"] = stale["payload"]
+
+    after = client.get("/api/admin/bootstrap", headers=headers).get_json()
+    assert after.get("cache") == "miss"
+    assert after.get("generation") == gen_antes + 1

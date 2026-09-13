@@ -14,7 +14,8 @@ from core.services import (
 )
 
 _BOOTSTRAP_TTL_S = 20.0
-_bootstrap_cache: Dict[str, Any] = {"ts": 0.0, "payload": None}
+_META_CLAVE = "admin_bootstrap"
+_bootstrap_cache: Dict[str, Any] = {"ts": 0.0, "generation": None, "payload": None}
 
 
 SUMMARY_COUNT_KEYS = (
@@ -54,7 +55,9 @@ def build_dashboard_summary(
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """Misma fórmula que GET /api/admin/dashboard-summary.
 
-    Un solo listar_aliados (sin backfill) si no se pasa ``aliados``.
+    Un solo ``listar_aliados`` (sin backfill) si no se pasa ``aliados``.
+    Sigue siendo el SQL caro de ``listar_admin`` (``a.*`` + 5 subconsultas
+    por fila): la mejora es llamarlo una vez, no aligerar la query.
     """
     if aliados is None:
         aliados = aliado_service.listar_aliados(db)
@@ -140,17 +143,99 @@ def build_admin_bootstrap(db, permisos: Optional[List[str]] = None) -> Dict[str,
     return payload
 
 
+def _ensure_meta_table(cursor) -> None:
+    cursor.execute(
+        "CREATE TABLE IF NOT EXISTS ruana_cache_meta ("
+        "clave TEXT PRIMARY KEY,"
+        "generacion INTEGER NOT NULL DEFAULT 0"
+        ")"
+    )
+
+
+def _generation_from_row(row: Any) -> int:
+    if row is None:
+        return 0
+    if isinstance(row, dict):
+        return int(row.get("generacion") or 0)
+    try:
+        return int(row["generacion"])
+    except (KeyError, TypeError, IndexError):
+        return int(row[0])
+
+
+def read_admin_bootstrap_generation(db) -> int:
+    """Generación compartida (SQLite/Postgres). Visible para todos los workers."""
+    with db._lock:
+        conn = db._connect()
+        try:
+            cursor = conn.cursor()
+            _ensure_meta_table(cursor)
+            cursor.execute(
+                "SELECT generacion FROM ruana_cache_meta WHERE clave = ?",
+                (_META_CLAVE,),
+            )
+            row = cursor.fetchone()
+            if row is None:
+                cursor.execute(
+                    "INSERT INTO ruana_cache_meta (clave, generacion) VALUES (?, 0)",
+                    (_META_CLAVE,),
+                )
+                conn.commit()
+                return 0
+            return _generation_from_row(row)
+        finally:
+            conn.close()
+
+
+def bump_admin_bootstrap_generation(db) -> int:
+    """Invalida el cache en todos los workers: incrementa la generación en BD."""
+    with db._lock:
+        conn = db._connect()
+        try:
+            cursor = conn.cursor()
+            _ensure_meta_table(cursor)
+            cursor.execute(
+                "UPDATE ruana_cache_meta SET generacion = generacion + 1 WHERE clave = ?",
+                (_META_CLAVE,),
+            )
+            if int(getattr(cursor, "rowcount", 0) or 0) == 0:
+                cursor.execute(
+                    "INSERT INTO ruana_cache_meta (clave, generacion) VALUES (?, 1)",
+                    (_META_CLAVE,),
+                )
+                generation = 1
+            else:
+                cursor.execute(
+                    "SELECT generacion FROM ruana_cache_meta WHERE clave = ?",
+                    (_META_CLAVE,),
+                )
+                generation = _generation_from_row(cursor.fetchone())
+            conn.commit()
+        finally:
+            conn.close()
+    clear_admin_bootstrap_cache()
+    return generation
+
+
 def get_admin_bootstrap_cached(db, permisos: Optional[List[str]] = None) -> Dict[str, Any]:
     now = time.time()
+    generation = read_admin_bootstrap_generation(db)
     cached = _bootstrap_cache.get("payload")
     ts = float(_bootstrap_cache.get("ts") or 0)
-    if cached and (now - ts) < _BOOTSTRAP_TTL_S:
+    cached_gen = _bootstrap_cache.get("generation")
+    if (
+        cached
+        and cached_gen == generation
+        and (now - ts) < _BOOTSTRAP_TTL_S
+    ):
         data = dict(cached)
         data["permisos"] = list(permisos or [])
         data["cache"] = "hit"
+        data["generation"] = generation
         return data
     payload = build_admin_bootstrap(db, permisos=permisos)
     _bootstrap_cache["ts"] = now
+    _bootstrap_cache["generation"] = generation
     _bootstrap_cache["payload"] = {
         "status": payload["status"],
         "summary": payload["summary"],
@@ -159,9 +244,11 @@ def get_admin_bootstrap_cached(db, permisos: Optional[List[str]] = None) -> Dict
     }
     out = dict(payload)
     out["cache"] = "miss"
+    out["generation"] = generation
     return out
 
 
 def clear_admin_bootstrap_cache() -> None:
     _bootstrap_cache["ts"] = 0.0
+    _bootstrap_cache["generation"] = None
     _bootstrap_cache["payload"] = None

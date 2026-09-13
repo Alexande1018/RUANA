@@ -61,12 +61,15 @@ def get_db():
 
 @admin_bp.after_request
 def _clear_admin_bootstrap_cache(response):
-    """Las mutaciones invalidan el cache corto del bootstrap (TTL 20s)."""
+    """Mutación: incrementa la generación en BD (todos los workers de gunicorn)."""
     if request.method in ("POST", "PATCH", "PUT", "DELETE") and response.status_code < 400:
         try:
-            admin_dashboard_service.clear_admin_bootstrap_cache()
+            admin_dashboard_service.bump_admin_bootstrap_generation(get_db())
         except Exception:
-            pass
+            try:
+                admin_dashboard_service.clear_admin_bootstrap_cache()
+            except Exception:
+                pass
     return response
 
 

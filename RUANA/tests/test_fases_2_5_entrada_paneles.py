@@ -63,10 +63,31 @@ def test_fase4_lazy_modulos_admin_y_aliado():
     assert ", 60000)" in sync
 
 
-def test_fase5_snapshot_ttl_y_cache_bootstrap():
+def test_fase5_snapshot_ttl_y_cache_bootstrap_con_generacion_compartida():
     resumen = _read("static/js/admin-resumen-module.js")
     service = SERVICE.read_text(encoding="utf-8")
     assert "ADMIN_SNAPSHOT_TTL_MS = 60000" in resumen
     assert "persistAdminSnapshot" in resumen
     assert "_BOOTSTRAP_TTL_S = 20.0" in service
     assert "def clear_admin_bootstrap_cache" in service
+    assert "def bump_admin_bootstrap_generation" in service
+    assert "def read_admin_bootstrap_generation" in service
+    assert "ruana_cache_meta" in service
+    assert "cached_gen == generation" in service
+
+
+def test_fase3_sigue_usando_listar_admin_completo():
+    """La lista del bootstrap no es lite: sigue a.* + 5 subconsultas por fila."""
+    repo = ROOT / "core" / "repositories" / "aliado_repo.py"
+    text = repo.read_text(encoding="utf-8")
+    start = text.index("def listar_admin")
+    block = text[start : start + 2500]
+    assert "a.*" in block
+    assert "hijos_directos_count" in block
+    assert "total_contactos" in block
+    assert "contactos_30d" in block
+    assert "es_retador_activo" in block
+    assert "es_titular_en_competencia" in block
+    service = SERVICE.read_text(encoding="utf-8")
+    assert "aliado_service.listar_aliados(db)" in service
+    assert "no aligerar la query" in service
