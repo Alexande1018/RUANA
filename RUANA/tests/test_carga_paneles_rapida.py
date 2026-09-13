@@ -53,7 +53,7 @@ def test_aliado_bootstrap_sesion_y_datos_en_paralelo():
 def test_aliado_load_data_omite_notificaciones_del_bootstrap():
     sync_js = _read("static/js/aliado-sync-module.js")
     start = sync_js.index("async function loadData")
-    snippet = sync_js[start : start + 4500]
+    snippet = sync_js[start : start + 6500]
     assert "host._notificacionesFromBootstrap" in snippet
     assert "fetchedRecently && Array.isArray(host.notificaciones)" in snippet
     init_state = sync_js[sync_js.index("function initState(host)") :]
