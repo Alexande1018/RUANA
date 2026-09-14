@@ -49,7 +49,7 @@ def test_asegurar_ids_serial_tablas_financieras_sets_transfer_default():
     db = MagicMock()
     db.backend = "postgres"
     cursor = MagicMock()
-    cursor.fetchone.return_value = (None,)
+    cursor.fetchone.return_value = (None, "NO")
     executed: list[str] = []
 
     def record_execute(sql, params=()):
@@ -64,6 +64,107 @@ def test_asegurar_ids_serial_tablas_financieras_sets_transfer_default():
     assert any(
         "ALTER TABLE financial_transfers" in s and "DEFAULT nextval" in s for s in executed
     )
+    assert any("is_identity" in s for s in executed)
+
+
+def test_asegurar_tabla_id_serial_skips_identity_column():
+    """Prod: payment_conflicts.id es IDENTITY; SET DEFAULT nextval lanza 42809."""
+    db = MagicMock()
+    db.backend = "postgres"
+    cursor = MagicMock()
+    executed: list[str] = []
+
+    def record_execute(sql, params=()):
+        executed.append(str(sql))
+        return cursor
+
+    cursor.execute = record_execute
+    cursor.fetchone.return_value = (None, "YES")
+
+    schema_service._asegurar_tabla_id_serial_postgres(db, cursor, "payment_conflicts")
+
+    assert any("is_identity" in s for s in executed)
+    assert not any("CREATE SEQUENCE" in s for s in executed)
+    assert not any("SET DEFAULT nextval" in s for s in executed)
+    assert not any("ALTER TABLE payment_conflicts" in s for s in executed)
+
+
+def test_asegurar_tabla_id_serial_skips_identity_dict_row():
+    """psycopg2 RealDictCursor devuelve mapping, no tupla."""
+    db = MagicMock()
+    db.backend = "postgres"
+    cursor = MagicMock()
+    executed: list[str] = []
+
+    def record_execute(sql, params=()):
+        executed.append(str(sql))
+        return cursor
+
+    cursor.execute = record_execute
+    cursor.fetchone.return_value = {"column_default": None, "is_identity": "YES"}
+
+    schema_service._asegurar_tabla_id_serial_postgres(db, cursor, "payment_conflicts")
+
+    assert not any("SET DEFAULT nextval" in s for s in executed)
+
+
+def test_asegurar_ids_serial_identity_no_bloquea_resto_de_tablas():
+    """payment_conflicts IDENTITY no debe abortar el SERIAL de financial_transfers."""
+    db = MagicMock()
+    db.backend = "postgres"
+    cursor = MagicMock()
+    executed: list[str] = []
+    tablas: list[str] = []
+
+    def record_execute(sql, params=()):
+        executed.append(str(sql))
+        if params:
+            tablas.append(params[0])
+        return cursor
+
+    def fetchone():
+        tbl = tablas[-1] if tablas else ""
+        if tbl == "payment_conflicts":
+            return (None, "YES")
+        return (None, "NO")
+
+    cursor.execute = record_execute
+    cursor.fetchone.side_effect = fetchone
+
+    schema_service._asegurar_ids_serial_tablas_financieras(db, cursor)
+
+    assert not any("ALTER TABLE payment_conflicts" in s for s in executed)
+    assert any(
+        "ALTER TABLE financial_transfers" in s and "DEFAULT nextval" in s for s in executed
+    )
+
+
+def test_asegurar_tabla_id_serial_skips_existing_nextval():
+    db = MagicMock()
+    db.backend = "postgres"
+    cursor = MagicMock()
+    executed: list[str] = []
+
+    def record_execute(sql, params=()):
+        executed.append(str(sql))
+        return cursor
+
+    cursor.execute = record_execute
+    cursor.fetchone.return_value = ("nextval('financial_transfers_id_seq'::regclass)", "NO")
+
+    schema_service._asegurar_tabla_id_serial_postgres(db, cursor, "financial_transfers")
+
+    assert not any("CREATE SEQUENCE" in s for s in executed)
+    assert not any("SET DEFAULT nextval" in s for s in executed)
+
+
+def test_sql_migration_skips_identity_columns():
+    root = Path(__file__).resolve().parents[2]
+    sql = (root / "supabase" / "migrations" / "20260903000100_financial_transfers_id_serial.sql").read_text(
+        encoding="utf-8"
+    )
+    assert "is_identity" in sql
+    assert "<> 'YES'" in sql
 
 
 def test_financial_tables_id_serial_includes_transfers():

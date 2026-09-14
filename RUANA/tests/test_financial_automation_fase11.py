@@ -324,7 +324,7 @@ def test_16_asegurar_financial_automation_runs_repairs_missing_serial():
         return cursor
 
     cursor.execute = record_execute
-    cursor.fetchone.return_value = (None,)
+    cursor.fetchone.return_value = (None, "NO")
 
     with patch.object(schema_service._repo, "tabla_existe", return_value=True):
         schema_service._asegurar_tabla_id_serial_postgres(db, cursor, "financial_automation_runs")

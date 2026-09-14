@@ -1181,17 +1181,38 @@ def asegurar_ids_serial_tablas_financieras(db, cursor) -> None:
     _asegurar_ids_serial_tablas_financieras(db, cursor)
 
 
+def _valor_columna_schema(row, clave: str, indice: int):
+    """Lee information_schema tanto de tupla como de RealDictCursor."""
+    if row is None:
+        return None
+    if hasattr(row, "keys"):
+        try:
+            return row[clave]
+        except (KeyError, IndexError, TypeError):
+            pass
+    if isinstance(row, (tuple, list)):
+        return row[indice] if len(row) > indice else None
+    try:
+        return row[indice]
+    except (KeyError, IndexError, TypeError):
+        return None
+
+
 def _asegurar_tabla_id_serial_postgres(db, cursor, tabla: str) -> None:
     """
     Postgres: tablas creadas con INTEGER PRIMARY KEY (sin SERIAL) no auto-generan id.
     Añade secuencia + DEFAULT nextval sin relajar NOT NULL ni la PK.
+
+    No toca columnas IDENTITY (GENERATED ... AS IDENTITY): Postgres rechaza
+    ALTER COLUMN id SET DEFAULT sobre ellas con
+    "column 'id' of relation ... is an identity column". IDENTITY ya auto-genera id.
     """
     if db.backend != "postgres":
         return
     seq = f"{tabla}_id_seq"
     cursor.execute(
         """
-        SELECT column_default
+        SELECT column_default, is_identity
         FROM information_schema.columns
         WHERE table_schema = 'public'
           AND table_name = %s
@@ -1202,7 +1223,10 @@ def _asegurar_tabla_id_serial_postgres(db, cursor, tabla: str) -> None:
     row = cursor.fetchone()
     if row is None:
         return
-    default = row[0] if not hasattr(row, "keys") else row.get("column_default")
+    default = _valor_columna_schema(row, "column_default", 0)
+    is_identity = _valor_columna_schema(row, "is_identity", 1)
+    if str(is_identity or "").strip().upper() == "YES":
+        return
     if default and "nextval" in str(default):
         return
     cursor.execute(f"CREATE SEQUENCE IF NOT EXISTS {seq}")
