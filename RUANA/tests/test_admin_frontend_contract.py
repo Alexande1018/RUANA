@@ -49,6 +49,37 @@ def test_admin_errores_module_contract():
     assert "Ver más" in errores_js
 
 
+def test_admin_errores_mobile_card_layout_contract():
+    """En ~380px el visor no puede ser una tabla de 7 columnas recortada al checkbox."""
+    root = Path(__file__).resolve().parents[1] / "web"
+    css = (root / "static" / "css" / "admin-ops-identity.css").read_text(encoding="utf-8")
+    js = (root / "static" / "js" / "admin-errores-module.js").read_text(encoding="utf-8")
+    html = (root / "admin.html").read_text(encoding="utf-8")
+    styles = (root / "static" / "css" / "styles.css").read_text(encoding="utf-8")
+
+    start = css.index("Visor de errores: tarjetas en pantallas estrechas")
+    block = css[start:]
+    assert "@media (max-width: 768px)" in block
+    assert "#tabla-errores-logs .errores-log-row" in block
+    assert "grid-template-areas:" in block
+    assert '"check hora sev"' in block
+    assert '"actions actions actions"' in block
+    assert ".errores-log-detail[hidden]" in block
+    assert "display: none !important" in block
+    assert "errores-hora-cell" in js
+    assert "errores-sev-cell" in js
+    assert "errores-mod-cell" in js
+    assert "errores-ids-cell" in js
+    assert 'class="errores-hora-cell"' in html
+    assert "#errores-logs-wrap .movimiento-24h-tabla-scroll" in css
+    assert "min-width: 0" in css[css.index("#errores-logs-wrap .movimiento-24h-tabla-wrap") : css.index("#errores-logs-wrap .movimiento-24h-tabla-wrap") + 400]
+    assert "#tabla-errores-logs .errores-actions-cell .btn-admin-action" in css
+    assert "width: auto" in css[css.index("#tabla-errores-logs .errores-actions-cell .btn-admin-action") : css.index("#tabla-errores-logs .errores-actions-cell .btn-admin-action") + 120]
+    assert "@media (max-width: 640px)" in styles
+    assert "PAGE_SIZE = 8" in js
+    assert "/api/admin/logs/errores/ocultar" in js
+
+
 def test_admin_financial_module_uses_shared_auth_headers():
     """El panel financiero debe reutilizar la misma cabecera de sesión que el resto del admin."""
     root = Path(__file__).resolve().parents[1] / "web"
