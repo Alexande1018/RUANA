@@ -1,5 +1,6 @@
 -- Encargo #72 / liberar pago: tablas creadas por migraciones SQLite-compat pueden
 -- tener id INTEGER PRIMARY KEY sin DEFAULT nextval. Reparación idempotente.
+-- No altera columnas IDENTITY: Postgres rechaza SET DEFAULT nextval sobre ellas.
 
 DO $$
 DECLARE
@@ -41,6 +42,7 @@ BEGIN
             WHERE table_schema = 'public'
               AND table_name = tbl
               AND column_name = 'id'
+              AND COALESCE(is_identity, 'NO') <> 'YES'
               AND (column_default IS NULL OR column_default NOT LIKE 'nextval%')
         ) THEN
             EXECUTE format('CREATE SEQUENCE IF NOT EXISTS %I', tbl || '_id_seq');
