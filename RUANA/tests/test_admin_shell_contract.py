@@ -156,6 +156,19 @@ def test_e2e_admin_clicks_dismiss_sidebar_overlay():
     assert "pointerEvents = 'none'" in text
 
 
+def test_e2e_clicks_dismiss_solicitudes_semanales_overlay():
+    """El lunes el prompt semanal tapa el panel; QA lo cierra antes de pulsar."""
+    narrator = Path(__file__).resolve().parents[2] / "e2e" / "utils" / "qa-narrator.js"
+    spec = Path(__file__).resolve().parents[2] / "e2e" / "ruana-critical-flows.spec.js"
+    narrator_text = narrator.read_text(encoding="utf-8")
+    spec_text = spec.read_text(encoding="utf-8")
+    assert "dismissSolSemOverlaysIfNeeded" in narrator_text
+    assert "sol-sem-prompt-minimize" in narrator_text
+    assert "sol-sem-prompt-overlay" in narrator_text
+    assert "dismissSolSemOverlaysIfNeeded(page)" in narrator_text
+    assert "dismissSolSemOverlaysIfNeeded" in spec_text
+
+
 def test_admin_shell_sidebar_nav_not_blocked_by_backdrop():
     """El backdrop móvil no debe cubrir el sidebar ni atraparlo bajo un stacking context."""
     root = Path(__file__).resolve().parents[1] / "web"
