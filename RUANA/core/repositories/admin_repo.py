@@ -205,3 +205,13 @@ class AdminRepo:
             (limite,),
         )
         return cursor.fetchall()
+
+    def listar_descripciones_evento(self, cursor, tipo: str) -> List[str]:
+        cursor.execute(
+            """
+            SELECT DISTINCT descripcion FROM eventos_sistema
+            WHERE tipo = ?
+            """,
+            (tipo,),
+        )
+        return [str(row[0]) for row in (cursor.fetchall() or []) if row and row[0]]
