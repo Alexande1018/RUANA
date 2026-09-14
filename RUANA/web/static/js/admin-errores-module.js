@@ -275,11 +275,11 @@
                 '<td class="errores-check-cell">' +
                     '<input type="checkbox" class="errores-log-check" aria-label="Seleccionar registro" />' +
                 '</td>' +
-                '<td>' + esc(formatHora(item.timestamp)) + '</td>' +
-                '<td><span class="log-sev-badge ' + sevClass(item.severity) + '">' + esc(item.severity || '—') + '</span></td>' +
+                '<td class="errores-hora-cell">' + esc(formatHora(item.timestamp)) + '</td>' +
+                '<td class="errores-sev-cell"><span class="log-sev-badge ' + sevClass(item.severity) + '">' + esc(item.severity || '—') + '</span></td>' +
                 '<td class="errores-log-msg">' + esc(item.mensaje || '—') + '</td>' +
-                '<td>' + esc(item.logger || '—') + '</td>' +
-                '<td>' + esc(idsFromExtra(item.extra)) + '</td>' +
+                '<td class="errores-mod-cell">' + esc(item.logger || '—') + '</td>' +
+                '<td class="errores-ids-cell">' + esc(idsFromExtra(item.extra)) + '</td>' +
                 '<td class="errores-actions-cell">' +
                     '<button type="button" class="btn-admin-action errores-btn-copiar" data-action="copiar">Copiar</button>' +
                     '<button type="button" class="btn-admin-action errores-btn-eliminar" data-action="eliminar">Eliminar</button>' +

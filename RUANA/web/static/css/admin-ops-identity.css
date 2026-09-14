@@ -448,6 +448,153 @@ html.admin-shell-enabled .admin-module[data-admin-module="errores"] {
     border-radius: 8px;
 }
 
+/* El wrap debe poder encogerse: si no, min-width:max-content de la tabla
+   ensancha el módulo y body { overflow-x: hidden } recorta todo menos el checkbox. */
+#errores-logs-wrap .movimiento-24h-tabla-wrap,
+#errores-logs-wrap .movimiento-24h-tabla-scroll {
+    max-width: 100%;
+    min-width: 0;
+    width: 100%;
+}
+
+#tabla-errores-logs .errores-actions-cell .btn-admin-action {
+    width: auto;
+    max-width: 100%;
+}
+
+/* Visor de errores: tarjetas en pantallas estrechas (7 columnas no caben ~380px). */
+@media (max-width: 768px) {
+    #errores-logs-wrap .movimiento-24h-tabla-scroll {
+        overflow: visible;
+        max-height: none;
+        border: none !important;
+        background: transparent !important;
+        backdrop-filter: none;
+    }
+
+    #tabla-errores-logs,
+    #tabla-errores-logs thead,
+    #tabla-errores-logs tbody {
+        display: block;
+        width: 100%;
+        min-width: 0;
+    }
+
+    #tabla-errores-logs thead tr {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 2px 10px;
+    }
+
+    #tabla-errores-logs thead th {
+        display: none;
+        position: static;
+        background: transparent !important;
+        text-transform: none;
+        letter-spacing: 0;
+        font-size: 0.78rem !important;
+        padding: 0 !important;
+    }
+
+    #tabla-errores-logs thead th.errores-check-cell {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: auto;
+    }
+
+    #tabla-errores-logs thead th.errores-check-cell::after {
+        content: "Seleccionar visibles";
+        font-weight: 600;
+        color: #a1a1aa;
+    }
+
+    #tabla-errores-logs tbody {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    #tabla-errores-logs .errores-log-row {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-areas:
+            "check hora sev"
+            "msg msg msg"
+            "mod mod mod"
+            "ids ids ids"
+            "actions actions actions";
+        gap: 6px 10px;
+        padding: 12px;
+        border: 1px solid rgba(248, 113, 113, 0.22);
+        border-radius: 12px;
+        background: rgba(0, 0, 0, 0.22);
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    #tabla-errores-logs .errores-log-row td {
+        display: block;
+        width: auto;
+        max-width: none;
+        padding: 0;
+        border: 0;
+        text-align: left;
+        white-space: normal;
+        overflow: visible;
+        font-weight: 500;
+        color: #e4e4e7;
+    }
+
+    #tabla-errores-logs .errores-log-row .errores-check-cell { grid-area: check; }
+    #tabla-errores-logs .errores-log-row .errores-hora-cell { grid-area: hora; font-size: 0.82rem; color: #a1a1aa; }
+    #tabla-errores-logs .errores-log-row .errores-sev-cell { grid-area: sev; }
+    #tabla-errores-logs .errores-log-row .errores-log-msg {
+        grid-area: msg;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: unset;
+        font-size: 0.92rem;
+        line-height: 1.4;
+        word-break: break-word;
+    }
+    #tabla-errores-logs .errores-log-row .errores-mod-cell { grid-area: mod; font-size: 0.75rem; color: #a1a1aa; }
+    #tabla-errores-logs .errores-log-row .errores-ids-cell { grid-area: ids; font-size: 0.75rem; color: #a1a1aa; }
+    #tabla-errores-logs .errores-log-row .errores-actions-cell {
+        grid-area: actions;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        width: 100%;
+        margin-top: 4px;
+    }
+
+    #tabla-errores-logs .errores-actions-cell .btn-admin-action {
+        width: auto;
+        flex: 1 1 120px;
+        margin: 0;
+        min-height: 40px;
+    }
+
+    #tabla-errores-logs .errores-log-detail {
+        display: block;
+        width: 100%;
+        min-width: 0;
+    }
+
+    #tabla-errores-logs .errores-log-detail[hidden] {
+        display: none !important;
+    }
+
+    #tabla-errores-logs .errores-log-detail td {
+        display: block;
+        padding: 0 2px 4px;
+        border: 0;
+        text-align: left;
+    }
+}
+
 html.admin-shell-enabled .admin-module[data-admin-module="intelligence"] {
     --mod-accent: var(--mod-analisis-accent);
     --mod-glow: var(--mod-analisis-glow);
