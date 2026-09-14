@@ -1,6 +1,7 @@
 """Lector de errores/warnings desde Google Cloud Logging (visor admin).
 
-No escribe logs ni persiste nada en Postgres. Solo consulta el proyecto GCP.
+Consulta el proyecto GCP. Ocultar entradas del visor se registra en
+eventos_sistema; no borra logs de Cloud Logging.
 """
 from __future__ import annotations
 
@@ -48,6 +49,8 @@ _MENSAJE_SIN_VIEWER = (
     "No se pueden leer los logs: falta el permiso logging.viewer "
     "(roles/logging.viewer) en la cuenta de servicio de Cloud Run."
 )
+
+TIPO_LOG_ERROR_OCULTO = "admin_log_error_oculto"
 
 ListEntriesFn = Callable[..., Tuple[Sequence[Any], Optional[str]]]
 
@@ -520,3 +523,71 @@ def consultar_logs_errores(
             "admin_codigo": params["admin_codigo"] or None,
         },
     }
+
+
+def clave_entrada(item: Dict[str, Any]) -> str:
+    insert_id = str((item or {}).get("insert_id") or "").strip()
+    if insert_id:
+        return insert_id
+    return "|".join((
+        str((item or {}).get("timestamp") or ""),
+        str((item or {}).get("severity") or ""),
+        str((item or {}).get("mensaje") or "")[:160],
+    ))
+
+
+def filtrar_entradas_ocultas(
+    entradas: Sequence[Dict[str, Any]],
+    ocultos: Sequence[str] | None,
+) -> List[Dict[str, Any]]:
+    hidden = {str(x).strip() for x in (ocultos or []) if str(x).strip()}
+    if not hidden:
+        return list(entradas or [])
+    return [item for item in (entradas or []) if clave_entrada(item) not in hidden]
+
+
+def listar_insert_ids_ocultos(db) -> set:
+    from core.repositories.admin_repo import AdminRepo
+
+    repo = AdminRepo()
+    lock = getattr(db, "_lock", None)
+    conn = None
+    try:
+        if lock is not None:
+            lock.acquire()
+        conn = db._connect()
+        cursor = conn.cursor()
+        return set(repo.listar_descripciones_evento(cursor, TIPO_LOG_ERROR_OCULTO))
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        if lock is not None:
+            try:
+                lock.release()
+            except Exception:
+                pass
+
+
+def ocultar_entradas_errores(db, insert_ids: Sequence[Any], admin_codigo: str) -> List[str]:
+    from core.services import admin_service
+
+    cleaned: List[str] = []
+    seen = set()
+    for raw in insert_ids or []:
+        insert_id = str(raw or "").strip()
+        if not insert_id or insert_id in seen:
+            continue
+        seen.add(insert_id)
+        admin_service.registrar_evento_sistema(
+            db,
+            TIPO_LOG_ERROR_OCULTO,
+            insert_id,
+            actor_tipo="admin",
+            actor_codigo=admin_codigo or None,
+            metadata={"insert_id": insert_id},
+        )
+        cleaned.append(insert_id)
+    return cleaned

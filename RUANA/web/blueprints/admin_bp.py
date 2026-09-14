@@ -92,7 +92,7 @@ def admin_me():
 @admin_bp.route("/api/admin/logs/errores", methods=["GET"])
 @require_admin
 def admin_logs_errores():
-    """GET errores y warnings recientes desde Cloud Logging (solo lectura)."""
+    """GET errores y warnings recientes desde Cloud Logging."""
     args = request.args
     try:
         resultado = cloud_logging_service.consultar_logs_errores(
@@ -121,7 +121,36 @@ def admin_logs_errores():
             "code": "cloud_logging_error",
             "message": str(e),
         }), 502
+    if not args.get("insert_id"):
+        try:
+            ocultos = cloud_logging_service.listar_insert_ids_ocultos(get_db())
+        except Exception:
+            ocultos = set()
+        resultado["entradas"] = cloud_logging_service.filtrar_entradas_ocultas(
+            resultado.get("entradas") or [],
+            ocultos,
+        )
     return jsonify(resultado)
+
+
+@admin_bp.route("/api/admin/logs/errores/ocultar", methods=["POST"])
+@require_admin_escritura
+def admin_logs_errores_ocultar():
+    """Oculta una o más entradas del visor (no borra Cloud Logging)."""
+    body = request.get_json(silent=True) or {}
+    raw_ids = body.get("insert_ids") or body.get("insert_id") or []
+    if isinstance(raw_ids, str):
+        raw_ids = [raw_ids]
+    if not isinstance(raw_ids, list):
+        return jsonify({"status": "error", "message": "insert_ids debe ser una lista"}), 400
+    ocultos = cloud_logging_service.ocultar_entradas_errores(
+        get_db(),
+        raw_ids,
+        _admin_codigo(),
+    )
+    if not ocultos:
+        return jsonify({"status": "error", "message": "Indica al menos un insert_id"}), 400
+    return jsonify({"status": "success", "ocultos": ocultos})
 
 
 @admin_bp.route("/api/admin/health-metrics", methods=["GET"])

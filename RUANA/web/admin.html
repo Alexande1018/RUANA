@@ -27,7 +27,7 @@
     <link rel="stylesheet" href="/static/css/ruana-identity.css">
     <link rel="stylesheet" href="/static/css/ruana-legal.css">
     <!-- Identidad operativa: fuera de @layer para prevalecer sobre premium (!important) -->
-    <link rel="stylesheet" href="/static/css/admin-ops-identity.css?v=20260903a">
+    <link rel="stylesheet" href="/static/css/admin-ops-identity.css?v=20260914a">
     <script src="/static/js/ruana-atmosphere.js" defer></script>
     <script src="/static/js/ruana-ui.js" defer></script>
     <script src="/static/js/ruana-legal-footer.js" defer></script>
@@ -42,7 +42,7 @@
     <script src="/static/js/admin-score-bands-module.js" defer></script>
     <script src="/static/js/admin-command-center-module.js" defer></script>
     <script src="/static/js/admin-intelligence-module.js" defer></script>
-    <script src="/static/js/admin-errores-module.js" defer></script>
+    <script src="/static/js/admin-errores-module.js?v=20260914a" defer></script>
     <script src="/static/js/admin-financial-module.js" defer></script>
     <script src="/static/js/referidos-module.js" defer></script>
     <script src="/static/js/admin-red-explorer-module.js?v=20260909e" defer></script>
@@ -1096,7 +1096,7 @@
         <!-- Errores (Cloud Logging) -->
         <div class="control-aliados" id="errores-logs-wrap">
             <h2 class="seccion-titulo">Errores</h2>
-            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Errores y warnings recientes leídos de Cloud Logging. Solo lectura; actualizar a mano.</p>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Errores y warnings recientes de Cloud Logging. Se muestran de 8 en 8; «Ver más» despliega los más antiguos. Copiar toma el error completo. Eliminar lo quita del visor.</p>
             <div class="filtros-solicitudes-admin admin-filter-row" id="errores-logs-filtros">
                 <select id="filtro-errores-horas" aria-label="Rango de horas">
                     <option value="6">Últimas 6 h</option>
@@ -1113,16 +1113,25 @@
                 <button type="button" class="btn-admin-action" id="btn-actualizar-errores">Actualizar</button>
             </div>
             <p class="admin-subtitle" id="errores-logs-status" style="margin: 8px 0; color: #999;"></p>
+            <div class="errores-logs-toolbar" id="errores-logs-toolbar" hidden>
+                <span id="errores-sel-count">0 seleccionados</span>
+                <button type="button" class="btn-admin-action" id="btn-errores-copiar-sel">Copiar seleccionados</button>
+                <button type="button" class="btn-admin-action errores-btn-eliminar" id="btn-errores-eliminar-sel">Eliminar seleccionados</button>
+            </div>
             <div class="movimiento-24h-tabla-wrap">
                 <div class="movimiento-24h-tabla-scroll">
                     <table class="movimiento-24h-tabla" id="tabla-errores-logs">
                         <thead>
                             <tr>
+                                <th class="errores-check-cell">
+                                    <input type="checkbox" id="errores-select-all" aria-label="Seleccionar visibles" />
+                                </th>
                                 <th>Hora</th>
                                 <th>Severidad</th>
                                 <th>Mensaje</th>
                                 <th>Módulo</th>
                                 <th>Identificadores</th>
+                                <th class="errores-actions-cell">Acciones</th>
                             </tr>
                         </thead>
                         <tbody id="tbody-errores-logs"></tbody>
@@ -1130,7 +1139,7 @@
                 </div>
             </div>
             <p class="admin-subtitle" id="errores-logs-empty" style="margin-top:8px;color:#666;display:none;">No hay entradas con estos filtros.</p>
-            <button type="button" class="btn-admin-action" id="btn-errores-cargar-mas" style="display:none;margin-top:10px;">Cargar más</button>
+            <button type="button" class="btn-admin-action" id="btn-errores-cargar-mas" style="display:none;margin-top:10px;">Ver más</button>
         </div>
 
         <!-- CAPA 4: Control de Aliados (navegación jerárquica: CP → Grupo → Oficio → Tarjetas + árbol genealógico) -->

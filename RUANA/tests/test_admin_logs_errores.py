@@ -168,6 +168,80 @@ def test_parsear_entrada_json_payload_estilo_gapic():
     assert item["logger"] == "core.services.score_service"
 
 
+def test_filtrar_entradas_ocultas_por_insert_id():
+    visibles = cls.filtrar_entradas_ocultas(
+        [
+            {"insert_id": "keep-1", "mensaje": "ok"},
+            {"insert_id": "hide-me", "mensaje": "fuera"},
+            {"insert_id": "", "timestamp": "t", "severity": "ERROR", "mensaje": "sin-id"},
+        ],
+        ["hide-me"],
+    )
+    assert [item["insert_id"] for item in visibles] == ["keep-1", ""]
+
+
+def test_ocultar_entradas_errores_registra_evento(monkeypatch):
+    llamadas = []
+
+    def fake_registrar(db, tipo, descripcion, actor_tipo=None, actor_codigo=None, metadata=None):
+        llamadas.append((tipo, descripcion, actor_codigo, metadata))
+
+    monkeypatch.setattr(
+        "core.services.admin_service.registrar_evento_sistema",
+        fake_registrar,
+    )
+    ocultos = cls.ocultar_entradas_errores(object(), [" a ", "a", "", "b"], "ADMIN001")
+    assert ocultos == ["a", "b"]
+    assert [c[1] for c in llamadas] == ["a", "b"]
+    assert llamadas[0][0] == cls.TIPO_LOG_ERROR_OCULTO
+
+
+def test_logs_errores_oculta_entradas_ya_marcadas(client, session_headers, monkeypatch):
+    def fake_listar(*, project_id, filtro, page_size, page_token):
+        return [_entrada_score()], None
+
+    monkeypatch.setattr(cls, "listar_entradas", fake_listar)
+    monkeypatch.setattr(cls, "listar_insert_ids_ocultos", lambda _db: {"insert-abc"})
+
+    headers = session_headers("admin", "ADMIN001", permisos=["leer"])
+    resp = client.get("/api/admin/logs/errores?severity=ERROR&horas=24", headers=headers)
+    assert resp.status_code == 200
+    assert resp.get_json()["entradas"] == []
+
+
+def test_ocultar_logs_errores_requiere_escritura(client, session_headers):
+    headers = session_headers("admin", "ADMIN001", permisos=["leer"])
+    resp = client.post(
+        "/api/admin/logs/errores/ocultar",
+        json={"insert_ids": ["insert-abc"]},
+        headers=headers,
+    )
+    assert resp.status_code == 403
+
+
+def test_ocultar_logs_errores_persiste_ids(client, session_headers, monkeypatch):
+    seen = {}
+
+    def fake_ocultar(_db, insert_ids, admin_codigo):
+        seen["ids"] = list(insert_ids)
+        seen["admin"] = admin_codigo
+        return ["insert-abc", "insert-def"]
+
+    monkeypatch.setattr(cls, "ocultar_entradas_errores", fake_ocultar)
+    headers = session_headers("admin", "ADMIN001", permisos=["leer", "escribir"])
+    resp = client.post(
+        "/api/admin/logs/errores/ocultar",
+        json={"insert_ids": ["insert-abc", "insert-def"]},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["status"] == "success"
+    assert data["ocultos"] == ["insert-abc", "insert-def"]
+    assert seen["ids"] == ["insert-abc", "insert-def"]
+    assert seen["admin"] == "ADMIN001"
+
+
 def test_logs_errores_permiso_logging_viewer(client, session_headers, monkeypatch):
     class PermissionDenied(Exception):
         pass

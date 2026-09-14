@@ -34,11 +34,19 @@ def test_admin_errores_module_contract():
     assert 'id="errores-logs-wrap"' in admin_html
     assert 'id="btn-actualizar-errores"' in admin_html
     assert 'id="filtro-errores-severity"' in admin_html
-    assert 'src="/static/js/admin-errores-module.js"' in admin_html
+    assert 'id="btn-errores-cargar-mas"' in admin_html
+    assert 'id="btn-errores-eliminar-sel"' in admin_html
+    assert 'id="btn-errores-copiar-sel"' in admin_html
+    assert ">Ver más</button>" in admin_html
+    assert 'src="/static/js/admin-errores-module.js' in admin_html
     assert "id: 'errores'" in shell_js
     assert "/api/admin/logs/errores" in errores_js
+    assert "/api/admin/logs/errores/ocultar" in errores_js
     assert "incluir_stack" in errores_js
     assert "getRuanaAuthHeaders" in errores_js
+    assert "PAGE_SIZE = 8" in errores_js
+    assert "errores-btn-copiar" in errores_js
+    assert "Ver más" in errores_js
 
 
 def test_admin_financial_module_uses_shared_auth_headers():
