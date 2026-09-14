@@ -18,6 +18,7 @@ const {
   checkVisible,
   clickVisible,
   dismissAdminOverlayIfNeeded,
+  dismissAliadoBlockingOverlaysIfNeeded,
   dismissGrupoMadreAvisoIfNeeded,
   fillVisible,
   narrate,
@@ -62,7 +63,7 @@ async function openAliadoPanel(page, session, scenario, label) {
     }, session.sessionId);
     await page.goto('/aliado');
     await expect(page.locator('#metric-score')).toBeVisible();
-    await dismissGrupoMadreAvisoIfNeeded(page);
+    await dismissAliadoBlockingOverlaysIfNeeded(page);
     await pass(page, scenario, {
       step: `${label} en panel aliado`,
       action: 'El usuario entra al panel con su sesion real de navegador.',
@@ -72,12 +73,14 @@ async function openAliadoPanel(page, session, scenario, label) {
 }
 
 async function goAliadoModule(page, moduleName) {
-  const desktopNav = page.locator(`.aliado-shell-nav [data-aliado-nav="${moduleName}"]`);
-  const mobileNav = page.locator(`.aliado-shell-bottom [data-aliado-nav="${moduleName}"]`);
+  await dismissAliadoBlockingOverlaysIfNeeded(page);
+  const desktopSelector = `.aliado-shell-nav [data-aliado-nav="${moduleName}"]`;
+  const mobileSelector = `.aliado-shell-bottom [data-aliado-nav="${moduleName}"]`;
+  const desktopNav = page.locator(desktopSelector);
   if (await desktopNav.isVisible().catch(() => false)) {
-    await desktopNav.click();
+    await clickVisible(page, desktopSelector);
   } else {
-    await mobileNav.click();
+    await clickVisible(page, mobileSelector);
   }
   await expect(page.locator(`.aliado-module[data-aliado-module="${moduleName}"]`)).toBeVisible();
 }

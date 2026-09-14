@@ -168,8 +168,33 @@ async function reveal(page, target, options = {}) {
   return locator;
 }
 
-async function dismissGrupoMadreAvisoIfNeeded() {
+async function dismissGrupoMadreAvisoIfNeeded(page) {
+  const okBtn = page.locator('#btn-grupo-madre-aviso-ok');
+  if (await okBtn.isVisible().catch(() => false)) {
+    await okBtn.click({ timeout: 4000 });
+    await page.locator('#modal-grupo-madre-aviso').waitFor({ state: 'hidden', timeout: 8000 }).catch(() => {});
+    return true;
+  }
   return false;
+}
+
+async function dismissSolicitudesSemanalesOverlaysIfNeeded(page) {
+  const minimize = page.locator('#sol-sem-prompt-minimize');
+  if (await minimize.isVisible().catch(() => false)) {
+    await minimize.click({ timeout: 4000 });
+    await page.locator('#sol-sem-prompt-overlay').waitFor({ state: 'hidden', timeout: 8000 }).catch(() => {});
+  }
+  await page.evaluate(() => {
+    document.querySelectorAll('.sol-sem-overlay.show').forEach((el) => {
+      el.classList.remove('show');
+      el.setAttribute('aria-hidden', 'true');
+    });
+  });
+}
+
+async function dismissAliadoBlockingOverlaysIfNeeded(page) {
+  await dismissGrupoMadreAvisoIfNeeded(page);
+  await dismissSolicitudesSemanalesOverlaysIfNeeded(page);
 }
 
 async function dismissAdminOverlayIfNeeded(page) {
@@ -217,18 +242,18 @@ async function restoreAdminSidebarPointerEvents(page) {
 }
 
 async function clickVisible(page, target, options = {}) {
-  await dismissGrupoMadreAvisoIfNeeded(page);
+  await dismissAliadoBlockingOverlaysIfNeeded(page);
   const locator = await reveal(page, target, options);
   const clickOpts = { timeout: 4000, ...(options.clickOptions || {}) };
   let disabledSidebar = false;
   try {
-    await dismissGrupoMadreAvisoIfNeeded(page);
+    await dismissAliadoBlockingOverlaysIfNeeded(page);
     disabledSidebar = await uncoverAdminSidebarForClick(page, locator);
     await locator.click(clickOpts);
   } catch (error) {
     const message = String(error && error.message ? error.message : error);
     if (!/intercepts pointer events/i.test(message)) throw error;
-    await dismissGrupoMadreAvisoIfNeeded(page);
+    await dismissAliadoBlockingOverlaysIfNeeded(page);
     disabledSidebar = await uncoverAdminSidebarForClick(page, locator) || disabledSidebar;
     await page.evaluate(() => {
       const sidebar = document.getElementById('adminSidebar');
@@ -294,5 +319,7 @@ module.exports = {
   selectVisible,
   setInputFilesVisible,
   dismissAdminOverlayIfNeeded,
+  dismissAliadoBlockingOverlaysIfNeeded,
   dismissGrupoMadreAvisoIfNeeded,
+  dismissSolicitudesSemanalesOverlaysIfNeeded,
 };
