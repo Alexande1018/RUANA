@@ -168,8 +168,56 @@ async function reveal(page, target, options = {}) {
   return locator;
 }
 
-async function dismissGrupoMadreAvisoIfNeeded() {
-  return false;
+const SOL_SEM_OVERLAY_IDS = [
+  'sol-sem-prompt-overlay',
+  'sol-sem-entrante-overlay',
+  'sol-sem-respuesta-overlay',
+  'sol-sem-confirm-overlay',
+];
+
+async function hideSolSemOverlay(page, overlayId) {
+  await page.evaluate((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('show');
+    el.setAttribute('aria-hidden', 'true');
+    const host = window.__ruanaPanel;
+    if (host && id === 'sol-sem-prompt-overlay') {
+      host._solSemPromptOculto = true;
+      const semana = host.solicitudesSemanales && host.solicitudesSemanales.semana_inicio;
+      if (semana) localStorage.setItem(`ruana_sol_sem_prompt_${semana}`, 'minimized');
+    }
+  }, overlayId);
+}
+
+async function dismissSolSemOverlaysIfNeeded(page) {
+  if (!page) return false;
+  let dismissed = false;
+  const prompt = page.locator('#sol-sem-prompt-overlay.show');
+  if (await prompt.isVisible().catch(() => false)) {
+    const later = page.locator('#sol-sem-prompt-minimize');
+    if (await later.isVisible().catch(() => false)) {
+      await later.click({ timeout: 4000 }).catch(() => {});
+    }
+    if (await prompt.isVisible().catch(() => false)) {
+      await hideSolSemOverlay(page, 'sol-sem-prompt-overlay');
+    }
+    await prompt.waitFor({ state: 'hidden', timeout: 8000 }).catch(() => {});
+    dismissed = true;
+  }
+  for (const overlayId of SOL_SEM_OVERLAY_IDS.slice(1)) {
+    const overlay = page.locator(`#${overlayId}.show`);
+    if (await overlay.isVisible().catch(() => false)) {
+      await hideSolSemOverlay(page, overlayId);
+      await overlay.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+      dismissed = true;
+    }
+  }
+  return dismissed;
+}
+
+async function dismissGrupoMadreAvisoIfNeeded(page) {
+  return dismissSolSemOverlaysIfNeeded(page);
 }
 
 async function dismissAdminOverlayIfNeeded(page) {
@@ -217,18 +265,18 @@ async function restoreAdminSidebarPointerEvents(page) {
 }
 
 async function clickVisible(page, target, options = {}) {
-  await dismissGrupoMadreAvisoIfNeeded(page);
+  await dismissSolSemOverlaysIfNeeded(page);
   const locator = await reveal(page, target, options);
   const clickOpts = { timeout: 4000, ...(options.clickOptions || {}) };
   let disabledSidebar = false;
   try {
-    await dismissGrupoMadreAvisoIfNeeded(page);
+    await dismissSolSemOverlaysIfNeeded(page);
     disabledSidebar = await uncoverAdminSidebarForClick(page, locator);
     await locator.click(clickOpts);
   } catch (error) {
     const message = String(error && error.message ? error.message : error);
     if (!/intercepts pointer events/i.test(message)) throw error;
-    await dismissGrupoMadreAvisoIfNeeded(page);
+    await dismissSolSemOverlaysIfNeeded(page);
     disabledSidebar = await uncoverAdminSidebarForClick(page, locator) || disabledSidebar;
     await page.evaluate(() => {
       const sidebar = document.getElementById('adminSidebar');
@@ -295,4 +343,5 @@ module.exports = {
   setInputFilesVisible,
   dismissAdminOverlayIfNeeded,
   dismissGrupoMadreAvisoIfNeeded,
+  dismissSolSemOverlaysIfNeeded,
 };

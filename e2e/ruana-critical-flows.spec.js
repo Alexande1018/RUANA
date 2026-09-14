@@ -18,7 +18,7 @@ const {
   checkVisible,
   clickVisible,
   dismissAdminOverlayIfNeeded,
-  dismissGrupoMadreAvisoIfNeeded,
+  dismissSolSemOverlaysIfNeeded,
   fillVisible,
   narrate,
   pass,
@@ -62,7 +62,8 @@ async function openAliadoPanel(page, session, scenario, label) {
     }, session.sessionId);
     await page.goto('/aliado');
     await expect(page.locator('#metric-score')).toBeVisible();
-    await dismissGrupoMadreAvisoIfNeeded(page);
+    await page.locator('#sol-sem-prompt-overlay.show').waitFor({ state: 'visible', timeout: 2500 }).catch(() => {});
+    await dismissSolSemOverlaysIfNeeded(page);
     await pass(page, scenario, {
       step: `${label} en panel aliado`,
       action: 'El usuario entra al panel con su sesion real de navegador.',
@@ -184,7 +185,8 @@ async function confirmImporteViaUi(
     expect(cierre.estado).toBe('trabajo_cerrado');
     await page.reload();
     await expect(page.locator('#metric-score')).toBeVisible();
-    await dismissGrupoMadreAvisoIfNeeded(page);
+    await page.locator('#sol-sem-prompt-overlay.show').waitFor({ state: 'visible', timeout: 2500 }).catch(() => {});
+    await dismissSolSemOverlaysIfNeeded(page);
     await expect(page.locator('#contacto-aviso-persistente')).toBeHidden({ timeout: 15000 });
     await pass(page, scenario, {
       step: 'Importe confirmado',
