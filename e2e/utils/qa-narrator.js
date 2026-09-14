@@ -168,8 +168,65 @@ async function reveal(page, target, options = {}) {
   return locator;
 }
 
-async function dismissGrupoMadreAvisoIfNeeded() {
-  return false;
+async function dismissGrupoMadreAvisoIfNeeded(page) {
+  const modal = page.locator('#modal-grupo-madre-aviso');
+  const visible = await modal.isVisible().catch(() => false);
+  if (!visible) return false;
+  const ok = page.locator('#btn-grupo-madre-aviso-ok');
+  if (!(await ok.isVisible().catch(() => false))) return false;
+  await ok.click({ timeout: 4000 });
+  await modal.waitFor({ state: 'hidden', timeout: 8000 }).catch(() => {});
+  return true;
+}
+
+async function dismissSolicitudSemanalOverlaysIfNeeded(page) {
+  let dismissed = false;
+
+  const prompt = page.locator('#sol-sem-prompt-overlay.show');
+  if (await prompt.isVisible().catch(() => false)) {
+    const minimize = page.locator('#sol-sem-prompt-minimize');
+    if (await minimize.isVisible().catch(() => false)) {
+      await minimize.click({ timeout: 4000 });
+      await prompt.waitFor({ state: 'hidden', timeout: 8000 }).catch(() => {});
+      dismissed = true;
+    } else {
+      await page.evaluate(() => {
+        const el = document.getElementById('sol-sem-prompt-overlay');
+        if (el) {
+          el.classList.remove('show');
+          el.setAttribute('aria-hidden', 'true');
+        }
+      });
+      dismissed = true;
+    }
+  }
+
+  const confirmCancel = page.locator('#sol-sem-confirm-overlay.show #sol-sem-confirm-cancel');
+  if (await confirmCancel.isVisible().catch(() => false)) {
+    await confirmCancel.click({ timeout: 4000 });
+    dismissed = true;
+  }
+
+  const entranteNo = page.locator('#sol-sem-entrante-overlay.show #sol-sem-entrante-no-puedo');
+  if (await entranteNo.isVisible().catch(() => false)) {
+    await entranteNo.click({ timeout: 4000 });
+    dismissed = true;
+  }
+
+  const respuestaNo = page.locator('#sol-sem-respuesta-overlay.show #sol-sem-btn-no-puedo');
+  if (await respuestaNo.isVisible().catch(() => false)) {
+    await respuestaNo.click({ timeout: 4000 });
+    dismissed = true;
+  }
+
+  return dismissed;
+}
+
+async function dismissAliadoBlockingOverlaysIfNeeded(page) {
+  let dismissed = false;
+  if (await dismissGrupoMadreAvisoIfNeeded(page)) dismissed = true;
+  if (await dismissSolicitudSemanalOverlaysIfNeeded(page)) dismissed = true;
+  return dismissed;
 }
 
 async function dismissAdminOverlayIfNeeded(page) {
@@ -217,18 +274,18 @@ async function restoreAdminSidebarPointerEvents(page) {
 }
 
 async function clickVisible(page, target, options = {}) {
-  await dismissGrupoMadreAvisoIfNeeded(page);
+  await dismissAliadoBlockingOverlaysIfNeeded(page);
   const locator = await reveal(page, target, options);
   const clickOpts = { timeout: 4000, ...(options.clickOptions || {}) };
   let disabledSidebar = false;
   try {
-    await dismissGrupoMadreAvisoIfNeeded(page);
+    await dismissAliadoBlockingOverlaysIfNeeded(page);
     disabledSidebar = await uncoverAdminSidebarForClick(page, locator);
     await locator.click(clickOpts);
   } catch (error) {
     const message = String(error && error.message ? error.message : error);
     if (!/intercepts pointer events/i.test(message)) throw error;
-    await dismissGrupoMadreAvisoIfNeeded(page);
+    await dismissAliadoBlockingOverlaysIfNeeded(page);
     disabledSidebar = await uncoverAdminSidebarForClick(page, locator) || disabledSidebar;
     await page.evaluate(() => {
       const sidebar = document.getElementById('adminSidebar');
@@ -294,5 +351,7 @@ module.exports = {
   selectVisible,
   setInputFilesVisible,
   dismissAdminOverlayIfNeeded,
+  dismissAliadoBlockingOverlaysIfNeeded,
   dismissGrupoMadreAvisoIfNeeded,
+  dismissSolicitudSemanalOverlaysIfNeeded,
 };

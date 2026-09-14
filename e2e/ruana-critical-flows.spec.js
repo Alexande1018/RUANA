@@ -18,7 +18,7 @@ const {
   checkVisible,
   clickVisible,
   dismissAdminOverlayIfNeeded,
-  dismissGrupoMadreAvisoIfNeeded,
+  dismissAliadoBlockingOverlaysIfNeeded,
   fillVisible,
   narrate,
   pass,
@@ -62,7 +62,7 @@ async function openAliadoPanel(page, session, scenario, label) {
     }, session.sessionId);
     await page.goto('/aliado');
     await expect(page.locator('#metric-score')).toBeVisible();
-    await dismissGrupoMadreAvisoIfNeeded(page);
+    await dismissAliadoBlockingOverlaysIfNeeded(page);
     await pass(page, scenario, {
       step: `${label} en panel aliado`,
       action: 'El usuario entra al panel con su sesion real de navegador.',
@@ -72,12 +72,13 @@ async function openAliadoPanel(page, session, scenario, label) {
 }
 
 async function goAliadoModule(page, moduleName) {
+  await dismissAliadoBlockingOverlaysIfNeeded(page);
   const desktopNav = page.locator(`.aliado-shell-nav [data-aliado-nav="${moduleName}"]`);
   const mobileNav = page.locator(`.aliado-shell-bottom [data-aliado-nav="${moduleName}"]`);
   if (await desktopNav.isVisible().catch(() => false)) {
-    await desktopNav.click();
+    await clickVisible(page, desktopNav);
   } else {
-    await mobileNav.click();
+    await clickVisible(page, mobileNav);
   }
   await expect(page.locator(`.aliado-module[data-aliado-module="${moduleName}"]`)).toBeVisible();
 }
@@ -184,7 +185,7 @@ async function confirmImporteViaUi(
     expect(cierre.estado).toBe('trabajo_cerrado');
     await page.reload();
     await expect(page.locator('#metric-score')).toBeVisible();
-    await dismissGrupoMadreAvisoIfNeeded(page);
+    await dismissAliadoBlockingOverlaysIfNeeded(page);
     await expect(page.locator('#contacto-aviso-persistente')).toBeHidden({ timeout: 15000 });
     await pass(page, scenario, {
       step: 'Importe confirmado',
