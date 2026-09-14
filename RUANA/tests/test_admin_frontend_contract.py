@@ -216,6 +216,7 @@ def test_admin_resumen_module_is_wired():
     assert "cargarDesdeApi" in admin
     assert "mod.cargarDesdeApi(this)" in admin
     assert "/api/admin/dashboard-summary" in resumen_js
+    assert "/api/admin/bootstrap" in resumen_js
     assert "function cargarDesdeApi(host)" in resumen_js or "async function cargarDesdeApi(host)" in resumen_js
 
 

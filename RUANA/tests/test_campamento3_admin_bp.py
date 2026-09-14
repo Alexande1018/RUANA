@@ -34,6 +34,7 @@ def test_admin_dashboard_routes_exigen_sesion(client):
         "/api/admin/stats-24h",
         "/api/admin/invitaciones-recientes",
         "/api/admin/dashboard-summary",
+        "/api/admin/bootstrap",
         "/api/admin/suplentes-espera",
         "/api/admin/aliados-pendientes",
         "/api/admin/pending-users",

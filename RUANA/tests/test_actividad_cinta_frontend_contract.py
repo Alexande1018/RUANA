@@ -68,7 +68,8 @@ def test_bootstrap_persists_actividad_cinta_before_panel_init():
     assert "datos.actividad_cinta" in block
     assert "ACTIVIDAD_CINTA_STORAGE_KEY" in block
     assert "new global.PrivatePanel()" in block
-    assert block.index("datos.actividad_cinta") < block.index("new global.PrivatePanel()")
+    assert "hasCachedAliado" in block
+    assert block.rindex("datos.actividad_cinta") < block.rindex("new global.PrivatePanel()")
 
 
 def test_aliado_bp_exposes_actividad_cinta():

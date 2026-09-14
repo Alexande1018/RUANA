@@ -119,11 +119,7 @@ def get_aliado_datos():
     
     try:
         db = get_db()
-        # Jobs globales (competencia/Stripe) tienen cron; no bloquear la apertura del panel.
-        try:
-            db.aplicar_penalizaciones_contactos_abiertos(codigo)
-        except Exception:
-            pass
+        # Penalizaciones de contactos abiertos: cron, no el GET de apertura del panel.
         aliado = db.obtener_aliado_por_codigo(codigo)
         
         if aliado:

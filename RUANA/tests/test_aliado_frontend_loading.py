@@ -602,4 +602,4 @@ def test_get_aliado_datos_no_ejecuta_jobs_globales():
     fn = bp[start:end]
     assert "procesar_competencia_automatica" not in fn
     assert "procesar_timeouts_sin_confirmacion_stripe" not in fn
-    assert "aplicar_penalizaciones_contactos_abiertos" in fn
+    assert "aplicar_penalizaciones_contactos_abiertos" not in fn

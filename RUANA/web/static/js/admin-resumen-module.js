@@ -227,10 +227,155 @@
       }
   }
 
+  var ADMIN_SNAPSHOT_KEY = 'ruana_admin_snapshot';
+  var ADMIN_SNAPSHOT_TTL_MS = 60000;
+  var MODULE_SECONDARY_IDX = {
+      resumen: [4, 5, 16],
+      intelligence: [4],
+      sistema: [5, 17, 18, 19],
+      pagos: [6, 7, 8, 9],
+      solicitudes: [10, 24],
+      trabajos: [11, 12],
+      competencia: [13, 14, 15, 20],
+      comunicaciones: [21],
+      incidencias: [21],
+      red: [22, 23]
+  };
+
+  function readAdminSnapshot() {
+      try {
+          var raw = sessionStorage.getItem(ADMIN_SNAPSHOT_KEY);
+          if (!raw) return null;
+          var parsed = JSON.parse(raw);
+          if (!parsed || !parsed.ts) return null;
+          if ((Date.now() - Number(parsed.ts)) > ADMIN_SNAPSHOT_TTL_MS) return null;
+          return parsed;
+      } catch (e) {
+          return null;
+      }
+  }
+
+  function persistAdminSnapshot(payload) {
+      if (!payload) return;
+      try {
+          var prev = null;
+          try { prev = JSON.parse(sessionStorage.getItem(ADMIN_SNAPSHOT_KEY) || 'null'); } catch (e2) { prev = null; }
+          sessionStorage.setItem(ADMIN_SNAPSHOT_KEY, JSON.stringify({
+              ts: Date.now(),
+              indicadores: payload.indicadores != null ? payload.indicadores : (prev && prev.indicadores),
+              aliadosData: payload.aliadosData != null ? payload.aliadosData : (prev && prev.aliadosData),
+              pendientes: payload.pendientes != null ? payload.pendientes : (prev && prev.pendientes),
+              statsData: payload.statsData != null ? payload.statsData : (prev && prev.statsData),
+              metricasData: payload.metricasData != null ? payload.metricasData : (prev && prev.metricasData),
+              eventosData: payload.eventosData != null ? payload.eventosData : (prev && prev.eventosData),
+              stats24hData: payload.stats24hData != null ? payload.stats24hData : (prev && prev.stats24hData)
+          }));
+      } catch (e) { /* quota / private mode */ }
+  }
+
+  function applyAdminSnapshot(host, snap) {
+      if (!snap || !host) return false;
+      if (snap.indicadores) {
+          paintResumenCritico(host, {
+              indicadores: snap.indicadores,
+              statsData: snap.statsData,
+              metricasData: snap.metricasData,
+              eventosData: snap.eventosData,
+              stats24hData: snap.stats24hData,
+              pendientes: snap.pendientes || []
+          });
+          refreshCommandCenterPanels(host, {
+              indicadores: snap.indicadores,
+              eventos: (snap.eventosData && snap.eventosData.status === 'success' && Array.isArray(snap.eventosData.eventos)) ? snap.eventosData.eventos.map(function (ev) {
+                  return { fecha: ev.fecha || ev.creado_en, descripcion: ev.descripcion, tipo: ev.tipo };
+              }) : []
+          }, { heavy: false });
+      }
+      if (snap.aliadosData) applyAliadosList(host, snap.aliadosData);
+      return !!(snap.indicadores || snap.aliadosData);
+  }
+
+  function currentAdminModuleId() {
+      if (global.AdminShell && typeof global.AdminShell.getCurrentModule === 'function') {
+          return global.AdminShell.getCurrentModule() || 'resumen';
+      }
+      return 'resumen';
+  }
+
+  function parseAdminResponse(r, isStats24h) {
+      if (isStats24h) return r;
+      if (!r || typeof r.ok !== 'boolean') return null;
+      if (!r.ok) return null;
+      return r.json().catch(function () { return null; });
+  }
+
+  function buildFetchStarters(authHeaders, loadController) {
+      var fetchOpts = {
+          method: 'GET',
+          credentials: 'same-origin',
+          headers: authHeaders
+      };
+      if (loadController && loadController.signal) fetchOpts.signal = loadController.signal;
+      var fetchOptsAliados = {
+          method: 'GET',
+          credentials: 'same-origin',
+          headers: authHeaders
+      };
+      var fetchStarters = [
+          function () { return fetch('/api/admin/dashboard-summary', fetchOpts); },
+          function () { return fetch('/api/stats', fetchOpts); },
+          function () { return fetch('/api/aliados/listar', fetchOptsAliados); },
+          function () { return fetch('/api/admin/pending-users', fetchOpts); },
+          function () { return fetch('/api/metricas-salud', fetchOpts); },
+          function () { return fetch('/api/eventos-recientes', fetchOpts); },
+          function () { return fetch('/api/admin/payment-conflicts', fetchOpts); },
+          function () { return fetch('/api/admin/pagos-apoyo', fetchOpts); },
+          function () { return fetch('/api/admin/pagos-en-revision', fetchOpts); },
+          function () { return fetch('/api/admin/stripe/resumen', fetchOpts); },
+          function () { return fetch('/api/admin/solicitudes', fetchOpts); },
+          function () { return fetch('/api/admin/chats?limite=10&offset=0', fetchOpts); },
+          function () { return fetch('/api/admin/conversations?limite=100', fetchOpts); },
+          function () { return fetch('/api/admin/competencias-activas', fetchOpts); },
+          function () { return fetch('/api/admin/competencias-pendientes', fetchOpts); },
+          function () { return fetch('/api/admin/competencias-historial?limite=30', fetchOpts); },
+          function () {
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 5000);
+              return fetch('/api/admin/stats-24h', {
+                  method: 'GET',
+                  credentials: 'same-origin',
+                  headers: authHeaders,
+                  signal: controller.signal
+              }).then(r => {
+                  clearTimeout(timeoutId);
+                  return r;
+              }).then(r => r.ok ? r.json().catch(() => null) : null).catch(err => {
+                  clearTimeout(timeoutId);
+                  return { _error: err.name === 'AbortError' ? 'timeout' : 'fail' };
+              });
+          },
+          function () { return fetch('/api/admin/invitaciones-recientes?limite=15', fetchOpts); },
+          function () { return fetch('/api/admin/invitacion-campanas?limite=30', fetchOpts); },
+          function () { return fetch('/api/admin/metodos-pago', fetchOpts); },
+          function () { return fetch('/api/admin/suplentes-espera', fetchOpts); },
+          function () { return fetch('/api/admin/centro-comunicacion?limite=120', fetchOpts); },
+          function () { return fetch('/api/admin/aliados-eliminados', fetchOpts); },
+          function () { return fetch('/api/admin/solicitudes-baja', fetchOpts); },
+          function () { return fetch('/api/admin/solicitudes-semanales', fetchOpts); }
+      ];
+      return { fetchOpts: fetchOpts, fetchOptsAliados: fetchOptsAliados, fetchStarters: fetchStarters };
+  }
+
   async function cargarDesdeApi(host) {
       const loader = document.getElementById('admin-loader');
-      document.body.classList.add('admin-is-loading');
-      if (loader) loader.style.display = 'flex';
+      var snapshot = readAdminSnapshot();
+      var paintedFromSnapshot = applyAdminSnapshot(host, snapshot);
+      if (paintedFromSnapshot) {
+          hideAdminLoader(loader);
+      } else {
+          document.body.classList.add('admin-is-loading');
+          if (loader) loader.style.display = 'flex';
+      }
       const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
       host._adminAliadosLoading = true;
       const loadController = new AbortController();
@@ -247,6 +392,50 @@
           headers: authHeaders
       };
       try {
+          try {
+              const bootResp = await fetch('/api/admin/bootstrap', fetchOpts);
+              if (bootResp && bootResp.status === 401) {
+                  host._adminSessionExpired();
+                  return;
+              }
+              const boot = bootResp && bootResp.ok ? await bootResp.json().catch(function () { return null; }) : null;
+              if (boot && boot.status === 'success' && boot.summary) {
+                  var aliadosDataBoot = {
+                      status: 'success',
+                      aliados: Array.isArray(boot.aliados) ? boot.aliados : [],
+                      total: (boot.aliados || []).length
+                  };
+                  var pendientesBoot = Array.isArray(boot.pendientes) ? boot.pendientes : [];
+                  var statsBoot = { status: 'success', permisos: Array.isArray(boot.permisos) ? boot.permisos : [] };
+                  var indicadoresBoot = buildIndicadoresAdmin(boot.summary, statsBoot, aliadosDataBoot, pendientesBoot);
+                  host._lastIndicadores = indicadoresBoot;
+                  paintResumenCritico(host, {
+                      indicadores: indicadoresBoot,
+                      statsData: statsBoot,
+                      metricasData: snapshot && snapshot.metricasData,
+                      eventosData: snapshot && snapshot.eventosData,
+                      stats24hData: snapshot && snapshot.stats24hData,
+                      pendientes: pendientesBoot
+                  });
+                  refreshCommandCenterPanels(host, {
+                      indicadores: indicadoresBoot,
+                      eventos: []
+                  }, { heavy: false });
+                  applyAliadosList(host, aliadosDataBoot);
+                  hideAdminLoader(loader);
+                  persistAdminSnapshot({
+                      indicadores: indicadoresBoot,
+                      aliadosData: aliadosDataBoot,
+                      pendientes: pendientesBoot,
+                      statsData: statsBoot
+                  });
+                  clearTimeout(loadTimeoutId);
+                  host._adminLoadedIdx = {};
+                  ensureModuleData(host, currentAdminModuleId());
+                  return;
+              }
+          } catch (bootErr) { /* fallback a dashboard-summary + 7 fetches */ }
+
           const fetchStarters = [
               function () { return fetch('/api/admin/dashboard-summary', fetchOpts); },
               function () { return fetch('/api/stats', fetchOpts); },
@@ -327,6 +516,7 @@
           var dashOkCrit = parsed[0] && !parsed[0].status;
           var statsOkCrit = parsed[1] && parsed[1].status === 'success';
           var indicadoresCriticos = buildIndicadoresAdmin(parsed[0], parsed[1], parsed[2], pendientesCriticos);
+          host._lastIndicadores = indicadoresCriticos;
           if (dashOkCrit || statsOkCrit) {
               paintResumenCritico(host, {
                   indicadores: indicadoresCriticos,
@@ -347,12 +537,19 @@
           }
           applyAliadosList(host, parsed[2]);
           hideAdminLoader(loader);
+          persistAdminSnapshot({
+              indicadores: indicadoresCriticos,
+              aliadosData: parsed[2],
+              pendientes: pendientesCriticos,
+              statsData: parsed[1],
+              metricasData: parsed[4],
+              eventosData: parsed[5],
+              stats24hData: parsed[16]
+          });
           clearTimeout(loadTimeoutId);
-          fetchOpts = {
-              method: 'GET',
-              credentials: 'same-origin',
-              headers: authHeaders
-          };
+          host._adminLoadedIdx = { 0: true, 1: true, 2: true, 3: true, 4: true, 5: true, 16: true };
+          ensureModuleData(host, currentAdminModuleId());
+          return;
 
           var secondaryIdx = [];
           for (var si = 0; si < fetchStarters.length; si++) {
@@ -498,6 +695,180 @@
           hideAdminLoader(loader);
       }
 }
+
+  function applySecondaryFromParsed(host, parsed, responses, indexes) {
+      var has = function (i) { return indexes.indexOf(i) !== -1; };
+      if (has(4)) {
+          var metricasData = parsed[4];
+          var metricasPayload = (metricasData && metricasData.status === 'success' && metricasData.metricas != null)
+              ? metricasData.metricas
+              : { ratio_solicitud_invitacion: 0, ratio_invitacion_registro: 0, oficios_saturados: 0, oficios_disponibles: 0, zona_mayor_demanda: '—', tasa_retencion: 0 };
+          host.renderMetricas({ metricas: metricasPayload });
+          persistAdminSnapshot({ metricasData: metricasData });
+      }
+      if (has(5)) {
+          var eventosData = parsed[5];
+          host.renderEventos((eventosData && eventosData.status === 'success' && Array.isArray(eventosData.eventos)) ? eventosData.eventos : []);
+          persistAdminSnapshot({ eventosData: eventosData });
+      }
+      if (has(16)) {
+          var stats24hData = parsed[16];
+          var tieneMovimiento24h = stats24hData && !stats24hData._error && (stats24hData.status === 'success' || stats24hData.solicitudes != null || stats24hData.invitaciones != null || (Array.isArray(stats24hData.top_invitadores) && stats24hData.top_invitadores.length > 0));
+          if (stats24hData && stats24hData._error) {
+              host.renderMovimientoError(stats24hData._error === 'timeout' ? 'No se pudieron cargar estadísticas' : 'Sin datos disponibles');
+          } else if (tieneMovimiento24h) {
+              host.renderMovimientoError(null);
+              host.renderMovimiento({
+                  movimiento24h: {
+                      solicitudes: stats24hData.solicitudes || { nuevas: 0, atendidas: 0, sin_respuesta: 0 },
+                      invitaciones: stats24hData.invitaciones || { generadas: 0, usadas: 0, expiradas: 0 },
+                      top_invitadores: stats24hData.top_invitadores || []
+                  },
+                  movimiento24hHoras: null
+              });
+          } else {
+              host.renderMovimientoError('Sin datos disponibles');
+          }
+          persistAdminSnapshot({ stats24hData: stats24hData });
+      }
+      if (has(6)) {
+          var conflictosData = parsed[6];
+          host.renderConflictosPago((conflictosData && conflictosData.status === 'success' && Array.isArray(conflictosData.conflictos)) ? conflictosData.conflictos : []);
+      }
+      if (has(7)) {
+          var pagosApoyoData = parsed[7];
+          host.renderPagosApoyo((pagosApoyoData && pagosApoyoData.status === 'success' && Array.isArray(pagosApoyoData.pagos)) ? pagosApoyoData.pagos : []);
+      }
+      if (has(8)) {
+          var pagosEnRevisionData = parsed[8];
+          host.renderPagosEnRevision((pagosEnRevisionData && pagosEnRevisionData.status === 'success' && Array.isArray(pagosEnRevisionData.pagos)) ? pagosEnRevisionData.pagos : []);
+      }
+      if (has(9)) {
+          var stripeResumenData = parsed[9];
+          host.renderStripeResumen(stripeResumenData && stripeResumenData.status === 'success' ? stripeResumenData : null);
+      }
+      if (has(10)) {
+          var solicitudesData = parsed[10];
+          host.renderSolicitudesAdmin(Array.isArray(solicitudesData) ? solicitudesData : (solicitudesData && Array.isArray(solicitudesData.solicitudes) ? solicitudesData.solicitudes : []));
+      }
+      if (has(24) && typeof host.renderSolicitudesSemanalesAdmin === 'function') {
+          var solicitudesSemanalesData = parsed[24];
+          host.renderSolicitudesSemanalesAdmin(
+              solicitudesSemanalesData && solicitudesSemanalesData.status === 'success'
+                  ? solicitudesSemanalesData
+                  : { solicitudes: [] }
+          );
+      }
+      if (has(17)) {
+          var invitacionesRecData = parsed[17];
+          host.renderInvitacionesRecientes(invitacionesRecData && invitacionesRecData.status === 'success' && Array.isArray(invitacionesRecData.invitaciones) ? invitacionesRecData.invitaciones : []);
+      }
+      if (has(18)) {
+          var campanasData = parsed[18];
+          host.renderCampanasInvitacion(campanasData && campanasData.status === 'success' && Array.isArray(campanasData.campanas) ? campanasData.campanas : []);
+      }
+      if (has(19)) {
+          var metodosPagoData = parsed[19];
+          var metodosPagoHttp = responses[19];
+          if (!metodosPagoHttp) {
+              host.showToast('No se pudieron cargar los metodos de pago.', 'error');
+          } else if (typeof metodosPagoHttp.status === 'number' && metodosPagoHttp.status !== 200) {
+              host.showToast('No se pudieron cargar los metodos de pago (HTTP ' + metodosPagoHttp.status + ').', 'error');
+          } else if (metodosPagoData && metodosPagoData.status && metodosPagoData.status !== 'success') {
+              host.showToast(metodosPagoData.message || 'No se pudieron cargar los metodos de pago.', 'error');
+          }
+          host.renderMetodosPago((metodosPagoData && metodosPagoData.status === 'success' && metodosPagoData.metodos) ? metodosPagoData.metodos : null);
+      }
+      if (has(13)) {
+          var competenciasData = parsed[13];
+          host.renderCompetenciasActivas((competenciasData && competenciasData.status === 'success' && Array.isArray(competenciasData.competencias)) ? competenciasData.competencias : []);
+      }
+      if (has(14)) {
+          var competenciasPendientesData = parsed[14];
+          host.renderCompetenciasPendientes((competenciasPendientesData && competenciasPendientesData.status === 'success' && Array.isArray(competenciasPendientesData.pendientes)) ? competenciasPendientesData.pendientes : []);
+      }
+      if (has(15)) {
+          var competenciasHistorialData = parsed[15];
+          host.renderCompetenciasHistorial((competenciasHistorialData && competenciasHistorialData.status === 'success' && Array.isArray(competenciasHistorialData.historial)) ? competenciasHistorialData.historial : []);
+      }
+      if (has(20)) {
+          var suplentesEsperaData = parsed[20];
+          host.renderSuplentesEspera((suplentesEsperaData && suplentesEsperaData.status === 'success' && Array.isArray(suplentesEsperaData.aliados)) ? suplentesEsperaData.aliados : []);
+      }
+      if (has(21)) {
+          var centroComData = parsed[21];
+          host._centroComunicacion = (centroComData && centroComData.status === 'success' && Array.isArray(centroComData.conversaciones)) ? centroComData.conversaciones : [];
+          host.renderCentroComunicacionAdmin(host._centroComunicacion);
+      }
+      if (has(11)) {
+          var chatsData = parsed[11];
+          var conversaciones = (chatsData && chatsData.status === 'success' && Array.isArray(chatsData.conversaciones)) ? chatsData.conversaciones : [];
+          host._conversacionesList = conversaciones;
+          host._conversacionesOffset = conversaciones.length;
+          host._conversacionesHasMore = conversaciones.length >= 10;
+          host.renderConversaciones(conversaciones);
+          host.updateConversacionesPaginationUI();
+          if (conversaciones.length === 0) host.cargarChatsFallback();
+      }
+      if (has(12)) {
+          var contactosChatData = parsed[12];
+          host.renderContactosChat((contactosChatData && contactosChatData.status === 'success' && Array.isArray(contactosChatData.contactos)) ? contactosChatData.contactos : []);
+      }
+      if (has(22)) {
+          var eliminadosData = parsed[22];
+          host.renderAliadosEliminados((eliminadosData && eliminadosData.status === 'success' && Array.isArray(eliminadosData.aliados)) ? eliminadosData.aliados : []);
+      }
+      if (has(23) && typeof host.renderSolicitudesBaja === 'function') {
+          var solicitudesBajaData = parsed[23];
+          host.renderSolicitudesBaja((solicitudesBajaData && solicitudesBajaData.status === 'success' && Array.isArray(solicitudesBajaData.solicitudes)) ? solicitudesBajaData.solicitudes : []);
+      }
+      if (has(4) || has(5) || has(16)) {
+          refreshCommandCenterPanels(host, {
+              indicadores: host._lastIndicadores || {},
+              eventos: (parsed[5] && parsed[5].status === 'success' && Array.isArray(parsed[5].eventos)) ? parsed[5].eventos.map(function (ev) {
+                  return { fecha: ev.fecha || ev.creado_en, descripcion: ev.descripcion, tipo: ev.tipo };
+              }) : []
+          }, { heavy: true });
+      }
+  }
+
+  async function ensureModuleData(host, moduleId) {
+      if (!host) return;
+      host._adminLoadedIdx = host._adminLoadedIdx || {};
+      var wanted = MODULE_SECONDARY_IDX[moduleId] || [];
+      var pending = wanted.filter(function (i) { return !host._adminLoadedIdx[i]; });
+      if (!pending.length) return;
+      host._adminModuleLoading = host._adminModuleLoading || {};
+      if (host._adminModuleLoading[moduleId]) return;
+      host._adminModuleLoading[moduleId] = true;
+      try {
+          var authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+          var ctx = buildFetchStarters(authHeaders, null);
+          var responses = {};
+          var settled = await Promise.allSettled(pending.map(function (idx) { return ctx.fetchStarters[idx](); }));
+          pending.forEach(function (idx, i) {
+              responses[idx] = settled[i].status === 'fulfilled' ? settled[i].value : null;
+          });
+          var unauthorized = pending.some(function (idx) {
+              var r = responses[idx];
+              return r && typeof r.status === 'number' && r.status === 401;
+          });
+          if (unauthorized) {
+              host._adminSessionExpired();
+              return;
+          }
+          var parsed = {};
+          await Promise.all(pending.map(async function (idx) {
+              parsed[idx] = await parseAdminResponse(responses[idx], idx === 16);
+          }));
+          pending.forEach(function (idx) { host._adminLoadedIdx[idx] = true; });
+          applySecondaryFromParsed(host, parsed, responses, pending);
+      } catch (e) {
+          console.error('ensureModuleData', moduleId, e);
+      } finally {
+          host._adminModuleLoading[moduleId] = false;
+      }
+  }
 
   function buildIndicadoresAdmin(dashboardData, statsData, aliadosData, pendientes) {
       const dashOk = dashboardData && !dashboardData.status;
@@ -971,6 +1342,7 @@ modules.resumen = {
     loadCronStatus: loadCronStatus,
   
     cargarDesdeApi: cargarDesdeApi,
+    ensureModuleData: ensureModuleData,
     cargarChatsFallback: cargarChatsFallback,
     toggleDesglosePorHora: toggleDesglosePorHora,
     setupEventListeners: setupEventListeners,

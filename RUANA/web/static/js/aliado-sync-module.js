@@ -65,25 +65,42 @@
   }
 
   async function runWarmupSync(host) {
-    const bootstrapTasks = await Promise.allSettled([
-        host.fetchCentroComunicacionSnapshot(),
-        host.cargarMetodosPagoRuana(),
-        host.cargarContactosPendientes(),
-        host.cargarMisAcuerdos(),
-        host.cargarResumenesAcuerdoFlotantes(),
-    ]);
+    var mod = (global.AliadoShell && typeof global.AliadoShell.current === 'function')
+      ? global.AliadoShell.current()
+      : 'inicio';
+    var jobs = [];
+    var labels = [];
+    if (mod === 'inicio' || !mod) {
+        jobs.push(host.cargarContactosPendientes());
+        jobs.push(host.cargarResumenesAcuerdoFlotantes());
+        labels.push('contactos-pendientes', 'resumenes-acuerdo');
+    } else if (mod === 'perfil') {
+        jobs.push(host.cargarMetodosPagoRuana());
+        jobs.push(host.cargarMisAcuerdos());
+        labels.push('metodos-pago', 'mis-acuerdos');
+    } else if (mod === 'solicitudes') {
+        jobs.push(host.cargarContactosPendientes());
+        labels.push('contactos-pendientes');
+    } else if (mod === 'directorio') {
+        jobs.push(host.fetchDirectorioSnapshot());
+        labels.push('directorio');
+    }
+    const bootstrapTasks = await Promise.allSettled(jobs);
     bootstrapTasks.forEach((task, idx) => {
         if (task.status === 'rejected') {
-            const labels = ['centro-comunicacion', 'metodos-pago', 'contactos-pendientes', 'mis-acuerdos', 'resumenes-acuerdo'];
-            console.error(`Error en carga de fondo (${labels[idx]}):`, task.reason);
+            console.error('Error en carga de fondo (' + (labels[idx] || idx) + '):', task.reason);
         }
     });
-    host.renderCentroComunicacion();
-    host.renderAlertas();
-    host.renderNotificaciones();
-    host.renderListaPagosPendientes();
-    host.renderMisAcuerdos();
-    renderActividadCinta(host);
+    if (mod === 'inicio' || !mod) {
+        host.renderAlertas();
+        host.renderNotificaciones();
+        renderActividadCinta(host);
+    } else if (mod === 'perfil') {
+        host.renderListaPagosPendientes();
+        host.renderMisAcuerdos();
+    } else if (mod === 'solicitudes') {
+        host.renderAlertas();
+    }
   }
 
   function getSyncElements(host, sections) {
@@ -247,12 +264,26 @@
     });
   }
 
+  function sectionsForVisibleModule() {
+    var mod = (global.AliadoShell && typeof global.AliadoShell.current === 'function')
+      ? global.AliadoShell.current()
+      : 'inicio';
+    var map = {
+      inicio: ['metricas', 'alertas'],
+      directorio: ['directorio'],
+      solicitudes: ['solicitudes', 'contactos'],
+      conexiones: ['solicitudes'],
+      perfil: ['perfil', 'metricas']
+    };
+    return map[mod] || ['metricas', 'alertas'];
+  }
+
   function startAutoSync(host) {
     if (host._autoSyncIntervalId) clearInterval(host._autoSyncIntervalId);
     host._autoSyncIntervalId = setInterval(() => {
         if (document.visibilityState !== 'visible') return;
-        host.refreshAfterAction(['perfil', 'metricas', 'solicitudes', 'directorio', 'alertas', 'contactos', 'centro']);
-    }, 20000);
+        host.refreshAfterAction(sectionsForVisibleModule());
+    }, 60000);
   }
 
   async function loadData(host) {
@@ -292,8 +323,18 @@
             const fetchedAt = fetchedAtRaw ? Number(fetchedAtRaw) : 0;
             const fetchedRecently = Number.isFinite(fetchedAt) && fetchedAt > 0 && (Date.now() - fetchedAt) < 15000;
             try {
-                // Evita fetch duplicado inmediato tras bootstrap (aunque la cinta venga vacía).
-                if (!fetchedRecently) {
+                if (global.__ruanaDatosPromise) {
+                    const dataDatos = await global.__ruanaDatosPromise;
+                    global.__ruanaDatosPromise = null;
+                    if (dataDatos && dataDatos.status === 'success' && dataDatos.aliado) {
+                        host.aliado = { ...(host.aliado || {}), ...dataDatos.aliado };
+                        host.notificaciones = Array.isArray(dataDatos.notificaciones) ? dataDatos.notificaciones : host.notificaciones;
+                        applyActividadCinta(
+                            host,
+                            Array.isArray(dataDatos.actividad_cinta) ? dataDatos.actividad_cinta : []
+                        );
+                    }
+                } else if (!fetchedRecently) {
                     const respDatos = await fetch(apiBase + '/api/aliado/datos', { credentials: 'same-origin', headers: getAuthHeadersSafe() });
                     if (respDatos.ok) {
                         const dataDatos = await respDatos.json();
@@ -646,6 +687,7 @@
 
       const sesionPromise = fetch(apiBase + '/api/aliado/sesion', { method: 'GET', credentials: 'same-origin', headers: getAuthHeadersSafe() });
       const datosPromise = global.PrivatePanel.fetchAliadoDatos(null);
+      global.__ruanaDatosPromise = datosPromise;
       const sesionRes = await sesionPromise;
       if (!sesionRes.ok) {
         window.location.replace('/');
@@ -662,12 +704,24 @@
         window.location.replace('/');
         return;
       }
+      sessionStorage.setItem('ruana_codigo_aliado', sesionData.codigo);
+      var hasCachedAliado = false;
+      try {
+        var cachedAliado = JSON.parse(sessionStorage.getItem('ruana_aliado_data') || '{}');
+        hasCachedAliado = !!(cachedAliado && Object.keys(cachedAliado).length > 0);
+      } catch (_) {
+        hasCachedAliado = false;
+      }
+      var panelStarted = false;
+      if (hasCachedAliado) {
+        panelStarted = true;
+        new global.PrivatePanel();
+      }
       const datos = await datosPromise;
       if (!datos || !datos.aliado) {
-        showBootstrapError(errorContainer, failMsg);
+        if (!panelStarted) showBootstrapError(errorContainer, failMsg);
         return;
       }
-      sessionStorage.setItem('ruana_codigo_aliado', sesionData.codigo);
       sessionStorage.setItem('ruana_aliado_data', JSON.stringify(datos.aliado));
       sessionStorage.setItem('ruana_aliado_data_fetched_at', String(Date.now()));
       if (Array.isArray(datos.notificaciones)) {
@@ -680,7 +734,9 @@
         sessionStorage.setItem(ACTIVIDAD_CINTA_STORAGE_KEY, JSON.stringify(datos.actividad_cinta));
         global.__ruanaBootstrapActividadCinta = datos.actividad_cinta;
       }
-      new global.PrivatePanel();
+      if (!panelStarted) {
+        new global.PrivatePanel();
+      }
       } catch (error) {
         console.error('Error arrancando el panel:', error);
         showBootstrapError(errorContainer, failMsg);
