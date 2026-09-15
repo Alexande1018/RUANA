@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Aplica la migración RLS en Postgres (Supabase prod) de forma idempotente."""
+"""Aplica migraciones RLS en Postgres (Supabase prod) de forma idempotente."""
 from __future__ import annotations
 
 import json
@@ -10,7 +10,7 @@ from pathlib import Path
 import psycopg
 
 ROOT = Path(__file__).resolve().parents[2]
-MIGRATION = ROOT / "supabase" / "migrations" / "20260902000200_enable_rls_public_tables.sql"
+MIGRATIONS_DIR = ROOT / "supabase" / "migrations"
 
 DIAGNOSTIC_SQL = """
 SELECT c.relname AS tabla,
@@ -25,6 +25,10 @@ ORDER BY c.relrowsecurity, c.relname
 """
 
 
+def _rls_migrations() -> list[Path]:
+    return sorted(MIGRATIONS_DIR.glob("*enable_rls*.sql"))
+
+
 def _fetch_diag(cur) -> list[dict]:
     cur.execute(DIAGNOSTIC_SQL)
     cols = [d[0] for d in cur.description]
@@ -36,12 +40,12 @@ def main() -> int:
     if not url:
         print("DATABASE_URL no configurada", file=sys.stderr)
         return 1
-    if not MIGRATION.is_file():
-        print(f"Migración no encontrada: {MIGRATION}", file=sys.stderr)
+    migrations = _rls_migrations()
+    if not migrations:
+        print(f"No hay migraciones RLS en {MIGRATIONS_DIR}", file=sys.stderr)
         return 1
 
     dry_run = os.environ.get("RLS_DRY_RUN", "0").strip().lower() in ("1", "true", "yes")
-    sql = MIGRATION.read_text(encoding="utf-8")
 
     with psycopg.connect(url) as conn:
         with conn.cursor() as cur:
@@ -54,15 +58,18 @@ def main() -> int:
 
             if dry_run:
                 print("=== DRY-RUN: migración no ejecutada ===")
+                print("pendientes:", ", ".join(p.name for p in migrations))
                 return 0
 
             if not sin_rls and os.environ.get("RLS_FORCE", "0") not in ("1", "true", "yes"):
                 print("OK: todas las tablas public ya tienen RLS activo")
                 return 0
 
-            print("=== APLICANDO MIGRACIÓN RLS ===")
-            cur.execute(sql)
-            conn.commit()
+            print("=== APLICANDO MIGRACIONES RLS ===")
+            for path in migrations:
+                print(f"--- {path.name} ---")
+                cur.execute(path.read_text(encoding="utf-8"))
+                conn.commit()
 
             after = _fetch_diag(cur)
             sin_rls_after = [r["tabla"] for r in after if not r["rls"]]
