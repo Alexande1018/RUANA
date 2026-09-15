@@ -1,8 +1,14 @@
 # RLS en schema `public` (alerta `rls_disabled_in_public`)
 
-**Estado:** **aplicada en producción** (2026-09-04, workflow [security-ops](https://github.com/Alexande1018/RUANA/actions/workflows/security-ops.yml)).  
-**Migración:** `supabase/migrations/20260902000200_enable_rls_public_tables.sql`  
-**Resultado verificado:** 66 tablas `public`, **0 sin RLS** (antes: 43 sin RLS).
+**Estado (2026-09-15):** el correo de Supabase del **13 Sep 2026** volvió a marcar `rls_disabled_in_public` en **ruana APP**. La pasada del 2026-09-04 dejó 66 tablas con RLS; **después** el boot Flask y las migraciones de competencia / territorio crearon tablas nuevas **sin** `ENABLE ROW LEVEL SECURITY`.
+
+**Remedio:**
+
+- Catch-all: `supabase/migrations/20260915000100_enable_rls_new_public_tables.sql` (bucle `pg_class` + event trigger en `CREATE TABLE`)
+- Workflow [security-ops](https://github.com/Alexande1018/RUANA/actions/workflows/security-ops.yml) aplica todas las migraciones `*enable_rls*.sql`
+- **Sin `FORCE`:** Flask por `DATABASE_URL` no se ve afectado
+
+**Migración original:** `supabase/migrations/20260902000200_enable_rls_public_tables.sql` (66 tablas, 2026-09-04).
 
 ## 1. Conexión a producción
 
@@ -89,7 +95,9 @@ Sensibilidad y efecto de “RLS ON / cero políticas” (PostgREST cerrado; Flas
 | `chat_mensajes` / `ruana_soporte_*` | Mensajes | `chat_repo` | Flask OK. Realtime init está en DDL; **cliente Realtime no verificado**. |
 | `catalogo_servicios_aliado` | Precios del aliado | `catalogo_repo` | Flask OK. |
 | `invitacion_campanas` / `_usos` | Códigos de campaña | `invitacion_repo` | Flask OK. |
-| `competencia_pendiente` | Cola de retos | `competencia_repo` | Flask OK. |
+| `competencia` / `competencia_pendiente` | Retos de plaza | `competencia_repo` | Flask OK. Recreadas tras el 2026-09-04 **sin RLS** (alerta del 13 Sep). |
+| `cp_ciudad` / `cp_estado` / `cp_independencia_solicitudes` / `aliado_avisos_vistos` | Territorio | `schema_service` / grupo | Flask OK. |
+| `migracion_territorio_backup` / `_informe` | Backup PII de migración | `territorio_migracion_service` | Cero políticas REST. |
 | `solicitudes_semanales*` | Encargos de la semana | `solicitud_semanal_*` | Ya tenían RLS en migración; se añaden políticas SELECT. |
 
 ### Admin / automatización

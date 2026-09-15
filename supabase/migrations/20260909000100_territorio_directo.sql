@@ -30,6 +30,9 @@ CREATE TABLE IF NOT EXISTS public.migracion_territorio_informe (
     creado_en TIMESTAMPTZ DEFAULT NOW()
 );
 
+ALTER TABLE IF EXISTS public.migracion_territorio_backup ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.migracion_territorio_informe ENABLE ROW LEVEL SECURITY;
+
 INSERT INTO public.migraciones (nombre)
 VALUES ('territorio_directo_v1')
 ON CONFLICT (nombre) DO NOTHING;
