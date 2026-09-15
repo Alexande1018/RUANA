@@ -59,3 +59,9 @@ CREATE TABLE IF NOT EXISTS public.aliado_avisos_vistos (
   visto_en TIMESTAMPTZ DEFAULT NOW(),
   PRIMARY KEY (aliado_codigo, aviso_tipo)
 );
+
+ALTER TABLE IF EXISTS public.migraciones ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.cp_ciudad ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.cp_estado ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.cp_independencia_solicitudes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.aliado_avisos_vistos ENABLE ROW LEVEL SECURITY;

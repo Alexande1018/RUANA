@@ -74,6 +74,9 @@ CREATE TABLE IF NOT EXISTS public.competencia_pendiente (
 CREATE INDEX IF NOT EXISTS idx_competencia_pendiente_cp_oficio
   ON public.competencia_pendiente(codigo_postal, oficio, estado);
 
+ALTER TABLE IF EXISTS public.competencia ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.competencia_pendiente ENABLE ROW LEVEL SECURITY;
+
 ALTER TABLE public.payment_conflicts
   ADD COLUMN IF NOT EXISTS tipo TEXT DEFAULT 'importe_discrepante';
 
