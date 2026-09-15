@@ -3,7 +3,8 @@
 --
 -- Alerta Supabase 13 Sep 2026: rls_disabled_in_public (ruana APP).
 -- La migración 20260902000200 cubrió 66 tablas. Luego Flask/SQL creó
--- competencia_pendiente, cp_*, aliado_avisos_vistos, migracion_territorio_*
+-- competencia_pendiente, cp_*, aliado_avisos_vistos,
+-- migracion_territorio_backup, migracion_territorio_informe
 -- y migraciones sin ENABLE ROW LEVEL SECURITY.
 --
 -- Sin FORCE ROW LEVEL SECURITY: Flask (DATABASE_URL, dueño) no se ve afectado.
@@ -157,6 +158,11 @@ SELECT public._ruana_policy_select(
 );
 
 DROP FUNCTION public._ruana_policy_select(text, text, text);
+
+-- Sin política SELECT (deny PostgREST; Flask dueño sigue con acceso total):
+--   migracion_territorio_backup
+--   migracion_territorio_informe
+--   migraciones
 
 CREATE OR REPLACE FUNCTION public.ruana_enable_rls_on_create_table()
 RETURNS event_trigger
