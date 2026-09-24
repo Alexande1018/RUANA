@@ -167,6 +167,11 @@
       if (host.btnCopyCode) {
           host.btnCopyCode.addEventListener('click', () => host.copyCode());
       }
+      const btnWhatsappCode = document.getElementById('btn-whatsapp-code');
+      if (btnWhatsappCode && !btnWhatsappCode.dataset.bound) {
+          btnWhatsappCode.dataset.bound = '1';
+          btnWhatsappCode.addEventListener('click', () => host.enviarInvitacionWhatsapp());
+      }
       if (host.btnCloseCode) {
           host.btnCloseCode.addEventListener('click', () => host.closeCodeModal());
       }

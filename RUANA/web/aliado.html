@@ -880,9 +880,12 @@
                 <div class="invite-code-message">Válido para una solicitud</div>
             </div>
 
+            <p class="invite-score-note" id="invite-score-note">Ganas puntos de Score por cada colega que se una. Con este código son +3 cuando se registra.</p>
+
             <div class="modal-actions">
-                <button class="btn-copy" id="btn-copy-code">Copiar código</button>
-                <button class="btn-close-modal" id="btn-close-code">Cerrar</button>
+                <button class="btn-copy" id="btn-copy-code" type="button">Copiar código</button>
+                <button class="btn-whatsapp" id="btn-whatsapp-code" type="button">Enviar por WhatsApp</button>
+                <button class="btn-close-modal" id="btn-close-code" type="button">Cerrar</button>
             </div>
         </div>
     </div>
@@ -2113,10 +2116,16 @@
                     return mod.generarCodigoInvitarCercanoCp(this, solicitudId);
                 }
             }
-            mostrarModalCodigoInvitacion(codigo, desdeSolicitud) {
+            mostrarModalCodigoInvitacion(codigo, desdeSolicitud, puntos) {
                 const mod = this._invitacionesModule();
                 if (mod && typeof mod.mostrarModalCodigoInvitacion === 'function') {
-                    return mod.mostrarModalCodigoInvitacion(this, codigo, desdeSolicitud);
+                    return mod.mostrarModalCodigoInvitacion(this, codigo, desdeSolicitud, puntos);
+                }
+            }
+            enviarInvitacionWhatsapp() {
+                const mod = this._invitacionesModule();
+                if (mod && typeof mod.enviarInvitacionWhatsapp === 'function') {
+                    return mod.enviarInvitacionWhatsapp(this);
                 }
             }
             registerInviteCodeWithBackend(code, solicitudId) {
