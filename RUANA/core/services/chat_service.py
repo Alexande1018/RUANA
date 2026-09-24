@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from core.repositories.chat_repo import ChatRepo
+from core.services import activacion_soporte_service
 
 _repo = ChatRepo()
 
@@ -371,6 +372,7 @@ def listar_conversaciones_soporte_aliado(db, aliado_codigo: str, limite: int = 5
     codigo = str(aliado_codigo or '').strip()
     if not codigo:
         return []
+    activacion_soporte_service.asegurar_conversacion_activacion(db, codigo)
     with db._lock:
         conn = None
         try:
@@ -378,7 +380,7 @@ def listar_conversaciones_soporte_aliado(db, aliado_codigo: str, limite: int = 5
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT id, aliado_codigo, asunto, categoria, estado, ultimo_mensaje_preview, ultimo_mensaje_en,
+                SELECT id, aliado_codigo, asunto, categoria, estado, tipo, ultimo_mensaje_preview, ultimo_mensaje_en,
                        tiene_no_leido_aliado, creado_en, actualizado_en
                 FROM ruana_soporte_conversaciones
                 WHERE TRIM(CAST(aliado_codigo AS TEXT)) = ? AND COALESCE(eliminada_por_aliado, 0) = 0
@@ -410,7 +412,7 @@ def marcar_soporte_leido_aliado(db, conversacion_id: int, aliado_codigo: str) ->
             cursor.execute("""
                 UPDATE ruana_soporte_mensajes
                 SET leido_por_aliado = 1
-                WHERE conversacion_id = ? AND emisor_tipo = 'admin'
+                WHERE conversacion_id = ? AND emisor_tipo IN ('admin', 'sistema')
             """, (int(conversacion_id),))
             conn.commit()
             return {'status': 'success'}

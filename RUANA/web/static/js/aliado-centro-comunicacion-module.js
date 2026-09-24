@@ -115,7 +115,23 @@
             '<div class="ruana-help-card">' +
               '<div id="ruana-help-thread-header" class="ruana-help-empty">Selecciona una conversación para ver el historial.</div>' +
               '<div class="ruana-help-messages" id="ruana-help-messages"></div>' +
-              '<div class="ruana-help-form-row">' +
+              '<div id="ruana-activacion-form" class="ruana-activacion-form" hidden>' +
+                '<p class="ruana-activacion-lead">Puedes responder o saltar. Si respondes, el equipo lo lee aquí.</p>' +
+                '<label class="ruana-activacion-label" for="ruana-activacion-oficio">¿A qué oficio de tu zona le pasarías trabajo?</label>' +
+                '<select id="ruana-activacion-oficio" class="ruana-help-select"><option value="">Elige un oficio (opcional)</option></select>' +
+                '<input id="ruana-activacion-oficio-otro" class="ruana-help-input" maxlength="80" placeholder="O escríbelo tú" />' +
+                '<label class="ruana-activacion-label" for="ruana-activacion-encargo">¿Tienes ahora mismo algún encargo que no puedas hacer tú?</label>' +
+                '<select id="ruana-activacion-encargo" class="ruana-help-select"><option value="">—</option><option value="Sí">Sí</option><option value="No">No</option></select>' +
+                '<button type="button" class="btn-admin-action" id="ruana-activacion-crear" hidden>Crear solicitud</button>' +
+                '<label class="ruana-activacion-label" for="ruana-activacion-freno">¿Qué te frenaría para pasar tu primer encargo por RUANA?</label>' +
+                '<textarea id="ruana-activacion-freno" class="ruana-help-textarea" rows="2" maxlength="400" placeholder="Si quieres, en una frase"></textarea>' +
+                '<div class="ruana-activacion-actions">' +
+                  '<button type="button" class="btn-admin-action" id="ruana-activacion-enviar">Enviar</button>' +
+                  '<button type="button" class="btn-admin-action ruana-activacion-saltar" id="ruana-activacion-saltar">Saltar</button>' +
+                '</div>' +
+              '</div>' +
+              '<button type="button" class="btn-admin-action ruana-activacion-whatsapp" id="ruana-activacion-whatsapp" hidden>Pásale tu código por WhatsApp</button>' +
+              '<div class="ruana-help-form-row" id="ruana-help-reply-wrap">' +
                 '<textarea id="ruana-help-reply" class="ruana-help-textarea" rows="3" maxlength="3000" placeholder="Escribe tu apelación..." disabled></textarea>' +
                 '<button type="button" class="btn-admin-action" id="ruana-help-reply-btn" disabled>Enviar apelación</button>' +
               '</div>' +
@@ -160,8 +176,15 @@
     overlay.setAttribute('aria-hidden', 'false');
     if (fab) fab.classList.add('is-open');
     renderCentroComunicacion(host);
+    var conversaciones = Array.isArray(host.soporteConversations) ? host.soporteConversations : [];
+    var activacion = conversaciones.find(function (c) {
+      return String(c.tipo || '') === 'activacion' && Number(c.tiene_no_leido_aliado || 0) > 0;
+    });
+    if (activacion && Number(host.soporteSelectedId) !== Number(activacion.id)) {
+      seleccionarConversacionSoporte(host, activacion.id);
+    }
     var subject = document.getElementById('ruana-help-subject');
-    if (subject) setTimeout(function () { subject.focus(); }, 220);
+    if (subject && !activacion) setTimeout(function () { subject.focus(); }, 220);
   }
 
   function cerrarCentroComunicacion() {
@@ -190,26 +213,173 @@
     var conv = (host.soporteConversations || []).find(function (c) {
       return Number(c.id) === Number(host.soporteSelectedId);
     });
+    var mensajes = Array.isArray(host.soporteMensajes) ? host.soporteMensajes : [];
     if (!conv) {
       header.textContent = 'Selecciona una conversación para ver el historial.';
       box.innerHTML = '';
       reply.disabled = true;
       replyBtn.disabled = true;
+      pintarActivacion(host, null, []);
       return;
     }
     header.innerHTML = '<strong>' + escapeHtmlSafe(host, conv.asunto || 'Consulta') + '</strong> · <span class="ruana-help-status estado-' + escapeHtmlSafe(host, conv.estado || 'pendiente') + '">' + formatHelpStatus(conv.estado) + '</span>';
-    reply.disabled = false;
-    replyBtn.disabled = false;
-    var mensajes = Array.isArray(host.soporteMensajes) ? host.soporteMensajes : [];
+    var esActivacion = String(conv.tipo || '') === 'activacion';
+    var yaRespondio = mensajes.some(function (m) { return (m.emisor_tipo || '') === 'aliado'; });
+    var mostrarFormulario = esActivacion && !yaRespondio;
+    reply.disabled = mostrarFormulario;
+    replyBtn.disabled = mostrarFormulario;
+    var replyWrap = document.getElementById('ruana-help-reply-wrap');
+    if (replyWrap) replyWrap.hidden = mostrarFormulario;
+    if (!mostrarFormulario) {
+      reply.disabled = false;
+      replyBtn.disabled = false;
+    }
     box.innerHTML = mensajes.map(function (m) {
-      var fromAdmin = (m.emisor_tipo || '') === 'admin';
+      var fromEquipo = (m.emisor_tipo || '') === 'admin' || (m.emisor_tipo || '') === 'sistema';
       var fecha = m.creado_en ? new Date(m.creado_en).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '';
-      return '<div class="ruana-help-message ' + (fromAdmin ? 'from-admin' : 'from-aliado') + '">' +
+      return '<div class="ruana-help-message ' + (fromEquipo ? 'from-admin' : 'from-aliado') + '">' +
         escapeHtmlSafe(host, m.mensaje || '') +
-        '<span class="ruana-help-meta">' + (fromAdmin ? 'Equipo RUANA' : 'Tú') + ' · ' + fecha + '</span>' +
+        '<span class="ruana-help-meta">' + (fromEquipo ? 'Equipo RUANA' : 'Tú') + ' · ' + fecha + '</span>' +
       '</div>';
     }).join('');
     box.scrollTop = box.scrollHeight;
+    pintarActivacion(host, conv, mensajes);
+  }
+
+  function mensajeTieneHueco(mensajes) {
+    return (mensajes || []).some(function (m) {
+      return String(m.mensaje || '').indexOf('Pásale tu código por WhatsApp') !== -1;
+    });
+  }
+
+  function pintarActivacion(host, conv, mensajes) {
+    bindActivacion(host);
+    var form = document.getElementById('ruana-activacion-form');
+    var whatsapp = document.getElementById('ruana-activacion-whatsapp');
+    var esActivacion = conv && String(conv.tipo || '') === 'activacion';
+    var yaRespondio = (mensajes || []).some(function (m) { return (m.emisor_tipo || '') === 'aliado'; });
+    if (form) form.hidden = !(esActivacion && !yaRespondio);
+    if (whatsapp) whatsapp.hidden = !mensajeTieneHueco(mensajes);
+    if (esActivacion && !yaRespondio) {
+      cargarOficiosActivacion(host);
+      var mensajesBox = document.getElementById('ruana-help-messages');
+      if (mensajesBox && typeof mensajesBox.scrollIntoView === 'function') {
+        setTimeout(function () { mensajesBox.scrollIntoView({ block: 'start' }); }, 60);
+      }
+    }
+    var crear = document.getElementById('ruana-activacion-crear');
+    var encargo = document.getElementById('ruana-activacion-encargo');
+    if (crear) crear.hidden = !encargo || encargo.value !== 'Sí' || !esActivacion || yaRespondio;
+  }
+
+  var oficiosActivacionCargados = false;
+
+  function cargarOficiosActivacion(host) {
+    if (oficiosActivacionCargados) return;
+    var select = document.getElementById('ruana-activacion-oficio');
+    if (!select) return;
+    oficiosActivacionCargados = true;
+    var apiBase = getApiBaseSafe();
+    fetch(apiBase + '/api/catalogo/oficios', { credentials: 'same-origin' })
+      .then(function (r) { return r.json().catch(function () { return {}; }); })
+      .then(function (data) {
+        var lista = data && Array.isArray(data.oficios) ? data.oficios : [];
+        lista.forEach(function (item) {
+          var nombre = typeof item === 'string' ? item : (item && item.nombre) || '';
+          nombre = String(nombre || '').trim();
+          if (!nombre) return;
+          var opt = document.createElement('option');
+          opt.value = nombre;
+          opt.textContent = nombre;
+          select.appendChild(opt);
+        });
+      })
+      .catch(function () {
+        oficiosActivacionCargados = false;
+      });
+  }
+
+  function bindActivacion(host) {
+    var form = document.getElementById('ruana-activacion-form');
+    if (!form || form.getAttribute('data-bound') === '1') return;
+    form.setAttribute('data-bound', '1');
+    var encargo = document.getElementById('ruana-activacion-encargo');
+    if (encargo) {
+      encargo.addEventListener('change', function () {
+        var crear = document.getElementById('ruana-activacion-crear');
+        if (crear) crear.hidden = encargo.value !== 'Sí';
+      });
+    }
+    var crear = document.getElementById('ruana-activacion-crear');
+    if (crear) {
+      crear.addEventListener('click', function () {
+        cerrarCentroComunicacion();
+        if (global.AliadoShell && typeof global.AliadoShell.show === 'function') {
+          global.AliadoShell.show('conexiones');
+        }
+      });
+    }
+    var enviar = document.getElementById('ruana-activacion-enviar');
+    var saltar = document.getElementById('ruana-activacion-saltar');
+    if (enviar) enviar.addEventListener('click', function () { enviarRespuestaActivacion(host, false); });
+    if (saltar) saltar.addEventListener('click', function () { enviarRespuestaActivacion(host, true); });
+    var whatsapp = document.getElementById('ruana-activacion-whatsapp');
+    if (whatsapp && whatsapp.getAttribute('data-bound') !== '1') {
+      whatsapp.setAttribute('data-bound', '1');
+      whatsapp.addEventListener('click', function () { abrirWhatsappActivacion(host); });
+    }
+  }
+
+  function oficioActivacionElegido() {
+    var otro = document.getElementById('ruana-activacion-oficio-otro');
+    var select = document.getElementById('ruana-activacion-oficio');
+    var escrito = otro ? String(otro.value || '').trim() : '';
+    if (escrito) return escrito;
+    return select ? String(select.value || '').trim() : '';
+  }
+
+  function enviarRespuestaActivacion(host, saltar) {
+    if (!host) return Promise.resolve();
+    var convId = Number(host.soporteSelectedId || 0);
+    if (!convId) return Promise.resolve();
+    var encargoEl = document.getElementById('ruana-activacion-encargo');
+    var frenoEl = document.getElementById('ruana-activacion-freno');
+    var cuerpo = {
+      activacion: {
+        oficio: saltar ? '' : oficioActivacionElegido(),
+        encargo: saltar ? '' : (encargoEl ? encargoEl.value : ''),
+        freno: saltar ? '' : (frenoEl ? String(frenoEl.value || '').trim() : ''),
+        saltar: Boolean(saltar)
+      }
+    };
+    var apiBase = getApiBaseSafe();
+    var urls = soporteUrls(host, convId);
+    return fetch(apiBase + urls.messages, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: soporteHeaders(host, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify(cuerpo)
+    })
+      .then(function (r) { return r.json().catch(function () { return {}; }); })
+      .then(function (data) {
+        if (data.status !== 'success') {
+          if (global.RuanaUI) global.RuanaUI.toast(data.message || 'No se pudo enviar.', 'error');
+          return null;
+        }
+        if (global.RuanaUI) {
+          global.RuanaUI.toast(saltar ? 'Preguntas saltadas.' : 'Respuesta enviada. Gracias.', 'success');
+        }
+        return seleccionarConversacionSoporte(host, convId);
+      });
+  }
+
+  function abrirWhatsappActivacion(host) {
+    var inv = global.RuanaAliadoModules && global.RuanaAliadoModules.invitaciones;
+    if (inv && typeof inv.invitarPorWhatsapp === 'function') {
+      return inv.invitarPorWhatsapp(host);
+    }
+    if (global.RuanaUI) global.RuanaUI.toast('No se pudo abrir WhatsApp.', 'error');
+    return Promise.resolve();
   }
 
   /**

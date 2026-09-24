@@ -2360,7 +2360,15 @@
         .ruana-help-form-row { display: grid; gap: 8px; margin-bottom: 8px; }
         .ruana-help-input, .ruana-help-textarea, .ruana-help-select { width: 100%; border-radius: 8px; padding: 9px 10px; background: rgba(2, 6, 23, 0.7); border: 1px solid rgba(148, 163, 184, 0.3); color: #e2e8f0; }
         .ruana-help-messages { max-height: 210px; overflow: auto; display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
-        .ruana-help-message { padding: 8px 10px; border-radius: 10px; font-size: 0.88rem; line-height: 1.4; }
+        .ruana-help-message { padding: 8px 10px; border-radius: 10px; font-size: 0.88rem; line-height: 1.4; white-space: pre-wrap; }
+        .ruana-activacion-form { display: grid; gap: 8px; margin: 8px 0 10px; }
+        .ruana-activacion-form[hidden] { display: none; }
+        .ruana-activacion-lead { margin: 0; color: #cbd5e1; font-size: 0.82rem; }
+        .ruana-activacion-label { color: #e2e8f0; font-size: 0.82rem; font-weight: 600; }
+        .ruana-activacion-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+        .ruana-activacion-saltar { background: transparent; color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.35); }
+        .ruana-activacion-whatsapp { margin-top: 8px; background: #25D366; color: #052e16; border: none; }
+        #ruana-activacion-whatsapp[hidden], #ruana-activacion-crear[hidden] { display: none; }
         .ruana-help-message.from-aliado { background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.3); }
         .ruana-help-message.from-admin { background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(74, 222, 128, 0.35); }
         .ruana-help-meta { display: block; color: #94a3b8; font-size: 0.72rem; margin-top: 4px; }

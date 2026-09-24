@@ -9,7 +9,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 from core import db_manager as db_manager_mod
-from core.services import admin_service, apelacion_service, chat_service
+from core.services import activacion_soporte_service, admin_service, apelacion_service, chat_service
 from web.auth_decorators import (
     _admin_codigo,
     _aliado_codigo,
@@ -51,6 +51,7 @@ def admin_listar_centro_comunicacion():
             limite=request.args.get('limite', 100, type=int),
             offset=request.args.get('offset', 0, type=int),
             tipo=request.args.get('tipo', ''),
+            codigo_postal=request.args.get('cp', ''),
         )
         return jsonify({'status': 'success', 'conversaciones': conversaciones})
     except Exception as e:
@@ -127,7 +128,12 @@ def centro_comunicacion_aliado_mensajes(codigo, conversacion_id):
             mensajes = chat_service.listar_mensajes_soporte_aliado(db, conversacion_id, codigo)
             return jsonify({'status': 'success', 'mensajes': mensajes})
         data = request.get_json() or {}
-        result = chat_service.enviar_mensaje_soporte_aliado(db, conversacion_id, codigo, data.get('mensaje') or '')
+        if isinstance(data.get('activacion'), dict):
+            result = activacion_soporte_service.guardar_respuesta_activacion(
+                db, conversacion_id, codigo, data.get('activacion') or {}
+            )
+        else:
+            result = chat_service.enviar_mensaje_soporte_aliado(db, conversacion_id, codigo, data.get('mensaje') or '')
         status_code = 200 if result.get('status') == 'success' else 400
         return jsonify(result), status_code
     except Exception as e:

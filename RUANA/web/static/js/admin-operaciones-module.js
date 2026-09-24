@@ -415,10 +415,12 @@ async function cargarCentroComunicacionAdmin(host) {
       const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
       const status = (document.getElementById('cc-admin-status')?.value || '').trim();
       const tipo = (document.getElementById('cc-admin-tipo')?.value || '').trim();
+      const cp = (document.getElementById('cc-admin-cp')?.value || '').trim();
       const unreadOnly = document.getElementById('cc-admin-only-unread')?.checked ? '1' : '0';
       const params = new URLSearchParams({ limite: '120', solo_no_leidas: unreadOnly });
       if (status) params.set('estado', status);
       if (tipo) params.set('tipo', tipo);
+      if (cp) params.set('cp', cp);
       try {
           const r = await fetch('/api/admin/centro-comunicacion?' + params.toString(), { method: 'GET', credentials: 'same-origin', headers: authHeaders });
           if (r.status === 401) { host._adminSessionExpired(); return; }
@@ -437,7 +439,7 @@ function renderCentroComunicacionAdmin(host, conversaciones) {
       const filtro = (document.getElementById('cc-admin-search')?.value || '').trim().toLowerCase();
       const lista = (Array.isArray(conversaciones) ? conversaciones : []).filter((c) => {
           if (!filtro) return true;
-          const full = `${c.aliado_codigo || ''} ${c.aliado_nombre || ''} ${c.asunto || ''}`.toLowerCase();
+          const full = `${c.aliado_codigo || ''} ${c.aliado_nombre || ''} ${c.aliado_codigo_postal || ''} ${c.asunto || ''}`.toLowerCase();
           return full.includes(filtro);
       });
       tbody.innerHTML = '';
@@ -458,6 +460,7 @@ function renderCentroComunicacionAdmin(host, conversaciones) {
           tr.innerHTML = `
               <td>#${c.id}</td>
               <td>${host.escapeHtml((c.aliado_nombre || c.aliado_codigo || '—'))}<br><span style="color:#94a3b8;font-size:0.75rem;">${host.escapeHtml(c.aliado_codigo || '')}</span></td>
+              <td>${host.escapeHtml(c.aliado_codigo_postal || '—')}</td>
               <td>${host.escapeHtml(c.asunto || 'Consulta')}</td>
               <td><span class="estado-pago-badge estado-pago-${estadoClass.replace('_', '-')}">${host.escapeHtml((c.estado || 'pendiente').replace('_', ' '))}</span></td>
               <td>${plazoHtml}</td>

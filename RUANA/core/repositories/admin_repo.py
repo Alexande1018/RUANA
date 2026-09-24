@@ -28,7 +28,8 @@ class AdminRepo:
         order = order_sql or "c.ultimo_mensaje_en DESC, c.id DESC"
         cursor.execute(
             f"""
-            SELECT c.id, c.aliado_codigo, a.nombre AS aliado_nombre, c.asunto, c.categoria, c.estado,
+            SELECT c.id, c.aliado_codigo, a.nombre AS aliado_nombre, a.codigo_postal AS aliado_codigo_postal,
+                   c.asunto, c.categoria, c.estado,
                    c.ultimo_mensaje_preview, c.ultimo_mensaje_en, c.tiene_no_leido_admin, c.tiene_no_leido_aliado,
                    c.creado_en, c.actualizado_en, c.tipo, c.fecha_limite_apelacion, c.decision_apelacion,
                    c.decision_admin_codigo, c.decision_motivo,

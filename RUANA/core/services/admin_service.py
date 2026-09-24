@@ -54,10 +54,12 @@ def obtener_o_crear_invitador_admin(db, admin_codigo: str, nombre: str = "") -> 
 
 def listar_conversaciones_soporte_admin(db, aliado_codigo: str = '', estado: str = '',
                                         solo_no_leidas: bool = False, limite: int = 100,
-                                        offset: int = 0, tipo: str = '') -> List[Dict[str, Any]]:
+                                        offset: int = 0, tipo: str = '',
+                                        codigo_postal: str = '') -> List[Dict[str, Any]]:
     aliado_f = str(aliado_codigo or '').strip()
     estado_f = str(estado or '').strip().lower()
     tipo_f = str(tipo or '').strip().lower()
+    cp_f = str(codigo_postal or '').strip()
     with db._lock:
         conn = None
         try:
@@ -76,6 +78,9 @@ def listar_conversaciones_soporte_admin(db, aliado_codigo: str = '', estado: str
             if tipo_f:
                 where.append("LOWER(TRIM(COALESCE(c.tipo, ''))) = ?")
                 params.append(tipo_f)
+            if cp_f:
+                where.append("TRIM(CAST(COALESCE(a.codigo_postal, '') AS TEXT)) = ?")
+                params.append(cp_f)
             if solo_no_leidas:
                 where.append("COALESCE(c.tiene_no_leido_admin, 0) = 1")
             params.extend([max(1, min(int(limite or 100), 300)), max(0, int(offset or 0))])
