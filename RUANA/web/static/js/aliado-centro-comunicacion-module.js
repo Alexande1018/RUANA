@@ -115,6 +115,7 @@
             '<div class="ruana-help-card">' +
               '<div id="ruana-help-thread-header" class="ruana-help-empty">Selecciona una conversación para ver el historial.</div>' +
               '<div class="ruana-help-messages" id="ruana-help-messages"></div>' +
+              '<button type="button" class="ruana-activacion-btn ruana-activacion-whatsapp" id="ruana-activacion-whatsapp" hidden>Invitar por WhatsApp</button>' +
               '<div id="ruana-activacion-form" class="ruana-activacion-form" hidden>' +
                 '<p class="ruana-activacion-lead">Puedes responder o saltar. Si respondes, el equipo lo lee aquí.</p>' +
                 '<label class="ruana-activacion-label" for="ruana-activacion-oficio">¿A qué oficio de tu zona le pasarías trabajo?</label>' +
@@ -122,15 +123,14 @@
                 '<input id="ruana-activacion-oficio-otro" class="ruana-help-input" maxlength="80" placeholder="O escríbelo tú" />' +
                 '<label class="ruana-activacion-label" for="ruana-activacion-encargo">¿Tienes ahora mismo algún encargo que no puedas hacer tú?</label>' +
                 '<select id="ruana-activacion-encargo" class="ruana-help-select"><option value="">—</option><option value="Sí">Sí</option><option value="No">No</option></select>' +
-                '<button type="button" class="btn-admin-action" id="ruana-activacion-crear" hidden>Crear solicitud</button>' +
+                '<button type="button" class="ruana-activacion-btn ruana-activacion-btn-primary" id="ruana-activacion-crear" hidden>Crear solicitud</button>' +
                 '<label class="ruana-activacion-label" for="ruana-activacion-freno">¿Qué te frenaría para pasar tu primer encargo por RUANA?</label>' +
                 '<textarea id="ruana-activacion-freno" class="ruana-help-textarea" rows="2" maxlength="400" placeholder="Si quieres, en una frase"></textarea>' +
                 '<div class="ruana-activacion-actions">' +
-                  '<button type="button" class="btn-admin-action" id="ruana-activacion-enviar">Enviar</button>' +
-                  '<button type="button" class="btn-admin-action ruana-activacion-saltar" id="ruana-activacion-saltar">Saltar</button>' +
+                  '<button type="button" class="ruana-activacion-btn ruana-activacion-btn-primary" id="ruana-activacion-enviar">Enviar</button>' +
+                  '<button type="button" class="ruana-activacion-btn ruana-activacion-btn-secondary" id="ruana-activacion-saltar">Saltar</button>' +
                 '</div>' +
               '</div>' +
-              '<button type="button" class="btn-admin-action ruana-activacion-whatsapp" id="ruana-activacion-whatsapp" hidden>Pásale tu código por WhatsApp</button>' +
               '<div class="ruana-help-form-row" id="ruana-help-reply-wrap">' +
                 '<textarea id="ruana-help-reply" class="ruana-help-textarea" rows="3" maxlength="3000" placeholder="Escribe tu apelación..." disabled></textarea>' +
                 '<button type="button" class="btn-admin-action" id="ruana-help-reply-btn" disabled>Enviar apelación</button>' +
@@ -174,6 +174,7 @@
     if (!overlay) return;
     overlay.classList.add('is-open');
     overlay.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('ruana-help-open');
     if (fab) fab.classList.add('is-open');
     renderCentroComunicacion(host);
     var conversaciones = Array.isArray(host.soporteConversations) ? host.soporteConversations : [];
@@ -193,6 +194,7 @@
     if (!overlay) return;
     overlay.classList.remove('is-open');
     overlay.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('ruana-help-open');
     if (fab) fab.classList.remove('is-open');
   }
 

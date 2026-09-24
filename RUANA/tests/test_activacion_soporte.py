@@ -148,7 +148,8 @@ def test_crea_a_los_3_dias_con_un_hueco(sqlite_db, monkeypatch):
     assert int(msg["tiene_no_leido_admin"]) == 0
     assert int(msg["leido_por_aliado"]) == 0
     assert "curro" not in msg["mensaje"].lower()
-    assert "En tu zona aún no hay electricidad." in msg["mensaje"]
+    assert "En tu zona aún no hay electricista." in msg["mensaje"]
+    assert "¿Conoces a uno bueno?" in msg["mensaje"]
     assert MARCA_WHATSAPP in msg["mensaje"]
 
 
@@ -163,8 +164,46 @@ def test_dos_huecos_caben_en_la_misma_linea(sqlite_db, monkeypatch):
     _aliado(sqlite_db, "58848", oficio, "03001", grupo_id=grupo_id, dias=5)
     chat_service.listar_conversaciones_soporte_aliado(sqlite_db, "58848")
     texto = _mensaje_sistema(sqlite_db, "58848")["mensaje"]
-    assert "electricidad ni fontanería y fontanería-gas" in texto
+    assert "electricista ni fontanero" in texto
+    assert "¿Conoces a uno bueno?" in texto
+    assert "curro" not in texto.lower()
     assert MARCA_WHATSAPP in texto
+
+
+def test_prioriza_oficios_de_casa_antes_que_el_resto(sqlite_db, monkeypatch):
+    oficio = "Idiomas"
+    grupo_id = _grupo(sqlite_db, "03001")
+    monkeypatch.setattr(
+        sqlite_db,
+        "get_catalogo_oficios_ruana",
+        lambda: [
+            "Actividad física y salud básica",
+            oficio,
+            "Cerrajería",
+            "Electricidad",
+            "Clases particulares académicas",
+        ],
+    )
+    _aliado(sqlite_db, "58848", oficio, "03001", grupo_id=grupo_id, dias=5)
+    chat_service.listar_conversaciones_soporte_aliado(sqlite_db, "58848")
+    texto = _mensaje_sistema(sqlite_db, "58848")["mensaje"]
+    assert "electricista ni cerrajero" in texto
+    assert "actividad física" not in texto
+    assert "curro" not in texto.lower()
+
+
+def test_sin_oficios_de_casa_usa_el_resto_del_catalogo(sqlite_db, monkeypatch):
+    oficio = "Idiomas"
+    grupo_id = _grupo(sqlite_db, "03002")
+    monkeypatch.setattr(
+        sqlite_db,
+        "get_catalogo_oficios_ruana",
+        lambda: [oficio, "Actividad física y salud básica", "Clases particulares académicas"],
+    )
+    _aliado(sqlite_db, "58841", oficio, "03002", grupo_id=grupo_id, dias=5)
+    chat_service.listar_conversaciones_soporte_aliado(sqlite_db, "58841")
+    texto = _mensaje_sistema(sqlite_db, "58841")["mensaje"]
+    assert "actividad física y salud básica ni clases particulares académicas" in texto
 
 
 def test_sin_huecos_no_anade_la_linea(sqlite_db, monkeypatch):

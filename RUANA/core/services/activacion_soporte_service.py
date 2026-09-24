@@ -36,6 +36,19 @@ FECHA_CORTE_DEFECTO = "1970-01-01"
 MARCA_WHATSAPP = "Pásale tu código por WhatsApp"
 TEXTO_SALTADO = "(saltado)"
 
+# Oficios de reformas y hogar, en el orden en que se mencionan.
+# La frase usa un nombre corto; el empareje es con el nombre real del catálogo.
+HUECOS_PRIORITARIOS = (
+    ("Electricidad", "electricista"),
+    ("Fontanería y fontanería-gas", "fontanero"),
+    ("Pintura y decoración", "pintor"),
+    ("Albañilería y obra", "albañil"),
+    ("Carpintería de madera e interior", "carpintero"),
+    ("Carpintería de aluminio / PVC / metálica", "carpintero de aluminio"),
+    ("Cerrajería", "cerrajero"),
+    ("Climatización y calefacción", "climatización"),
+)
+
 MENSAJE_BASE = (
     "Llevas unos días en RUANA y queremos afinar tu zona. "
     "Tres preguntas rápidas, puedes saltarlas.\n\n"
@@ -67,25 +80,42 @@ def mensaje_activacion(linea: str = "") -> str:
 
 
 def linea_huecos(oficios: List[str]) -> str:
-    """Una línea con uno o dos oficios libres. Vacía si no hay huecos."""
-    nombres = [str(o).strip() for o in (oficios or []) if str(o or "").strip()]
+    """Un párrafo con uno o dos oficios libres. Vacío si no hay huecos."""
+    nombres = [_en_frase(o) for o in (oficios or []) if str(o or "").strip()]
     if not nombres:
         return ""
     if len(nombres) == 1:
-        return (
-            f"En tu zona aún no hay {_en_frase(nombres[0])}. "
-            f"¿Conoces a uno bueno? {MARCA_WHATSAPP}"
-        )
+        mencionado = nombres[0]
+    else:
+        mencionado = f"{nombres[0]} ni {nombres[1]}"
     return (
-        f"En tu zona aún no hay {_en_frase(nombres[0])} ni {_en_frase(nombres[1])}. "
-        f"¿Conoces a alguno bueno? {MARCA_WHATSAPP}"
+        f"En tu zona aún no hay {mencionado}. "
+        f"¿Conoces a uno bueno? {MARCA_WHATSAPP}"
     )
 
 
-def oficios_hueco(db, grupo_id: Optional[int]) -> List[str]:
-    """Oficios del catálogo sin aliado titular activo en el grupo.
+def elegir_huecos_para_frase(faltan: List[str]) -> List[str]:
+    """Hasta dos huecos. Primero los de casa; si no hay, el resto del catálogo."""
+    libres = {str(o).strip().casefold(): str(o).strip() for o in faltan if str(o or "").strip()}
+    if not libres:
+        return []
+    prioritarios: List[str] = []
+    for catalogo_nombre, en_frase in HUECOS_PRIORITARIOS:
+        if catalogo_nombre.casefold() in libres:
+            prioritarios.append(en_frase)
+        if len(prioritarios) == 2:
+            return prioritarios
+    if prioritarios:
+        return prioritarios
+    resto = sorted(libres.values(), key=lambda nombre: nombre.casefold())
+    return [_en_frase(nombre) for nombre in resto[:2]]
 
-    Misma idea que info_grupo_para_panel: catálogo menos obtener_oficios_grupo.
+
+def oficios_hueco(db, grupo_id: Optional[int]) -> List[str]:
+    """Huecos del grupo, ya en el orden y con el nombre que va en la frase.
+
+    Un hueco es un oficio del catálogo sin aliado titular activo en el grupo,
+    igual que oficios_faltantes de info_grupo_para_panel.
     """
     if not grupo_id:
         return []
@@ -101,7 +131,7 @@ def oficios_hueco(db, grupo_id: Optional[int]) -> List[str]:
         nombre = str(oficio or "").strip()
         if nombre and nombre not in ocupados_txt:
             faltan.append(nombre)
-    return sorted(faltan)
+    return elegir_huecos_para_frase(faltan)
 
 
 def texto_respuesta_activacion(payload: Dict[str, Any]) -> str:

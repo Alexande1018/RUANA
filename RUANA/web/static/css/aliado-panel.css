@@ -2313,6 +2313,9 @@
             opacity: 0;
             pointer-events: none;
             transition: opacity 240ms ease;
+            overflow-x: hidden;
+            box-sizing: border-box;
+            max-width: 100%;
         }
         .ruana-help-overlay.is-open {
             opacity: 1;
@@ -2320,10 +2323,13 @@
         }
         .ruana-help-center {
             width: min(920px, 100%);
+            max-width: 100%;
             max-height: min(86vh, 760px);
-            overflow: auto;
+            overflow-x: hidden;
+            overflow-y: auto;
             margin: 0;
             padding: 20px;
+            box-sizing: border-box;
             border-radius: 18px;
             background: linear-gradient(160deg, rgba(16, 24, 40, 0.97), rgba(7, 12, 24, 0.96));
             border: 1px solid rgba(148, 163, 184, 0.22);
@@ -2345,8 +2351,10 @@
             background: rgba(255, 255, 255, 0.04); color: #cbd5e1; cursor: pointer;
         }
         .ruana-help-header-actions { display: inline-flex; align-items: center; gap: 8px; }
-        .ruana-help-layout { display: grid; grid-template-columns: 1.05fr 1fr; gap: 12px; }
-        .ruana-help-card { background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 12px; padding: 12px; }
+        .ruana-help-overlay,
+        .ruana-help-overlay * { box-sizing: border-box; }
+        .ruana-help-layout { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 12px; min-width: 0; max-width: 100%; }
+        .ruana-help-card { background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 12px; padding: 12px; min-width: 0; max-width: 100%; overflow: hidden; }
         .ruana-help-list { max-height: 250px; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
         .ruana-help-thread-item { padding: 10px; border-radius: 10px; cursor: pointer; border: 1px solid rgba(148, 163, 184, 0.16); background: rgba(15, 23, 42, 0.55); transition: border-color 160ms ease, background 160ms ease; }
         .ruana-help-thread-item.is-active { border-color: rgba(74, 222, 128, 0.5); background: rgba(34, 197, 94, 0.12); }
@@ -2357,27 +2365,66 @@
         .ruana-help-status.estado-respondido { background: rgba(34, 197, 94, 0.2); color: #86efac; }
         .ruana-help-status.estado-cerrado { background: rgba(148, 163, 184, 0.22); color: #cbd5e1; }
         .ruana-help-status.estado-reabierto { background: rgba(244, 114, 182, 0.2); color: #f9a8d4; }
-        .ruana-help-form-row { display: grid; gap: 8px; margin-bottom: 8px; }
-        .ruana-help-input, .ruana-help-textarea, .ruana-help-select { width: 100%; border-radius: 8px; padding: 9px 10px; background: rgba(2, 6, 23, 0.7); border: 1px solid rgba(148, 163, 184, 0.3); color: #e2e8f0; }
-        .ruana-help-messages { max-height: 210px; overflow: auto; display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
-        .ruana-help-message { padding: 8px 10px; border-radius: 10px; font-size: 0.88rem; line-height: 1.4; white-space: pre-wrap; }
-        .ruana-activacion-form { display: grid; gap: 8px; margin: 8px 0 10px; }
+        .ruana-help-form-row { display: grid; gap: 8px; margin-bottom: 8px; min-width: 0; max-width: 100%; }
+        .ruana-help-input, .ruana-help-textarea, .ruana-help-select { width: 100%; max-width: 100%; min-width: 0; border-radius: 8px; padding: 9px 10px; background: rgba(2, 6, 23, 0.7); border: 1px solid rgba(148, 163, 184, 0.3); color: #e2e8f0; }
+        .ruana-help-messages { max-height: none; overflow-x: hidden; overflow-y: visible; display: flex; flex-direction: column; gap: 8px; margin: 10px 0; min-width: 0; max-width: 100%; }
+        .ruana-help-message { padding: 8px 10px; border-radius: 10px; font-size: 0.88rem; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; max-width: 100%; }
+        .ruana-activacion-form { display: grid; gap: 8px; margin: 8px 0 10px; min-width: 0; max-width: 100%; }
         .ruana-activacion-form[hidden] { display: none; }
+        .ruana-activacion-lead, .ruana-activacion-label { overflow-wrap: anywhere; word-break: break-word; max-width: 100%; }
         .ruana-activacion-lead { margin: 0; color: #cbd5e1; font-size: 0.82rem; }
         .ruana-activacion-label { color: #e2e8f0; font-size: 0.82rem; font-weight: 600; }
-        .ruana-activacion-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-        .ruana-activacion-saltar { background: transparent; color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.35); }
-        .ruana-activacion-whatsapp { margin-top: 8px; background: #25D366; color: #052e16; border: none; }
-        #ruana-activacion-whatsapp[hidden], #ruana-activacion-crear[hidden] { display: none; }
+        .ruana-activacion-actions { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; max-width: 100%; }
+        .ruana-activacion-btn {
+            appearance: none;
+            -webkit-appearance: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 42px;
+            padding: 10px 16px;
+            border-radius: 10px;
+            font: inherit;
+            font-size: 0.92rem;
+            font-weight: 700;
+            line-height: 1.2;
+            cursor: pointer;
+            max-width: 100%;
+            white-space: normal;
+            text-align: center;
+        }
+        .ruana-activacion-btn-primary {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            color: #fff;
+            border: none;
+        }
+        .ruana-activacion-btn-secondary {
+            background: transparent;
+            color: #e2e8f0;
+            border: 1px solid rgba(226, 232, 240, 0.45);
+        }
+        .ruana-activacion-whatsapp {
+            width: 100%;
+            margin: 4px 0 8px;
+            background: #25D366;
+            color: #052e16;
+            border: none;
+        }
+        #ruana-activacion-whatsapp[hidden],
+        #ruana-activacion-crear[hidden],
+        #ruana-activacion-form[hidden] { display: none !important; }
+        body.ruana-help-open #sol-sem-minimized { display: none !important; }
         .ruana-help-message.from-aliado { background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.3); }
         .ruana-help-message.from-admin { background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(74, 222, 128, 0.35); }
         .ruana-help-meta { display: block; color: #94a3b8; font-size: 0.72rem; margin-top: 4px; }
         .ruana-help-empty { color: #94a3b8; font-size: 0.88rem; padding: 8px 0; }
         @media (max-width: 920px) {
-            .ruana-help-layout { grid-template-columns: 1fr; }
+            .ruana-help-layout { grid-template-columns: minmax(0, 1fr); }
             .ruana-help-overlay { padding: 10px; align-items: flex-end; }
             .ruana-help-center { max-height: 88vh; border-radius: 16px 16px 12px 12px; }
             .ruana-help-fab { right: 14px; bottom: 68px; width: 52px; height: 52px; }
+            .ruana-activacion-actions { flex-direction: column; }
+            .ruana-activacion-actions .ruana-activacion-btn { width: 100%; }
         }
 
         .stripe-onboarding-banner {

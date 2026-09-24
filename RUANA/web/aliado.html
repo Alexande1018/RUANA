@@ -10,8 +10,8 @@
     <link rel="preload" href="/static/fonts/plus-jakarta-sans-latin-wght-normal.woff2?v=5.3.0" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/static/css/ruana-fonts.css?v=20260913a">
     <link rel="icon" href="/static/images/ruana-logo.svg" type="image/svg+xml">
-    <link rel="preload" href="/static/css/aliado-shell.css?v=20260910d" as="style">
-    <link rel="stylesheet" href="/static/css/aliado-panel.css?v=20260910d">
+    <link rel="preload" href="/static/css/aliado-panel.css?v=20260924a" as="style">
+    <link rel="stylesheet" href="/static/css/aliado-panel.css?v=20260924a">
     <link rel="stylesheet" href="/static/css/panel-premium.css">
     <link rel="stylesheet" href="/static/css/auth-premium.css">
     <link rel="stylesheet" href="/static/css/aliado-shell.css?v=20260910d">
@@ -844,6 +844,7 @@
                 <div class="ruana-help-card">
                     <div id="ruana-help-thread-header" class="ruana-help-empty">Selecciona una conversación para ver el historial.</div>
                     <div class="ruana-help-messages" id="ruana-help-messages"></div>
+                    <button type="button" class="ruana-activacion-btn ruana-activacion-whatsapp" id="ruana-activacion-whatsapp" hidden>Invitar por WhatsApp</button>
                     <div id="ruana-activacion-form" class="ruana-activacion-form" hidden>
                         <p class="ruana-activacion-lead">Puedes responder o saltar. Si respondes, el equipo lo lee aquí.</p>
                         <label class="ruana-activacion-label" for="ruana-activacion-oficio">¿A qué oficio de tu zona le pasarías trabajo?</label>
@@ -857,15 +858,14 @@
                             <option value="Sí">Sí</option>
                             <option value="No">No</option>
                         </select>
-                        <button type="button" class="btn-admin-action" id="ruana-activacion-crear" hidden>Crear solicitud</button>
+                        <button type="button" class="ruana-activacion-btn ruana-activacion-btn-primary" id="ruana-activacion-crear" hidden>Crear solicitud</button>
                         <label class="ruana-activacion-label" for="ruana-activacion-freno">¿Qué te frenaría para pasar tu primer encargo por RUANA?</label>
                         <textarea id="ruana-activacion-freno" class="ruana-help-textarea" rows="2" maxlength="400" placeholder="Si quieres, en una frase"></textarea>
                         <div class="ruana-activacion-actions">
-                            <button type="button" class="btn-admin-action" id="ruana-activacion-enviar">Enviar</button>
-                            <button type="button" class="btn-admin-action ruana-activacion-saltar" id="ruana-activacion-saltar">Saltar</button>
+                            <button type="button" class="ruana-activacion-btn ruana-activacion-btn-primary" id="ruana-activacion-enviar">Enviar</button>
+                            <button type="button" class="ruana-activacion-btn ruana-activacion-btn-secondary" id="ruana-activacion-saltar">Saltar</button>
                         </div>
                     </div>
-                    <button type="button" class="btn-admin-action ruana-activacion-whatsapp" id="ruana-activacion-whatsapp" hidden>Pásale tu código por WhatsApp</button>
                     <div class="ruana-help-form-row" id="ruana-help-reply-wrap">
                         <textarea id="ruana-help-reply" class="ruana-help-textarea" rows="3" maxlength="3000" placeholder="Responder en esta conversación..." disabled></textarea>
                         <button type="button" class="btn-admin-action" id="ruana-help-reply-btn" disabled>Responder</button>
