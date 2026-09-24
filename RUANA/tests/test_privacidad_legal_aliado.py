@@ -286,6 +286,10 @@ def test_privacidad_cita_encargados_y_retencion():
 
 def test_documentos_legales_sin_placeholders_pendientes():
     aviso_cif = "[PENDIENTE: actualizar esta sección cuando se constituya la sociedad y se asigne CIF.]"
+    aviso_titular = (
+        "Actualmente el servicio lo presta Carlos Alexander Acero como persona física, "
+        "con el nombre comercial RUANA."
+    )
     for name in ("aviso-legal.html", "politica-privacidad.html", "terminos.html"):
         text = (WEB / name).read_text(encoding="utf-8")
         assert "[REGION_SUPABASE_PENDIENTE_CONFIRMAR]" not in text
@@ -294,11 +298,10 @@ def test_documentos_legales_sin_placeholders_pendientes():
         assert "[BORRADOR — PENDIENTE DE REVISIÓN POR UN ABOGADO ANTES DE PUBLICAR]" not in text
         assert "abogado" not in text.lower()
         assert "asesor fiscal" not in text.lower()
+        assert aviso_cif not in text
         if name == "aviso-legal.html":
-            assert aviso_cif in text
+            assert aviso_titular in text
             assert "eu-west-1" in text
-        else:
-            assert aviso_cif not in text
     admin = (WEB / "admin.html").read_text(encoding="utf-8")
     assert "[CONFIRMAR CON ASESOR FISCAL]" not in admin
     assert "asesor fiscal" not in admin.lower()
@@ -365,6 +368,15 @@ def test_rutas_html_legales(client):
         assert "Documento del piloto RUANA".encode("utf-8") not in resp.data
         assert b"18508170R" in resp.data
         assert b"v1-2026-09" in resp.data
+
+
+def test_cookies_redirige_a_la_seccion_de_privacidad(client):
+    resp = client.get("/cookies", follow_redirects=False)
+    assert resp.status_code in (301, 302)
+    assert resp.headers["Location"].endswith("/politica-privacidad.html#cookies")
+    seguido = client.get("/cookies", follow_redirects=True)
+    assert seguido.status_code == 200
+    assert "no usa cookies no esenciales".encode("utf-8") in seguido.data
 
 
 def test_no_se_anade_banner_cookies():

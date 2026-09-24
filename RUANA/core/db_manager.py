@@ -150,6 +150,10 @@ class DBManager:
         """Fachada Campamento Base → schema_service._migrar_aliados_descripcion_servicio."""
         return schema_service._migrar_aliados_descripcion_servicio(self, conn, cursor)
 
+    def _migrar_aliados_origen_registro(self, conn, cursor) -> None:
+        """Fachada Campamento Base → schema_service._migrar_aliados_origen_registro."""
+        return schema_service._migrar_aliados_origen_registro(self, conn, cursor)
+
     def _migrar_aliados_foto_perfil(self, conn, cursor) -> None:
         """Fachada Campamento Base → schema_service._migrar_aliados_foto_perfil."""
         return schema_service._migrar_aliados_foto_perfil(self, conn, cursor)
@@ -607,6 +611,10 @@ class DBManager:
                     grupo_id_invitacion: Optional[int] = None) -> Dict[str, Any]:
         """Fachada Campamento Base → aliado_service.crear_aliado."""
         return aliado_service.crear_aliado(self, codigo, nombre, marca, oficio, codigo_postal, email, telefono, estado, score, especializaciones, especializacion, descripcion_servicio, grupo_id_invitacion)
+
+    def guardar_origen_registro(self, codigo: str, origen: Dict[str, Any]) -> None:
+        """Fachada Campamento Base → aliado_service.guardar_origen_registro."""
+        return aliado_service.guardar_origen_registro(self, codigo, origen)
 
     def completar_aliado_pendiente(self, codigo: str, nombre: str, marca: str = "",
                                    oficio: str = "", codigo_postal: str = "",

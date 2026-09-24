@@ -530,11 +530,15 @@ def registrar_aliado():
         # Crear aliado con código personal NUEVO (distinto del código de invitación).
         # Si había placeholder legacy, se elimina tras el registro para no dejar duplicados.
         descripcion_servicio = (data.get('descripcion') or data.get('descripcion_servicio') or '').strip() or None
+        marca = (data.get('marca') or '').strip()
+        origen = aliado_service.normalizar_origen_registro(data)
+        if origen.get('error'):
+            return jsonify({'status': 'error', 'message': origen['error']}), 400
         codigo = _generar_codigo_unico()
         result = db.crear_aliado(
             codigo=codigo,
             nombre=nombre,
-            marca=data.get('marca', '').strip(),
+            marca=marca,
             oficio=oficio,
             codigo_postal=codigo_postal,
             email=email,
@@ -547,6 +551,11 @@ def registrar_aliado():
         
         if result['status'] == 'error':
             return jsonify(result), 400
+
+        try:
+            db.guardar_origen_registro(result.get('codigo') or codigo, origen)
+        except Exception as origen_err:
+            print(f"[RUANA][REGISTRO] No se pudo guardar el origen del alta: {origen_err}")
 
         # Oficio fuera de catálogo → pendiente_validacion (validación manual por admin)
         if result.get('estado') == 'pendiente_validacion':

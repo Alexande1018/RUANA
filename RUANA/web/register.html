@@ -17,11 +17,17 @@
     <script src="/static/js/ruana-ui.js" defer></script>
     <script src="/static/js/ruana-legal-footer.js" defer></script>
     <style>
-        /* Botón de volver atrás */
+        /* Botón de volver: en el flujo del card, nunca encima del logo */
         .btn-back {
-            position: fixed;
-            top: 20px;
-            left: 20px;
+            position: static;
+            display: inline-flex;
+            align-items: center;
+            align-self: flex-start;
+            width: auto;
+            max-width: 100%;
+            margin: 0 0 16px;
+            top: auto;
+            left: auto;
             padding: 8px 16px;
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.1);
@@ -32,7 +38,7 @@
             text-decoration: none;
             cursor: pointer;
             transition: all 0.3s ease;
-            z-index: 100;
+            z-index: 2;
         }
 
         .btn-back:hover {
@@ -56,12 +62,17 @@
 
         .register-card {
             width: 100%;
-            max-width: 480px;
+            max-width: min(480px, 100%);
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 12px;
-            padding: 48px 32px;
+            padding: 28px 32px 48px;
             backdrop-filter: blur(10px);
+            overflow: visible;
         }
 
         .register-card h1 {
@@ -86,6 +97,9 @@
             display: flex;
             flex-direction: column;
             gap: 16px;
+            width: 100%;
+            min-width: 0;
+            max-width: 100%;
         }
 
         select,
@@ -104,6 +118,8 @@
             display: flex;
             flex-direction: column;
             gap: 6px;
+            min-width: 0;
+            max-width: 100%;
         }
 
         .form-group label {
@@ -117,6 +133,10 @@
         .register-input,
         .register-select,
         .register-textarea {
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
             padding: 12px 16px;
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.1);
@@ -382,6 +402,155 @@
         select#oficio-principal {
             cursor: pointer;
         }
+
+        .oficios-section {
+            min-width: 0;
+            max-width: 100%;
+        }
+
+        .oficio-picker {
+            position: relative;
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+        }
+
+        select#oficio-principal.oficio-native-select {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        .oficio-picker-trigger {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            text-align: left;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            line-height: 1.35;
+            cursor: pointer;
+        }
+
+        .oficio-picker-label {
+            min-width: 0;
+            flex: 1;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        .oficio-picker-list {
+            position: relative;
+            z-index: 2;
+            width: 100%;
+            max-width: 100%;
+            max-height: 240px;
+            overflow-x: hidden;
+            overflow-y: auto;
+            margin: 8px 0 0;
+            padding: 6px;
+            list-style: none;
+            box-sizing: border-box;
+            border-radius: 16px;
+            background: #111827;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+        }
+
+        .oficio-picker-option {
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            padding: 10px 12px;
+            border: 0;
+            border-radius: 12px;
+            background: transparent;
+            color: #e5e7eb;
+            font: inherit;
+            font-size: 0.92rem;
+            text-align: left;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            cursor: pointer;
+        }
+
+        .oficio-picker-option:hover,
+        .oficio-picker-option:focus,
+        .oficio-picker-option.is-selected {
+            background: rgba(34, 197, 94, 0.16);
+            outline: none;
+        }
+
+        .codigo-lock {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 12px 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(34, 197, 94, 0.45);
+            background: rgba(34, 197, 94, 0.08);
+            margin-bottom: 4px;
+        }
+
+        .codigo-lock span {
+            font-size: 0.75rem;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #9ca3af;
+        }
+
+        .codigo-lock strong {
+            font-size: 1.25rem;
+            letter-spacing: 0.08em;
+            color: #86efac;
+        }
+
+        .register-gate {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            min-width: 0;
+            max-width: 100%;
+        }
+
+        .register-gate-note {
+            color: #d1d5db;
+            font-size: 0.92rem;
+            line-height: 1.5;
+        }
+
+        .register-gate-note a {
+            color: #86efac;
+        }
+
+        body.register-page {
+            overflow-x: hidden;
+        }
+
+        .register-form[hidden],
+        .register-gate[hidden],
+        .oficio-picker-list[hidden],
+        .codigo-lock[hidden],
+        #gate-pedir-acceso[hidden],
+        #register-status[hidden] {
+            display: none !important;
+        }
+
+        .register-legal-layer,
+        .checkbox-group label {
+            overflow-wrap: anywhere;
+            min-width: 0;
+            max-width: 100%;
+        }
         .suboficios-empty-msg,
         .suboficios-max-hint {
             font-size: 0.85rem;
@@ -577,29 +746,71 @@
             font-weight: 600;
         }
 
-        @media (max-width: 600px) {
+        @media (max-width: 640px) {
             .form-row {
                 grid-template-columns: 1fr;
             }
 
+            .register-container {
+                padding: 12px;
+                overflow-x: hidden;
+            }
+
             .register-card {
-                padding: 32px 24px;
+                padding: 20px 16px 32px;
             }
 
             .register-card h1 {
                 font-size: 1.5rem;
+                margin-top: 0;
+            }
+
+            .phone-input-row {
+                grid-template-columns: minmax(108px, auto) minmax(0, 1fr);
+                min-width: 0;
             }
         }
     </style>
 </head>
-<body>
-    <a href="/" class="btn-back">← Atrás</a>
+<body class="register-page">
     <div class="register-container ruana-auth-container">
         <div class="register-card ruana-auth-card">
+            <a href="/" class="btn-back">← Atrás</a>
             <h1>RUANA</h1>
-            <p class="subtitle">Registro de aliado</p>
+            <p class="subtitle" id="register-subtitle">Registro de aliado</p>
+            <p class="subtitle" id="register-status">Cargando registro…</p>
+
+            <div class="register-gate" id="register-gate" hidden>
+                <div class="form-error" id="register-gate-error"></div>
+                <div class="access-mode-switch" id="register-access-switch">
+                    <button type="button" id="btn-pedir-acceso" class="invite-btn ruana-button access-mode-button">
+                        Pedir acceso
+                    </button>
+                    <button type="button" id="btn-tengo-codigo" class="invite-btn ruana-button access-mode-button invitation">
+                        Tengo código de invitación
+                    </button>
+                </div>
+                <form class="register-form" id="gate-codigo-form">
+                    <input
+                        type="text"
+                        class="register-input"
+                        id="gate-codigo"
+                        placeholder="Código de invitación"
+                        autocomplete="off"
+                        autocapitalize="characters"
+                    >
+                    <button type="submit" class="register-btn" id="gate-codigo-btn">Continuar</button>
+                </form>
+                <div id="gate-pedir-acceso" hidden>
+                    <p class="register-gate-note">Si todavía no tienes código, escribe a <a href="mailto:team.ruana@gmail.com">team.ruana@gmail.com</a> y te indicamos cómo entrar. También puedes usar «Tengo código de invitación» y escribir otro código.</p>
+                </div>
+            </div>
             
-            <form class="register-form" id="register-form">
+            <form class="register-form" id="register-form" hidden>
+                <div class="codigo-lock" id="codigo-lock" hidden>
+                    <span>Código de acceso</span>
+                    <strong id="codigo-lock-value"></strong>
+                </div>
                 <!-- Nombre o marca -->
                 <div class="form-group">
                     <label for="nombre">Nombre completo *</label>
@@ -614,13 +825,12 @@
 
                 <!-- Marca personal -->
                 <div class="form-group">
-                    <label for="marca">Marca personal / Nombre comercial *</label>
+                    <label for="marca">Marca personal / Nombre comercial (opcional)</label>
                     <input 
                         type="text" 
                         class="register-input" 
                         id="marca" 
                         placeholder="Cómo prefieres ser identificado"
-                        required
                     >
                 </div>
 
@@ -640,11 +850,25 @@
 
                 <!-- Oficio principal (obligatorio) - Catálogo jerárquico RUANA -->
                 <div class="oficios-section">
-                    <label class="oficios-title" for="oficio-principal">Oficio principal *</label>
-                    <select class="register-select" id="oficio-principal" required aria-label="Oficio principal del catálogo RUANA">
-                        <option value="">— Elige un oficio del catálogo —</option>
-                        <!-- Opción "Otro" se añade al final por JS (fillOficioPrincipalSelect) -->
-                    </select>
+                    <label class="oficios-title" for="oficio-picker-trigger">Oficio principal *</label>
+                    <div class="oficio-picker" id="oficio-picker">
+                        <button
+                            type="button"
+                            class="register-select oficio-picker-trigger"
+                            id="oficio-picker-trigger"
+                            aria-haspopup="listbox"
+                            aria-expanded="false"
+                            aria-controls="oficio-picker-list"
+                        >
+                            <span class="oficio-picker-label" id="oficio-picker-label">— Elige un oficio del catálogo —</span>
+                            <span aria-hidden="true">▾</span>
+                        </button>
+                        <ul class="oficio-picker-list" id="oficio-picker-list" role="listbox" hidden></ul>
+                        <select class="register-select oficio-native-select" id="oficio-principal" required aria-label="Oficio principal del catálogo RUANA" tabindex="-1">
+                            <option value="">— Elige un oficio del catálogo —</option>
+                            <!-- Opción "Otro" se añade al final por JS (fillOficioPrincipalSelect) -->
+                        </select>
+                    </div>
                     <div class="oficio-otro-wrap" id="oficio-otro-wrap" style="display: none;">
                         <label for="oficio-otro-texto">¿Cuál es tu oficio? *</label>
                         <p class="oficios-hint" style="margin-bottom: 6px;">Escribe aquí tu oficio si no aparece en la lista. Un administrador lo validará antes de activar tu cuenta.</p>
@@ -656,12 +880,11 @@
 
                 <!-- Descripción del servicio -->
                 <div class="form-group">
-                    <label for="descripcion">Descripción breve del servicio *</label>
+                    <label for="descripcion">Descripción breve del servicio (opcional)</label>
                     <textarea 
                         class="register-textarea" 
                         id="descripcion" 
-                        placeholder="Cuéntanos brevemente sobre tu servicio o especialidad"
-                        required
+                        placeholder="Cuéntanos brevemente sobre tu servicio o especialidad. Puedes completarla después en tu perfil."
                     ></textarea>
                 </div>
 
@@ -675,6 +898,18 @@
                         placeholder="tu@email.com"
                         required
                     >
+                </div>
+
+                <div class="form-group">
+                    <label for="como-nos-conociste">¿Cómo conociste RUANA?</label>
+                    <select class="register-select" id="como-nos-conociste" aria-label="¿Cómo conociste RUANA?">
+                        <option value="">Elige una opción (opcional)</option>
+                        <option value="Recomendación de un aliado">Recomendación de un aliado</option>
+                        <option value="Búsqueda en internet">Búsqueda en internet</option>
+                        <option value="Redes sociales">Redes sociales</option>
+                        <option value="Anuncio en Instagram">Anuncio en Instagram</option>
+                        <option value="Otro">Otro</option>
+                    </select>
                 </div>
 
                 <!-- Teléfono -->
@@ -784,35 +1019,311 @@
                 this.oficioOtroTexto = document.getElementById('oficio-otro-texto');
                 this.phoneInput = null;
                 this.catalogoJerarquico = [];
-                this.checkAccess();
+                this.gate = document.getElementById('register-gate');
+                this.gateError = document.getElementById('register-gate-error');
+                this.statusEl = document.getElementById('register-status');
+                this.inviteCode = '';
+                this.utm = null;
                 this.init();
-            }
-
-            checkAccess() {
-                /**
-                 * NUEVO FLUJO F03: Registro solo por invitación
-                 * 
-                 * Verifica que el usuario tenga una invitación válida
-                 * 1. Se genera en aliado.html (botón "Invitar" o "Yo conozco a alguien")
-                 * 2. Se obtiene y valida en invite.html
-                 * 3. Se guarda en sessionStorage como ruana_invite_valid
-                 * 4. register.html valida su existencia
-                 */
-                
-                const inviteValid = sessionStorage.getItem('ruana_invite_valid');
-                
-                if (inviteValid !== 'true') {
-                    // Sin invitación válida → redirigir a invite.html
-                    window.location.href = 'invite.html';
-                }
+                this.bootstrap();
             }
 
             init() {
                 this.initPhoneInput();
                 this.loadCatalogo();
                 this.initCpPreview();
+                this.bindOficioPicker();
                 this.form.addEventListener('submit', (e) => this.handleSubmit(e));
                 if (this.oficioPrincipalSelect) this.oficioPrincipalSelect.addEventListener('change', () => this.handleOtroOficio());
+                const gateForm = document.getElementById('gate-codigo-form');
+                if (gateForm) gateForm.addEventListener('submit', (e) => this.handleGateSubmit(e));
+                const btnCodigo = document.getElementById('btn-tengo-codigo');
+                const btnAcceso = document.getElementById('btn-pedir-acceso');
+                if (btnCodigo) btnCodigo.addEventListener('click', () => this.setGateMode('invitacion'));
+                if (btnAcceso) btnAcceso.addEventListener('click', () => this.setGateMode('acceso'));
+                this.captureUtms();
+                this.applyComoConocisteDefault();
+            }
+
+            setStatus(message) {
+                if (!this.statusEl) return;
+                const text = message || '';
+                this.statusEl.textContent = text;
+                this.statusEl.hidden = !text;
+            }
+
+            readCodeFromUrl() {
+                const params = new URLSearchParams(window.location.search);
+                return (params.get('codigo') || params.get('code') || '').trim().toUpperCase();
+            }
+
+            captureUtms() {
+                const params = new URLSearchParams(window.location.search);
+                const keys = ['utm_source', 'utm_medium', 'utm_campaign'];
+                let stored = {};
+                try {
+                    stored = JSON.parse(sessionStorage.getItem('ruana_utm') || '{}') || {};
+                } catch (_) {
+                    stored = {};
+                }
+                const next = {};
+                let fromUrl = false;
+                keys.forEach((key) => {
+                    const incoming = (params.get(key) || '').trim().slice(0, 100);
+                    if (incoming) {
+                        next[key] = incoming;
+                        fromUrl = true;
+                    } else {
+                        next[key] = String(stored[key] || '').trim().slice(0, 100);
+                    }
+                });
+                if (fromUrl || next.utm_source || next.utm_medium || next.utm_campaign) {
+                    sessionStorage.setItem('ruana_utm', JSON.stringify(next));
+                }
+                this.utm = next;
+            }
+
+            readUtms() {
+                if (this.utm) return this.utm;
+                try {
+                    return JSON.parse(sessionStorage.getItem('ruana_utm') || '{}') || {};
+                } catch (_) {
+                    return {};
+                }
+            }
+
+            applyComoConocisteDefault() {
+                const select = document.getElementById('como-nos-conociste');
+                if (!select || select.value) return;
+                const source = String((this.readUtms().utm_source || '')).trim().toLowerCase();
+                if (source === 'instagram') {
+                    select.value = 'Anuncio en Instagram';
+                }
+            }
+
+            setGateMode(mode) {
+                const btnCodigo = document.getElementById('btn-tengo-codigo');
+                const btnAcceso = document.getElementById('btn-pedir-acceso');
+                if (btnCodigo) btnCodigo.classList.toggle('is-muted', mode !== 'invitacion');
+                if (btnAcceso) btnAcceso.classList.toggle('is-muted', mode !== 'acceso');
+                const codeForm = document.getElementById('gate-codigo-form');
+                const acceso = document.getElementById('gate-pedir-acceso');
+                if (codeForm) codeForm.hidden = mode !== 'invitacion';
+                if (acceso) acceso.hidden = mode !== 'acceso';
+            }
+
+            showGate(on) {
+                if (this.gate) this.gate.hidden = !on;
+            }
+
+            showSignupForm(on) {
+                if (this.form) this.form.hidden = !on;
+                const sub = document.getElementById('register-subtitle');
+                if (sub) {
+                    sub.textContent = on ? 'Registro de aliado' : 'Elige cómo quieres registrarte.';
+                }
+                if (on) {
+                    this.showGate(false);
+                    this.setStatus('');
+                }
+            }
+
+            lockCode(code) {
+                this.inviteCode = code || '';
+                const box = document.getElementById('codigo-lock');
+                const value = document.getElementById('codigo-lock-value');
+                if (value) value.textContent = this.inviteCode;
+                if (box) box.hidden = !this.inviteCode;
+            }
+
+            acceptInvite(code, invitacion) {
+                const upper = (code || '').trim().toUpperCase();
+                const payload = invitacion || {};
+                sessionStorage.setItem('ruana_invite_valid', 'true');
+                sessionStorage.setItem('ruana_invite_codigo', upper);
+                sessionStorage.setItem('ruana_invite_code', upper);
+                sessionStorage.setItem('ruana_invite_payload', JSON.stringify({
+                    codigo: upper,
+                    zona: payload.zona || '',
+                    grupo: payload.grupo || '',
+                    invitado_por: payload.aliado_id || '',
+                    fecha_expiracion: payload.fecha_expiracion || null
+                }));
+                this.lockCode(upper);
+            }
+
+            showGateError(message) {
+                if (!this.gateError) return;
+                this.gateError.textContent = message || '';
+                this.gateError.classList.toggle('show', !!message);
+            }
+
+            showInvalidCode(code, message) {
+                this.setStatus('');
+                this.showSignupForm(false);
+                this.showGate(true);
+                this.setGateMode('invitacion');
+                const input = document.getElementById('gate-codigo');
+                if (input && code) input.value = code;
+                this.showGateError(message || 'Ese código no es válido o ya no está activo. Puedes pedir acceso o escribir otro código.');
+            }
+
+            async validateInviteCode(code) {
+                const upper = String(code || '').trim().toUpperCase();
+                const url = '/api/validar-invitacion?codigo=' + encodeURIComponent(upper);
+                const response = await fetch(url, { method: 'GET' });
+                let result = {};
+                try {
+                    result = await response.json();
+                } catch (_) {
+                    result = {};
+                }
+                if (response.ok && result.status === 'success' && result.invitacion) {
+                    return { ok: true, invitacion: result.invitacion };
+                }
+                return {
+                    ok: false,
+                    message: 'Ese código no es válido o ya no está activo. Puedes pedir acceso o escribir otro código.'
+                };
+            }
+
+            async bootstrap() {
+                this.captureUtms();
+                this.applyComoConocisteDefault();
+                const code = this.readCodeFromUrl();
+                if (code) {
+                    this.setStatus('Comprobando el código de invitación…');
+                    this.showGate(false);
+                    this.showSignupForm(false);
+                    try {
+                        const result = await this.validateInviteCode(code);
+                        if (result.ok) {
+                            this.acceptInvite(code, result.invitacion);
+                            this.showSignupForm(true);
+                            return;
+                        }
+                        this.showInvalidCode(code, result.message);
+                    } catch (_) {
+                        this.showInvalidCode(code, 'No pudimos comprobar el código. Revisa tu conexión e inténtalo de nuevo.');
+                    }
+                    return;
+                }
+                if (sessionStorage.getItem('ruana_invite_valid') === 'true') {
+                    const stored = (
+                        sessionStorage.getItem('ruana_invite_codigo')
+                        || sessionStorage.getItem('ruana_invite_code')
+                        || ''
+                    ).trim().toUpperCase();
+                    this.lockCode(stored);
+                    this.showSignupForm(true);
+                    return;
+                }
+                this.forwardToInvite();
+            }
+
+            forwardToInvite() {
+                const current = new URLSearchParams(window.location.search);
+                const next = new URLSearchParams();
+                const codigo = (current.get('codigo') || current.get('code') || '').trim();
+                if (codigo) next.set('codigo', codigo.toUpperCase());
+                current.forEach((value, key) => {
+                    if (key.toLowerCase().startsWith('utm_') && value) next.set(key, value);
+                });
+                const stored = this.readUtms();
+                Object.keys(stored).forEach((key) => {
+                    if (key.toLowerCase().startsWith('utm_') && stored[key] && !next.has(key)) {
+                        next.set(key, stored[key]);
+                    }
+                });
+                const qs = next.toString();
+                window.location.href = '/invite' + (qs ? '?' + qs : '');
+            }
+
+            async handleGateSubmit(e) {
+                e.preventDefault();
+                const input = document.getElementById('gate-codigo');
+                const code = (input && input.value ? input.value : '').trim().toUpperCase();
+                if (!code) {
+                    this.showGateError('Escribe un código de invitación.');
+                    return;
+                }
+                const btn = document.getElementById('gate-codigo-btn');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.textContent = 'Verificando...';
+                }
+                try {
+                    const result = await this.validateInviteCode(code);
+                    if (result.ok) {
+                        this.acceptInvite(code, result.invitacion);
+                        this.showSignupForm(true);
+                        return;
+                    }
+                    this.showInvalidCode(code, result.message);
+                } catch (_) {
+                    this.showInvalidCode(code, 'No pudimos comprobar el código. Revisa tu conexión e inténtalo de nuevo.');
+                } finally {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.textContent = 'Continuar';
+                    }
+                }
+            }
+
+            bindOficioPicker() {
+                const select = this.oficioPrincipalSelect;
+                const trigger = document.getElementById('oficio-picker-trigger');
+                const list = document.getElementById('oficio-picker-list');
+                const label = document.getElementById('oficio-picker-label');
+                const picker = document.getElementById('oficio-picker');
+                if (!select || !trigger || !list || !label) return;
+
+                const close = () => {
+                    list.hidden = true;
+                    trigger.setAttribute('aria-expanded', 'false');
+                };
+                const open = () => {
+                    list.hidden = false;
+                    trigger.setAttribute('aria-expanded', 'true');
+                };
+                const syncLabel = () => {
+                    const selected = select.options[select.selectedIndex];
+                    label.textContent = (selected && selected.textContent) || '— Elige un oficio del catálogo —';
+                    list.querySelectorAll('.oficio-picker-option').forEach((btn) => {
+                        btn.classList.toggle('is-selected', btn.dataset.value === select.value);
+                    });
+                };
+                const rebuild = () => {
+                    list.innerHTML = '';
+                    Array.from(select.options).forEach((opt) => {
+                        const btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = 'oficio-picker-option';
+                        btn.setAttribute('role', 'option');
+                        btn.dataset.value = opt.value;
+                        btn.textContent = opt.textContent || '';
+                        btn.addEventListener('click', () => {
+                            select.value = opt.value;
+                            select.dispatchEvent(new Event('change', { bubbles: true }));
+                            syncLabel();
+                            close();
+                        });
+                        list.appendChild(btn);
+                    });
+                    syncLabel();
+                };
+                this.refreshOficioPicker = rebuild;
+                rebuild();
+                trigger.addEventListener('click', () => {
+                    if (list.hidden) open();
+                    else close();
+                });
+                document.addEventListener('click', (event) => {
+                    if (picker && !picker.contains(event.target)) close();
+                });
+                document.addEventListener('keydown', (event) => {
+                    if (event.key === 'Escape') close();
+                });
             }
 
             initCpPreview() {
@@ -951,6 +1462,7 @@
                 this.oficioPrincipalSelect.innerHTML = '';
                 this.oficioPrincipalSelect.appendChild(fragment);
                 this.handleOtroOficio();
+                if (typeof this.refreshOficioPicker === 'function') this.refreshOficioPicker();
             }
 
             handleOtroOficio() {
@@ -982,8 +1494,8 @@
                     return;
                 }
 
-                if (!marca || marca.length < 2) {
-                    this.showError('La marca personal debe tener al menos 2 caracteres');
+                if (marca && marca.length < 2) {
+                    this.showError('Si indicas una marca personal, usa al menos 2 caracteres');
                     return;
                 }
 
@@ -1000,11 +1512,6 @@
                         return;
                     }
                     oficioEnviar = otroTexto;
-                }
-
-                if (!descripcion || descripcion.length < 10) {
-                    this.showError('La descripción debe tener al menos 10 caracteres');
-                    return;
                 }
 
                 if (!codigoPostal) {
@@ -1038,6 +1545,8 @@
                 }
 
                 // Si todo es válido, procesar registro
+                const utm = this.readUtms();
+                const comoSelect = document.getElementById('como-nos-conociste');
                 this.submitRegistration({
                     nombre,
                     marca,
@@ -1047,7 +1556,11 @@
                     codigo_postal: codigoPostal,
                     email,
                     telefono,
-                    codigo_invitacion: sessionStorage.getItem('ruana_invite_code') || sessionStorage.getItem('ruana_invite_codigo')
+                    codigo_invitacion: this.inviteCode || sessionStorage.getItem('ruana_invite_code') || sessionStorage.getItem('ruana_invite_codigo'),
+                    como_nos_conociste: comoSelect ? comoSelect.value : '',
+                    utm_source: utm.utm_source || '',
+                    utm_medium: utm.utm_medium || '',
+                    utm_campaign: utm.utm_campaign || ''
                 });
             }
 
@@ -1067,11 +1580,15 @@
                         marca: data.marca,
                         oficio: data.oficio,
                         oficio_principal: data.oficio_principal || data.oficio,
-                        descripcion: data.descripcion || '',
+                        descripcion: data.descripcion || null,
                         codigo_postal: data.codigo_postal,
                         email: data.email,
                         telefono: data.telefono,
                         codigo_invitacion: data.codigo_invitacion || sessionStorage.getItem('ruana_invite_code') || sessionStorage.getItem('ruana_invite_codigo') || '',
+                        como_nos_conociste: data.como_nos_conociste || '',
+                        utm_source: data.utm_source || '',
+                        utm_medium: data.utm_medium || '',
+                        utm_campaign: data.utm_campaign || '',
                         acepta_privacidad_y_terminos: true,
                         declara_mayoria_edad: true
                     })

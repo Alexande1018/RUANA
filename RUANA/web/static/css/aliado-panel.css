@@ -1441,6 +1441,47 @@
             gap: 12px;
         }
 
+        #modal-code .invite-score-note {
+            margin: 0 0 16px;
+            font-size: 0.88rem;
+            line-height: 1.45;
+            color: #e5e7eb;
+            text-align: center;
+            overflow-wrap: anywhere;
+        }
+
+        #modal-code .modal-actions {
+            flex-wrap: wrap;
+        }
+
+        #modal-code .modal-actions .btn-copy,
+        #modal-code .modal-actions .btn-whatsapp,
+        #modal-code .modal-actions .btn-close-modal {
+            flex: 1 1 calc(50% - 8px);
+            min-width: 0;
+            min-height: 44px;
+            white-space: normal;
+            line-height: 1.25;
+        }
+
+        #modal-code .modal-actions .btn-close-modal {
+            flex-basis: 100%;
+        }
+
+        #modal-code .btn-whatsapp {
+            padding: 12px 10px;
+            background: #128C7E;
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        #modal-code .btn-whatsapp:hover {
+            background: #0e7468;
+        }
+
         .btn-copy {
             flex: 1;
             padding: 12px 16px;

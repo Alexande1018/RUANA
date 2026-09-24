@@ -25,6 +25,58 @@
     return '';
   }
 
+  // Puntos reales al registrarse el invitado. No cambian las reglas:
+  // +3 ampliar_red / solicitud → invitacion_service.consumir_invitacion_y_recompensar
+  //    (aplicar_cambio_score(..., 3, 'aliado_referido_registro_valido'))
+  // +5 crecimiento_grupo → CRECIMIENTO_GRUPO_SCORE_DELTA, tope CRECIMIENTO_GRUPO_MAX_RECOMPENSAS (10)
+  var SCORE_AMPLIAR_RED = 3;
+  var SCORE_CRECIMIENTO_GRUPO = 5;
+  var SCORE_CRECIMIENTO_MAX = 10;
+  var PUBLIC_APP_FALLBACK = 'https://ruana-4293f.web.app';
+
+  function basePublicaInvitacion() {
+    var origin = '';
+    try {
+      origin = (global.location && global.location.origin) || '';
+    } catch (_) {
+      origin = '';
+    }
+    if (!origin || /localhost|127\.0\.0\.1/i.test(origin)) {
+      return PUBLIC_APP_FALLBACK;
+    }
+    return String(origin).replace(/\/$/, '');
+  }
+
+  function enlaceInvitacion(codigo) {
+    var code = String(codigo || '').trim();
+    return basePublicaInvitacion() + '/invite.html?codigo=' + encodeURIComponent(code);
+  }
+
+  function mensajeWhatsappInvitacion(codigo) {
+    return 'Oye, estoy en RUANA, una red de oficios de Alicante que nos pasamos curro por zona. Lo que tú no haces me lo pasas y al revés. Entra con mi código: ' + enlaceInvitacion(codigo);
+  }
+
+  function urlWhatsappInvitacion(codigo) {
+    return 'https://wa.me/?text=' + encodeURIComponent(mensajeWhatsappInvitacion(codigo));
+  }
+
+  function textoScoreInvitacion(puntos) {
+    var base = 'Ganas puntos de Score por cada colega que se una.';
+    var n = Number(puntos);
+    if (n === SCORE_CRECIMIENTO_GRUPO) {
+      return base + ' Con este código son +5 cuando se registra (hasta ' + SCORE_CRECIMIENTO_MAX + ' veces).';
+    }
+    if (n === SCORE_AMPLIAR_RED) {
+      return base + ' Con este código son +3 cuando se registra.';
+    }
+    return base;
+  }
+
+  function aplicarNotaScore(puntos) {
+    var note = document.getElementById('invite-score-note');
+    if (note) note.textContent = textoScoreInvitacion(puntos);
+  }
+
   function getAuthHeadersSafe(extra) {
     if (typeof global.getRuanaAuthHeaders === 'function') {
       return global.getRuanaAuthHeaders(extra || {});
@@ -53,7 +105,7 @@
         if (r.ok && data.status === 'success' && data.codigo) {
             host.currentCode = data.codigo;
             host.currentSolicitud = null;
-            host.mostrarModalCodigoInvitacion(data.codigo, false);
+            host.mostrarModalCodigoInvitacion(data.codigo, false, SCORE_AMPLIAR_RED);
             const modalText = document.querySelector('#modal-code .modal-text');
             if (modalText) {
                 modalText.textContent = 'Comparte este código único con la persona que quieras invitar para que se registre como aliado:';
@@ -100,7 +152,7 @@
         const data = await r.json().catch(() => ({}));
         if (r.ok && data.status === 'success' && data.codigo) {
             host.currentCode = data.codigo;
-            host.mostrarModalCodigoInvitacion(data.codigo, true);
+            host.mostrarModalCodigoInvitacion(data.codigo, true, SCORE_AMPLIAR_RED);
             const modalText = document.querySelector('#modal-code .modal-text');
             if (host.currentSolicitud && modalText) {
                 modalText.innerHTML = `
@@ -177,7 +229,7 @@
           por: (solicitud && (solicitud.solicitante_nombre || solicitud.solicitante_codigo)) || 'tú',
           texto: oficio ? ('Invitar a alguien más cerca · ' + oficio) : 'Invitar a alguien más cerca de tu CP',
         };
-        host.mostrarModalCodigoInvitacion(data.codigo, true);
+        host.mostrarModalCodigoInvitacion(data.codigo, true, SCORE_AMPLIAR_RED);
         const modalText = document.querySelector('#modal-code .modal-text');
         if (modalText) {
           modalText.innerHTML =
@@ -203,13 +255,29 @@
     }
   }
 
-  function mostrarModalCodigoInvitacion(host, codigo, desdeSolicitud) {
+  function mostrarModalCodigoInvitacion(host, codigo, desdeSolicitud, puntos) {
     const modal = document.getElementById('modal-code');
     const codeEl = document.getElementById('code-value');
     const codeMessageEl = modal ? modal.querySelector('.invite-code-message') : null;
     if (codeEl) codeEl.textContent = codigo || '---';
     if (codeMessageEl) codeMessageEl.textContent = desdeSolicitud ? 'Válido para una solicitud' : 'Código de invitación';
+    aplicarNotaScore(puntos == null ? SCORE_AMPLIAR_RED : puntos);
     if (modal) modal.classList.add('show');
+  }
+
+  function enviarInvitacionWhatsapp(host) {
+    var codeEl = document.getElementById('code-value');
+    var codigo = (host && host.currentCode) || (codeEl && codeEl.textContent) || '';
+    codigo = String(codigo).trim();
+    if (!codigo || codigo === '---' || codigo === 'XXXXX') {
+      alert('Error: No hay código disponible');
+      return;
+    }
+    var url = urlWhatsappInvitacion(codigo);
+    var opened = global.open(url, '_blank', 'noopener,noreferrer');
+    if (!opened) {
+      global.location.href = url;
+    }
   }
 
   function registerInviteCodeWithBackend(host, code, solicitudId) {
@@ -260,6 +328,7 @@
                 if (codeMessageEl) codeMessageEl.textContent = `Válido para una solicitud`;
             }
 
+            aplicarNotaScore(SCORE_AMPLIAR_RED);
             console.log('Modal:', host.modalCode);
             if (host.modalCode) {
                 host.modalCode.classList.add('show');
@@ -338,7 +407,7 @@
       if (r.ok && data.status === 'success' && data.codigo) {
         host.currentCode = data.codigo;
         host.currentSolicitud = null;
-        host.mostrarModalCodigoInvitacion(data.codigo, false);
+        host.mostrarModalCodigoInvitacion(data.codigo, false, SCORE_CRECIMIENTO_GRUPO);
         const modalText = document.querySelector('#modal-code .modal-text');
         if (modalText) {
           modalText.textContent = 'Comparte este código con un profesional de cualquier oficio para que se registre en RUANA y amplíe la red del grupo:';
@@ -372,6 +441,11 @@
     generateInviteCode: generateInviteCode,
     generarCodigoInvitarCercanoCp: generarCodigoInvitarCercanoCp,
     mostrarModalCodigoInvitacion: mostrarModalCodigoInvitacion,
+    enviarInvitacionWhatsapp: enviarInvitacionWhatsapp,
+    enlaceInvitacion: enlaceInvitacion,
+    mensajeWhatsappInvitacion: mensajeWhatsappInvitacion,
+    urlWhatsappInvitacion: urlWhatsappInvitacion,
+    textoScoreInvitacion: textoScoreInvitacion,
     registerInviteCodeWithBackend: registerInviteCodeWithBackend,
     getFechaExpiracion: getFechaExpiracion,
     generateRandomCode: generateRandomCode,

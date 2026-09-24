@@ -365,6 +365,13 @@ def politica_privacidad():
     return send_from_directory(str(web_dir), 'politica-privacidad.html')
 
 
+@app.route('/cookies')
+@app.route('/cookies.html')
+def cookies_info():
+    """No hay página aparte: las cookies se explican en la política de privacidad."""
+    return redirect('/politica-privacidad.html#cookies')
+
+
 @app.route('/apelar/<token>')
 def apelar_expulsion(token):
     """Página pública de apelación (art. 22). El token se valida en la API, no aquí."""

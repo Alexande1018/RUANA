@@ -763,6 +763,39 @@
                 window.location.href = '/aliado';
             }
 
+            registerUrlWithUtms(code) {
+                const current = new URLSearchParams(window.location.search);
+                const next = new URLSearchParams();
+                const upper = (code || '').trim().toUpperCase();
+                if (upper) next.set('codigo', upper);
+                let stored = {};
+                try {
+                    stored = JSON.parse(sessionStorage.getItem('ruana_utm') || '{}') || {};
+                } catch (_) {
+                    stored = {};
+                }
+                current.forEach((value, key) => {
+                    if (key.toLowerCase().startsWith('utm_') && value) {
+                        next.set(key, value);
+                        stored[key] = String(value).trim().slice(0, 100);
+                    }
+                });
+                Object.keys(stored).forEach((key) => {
+                    if (key.toLowerCase().startsWith('utm_') && stored[key] && !next.has(key)) {
+                        next.set(key, stored[key]);
+                    }
+                });
+                if (next.has('utm_source') || next.has('utm_medium') || next.has('utm_campaign')) {
+                    sessionStorage.setItem('ruana_utm', JSON.stringify({
+                        utm_source: next.get('utm_source') || stored.utm_source || '',
+                        utm_medium: next.get('utm_medium') || stored.utm_medium || '',
+                        utm_campaign: next.get('utm_campaign') || stored.utm_campaign || ''
+                    }));
+                }
+                const qs = next.toString();
+                return '/register' + (qs ? '?' + qs : '');
+            }
+
             handleInvite(e) {
                 e.preventDefault();
                 const code = document.getElementById('invite-code').value.trim();
@@ -792,10 +825,10 @@
                                 invitado_por: result.invitacion.aliado_id || '',
                                 fecha_expiracion: result.invitacion.fecha_expiracion || null
                             }));
-                            window.location.href = 'register.html';
+                            window.location.href = this.registerUrlWithUtms(upper);
                             return;
                         }
-                        this.showError('invite-error', result.message || 'Código de invitación inválido o expirado');
+                        this.showError('invite-error', 'Ese código no es válido o ya no está activo. Puedes pedir acceso o escribir otro código.');
                     })
                     .catch(() => this.showError('invite-error', 'Error de conexión al validar la invitación.'))
                     .finally(() => {
@@ -824,9 +857,9 @@
                                 invitado_por: invitacion.aliado_id || '',
                                 fecha_expiracion: invitacion.fecha_expiracion || null
                             }));
-                            window.location.href = 'register.html';
+                            window.location.href = this.registerUrlWithUtms(upper);
                         } else {
-                            this.showError('invite-error', result.message || 'Código de invitación inválido o expirado');
+                            this.showError('invite-error', 'Ese código no es válido o ya no está activo. Puedes pedir acceso o escribir otro código.');
                         }
                     })
                     .catch(() => this.showError('invite-error', 'Error de conexión al validar la invitación.'))
