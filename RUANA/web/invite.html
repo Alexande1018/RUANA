@@ -206,14 +206,70 @@
             init() {
                 this.form.addEventListener('submit', (e) => this.handleSubmit(e));
                 this.codeInput.addEventListener('input', () => this.clearError());
+                this.persistUtms();
                 const params = new URLSearchParams(window.location.search);
                 const codeFromUrl = (params.get('codigo') || params.get('code') || '').trim();
+                const storedError = sessionStorage.getItem('ruana_invite_error');
+                if (storedError) {
+                    sessionStorage.removeItem('ruana_invite_error');
+                    this.showError(storedError);
+                }
                 if (codeFromUrl) {
                     this.codeInput.value = codeFromUrl.toUpperCase();
                     this.validateInviteCode(this.codeInput.value);
                     return;
                 }
                 this.codeInput.focus();
+            }
+
+            persistUtms() {
+                const params = new URLSearchParams(window.location.search);
+                const keys = ['utm_source', 'utm_medium', 'utm_campaign'];
+                let stored = {};
+                try {
+                    stored = JSON.parse(sessionStorage.getItem('ruana_utm') || '{}') || {};
+                } catch (_) {
+                    stored = {};
+                }
+                const next = {};
+                let fromUrl = false;
+                keys.forEach((key) => {
+                    const incoming = (params.get(key) || '').trim().slice(0, 100);
+                    if (incoming) {
+                        next[key] = incoming;
+                        fromUrl = true;
+                    } else {
+                        next[key] = String(stored[key] || '').trim().slice(0, 100);
+                    }
+                });
+                params.forEach((value, key) => {
+                    if (key.toLowerCase().startsWith('utm_') && value && !next[key]) {
+                        next[key] = String(value).trim().slice(0, 100);
+                        fromUrl = true;
+                    }
+                });
+                if (fromUrl || next.utm_source || next.utm_medium || next.utm_campaign) {
+                    sessionStorage.setItem('ruana_utm', JSON.stringify(next));
+                }
+                this.utm = next;
+            }
+
+            registerUrl(code) {
+                const current = new URLSearchParams(window.location.search);
+                const next = new URLSearchParams();
+                const upper = (code || '').trim().toUpperCase();
+                if (upper) next.set('codigo', upper);
+                const stored = this.utm || {};
+                current.forEach((value, key) => {
+                    if (key.toLowerCase().startsWith('utm_') && value) next.set(key, value);
+                });
+                Object.keys(stored).forEach((key) => {
+                    if (key.toLowerCase().startsWith('utm_') && stored[key] && !next.has(key)) {
+                        next.set(key, stored[key]);
+                    }
+                });
+                const qs = next.toString();
+                return '/register' + (qs ? '?' + qs : '');
             }
 
             handleSubmit(e) {
@@ -228,8 +284,8 @@
                 // Códigos reales de invitación:
                 // - 5 dígitos numéricos (ej: 47604)
                 // - o 1 letra + 4 dígitos (legacy, ej: A0001)
-                if (code.length < 5) {
-                    this.showError('El código de invitación debe tener al menos 5 caracteres');
+                if (code.length < 4) {
+                    this.showError('Ese código no es válido o ya no está activo. Puedes pedir acceso o escribir otro código.');
                     return;
                 }
 
@@ -265,11 +321,10 @@
                             fecha_expiracion: invitacion.fecha_expiracion || null
                         }));
                         
-                        // Redirigir a register.html
-                        // register.html verificará ruana_invite_valid === 'true'
-                        window.location.href = 'register.html';
+                        // /register vuelve a leer ?codigo= y los utm_*; sessionStorage cubre el mismo origen.
+                        window.location.href = this.registerUrl(code);
                     } else {
-                        this.showError(result.message || 'Código de invitación inválido o expirado');
+                        this.showError('Ese código no es válido o ya no está activo. Puedes pedir acceso o escribir otro código.');
                         this.submitBtn.disabled = false;
                         this.submitBtn.textContent = 'Continuar';
                     }

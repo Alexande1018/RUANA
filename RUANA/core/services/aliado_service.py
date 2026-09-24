@@ -20,6 +20,64 @@ logger = logging.getLogger(__name__)
 
 _repo = AliadoRepo()
 
+COMO_NOS_CONOCISTE_OPCIONES = (
+    "Recomendación de un aliado",
+    "Búsqueda en internet",
+    "Redes sociales",
+    "Anuncio en Instagram",
+    "Otro",
+)
+_ORIGEN_MAX = 100
+
+
+def _texto_origen(value: Any, max_len: int = _ORIGEN_MAX) -> Optional[str]:
+    """Recorta texto de atribución. Vacío o no imprimible → None."""
+    if value is None:
+        return None
+    text = "".join(ch for ch in str(value) if ch.isprintable()).strip()
+    if not text:
+        return None
+    return text[:max_len]
+
+
+def normalizar_origen_registro(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Valida UTMs y la respuesta de «¿Cómo conociste RUANA?»."""
+    raw_como = _texto_origen(data.get("como_nos_conociste"))
+    como = None
+    if raw_como:
+        canon = {opcion.casefold(): opcion for opcion in COMO_NOS_CONOCISTE_OPCIONES}
+        como = canon.get(raw_como.casefold())
+        if not como:
+            return {"error": "Elige una opción válida en «¿Cómo conociste RUANA?»."}
+    return {
+        "utm_source": _texto_origen(data.get("utm_source")),
+        "utm_medium": _texto_origen(data.get("utm_medium")),
+        "utm_campaign": _texto_origen(data.get("utm_campaign")),
+        "como_nos_conociste": como,
+    }
+
+
+def guardar_origen_registro(db, codigo: str, origen: Dict[str, Any]) -> None:
+    """Persiste atribución de alta. No-op si no hay ningún valor."""
+    campos = ("utm_source", "utm_medium", "utm_campaign", "como_nos_conociste")
+    if not codigo or not any(origen.get(campo) for campo in campos):
+        return
+    with db._lock:
+        conn = db._connect()
+        try:
+            cursor = conn.cursor()
+            _repo.update_origen_registro(
+                cursor,
+                codigo,
+                origen.get("utm_source"),
+                origen.get("utm_medium"),
+                origen.get("utm_campaign"),
+                origen.get("como_nos_conociste"),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
 # --- Extraído de DBManager (aliado) ---
 
 def crear_aliado(db, codigo: str, nombre: str, marca: str = "",

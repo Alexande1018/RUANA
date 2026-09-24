@@ -218,7 +218,7 @@
             <p>RUANA no utiliza el score ni el perfil del aliado para publicidad comportamental ni para cesión a anunciantes.</p>
 
             <h2 id="cookies">10. Cookies y almacenamiento local</h2>
-            <p>RUANA no usa cookies no esenciales. No hay scripts de analítica, medición ni tracking (ni Google Analytics, ni píxeles, ni herramientas equivalentes) en el frontend. La sesión de aliado y de administrador se gestiona mediante un identificador JWT almacenado en sessionStorage del navegador (cabecera <code>X-Ruana-Session-Id</code>). El almacenamiento local se usa solo para estado funcional de la interfaz (sesión, código de invitación, onboarding). Esta política no incluye banner de cookies porque no hay cookies de seguimiento ni proveedores de analítica.</p>
+            <p>RUANA no usa cookies no esenciales. No hay scripts de analítica, medición ni tracking (ni Google Analytics, ni píxeles, ni herramientas equivalentes) en el frontend. La sesión de aliado y de administrador se gestiona mediante un identificador JWT almacenado en sessionStorage del navegador (cabecera <code>X-Ruana-Session-Id</code>, claves <code>ruana_session_id</code> y <code>admin_session_id</code>). El almacenamiento local se usa solo para estado funcional de la interfaz: sesión, código de invitación (<code>ruana_invite_valid</code>, <code>ruana_invite_codigo</code>), onboarding (<code>ruana_pending_onboarding_</code>, <code>ruana_onboarding_completed_v2</code>) y, en el alta, los parámetros <code>utm_source</code>, <code>utm_medium</code> y <code>utm_campaign</code> de la dirección (clave <code>ruana_utm</code> en sessionStorage) hasta que se envían con el registro y se guardan junto al aliado. No se comparten con redes publicitarias. Esta política no incluye banner de cookies porque no hay cookies de seguimiento ni proveedores de analítica.</p>
 
             <h2 id="actualizaciones">11. Actualizaciones</h2>
             <p>Esta política puede actualizarse. La versión vigente se identifica como v1-2026-09. Un cambio sustancial se comunicará en la medida de lo posible a través de la plataforma o del email de contacto. El alta como aliado registra la versión aceptada en ese momento.</p>
@@ -229,6 +229,8 @@
             <a href="/aviso-legal.html">Aviso legal</a>
             <span aria-hidden="true"> · </span>
             <a href="/politica-privacidad.html">Política de privacidad</a>
+            <span aria-hidden="true"> · </span>
+            <a href="/politica-privacidad.html#cookies">Cookies</a>
             <span aria-hidden="true"> · </span>
             <a href="/terminos.html">Términos de uso</a>
         </nav>

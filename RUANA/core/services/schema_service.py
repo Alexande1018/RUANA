@@ -84,6 +84,7 @@ def _init_db(db):
             db._migrar_aliados_derrotas_competencia(conn, cursor)
             db._migrar_aliados_especializaciones(conn, cursor)
             db._migrar_aliados_descripcion_servicio(conn, cursor)
+            db._migrar_aliados_origen_registro(conn, cursor)
             db._migrar_aliados_especializacion_singular(conn, cursor)
             db._migrar_aliados_foto_perfil(conn, cursor)
 
@@ -748,6 +749,32 @@ def _migrar_aliados_descripcion_servicio(db, conn, cursor) -> None:
     if 'descripcion_servicio' in columnas:
         return
     _repo.execute(cursor, "ALTER TABLE aliados ADD COLUMN descripcion_servicio TEXT")
+
+
+def _migrar_aliados_origen_registro(db, conn, cursor) -> None:
+    """Columnas nullable de atribución de alta (UTM + cómo nos conoció).
+
+    Revertir en Postgres, si hiciera falta:
+    ALTER TABLE aliados DROP COLUMN IF EXISTS utm_source;
+    ALTER TABLE aliados DROP COLUMN IF EXISTS utm_medium;
+    ALTER TABLE aliados DROP COLUMN IF EXISTS utm_campaign;
+    ALTER TABLE aliados DROP COLUMN IF EXISTS como_nos_conociste;
+    """
+    columnas_origen = (
+        "utm_source",
+        "utm_medium",
+        "utm_campaign",
+        "como_nos_conociste",
+    )
+    if getattr(db, "backend", None) == "postgres":
+        for col in columnas_origen:
+            _repo.execute(cursor, f"ALTER TABLE aliados ADD COLUMN IF NOT EXISTS {col} TEXT")
+        return
+    columnas = set(_repo.columnas_tabla(cursor, "aliados") or [])
+    for col in columnas_origen:
+        if col in columnas:
+            continue
+        _repo.execute(cursor, f"ALTER TABLE aliados ADD COLUMN {col} TEXT")
 
 def _migrar_aliados_foto_perfil(db, conn, cursor) -> None:
     """Añade foto_perfil_url (foto pública del aliado, editable solo por el propio aliado)."""
@@ -3177,6 +3204,7 @@ def _init_postgres_schema(db):
         """)
         db._migrar_aliados_pin_personal(conn, cursor)
         db._migrar_aliados_foto_perfil(conn, cursor)
+        db._migrar_aliados_origen_registro(conn, cursor)
         db._migrar_aliados_invitado_por(conn, cursor)
         db._migrar_invitaciones_solicitud_id(conn, cursor)
         db._migrar_solicitudes_candidato(conn, cursor)

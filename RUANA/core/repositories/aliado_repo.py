@@ -197,6 +197,28 @@ class AliadoRepo:
         )
         return cursor.lastrowid
 
+    def update_origen_registro(
+        self,
+        cursor,
+        codigo: str,
+        utm_source: Optional[str],
+        utm_medium: Optional[str],
+        utm_campaign: Optional[str],
+        como_nos_conociste: Optional[str],
+    ) -> int:
+        cursor.execute(
+            """
+            UPDATE aliados
+            SET utm_source = ?,
+                utm_medium = ?,
+                utm_campaign = ?,
+                como_nos_conociste = ?
+            WHERE codigo = ?
+            """,
+            (utm_source, utm_medium, utm_campaign, como_nos_conociste, codigo),
+        )
+        return cursor.rowcount
+
     def insertar_seed(
         self,
         cursor,
