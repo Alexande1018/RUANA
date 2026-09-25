@@ -408,6 +408,9 @@
                     if (semMod && typeof semMod.fetchSnapshot === 'function') {
                         await semMod.fetchSnapshot(host);
                     }
+                })(),
+                (async () => {
+                    await fetchCentroComunicacionSnapshot(host);
                 })()
             ]);
 

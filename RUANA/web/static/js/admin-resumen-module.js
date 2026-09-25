@@ -1043,11 +1043,13 @@ function setupEventListeners(host) {
       const ccSearch = document.getElementById('cc-admin-search');
       const ccStatus = document.getElementById('cc-admin-status');
       const ccTipo = document.getElementById('cc-admin-tipo');
+      const ccCp = document.getElementById('cc-admin-cp');
       const ccUnread = document.getElementById('cc-admin-only-unread');
       if (ccRefreshBtn) ccRefreshBtn.addEventListener('click', () => host.cargarCentroComunicacionAdmin());
       if (ccSearch) ccSearch.addEventListener('input', () => host.renderCentroComunicacionAdmin(host._centroComunicacion || []));
       if (ccStatus) ccStatus.addEventListener('change', () => host.cargarCentroComunicacionAdmin());
       if (ccTipo) ccTipo.addEventListener('change', () => host.cargarCentroComunicacionAdmin());
+      if (ccCp) ccCp.addEventListener('change', () => host.cargarCentroComunicacionAdmin());
       if (ccUnread) ccUnread.addEventListener('change', () => host.cargarCentroComunicacionAdmin());
       const ccAceptar = document.getElementById('cc-admin-apelacion-aceptar');
       const ccRechazar = document.getElementById('cc-admin-apelacion-rechazar');

@@ -35,7 +35,12 @@ def test_mensaje_usa_invite_html_y_los_puntos_reales():
     assert "encodeURIComponent(mensajeWhatsappInvitacion(codigo))" in js
     assert "/invite.html?codigo=" in js
     assert "https://ruana-4293f.web.app" in js
-    assert "Oye, estoy en RUANA, una red de oficios de Alicante" in js
+    assert (
+        "Oye, me he apuntado a RUANA, una red de oficios de Alicante para pasarnos encargos por zona: "
+        "lo que tú no haces me lo pasas y al revés. Entra con mi código: "
+    ) in js
+    assert "curro" not in js
+    assert js.count("para pasarnos encargos por zona") == 1
     assert "SCORE_AMPLIAR_RED = 3" in js
     assert "SCORE_CRECIMIENTO_GRUPO = 5" in js
     assert "SCORE_CRECIMIENTO_MAX = 10" in js
@@ -48,6 +53,16 @@ def test_mensaje_usa_invite_html_y_los_puntos_reales():
     assert "aplicar_cambio_score(codigo_invitador, 3, 'aliado_referido_registro_valido')" in score
     assert "CRECIMIENTO_GRUPO_SCORE_DELTA = 5" in constants
     assert "CRECIMIENTO_GRUPO_MAX_RECOMPENSAS = 10" in constants
+
+
+def test_el_front_no_repite_el_texto_viejo_de_curro():
+    web = ROOT / "web"
+    restos = []
+    for path in list(web.rglob("*.js")) + list(web.rglob("*.html")):
+        texto = path.read_text(encoding="utf-8")
+        if "curro" in texto.lower() or "pasamos curro" in texto.lower():
+            restos.append(str(path.relative_to(ROOT)))
+    assert restos == []
 
 
 def test_el_banner_sigue_abriendo_ampliar_red_no_crecimiento():

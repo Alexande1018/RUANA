@@ -867,12 +867,14 @@
 
         <div class="conversaciones-ruana-wrap" id="centro-comunicacion-admin-wrap">
             <h2 class="seccion-titulo">Centro de comunicación RUANA</h2>
-            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Mensajes directos de aliados al equipo RUANA. Filtra por estado o por apelaciones de expulsión, busca por aliado y responde desde aquí.</p>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Mensajes directos de aliados al equipo RUANA. Filtra por estado, tipo o código postal, busca por aliado y responde desde aquí.</p>
             <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
                 <input id="cc-admin-search" type="text" placeholder="Buscar por aliado o asunto" style="min-width:240px; flex:1; padding:9px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.18); background:rgba(0,0,0,0.25); color:#e5e7eb;">
+                <input id="cc-admin-cp" type="text" inputmode="numeric" maxlength="10" placeholder="CP" style="width:110px; padding:9px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.18); background:rgba(0,0,0,0.25); color:#e5e7eb;">
                 <select id="cc-admin-tipo" style="min-width:210px;">
                     <option value="">Todos los tipos</option>
                     <option value="apelacion_expulsion">Apelaciones de expulsión</option>
+                    <option value="activacion">Activación</option>
                 </select>
                 <select id="cc-admin-status" style="min-width:180px;">
                     <option value="">Todos los estados</option>
@@ -896,6 +898,7 @@
                             <tr>
                                 <th>ID</th>
                                 <th>Aliado</th>
+                                <th>CP</th>
                                 <th>Asunto</th>
                                 <th>Estado</th>
                                 <th>Plazo apelación</th>

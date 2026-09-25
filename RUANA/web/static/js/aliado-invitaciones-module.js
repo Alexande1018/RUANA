@@ -53,7 +53,7 @@
   }
 
   function mensajeWhatsappInvitacion(codigo) {
-    return 'Oye, estoy en RUANA, una red de oficios de Alicante que nos pasamos curro por zona. Lo que tú no haces me lo pasas y al revés. Entra con mi código: ' + enlaceInvitacion(codigo);
+    return 'Oye, me he apuntado a RUANA, una red de oficios de Alicante para pasarnos encargos por zona: lo que tú no haces me lo pasas y al revés. Entra con mi código: ' + enlaceInvitacion(codigo);
   }
 
   function urlWhatsappInvitacion(codigo) {
@@ -265,6 +265,35 @@
     if (modal) modal.classList.add('show');
   }
 
+  async function invitarPorWhatsapp(host) {
+    var codigoAliado = (host && (host.codigoAliado || (host.aliado && host.aliado.codigo))) || '';
+    if (!codigoAliado) {
+      alert('Sesión no válida');
+      return;
+    }
+    var zona = (host.aliado && host.aliado.codigo_postal) || '';
+    var apiBase = getApiBaseSafe();
+    try {
+      var r = await fetch(apiBase + '/api/invitaciones/crear', {
+        method: 'POST',
+        headers: getAuthHeadersSafe({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ zona: zona }),
+        credentials: 'same-origin'
+      });
+      var data = await r.json().catch(function () { return {}; });
+      if (r.ok && data.status === 'success' && data.codigo) {
+        host.currentCode = data.codigo;
+        var url = urlWhatsappInvitacion(data.codigo);
+        var opened = global.open(url, '_blank', 'noopener,noreferrer');
+        if (!opened) global.location.href = url;
+      } else {
+        alert(data.message || data.error || 'No se pudo generar el código. Intenta de nuevo.');
+      }
+    } catch (e) {
+      alert('Error de conexión: ' + (e.message || e));
+    }
+  }
+
   function enviarInvitacionWhatsapp(host) {
     var codeEl = document.getElementById('code-value');
     var codigo = (host && host.currentCode) || (codeEl && codeEl.textContent) || '';
@@ -442,6 +471,7 @@
     generarCodigoInvitarCercanoCp: generarCodigoInvitarCercanoCp,
     mostrarModalCodigoInvitacion: mostrarModalCodigoInvitacion,
     enviarInvitacionWhatsapp: enviarInvitacionWhatsapp,
+    invitarPorWhatsapp: invitarPorWhatsapp,
     enlaceInvitacion: enlaceInvitacion,
     mensajeWhatsappInvitacion: mensajeWhatsappInvitacion,
     urlWhatsappInvitacion: urlWhatsappInvitacion,

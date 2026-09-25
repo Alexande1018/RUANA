@@ -11,7 +11,8 @@
     <link rel="stylesheet" href="/static/css/ruana-fonts.css?v=20260913a">
     <link rel="icon" href="/static/images/ruana-logo.svg" type="image/svg+xml">
     <link rel="preload" href="/static/css/aliado-shell.css?v=20260910d" as="style">
-    <link rel="stylesheet" href="/static/css/aliado-panel.css?v=20260910d">
+    <link rel="preload" href="/static/css/aliado-panel.css?v=20260924a" as="style">
+    <link rel="stylesheet" href="/static/css/aliado-panel.css?v=20260924a">
     <link rel="stylesheet" href="/static/css/panel-premium.css">
     <link rel="stylesheet" href="/static/css/auth-premium.css">
     <link rel="stylesheet" href="/static/css/aliado-shell.css?v=20260910d">
@@ -42,7 +43,7 @@
     <script src="/static/js/aliado-acuerdos-module.js" defer></script>
     <script src="/static/js/aliado-conexiones-module.js?v=20260910b" defer></script>
     <script src="/static/js/aliado-centro-comunicacion-module.js" defer></script>
-    <script src="/static/js/aliado-invitaciones-module.js?v=20260910a" defer></script>
+    <script src="/static/js/aliado-invitaciones-module.js?v=20260925a" defer></script>
     <script src="/static/js/aliado-alertas-module.js" defer></script>
     <script src="/static/js/aliado-catalogo-module.js" defer></script>
     <script src="/static/js/aliado-contactos-module.js?v=20260903a" defer></script>
@@ -844,7 +845,29 @@
                 <div class="ruana-help-card">
                     <div id="ruana-help-thread-header" class="ruana-help-empty">Selecciona una conversación para ver el historial.</div>
                     <div class="ruana-help-messages" id="ruana-help-messages"></div>
-                    <div class="ruana-help-form-row">
+                    <button type="button" class="ruana-activacion-btn ruana-activacion-whatsapp" id="ruana-activacion-whatsapp" hidden>Invitar por WhatsApp</button>
+                    <div id="ruana-activacion-form" class="ruana-activacion-form" hidden>
+                        <p class="ruana-activacion-lead">Puedes responder o saltar. Si respondes, el equipo lo lee aquí.</p>
+                        <label class="ruana-activacion-label" for="ruana-activacion-oficio">¿A qué oficio de tu zona le pasarías trabajo?</label>
+                        <select id="ruana-activacion-oficio" class="ruana-help-select">
+                            <option value="">Elige un oficio (opcional)</option>
+                        </select>
+                        <input id="ruana-activacion-oficio-otro" class="ruana-help-input" maxlength="80" placeholder="O escríbelo tú" />
+                        <label class="ruana-activacion-label" for="ruana-activacion-encargo">¿Tienes ahora mismo algún encargo que no puedas hacer tú?</label>
+                        <select id="ruana-activacion-encargo" class="ruana-help-select">
+                            <option value="">—</option>
+                            <option value="Sí">Sí</option>
+                            <option value="No">No</option>
+                        </select>
+                        <button type="button" class="ruana-activacion-btn ruana-activacion-btn-primary" id="ruana-activacion-crear" hidden>Crear solicitud</button>
+                        <label class="ruana-activacion-label" for="ruana-activacion-freno">¿Qué te frenaría para pasar tu primer encargo por RUANA?</label>
+                        <textarea id="ruana-activacion-freno" class="ruana-help-textarea" rows="2" maxlength="400" placeholder="Si quieres, en una frase"></textarea>
+                        <div class="ruana-activacion-actions">
+                            <button type="button" class="ruana-activacion-btn ruana-activacion-btn-primary" id="ruana-activacion-enviar">Enviar</button>
+                            <button type="button" class="ruana-activacion-btn ruana-activacion-btn-secondary" id="ruana-activacion-saltar">Saltar</button>
+                        </div>
+                    </div>
+                    <div class="ruana-help-form-row" id="ruana-help-reply-wrap">
                         <textarea id="ruana-help-reply" class="ruana-help-textarea" rows="3" maxlength="3000" placeholder="Responder en esta conversación..." disabled></textarea>
                         <button type="button" class="btn-admin-action" id="ruana-help-reply-btn" disabled>Responder</button>
                     </div>
