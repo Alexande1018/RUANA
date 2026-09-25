@@ -1450,6 +1450,42 @@ def registrar_consentimiento_aliado(
                 conn.close()
 
 
+def deshacer_alta_sin_consentimiento(db, codigo_aliado: str) -> None:
+    """Borra el aliado recién creado si no se pudo registrar el consentimiento."""
+    codigo = (codigo_aliado or "").strip()
+    if not codigo:
+        return
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    "DELETE FROM consentimientos_aliado WHERE codigo_aliado = ?",
+                    (codigo,),
+                )
+            except Exception:
+                pass
+            _repo.delete_por_codigo(cursor, codigo)
+            conn.commit()
+        except Exception as e:
+            logger.error(
+                "Fallo al deshacer el alta sin consentimiento",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
+            if conn is not None:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            raise
+        finally:
+            if conn is not None:
+                conn.close()
+
+
 def exportar_datos_aliado(db, codigo_aliado: str) -> Dict[str, Any]:
     codigo = (codigo_aliado or "").strip()
     if not codigo:

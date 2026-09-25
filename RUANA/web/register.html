@@ -1029,6 +1029,7 @@
             }
 
             init() {
+                this.purgeDatosPersonalesAlmacenados();
                 this.initPhoneInput();
                 this.loadCatalogo();
                 this.initCpPreview();
@@ -1043,6 +1044,15 @@
                 if (btnAcceso) btnAcceso.addEventListener('click', () => this.setGateMode('acceso'));
                 this.captureUtms();
                 this.applyComoConocisteDefault();
+            }
+
+            purgeDatosPersonalesAlmacenados() {
+                // Claves antiguas del alta que guardaban nombre, email, teléfono y el resto del formulario.
+                const claves = ['ruana_aliados', 'ruana_aliado_data'];
+                claves.forEach((clave) => {
+                    try { localStorage.removeItem(clave); } catch (_) {}
+                    try { sessionStorage.removeItem(clave); } catch (_) {}
+                });
             }
 
             setStatus(message) {
@@ -1599,32 +1609,15 @@
                         // El servidor generó el código
                         const codigoAliado = result.codigo;
                         const estadoBackend = result.estado || 'activo';
-                        const scoreBackend = (typeof result.score === 'number') ? result.score : 50;
-                        const creadoEn = result.creado_en || new Date().toISOString();
 
-                        const aliadoPayload = {
-                            ...data,
-                            codigo_aliado: codigoAliado,
-                            estado: estadoBackend,
-                            score: scoreBackend,
-                            descripcion_servicio: data.descripcion,
-                            creado_en: creadoEn,
-                            fecha_registro: creadoEn
-                        };
-                        
-                        // Guardar datos en localStorage (respaldo local)
-                        const aliadosRegistrados = JSON.parse(localStorage.getItem('ruana_aliados') || '{}');
-                        aliadosRegistrados[codigoAliado] = aliadoPayload;
-                        localStorage.setItem('ruana_aliados', JSON.stringify(aliadosRegistrados));
-
-                        // Tour: solo la primera entrada al panel tras registrarse
+                        // Tour: solo la primera entrada al panel tras registrarse.
+                        // El nombre, el email, el teléfono y el resto del formulario no se guardan en el navegador.
                         try {
                             localStorage.setItem('ruana_pending_onboarding_' + codigoAliado, '1');
                         } catch (_) {}
-                        
-                        // Guardar en sessionStorage solo si está activo (no pendiente, no en_espera)
+
+                        // Código de aliado (no es un dato del formulario) solo si está activo.
                         if (estadoBackend !== 'pendiente_validacion' && estadoBackend !== 'en_espera') {
-                            sessionStorage.setItem('ruana_aliado_data', JSON.stringify(aliadoPayload));
                             sessionStorage.setItem('ruana_codigo_aliado', codigoAliado);
                         } else {
                             sessionStorage.removeItem('ruana_aliado_data');
@@ -1657,19 +1650,11 @@
                     
             generarCodigoAliado() {
                 /**
-                 * ⚠️ DEPRECATED: Código ahora se genera en backend SQLite
-                 * Se mantiene solo como fallback para localStorage
+                 * DEPRECATED: el código lo genera el backend.
+                 * No consulta almacenamiento local: ahí no deben quedar datos del formulario.
                  * Formato: 5 dígitos numéricos (10000-99999)
                  */
-                let codigo;
-                let aliadosRegistrados = JSON.parse(localStorage.getItem('ruana_aliados') || '{}');
-                
-                // Generar código único localmente como fallback
-                do {
-                    codigo = String(Math.floor(Math.random() * 90000) + 10000);
-                } while (codigo in aliadosRegistrados);
-                
-                return codigo;
+                return String(Math.floor(Math.random() * 90000) + 10000);
             }
 
             mostrarModalCodigoAliado(codigo, mensajePendienteValidacion, mensajeListaEspera) {

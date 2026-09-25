@@ -37,7 +37,7 @@ from core.services import (
 )
 from web.auth_decorators import (
     _admin_codigo,
-    _admin_permisos,
+    _admin_permisos_efectivos,
     _cron_secret_valid,
     require_admin,
     require_admin_escritura,
@@ -83,9 +83,7 @@ def admin_bp_health():
 @require_admin
 def admin_me():
     """GET permisos del admin actual (store por header o JWT)."""
-    permisos = _admin_permisos()
-    if not permisos and _admin_codigo():
-        permisos = ["leer", "escribir", "eliminar", "configurar"]
+    permisos = _admin_permisos_efectivos()
     return jsonify({"permisos": permisos or []})
 
 
@@ -211,9 +209,7 @@ def admin_bootstrap():
     """GET único de apertura: mismos conteos que dashboard-summary + listas."""
     try:
         db = get_db()
-        permisos = _admin_permisos()
-        if not permisos and _admin_codigo():
-            permisos = ["leer", "escribir", "eliminar", "configurar"]
+        permisos = _admin_permisos_efectivos()
         payload = admin_dashboard_service.get_admin_bootstrap_cached(db, permisos=permisos)
         return jsonify(payload)
     except Exception as e:
@@ -1127,9 +1123,7 @@ def get_stats():
         else:
             estado_sistema = 'Cr?tico'
 
-        permisos = _admin_permisos()
-        if not permisos and _admin_codigo():
-            permisos = ['leer', 'escribir', 'eliminar', 'configurar']
+        permisos = _admin_permisos_efectivos()
         return jsonify({
             'status': 'success',
             'permisos': permisos or [],
