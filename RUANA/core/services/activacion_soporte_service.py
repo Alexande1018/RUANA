@@ -3,7 +3,8 @@
 No crea tablas ni columnas. La conversación usa ruana_soporte_conversaciones.tipo
 = 'activacion'. La fecha de corte se cambia con la variable de entorno
 RUANA_ACTIVACION_FECHA_CORTE (YYYY-MM-DD). Si no está definida, vale
-1970-01-01 e incluye a los aliados que ya existían.
+FECHA_CORTE_DEFECTO (el día de publicación). Si se publica otro día, hay
+que cambiar esa constante o fijar la variable de entorno.
 
 Los huecos (oficios del catálogo sin titular activo en el grupo) se calculan
 al crear el mensaje y quedan escritos en el texto. Si no hay huecos, esa
@@ -32,7 +33,9 @@ CATEGORIA_ACTIVACION = "activacion"
 ASUNTO_ACTIVACION = "Tres preguntas rápidas"
 DIAS_ACTIVACION = 3
 ENV_FECHA_CORTE = "RUANA_ACTIVACION_FECHA_CORTE"
-FECHA_CORTE_DEFECTO = "1970-01-01"
+# Día de publicación del mensaje de activación. Si el merge cae otro día,
+# cambia esta fecha o fija la variable RUANA_ACTIVACION_FECHA_CORTE.
+FECHA_CORTE_DEFECTO = "2026-09-25"
 MARCA_WHATSAPP = "Pásale tu código por WhatsApp"
 TEXTO_SALTADO = "(saltado)"
 
@@ -89,7 +92,7 @@ def linea_huecos(oficios: List[str]) -> str:
     else:
         mencionado = f"{nombres[0]} ni {nombres[1]}"
     return (
-        f"En tu zona aún no hay {mencionado}. "
+        f"En tu grupo aún no hay {mencionado}. "
         f"¿Conoces a uno bueno? {MARCA_WHATSAPP}"
     )
 
@@ -115,12 +118,13 @@ def oficios_hueco(db, grupo_id: Optional[int]) -> List[str]:
     """Huecos del grupo, ya en el orden y con el nombre que va en la frase.
 
     Un hueco es un oficio del catálogo sin aliado titular activo en el grupo,
-    igual que oficios_faltantes de info_grupo_para_panel.
+    igual que oficios_faltantes de info_grupo_para_panel. Si la lectura falla,
+    no hay línea: un error no es lo mismo que «ningún oficio ocupado».
     """
     if not grupo_id:
         return []
     try:
-        ocupados = db.obtener_oficios_grupo(int(grupo_id)) or set()
+        ocupados = _leer_oficios_ocupados(db, int(grupo_id))
         catalogo = db.get_catalogo_oficios_ruana() or []
     except Exception:
         logger.exception("No se pudieron calcular los huecos del grupo %s", grupo_id)
@@ -134,13 +138,33 @@ def oficios_hueco(db, grupo_id: Optional[int]) -> List[str]:
     return elegir_huecos_para_frase(faltan)
 
 
+def _leer_oficios_ocupados(db, grupo_id: int) -> set:
+    """Misma lectura que obtener_oficios_grupo, pero el fallo se propaga.
+
+    obtener_oficios_grupo traga la excepción y devuelve un conjunto vacío.
+    Aquí eso se leería como «nadie ocupa ningún oficio» y el mensaje
+    inventaría huecos. Si esta lectura falla, oficios_hueco no añade línea.
+    """
+    from core.repositories.catalogo_repo import CatalogoRepo
+
+    conn = None
+    try:
+        conn = db._connect()
+        cursor = conn.cursor()
+        rows = CatalogoRepo().listar_oficios_distintos_grupo_activo(cursor, int(grupo_id))
+        return {str(row[0]).strip() for row in (rows or []) if row and str(row[0] or "").strip()}
+    finally:
+        if conn is not None:
+            conn.close()
+
+
 def texto_respuesta_activacion(payload: Dict[str, Any]) -> str:
     """Texto que lee el admin. Vacío o saltar → '(saltado)'."""
     if not isinstance(payload, dict):
         return TEXTO_SALTADO
     if _es_verdadero(payload.get("saltar")):
         return TEXTO_SALTADO
-    oficio = str(payload.get("oficio") or "").strip()[:80]
+    oficio = _oficio_en_mensaje(payload)
     encargo = _normalizar_encargo(payload.get("encargo"))
     freno = str(payload.get("freno") or "").strip()[:400]
     if not oficio and not encargo and not freno:
@@ -363,16 +387,35 @@ def _ya_respondio(cursor, conversacion_id: int) -> bool:
     return cursor.fetchone() is not None
 
 
+def _oficio_en_mensaje(payload: Dict[str, Any]) -> str:
+    """Texto que ve el admin. El libre, si lo hay, manda sobre el desplegable."""
+    libre = str(payload.get("oficio_libre") or "").strip()[:80]
+    if libre:
+        return libre
+    return str(payload.get("oficio") or "").strip()[:80]
+
+
 def _metadata_respuesta(conversacion_id: int, payload: Dict[str, Any], texto: str) -> str:
+    """Solo indicadores. El texto libre se queda en el mensaje del aliado."""
     import json
 
-    datos = {
+    saltado = texto == TEXTO_SALTADO or _es_verdadero(payload.get("saltar"))
+    datos: Dict[str, Any] = {
         "conversacion_id": int(conversacion_id),
-        "oficio": str(payload.get("oficio") or "").strip()[:80],
-        "encargo": _normalizar_encargo(payload.get("encargo")) or None,
-        "freno": str(payload.get("freno") or "").strip()[:400],
-        "saltado": texto == TEXTO_SALTADO,
+        "respondio": not saltado,
+        "saltado": saltado,
     }
+    if saltado:
+        return json.dumps(datos, ensure_ascii=False)
+    datos["encargo"] = _normalizar_encargo(payload.get("encargo"))
+    libre = str(payload.get("oficio_libre") or "").strip()
+    if libre:
+        datos["oficio_libre"] = True
+    else:
+        oficio = str(payload.get("oficio") or "").strip()[:80]
+        datos["oficio_libre"] = False
+        if oficio:
+            datos["oficio"] = oficio
     return json.dumps(datos, ensure_ascii=False)
 
 

@@ -226,7 +226,7 @@
     }
     header.innerHTML = '<strong>' + escapeHtmlSafe(host, conv.asunto || 'Consulta') + '</strong> · <span class="ruana-help-status estado-' + escapeHtmlSafe(host, conv.estado || 'pendiente') + '">' + formatHelpStatus(conv.estado) + '</span>';
     var esActivacion = String(conv.tipo || '') === 'activacion';
-    var yaRespondio = mensajes.some(function (m) { return (m.emisor_tipo || '') === 'aliado'; });
+    var yaRespondio = (host && Number(host.activacionRespondidaId) === Number(host.soporteSelectedId)) || mensajes.some(function (m) { return (m.emisor_tipo || '') === 'aliado'; });
     var mostrarFormulario = esActivacion && !yaRespondio;
     reply.disabled = mostrarFormulario;
     replyBtn.disabled = mostrarFormulario;
@@ -259,7 +259,8 @@
     var form = document.getElementById('ruana-activacion-form');
     var whatsapp = document.getElementById('ruana-activacion-whatsapp');
     var esActivacion = conv && String(conv.tipo || '') === 'activacion';
-    var yaRespondio = (mensajes || []).some(function (m) { return (m.emisor_tipo || '') === 'aliado'; });
+    var yaLocal = host && Number(host.activacionRespondidaId) === Number(host.soporteSelectedId);
+    var yaRespondio = yaLocal || (mensajes || []).some(function (m) { return (m.emisor_tipo || '') === 'aliado'; });
     if (form) form.hidden = !(esActivacion && !yaRespondio);
     if (whatsapp) whatsapp.hidden = !mensajeTieneHueco(mensajes);
     if (esActivacion && !yaRespondio) {
@@ -315,10 +316,7 @@
     var crear = document.getElementById('ruana-activacion-crear');
     if (crear) {
       crear.addEventListener('click', function () {
-        cerrarCentroComunicacion();
-        if (global.AliadoShell && typeof global.AliadoShell.show === 'function') {
-          global.AliadoShell.show('conexiones');
-        }
+        guardarYAbrirCrearSolicitud(host);
       });
     }
     var enviar = document.getElementById('ruana-activacion-enviar');
@@ -332,31 +330,52 @@
     }
   }
 
-  function oficioActivacionElegido() {
+  function datosActivacion(saltar) {
     var otro = document.getElementById('ruana-activacion-oficio-otro');
     var select = document.getElementById('ruana-activacion-oficio');
-    var escrito = otro ? String(otro.value || '').trim() : '';
-    if (escrito) return escrito;
-    return select ? String(select.value || '').trim() : '';
+    var frenoEl = document.getElementById('ruana-activacion-freno');
+    var encargoEl = document.getElementById('ruana-activacion-encargo');
+    if (saltar) {
+      return { oficio: '', oficio_libre: '', encargo: '', freno: '', saltar: true };
+    }
+    return {
+      oficio: select ? String(select.value || '').trim() : '',
+      oficio_libre: otro ? String(otro.value || '').trim() : '',
+      encargo: encargoEl ? String(encargoEl.value || '') : '',
+      freno: frenoEl ? String(frenoEl.value || '').trim() : '',
+      saltar: false
+    };
   }
 
-  function enviarRespuestaActivacion(host, saltar) {
-    if (!host) return Promise.resolve();
-    var convId = Number(host.soporteSelectedId || 0);
-    if (!convId) return Promise.resolve();
-    var encargoEl = document.getElementById('ruana-activacion-encargo');
-    var frenoEl = document.getElementById('ruana-activacion-freno');
-    var cuerpo = {
-      activacion: {
-        oficio: saltar ? '' : oficioActivacionElegido(),
-        encargo: saltar ? '' : (encargoEl ? encargoEl.value : ''),
-        freno: saltar ? '' : (frenoEl ? String(frenoEl.value || '').trim() : ''),
-        saltar: Boolean(saltar)
+  function guardarYAbrirCrearSolicitud(host) {
+    var aviso = 'No hemos podido guardar tus respuestas; puedes volver a enviarlas luego';
+    return enviarRespuestaActivacion(host, false, { avisoSiFalla: aviso, silencioso: true }).then(function () {
+      cerrarCentroComunicacion();
+      if (global.AliadoShell && typeof global.AliadoShell.show === 'function') {
+        global.AliadoShell.show('conexiones');
       }
-    };
+    });
+  }
+
+  function avisarActivacion(texto, tipo) {
+    if (global.RuanaUI && typeof global.RuanaUI.toast === 'function') {
+      global.RuanaUI.toast(texto, tipo || 'warning');
+      return;
+    }
+    alert(texto);
+  }
+
+  function enviarRespuestaActivacion(host, saltar, opciones) {
+    opciones = opciones || {};
+    if (!host) return Promise.resolve(false);
+    var convId = Number(host.soporteSelectedId || 0);
+    if (!convId) return Promise.resolve(false);
+    if (Number(host.activacionRespondidaId) === convId) return Promise.resolve(true);
+    if (host.activacionEnvioPendiente) return host.activacionEnvioPendiente;
+    var cuerpo = { activacion: datosActivacion(saltar) };
     var apiBase = getApiBaseSafe();
     var urls = soporteUrls(host, convId);
-    return fetch(apiBase + urls.messages, {
+    host.activacionEnvioPendiente = fetch(apiBase + urls.messages, {
       method: 'POST',
       credentials: 'same-origin',
       headers: soporteHeaders(host, { 'Content-Type': 'application/json' }),
@@ -364,15 +383,29 @@
     })
       .then(function (r) { return r.json().catch(function () { return {}; }); })
       .then(function (data) {
-        if (data.status !== 'success') {
-          if (global.RuanaUI) global.RuanaUI.toast(data.message || 'No se pudo enviar.', 'error');
-          return null;
+        if (!data || data.status !== 'success') {
+          if (data && String(data.message || '').indexOf('Ya has respondido') !== -1) {
+            host.activacionRespondidaId = convId;
+            return true;
+          }
+          avisarActivacion(opciones.avisoSiFalla || (data && data.message) || 'No se pudo enviar.', opciones.avisoSiFalla ? 'warning' : 'error');
+          return false;
         }
-        if (global.RuanaUI) {
-          global.RuanaUI.toast(saltar ? 'Preguntas saltadas.' : 'Respuesta enviada. Gracias.', 'success');
+        host.activacionRespondidaId = convId;
+        if (!opciones.silencioso) {
+          avisarActivacion(saltar ? 'Preguntas saltadas.' : 'Respuesta enviada. Gracias.', 'success');
         }
-        return seleccionarConversacionSoporte(host, convId);
+        return seleccionarConversacionSoporte(host, convId).then(function () { return true; });
+      })
+      .catch(function () {
+        avisarActivacion(opciones.avisoSiFalla || 'No se pudo enviar.', 'warning');
+        return false;
+      })
+      .then(function (ok) {
+        host.activacionEnvioPendiente = null;
+        return ok;
       });
+    return host.activacionEnvioPendiente;
   }
 
   function abrirWhatsappActivacion(host) {

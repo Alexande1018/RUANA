@@ -2,6 +2,7 @@
 import json
 import threading
 from datetime import datetime, timedelta
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -23,7 +24,9 @@ def sqlite_db(tmp_path, monkeypatch):
         "get_settings",
         lambda: SimpleNamespace(postgres_configured=False, database_url=""),
     )
-    monkeypatch.delenv("RUANA_ACTIVACION_FECHA_CORTE", raising=False)
+    # El corte de publicación es 2026-09-25. Estas pruebas crean altas de hace
+    # unos días, así que fijan un corte anterior y no dependen del día del CI.
+    monkeypatch.setenv("RUANA_ACTIVACION_FECHA_CORTE", "2020-01-01")
     return db_module.DBManager(str(tmp_path / "ruana_activacion.db"))
 
 
@@ -148,7 +151,7 @@ def test_crea_a_los_3_dias_con_un_hueco(sqlite_db, monkeypatch):
     assert int(msg["tiene_no_leido_admin"]) == 0
     assert int(msg["leido_por_aliado"]) == 0
     assert "curro" not in msg["mensaje"].lower()
-    assert "En tu zona aún no hay electricista." in msg["mensaje"]
+    assert "En tu grupo aún no hay electricista." in msg["mensaje"]
     assert "¿Conoces a uno bueno?" in msg["mensaje"]
     assert MARCA_WHATSAPP in msg["mensaje"]
 
@@ -215,7 +218,7 @@ def test_sin_huecos_no_anade_la_linea(sqlite_db, monkeypatch):
     texto = _mensaje_sistema(sqlite_db, "58848")["mensaje"]
     assert texto == MENSAJE_BASE
     assert MARCA_WHATSAPP not in texto
-    assert "En tu zona aún no hay" not in texto
+    assert "En tu grupo aún no hay" not in texto
 
 
 def test_sin_grupo_no_inventa_huecos(sqlite_db, monkeypatch):
@@ -298,7 +301,11 @@ def test_guarda_respuesta_y_el_admin_la_ve(sqlite_db):
     conn.close()
     assert meta["encargo"] == "Sí"
     assert meta["saltado"] is False
+    assert meta["respondio"] is True
     assert meta["oficio"] == "Electricidad"
+    assert meta["oficio_libre"] is False
+    assert "freno" not in meta
+    assert "No conozco a nadie aún" not in json.dumps(meta, ensure_ascii=False)
     repetido = activacion_soporte_service.guardar_respuesta_activacion(
         sqlite_db, conv_id, "58848", {"oficio": "Otra"}
     )
@@ -314,6 +321,20 @@ def test_saltar_guarda_marca_corta(sqlite_db):
     assert resultado["status"] == "success"
     mensajes = chat_service.listar_mensajes_soporte_aliado(sqlite_db, conv_id, "58848")
     assert [m["mensaje"] for m in mensajes if m["emisor_tipo"] == "aliado"] == [TEXTO_SALTADO]
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT metadata FROM eventos_sistema WHERE tipo = ? AND actor_codigo = ?",
+        ("activacion_respuesta", "58848"),
+    )
+    crudo = cur.fetchone()[0]
+    conn.close()
+    assert "no debería guardarse" not in crudo
+    meta = json.loads(crudo)
+    assert meta["saltado"] is True
+    assert meta["respondio"] is False
+    assert "oficio" not in meta
+    assert "freno" not in meta
 
 
 def test_admin_filtra_por_cp_y_muestra_la_columna(sqlite_db):
@@ -349,3 +370,106 @@ def test_marcar_leido_incluye_mensaje_de_sistema(sqlite_db):
     )
     assert int(cur.fetchone()[0]) == 0
     conn.close()
+
+
+def test_la_fecha_de_corte_por_defecto_es_el_dia_de_publicacion(sqlite_db, monkeypatch):
+    monkeypatch.delenv("RUANA_ACTIVACION_FECHA_CORTE", raising=False)
+    assert activacion_soporte_service.FECHA_CORTE_DEFECTO == "2026-09-25"
+    assert activacion_soporte_service.fecha_corte() == datetime(2026, 9, 25)
+    antes = {"estado": "activo", "creado_en": "2026-09-24 23:59:59", "grupo_id": 1}
+    el_dia = {"estado": "activo", "creado_en": "2026-09-25 00:00:00", "grupo_id": 1}
+    ahora = datetime(2026, 10, 1, 12, 0, 0)
+    assert activacion_soporte_service._es_elegible(antes, ahora=ahora) is False
+    assert activacion_soporte_service._es_elegible(el_dia, ahora=ahora) is True
+    _aliado(sqlite_db, "58848", "Electricidad", "03001", dias=30)
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE aliados SET creado_en = ? WHERE codigo = ?",
+        ("2026-09-20 10:00:00", "58848"),
+    )
+    conn.commit()
+    conn.close()
+    chat_service.listar_conversaciones_soporte_aliado(sqlite_db, "58848")
+    assert _contar(sqlite_db, "58848") == 0
+
+
+def test_si_falla_la_lectura_de_oficios_no_hay_linea_de_huecos(sqlite_db, monkeypatch):
+    from core.repositories.catalogo_repo import CatalogoRepo
+
+    def boom(self, cursor, grupo_id):
+        raise RuntimeError("no se pudieron leer los oficios del grupo")
+
+    grupo_id = _grupo(sqlite_db, "03001")
+    monkeypatch.setattr(
+        sqlite_db,
+        "get_catalogo_oficios_ruana",
+        lambda: ["Albañilería y obra", "Electricidad", "Fontanería y fontanería-gas"],
+    )
+    _aliado(sqlite_db, "58848", "Albañilería y obra", "03001", grupo_id=grupo_id, dias=5)
+    monkeypatch.setattr(CatalogoRepo, "listar_oficios_distintos_grupo_activo", boom)
+    chat_service.listar_conversaciones_soporte_aliado(sqlite_db, "58848")
+    texto = _mensaje_sistema(sqlite_db, "58848")["mensaje"]
+    assert texto == MENSAJE_BASE
+    assert "En tu grupo aún no hay" not in texto
+    assert MARCA_WHATSAPP not in texto
+    assert _contar(sqlite_db, "58848") == 1
+
+
+def test_metadata_no_guarda_texto_libre(sqlite_db):
+    _aliado(sqlite_db, "58848", "Electricidad", "03001", dias=6)
+    conv_id = int(chat_service.listar_conversaciones_soporte_aliado(sqlite_db, "58848")[0]["id"])
+    libre = "el primo que arregla toldos"
+    freno = "Me da cosa no conocer al cliente"
+    resultado = activacion_soporte_service.guardar_respuesta_activacion(
+        sqlite_db,
+        conv_id,
+        "58848",
+        {
+            "oficio": "Electricidad",
+            "oficio_libre": libre,
+            "encargo": "Sí",
+            "freno": freno,
+        },
+    )
+    assert resultado["status"] == "success"
+    mensajes = chat_service.listar_mensajes_soporte_aliado(sqlite_db, conv_id, "58848")
+    texto = [m["mensaje"] for m in mensajes if m["emisor_tipo"] == "aliado"][0]
+    assert libre in texto
+    assert freno in texto
+    assert "Encargo ahora: Sí" in texto
+    conn = sqlite_db._connect()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT metadata FROM eventos_sistema WHERE tipo = ? AND actor_codigo = ?",
+        ("activacion_respuesta", "58848"),
+    )
+    crudo = cur.fetchone()[0]
+    conn.close()
+    assert libre not in crudo
+    assert freno not in crudo
+    assert "Electricidad" not in crudo
+    meta = json.loads(crudo)
+    assert meta["oficio_libre"] is True
+    assert "oficio" not in meta
+    assert "freno" not in meta
+    assert meta["encargo"] == "Sí"
+    assert meta["respondio"] is True
+    repetido = activacion_soporte_service.guardar_respuesta_activacion(
+        sqlite_db, conv_id, "58848", {"oficio": "Fontanería", "freno": "otra vez"}
+    )
+    assert repetido["status"] == "error"
+    assert repetido["message"] == "Ya has respondido"
+
+
+def test_crear_solicitud_guarda_antes_de_abrir_conexiones():
+    js = (Path(__file__).resolve().parents[1] / "web/static/js/aliado-centro-comunicacion-module.js").read_text(
+        encoding="utf-8"
+    )
+    aviso = "No hemos podido guardar tus respuestas; puedes volver a enviarlas luego"
+    inicio = js.index("function guardarYAbrirCrearSolicitud")
+    fin = js.index("function avisarActivacion")
+    fn = js[inicio:fin]
+    assert aviso in fn
+    assert fn.index("enviarRespuestaActivacion") < fn.index("AliadoShell.show")
+    assert "curro" not in js.lower()

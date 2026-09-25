@@ -53,7 +53,7 @@
   }
 
   function mensajeWhatsappInvitacion(codigo) {
-    return 'Oye, estoy en RUANA, una red de oficios de Alicante que nos pasamos curro por zona. Lo que tú no haces me lo pasas y al revés. Entra con mi código: ' + enlaceInvitacion(codigo);
+    return 'Oye, me he apuntado a RUANA, una red de oficios de Alicante para pasarnos encargos por zona: lo que tú no haces me lo pasas y al revés. Entra con mi código: ' + enlaceInvitacion(codigo);
   }
 
   function urlWhatsappInvitacion(codigo) {
