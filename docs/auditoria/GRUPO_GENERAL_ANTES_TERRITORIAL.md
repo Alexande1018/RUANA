@@ -22,6 +22,36 @@ Hoy, en `main`, ese paso intermedio **no existe**. El primer aliado de un CP cre
 
 ---
 
+## Las reglas antes de crear el grupo del CP
+
+Sí: **antes de abrir el grupo territorial de un código postal** había que cumplir **las dos** a la vez. No valía solo una.
+
+| Regla | Número exacto | Qué contaba |
+|-------|---------------|-------------|
+| Profesionales distintos en **ese** CP | **10** (`CP_MADUREZ_MIN_ALIADOS`) | Aliados con estado `activo` de ese código postal |
+| Encargos de verdad en **ese** CP | **3** (`CP_MADUREZ_MIN_ENCARGOS`) | Encargos en los que el profesional **ya aceptó** (o más adelante: en progreso, acuerdo, pago, cerrado, disputa) |
+
+**«10 profesionales diferentes»** en la práctica eran **10 oficios distintos**. En el grupo general solo cabía **una persona por oficio en cada CP**. Un segundo fontanero del mismo CP no entraba como activo: iba a la lista de espera y **no sumaba**. Por eso no se podía llegar a 10 con diez del mismo oficio.
+
+El programa **no** comprobaba «oficios distintos» con un `DISTINCT`. Contaba personas activas de ese CP. La plaza del Madre (un oficio por CP) hacía que esas 10 personas fueran 10 oficios.
+
+**Qué no contaba como encargo:** abierto pero sin aceptar (`iniciado`, `en_conversacion`), chat agotado, cierres sin encargo.
+
+**Las dos a la vez.** 10 profesionales y 2 encargos → la zona **no** estaba lista. 9 profesionales y 5 encargos → tampoco.
+
+Cumplir las reglas **no creaba el grupo del CP al momento**. El programa solo dejaba una solicitud de independencia. Un administrador tenía que **aprobar**. Sin ese clic, la gente seguía en el grupo general.
+
+Constantes históricas (commit `68c4d59`, `RUANA/core/db_constants.py`):
+
+```
+CP_MADUREZ_MIN_ALIADOS = 10
+CP_MADUREZ_MIN_ENCARGOS = 3
+```
+
+Comprobación: `n_aliados >= 10 and n_encargos >= 3` en `actualizar_madurez_cp`.
+
+---
+
 ## 1. Cómo se creaba el grupo general
 
 No lo creaba un administrador a mano. Lo creaba el **alta del primer aliado** de una ciudad que aún no tenía Grupo Madre.
@@ -128,14 +158,16 @@ El grupo territorial **no nacía solo** al llegar a un número. Primero la zona 
 
 ### 3.1 Umbrales de madurez (por código postal, no por ciudad)
 
+Son las mismas dos reglas de arriba: **10 profesionales distintos + 3 encargos aceptados**, las dos a la vez, **de ese CP** (no de toda la ciudad).
+
 Constantes históricas en `RUANA/core/db_constants.py` (commit `68c4d59`):
 
 | Constante | Valor | Significado |
 |-----------|-------|-------------|
-| `CP_MADUREZ_MIN_ALIADOS` | **10** | Aliados **activos** de **ese** CP |
+| `CP_MADUREZ_MIN_ALIADOS` | **10** | Aliados **activos** de **ese** CP. En el general equivalían a **10 oficios distintos** (un oficio por CP). |
 | `CP_MADUREZ_MIN_ENCARGOS` | **3** | Encargos **válidos** de profesionales de **ese** CP |
 
-Las dos a la vez. Ni 10 aliados sin encargos, ni 3 encargos con 9 aliados.
+Ni 10 aliados sin encargos, ni 3 encargos con 9 aliados.
 
 **Encargo válido:** el profesional ya aceptó el contacto. Contaban: `aceptado`, `trabajo_en_progreso`, `acuerdo_alcanzado`, `pendiente_de_pago`, `trabajo_cerrado`, `importe_en_disputa`. **No** contaban: `iniciado`, `en_conversacion`, chat agotado, cierres sin encargo.
 
