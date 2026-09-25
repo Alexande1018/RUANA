@@ -431,9 +431,21 @@
                     <span class="detail-label">Código de Aliado</span>
                     <span class="detail-value" id="detail-codigo" style="font-family: 'Courier New', monospace; color: #22c55e;">---</span>
                 </div>
-                <div class="detail-item">
+                <div class="detail-item" id="detail-oficio-wrap">
                     <span class="detail-label">Oficio</span>
-                    <span class="detail-value" id="detail-oficio">---</span>
+                    <div class="detail-descripcion-row">
+                        <span class="detail-value" id="detail-oficio">---</span>
+                        <button type="button" class="btn-editar-campo" id="btn-editar-oficio" title="Cambiar oficio">Cambiar</button>
+                    </div>
+                    <div class="detail-edit-form" id="form-editar-oficio" style="display: none;">
+                        <label class="detail-label" for="input-oficio">Elige un oficio del catálogo</label>
+                        <select id="input-oficio" class="detail-edit-select"></select>
+                        <p class="perfil-oficio-status" id="perfil-oficio-status" hidden></p>
+                        <div class="detail-edit-actions">
+                            <button type="button" class="btn-guardar-campo" id="btn-guardar-oficio">Guardar</button>
+                            <button type="button" class="btn-cancelar-campo" id="btn-cancelar-oficio">Cancelar</button>
+                        </div>
+                    </div>
                 </div>
                 <div class="detail-item">
                     <span class="detail-label">Código Postal</span>
@@ -2215,6 +2227,24 @@
                 const mod = this._perfilModule();
                 if (mod && typeof mod.iniciarEditarDescripcion === 'function') {
                     return mod.iniciarEditarDescripcion(this);
+                }
+            }
+            iniciarEditarOficio() {
+                const mod = this._perfilModule();
+                if (mod && typeof mod.iniciarEditarOficio === 'function') {
+                    return mod.iniciarEditarOficio(this);
+                }
+            }
+            cancelarEditarOficio() {
+                const mod = this._perfilModule();
+                if (mod && typeof mod.cancelarEditarOficio === 'function') {
+                    return mod.cancelarEditarOficio();
+                }
+            }
+            async guardarOficio() {
+                const mod = this._perfilModule();
+                if (mod && typeof mod.guardarOficio === 'function') {
+                    return mod.guardarOficio(this);
                 }
             }
             cancelarEditarDescripcion() {

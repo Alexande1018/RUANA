@@ -543,6 +543,19 @@
             outline: none;
             border-color: #22c55e;
         }
+        .detail-edit-select {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-family: inherit;
+        }
+        .perfil-oficio-status {
+            margin: 10px 0 0;
+            color: #fca5a5;
+            font-size: 0.9rem;
+            line-height: 1.45;
+        }
         .detail-edit-actions {
             display: flex;
             gap: 8px;

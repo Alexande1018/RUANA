@@ -80,6 +80,39 @@ def test_ciclo_vida_crear_aceptar_resumen(sqlite_db):
     assert "importe_profesional" not in resumen
 
 
+def test_trabajo_en_progreso_rechaza_desde_iniciado(sqlite_db):
+    _crear_activo(sqlite_db, "92021", "Sol")
+    _crear_activo(sqlite_db, "92022", "Pro")
+    creado = sqlite_db.crear_contacto_ruana(
+        "92021", "92022", servicio="Encargo", motivo_contacto="Revisión"
+    )
+    assert creado["status"] == "success"
+    cid = creado["id"]
+    assert creado["estado"] == "iniciado"
+
+    rechazo = contacto_service.marcar_trabajo_en_progreso(sqlite_db, cid)
+    assert rechazo["status"] == "error"
+    assert "aceptado" in rechazo["message"].lower()
+    assert sqlite_db.obtener_contacto_por_id(cid)["estado"] == "iniciado"
+
+
+def test_trabajo_en_progreso_permite_desde_aceptado(sqlite_db):
+    _crear_activo(sqlite_db, "92031", "Sol")
+    _crear_activo(sqlite_db, "92032", "Pro")
+    creado = sqlite_db.crear_contacto_ruana(
+        "92031", "92032", servicio="Encargo", motivo_contacto="Revisión"
+    )
+    cid = creado["id"]
+    aceptado = sqlite_db.aceptar_contacto_ruana(cid, "92032")
+    assert aceptado["status"] == "success"
+    assert aceptado["estado"] == "aceptado"
+
+    progreso = contacto_service.marcar_trabajo_en_progreso(sqlite_db, cid)
+    assert progreso["status"] == "success", progreso.get("message")
+    assert progreso["estado"] == "trabajo_en_progreso"
+    assert sqlite_db.obtener_contacto_por_id(cid)["estado"] == "trabajo_en_progreso"
+
+
 def test_aceptar_contacto_via_service_directo(sqlite_db):
     _crear_activo(sqlite_db, "92011", "Sol")
     _crear_activo(sqlite_db, "92012", "Pro")

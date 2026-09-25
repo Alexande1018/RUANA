@@ -169,7 +169,7 @@ def aceptar_contacto_ruana(db, contacto_id: int, profesional_codigo: str) -> Dic
 
 
 def marcar_trabajo_en_progreso(db, contacto_id: int) -> Dict[str, Any]:
-    """Transición a estado 'trabajo_en_progreso' desde 'aceptado' o 'iniciado'."""
+    """Transición a estado 'trabajo_en_progreso' solo desde 'aceptado'."""
     with db._lock:
         try:
             conn = db._connect()
@@ -180,10 +180,12 @@ def marcar_trabajo_en_progreso(db, contacto_id: int) -> Dict[str, Any]:
             if estado_actual is None:
                 return {'status': 'error', 'message': f'Contacto {contacto_id} no encontrado'}
 
-            if estado_actual not in ('iniciado', 'aceptado'):
+            if estado_actual != 'aceptado':
                 return {
                     'status': 'error',
-                    'message': f"Transición inválida desde estado {estado_actual}"
+                    'message': (
+                        'Solo puedes pasar el encargo a en curso cuando ya está aceptado.'
+                    ),
                 }
 
             _repo.update_trabajo_en_progreso(cursor, contacto_id)
