@@ -552,6 +552,36 @@ def registrar_aliado():
         if result['status'] == 'error':
             return jsonify(result), 400
 
+        codigo_aliado = (result.get('codigo') or codigo or '').strip()
+        consentimiento_guardado = False
+        try:
+            consent = aliado_service.registrar_consentimiento_aliado(
+                db,
+                codigo_aliado,
+                version_documento=aliado_service.LEGAL_DOCUMENT_VERSION,
+            )
+            consentimiento_guardado = consent.get('status') == 'success'
+            if not consentimiento_guardado:
+                print(
+                    f"[RUANA][LEGAL] No se pudo guardar consentimiento de {codigo_aliado}: "
+                    f"{consent.get('message')}"
+                )
+        except Exception as consent_err:
+            print(f"[RUANA][LEGAL] Error inesperado al guardar consentimiento: {consent_err}")
+            consentimiento_guardado = False
+        if not consentimiento_guardado:
+            try:
+                aliado_service.deshacer_alta_sin_consentimiento(db, codigo_aliado)
+            except Exception as undo_err:
+                print(f"[RUANA][LEGAL] No se pudo deshacer el alta de {codigo_aliado}: {undo_err}")
+            return jsonify({
+                'status': 'error',
+                'message': (
+                    'No hemos podido guardar tu aceptación de las condiciones. '
+                    'Inténtalo de nuevo en un momento.'
+                ),
+            }), 503
+
         try:
             db.guardar_origen_registro(result.get('codigo') or codigo, origen)
         except Exception as origen_err:
@@ -597,18 +627,7 @@ def registrar_aliado():
         db.sincronizar_referidos_completo()
 
         # Envío de correo de bienvenida (no bloquea el registro si falla)
-        codigo_aliado = (result.get('codigo') or '').strip()
         if codigo_aliado:
-            try:
-                consent = aliado_service.registrar_consentimiento_aliado(
-                    db,
-                    codigo_aliado,
-                    version_documento=aliado_service.LEGAL_DOCUMENT_VERSION,
-                )
-                if consent.get('status') != 'success':
-                    print(f"[RUANA][LEGAL] No se pudo guardar consentimiento de {codigo_aliado}: {consent.get('message')}")
-            except Exception as consent_err:
-                print(f"[RUANA][LEGAL] Error inesperado al guardar consentimiento: {consent_err}")
             try:
                 enviar_correo_bienvenida_aliado(
                     nombre=nombre,
