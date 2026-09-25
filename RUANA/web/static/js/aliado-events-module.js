@@ -368,6 +368,12 @@
       if (btnEditarDesc) btnEditarDesc.addEventListener('click', () => host.iniciarEditarDescripcion());
       if (btnGuardarDesc) btnGuardarDesc.addEventListener('click', () => host.guardarDescripcion());
       if (btnCancelarDesc) btnCancelarDesc.addEventListener('click', () => host.cancelarEditarDescripcion());
+      const btnEditarOficio = document.getElementById('btn-editar-oficio');
+      const btnGuardarOficio = document.getElementById('btn-guardar-oficio');
+      const btnCancelarOficio = document.getElementById('btn-cancelar-oficio');
+      if (btnEditarOficio) btnEditarOficio.addEventListener('click', () => host.iniciarEditarOficio());
+      if (btnGuardarOficio) btnGuardarOficio.addEventListener('click', () => host.guardarOficio());
+      if (btnCancelarOficio) btnCancelarOficio.addEventListener('click', () => host.cancelarEditarOficio());
       const btnMostrarCambiarPin = document.getElementById('btn-mostrar-cambiar-pin');
       const btnCancelarCambiarPin = document.getElementById('btn-cancelar-cambiar-pin');
       if (btnMostrarCambiarPin) btnMostrarCambiarPin.addEventListener('click', () => host.mostrarFormularioCambiarPin());

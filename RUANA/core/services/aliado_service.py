@@ -575,6 +575,65 @@ def obtener_aliado_por_id(db, aliado_id: int) -> Optional[Dict[str, Any]]:
         finally:
             conn.close()
 
+def _oficios_equivalentes(db, actual: str, nuevo: str) -> bool:
+    """True si ambos textos son el mismo oficio (exacto o sin acentos), como en el catálogo."""
+    a = (actual or "").strip()
+    b = (nuevo or "").strip()
+    if a == b:
+        return True
+    if not a or not b:
+        return False
+    return db._normalizar_texto_catalogo(a) == db._normalizar_texto_catalogo(b)
+
+
+def _rechazo_cambio_oficio(db, cursor, codigo: str, campos_update: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Rechaza cambiar a un oficio del catálogo ya ocupado por otro activo del grupo.
+
+    No bloquea si el oficio no cambia, ni al propio aliado. Durante una competencia
+    puede haber dos activos del mismo oficio: eso no se toca aquí.
+    No hay endpoint de aliado para apuntarse a la lista de suplentes (en_espera por
+    CP y oficio); el mensaje solo informa de esa posibilidad.
+    """
+    if "oficio" not in campos_update:
+        return None
+    oficio_in = campos_update.get("oficio")
+    oficio_stripped = str(oficio_in).strip() if oficio_in is not None else ""
+    catalogo_oficial = {
+        str(o).strip() for o in db.get_catalogo_oficios_ruana() if o and str(o).strip()
+    }
+    oficio_canonico = (
+        db._resolver_en_conjunto_catalogo(oficio_stripped, catalogo_oficial)
+        if oficio_stripped
+        else None
+    )
+    actual_row = _repo.select_activacion_por_codigo(cursor, codigo)
+    oficio_actual = str(actual_row[2] or "").strip() if actual_row else ""
+    if not oficio_canonico:
+        if oficio_stripped and _oficios_equivalentes(db, oficio_actual, oficio_stripped):
+            campos_update["oficio"] = oficio_actual or oficio_stripped
+            return None
+        return {"status": "error", "message": "El oficio debe ser uno del catálogo."}
+
+    campos_update["oficio"] = oficio_canonico
+    if _oficios_equivalentes(db, oficio_actual, oficio_canonico):
+        return None
+
+    grupo_id = _repo.select_grupo_id_por_codigo(cursor, codigo)
+    if not grupo_id:
+        return None
+    if grupo_service.plaza_ocupada_por_otro(
+        db, cursor, int(grupo_id), oficio_canonico, codigo
+    ):
+        return {
+            "status": "error",
+            "message": (
+                f"En tu grupo ya hay un {oficio_canonico} titular. "
+                "Si quieres, te apuntamos a la lista de espera de ese oficio en tu zona."
+            ),
+        }
+    return None
+
+
 def actualizar_aliado(db, codigo: str, **kwargs) -> Dict[str, Any]:
     """
     Actualiza datos de un aliado
@@ -601,6 +660,9 @@ def actualizar_aliado(db, codigo: str, **kwargs) -> Dict[str, Any]:
         try:
             with db._connect() as conn:
                 cursor = conn.cursor()
+                rechazo = _rechazo_cambio_oficio(db, cursor, codigo, campos_update)
+                if rechazo:
+                    return rechazo
                 # Obtener grupo_id anterior por si hay que revisar viabilidad
                 grupo_id_prev = _repo.select_grupo_id_por_codigo(cursor, codigo)
                 grupo_id_anterior = grupo_id_prev if grupo_id_prev else None

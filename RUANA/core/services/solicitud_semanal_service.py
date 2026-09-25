@@ -37,8 +37,14 @@ def _json_safe_rows(rows: List[Any]) -> List[Dict[str, Any]]:
 
 
 def _semana_inicio_lunes(ref: Optional[date] = None) -> date:
+    """Lunes de la semana de ref. date.weekday() es 0 en lunes."""
     d = ref or date.today()
     return d - timedelta(days=d.weekday())
+
+
+MENSAJE_SOLICITUD_SEMANA_USADA = (
+    "Ya usaste tu solicitud de esta semana. Podrás crear otra el lunes."
+)
 
 
 def _semana_inicio_str(ref: Optional[date] = None) -> str:
@@ -233,14 +239,22 @@ def crear_solicitud_semanal(
             if grupo_id is None:
                 return {"status": "error", "message": "No perteneces a un grupo"}
 
-            existente = _repo.existe_activa_semana(cursor, codigo, semana_str)
-            if existente:
+            # Una por semana (índice único), esté activa o ya resuelta.
+            # Si sigue activa, se devuelve la misma. Si ya no, el aviso no dice «activa».
+            propia_semana = _repo.select_id_estado_semana(cursor, codigo, semana_str)
+            if propia_semana and propia_semana[1] == "activa":
                 conn.commit()
                 return {
                     "status": "success",
                     "ok": True,
-                    "id": existente,
+                    "id": propia_semana[0],
                     "already_existed": True,
+                }
+            if propia_semana:
+                conn.commit()
+                return {
+                    "status": "error",
+                    "message": MENSAJE_SOLICITUD_SEMANA_USADA,
                 }
 
             catalogo = db.get_catalogo_oficios_ruana()
@@ -298,7 +312,7 @@ def crear_solicitud_semanal(
             if "UNIQUE" in err.upper() or "unique" in err:
                 return {
                     "status": "error",
-                    "message": "Ya tienes una solicitud activa esta semana",
+                    "message": MENSAJE_SOLICITUD_SEMANA_USADA,
                 }
             return {"status": "error", "message": err}
         finally:

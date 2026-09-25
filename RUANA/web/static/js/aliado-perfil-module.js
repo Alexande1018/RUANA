@@ -381,6 +381,115 @@
     renderMensajesEncargo(host);
   }
 
+  function setOficioStatus(message) {
+    var statusEl = document.getElementById('perfil-oficio-status');
+    if (!statusEl) return;
+    statusEl.hidden = !message;
+    statusEl.textContent = message || '';
+  }
+
+  function nombresCatalogo(oficios) {
+    var out = [];
+    var seen = {};
+    (oficios || []).forEach(function (o) {
+      var nombre = '';
+      if (typeof o === 'string') nombre = o.trim();
+      else if (o && typeof o === 'object') nombre = String(o.nombre || o.oficio || '').trim();
+      if (!nombre || seen[nombre]) return;
+      seen[nombre] = true;
+      out.push(nombre);
+    });
+    return out;
+  }
+
+  function cargarOpcionesOficio(host) {
+    var select = document.getElementById('input-oficio');
+    if (!select) return Promise.resolve();
+    var actual = (host && host.aliado && host.aliado.oficio) || '';
+    return fetch(getApiBaseSafe() + '/api/catalogo/oficios', {
+      credentials: 'same-origin',
+      headers: getAuthHeadersSafe(),
+    })
+      .then(function (resp) { return resp.json(); })
+      .then(function (data) {
+        var nombres = nombresCatalogo(data && data.oficios);
+        if (actual && nombres.indexOf(actual) === -1) nombres.unshift(actual);
+        select.innerHTML = '';
+        nombres.forEach(function (nombre) {
+          var opt = document.createElement('option');
+          opt.value = nombre;
+          opt.textContent = nombre;
+          if (nombre === actual) opt.selected = true;
+          select.appendChild(opt);
+        });
+        if (actual) select.value = actual;
+      })
+      .catch(function () {
+        setOficioStatus('No se pudo cargar el catálogo de oficios.');
+      });
+  }
+
+  function iniciarEditarOficio(host) {
+    var formEl = document.getElementById('form-editar-oficio');
+    var rowEl = document.querySelector('#detail-oficio-wrap .detail-descripcion-row');
+    if (!formEl) return;
+    setOficioStatus('');
+    if (rowEl) rowEl.style.display = 'none';
+    formEl.style.display = 'block';
+    return cargarOpcionesOficio(host);
+  }
+
+  function cancelarEditarOficio() {
+    var formEl = document.getElementById('form-editar-oficio');
+    var rowEl = document.querySelector('#detail-oficio-wrap .detail-descripcion-row');
+    if (formEl) formEl.style.display = 'none';
+    if (rowEl) rowEl.style.display = 'flex';
+    setOficioStatus('');
+  }
+
+  function guardarOficio(host) {
+    var codigo = host && host.codigoAliado;
+    var select = document.getElementById('input-oficio');
+    var btn = document.getElementById('btn-guardar-oficio');
+    if (!codigo || !select) {
+      setOficioStatus('No se puede guardar: código de aliado no disponible.');
+      return Promise.resolve();
+    }
+    var oficio = String(select.value || '').trim();
+    if (!oficio) {
+      setOficioStatus('Elige un oficio del catálogo.');
+      return Promise.resolve();
+    }
+    if (btn) btn.disabled = true;
+    setOficioStatus('');
+    return fetch('/api/aliados/' + encodeURIComponent(codigo), {
+      method: 'PUT',
+      headers: getAuthHeadersSafe({ 'Content-Type': 'application/json' }),
+      credentials: 'same-origin',
+      body: JSON.stringify({ oficio: oficio }),
+    })
+      .then(function (resp) { return resp.json(); })
+      .then(function (data) {
+        if (data.status === 'success') {
+          if (!host.aliado) host.aliado = {};
+          host.aliado.oficio = oficio;
+          cancelarEditarOficio();
+          renderPerfil(host);
+          if (host.refreshAfterAction) {
+            return host.refreshAfterAction(['perfil']);
+          }
+          return;
+        }
+        setOficioStatus(data.message || 'No se pudo cambiar el oficio.');
+      })
+      .catch(function () {
+        setOficioStatus('Error de conexión al guardar el oficio.');
+      })
+      .then(function () {
+        if (btn) btn.disabled = false;
+      });
+  }
+
   function iniciarEditarDescripcion(host) {
     var formEl = document.getElementById('form-editar-descripcion');
     var inputEl = document.getElementById('input-descripcion-servicio');
@@ -611,6 +720,9 @@
     iniciarEditarDescripcion: iniciarEditarDescripcion,
     cancelarEditarDescripcion: cancelarEditarDescripcion,
     guardarDescripcion: guardarDescripcion,
+    iniciarEditarOficio: iniciarEditarOficio,
+    cancelarEditarOficio: cancelarEditarOficio,
+    guardarOficio: guardarOficio,
     mostrarFormularioCambiarPin: mostrarFormularioCambiarPin,
     ocultarFormularioCambiarPin: ocultarFormularioCambiarPin,
     guardarPin: guardarPin,
