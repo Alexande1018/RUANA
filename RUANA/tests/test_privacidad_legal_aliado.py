@@ -321,6 +321,73 @@ def test_documentos_legales_sin_placeholders_pendientes():
     assert "No hay DPA de encargado" in retencion
 
 
+_MENSAJE_FALLO_CONSENTIMIENTO = (
+    "No hemos podido guardar tu aceptación de las condiciones. "
+    "Inténtalo de nuevo en un momento."
+)
+
+
+def test_register_no_guarda_datos_personales_en_almacenamiento():
+    html = (WEB / "register.html").read_text(encoding="utf-8")
+    assert "purgeDatosPersonalesAlmacenados" in html
+    assert "ruana_aliados" in html
+    assert "ruana_aliado_data" in html
+    for line in html.splitlines():
+        if "setItem" not in line:
+            continue
+        assert "ruana_aliados" not in line
+        assert "ruana_aliado_data" not in line
+    assert "sessionStorage.setItem('ruana_utm'" in html
+    assert "sessionStorage.setItem('ruana_invite_codigo'" in html
+    assert "sessionStorage.setItem('ruana_invite_code'" in html
+    assert "localStorage.removeItem(clave)" in html
+    assert "sessionStorage.removeItem(clave)" in html
+
+
+def test_registrar_falla_consentimiento_deshace_alta(client, sqlite_db, monkeypatch):
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    monkeypatch.setattr(app_module, "_generar_codigo_unico", lambda: "73019")
+
+    def fallo(*_args, **_kwargs):
+        return {"status": "error", "message": "no se pudo escribir"}
+
+    monkeypatch.setattr(aliado_service, "registrar_consentimiento_aliado", fallo)
+    resp = client.post(
+        "/api/aliados/registrar",
+        json=_payload_registro(email="fallo.consent@example.com", telefono="+34600999019"),
+    )
+    assert resp.status_code == 503
+    data = resp.get_json()
+    assert data["status"] == "error"
+    assert data["message"] == _MENSAJE_FALLO_CONSENTIMIENTO
+    assert sqlite_db.obtener_aliado_por_codigo("73019") is None
+    conn = sqlite_db._connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT COUNT(*) FROM consentimientos_aliado WHERE codigo_aliado = ?",
+        ("73019",),
+    )
+    assert cursor.fetchone()[0] == 0
+    conn.close()
+
+
+def test_registrar_excepcion_consentimiento_no_deja_aliado(client, sqlite_db, monkeypatch):
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    monkeypatch.setattr(app_module, "_generar_codigo_unico", lambda: "73020")
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("fallo al guardar la aceptación")
+
+    monkeypatch.setattr(aliado_service, "registrar_consentimiento_aliado", boom)
+    resp = client.post(
+        "/api/aliados/registrar",
+        json=_payload_registro(email="boom.consent@example.com", telefono="+34600999020"),
+    )
+    assert resp.status_code == 503
+    assert resp.get_json()["message"] == _MENSAJE_FALLO_CONSENTIMIENTO
+    assert sqlite_db.obtener_aliado_por_codigo("73020") is None
+
+
 def test_register_checkbox_obligatorio_no_premarcado():
     html = (WEB / "register.html").read_text(encoding="utf-8")
     assert "He leído y acepto la" in html

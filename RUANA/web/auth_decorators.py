@@ -54,17 +54,43 @@ def _admin_permisos():
     return []
 
 
+def _permisos_asignados_en_credenciales(codigo: str) -> list:
+    """Lista guardada en la ficha del admin. Vacía si no hay lista asignada.
+
+    No concede el conjunto completo por defecto: la ficha es la fuente de verdad
+    (el admin principal la tiene explícita: leer, escribir, eliminar, configurar).
+    """
+    admin_id = (codigo or "").strip().upper()
+    if not admin_id:
+        return []
+    try:
+        from core.admin_auth import load_credentials
+
+        data = load_credentials(allow_bootstrap=False)
+    except Exception:
+        return []
+    admin = (data.get("admins") or {}).get(admin_id) or {}
+    raw = admin.get("permisos")
+    if not isinstance(raw, list):
+        return []
+    return [str(item).strip() for item in raw if str(item).strip()]
+
+
 def _admin_permisos_efectivos():
-    """Permisos del admin con fallback legacy (mismo criterio que /api/admin/me)."""
-    permisos = _admin_permisos()
-    if not permisos and _admin_codigo():
-        return ["leer", "escribir", "eliminar", "configurar"]
-    return permisos
+    """Permisos reales del admin. Una lista vacía no concede ningún permiso.
+
+    Si la sesión no trae lista pero la ficha sí tiene permisos asignados, se usan
+    esos. Así el admin principal no depende del antiguo fallback de «todos».
+    """
+    permisos = list(_admin_permisos())
+    if permisos:
+        return permisos
+    return _permisos_asignados_en_credenciales(_admin_codigo())
 
 
 def _admin_puede_escribir():
     """True si el admin tiene permiso de escritura o configuración."""
-    p = _admin_permisos()
+    p = _admin_permisos_efectivos()
     return "escribir" in p or "configurar" in p
 
 
@@ -173,7 +199,7 @@ def require_conflict_permission(permiso_requerido: str):
                     "status": "error",
                     "message": "Sesión admin expirada o no autorizado",
                 }), 401
-            if not tiene_permiso_conflict(_admin_permisos(), permiso_requerido):
+            if not tiene_permiso_conflict(_admin_permisos_efectivos(), permiso_requerido):
                 return jsonify({
                     "status": "error",
                     "message": f"Permiso requerido: {permiso_requerido}",
@@ -198,7 +224,7 @@ def require_refund_permission(permiso_requerido: str):
                     "status": "error",
                     "message": "Sesión admin expirada o no autorizado",
                 }), 401
-            if not tiene_permiso_refund(_admin_permisos(), permiso_requerido):
+            if not tiene_permiso_refund(_admin_permisos_efectivos(), permiso_requerido):
                 return jsonify({
                     "status": "error",
                     "message": f"Permiso requerido: {permiso_requerido}",
@@ -223,7 +249,7 @@ def require_dispute_permission(permiso_requerido: str):
                     "status": "error",
                     "message": "Sesión admin expirada o no autorizado",
                 }), 401
-            if not tiene_permiso_dispute(_admin_permisos(), permiso_requerido):
+            if not tiene_permiso_dispute(_admin_permisos_efectivos(), permiso_requerido):
                 return jsonify({
                     "status": "error",
                     "message": f"Permiso requerido: {permiso_requerido}",
@@ -248,7 +274,7 @@ def require_reconciliation_permission(permiso_requerido: str):
                     "status": "error",
                     "message": "Sesión admin expirada o no autorizado",
                 }), 401
-            if not tiene_permiso_recon(_admin_permisos(), permiso_requerido):
+            if not tiene_permiso_recon(_admin_permisos_efectivos(), permiso_requerido):
                 return jsonify({
                     "status": "error",
                     "message": f"Permiso requerido: {permiso_requerido}",
@@ -273,7 +299,7 @@ def require_ledger_permission(permiso_requerido: str):
                     "status": "error",
                     "message": "Sesión admin expirada o no autorizado",
                 }), 401
-            if not tiene_permiso_ledger(_admin_permisos(), permiso_requerido):
+            if not tiene_permiso_ledger(_admin_permisos_efectivos(), permiso_requerido):
                 return jsonify({
                     "status": "error",
                     "message": f"Permiso requerido: {permiso_requerido}",
