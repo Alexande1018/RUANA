@@ -45,7 +45,8 @@ def test_deploy_usa_resolucion_dinamica_stripe_mode():
 
 def test_sync_cron_secret_script_creates_bootstrap_path():
     content = SCRIPT.read_text(encoding="utf-8")
-    assert "SECRET_NAME=\"ruana-cron-secret\"" in content
+    assert 'SECRET_NAME="${RUANA_CRON_GCP_SECRET_NAME:-ruana-cron-secret}"' in content
+    assert "add-secret-version-if-changed.sh" in content
     assert "openssl rand" in content
     assert "secretAccessor" in content
     assert "state=ENABLED" in content

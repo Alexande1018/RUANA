@@ -56,12 +56,14 @@ jobs:
       - name: Sync SMTP password to Secret Manager
         env:
           SMTP_PASSWORD: ${{ secrets.RUANA_SMTP_PASSWORD }}
+          RUANA_SMTP_GCP_SECRET_NAME: ruana-preview-smtp-password
         run: bash .github/scripts/sync-smtp-password-gcp.sh
 
       - name: Sync admin credentials to Secret Manager
         env:
           ADMIN_CREDENTIALS_JSON: ${{ secrets.RUANA_ADMIN_CREDENTIALS_JSON }}
           FORCE_ADMIN_CREDENTIALS_SYNC: "false"
+          RUANA_ADMIN_GCP_SECRET_NAME: ruana-preview-admin-credentials
         run: bash .github/scripts/sync-admin-credentials-gcp.sh
 
       - name: Sync Stripe secrets to Secret Manager
@@ -69,11 +71,15 @@ jobs:
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          RUANA_STRIPE_SECRET_KEY_GCP_SECRET_NAME: ruana-preview-stripe-secret-key
+          RUANA_STRIPE_PUBLISHABLE_KEY_GCP_SECRET_NAME: ruana-preview-stripe-publishable-key
+          RUANA_STRIPE_WEBHOOK_SECRET_GCP_SECRET_NAME: ruana-preview-stripe-webhook-secret
         run: bash .github/scripts/sync-stripe-secrets-gcp.sh
 
       - name: Sync cron secret to Secret Manager
         env:
           RUANA_CRON_SECRET: ${{ secrets.RUANA_CRON_SECRET }}
+          RUANA_CRON_GCP_SECRET_NAME: ruana-preview-cron-secret
         run: bash .github/scripts/sync-cron-secret-gcp.sh
 
       - name: Resolver modo Stripe preview
@@ -108,7 +114,7 @@ jobs:
             --max-instances 3 \
             --service-account "$RUNTIME_SERVICE_ACCOUNT" \
             --set-env-vars "FIREBASE_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_REGION=$REGION,SUPABASE_URL=$SUPABASE_URL,RUANA_STRIPE_PAYMENTS_ENABLED=1,STRIPE_API_VERSION=2024-11-20.acacia,RUANA_ENV=production,RUANA_STRIPE_MODE=${{ steps.stripe_mode.outputs.mode }},RUANA_SESSION_COOKIE_SECURE=true,RUANA_CORS_ALLOWED_ORIGINS=https://ruana-preview-288784334163.europe-west1.run.app" \
-            --set-secrets "DATABASE_URL=ruana-database-url:latest,SUPABASE_SERVICE_ROLE_KEY=ruana-supabase-service-role-key:latest,SUPABASE_ANON_KEY=ruana-supabase-anon-key:latest,FLASK_SECRET_KEY=ruana-flask-secret-key:latest,RUANA_ADMIN_CREDENTIALS_JSON=ruana-admin-credentials:latest,RUANA_SMTP_PASSWORD=ruana-smtp-password:latest,STRIPE_SECRET_KEY=ruana-stripe-secret-key:latest,STRIPE_PUBLISHABLE_KEY=ruana-stripe-publishable-key:latest,STRIPE_WEBHOOK_SECRET=ruana-stripe-webhook-secret:latest,RUANA_CRON_SECRET=ruana-cron-secret:latest"
+            --set-secrets "DATABASE_URL=ruana-database-url:latest,SUPABASE_SERVICE_ROLE_KEY=ruana-supabase-service-role-key:latest,SUPABASE_ANON_KEY=ruana-supabase-anon-key:latest,FLASK_SECRET_KEY=ruana-flask-secret-key:latest,RUANA_ADMIN_CREDENTIALS_JSON=ruana-preview-admin-credentials:latest,RUANA_SMTP_PASSWORD=ruana-preview-smtp-password:latest,STRIPE_SECRET_KEY=ruana-preview-stripe-secret-key:latest,STRIPE_PUBLISHABLE_KEY=ruana-preview-stripe-publishable-key:latest,STRIPE_WEBHOOK_SECRET=ruana-preview-stripe-webhook-secret:latest,RUANA_CRON_SECRET=ruana-preview-cron-secret:latest"
 
           PREVIEW_URL=$(gcloud run services describe "$SERVICE" \
             --region "$REGION" \

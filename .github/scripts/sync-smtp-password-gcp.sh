@@ -23,9 +23,8 @@ if ! gcloud secrets describe "$SECRET_NAME" --project "$PROJECT_ID" >/dev/null 2
   echo "Secreto GCP creado: $SECRET_NAME"
 fi
 
-printf '%s' "$SMTP_PASSWORD" | gcloud secrets versions add "$SECRET_NAME" \
-  --data-file=- \
-  --project "$PROJECT_ID"
+printf '%s' "$SMTP_PASSWORD" | bash .github/scripts/add-secret-version-if-changed.sh \
+  "$SECRET_NAME" "$PROJECT_ID"
 
 gcloud secrets add-iam-policy-binding "$SECRET_NAME" \
   --member="serviceAccount:${RUNTIME_SERVICE_ACCOUNT}" \

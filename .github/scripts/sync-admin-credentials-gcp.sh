@@ -50,14 +50,12 @@ if [[ "$secret_exists" == false ]]; then
     --replication-policy=automatic \
     --project "$PROJECT_ID"
   echo "Secreto GCP creado: $SECRET_NAME"
-  printf '%s' "$CREDENTIALS_JSON" | gcloud secrets versions add "$SECRET_NAME" \
-    --data-file=- \
-    --project "$PROJECT_ID"
+  printf '%s' "$CREDENTIALS_JSON" | bash .github/scripts/add-secret-version-if-changed.sh \
+    "$SECRET_NAME" "$PROJECT_ID"
   echo "Credenciales admin bootstrap en Secret Manager ($SECRET_NAME)."
 elif [[ "$FORCE_SYNC" == "true" || "$FORCE_SYNC" == "1" ]]; then
-  printf '%s' "$CREDENTIALS_JSON" | gcloud secrets versions add "$SECRET_NAME" \
-    --data-file=- \
-    --project "$PROJECT_ID"
+  printf '%s' "$CREDENTIALS_JSON" | bash .github/scripts/add-secret-version-if-changed.sh \
+    "$SECRET_NAME" "$PROJECT_ID"
   echo "Credenciales admin sobrescritas en Secret Manager ($SECRET_NAME) por FORCE_ADMIN_CREDENTIALS_SYNC."
 else
   echo "Secreto $SECRET_NAME ya existe; no se sobrescribe (el panel puede haber rotado la contraseña)."
