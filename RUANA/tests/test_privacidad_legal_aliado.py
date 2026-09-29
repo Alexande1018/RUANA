@@ -405,8 +405,13 @@ def test_register_checkbox_obligatorio_no_premarcado():
     assert 'id="mayoria_edad" checked' not in html
     assert "id='mayoria_edad' checked" not in html
     assert "register-legal-layer" in html
-    assert "Información básica sobre protección de datos" in html
-    assert "Responsable:" in html
+    assert "art. 13 RGPD" in html
+    assert "Política de privacidad" in html
+    assert "Términos de uso" in html
+    assert "Responsable:" not in html
+    assert "Legitimación:" not in html
+    assert "Destinatarios:" not in html
+    assert "Finalidad:" not in html
 
 
 def test_footer_legal_incluido_en_paginas_publicas_y_paneles():
