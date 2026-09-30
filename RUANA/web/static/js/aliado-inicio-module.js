@@ -281,6 +281,51 @@
   var GRUPO_BANNER_ID = 'inicio-grupo-en-creacion-banner';
   var _grupoBannerBound = false;
 
+  /**
+   * Con 2–10 activos (o si el número no llega) se queda el texto genérico.
+   * Con exactamente 1 aliado activo, el de «primero de tu zona».
+   */
+  var GRUPO_BANNER_COPY = {
+    formacion: {
+      title: 'Tu zona todavía se está formando',
+      text: 'Estás en el grupo de tu código postal. Mientras haya poca gente cerca, la red de oficios es más pequeña. Por eso importa invitar a vecinos de tu zona: cuantos más seamos, más fácil encontrar y encargar trabajo.'
+    },
+    primero: {
+      title: 'Eres el primero de tu zona',
+      text: 'Todavía no hay más profesionales en tu grupo. Invita a 2 o 3 profesionales de confianza de otros oficios: cuantos más seamos, más encargos nos podremos pasar.'
+    }
+  };
+
+  function grupoBannerVariant(numAliados) {
+    if (numAliados === null || typeof numAliados === 'undefined' || numAliados === '') {
+      return 'formacion';
+    }
+    var n = Number(numAliados);
+    if (!isFinite(n) || n !== 1) return 'formacion';
+    return 'primero';
+  }
+
+  function numAliadosActivosGrupo(host) {
+    var info = host && host.aliado && host.aliado.grupo_info;
+    if (!info || !Object.prototype.hasOwnProperty.call(info, 'num_aliados')) return null;
+    var raw = info.num_aliados;
+    if (raw === null || raw === '') return null;
+    return raw;
+  }
+
+  function applyGrupoBannerCopy(host) {
+    var banner = getGrupoBannerEl();
+    if (!banner) return 'formacion';
+    var variant = grupoBannerVariant(numAliadosActivosGrupo(host));
+    var copy = GRUPO_BANNER_COPY[variant];
+    var title = document.getElementById('inicio-grupo-banner-title');
+    var text = document.getElementById('inicio-grupo-banner-text');
+    if (title) title.textContent = copy.title;
+    if (text) text.textContent = copy.text;
+    banner.setAttribute('data-banner-variant', variant);
+    return variant;
+  }
+
   function getGrupoBannerCodigo(host) {
     return (
       (host && (host.codigoAliado || (host.aliado && host.aliado.codigo))) ||
@@ -388,6 +433,7 @@
 
   function maybeShowGrupoEnCreacionBanner(host) {
     bindGrupoEnCreacionBanner(host);
+    applyGrupoBannerCopy(host);
     if (!shouldShowGrupoEnCreacionBanner(host)) {
       hideGrupoEnCreacionBanner();
       return false;
@@ -438,6 +484,10 @@
     hasSeenGrupoBanner: hasSeenGrupoBanner,
     markGrupoBannerSeen: markGrupoBannerSeen,
     shouldShowGrupoEnCreacionBanner: shouldShowGrupoEnCreacionBanner,
+    grupoBannerVariant: grupoBannerVariant,
+    numAliadosActivosGrupo: numAliadosActivosGrupo,
+    applyGrupoBannerCopy: applyGrupoBannerCopy,
+    GRUPO_BANNER_COPY: GRUPO_BANNER_COPY,
     maybeShowGrupoEnCreacionBanner: maybeShowGrupoEnCreacionBanner,
     dismissGrupoEnCreacionBanner: dismissGrupoEnCreacionBanner,
     hideGrupoEnCreacionBanner: hideGrupoEnCreacionBanner,

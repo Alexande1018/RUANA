@@ -79,6 +79,66 @@
   }
 
   /**
+   * Directorio sin otros profesionales: mismo texto que el banner de fundador.
+   * Si el vacío viene de la búsqueda, el mensaje es otro y no invita.
+   */
+  var DIRECTORIO_MENSAJE_FUNDADOR_TITULO = 'Eres el primero de tu zona';
+  var DIRECTORIO_MENSAJE_FUNDADOR = 'Todavía no hay más profesionales en tu grupo. Invita a 2 o 3 profesionales de confianza de otros oficios: cuantos más seamos, más encargos nos podremos pasar.';
+  var DIRECTORIO_SIN_RESULTADOS = 'Ningún profesional de tu grupo coincide con la búsqueda.';
+
+  function estadoDirectorioVacio(query) {
+    var q = String(query || '').trim();
+    if (q) {
+      return {
+        tipo: 'sin_resultados',
+        titulo: '',
+        mensaje: DIRECTORIO_SIN_RESULTADOS,
+        invitar: false
+      };
+    }
+    return {
+      tipo: 'fundador',
+      titulo: DIRECTORIO_MENSAJE_FUNDADOR_TITULO,
+      mensaje: DIRECTORIO_MENSAJE_FUNDADOR,
+      invitar: true
+    };
+  }
+
+  function renderListaVacia(host, lista, query) {
+    var estado = estadoDirectorioVacio(query);
+    lista.innerHTML = '';
+    var wrap = document.createElement('div');
+    wrap.className = estado.invitar ? 'directorio-vacio' : 'directorio-sin-resultados';
+    if (estado.titulo) {
+      var title = document.createElement('h3');
+      title.className = 'directorio-vacio-titulo';
+      title.textContent = estado.titulo;
+      wrap.appendChild(title);
+    }
+    var texto = document.createElement('p');
+    texto.className = estado.invitar ? 'directorio-vacio-texto' : 'directorio-sin-resultados-texto';
+    texto.textContent = estado.mensaje;
+    wrap.appendChild(texto);
+    if (estado.invitar) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'directorio-vacio-cta';
+      btn.setAttribute('data-action', 'invitar-aliado');
+      btn.textContent = 'Ampliar mi red';
+      btn.addEventListener('click', function () {
+        if (host && typeof host.generarCodigoInvitacionPerfil === 'function') {
+          host.generarCodigoInvitacionPerfil();
+        }
+      });
+      wrap.appendChild(btn);
+    }
+    lista.appendChild(wrap);
+    if (query) {
+      pedirProximidad(host, lista, query);
+    }
+  }
+
+  /**
    * Renderizar lista de profesionales del grupo (panel Directorio).
    * @param {object} host PrivatePanel
    */
@@ -113,14 +173,7 @@
       : profesionalesDisponibles;
 
     if (filtrados.length === 0) {
-      var emptyMsg = query
-        ? 'Ningún profesional de tu grupo coincide con la búsqueda.'
-        : 'No hay profesionales disponibles en este momento';
-      listaProfesionales.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">' +
-        emptyMsg + '</p>';
-      if (query) {
-        pedirProximidad(host, listaProfesionales, query);
-      }
+      renderListaVacia(host, listaProfesionales, query);
       return;
     }
 
@@ -259,6 +312,10 @@
     render: render,
     refresh: refresh,
     renderProfesionales: renderProfesionales,
+    estadoDirectorioVacio: estadoDirectorioVacio,
+    DIRECTORIO_MENSAJE_FUNDADOR_TITULO: DIRECTORIO_MENSAJE_FUNDADOR_TITULO,
+    DIRECTORIO_MENSAJE_FUNDADOR: DIRECTORIO_MENSAJE_FUNDADOR,
+    DIRECTORIO_SIN_RESULTADOS: DIRECTORIO_SIN_RESULTADOS,
     codigosConConversacionActiva: codigosConConversacionActiva,
     scoreEtiquetaMeta: scoreEtiquetaMeta,
   };
