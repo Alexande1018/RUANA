@@ -15,6 +15,8 @@
 
 ---
 
+**Cómo se creaba el grupo general (Grupo Madre) antes del territorial:** ver [`GRUPO_GENERAL_ANTES_TERRITORIAL.md`](GRUPO_GENERAL_ANTES_TERRITORIAL.md). Ese camino se quitó en este cambio; el alta actual no lo usa.
+
 ## Qué se eliminó
 
 - Servicio y repositorio de Grupo Madre (`grupo_madre_service.py`, `grupo_madre_repo.py`).
