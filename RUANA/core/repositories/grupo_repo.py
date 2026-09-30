@@ -53,6 +53,26 @@ class GrupoRepo:
         )
         return cursor.fetchone() is not None
 
+    def tiene_oficio_de_otro(
+        self, cursor, grupo_id: int, oficio: str, codigo_excluir: str
+    ) -> bool:
+        """True si otro aliado activo del grupo ya ocupa ese oficio.
+
+        Misma comparación que tiene_oficio (alta). No cuenta al propio aliado:
+        en una competencia puede haber dos activos del mismo oficio.
+        """
+        if not self.tiene_oficio(cursor, grupo_id, oficio):
+            return False
+        cursor.execute(
+            """
+            SELECT 1 FROM aliados
+            WHERE grupo_id = ? AND oficio = ? AND estado = 'activo' AND codigo != ?
+            LIMIT 1
+            """,
+            (grupo_id, oficio, codigo_excluir),
+        )
+        return cursor.fetchone() is not None
+
     def listar_activos_por_cp_con_n_aliados(
         self, cursor, codigo_postal: str
     ) -> List[Any]:
