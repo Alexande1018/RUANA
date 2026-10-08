@@ -167,16 +167,16 @@ def test_contratante_amount_closes_contact_and_generates_pending_support(sqlite_
     contacto = sqlite_db.obtener_contacto_por_id(contacto_id)
     assert contacto["importe_final"] == 100.0
     assert contacto["importe_profesional"] is None
-    assert contacto["apoyo_ruana"] == 12.0
-    assert contacto["comision"] == 12.0
-    assert contacto["comision_porcentaje"] == 0.12
+    assert contacto["apoyo_ruana"] == 5.0
+    assert contacto["comision"] == 5.0
+    assert contacto["comision_porcentaje"] == 0.05
     assert contacto["estado_pago"] == "pendiente_pago"
     assert contacto["pendiente_pago"] == 1
 
     pendientes = sqlite_db.listar_contactos_pago_pendiente_profesional("PRO")
     assert len(pendientes) == 1
     assert pendientes[0]["id"] == contacto_id
-    assert pendientes[0]["apoyo_ruana"] == 12.0
+    assert pendientes[0]["apoyo_ruana"] == 5.0
 
 
 def test_profesional_with_pending_support_cannot_receive_new_contact(sqlite_db):

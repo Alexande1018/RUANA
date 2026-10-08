@@ -97,7 +97,7 @@ def test_01_refund_total_antes_iniciar_devuelve_comision_completa():
         importe_bruto_cents=50000, causa=CausaReembolso.SERVICIO_NO_INICIADO,
     )
     assert err is None
-    assert impacto.comision_devuelta_cents == 6000
+    assert impacto.comision_devuelta_cents == 2500
     assert impacto.comision_conservada_cents == 0
 
 
@@ -107,9 +107,9 @@ def test_02_incumplimiento_profesional_devuelve_comision_no_ejecutada():
         parte_ejecutada_cents=5000,
     )
     assert err is None
-    assert impacto.comision_total_cents == 1200
-    assert impacto.comision_conservada_cents == 600
-    assert impacto.comision_devuelta_cents == 600
+    assert impacto.comision_total_cents == 500
+    assert impacto.comision_conservada_cents == 250
+    assert impacto.comision_devuelta_cents == 250
 
 
 def test_03_refund_parcial_calcula_comision_proporcional():
@@ -118,8 +118,8 @@ def test_03_refund_parcial_calcula_comision_proporcional():
         parte_ejecutada_cents=2500,
     )
     assert err is None
-    assert impacto.comision_conservada_cents == 300
-    assert impacto.comision_devuelta_cents == 900
+    assert impacto.comision_conservada_cents == 125
+    assert impacto.comision_devuelta_cents == 375
 
 
 def test_04_cancelacion_injustificada_conserva_comision():
@@ -129,7 +129,7 @@ def test_04_cancelacion_injustificada_conserva_comision():
         conservar_comision_total=True,
     )
     assert err is None
-    assert impacto.comision_conservada_cents == 1200
+    assert impacto.comision_conservada_cents == 500
     assert impacto.comision_devuelta_cents == 0
 
 
@@ -139,6 +139,42 @@ def test_05_error_ruana_devuelve_comision_completa():
     )
     assert err is None
     assert impacto.comision_devuelta_cents == impacto.comision_total_cents
+
+
+def test_06b_reembolso_respeta_comision_ya_guardada_al_12():
+    impacto, err = calcular_impacto_comision_refund(
+        importe_bruto_cents=50000,
+        causa=CausaReembolso.SERVICIO_NO_INICIADO,
+        comision_total_cents=6000,
+    )
+    assert err is None
+    assert impacto.comision_total_cents == 6000
+    assert impacto.comision_devuelta_cents == 6000
+
+
+@patch("core.stripe_client.create_refund")
+def test_06c_reembolso_de_encargo_historico_no_usa_el_5(mock_cr, sqlite_db):
+    cid, _ = _seed(sqlite_db, importe=500.0)
+    mock_cr.return_value = _mock_stripe_refund(amount=50000)
+    r = frs.ejecutar_reembolso(
+        sqlite_db, cid, importe_solicitado_cents=50000,
+        actor="admin", idempotency_key="hist-12",
+        causa_ruana=CausaReembolso.SERVICIO_NO_INICIADO.value,
+    )
+    assert r["status"] == "success"
+    conn = sqlite_db._connect()
+    row = conn.execute(
+        "SELECT comision_total_cents, comision_devuelta_cents FROM financial_refunds WHERE contacto_id=?",
+        (cid,),
+    ).fetchone()
+    apoyo = conn.execute(
+        "SELECT apoyo_ruana FROM contactos_ruana WHERE id=?",
+        (cid,),
+    ).fetchone()
+    conn.close()
+    assert apoyo[0] == round(500 * 0.12, 2)
+    assert row[0] == 6000
+    assert row[1] == 6000
 
 
 def test_06_caso_indeterminado_bloqueado():

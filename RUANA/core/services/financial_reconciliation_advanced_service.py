@@ -314,9 +314,11 @@ def comparar_snapshots(
         discrepancias.append(TipoDiscrepancia.FEE_MISMATCH)
 
     com_r = int(r_imp.get("comision_ruana") or 0)
-    esperada = comision_ruana_cents(bruto_r) if bruto_r else 0
-    if com_r and esperada and com_r != esperada:
-        warnings.append("comision_ruana_divergente")
+    # Un encargo con apoyo ya guardado no se compara contra la tasa vigente.
+    if not r_imp.get("comision_congelada"):
+        esperada = comision_ruana_cents(bruto_r) if bruto_r else 0
+        if com_r and esperada and com_r != esperada:
+            warnings.append("comision_ruana_divergente")
 
     if discrepancias:
         return EstadoReconciliacionAvanzada.MISMATCH, discrepancias, warnings

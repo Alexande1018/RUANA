@@ -20,7 +20,6 @@ from core import negociacion_manager as neg_mgr
 from core.financial.money import (
     calcular_desglose_stripe_cents,
     cents_a_importe_bd,
-    comision_ruana_cents,
     importe_bd_a_cents,
 )
 from core.repositories.contacto_repo import ContactoRepo
@@ -463,8 +462,9 @@ def registrar_importe_contacto(db, contacto_id: int, parte: str,
 
             if importe_sol is not None:
                 if importe_prof is None or importe_bd_a_cents(importe_sol) == importe_bd_a_cents(importe_prof):
+                    pct_vigente = int(round(db._get_apoyo_pct()))
                     _, apoyo_c, _, comision_pct = calcular_desglose_stripe_cents(
-                        importe_bd_a_cents(importe_sol)
+                        importe_bd_a_cents(importe_sol), pct_vigente
                     )
                     apoyo_ruana = cents_a_importe_bd(apoyo_c)
                     _repo.update_trabajo_cerrado(
@@ -635,17 +635,15 @@ def obtener_contacto_resumen(db, contacto_id: int) -> Optional[Dict[str, Any]]:
                 return None
             if 'es_urgente' in d:
                 d['es_urgente'] = bool(int(d.get('es_urgente') or 0))
-            # Reparación: si trabajo cerrado con importe_final pero apoyo_ruana/comision faltan, calcular
+            # No recalcular con la tasa vigente: un encargo cerrado conserva el apoyo guardado.
+            # Si solo falta una de las dos columnas, se copia la que sí está.
             if d.get('estado') == 'trabajo_cerrado' and d.get('importe_final') is not None:
                 ap = d.get('apoyo_ruana') if 'apoyo_ruana' in d else None
                 com = d.get('comision')
-                if ap is None or com is None:
-                    calculado = cents_a_importe_bd(
-                        comision_ruana_cents(importe_bd_a_cents(d['importe_final']))
-                    )
-                    if 'apoyo_ruana' in d:
-                        d['apoyo_ruana'] = calculado
-                    d['comision'] = calculado
+                if ap is None and com is not None and 'apoyo_ruana' in d:
+                    d['apoyo_ruana'] = com
+                elif com is None and ap is not None:
+                    d['comision'] = ap
             return d
         except Exception as e:
             print(f"Error obteniendo resumen de contacto: {e}")
