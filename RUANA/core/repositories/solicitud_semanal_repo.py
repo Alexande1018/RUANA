@@ -55,6 +55,23 @@ class SolicitudSemanalRepo:
         row = cursor.fetchone()
         return int(row[0]) if row else None
 
+    def select_id_estado_semana(
+        self, cursor, solicitante_codigo: str, semana_inicio: str
+    ) -> Optional[Tuple[int, str]]:
+        """Id y estado de la solicitud de esa semana, sea cual sea el estado."""
+        cursor.execute(
+            """
+            SELECT id, estado FROM solicitudes_semanales
+            WHERE solicitante_codigo = ? AND semana_inicio = ?
+            LIMIT 1
+            """,
+            (solicitante_codigo, semana_inicio),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return (int(row[0]), row[1] or "")
+
     def insertar(
         self,
         cursor,

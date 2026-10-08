@@ -88,6 +88,14 @@ def _grupo_tiene_oficio(db, cursor, grupo_id: int, oficio: str) -> bool:
         return False
     return _repo.tiene_oficio(cursor, grupo_id, oficio.strip())
 
+def plaza_ocupada_por_otro(db, cursor, grupo_id: int, oficio: str, codigo_excluir: str) -> bool:
+    """True si otro aliado activo (no codigo_excluir) ya ocupa la plaza del oficio."""
+    if not oficio or not grupo_id:
+        return False
+    return _repo.tiene_oficio_de_otro(
+        cursor, grupo_id, oficio.strip(), (codigo_excluir or "").strip()
+    )
+
 def _grupo_tiene_plaza(db, cursor, grupo_id: int, oficio_principal: str, especializacion: Optional[str] = None) -> bool:
     """True si la plaza (oficio_principal) ya está ocupada en el grupo. Plaza por oficio principal únicamente."""
     if not grupo_id or not oficio_principal:
