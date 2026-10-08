@@ -50,6 +50,8 @@ Documentación para handoff, auditoría y continuidad operativa:
 | Ruta | Contenido |
 |------|-----------|
 | [`exports/AUDITORIA_DOCUMENTAL_2026-08-15.md`](exports/AUDITORIA_DOCUMENTAL_2026-08-15.md) | Auditoría documental anterior |
+| [`auditoria/GRUPO_GENERAL_ANTES_TERRITORIAL.md`](auditoria/GRUPO_GENERAL_ANTES_TERRITORIAL.md) | Cómo se creaba el grupo general (Grupo Madre) antes del territorial |
+| [`auditoria/INFORME_FINAL_TERRITORIO_DIRECTO.md`](auditoria/INFORME_FINAL_TERRITORIO_DIRECTO.md) | Territorio directo por CP (el alta ya no usa Madre) |
 | [`INFORME_REORGANIZACION_DOCS.md`](INFORME_REORGANIZACION_DOCS.md) | Informe reorganización documental |
 | [`archive/`](archive/) | Documentación histórica (no borrar) |
 
