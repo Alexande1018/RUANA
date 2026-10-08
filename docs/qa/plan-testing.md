@@ -57,7 +57,7 @@ npm run qa:e2e
 
 Al interpretar resultados, usar reglas del Manual Maestro y valores verificados en código:
 
-- `apoyo_pct = 12.0` → `comision_porcentaje = 0.12` en runtime
+- `apoyo_pct = 5.0` → `comision_porcentaje = 0.05` en encargos nuevos. Un encargo con apoyo ya guardado conserva su tasa (p. ej. 0.12).
 - Chat mensajes: máx. **30** totales, vigencia **48 h**
 - Flujo de encargo: **negociación guiada**, no chat libre global (rutas legacy → 410)
 

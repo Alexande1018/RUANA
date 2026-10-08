@@ -28,7 +28,7 @@ const HTML = `<!DOCTYPE html>
   <script src="/static/js/ruana-alert-hub.js"></script>
   <script>
     const items = [
-      { id: 'apoyo-pago', type: 'payment', priority: 100, title: 'Apoyo RUANA (12%) pendiente', description: 'Fontanería · 24,50 €', actionLabel: 'Gestionar', hasDetail: true },
+      { id: 'apoyo-pago', type: 'payment', priority: 100, title: 'Apoyo RUANA pendiente', description: 'Fontanería · 24,50 €', actionLabel: 'Gestionar', hasDetail: true },
       { id: 'mensajes-ruana', type: 'message', priority: 90, title: '2 mensajes de RUANA', description: 'Comunicaciones sin leer del equipo RUANA', actionLabel: 'Ver', hasDetail: true },
       { id: 'pagos-restriccion', type: 'info', priority: 70, title: 'Nuevos trabajos limitados', description: 'Regulariza tus pagos para aceptar encargos', actionLabel: null, hasDetail: false }
     ];

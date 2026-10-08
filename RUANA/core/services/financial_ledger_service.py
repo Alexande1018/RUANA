@@ -270,11 +270,19 @@ def registrar_pago_confirmado(
     idempotency_key: str,
     actor: str = "webhook",
     stripe_fee_cents: int = 0,
+    comision_cents: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """Cadena contable de pago recibido + obligación profesional/comisión."""
+    """Cadena contable de pago recibido + obligación profesional/comisión.
+
+    `comision_cents` conserva el apoyo ya guardado en el encargo. Si no viene,
+    el asiento nuevo usa la tasa vigente.
+    """
     if importe_bruto_cents <= 0:
         return {"status": "ignored", "message": "importe cero"}
-    comision = comision_ruana_cents(importe_bruto_cents)
+    if comision_cents is None:
+        comision = comision_ruana_cents(importe_bruto_cents)
+    else:
+        comision = max(0, min(int(comision_cents), int(importe_bruto_cents)))
     neto_pro = max(0, importe_bruto_cents - comision)
 
     r1 = publicar_transaccion(

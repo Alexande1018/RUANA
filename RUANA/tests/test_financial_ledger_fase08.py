@@ -163,8 +163,8 @@ def test_12_pago_crea_asientos_correctos(sqlite_db):
     assert saldo["credit_cents"] == comision_ruana_cents(100000)
 
 
-def test_13_comision_12_porciento(sqlite_db):
-    assert comision_ruana_cents(100000) == 12000
+def test_13_comision_5_porciento(sqlite_db):
+    assert comision_ruana_cents(100000) == 5000
 
 
 def test_14_transfer_crea_obligacion(sqlite_db):
