@@ -618,7 +618,7 @@
           host._adminAliadosLoading = false;
           host.renderAliadosJerarquia();
           host.renderEventos((eventosData && eventosData.status === 'success' && Array.isArray(eventosData.eventos)) ? eventosData.eventos : []);
-          const permisos = (statsData && Array.isArray(statsData.permisos)) ? statsData.permisos : ['leer', 'escribir', 'eliminar', 'configurar'];
+          const permisos = (statsData && Array.isArray(statsData.permisos)) ? statsData.permisos : [];
           host.applyPermisosUI(permisos);
           host.renderConflictosPago((conflictosData && conflictosData.status === 'success' && Array.isArray(conflictosData.conflictos)) ? conflictosData.conflictos : []);
           host.renderPagosApoyo((pagosApoyoData && pagosApoyoData.status === 'success' && Array.isArray(pagosApoyoData.pagos)) ? pagosApoyoData.pagos : []);
@@ -930,7 +930,7 @@
       var eventosData = payload.eventosData;
       host.renderEventos((eventosData && eventosData.status === 'success' && Array.isArray(eventosData.eventos)) ? eventosData.eventos : []);
       var statsData = payload.statsData;
-      var permisos = (statsData && Array.isArray(statsData.permisos)) ? statsData.permisos : ['leer', 'escribir', 'eliminar', 'configurar'];
+      var permisos = (statsData && Array.isArray(statsData.permisos)) ? statsData.permisos : [];
       if (typeof host.applyPermisosUI === 'function') host.applyPermisosUI(permisos);
   }
 

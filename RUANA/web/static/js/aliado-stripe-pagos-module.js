@@ -61,7 +61,7 @@
     if (!Number.isNaN(pct) && pct > 0) {
       return pct <= 1 ? `${Math.round(pct * 100)}%` : `${Math.round(pct)}%`;
     }
-    return '12%';
+    return '5%';
   }
 
   function desgloseStripeHtml(contacto) {

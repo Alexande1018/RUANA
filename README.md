@@ -65,14 +65,14 @@ Orden profesional territorial: un oficio principal por plaza en cada grupo, repu
 | Una plaza = un oficio principal por grupo | `grupo_service` + docs de flujo | Especializaciones no ocupan plaza |
 | Score inicial al registrarse = 50 | `aliado_service` / flujo registro | |
 | Umbral de competencia = 15 | `ruana_reglas_v1.json` | Reinicio tras derrota: 50 |
-| Apoyo RUANA = % sobre importe | `apoyo_pct` (12.0 en config) | `pago_service` |
+| Apoyo RUANA = % sobre importe | `apoyo_pct` (5.0 en config) y `COMISION_RUANA_PCT = 5` | Encargos nuevos. El apoyo ya guardado en cada encargo no se recalcula |
 | Backend-first | Flask sirve UI y API | Firebase Hosting reescribe a Cloud Run |
 | Campamento Base | 36 `services/` + 30 `repositories/` con SQL real + fachada `DBManager` (~1.925 LOC) | Extracción avanzada; `DBManager` sigue como compatibilidad |
 
 ### ⚠️ INCONSISTENCIAS / DISCREPANCIAS DETECTADAS
 
 1. **Chat libre vs negociación:** las rutas legacy `/api/chat_enviar`, `/api/chat/enviar` (POST) responden **410** (`negociacion_bp`). El flujo vigente de encargo es **negociación guiada**. El chat de mensajes (`chat_service`, tabla `chat_mensajes`) sigue existiendo para contactos que lo usen vía `/api/contactos/<id>/mensajes`, pero la UI principal no promueve chat libre.
-2. **Esquema `comision_porcentaje`:** DDL default `0.05` en `schema_service`; en runtime el cierre usa `apoyo_pct/100` (= **0.12** con config actual). Ver `contacto_service`.
+2. **Esquema `comision_porcentaje`:** el default de altas nuevas es `0.05` (5 %). El cierre escribe la tasa en la fila. Un encargo que ya tiene `apoyo_ruana` conserva ese importe (p. ej. 12 %).
 3. **Esquema competencia `suplente_*` vs `retador_*`:** migración renombra; código mantiene compatibilidad.
 4. **RLS vs service role:** migraciones definen RLS; el backend usa **service role** y bypasea RLS. La autorización efectiva es la de la API Flask.
 5. **Drift SQLite/Postgres:** varias tablas/columnas existen solo en init SQLite o parches runtime Postgres (`schema_service._init_postgres_schema`). No asumir paridad sin verificar migraciones.
@@ -318,7 +318,7 @@ Fuente: `score_service` (rango **0–500**, tope diario **±10**):
 
 ### Encargos y Apoyo
 
-- Contacto → trabajo → declarar importe → Apoyo = `importe × apoyo_pct/100` (default 12%).
+- Contacto → trabajo → declarar importe → Apoyo = `importe × tasa` (5 % en encargos nuevos; la tasa ya guardada no se reescribe).
 - Comprobante → revisión admin → posible impugnación.
 - Cobro manual: Bizum / IBAN / QR (config en `ruana_reglas_v1.json`).
 - Cobro Stripe Connect: checkout + transfer al profesional (si `RUANA_STRIPE_PAYMENTS_ENABLED=1`).
@@ -565,7 +565,7 @@ Firebase Auth admin; cablear `profiles`/Supabase Auth al login; sincronización 
 4. Datos de cobro en `ruana_reglas_v1.json` versionado.
 5. Revocación de sesión en memoria (multi-instancia).
 6. Admin credenciales JSON puente.
-7. `comision_porcentaje` DDL (0.05) vs runtime (`apoyo_pct/100`).
+7. Encargos históricos pueden tener `comision_porcentaje` 0.12; los nuevos se cierran a 0.05. No hay un UPDATE masivo.
 
 ### Deuda técnica
 

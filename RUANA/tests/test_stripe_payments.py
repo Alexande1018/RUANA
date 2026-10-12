@@ -69,7 +69,7 @@ def test_activar_pago_stripe_congela_importe(sqlite_db):
     assert row[0] == 1
     assert row[1] == 500.0
     assert row[2] == "stripe"
-    assert row[3] == 440.0  # 88% de 500 con apoyo 12%
+    assert row[3] == 475.0  # 95% de 500 con apoyo 5%
 
 
 @patch("core.services.pago_service.stripe_client.create_checkout_session")
@@ -123,7 +123,7 @@ def test_confirmar_trabajo_solo_contratante_transfiere(mock_transfer, sqlite_db)
     assert res["estado_pago"] == "transfer_pendiente"
     assert res["estado_financiero"] == "TRANSFERENCIA_ENVIADA"
     mock_transfer.assert_called_once()
-    assert mock_transfer.call_args.kwargs["amount_cents"] == 44000
+    assert mock_transfer.call_args.kwargs["amount_cents"] == 47500
     assert mock_transfer.call_args.kwargs["destination_account_id"] == "acct_test123"
 
 
@@ -157,7 +157,7 @@ def test_webhook_idempotente(sqlite_db):
 
 
 def test_flujo_estados_cobro_retencion_reparto(sqlite_db):
-    """Punta a punta: pendiente → cobro confirmado (retenido) → transferencia 88 %."""
+    """Punta a punta: pendiente → cobro confirmado (retenido) → transferencia 95 %."""
     from core.financial.money import calcular_desglose_stripe_cents, importe_bd_a_cents
 
     contacto_id = _seed_stripe_contacto(sqlite_db, 199.99)
@@ -186,4 +186,4 @@ def test_flujo_estados_cobro_retencion_reparto(sqlite_db):
     assert importe_bd_a_cents(row[4]) == neto_c
     assert importe_bd_a_cents(row[5]) == apoyo_c
     assert neto_c + apoyo_c == bruto_c
-    assert neto_c == (bruto_c * 88) // 100 or neto_c == bruto_c - ((bruto_c * 12) // 100)
+    assert neto_c == bruto_c - ((bruto_c * 5) // 100)

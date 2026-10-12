@@ -647,6 +647,36 @@ def listar_aliados_en_pool(db) -> List[Dict[str, Any]]:
         finally:
             conn.close()
 
+def contar_aliados_panel(db) -> Dict[str, int]:
+    """Mismos aliados que lista el panel, contados sin la SQL pesada de listar_admin.
+
+    La usa el resumen (`total_users` / `active_users`) y `/api/stats`
+    (`total_aliados` / `aliados_activos`) para que las dos pantallas no
+    diverjan. No incluye sistema, pendiente_completar, eliminado, expulsado
+    ni suspendido_temporal. Un COUNT(*) sin filtro sí los incluiría.
+    """
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            total, activos = _repo.contar_visibles_panel(cursor)
+            return {"total": total, "activos": activos}
+        except Exception as e:
+            logger.error(
+                "Fallo al contar aliados del panel",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
+            return {"total": 0, "activos": 0}
+        finally:
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+
 def listar_aliados(db, filtro_postal: str = None) -> List[Dict[str, Any]]:
     """
     Lista todos los aliados, opcionalmente filtrados por código postal
@@ -1445,6 +1475,42 @@ def registrar_consentimiento_aliado(
                 exc_info=True,
             )
             return {"status": "error", "message": str(e)}
+        finally:
+            if conn is not None:
+                conn.close()
+
+
+def deshacer_alta_sin_consentimiento(db, codigo_aliado: str) -> None:
+    """Borra el aliado recién creado si no se pudo registrar el consentimiento."""
+    codigo = (codigo_aliado or "").strip()
+    if not codigo:
+        return
+    with db._lock:
+        conn = None
+        try:
+            conn = db._connect()
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    "DELETE FROM consentimientos_aliado WHERE codigo_aliado = ?",
+                    (codigo,),
+                )
+            except Exception:
+                pass
+            _repo.delete_por_codigo(cursor, codigo)
+            conn.commit()
+        except Exception as e:
+            logger.error(
+                "Fallo al deshacer el alta sin consentimiento",
+                extra={"aliado_codigo": codigo, "error": str(e)},
+                exc_info=True,
+            )
+            if conn is not None:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            raise
         finally:
             if conn is not None:
                 conn.close()

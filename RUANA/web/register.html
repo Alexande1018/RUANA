@@ -811,7 +811,6 @@
                     <span>Código de acceso</span>
                     <strong id="codigo-lock-value"></strong>
                 </div>
-                <!-- Nombre o marca -->
                 <div class="form-group">
                     <label for="nombre">Nombre completo *</label>
                     <input 
@@ -820,17 +819,6 @@
                         id="nombre" 
                         placeholder="Tu nombre completo"
                         required
-                    >
-                </div>
-
-                <!-- Marca personal -->
-                <div class="form-group">
-                    <label for="marca">Marca personal / Nombre comercial (opcional)</label>
-                    <input 
-                        type="text" 
-                        class="register-input" 
-                        id="marca" 
-                        placeholder="Cómo prefieres ser identificado"
                     >
                 </div>
 
@@ -876,17 +864,8 @@
                     </div>
                 </div>
 
-                <!-- Suboficios eliminados: la plaza es por oficio principal -->
-
-                <!-- Descripción del servicio -->
-                <div class="form-group">
-                    <label for="descripcion">Descripción breve del servicio (opcional)</label>
-                    <textarea 
-                        class="register-textarea" 
-                        id="descripcion" 
-                        placeholder="Cuéntanos brevemente sobre tu servicio o especialidad. Puedes completarla después en tu perfil."
-                    ></textarea>
-                </div>
+                <!-- Suboficios eliminados: la plaza es por oficio principal.
+                     Marca y descripción se completan después en el panel. -->
 
                 <!-- Email -->
                 <div class="form-group">
@@ -951,16 +930,12 @@
                     <input type="hidden" id="telefono" name="telefono">
                 </div>
 
-                <div class="register-legal-layer" id="register-legal-layer">
-                    <p><strong>Información básica sobre protección de datos</strong> (art. 13 RGPD).</p>
-                    <ul>
-                        <li><strong>Responsable:</strong> Carlos Alexander Acero (nombre comercial RUANA).</li>
-                        <li><strong>Finalidad:</strong> gestionar su alta y el uso de la plataforma de aliados.</li>
-                        <li><strong>Legitimación:</strong> ejecución del contrato de uso; obligación legal (facturación y acreditación); interés legítimo en prevenir fraude.</li>
-                        <li><strong>Destinatarios:</strong> otros aliados cuando el servicio lo requiera; encargados (Supabase, Google Cloud, Gmail, Stripe Connect).</li>
-                        <li><strong>Derechos:</strong> acceso, rectificación, supresión, oposición, portabilidad y limitación, en <a href="mailto:team.ruana@gmail.com">team.ruana@gmail.com</a> o en la <a href="/politica-privacidad.html" target="_blank" rel="noopener">Política de privacidad</a>.</li>
-                    </ul>
-                </div>
+                <p class="register-legal-layer" id="register-legal-layer">
+                    Información de protección de datos (art. 13 RGPD):
+                    <a href="/politica-privacidad.html" target="_blank" rel="noopener">Política de privacidad</a>
+                    y
+                    <a href="/terminos.html" target="_blank" rel="noopener">Términos de uso</a>.
+                </p>
 
                 <!-- Checkbox de condiciones: obligatorio, no premarcado -->
                 <div class="form-group">
@@ -1029,6 +1004,7 @@
             }
 
             init() {
+                this.purgeDatosPersonalesAlmacenados();
                 this.initPhoneInput();
                 this.loadCatalogo();
                 this.initCpPreview();
@@ -1043,6 +1019,15 @@
                 if (btnAcceso) btnAcceso.addEventListener('click', () => this.setGateMode('acceso'));
                 this.captureUtms();
                 this.applyComoConocisteDefault();
+            }
+
+            purgeDatosPersonalesAlmacenados() {
+                // Claves antiguas del alta que guardaban nombre, email, teléfono y el resto del formulario.
+                const claves = ['ruana_aliados', 'ruana_aliado_data'];
+                claves.forEach((clave) => {
+                    try { localStorage.removeItem(clave); } catch (_) {}
+                    try { sessionStorage.removeItem(clave); } catch (_) {}
+                });
             }
 
             setStatus(message) {
@@ -1479,8 +1464,6 @@
 
                 // Validar todos los campos
                 const nombre = document.getElementById('nombre').value.trim();
-                const marca = document.getElementById('marca').value.trim();
-                const descripcion = document.getElementById('descripcion').value.trim();
                 const codigoPostal = document.getElementById('codigo-postal').value.trim();
                 const email = document.getElementById('email').value.trim();
                 if (this.phoneInput) this.phoneInput.syncHiddenInput();
@@ -1491,11 +1474,6 @@
                 // Validaciones básicas
                 if (!nombre || nombre.length < 2) {
                     this.showError('El nombre debe tener al menos 2 caracteres');
-                    return;
-                }
-
-                if (marca && marca.length < 2) {
-                    this.showError('Si indicas una marca personal, usa al menos 2 caracteres');
                     return;
                 }
 
@@ -1549,10 +1527,8 @@
                 const comoSelect = document.getElementById('como-nos-conociste');
                 this.submitRegistration({
                     nombre,
-                    marca,
                     oficio: oficioEnviar,
                     oficio_principal: oficioPrincipalVal === '__otro__' ? oficioEnviar : oficioPrincipalVal,
-                    descripcion,
                     codigo_postal: codigoPostal,
                     email,
                     telefono,
@@ -1577,10 +1553,8 @@
                     },
                     body: JSON.stringify({
                         nombre: data.nombre,
-                        marca: data.marca,
                         oficio: data.oficio,
                         oficio_principal: data.oficio_principal || data.oficio,
-                        descripcion: data.descripcion || null,
                         codigo_postal: data.codigo_postal,
                         email: data.email,
                         telefono: data.telefono,
@@ -1599,32 +1573,15 @@
                         // El servidor generó el código
                         const codigoAliado = result.codigo;
                         const estadoBackend = result.estado || 'activo';
-                        const scoreBackend = (typeof result.score === 'number') ? result.score : 50;
-                        const creadoEn = result.creado_en || new Date().toISOString();
 
-                        const aliadoPayload = {
-                            ...data,
-                            codigo_aliado: codigoAliado,
-                            estado: estadoBackend,
-                            score: scoreBackend,
-                            descripcion_servicio: data.descripcion,
-                            creado_en: creadoEn,
-                            fecha_registro: creadoEn
-                        };
-                        
-                        // Guardar datos en localStorage (respaldo local)
-                        const aliadosRegistrados = JSON.parse(localStorage.getItem('ruana_aliados') || '{}');
-                        aliadosRegistrados[codigoAliado] = aliadoPayload;
-                        localStorage.setItem('ruana_aliados', JSON.stringify(aliadosRegistrados));
-
-                        // Tour: solo la primera entrada al panel tras registrarse
+                        // Tour: solo la primera entrada al panel tras registrarse.
+                        // El nombre, el email, el teléfono y el resto del formulario no se guardan en el navegador.
                         try {
                             localStorage.setItem('ruana_pending_onboarding_' + codigoAliado, '1');
                         } catch (_) {}
-                        
-                        // Guardar en sessionStorage solo si está activo (no pendiente, no en_espera)
+
+                        // Código de aliado (no es un dato del formulario) solo si está activo.
                         if (estadoBackend !== 'pendiente_validacion' && estadoBackend !== 'en_espera') {
-                            sessionStorage.setItem('ruana_aliado_data', JSON.stringify(aliadoPayload));
                             sessionStorage.setItem('ruana_codigo_aliado', codigoAliado);
                         } else {
                             sessionStorage.removeItem('ruana_aliado_data');
@@ -1657,19 +1614,11 @@
                     
             generarCodigoAliado() {
                 /**
-                 * ⚠️ DEPRECATED: Código ahora se genera en backend SQLite
-                 * Se mantiene solo como fallback para localStorage
+                 * DEPRECATED: el código lo genera el backend.
+                 * No consulta almacenamiento local: ahí no deben quedar datos del formulario.
                  * Formato: 5 dígitos numéricos (10000-99999)
                  */
-                let codigo;
-                let aliadosRegistrados = JSON.parse(localStorage.getItem('ruana_aliados') || '{}');
-                
-                // Generar código único localmente como fallback
-                do {
-                    codigo = String(Math.floor(Math.random() * 90000) + 10000);
-                } while (codigo in aliadosRegistrados);
-                
-                return codigo;
+                return String(Math.floor(Math.random() * 90000) + 10000);
             }
 
             mostrarModalCodigoAliado(codigo, mensajePendienteValidacion, mensajeListaEspera) {

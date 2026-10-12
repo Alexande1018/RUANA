@@ -288,10 +288,8 @@ async function registerAliadoViaUi(page, scenario, data) {
       expected: 'El formulario debe aceptar datos validos del catalogo.',
     });
     await fillVisible(page, '#nombre', data.nombre);
-    await fillVisible(page, '#marca', data.marca);
     await fillVisible(page, '#codigo-postal', data.codigo_postal);
     await selectVisible(page, '#oficio-principal', { label: data.oficio });
-    await fillVisible(page, '#descripcion', data.descripcion);
     await fillVisible(page, '#email', data.email);
     await fillVisible(page, '#telefono-nacional', nationalPhoneFromE164(data.telefono));
     await checkVisible(page, '#condiciones');

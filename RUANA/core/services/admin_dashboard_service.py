@@ -61,8 +61,13 @@ def build_dashboard_summary(
     """
     if aliados is None:
         aliados = aliado_service.listar_aliados(db)
-    total_users = len(aliados)
-    active_users = len([a for a in aliados if a.get("estado") == "activo"])
+    # Conteo propio: listar_aliados traga el error de su SQL pesada y devuelve
+    # []. Un COUNT(*) de generar_reporte / métricas de salud no filtra estado,
+    # así que podía mostrar 1 aliado (p. ej. la raíz sistema o un placeholder)
+    # mientras este resumen decía 0. Aquí se usa el mismo filtro que la lista.
+    conteo = aliado_service.contar_aliados_panel(db)
+    total_users = int(conteo.get("total") or 0)
+    active_users = int(conteo.get("activos") or 0)
     retadores = db.contar_retadores_activos()
     suplentes = retadores
     en_espera = db.contar_aliados_en_espera() if hasattr(db, "contar_aliados_en_espera") else 0

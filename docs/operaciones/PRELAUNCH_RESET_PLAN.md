@@ -139,7 +139,7 @@ Todo lo generado por QA, E2E, seeds, registro de prueba, encargos, pagos test, l
 |---------|-----------|--------|
 | Catálogo maestro de oficios | `RUANA/config/oficios_ruana.json` | Leído desde disco. **No hay tabla de oficios.** |
 | Catálogo CP España | `RUANA/config/cp_ciudad_es.json` | Fuente de `territorio_service` |
-| Reglas Score / Apoyo / competencia | `RUANA/config/ruana_reglas_v1.json` | `apoyo_pct` 12, umbral competencia 15, score reinicio 50, etc. El admin puede persistir cambios **en el fichero**, no en una tabla de parámetros. En Cloud Run el fichero es el de la imagen: cambios en runtime **no sobreviven a un redeploy**. Verificar antes del reset si hay reglas “solo en memoria”. |
+| Reglas Score / Apoyo / competencia | `RUANA/config/ruana_reglas_v1.json` | `apoyo_pct` 5, umbral competencia 15, score reinicio 50, etc. El admin puede persistir cambios **en el fichero**, no en una tabla de parámetros. En Cloud Run el fichero es el de la imagen: cambios en runtime **no sobreviven a un redeploy**. Verificar antes del reset si hay reglas “solo en memoria”. Stripe y el cierre de importe usan además `COMISION_RUANA_PCT` en código (5). |
 | Credenciales admin | GCP Secret Manager `ruana-admin-credentials` | **No están en Postgres.** Conservar. QA `ADMIN001`/`0000` solo en `admin_credentials.qa.json` (no se copia a Docker). |
 | Stripe keys, modo, webhook secret | Secret Manager / env | Conservar. Hoy el default operativo es **test**. |
 | `FLASK_SECRET_KEY`, `RUANA_CRON_SECRET`, SMTP, Supabase keys | Secretos | Conservar |

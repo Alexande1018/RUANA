@@ -24,9 +24,8 @@ sync_one_secret() {
     echo "Secreto GCP creado: $gcp_name"
   fi
 
-  printf '%s' "$github_value" | gcloud secrets versions add "$gcp_name" \
-    --data-file=- \
-    --project "$PROJECT_ID"
+  printf '%s' "$github_value" | bash .github/scripts/add-secret-version-if-changed.sh \
+    "$gcp_name" "$PROJECT_ID"
 
   gcloud secrets add-iam-policy-binding "$gcp_name" \
     --member="serviceAccount:${RUNTIME_SERVICE_ACCOUNT}" \
@@ -37,6 +36,6 @@ sync_one_secret() {
   echo "Stripe ${label} sincronizado en Secret Manager ($gcp_name)."
 }
 
-sync_one_secret "${STRIPE_SECRET_KEY:-}" "ruana-stripe-secret-key" "STRIPE_SECRET_KEY"
-sync_one_secret "${STRIPE_PUBLISHABLE_KEY:-}" "ruana-stripe-publishable-key" "STRIPE_PUBLISHABLE_KEY"
-sync_one_secret "${STRIPE_WEBHOOK_SECRET:-}" "ruana-stripe-webhook-secret" "STRIPE_WEBHOOK_SECRET"
+sync_one_secret "${STRIPE_SECRET_KEY:-}" "${RUANA_STRIPE_SECRET_KEY_GCP_SECRET_NAME:-ruana-stripe-secret-key}" "STRIPE_SECRET_KEY"
+sync_one_secret "${STRIPE_PUBLISHABLE_KEY:-}" "${RUANA_STRIPE_PUBLISHABLE_KEY_GCP_SECRET_NAME:-ruana-stripe-publishable-key}" "STRIPE_PUBLISHABLE_KEY"
+sync_one_secret "${STRIPE_WEBHOOK_SECRET:-}" "${RUANA_STRIPE_WEBHOOK_SECRET_GCP_SECRET_NAME:-ruana-stripe-webhook-secret}" "STRIPE_WEBHOOK_SECRET"

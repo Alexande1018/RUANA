@@ -113,12 +113,12 @@ UI o docs antiguos que referencien chat libre están obsoletos. Flujo vigente: n
 
 ---
 
-### K-11 — Discrepancia `comision_porcentaje` DDL vs runtime
+### K-11 — `comision_porcentaje` histórico vs tasa vigente
 
-**Estado:** Abierto  
-**Verificado:** default DDL 0.05; runtime usa `apoyo_pct/100` (= 0.12)
+**Estado:** Cerrado para trabajo nuevo  
+**Verificado:** altas nuevas y `ruana_reglas_v1.json` usan 5 % (`0.05`). Las filas que ya guardaron el apoyo (p. ej. 12 %) no se actualizan.
 
-Puede confundir auditorías de BD; el valor efectivo es el de `ruana_reglas_v1.json`.
+El default de columna en bases ya creadas puede seguir siendo el antiguo. No afecta: el cierre escribe la tasa en la fila.
 
 ---
 

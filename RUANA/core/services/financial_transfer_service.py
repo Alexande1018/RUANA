@@ -11,6 +11,7 @@ from core.financial.estados import EstadoFinanciero, EstadoTransferencia
 from core.financial.money import (
     cents_a_importe_bd,
     calcular_desglose_stripe_cents,
+    desglose_congelado_cents,
     importe_bd_a_cents,
 )
 from core.financial.state_machine import FinancialStateMachine
@@ -542,7 +543,11 @@ def _validar_precondiciones(
         contacto.get("importe_final") or contacto.get("importe_acordado")
     )
     if neto_cents <= 0 and bruto_cents > 0:
-        _, _, neto_cents, _ = calcular_desglose_stripe_cents(bruto_cents)
+        congelado = desglose_congelado_cents(contacto, bruto_cents)
+        if congelado is not None and (congelado[2] > 0 or congelado[1] > 0):
+            neto_cents = congelado[2] if congelado[2] > 0 else max(0, bruto_cents - congelado[1])
+        else:
+            _, _, neto_cents, _ = calcular_desglose_stripe_cents(bruto_cents)
     neto_val = cents_a_importe_bd(neto_cents)
     if neto_cents <= 0:
         return {"status": "error", "message": "Importe neto del profesional no válido", "bloqueo": "importe"}

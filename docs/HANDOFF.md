@@ -145,7 +145,7 @@ Rama convención agentes Cursor: `cursor/<nombre>-dccf`.
 1. Negociación guiada sustituye chat libre (410).
 2. Score 0–500 con tope ±10/día.
 3. Plaza = oficio principal; máx. 5 grupos por CP.
-4. Apoyo = `apoyo_pct` sobre importe (default 12%).
+4. Apoyo = 5 % sobre importe en encargos nuevos (`apoyo_pct` y `COMISION_RUANA_PCT`). El apoyo ya guardado en la fila no se recalcula.
 5. Autorización en API Flask, no confiar en RLS.
 6. Extracción Campamento Base: test CI antes de mover código de `DBManager`.
 

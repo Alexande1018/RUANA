@@ -43,7 +43,7 @@
         _alertHubState: { showAll: true, expandedDetailId: null },
         buildAlertItems: function () {
           return [
-            { id: 'apoyo-pago', type: 'payment', tone: 'prioritario', priority: 200, title: '3 apoyos RUANA pendientes', description: 'Regulariza el 12% de tus encargos.', actionLabel: 'Gestionar', hasDetail: true, createdAt: Date.now() },
+            { id: 'apoyo-pago', type: 'payment', tone: 'prioritario', priority: 200, title: '3 apoyos RUANA pendientes', description: 'Regulariza el apoyo de tus encargos.', actionLabel: 'Gestionar', hasDetail: true, createdAt: Date.now() },
             { id: 'pagos-restriccion', type: 'info', tone: 'thread', priority: 120, title: 'Nuevos trabajos limitados', description: 'Regulariza tus pagos de Apoyo RUANA para aceptar nuevos encargos.', createdAt: Date.now() },
             { id: 'mensajes-ruana', type: 'message', tone: 'estable', priority: 180, title: '1 mensaje de RUANA', description: 'Comunicación sin leer del equipo RUANA', actionLabel: 'Ver', hasDetail: true, createdAt: Date.now() }
           ];

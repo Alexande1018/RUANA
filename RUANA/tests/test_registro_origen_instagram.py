@@ -48,12 +48,16 @@ def _fila_origen(sqlite_db, codigo):
     return row
 
 
-def test_register_html_lee_codigo_utm_y_campos_opcionales():
+def test_register_html_lee_codigo_utm_sin_marca_ni_descripcion():
     html = (WEB / "register.html").read_text(encoding="utf-8")
     assert "params.get('codigo') || params.get('code')" in html
     assert "Anuncio en Instagram" in html
-    assert "Marca personal / Nombre comercial (opcional)" in html
-    assert "Descripción breve del servicio (opcional)" in html
+    assert 'id="marca"' not in html
+    assert 'id="descripcion"' not in html
+    assert "getElementById('marca')" not in html
+    assert "getElementById('descripcion')" not in html
+    assert "Marca personal / Nombre comercial" not in html
+    assert "Descripción breve del servicio" not in html
     assert "ruana_utm" in html
     assert "Ese código no es válido o ya no está activo" in html
     assert "oficio-picker-list" in html

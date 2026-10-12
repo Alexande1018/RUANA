@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from core.financial.money import comision_ruana_cents, importe_bd_a_cents
+from core.financial.money import comision_ruana_cents, desglose_congelado_cents, importe_bd_a_cents
 
 RECONCILER_VERSION = "fase07-1"
 
@@ -48,7 +48,12 @@ def build_ruana_snapshot(contacto: Dict[str, Any]) -> Dict[str, Any]:
     cid = int(contacto.get("id") or 0)
     bruto = importe_bd_a_cents(contacto.get("importe_acordado") or contacto.get("importe_final"))
     neto_pro = importe_bd_a_cents(contacto.get("importe_neto_profesional"))
-    comision = comision_ruana_cents(bruto)
+    congelado = desglose_congelado_cents(contacto, bruto)
+    if congelado is not None:
+        comision = congelado[1]
+        snap["importes_cents"]["comision_congelada"] = 1
+    else:
+        comision = comision_ruana_cents(bruto)
     snap["identidad"]["contacto_id"] = cid
     snap["identidad"]["payment_intent_id"] = str(contacto.get("stripe_payment_intent_id") or "")
     snap["identidad"]["charge_id"] = str(contacto.get("stripe_charge_id") or "")
@@ -128,7 +133,11 @@ def merge_stripe_into_snapshot(
         if dispute_list:
             recursos["disputes"] = dispute_list
 
-    if not imp.get("comision_ruana") and imp.get("importe_bruto"):
+    if (
+        not imp.get("comision_congelada")
+        and not imp.get("comision_ruana")
+        and imp.get("importe_bruto")
+    ):
         imp["comision_ruana"] = comision_ruana_cents(int(imp["importe_bruto"]))
 
     ctrl["origen"] = "stripe_api"
