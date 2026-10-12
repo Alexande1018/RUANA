@@ -42,19 +42,6 @@ class SolicitudSemanalRepo:
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def existe_activa_semana(
-        self, cursor, solicitante_codigo: str, semana_inicio: str
-    ) -> Optional[int]:
-        cursor.execute(
-            """
-            SELECT id FROM solicitudes_semanales
-            WHERE solicitante_codigo = ? AND semana_inicio = ? AND estado = 'activa'
-            """,
-            (solicitante_codigo, semana_inicio),
-        )
-        row = cursor.fetchone()
-        return int(row[0]) if row else None
-
     def insertar(
         self,
         cursor,
@@ -151,6 +138,23 @@ class SolicitudSemanalRepo:
         )
         row = cursor.fetchone()
         return dict(row) if row else None
+
+    def listar_propias_semana(
+        self, cursor, codigo: str, semana_inicio: str
+    ) -> List[Dict[str, Any]]:
+        """Todas las solicitudes del aliado en esa semana, la más reciente primero."""
+        cursor.execute(
+            """
+            SELECT id, grupo_id, solicitante_codigo, solicitante_nombre,
+                   oficio, descripcion, es_oficio_personalizado,
+                   semana_inicio, estado, created_at, expira_at
+            FROM solicitudes_semanales
+            WHERE solicitante_codigo = ? AND semana_inicio = ?
+            ORDER BY id DESC
+            """,
+            (codigo, semana_inicio),
+        )
+        return [dict(r) for r in cursor.fetchall()]
 
     def listar_historial_grupo(
         self, cursor, grupo_id: Any, limite: int = 50

@@ -149,34 +149,41 @@
     return card;
   }
 
+  function htmlPropiaCard(propia) {
+    var count = propia.interesados_count || 0;
+    var interTxt = count > 0
+      ? '🟢 ' + count + ' aliado' + (count === 1 ? '' : 's') + ' puede' + (count === 1 ? '' : 'n') + ' ayudarte'
+      : '🟡 Buscando ayuda';
+    var interList = '';
+    if (Array.isArray(propia.interesados) && propia.interesados.length) {
+      interList = '<ul class="sol-sem-interesados">' +
+        propia.interesados.map(function (i) {
+          return '<li>' + escapeHtml(i.aliado_nombre || i.aliado_codigo) + '</li>';
+        }).join('') + '</ul>';
+    }
+    return (
+      '<div class="sol-sem-propia-card">' +
+      '<h4 class="sol-sem-propia-title">TU SOLICITUD</h4>' +
+      '<p class="sol-sem-propia-oficio">Necesitas: <strong>' + escapeHtml(propia.oficio) + '</strong></p>' +
+      (propia.descripcion ? '<p class="sol-sem-propia-desc">' + escapeHtml(propia.descripcion) + '</p>' : '') +
+      '<p class="sol-sem-propia-estado">' + interTxt + '</p>' +
+      interList +
+      '<p class="sol-sem-propia-meta">Publicada ' + escapeHtml(formatoFecha(propia.created_at)) + '</p>' +
+      '</div>'
+    );
+  }
+
   function renderPropiaCard(propia, target) {
     if (!target) return;
-    if (propia && propia.estado === 'activa') {
-      var count = propia.interesados_count || 0;
-      var interTxt = count > 0
-        ? '🟢 ' + count + ' aliado' + (count === 1 ? '' : 's') + ' puede' + (count === 1 ? '' : 'n') + ' ayudarte'
-        : '🟡 Buscando ayuda';
-      var interList = '';
-      if (Array.isArray(propia.interesados) && propia.interesados.length) {
-        interList = '<ul class="sol-sem-interesados">' +
-          propia.interesados.map(function (i) {
-            return '<li>' + escapeHtml(i.aliado_nombre || i.aliado_codigo) + '</li>';
-          }).join('') + '</ul>';
-      }
-      target.innerHTML =
-        '<div class="sol-sem-propia-card">' +
-        '<h4 class="sol-sem-propia-title">TU SOLICITUD</h4>' +
-        '<p class="sol-sem-propia-oficio">Necesitas: <strong>' + escapeHtml(propia.oficio) + '</strong></p>' +
-        (propia.descripcion ? '<p class="sol-sem-propia-desc">' + escapeHtml(propia.descripcion) + '</p>' : '') +
-        '<p class="sol-sem-propia-estado">' + interTxt + '</p>' +
-        interList +
-        '<p class="sol-sem-propia-meta">Publicada ' + escapeHtml(formatoFecha(propia.created_at)) + '</p>' +
-        '</div>';
-      target.hidden = false;
-    } else {
+    var lista = Array.isArray(propia) ? propia : (propia ? [propia] : []);
+    lista = lista.filter(function (item) { return item && item.estado === 'activa'; });
+    if (!lista.length) {
       target.innerHTML = '';
       target.hidden = true;
+      return;
     }
+    target.innerHTML = lista.map(htmlPropiaCard).join('');
+    target.hidden = false;
   }
 
   function renderInicioSeccion(host) {
@@ -216,9 +223,9 @@
     if (!lista) return;
     var snap = host.solicitudesSemanales || {};
     var activas = Array.isArray(snap.activas_grupo) ? snap.activas_grupo : [];
-    var propia = snap.propia;
+    var propias = Array.isArray(snap.propias) ? snap.propias : (snap.propia ? [snap.propia] : []);
 
-    renderPropiaCard(propia, propiaWrap);
+    renderPropiaCard(propias, propiaWrap);
 
     lista.innerHTML = '';
     if (!activas.length) {
@@ -369,6 +376,9 @@
 
   function tieneSolicitudPropiaActiva(host) {
     var snap = host.solicitudesSemanales || {};
+    if (Array.isArray(snap.propias) && snap.propias.some(function (p) { return p && p.estado === 'activa'; })) {
+      return true;
+    }
     return !!(snap.propia && snap.propia.estado === 'activa');
   }
 
@@ -383,20 +393,22 @@
   function asegurarPromptCerradoSiPublicada(host) {
     if (!tieneSolicitudPropiaActiva(host) && !host._solSemPromptOculto) return;
     marcarPromptPublicado(host);
-    ocultarPromptCrear(host);
+    ocultarOverlay('sol-sem-prompt-overlay');
     limpiarFormularioPrompt();
+    mostrarMinimizado(host);
   }
 
   async function mostrarPromptCrear(host, opts) {
     opts = opts || {};
-    if (host._solSemPromptOculto || tieneSolicitudPropiaActiva(host)) {
-      ocultarPromptCrear(host);
+    if (!opts.forceFull && (host._solSemPromptOculto || tieneSolicitudPropiaActiva(host))) {
+      ocultarOverlay('sol-sem-prompt-overlay');
+      mostrarMinimizado(host);
       return;
     }
     var snap = host.solicitudesSemanales || {};
     var semana = snap.semana_inicio || '';
     var st = localStorage.getItem(semanaStorageKey(semana));
-    if (st === 'hidden') {
+    if (!opts.forceFull && st === 'hidden') {
       ocultarPromptCrear(host);
       return;
     }
@@ -780,6 +792,13 @@
     if (mini && !mini._solSemBound) {
       mini._solSemBound = true;
       mini.addEventListener('click', function () {
+        mostrarPromptCrear(getPanelHost(), { forceFull: true });
+      });
+    }
+    var btnNueva = document.getElementById('btn-nueva-solicitud-semanal');
+    if (btnNueva && !btnNueva._solSemBound) {
+      btnNueva._solSemBound = true;
+      btnNueva.addEventListener('click', function () {
         mostrarPromptCrear(getPanelHost(), { forceFull: true });
       });
     }

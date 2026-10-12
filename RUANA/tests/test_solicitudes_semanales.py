@@ -1,4 +1,4 @@
-"""Tests solicitudes semanales — aislamiento por grupo, duplicados y autorización."""
+"""Tests solicitudes semanales — aislamiento por grupo, varias por semana y autorización."""
 
 from datetime import date, timedelta
 from types import SimpleNamespace
@@ -81,12 +81,15 @@ def test_panel_incluye_oficios_del_grupo_y_catalogo(sqlite_db):
     assert len(panel["oficios_catalogo"]) > 0
 
 
-def test_no_duplicar_solicitud_misma_semana(sqlite_db):
+def test_varias_solicitudes_misma_semana(sqlite_db):
     _crear_grupo(
         sqlite_db,
         "Grupo dup",
         "03014",
-        [("JAIME", "Jaime", "Electricidad")],
+        [
+            ("JAIME", "Jaime", "Electricidad"),
+            ("MARTA", "Marta", "Fontanería y fontanería-gas"),
+        ],
     )
     r1 = solicitud_semanal_service.crear_solicitud_semanal(
         sqlite_db, "JAIME", "Electricidad", "Primera", False
@@ -96,8 +99,14 @@ def test_no_duplicar_solicitud_misma_semana(sqlite_db):
         sqlite_db, "JAIME", "Carpintería de madera e interior", "Segunda", False
     )
     assert r2["status"] == "success"
-    assert r2.get("already_existed") is True
-    assert r2["id"] == r1["id"]
+    assert r2.get("already_existed") is not True
+    assert r2["id"] != r1["id"]
+    assert "semana" not in (r2.get("message") or "").lower()
+
+    panel = solicitud_semanal_service.obtener_panel_por_codigo(sqlite_db, "JAIME")
+    assert [p["id"] for p in panel["propias"]] == [r2["id"], r1["id"]]
+    panel_marta = solicitud_semanal_service.obtener_panel_por_codigo(sqlite_db, "MARTA")
+    assert {s["id"] for s in panel_marta["activas_grupo"]} == {r1["id"], r2["id"]}
 
 
 def test_solicitud_vinculada_al_grupo_correcto(sqlite_db):
@@ -386,8 +395,11 @@ def test_api_crear_y_aislamiento(client, sqlite_db, monkeypatch, session_headers
         json={"oficio": "Carpintería de madera e interior"},
         headers=h_jaime,
     )
-    assert dup.status_code in (200, 201)
-    assert dup.get_json().get("already_existed") is True
+    assert dup.status_code == 201
+    dup_body = dup.get_json()
+    assert dup_body.get("already_existed") is False
+    assert dup_body.get("id") != create.get_json()["id"]
+    assert "semana" not in (dup_body.get("error") or "").lower()
 
 
 def test_manipulacion_id_otro_grupo(client, sqlite_db, monkeypatch, session_headers):
@@ -434,7 +446,9 @@ def test_migrar_solicitudes_semanales_postgres_crea_tablas():
     joined = "\n".join(calls)
     assert "CREATE TABLE IF NOT EXISTS solicitudes_semanales" in joined
     assert "CREATE TABLE IF NOT EXISTS solicitudes_semanales_respuestas" in joined
-    assert "idx_sol_sem_solicitante_semana" in joined
+    assert "DROP INDEX IF EXISTS idx_sol_sem_solicitante_semana" in joined
+    assert "CREATE INDEX IF NOT EXISTS idx_sol_sem_solicitante_semana" in joined
+    assert "CREATE UNIQUE INDEX IF NOT EXISTS idx_sol_sem_solicitante_semana" not in joined
 
 
 def test_asegurar_esquema_sol_sem_postgres_invoca_migracion(monkeypatch):

@@ -2789,6 +2789,22 @@ def _migrar_solicitudes_proximidad(db, conn, cursor) -> None:
         print(f"[RUANA][DB] Aviso migrar solicitudes proximidad: {ex}")
 
 
+def _indice_varias_solicitudes_por_semana(cursor) -> None:
+    """Varias solicitudes del mismo aliado en la misma semana.
+
+    El índice único (solicitante, semana) era el tope de una por semana.
+    Se sustituye por un índice normal para seguir buscando por aliado y semana.
+    """
+    _repo.execute(cursor, "DROP INDEX IF EXISTS idx_sol_sem_solicitante_semana")
+    _repo.execute(
+        cursor,
+        """
+        CREATE INDEX IF NOT EXISTS idx_sol_sem_solicitante_semana
+        ON solicitudes_semanales(solicitante_codigo, semana_inicio)
+        """,
+    )
+
+
 def _migrar_solicitudes_semanales(db, conn, cursor) -> None:
     """Tablas solicitudes_semanales y solicitudes_semanales_respuestas."""
     try:
@@ -2808,10 +2824,7 @@ def _migrar_solicitudes_semanales(db, conn, cursor) -> None:
                     expira_at TEXT
                 )
             """)
-            _repo.execute(cursor, """
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_sol_sem_solicitante_semana
-                ON solicitudes_semanales(solicitante_codigo, semana_inicio)
-            """)
+            _indice_varias_solicitudes_por_semana(cursor)
             _repo.execute(cursor, """
                 CREATE INDEX IF NOT EXISTS idx_sol_sem_grupo_semana
                 ON solicitudes_semanales(grupo_id, semana_inicio, estado)
@@ -2850,10 +2863,7 @@ def _migrar_solicitudes_semanales(db, conn, cursor) -> None:
                 FOREIGN KEY (grupo_id) REFERENCES grupos(id)
             )
         """)
-        _repo.execute(cursor, """
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_sol_sem_solicitante_semana
-            ON solicitudes_semanales(solicitante_codigo, semana_inicio)
-        """)
+        _indice_varias_solicitudes_por_semana(cursor)
         _repo.execute(cursor, """
             CREATE INDEX IF NOT EXISTS idx_sol_sem_grupo_semana
             ON solicitudes_semanales(grupo_id, semana_inicio, estado)
