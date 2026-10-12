@@ -42,11 +42,6 @@ def _semana_inicio_lunes(ref: Optional[date] = None) -> date:
     return d - timedelta(days=d.weekday())
 
 
-MENSAJE_SOLICITUD_SEMANA_USADA = (
-    "Ya usaste tu solicitud de esta semana. Podrás crear otra el lunes."
-)
-
-
 def _semana_inicio_str(ref: Optional[date] = None) -> str:
     return _semana_inicio_lunes(ref).isoformat()
 
@@ -155,23 +150,27 @@ def obtener_panel_por_codigo(db, codigo: str) -> Dict[str, Any]:
                     "oficios_grupo": [],
                     "oficios_catalogo": oficios_catalogo,
                     "propia": None,
+                    "propias": [],
                     "activas_grupo": [],
                     "historial": [],
                 }
 
             oficios_grupo = _repo.listar_oficios_grupo_activos(cursor, grupo_id)
-            propia = _json_safe_row(_repo.listar_propia_semana(cursor, codigo, semana))
-            if propia and propia.get("estado") == "activa":
-                propia["interesados_count"] = _repo.contar_interesados(
-                    cursor, int(propia["id"])
+            propias = []
+            for row in _repo.listar_propias_semana(cursor, codigo, semana):
+                item = _json_safe_row(row)
+                if not item or item.get("estado") != "activa":
+                    continue
+                item["interesados_count"] = _repo.contar_interesados(
+                    cursor, int(item["id"])
                 )
-                propia["interesados"] = _json_safe_rows(
+                item["interesados"] = _json_safe_rows(
                     _repo.listar_respuestas_por_solicitud(
-                        cursor, int(propia["id"]), "puedo_ayudar"
+                        cursor, int(item["id"]), "puedo_ayudar"
                     )
                 )
-            elif propia and propia.get("estado") != "activa":
-                propia = None
+                propias.append(item)
+            propia = propias[0] if propias else None
 
             activas = _json_safe_rows(
                 _repo.listar_activas_grupo(cursor, grupo_id, semana, codigo)
@@ -187,6 +186,7 @@ def obtener_panel_por_codigo(db, codigo: str) -> Dict[str, Any]:
                 "oficios_grupo": oficios_grupo,
                 "oficios_catalogo": oficios_catalogo,
                 "propia": propia,
+                "propias": propias,
                 "activas_grupo": activas,
                 "historial": historial,
             }
@@ -239,24 +239,6 @@ def crear_solicitud_semanal(
             if grupo_id is None:
                 return {"status": "error", "message": "No perteneces a un grupo"}
 
-            # Una por semana (índice único), esté activa o ya resuelta.
-            # Si sigue activa, se devuelve la misma. Si ya no, el aviso no dice «activa».
-            propia_semana = _repo.select_id_estado_semana(cursor, codigo, semana_str)
-            if propia_semana and propia_semana[1] == "activa":
-                conn.commit()
-                return {
-                    "status": "success",
-                    "ok": True,
-                    "id": propia_semana[0],
-                    "already_existed": True,
-                }
-            if propia_semana:
-                conn.commit()
-                return {
-                    "status": "error",
-                    "message": MENSAJE_SOLICITUD_SEMANA_USADA,
-                }
-
             catalogo = db.get_catalogo_oficios_ruana()
             permitidos = {str(o).strip() for o in catalogo if o}
             oficios_grupo = {
@@ -308,13 +290,7 @@ def crear_solicitud_semanal(
                 conn.rollback()
             except Exception:
                 pass
-            err = str(e)
-            if "UNIQUE" in err.upper() or "unique" in err:
-                return {
-                    "status": "error",
-                    "message": MENSAJE_SOLICITUD_SEMANA_USADA,
-                }
-            return {"status": "error", "message": err}
+            return {"status": "error", "message": str(e)}
         finally:
             conn.close()
 

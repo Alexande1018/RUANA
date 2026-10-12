@@ -1,4 +1,4 @@
-"""Cambio de oficio con plaza ocupada y texto del aviso de solicitud semanal."""
+"""Cambio de oficio con plaza ocupada y varias solicitudes en la misma semana."""
 
 from datetime import date
 from types import SimpleNamespace
@@ -7,7 +7,6 @@ import pytest
 
 from core import db_manager as db_module
 from core.services import solicitud_semanal_service
-from core.services.solicitud_semanal_service import MENSAJE_SOLICITUD_SEMANA_USADA
 
 
 OFICIO_A = "Electricidad"
@@ -148,7 +147,34 @@ def _grupo_semanal(db):
     return grupo_id
 
 
-def test_aviso_semanal_si_la_primera_ya_no_esta_activa(sqlite_db):
+def _contar_solicitudes(db, codigo):
+    conn = db._connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT COUNT(*) FROM solicitudes_semanales WHERE solicitante_codigo = ?",
+        (codigo,),
+    )
+    total = cursor.fetchone()[0]
+    conn.close()
+    return total
+
+
+def test_puede_crear_otra_aunque_la_primera_siga_activa(sqlite_db):
+    _grupo_semanal(sqlite_db)
+    primera = solicitud_semanal_service.crear_solicitud_semanal(
+        sqlite_db, "42001", OFICIO_B, "Primera", False
+    )
+    segunda = solicitud_semanal_service.crear_solicitud_semanal(
+        sqlite_db, "42001", OFICIO_C, "Segunda", False
+    )
+    assert primera["status"] == "success"
+    assert segunda["status"] == "success"
+    assert segunda["id"] != primera["id"]
+    assert "semana" not in (segunda.get("message") or "").lower()
+    assert _contar_solicitudes(sqlite_db, "42001") == 2
+
+
+def test_puede_crear_otra_si_la_primera_ya_no_esta_activa(sqlite_db):
     _grupo_semanal(sqlite_db)
     primera = solicitud_semanal_service.crear_solicitud_semanal(
         sqlite_db, "42001", OFICIO_B, "Primera", False
@@ -166,32 +192,10 @@ def test_aviso_semanal_si_la_primera_ya_no_esta_activa(sqlite_db):
     segunda = solicitud_semanal_service.crear_solicitud_semanal(
         sqlite_db, "42001", OFICIO_C, "Segunda", False
     )
-    assert segunda["status"] == "error"
-    assert segunda["message"] == MENSAJE_SOLICITUD_SEMANA_USADA
-    assert "activa" not in segunda["message"].lower()
-    assert "lunes" in segunda["message"]
-
-    conn = sqlite_db._connect()
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT COUNT(*) FROM solicitudes_semanales WHERE solicitante_codigo = ?",
-        ("42001",),
-    )
-    assert cursor.fetchone()[0] == 1
-    conn.close()
-
-
-def test_solicitud_activa_de_la_semana_sigue_siendo_la_misma(sqlite_db):
-    _grupo_semanal(sqlite_db)
-    primera = solicitud_semanal_service.crear_solicitud_semanal(
-        sqlite_db, "42001", OFICIO_B, "Primera", False
-    )
-    segunda = solicitud_semanal_service.crear_solicitud_semanal(
-        sqlite_db, "42001", OFICIO_C, "Segunda", False
-    )
     assert segunda["status"] == "success"
-    assert segunda.get("already_existed") is True
-    assert segunda["id"] == primera["id"]
+    assert segunda["id"] != primera["id"]
+    assert "semana" not in (segunda.get("message") or "").lower()
+    assert _contar_solicitudes(sqlite_db, "42001") == 2
 
 
 def test_semana_de_solicitud_empieza_en_lunes():
@@ -199,4 +203,3 @@ def test_semana_de_solicitud_empieza_en_lunes():
     lunes = solicitud_semanal_service._semana_inicio_lunes(viernes)
     assert lunes == date(2026, 9, 21)
     assert lunes.weekday() == 0
-    assert "lunes" in MENSAJE_SOLICITUD_SEMANA_USADA
