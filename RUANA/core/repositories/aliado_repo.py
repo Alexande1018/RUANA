@@ -20,6 +20,23 @@ def _format_nombre_aliado_eliminado(nombre: str) -> str:
     return f"{n} (eliminado)"
 
 
+# El panel (resumen y /api/stats) no cuenta la raíz de sistema, los
+# placeholders de invitación, las bajas ni las pausas. NULL se conserva:
+# filas antiguas sin estado siguen siendo visibles.
+_ESTADOS_OCULTOS_PANEL = (
+    "expulsado",
+    "suspendido_temporal",
+    "sistema",
+    "pendiente_completar",
+    "eliminado",
+)
+
+
+def where_visible_panel(alias: str = "a") -> str:
+    ocultos = ", ".join(f"'{estado}'" for estado in _ESTADOS_OCULTOS_PANEL)
+    return f"({alias}.estado IS NULL OR {alias}.estado NOT IN ({ocultos}))"
+
+
 class AliadoRepo:
     """Operaciones de persistencia del dominio aliado."""
 
@@ -494,13 +511,7 @@ class AliadoRepo:
             LEFT JOIN grupos g ON g.id = a.grupo_id
             LEFT JOIN evaluaciones e ON e.codigo_aliado = a.codigo
             LEFT JOIN aliados inv ON inv.codigo = a.invitado_por_codigo
-            WHERE (a.estado IS NULL OR (
-                a.estado != 'expulsado'
-                AND a.estado != 'suspendido_temporal'
-                AND a.estado != 'sistema'
-                AND a.estado != 'pendiente_completar'
-                AND a.estado != 'eliminado'
-            ))
+            WHERE """ + where_visible_panel("a") + """
         """
         params: Tuple[Any, ...] = ()
         if filtro_postal:
@@ -509,6 +520,27 @@ class AliadoRepo:
         base_query += " ORDER BY a.creado_en DESC"
         cursor.execute(base_query, params)
         return cursor.fetchall()
+
+    def contar_visibles_panel(self, cursor) -> Tuple[int, int]:
+        """Total y activos con el mismo filtro que listar_admin, sin sus JOIN.
+
+        listar_admin arrastra subconsultas (contactos, competencia). Si esa SQL
+        falla, listar_aliados devuelve [] y el resumen pintaba 0 usuarios
+        aunque un COUNT simple siguiera viendo al aliado.
+        """
+        cursor.execute(
+            f"""
+            SELECT
+                COUNT(*) AS total,
+                COALESCE(SUM(CASE WHEN a.estado = 'activo' THEN 1 ELSE 0 END), 0) AS activos
+            FROM aliados a
+            WHERE {where_visible_panel("a")}
+            """
+        )
+        row = cursor.fetchone()
+        if not row:
+            return 0, 0
+        return int(row[0] or 0), int(row[1] or 0)
 
     def listar_directorio_grupo_con_cp(
         self,

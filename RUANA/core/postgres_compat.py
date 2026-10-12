@@ -41,6 +41,15 @@ def _pool_max_size() -> int:
     return max(1, int(os.environ.get("RUANA_DB_POOL_MAX", "10")))
 
 
+# El keepalive de Cloud Run pega a /api/health y no toca la base de datos, así que
+# el proceso sigue vivo con conexiones idle. Supabase/Postgres las cierra y el
+# primer uso real (motor semanal, ciclo financiero) recibe un 500.
+# psycopg_pool no tiene pool_pre_ping ni pool_recycle: `check` hace el ping y
+# max_lifetime / max_idle reciclan la conexión (equivalente a pool_recycle).
+_POOL_MAX_LIFETIME_S = 300.0
+_POOL_MAX_IDLE_S = 280.0
+
+
 def close_pool() -> None:
     """Cierra todos los pools (tests / apagado ordenado)."""
     global _pools
@@ -413,6 +422,9 @@ def get_connection_pool(
                 max_size=max_size,
                 kwargs={"row_factory": dict_row, "prepare_threshold": None},
                 open=True,
+                check=ConnectionPool.check_connection,
+                max_lifetime=_POOL_MAX_LIFETIME_S,
+                max_idle=_POOL_MAX_IDLE_S,
             )
             pool.open(wait=True)
             _pools[database_url] = pool
