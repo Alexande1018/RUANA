@@ -270,7 +270,7 @@
                 >
                     <div class="inicio-grupo-banner-copy">
                         <h3 id="inicio-grupo-banner-title">Tu zona todavía se está formando</h3>
-                        <p>Estás en el grupo de tu código postal. Mientras haya poca gente cerca, la red de oficios es más pequeña. Por eso importa invitar a vecinos de tu zona: cuantos más seamos, más fácil encontrar y encargar trabajo.</p>
+                        <p id="inicio-grupo-banner-text">Estás en el grupo de tu código postal. Mientras haya poca gente cerca, la red de oficios es más pequeña. Por eso importa invitar a vecinos de tu zona: cuantos más seamos, más fácil encontrar y encargar trabajo.</p>
                     </div>
                     <div class="inicio-grupo-banner-actions">
                         <button type="button" class="inicio-grupo-banner-cta" id="btn-invitar-grupo-banner" data-action="invitar-aliado">
@@ -1280,7 +1280,7 @@
                         selector: '.inicio-quick-grid',
                         module: 'inicio',
                         title: 'Atajos a cada módulo',
-                        copy: 'Un toque te lleva a Directorio, Solicitudes, Conexiones o Perfil. Es la forma más rápida de moverte.',
+                        copy: 'Tocar un acceso te lleva a Directorio, Solicitudes, Conexiones o Perfil. Es la forma más rápida de moverte.',
                         placement: 'bottom'
                     },
                     {
@@ -1435,7 +1435,7 @@
             createLayer() {
                 this.cloud = document.createElement('div');
                 this.cloud.className = 'ruana-tour-cloud';
-                this.cloud.innerHTML = '<button type="button" class="ruana-tour-cloud-close" aria-label="Cerrar tour">✕</button><h3 class="ruana-tour-cloud-title"></h3><p class="ruana-tour-cloud-copy"></p><span class="ruana-tour-hint">Da clic para avanzar</span>';
+                this.cloud.innerHTML = '<button type="button" class="ruana-tour-cloud-close" aria-label="Cerrar tour">✕</button><h3 class="ruana-tour-cloud-title"></h3><p class="ruana-tour-cloud-copy"></p><span class="ruana-tour-hint">Toca para avanzar</span>';
                 document.body.appendChild(this.cloud);
 
                 this.arrow = document.createElement('div');
@@ -1630,7 +1630,7 @@
                 if (markComplete) {
                     this.playFinale();
                     if (window.RuanaUI && typeof window.RuanaUI.toast === 'function') {
-                        window.RuanaUI.toast('Listo, ya conoces lo clave de RUANA. Dale con todo 🙌', 'success', 3200);
+                        window.RuanaUI.toast('Listo, ya conoces lo esencial de RUANA. A por ello 🙌', 'success', 3200);
                     }
                 }
                 if (this.activeTarget) this.activeTarget.classList.remove('ruana-tour-target');
