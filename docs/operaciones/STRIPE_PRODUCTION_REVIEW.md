@@ -71,7 +71,7 @@ Aún no habéis cerrado un cobro real. Haced **un encargo Test completo** con ta
 
 10. [ ] Aliado profesional: onboarding Express → en Dashboard Test, anotar `charges_enabled`, `payouts_enabled` y `capabilities.transfers`. Si `charges_enabled=false` tras onboarding válido, **para**: el código no dejará cerrar el encargo (§5.1).
 11. [ ] Contratante: acuerdo de precio → «Pagar ahora» → Checkout → pago OK.
-12. [ ] Comprobar en BD / panel: `modo_pago=stripe`, `estado_pago=cobro_confirmado`, Apoyo 12 % calculado, profesional notificado.
+12. [ ] Comprobar en BD / panel: `modo_pago=stripe`, `estado_pago=cobro_confirmado`, Apoyo 5 % en encargos nuevos (los ya congelados conservan su tasa), profesional notificado.
 13. [ ] Contratante confirma entrega → Transfer al Express → estado `TRANSFERIDO` (o `transfer_pendiente` breve y luego `TRANSFERIDO`).
 14. [ ] En Stripe Test: el cobro está en la **cuenta plataforma**; el Transfer, en la cuenta Connect del profesional (no es destination charge).
 15. [ ] Forzar un evento webhook (Dashboard → Send test webhook) y ver `stripe_webhook_events` en `completed`.
@@ -109,7 +109,7 @@ Negociación (precio aceptado)
     → si Stripe global ON y profesional listo:
          activar_pago_stripe_tras_acuerdo
          modo_pago=stripe, estado_pago=esperando_cobro_cliente
-         congela importe + Apoyo 12 % / neto 88 %
+         congela importe + Apoyo 5 % / neto 95 %
     → si profesional NO listo: el acuerdo NO cierra
          (mensaje: «Este profesional está completando la activación…»)
 
@@ -131,7 +131,7 @@ Contratante POST /api/contactos/<id>/stripe/confirmar-trabajo
 
 Archivos: `negociacion_service.py` (`aceptar_negociacion`, `_aplicar_cierre_automatico_tras_acuerdo`), `pagos_bp.py`, `pago_service.py`, `financial_transfer_service.py`, `stripe_webhook_service.py`, `aliado-stripe-pagos-module.js`.
 
-Comisión: `core/financial/money.py` — `COMISION_RUANA_PCT = 12` (céntimos enteros). El cliente paga el bruto; RUANA retiene el 12 % en la plataforma; el Transfer es el 88 %.
+Comisión: `core/financial/money.py` — `COMISION_RUANA_PCT = 5` (céntimos enteros). El cliente paga el bruto; RUANA retiene el 5 % en la plataforma; el Transfer es el 95 %. Un encargo que ya tenía el reparto guardado no se recalcula.
 
 ### 3.3 Webhook
 
@@ -279,5 +279,5 @@ Solo lo que es **objetivamente** necesario para Live. Sin refactors.
 
 ## 8. Mensaje corto para el equipo
 
-Stripe **está programado** (Connect Express, Checkout, webhook firmado, Apoyo 12 %, Transfer al profesional). El deploy **ya no fuerza Test**.  
+Stripe **está programado** (Connect Express, Checkout, webhook firmado, Apoyo 5 % en encargos nuevos, Transfer al profesional). El deploy **ya no fuerza Test**.  
 El primer cobro Live **no** es un merge: es secrets Live + webhook Live + un humo Test extremo a extremo. Hasta que ese humo (sobre todo onboarding `charges_enabled` y el Transfer) no esté verde, **no conmutar**.

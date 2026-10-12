@@ -11,9 +11,12 @@ from core import stripe_client
 from core.settings import get_settings
 from core.financial.estados import EstadoFinanciero
 from core.financial.money import (
+    COMISION_RUANA_PCT,
     cents_a_importe_bd,
     calcular_desglose_stripe_cents,
+    desglose_congelado_cents,
     importe_bd_a_cents,
+    porcentaje_apoyo_congelado,
 )
 from core.services import financial_transaction_service as fts
 
@@ -30,16 +33,24 @@ _repo = PagoRepo()
 # --- Extraído de DBManager (pago) ---
 
 def _get_apoyo_pct(db) -> float:
-    """Lee apoyo_pct desde config/ruana_reglas_v1.json. Por defecto 12.0 (%)."""
+    """Lee apoyo_pct desde config/ruana_reglas_v1.json. Por defecto 5.0 (%)."""
     try:
         config_path = RUANA_ROOT / 'config' / 'ruana_reglas_v1.json'
         if config_path.exists():
             with open(config_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            return float(data.get('apoyo_pct', 12.0))
+            return float(data.get('apoyo_pct', COMISION_RUANA_PCT))
     except Exception:
         pass
-    return 12.0
+    return float(COMISION_RUANA_PCT)
+
+
+def _tasa_apoyo_para_cierre(db, contacto: Optional[Dict[str, Any]] = None) -> float:
+    """Tasa ya guardada en el encargo, o la vigente si todavía no hay apoyo."""
+    congelada = porcentaje_apoyo_congelado(contacto)
+    if congelada is not None:
+        return congelada
+    return db._get_apoyo_pct()
 
 def _get_ruana_pago_defaults(db) -> Tuple[Optional[str], Optional[str]]:
     """Lee qr_paypal_path y bizum_num por defecto de RUANA desde config (para notificaciones Apoyo RUANA)."""
@@ -478,7 +489,7 @@ def resolver_payment_conflict_admin(db, conflict_id: int, decision: str, comenta
                 c = _repo.select_contacto_partes(cursor, trabajo_id)
                 if c and dict(c).get('estado') == 'importe_en_disputa':
                     d = dict(c)
-                    pct = db._get_apoyo_pct()
+                    pct = _tasa_apoyo_para_cierre(db, d)
                     apoyo = round(importe_valido * pct / 100.0, 2)
                     comision_pct = pct / 100.0
                     estado_pago_final = 'pendiente_pago' if apoyo > 0 else 'no_generado'
@@ -594,7 +605,7 @@ def resolver_conflicto_pago(db, contacto_id: int, importe_valido: float,
             if imp <= 0:
                 return {'status': 'error', 'message': 'Importe debe ser mayor que cero'}
 
-            pct = db._get_apoyo_pct()
+            pct = _tasa_apoyo_para_cierre(db, contacto)
             apoyo = round(imp * pct / 100.0, 2)
             comision_pct = pct / 100.0
             _repo.update_contacto_resolver_conflicto(cursor, imp, apoyo, comision_pct, contacto_id)
@@ -651,11 +662,6 @@ def listar_contactos_pagos_apoyo(db) -> List[Dict[str, Any]]:
             lista = [dict(row) for row in _repo.listar_contactos_pagos_apoyo(cursor)]
             for d in lista:
                 d['es_urgente'] = bool(int(d.get('es_urgente') or 0))
-                if d.get('importe_final') is not None and d.get('apoyo_ruana') is None:
-                    try:
-                        d['apoyo_ruana'] = round(float(d['importe_final']) * db._get_apoyo_pct() / 100.0, 2)
-                    except (TypeError, ValueError):
-                        pass
             return lista
         except Exception as e:
             logger.error(
@@ -676,12 +682,6 @@ def listar_contactos_pagos_en_revision(db) -> List[Dict[str, Any]]:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             lista = [dict(row) for row in _repo.listar_contactos_pagos_en_revision(cursor)]
-            for d in lista:
-                if d.get('importe_final') is not None and d.get('apoyo_ruana') is None:
-                    try:
-                        d['apoyo_ruana'] = round(float(d['importe_final']) * db._get_apoyo_pct() / 100.0, 2)
-                    except (TypeError, ValueError):
-                        pass
             return lista
         except Exception as e:
             logger.error(
@@ -921,12 +921,6 @@ def listar_contactos_pago_pendiente_profesional(db, codigo_aliado: str) -> List[
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             lista = [dict(row) for row in _repo.listar_pago_pendiente_profesional(cursor, codigo_norm)]
-            for d in lista:
-                if d.get('importe_final') is not None and d.get('apoyo_ruana') is None:
-                    try:
-                        d['apoyo_ruana'] = round(float(d['importe_final']) * db._get_apoyo_pct() / 100.0, 2)
-                    except (TypeError, ValueError):
-                        pass
             return lista
         except Exception as e:
             logger.error(
@@ -1033,9 +1027,17 @@ def subir_prueba_conflicto(db, conflict_id: int, contratante_codigo: str, prueba
 # --- Stripe Connect (separate charges and transfers) ---
 
 def _calcular_importes_stripe(importe_bruto_cents: int, db) -> Tuple[int, int, int, float]:
-    """Desglose en céntimos; comision_pct es fracción legacy para columnas BD (0.12)."""
-    _ = db  # apoyo_pct fijado en money.COMISION_RUANA_PCT (12 %)
-    return calcular_desglose_stripe_cents(importe_bruto_cents)
+    """Desglose vigente en céntimos. La tasa sale de apoyo_pct (fallback COMISION_RUANA_PCT)."""
+    pct = int(round(db._get_apoyo_pct()))
+    return calcular_desglose_stripe_cents(importe_bruto_cents, pct)
+
+
+def _desglose_stripe_para_contacto(contacto: Dict[str, Any], importe_cents: int, db) -> Tuple[int, int, int, float]:
+    """Conserva el reparto ya guardado. Solo un encargo sin apoyo usa la tasa vigente."""
+    congelado = desglose_congelado_cents(contacto, importe_cents)
+    if congelado is not None:
+        return congelado
+    return _calcular_importes_stripe(importe_cents, db)
 
 
 def _calcular_importes_stripe_bd(importe_bd, db) -> Tuple[float, float, float, float]:
@@ -1367,16 +1369,20 @@ def _procesar_pago_confirmado(
             if pi_existente and contacto.get("estado_pago") == "cobro_confirmado":
                 if importe_cents > 0:
                     from core.services.financial_ledger_hooks import on_pago_confirmado
+                    congelado = desglose_congelado_cents(contacto, importe_cents)
                     on_pago_confirmado(
                         db,
                         contacto_id=contacto_id,
                         payment_intent_id=payment_intent_id,
                         importe_bruto_cents=importe_cents,
+                        comision_cents=None if congelado is None else congelado[1],
                     )
                 return {"status": "ignored", "message": "ya procesado"}
             if importe_cents <= 0:
                 return {"status": "error", "message": "sin importe"}
-            bruto_c, apoyo_c, neto_c, comision_pct = _calcular_importes_stripe(importe_cents, db)
+            bruto_c, apoyo_c, neto_c, comision_pct = _desglose_stripe_para_contacto(
+                contacto, importe_cents, db
+            )
             importe_val = cents_a_importe_bd(bruto_c)
             apoyo = cents_a_importe_bd(apoyo_c)
             neto = cents_a_importe_bd(neto_c)
@@ -1435,6 +1441,7 @@ def _procesar_pago_confirmado(
                 contacto_id=contacto_id,
                 payment_intent_id=payment_intent_id,
                 importe_bruto_cents=bruto_c,
+                comision_cents=apoyo_c,
             )
             return {"status": "success", "contacto_id": contacto_id}
         except Exception as e:

@@ -47,6 +47,15 @@
     return 'Pendiente de cálculo';
   }
 
+  function etiquetaPorcentajeApoyo(contacto) {
+    const bruto = Number(contacto && contacto.importe_final);
+    const apoyo = Number(contacto && contacto.apoyo_ruana);
+    if (!(bruto > 0) || !(apoyo > 0)) return '';
+    const pct = Math.round((apoyo / bruto) * 100);
+    if (pct <= 0 || pct >= 100) return '';
+    return pct + '%';
+  }
+
   function buildCompetenciaAlertCopy(info, host) {
     if (!info) return null;
     const oficio = info.oficio || (host.aliado && host.aliado.oficio) || 'tu oficio';
@@ -164,15 +173,18 @@
         const apoyoTs = (typeof RuanaAlertHub !== 'undefined' && RuanaAlertHub.parseTimestamp)
             ? RuanaAlertHub.parseTimestamp(first.cerrado_en || first.updated_at || first.creado_en)
             : Date.now();
+        const pctGuardado = etiquetaPorcentajeApoyo(first);
         items.push({
             id: 'apoyo-pago',
             type: 'payment',
             tone: 'prioritario',
             priority: 200,
-            title: contactos.length === 1 ? 'Apoyo RUANA (12%) pendiente' : contactos.length + ' apoyos RUANA pendientes',
+            title: contactos.length === 1
+                ? ('Apoyo RUANA' + (pctGuardado ? ' (' + pctGuardado + ')' : '') + ' pendiente')
+                : contactos.length + ' apoyos RUANA pendientes',
             description: contactos.length === 1
                 ? ((first.servicio || 'Contacto') + ' · ' + apoyo)
-                : 'Regulariza el 12% de ' + contactos.length + ' encargos cerrados',
+                : 'Regulariza el apoyo de ' + contactos.length + ' encargos cerrados',
             actionLabel: 'Gestionar',
             hasDetail: true,
             allowWrap: true,

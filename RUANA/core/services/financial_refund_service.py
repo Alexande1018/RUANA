@@ -10,7 +10,7 @@ from core.financial.conflict_estados import EstadoConflicto, ResolucionConflicto
 from core.financial.estados import EstadoFinanciero
 from core.financial.refund_comision import calcular_impacto_comision_refund
 from core.financial.refund_estados import CausaReembolso, EstadoRefund
-from core.financial.money import importe_bd_a_cents
+from core.financial.money import desglose_congelado_cents, importe_bd_a_cents
 from core.refund_authorization import REFUND_EXECUTE
 from core.repositories.financial_conflict_repo import FinancialConflictRepo
 from core.repositories.financial_refund_repo import FinancialRefundRepo
@@ -325,11 +325,13 @@ def _ejecutar_reembolso_locked(
             if importe_solicitado_cents > disponible:
                 return {"status": "error", "message": "importe supera disponible para refund"}
 
+            congelado = desglose_congelado_cents(contacto, cobrado)
             impacto, err_com = calcular_impacto_comision_refund(
                 importe_bruto_cents=cobrado,
                 causa=causa,
                 parte_ejecutada_cents=parte_ejecutada_cents,
                 conservar_comision_total=conservar_comision_total,
+                comision_total_cents=None if congelado is None else congelado[1],
             )
             if err_com:
                 return {"status": "error", "message": err_com}

@@ -133,7 +133,7 @@ register.html → POST /api/aliados/registrar
 ```text
 Contacto → negociación guiada (negociacion_service)
   → declaración importe (contacto_service)
-  → Apoyo RUANA = importe × apoyo_pct/100 (pago_service; default 12%)
+  → Apoyo RUANA = importe × tasa vigente (5 %; pago_service / money.COMISION_RUANA_PCT). Si el encargo ya tiene apoyo guardado, se conserva.
   → comprobante → Storage → revisión admin
   → opcional: Stripe Connect checkout (flag RUANA_STRIPE_PAYMENTS_ENABLED)
   → opcional: impugnación → payment_conflicts / financial_conflicts

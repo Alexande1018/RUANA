@@ -99,7 +99,8 @@ def _run_ledger(
 
 
 def on_pago_confirmado(
-    db, *, contacto_id: int, payment_intent_id: str, importe_bruto_cents: int, event_id: str = "",
+    db, *, contacto_id: int, payment_intent_id: str, importe_bruto_cents: int,
+    event_id: str = "", comision_cents: Optional[int] = None,
 ) -> None:
     _run_ledger(
         db,
@@ -112,6 +113,7 @@ def on_pago_confirmado(
             payment_intent_id=payment_intent_id,
             idempotency_key=f"ledger-pago-{contacto_id}-{payment_intent_id}",
             actor="webhook",
+            comision_cents=comision_cents,
         ),
     )
 

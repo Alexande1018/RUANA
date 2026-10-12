@@ -40,12 +40,33 @@ function Set-SecretValue {
     }
 
     $tmp = New-TemporaryFile
+    $current = New-TemporaryFile
     try {
         [System.IO.File]::WriteAllText($tmp.FullName, $Value, [System.Text.UTF8Encoding]::new($false))
+
+        $enabledVersions = Invoke-RuanaNativeCommandOutput -FilePath $gcloud -Arguments @(
+            "secrets", "versions", "list", $Name,
+            "--filter=state=ENABLED", "--limit=1", "--format=value(name)", "--project", $projectId
+        )
+
+        if ($enabledVersions) {
+            Invoke-RuanaNativeCommand -FilePath $gcloud -Arguments @(
+                "secrets", "versions", "access", "latest", "--secret", $Name,
+                "--out-file", $current.FullName, "--project", $projectId
+            )
+            $newHash = (Get-FileHash -LiteralPath $tmp.FullName -Algorithm SHA256).Hash
+            $currentHash = (Get-FileHash -LiteralPath $current.FullName -Algorithm SHA256).Hash
+            if ($newHash -ceq $currentHash) {
+                Write-Host "Secret unchanged; no new version: $Name"
+                return
+            }
+        }
+
         Invoke-RuanaNativeCommand -FilePath $gcloud -Arguments @("secrets", "versions", "add", $Name, "--data-file", $tmp.FullName, "--project", $projectId)
     }
     finally {
         Remove-Item -LiteralPath $tmp.FullName -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $current.FullName -Force -ErrorAction SilentlyContinue
     }
 }
 

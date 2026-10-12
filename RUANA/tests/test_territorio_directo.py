@@ -185,7 +185,7 @@ def test_solicitud_entre_aliados_y_proximidad_si_falta_oficio(sqlite_db):
     assert "proximidad_solicitud" not in {n.get("tipo") for n in notifs_cerca}
 
 
-def test_cierre_encargo_confirmacion_pago_12_y_mensajes(sqlite_db):
+def test_cierre_encargo_confirmacion_pago_5_y_mensajes(sqlite_db):
     _crear(sqlite_db, "84001", oficio="Electricidad", cp="03001")
     _crear(sqlite_db, "84002", oficio="Cerrajería", cp="03001")
     creado = sqlite_db.crear_contacto_ruana(
@@ -204,8 +204,8 @@ def test_cierre_encargo_confirmacion_pago_12_y_mensajes(sqlite_db):
     )
     assert cerrado["status"] == "success"
     contacto = sqlite_db.obtener_contacto_por_id(cid)
-    assert contacto["apoyo_ruana"] == 12.0
-    assert contacto["comision_porcentaje"] == 0.12
+    assert contacto["apoyo_ruana"] == 5.0
+    assert contacto["comision_porcentaje"] == 0.05
 
     notifs = notificacion_service.listar_notificaciones_aliado(sqlite_db, "84002")
     assert isinstance(notifs, list)

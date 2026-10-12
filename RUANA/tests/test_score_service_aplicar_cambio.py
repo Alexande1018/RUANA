@@ -2,7 +2,9 @@
 Tests del núcleo Score extraído (service + repo) vía fachada DBManager
 y llamadas directas al service.
 """
+from datetime import datetime
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -19,6 +21,21 @@ def sqlite_db(tmp_path, monkeypatch):
         lambda: SimpleNamespace(postgres_configured=False, database_url=""),
     )
     return db_module.DBManager(str(tmp_path / "ruana_score_service.db"))
+
+
+def test_fecha_dia_servidor_normaliza_datetime_con_zona_horaria():
+    """Postgres devuelve timestamptz. Sin `timezone` importado esto era NameError
+    y el cálculo de score fallaba tras el alta (2026-10-11 18:29 Europe/Madrid).
+    """
+    madrid = ZoneInfo("Europe/Madrid")
+    alta = datetime(2026, 10, 11, 18, 29, tzinfo=madrid)
+    assert score_service._fecha_dia_servidor(alta) == "2026-10-11"
+    # 00:30 en Madrid ya es el día anterior en UTC.
+    cruce = datetime(2026, 10, 12, 0, 30, tzinfo=madrid)
+    assert score_service._fecha_dia_servidor(cruce) == "2026-10-11"
+    assert score_service._fecha_dia_servidor(datetime(2026, 10, 11, 18, 29)) == "2026-10-11"
+    assert score_service._fecha_dia_servidor("2026-10-11 18:29:00") == "2026-10-11"
+    assert score_service._fecha_dia_servidor(None) is None
 
 
 def _crear_activo(db, codigo, nombre="AliadoScore", score=50):

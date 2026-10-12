@@ -5,7 +5,7 @@ set -euo pipefail
 
 PROJECT_ID="${PROJECT_ID:?PROJECT_ID requerido}"
 RUNTIME_SERVICE_ACCOUNT="${RUNTIME_SERVICE_ACCOUNT:?RUNTIME_SERVICE_ACCOUNT requerido}"
-SECRET_NAME="ruana-cron-secret"
+SECRET_NAME="${RUANA_CRON_GCP_SECRET_NAME:-ruana-cron-secret}"
 CRON_SECRET="${RUANA_CRON_SECRET:-}"
 
 gcloud services enable secretmanager.googleapis.com --project "$PROJECT_ID" >/dev/null
@@ -23,18 +23,16 @@ if [[ -n "$CRON_SECRET" ]]; then
     secret_exists=true
     echo "Secreto GCP creado: $SECRET_NAME"
   fi
-  printf '%s' "$CRON_SECRET" | gcloud secrets versions add "$SECRET_NAME" \
-    --data-file=- \
-    --project "$PROJECT_ID"
+  printf '%s' "$CRON_SECRET" | bash .github/scripts/add-secret-version-if-changed.sh \
+    "$SECRET_NAME" "$PROJECT_ID"
   echo "RUANA_CRON_SECRET sincronizado desde GitHub Secret."
 elif [[ "$secret_exists" == false ]]; then
   CRON_SECRET="$(openssl rand -base64 32)"
   gcloud secrets create "$SECRET_NAME" \
     --replication-policy=automatic \
     --project "$PROJECT_ID"
-  printf '%s' "$CRON_SECRET" | gcloud secrets versions add "$SECRET_NAME" \
-    --data-file=- \
-    --project "$PROJECT_ID"
+  printf '%s' "$CRON_SECRET" | bash .github/scripts/add-secret-version-if-changed.sh \
+    "$SECRET_NAME" "$PROJECT_ID"
   echo "::warning::RUANA_CRON_SECRET generado en GCP (bootstrap). Añade el mismo valor a GitHub Secrets y Cloud Scheduler."
 else
   echo "::warning::GitHub Secret RUANA_CRON_SECRET no configurado; se reutiliza la versión existente en GCP."

@@ -117,7 +117,11 @@ class PagoRepo:
 
     def select_contacto_partes(self, cursor, contacto_id: int) -> Optional[Any]:
         cursor.execute(
-            "SELECT id, solicitante_codigo, profesional_codigo, estado FROM contactos_ruana WHERE id = ?",
+            """
+            SELECT id, solicitante_codigo, profesional_codigo, estado,
+                   importe_acordado, importe_final, apoyo_ruana, comision, comision_porcentaje
+            FROM contactos_ruana WHERE id = ?
+            """,
             (contacto_id,),
         )
         return cursor.fetchone()
