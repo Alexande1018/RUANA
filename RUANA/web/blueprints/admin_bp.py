@@ -1084,9 +1084,9 @@ def get_stats():
         db = get_db()
         stats = evaluacion_service.obtener_estadisticas_evaluaciones(db)
 
-        aliados = aliado_service.listar_aliados(db)
-        total = len(aliados)
-        activos = len([a for a in aliados if a.get('estado') == 'activo'])
+        conteo = aliado_service.contar_aliados_panel(db)
+        total = int(conteo.get("total") or 0)
+        activos = int(conteo.get("activos") or 0)
 
         retadores = db.contar_retadores_activos()
         suplentes = retadores  # alias

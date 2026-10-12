@@ -48,6 +48,10 @@ def test_get_connection_pool_reuses_same_instance():
 
         assert p1 is p2
         mock_pool_cls.assert_called_once()
+        kwargs = mock_pool_cls.call_args.kwargs
+        assert kwargs["check"] is mock_pool_cls.check_connection
+        assert kwargs["max_lifetime"] == 300.0
+        assert kwargs["max_idle"] == 280.0
         instance.open.assert_called_once_with(wait=True)
 
 
