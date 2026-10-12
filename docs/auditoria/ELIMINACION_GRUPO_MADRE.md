@@ -5,6 +5,7 @@
 | Fecha | 2026-09-09 |
 | Rama | `cursor/territorio-directo-cp-b288` |
 | Estado | Implementado — ver `docs/auditoria/INFORME_FINAL_TERRITORIO_DIRECTO.md` |
+| Cómo se hacía el grupo general | [`GRUPO_GENERAL_ANTES_TERRITORIAL.md`](GRUPO_GENERAL_ANTES_TERRITORIAL.md) — creación del Madre, plazas, madurez 10+3 e independización admin |
 | Autoridad | El código en `RUANA/` prevalece si hay conflicto |
 
 ---
