@@ -574,7 +574,8 @@ def obtener_stats_24h_panel(db) -> Dict[str, Any]:
             """)
             rows = cursor.fetchall()
             top_invitadores = []
-            for (codigo_inv, total) in rows:
+            for r in rows:
+                codigo_inv, total = r[0], r[1]
                 rn = _repo.select_nombre_aliado(cursor, codigo_inv or '')
                 nombre = (rn[0] or codigo_inv or '—') if rn else (codigo_inv or '—')
                 top_invitadores.append({'nombre': nombre, 'total': total})
@@ -773,7 +774,9 @@ def obtener_health_metrics_admin(db, umbral_suplentes: int = 1) -> Dict[str, Any
                 """)
                 grupos_activos = cursor.fetchall()
                 plazas_sin_titular = 0
-                for (gid, _) in grupos_activos:
+                for g in grupos_activos:
+                    # Filas dict_row: desempaquetar daría las claves ("id"), no los valores.
+                    gid = g[0]
                     _repo.execute(cursor, 
                         "SELECT oficio FROM aliados WHERE grupo_id = ? AND estado = 'activo' AND oficio IS NOT NULL",
                         (gid,)
@@ -1005,7 +1008,8 @@ def obtener_movimiento_24h(db) -> Dict[str, Any]:
             """)
             rows = cursor.fetchall()
             top_invitadores = []
-            for codigo_inv, total in rows:
+            for r in rows:
+                codigo_inv, total = r[0], r[1]
                 rn = _repo.select_nombre_aliado(cursor, codigo_inv)
                 nombre = (rn[0] or codigo_inv) if rn else codigo_inv
                 top_invitadores.append({'nombre': nombre, 'total': total})
