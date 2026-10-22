@@ -12,6 +12,8 @@ from typing import Any, Dict, List, Optional
 
 from core.repositories.evaluacion_repo import EvaluacionRepo
 
+logger = logging.getLogger(__name__)
+
 _repo = EvaluacionRepo()
 
 
@@ -219,7 +221,7 @@ def ejecutar_motor_periodico(db) -> Dict[str, Any]:
             conn = db._connect()
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT TRIM(CAST(codigo AS TEXT)) FROM aliados WHERE estado = 'activo'"
+                "SELECT TRIM(CAST(codigo AS TEXT)) AS codigo FROM aliados WHERE estado = 'activo'"
             )
             rows = cursor.fetchall()
         finally:
@@ -227,18 +229,17 @@ def ejecutar_motor_periodico(db) -> Dict[str, Any]:
 
     codigos: List[str] = []
     for row in rows:
-        if isinstance(row, dict):
-            cod = row.get("codigo")
-        elif hasattr(row, "keys"):
-            cod = row["codigo"]
-        else:
-            cod = row[0]
+        cod = row[0]
         if cod:
             codigos.append(str(cod).strip())
 
     metricas: Dict[str, Dict[str, Any]] = {}
     for codigo in codigos:
-        metricas[codigo] = admin_service.obtener_metricas_motor_por_aliado(db, codigo)
+        try:
+            metricas[codigo] = admin_service.obtener_metricas_motor_por_aliado(db, codigo)
+        except Exception:
+            logger.exception("Motor periódico: error obteniendo métricas del aliado %s", codigo)
+            raise
 
     motor = MotorEvaluacion(logger=logging.getLogger(__name__))
     decisiones = motor.evaluate_all(metricas)

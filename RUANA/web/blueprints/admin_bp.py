@@ -12,6 +12,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 import json
+import logging
 from datetime import datetime
 
 from core.settings import get_settings
@@ -1287,6 +1288,9 @@ def purga_mensual():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+_admin_bp_logger = logging.getLogger(__name__)
+
+
 @admin_bp.route('/api/admin/motor/evaluar-periodico', methods=['POST'])
 @require_admin_escritura_or_cron
 def admin_motor_evaluar_periodico():
@@ -1307,9 +1311,12 @@ def admin_motor_evaluar_periodico():
                 metadata=resultado.get('resumen_estados', {}),
             )
         status_code = 200 if resultado.get('status') == 'success' else 500
+        if status_code != 200:
+            _admin_bp_logger.error("Motor periódico devolvió error: %s", resultado)
         return jsonify({**resultado, 'timestamp': datetime.now().isoformat()}), status_code
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+    except Exception:
+        _admin_bp_logger.exception("Error ejecutando motor periódico (evaluar-periodico)")
+        return jsonify({'status': 'error', 'message': 'Error interno ejecutando el motor periódico'}), 500
 
 
 @admin_bp.route('/api/admin/contactos/<int:contacto_id>/negociacion', methods=['DELETE'])
