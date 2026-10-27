@@ -481,7 +481,7 @@ test.describe('RUANA QA critica con video human-readable', () => {
       });
       await fillVisible(page, '#invite-code', code);
       await clickVisible(page, '#invite-btn');
-      await expect(page).toHaveURL(/register\.html/);
+      await expect(page).toHaveURL(/\/register(\.html)?/);
       const inviteValid = await page.evaluate(() => sessionStorage.getItem('ruana_invite_valid'));
       const inviteCode = await page.evaluate(() => sessionStorage.getItem('ruana_invite_codigo'));
       expect(inviteValid).toBe('true');
