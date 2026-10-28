@@ -47,7 +47,8 @@
     <script src="/static/js/referidos-module.js" defer></script>
     <script src="/static/js/admin-red-explorer-module.js?v=20260909e" defer></script>
     <script src="/static/js/admin-territorio-module.js" defer></script>
-    <script src="/static/js/admin-shell.js?v=20260913b" defer></script>
+    <script src="/static/js/admin-encargos-externos-module.js?v=20261028a" defer></script>
+    <script src="/static/js/admin-shell.js?v=20261028a" defer></script>
 </head>
 <body class="admin-is-loading">
     <!-- Modal Detalle Aliado -->
@@ -837,6 +838,78 @@
                 <button type="button" class="btn-admin-action" id="btn-conversaciones-mostrar-menos" style="display: none;">Mostrar menos</button>
             </div>
             <p class="admin-subtitle" id="conversaciones-no-mas" style="margin-top: 8px; color: #666; display: none;">No hay más registros</p>
+        </div>
+
+        <!-- Encargos de RUANA (clientes de anuncios externos, sin cobro) -->
+        <div class="conversaciones-ruana-wrap" id="encargos-externos-admin-wrap">
+        <style>
+            #form-encargo-externo label { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; color: rgba(255,255,255,0.75); }
+            #form-encargo-externo input, #form-encargo-externo textarea {
+                width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 8px;
+                border: 1px solid rgba(255,255,255,0.18); background: rgba(0,0,0,0.3); color: #e5e7eb; font: inherit; font-size: 0.92rem;
+            }
+            #form-encargo-externo textarea { resize: vertical; min-height: 80px; }
+            #form-encargo-externo input:focus, #form-encargo-externo textarea:focus { outline: none; border-color: rgba(74,222,128,0.6); }
+            #encargos-externos-form-wrap { padding: 14px 16px; }
+        </style>
+            <h2 class="seccion-titulo">Encargos de RUANA (clientes de anuncios)</h2>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Clientes que llegan por anuncios y que RUANA pasa a un aliado concreto. No pasan por Stripe, no cobran comisión y no suman puntos.</p>
+            <div class="acciones-grid" id="encargos-externos-conteos" style="margin-bottom: 14px;">
+                <div class="stat-card"><span class="stat-label">Creados</span><span class="stat-value" data-ee-conteo="creado">0</span></div>
+                <div class="stat-card"><span class="stat-label">Aceptados</span><span class="stat-value" data-ee-conteo="aceptado">0</span></div>
+                <div class="stat-card"><span class="stat-label">Hechos</span><span class="stat-value" data-ee-conteo="hecho">0</span></div>
+                <div class="stat-card"><span class="stat-label">Rechazados</span><span class="stat-value" data-ee-conteo="rechazado">0</span></div>
+            </div>
+            <details class="movimiento-card" id="encargos-externos-form-wrap" style="margin-bottom: 14px;">
+                <summary style="cursor:pointer; font-weight:600;">Nuevo encargo para un aliado</summary>
+                <form id="form-encargo-externo" autocomplete="off" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 12px;">
+                    <label>Código del aliado *<input type="text" name="aliado_codigo" required placeholder="Ej.: 40243"></label>
+                    <label>Nombre del cliente *<input type="text" name="cliente_nombre" required maxlength="120"></label>
+                    <label>Teléfono del cliente<input type="tel" name="cliente_telefono" placeholder="+34 600 000 000"></label>
+                    <label>Email del cliente<input type="email" name="cliente_email"></label>
+                    <label>Código postal *<input type="text" name="codigo_postal" required inputmode="numeric" pattern="\d{5}" maxlength="5"></label>
+                    <label>Anuncio de origen<input type="text" name="origen_anuncio" maxlength="120" placeholder="Ej.: Meta Alcobendas octubre"></label>
+                    <label>Precio orientativo (€)<input type="text" name="precio_orientativo" inputmode="decimal" placeholder="Opcional"></label>
+                    <label style="grid-column: 1 / -1;">Qué necesita el cliente *<textarea name="descripcion" rows="3" required maxlength="2000"></textarea></label>
+                    <p class="admin-subtitle" style="grid-column: 1 / -1; color:#999; margin:0;">Pon al menos un teléfono o un email. Al guardar, el aliado recibe un aviso en la app y un email.</p>
+                    <div style="grid-column: 1 / -1; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                        <button type="submit" class="btn-admin-action" id="btn-crear-encargo-externo">Crear y avisar al aliado</button>
+                        <span id="encargo-externo-form-msg" role="status" aria-live="polite"></span>
+                    </div>
+                </form>
+            </details>
+            <div class="filtros-solicitudes-admin admin-filter-row">
+                <select id="filtro-encargos-externos-estado">
+                    <option value="">Todos los estados</option>
+                    <option value="creado">Creado</option>
+                    <option value="aceptado">Aceptado</option>
+                    <option value="hecho">Hecho</option>
+                    <option value="rechazado">Rechazado</option>
+                </select>
+                <button type="button" class="btn-admin-action" id="btn-filtrar-encargos-externos">Actualizar</button>
+            </div>
+            <div class="movimiento-24h-tabla-wrap">
+                <div class="movimiento-24h-tabla-scroll">
+                    <table class="movimiento-24h-tabla" id="tabla-encargos-externos">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Fecha</th>
+                                <th>Aliado</th>
+                                <th>Cliente</th>
+                                <th>Contacto</th>
+                                <th>CP</th>
+                                <th>Encargo</th>
+                                <th>Anuncio</th>
+                                <th>Precio orient.</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-encargos-externos"></tbody>
+                    </table>
+                </div>
+            </div>
+            <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="encargos-externos-empty">Todavía no hay encargos de RUANA.</p>
         </div>
 
         <!-- CAPA 3.71: Contactos con chat (GET /api/admin/conversations) -->

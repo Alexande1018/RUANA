@@ -58,6 +58,7 @@ from web.blueprints.pagos_bp import pagos_bp
 from web.blueprints.stripe_webhook_bp import stripe_webhook_bp
 from web.blueprints.solicitudes_bp import solicitudes_bp
 from web.blueprints.solicitudes_semanales_bp import solicitudes_semanales_bp
+from web.blueprints.encargos_externos_bp import encargos_externos_bp
 from web.blueprints.aliado_bp import (
     aliado_bp,
     _generar_codigo_unico_impl as _generar_codigo_unico,
@@ -168,6 +169,7 @@ app.register_blueprint(pagos_bp)
 app.register_blueprint(stripe_webhook_bp)
 app.register_blueprint(solicitudes_bp)
 app.register_blueprint(solicitudes_semanales_bp)
+app.register_blueprint(encargos_externos_bp)
 app.register_blueprint(aliado_bp)
 app.register_blueprint(invitacion_bp)
 app.register_blueprint(evaluacion_bp)

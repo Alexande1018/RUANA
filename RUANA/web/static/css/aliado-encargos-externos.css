@@ -1,0 +1,118 @@
+/* Encargos de RUANA (clientes de anuncios externos) — sección en Inicio */
+
+.encargos-ruana {
+  margin: 18px 0;
+  padding: 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(120, 180, 255, 0.28);
+  background: linear-gradient(165deg, rgba(30, 58, 95, 0.45) 0%, rgba(18, 24, 32, 0.6) 100%);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.encargos-ruana-title {
+  margin: 0 0 4px;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.encargos-ruana-subtitle {
+  margin: 0 0 14px;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.45;
+}
+
+.encargos-ruana-list {
+  display: grid;
+  gap: 12px;
+}
+
+.encargo-ruana-card {
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.encargo-ruana-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.encargo-ruana-kicker {
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(120, 180, 255, 0.9);
+}
+
+.encargo-ruana-estado {
+  font-size: 0.78rem;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.encargo-ruana-estado[data-estado="aceptado"] { background: rgba(59, 130, 246, 0.25); }
+.encargo-ruana-estado[data-estado="hecho"] { background: rgba(34, 197, 94, 0.25); }
+.encargo-ruana-estado[data-estado="rechazado"] { background: rgba(239, 68, 68, 0.22); }
+
+.encargo-ruana-cliente {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+
+.encargo-ruana-desc {
+  margin: 0 0 8px;
+  font-size: 0.92rem;
+  color: rgba(255, 255, 255, 0.82);
+  line-height: 1.45;
+  white-space: pre-line;
+}
+
+.encargo-ruana-datos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 0 0 10px;
+  font-size: 0.88rem;
+}
+
+.encargo-ruana-datos a {
+  color: #93c5fd;
+}
+
+.encargo-ruana-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.encargo-ruana-btn {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  border-radius: 10px;
+  padding: 9px 14px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.encargo-ruana-btn--primary {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.encargo-ruana-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.encargo-ruana-msg {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  color: #fca5a5;
+}
