@@ -24,6 +24,7 @@
     <link rel="stylesheet" href="/static/css/ruana-pulse.css?v=20260904b">
     <link rel="stylesheet" href="/static/css/referidos-tree.css">
     <link rel="stylesheet" href="/static/css/aliado-solicitudes-semanales.css?v=20261012a">
+    <link rel="stylesheet" href="/static/css/aliado-encargos-externos.css?v=20261028a">
     <script src="/static/js/vendor/lucide.min.js?v=0.469.0" defer></script>
     <script src="/static/js/ruana-atmosphere.js" defer></script>
     <script src="/static/js/ruana-ui.js" defer></script>
@@ -40,6 +41,7 @@
     <script src="/static/js/aliado-directorio-module.js" defer></script>
     <script src="/static/js/aliado-solicitudes-module.js?v=20260910e" defer></script>
     <script src="/static/js/aliado-solicitudes-semanales-module.js?v=20261012a" defer></script>
+    <script src="/static/js/aliado-encargos-externos-module.js?v=20261028a" defer></script>
     <script src="/static/js/aliado-acuerdos-module.js" defer></script>
     <script src="/static/js/aliado-conexiones-module.js?v=20260910b" defer></script>
     <script src="/static/js/aliado-centro-comunicacion-module.js" defer></script>
@@ -329,6 +331,12 @@
                         <small>Identidad y cuenta</small>
                     </button>
                 </div>
+
+                <section class="encargos-ruana" id="inicio-encargos-ruana-wrap" hidden aria-live="polite" aria-labelledby="encargos-ruana-title">
+                    <h3 class="encargos-ruana-title" id="encargos-ruana-title">Encargos de RUANA</h3>
+                    <p class="encargos-ruana-subtitle">Clientes que RUANA te pasa directamente. Llámales o escríbeles, y cuéntanos aquí si lo coges.</p>
+                    <div class="encargos-ruana-list" id="inicio-encargos-ruana-list"></div>
+                </section>
 
                 <section class="inicio-sol-sem" id="inicio-solicitudes-semanales-wrap" hidden aria-live="polite">
                     <h3 class="inicio-sol-sem-title">Solicitudes de esta semana</h3>
