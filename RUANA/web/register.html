@@ -983,6 +983,16 @@
          * Formulario de registro completo con selección de oficios
          */
         
+        // Limpia el código de invitación (URL o campo): quita espacios, comillas,
+        // acentos graves (`) y signos del principio y del final, y pasa a mayúsculas.
+        // Ej.: "ALC-IG`", " alc-ig ", '"ALC-IG"', "ALC-IG." -> "ALC-IG".
+        function normalizarCodigoInvitacion(valor) {
+            return String(valor == null ? '' : valor)
+                .replace(/[\u0000-\u001F\u007F]/g, '')
+                .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')
+                .toUpperCase();
+        }
+
         class RAUANARegister {
             constructor() {
                 this.form = document.getElementById('register-form');
@@ -1039,7 +1049,7 @@
 
             readCodeFromUrl() {
                 const params = new URLSearchParams(window.location.search);
-                return (params.get('codigo') || params.get('code') || '').trim().toUpperCase();
+                return normalizarCodigoInvitacion(params.get('codigo') || params.get('code') || '');
             }
 
             captureUtms() {
@@ -1122,7 +1132,7 @@
             }
 
             acceptInvite(code, invitacion) {
-                const upper = (code || '').trim().toUpperCase();
+                const upper = normalizarCodigoInvitacion(code);
                 const payload = invitacion || {};
                 sessionStorage.setItem('ruana_invite_valid', 'true');
                 sessionStorage.setItem('ruana_invite_codigo', upper);
@@ -1154,7 +1164,7 @@
             }
 
             async validateInviteCode(code) {
-                const upper = String(code || '').trim().toUpperCase();
+                const upper = normalizarCodigoInvitacion(code);
                 const url = '/api/validar-invitacion?codigo=' + encodeURIComponent(upper);
                 const response = await fetch(url, { method: 'GET' });
                 let result = {};
@@ -1198,8 +1208,8 @@
                         sessionStorage.getItem('ruana_invite_codigo')
                         || sessionStorage.getItem('ruana_invite_code')
                         || ''
-                    ).trim().toUpperCase();
-                    this.lockCode(stored);
+                    ).trim();
+                    this.lockCode(normalizarCodigoInvitacion(stored));
                     this.showSignupForm(true);
                     return;
                 }
@@ -1209,8 +1219,8 @@
             forwardToInvite() {
                 const current = new URLSearchParams(window.location.search);
                 const next = new URLSearchParams();
-                const codigo = (current.get('codigo') || current.get('code') || '').trim();
-                if (codigo) next.set('codigo', codigo.toUpperCase());
+                const codigo = normalizarCodigoInvitacion(current.get('codigo') || current.get('code') || '');
+                if (codigo) next.set('codigo', codigo);
                 current.forEach((value, key) => {
                     if (key.toLowerCase().startsWith('utm_') && value) next.set(key, value);
                 });
@@ -1227,7 +1237,7 @@
             async handleGateSubmit(e) {
                 e.preventDefault();
                 const input = document.getElementById('gate-codigo');
-                const code = (input && input.value ? input.value : '').trim().toUpperCase();
+                const code = normalizarCodigoInvitacion(input && input.value ? input.value : '');
                 if (!code) {
                     this.showGateError('Escribe un código de invitación.');
                     return;
