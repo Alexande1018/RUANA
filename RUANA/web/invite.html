@@ -193,6 +193,16 @@
          * 6. Después del registro: código se invalida automáticamente
          */
         
+        // Limpia el código de invitación (URL o campo): quita espacios, comillas,
+        // acentos graves (`) y signos del principio y del final, y pasa a mayúsculas.
+        // Ej.: "ALC-IG`", " alc-ig ", '"ALC-IG"', "ALC-IG." -> "ALC-IG".
+        function normalizarCodigoInvitacion(valor) {
+            return String(valor == null ? '' : valor)
+                .replace(/[\u0000-\u001F\u007F]/g, '')
+                .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')
+                .toUpperCase();
+        }
+
         class RAUANAInvite {
             constructor() {
                 this.form = document.getElementById('invite-form');
@@ -208,14 +218,14 @@
                 this.codeInput.addEventListener('input', () => this.clearError());
                 this.persistUtms();
                 const params = new URLSearchParams(window.location.search);
-                const codeFromUrl = (params.get('codigo') || params.get('code') || '').trim();
+                const codeFromUrl = normalizarCodigoInvitacion(params.get('codigo') || params.get('code') || '');
                 const storedError = sessionStorage.getItem('ruana_invite_error');
                 if (storedError) {
                     sessionStorage.removeItem('ruana_invite_error');
                     this.showError(storedError);
                 }
                 if (codeFromUrl) {
-                    this.codeInput.value = codeFromUrl.toUpperCase();
+                    this.codeInput.value = codeFromUrl;
                     this.validateInviteCode(this.codeInput.value);
                     return;
                 }
@@ -257,7 +267,7 @@
             registerUrl(code) {
                 const current = new URLSearchParams(window.location.search);
                 const next = new URLSearchParams();
-                const upper = (code || '').trim().toUpperCase();
+                const upper = normalizarCodigoInvitacion(code);
                 if (upper) next.set('codigo', upper);
                 const stored = this.utm || {};
                 current.forEach((value, key) => {
@@ -274,7 +284,7 @@
 
             handleSubmit(e) {
                 e.preventDefault();
-                const code = this.codeInput.value.trim().toUpperCase();
+                const code = normalizarCodigoInvitacion(this.codeInput.value);
 
                 if (!code) {
                     this.showError('El código de invitación es requerido');

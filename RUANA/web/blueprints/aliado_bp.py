@@ -16,7 +16,7 @@ from flask import Blueprint, jsonify, request
 from core import db_manager as db_manager_mod
 from core.db_manager import RUANA_CODIGO_INVITACION_REGEX
 from core.phone_utils import normalize_phone
-from core.services import aliado_service, notificacion_service
+from core.services import aliado_service, invitacion_service, notificacion_service
 from web.auth_decorators import (
     _admin_codigo,
     _aliado_codigo,
@@ -493,7 +493,7 @@ def registrar_aliado():
         # Si viene con código de invitación "Conozco a alguien", intentar asignar al grupo del invitador si cumple reglas
         grupo_id_invitacion = None
         codigo_postal = (data.get('codigo_postal') or '').strip()
-        codigo_invitacion_raw = (data.get('codigo_invitacion') or '').strip()
+        codigo_invitacion_raw = invitacion_service.normalizar_codigo_invitacion(data.get('codigo_invitacion'))
         codigo_invitacion_simple = None
         codigo_campana_invitacion = None
         if codigo_invitacion_raw and not re.match(RUANA_CODIGO_INVITACION_REGEX, codigo_invitacion_raw.upper()):
@@ -599,7 +599,7 @@ def registrar_aliado():
         # mensaje_lista_espera viene del db_manager si aplica
 
         # Si registr? con c?digo de invitaci?n v?lido
-        codigo_invitacion = (data.get('codigo_invitacion') or '').strip()
+        codigo_invitacion = codigo_invitacion_raw
         if codigo_invitacion:
             codigo_inv_upper = codigo_invitacion.upper()
             # C?digo RUANA-XXX-OFICIO-XXXX: invitaci?n por oficio (una sola vez)

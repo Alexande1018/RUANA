@@ -18,6 +18,25 @@ from core.services import solicitud_service
 
 _repo = InvitacionRepo()
 
+
+def normalizar_codigo_invitacion(codigo_raw: Any) -> str:
+    """Limpia un código de invitación tal como llega de la URL o del formulario.
+
+    Quita del principio y del final espacios, comillas (' " ‘ ’ “ ” « »),
+    acentos graves/agudos sueltos (` ´) y cualquier otro signo de puntuación,
+    elimina caracteres no imprimibles y pasa a mayúsculas.
+    Ej.: "ALC-IG`", " alc-ig ", '"ALC-IG"', "ALC-IG." -> "ALC-IG".
+    """
+    texto = ''.join(
+        c for c in str(codigo_raw or '') if c.isprintable() and c != '\x00'
+    )
+    inicio, fin = 0, len(texto)
+    while inicio < fin and not texto[inicio].isalnum():
+        inicio += 1
+    while fin > inicio and not texto[fin - 1].isalnum():
+        fin -= 1
+    return texto[inicio:fin].upper()
+
 # --- Extraído de DBManager (invitacion) ---
 
 def _registrar_invitacion(db,

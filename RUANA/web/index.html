@@ -388,6 +388,16 @@
     </div>
 
     <script>
+        // Limpia el código de invitación (URL o campo): quita espacios, comillas,
+        // acentos graves (`) y signos del principio y del final, y pasa a mayúsculas.
+        // Ej.: "ALC-IG`", " alc-ig ", '"ALC-IG"', "ALC-IG." -> "ALC-IG".
+        function normalizarCodigoInvitacion(valor) {
+            return String(valor == null ? '' : valor)
+                .replace(/[\u0000-\u001F\u007F]/g, '')
+                .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')
+                .toUpperCase();
+        }
+
         class RAUANAAccess {
             constructor() {
                 this.authCard = document.getElementById('auth-card');
@@ -798,7 +808,7 @@
 
             handleInvite(e) {
                 e.preventDefault();
-                const code = document.getElementById('invite-code').value.trim();
+                const code = normalizarCodigoInvitacion(document.getElementById('invite-code').value);
                 const btn = document.getElementById('invite-btn');
                 if (!code || code.length < 4) {
                     this.showError('invite-error', 'El código debe tener al menos 4 caracteres');

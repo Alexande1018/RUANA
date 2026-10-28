@@ -245,7 +245,7 @@ def validar_invitacion_query():
 def _validar_invitacion_impl(codigo_raw):
     """L?gica com?n de validaci?n de invitaci?n."""
     try:
-        codigo = ''.join(c for c in str(codigo_raw or '').strip() if c.isprintable() and c != '\x00').strip()
+        codigo = invitacion_service.normalizar_codigo_invitacion(codigo_raw)
         if not codigo:
             return jsonify({
                 'status': 'error',
