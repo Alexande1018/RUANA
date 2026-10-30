@@ -7,6 +7,8 @@ raw SQL with explicit Postgres queries.
 
 from __future__ import annotations
 
+import atexit
+import logging
 import os
 import re
 import sqlite3
@@ -50,16 +52,37 @@ _POOL_MAX_LIFETIME_S = 300.0
 _POOL_MAX_IDLE_S = 280.0
 
 
+def _pool_close_timeout_s() -> float:
+    try:
+        return max(0.0, float(os.environ.get("RUANA_DB_POOL_CLOSE_TIMEOUT_S", "5")))
+    except ValueError:
+        return 5.0
+
+
 def close_pool() -> None:
-    """Cierra todos los pools (tests / apagado ordenado)."""
+    """Cierra todos los pools (tests / apagado ordenado). Idempotente.
+
+    Se llama al salir del proceso (atexit) y desde el hook ``worker_exit`` de
+    gunicorn (RUANA/gunicorn.conf.py). Llamarla varias veces no hace nada malo.
+    """
     global _pools
     with _pools_lock:
-        for pool in _pools.values():
+        pools = list(_pools.values())
+        _pools.clear()
+    for pool in pools:
+        try:
+            if not getattr(pool, "closed", False):
+                pool.close(timeout=_pool_close_timeout_s())
+        except Exception:
             try:
-                pool.close()
+                logging.getLogger("ruana.db.pool").warning("Error cerrando pool Postgres", exc_info=True)
             except Exception:
                 pass
-        _pools.clear()
+
+
+# Apagado ordenado: Cloud Run manda SIGTERM → gunicorn para los workers →
+# el intérprete sale y atexit cierra el pool (evita el aviso de pool sin cerrar).
+atexit.register(close_pool)
 
 
 class CompatRow(Mapping):

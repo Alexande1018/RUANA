@@ -53,7 +53,7 @@ def test_migrar_cp_auto_split_v1_postgres_if_not_exists():
 
 def test_init_postgres_schema_commits_madre_v1_antes_de_consolidar():
     src = Path(schema_service.__file__).read_text(encoding="utf-8")
-    idx = src.index("def _init_postgres_schema")
+    idx = src.index("def _init_postgres_schema_unlocked")
     block = src[idx : idx + 16000]
     v1_idx = block.index("_migrar_grupo_madre_v1_si_procede")
     split_idx = block.index("_migrar_cp_auto_split_v1_si_procede")
