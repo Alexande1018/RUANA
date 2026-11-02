@@ -609,6 +609,60 @@ class ActividadRepo:
             return top
         return None
 
+    def listar_solicitudes_semanales_activas(
+        self, cursor, semana_inicio: str, excluir_codigo: str, limite: int = 50
+    ) -> List[Dict[str, Any]]:
+        """Solicitudes semanales activas de la semana en curso (todas las zonas).
+
+        El filtro por zona se hace en el servicio con el CP del solicitante
+        (o el del grupo si el aliado no tiene CP propio).
+        """
+        cursor.execute(
+            """
+            SELECT s.id, s.grupo_id, s.solicitante_codigo,
+                   s.oficio AS oficio_buscado,
+                   COALESCE(s.es_oficio_personalizado, 0) AS es_oficio_personalizado,
+                   s.created_at AS creado_en,
+                   a.oficio AS solicitante_oficio,
+                   TRIM(COALESCE(a.codigo_postal, '')) AS solicitante_cp,
+                   TRIM(COALESCE(g.codigo_postal, '')) AS grupo_cp
+            FROM solicitudes_semanales s
+            LEFT JOIN aliados a
+              ON TRIM(CAST(a.codigo AS TEXT)) = TRIM(CAST(s.solicitante_codigo AS TEXT))
+            LEFT JOIN grupos g ON g.id = s.grupo_id
+            WHERE s.estado = 'activa'
+              AND s.semana_inicio = ?
+              AND TRIM(CAST(s.solicitante_codigo AS TEXT)) != ?
+            ORDER BY s.created_at DESC
+            LIMIT ?
+            """,
+            (str(semana_inicio), excluir_codigo.strip(), int(limite)),
+        )
+        return [dict(r) for r in cursor.fetchall()]
+
+    def listar_altas_recientes(
+        self, cursor, excluir_codigo: str, limite: int = 10
+    ) -> List[Dict[str, Any]]:
+        """Altas reales de aliados de los últimos 14 días (sin nombre)."""
+        cursor.execute(
+            """
+            SELECT a.codigo, a.oficio, a.grupo_id,
+                   TRIM(COALESCE(a.codigo_postal, '')) AS codigo_postal,
+                   TRIM(COALESCE(g.codigo_postal, '')) AS grupo_cp,
+                   a.creado_en
+            FROM aliados a
+            LEFT JOIN grupos g ON g.id = a.grupo_id
+            WHERE a.estado IN ('activo', 'en_espera')
+              AND TRIM(CAST(a.codigo AS TEXT)) != ?
+              AND a.oficio IS NOT NULL AND TRIM(a.oficio) != ''
+              AND a.creado_en >= datetime('now', '-14 days')
+            ORDER BY a.creado_en DESC
+            LIMIT ?
+            """,
+            (excluir_codigo.strip(), int(limite)),
+        )
+        return [dict(r) for r in cursor.fetchall()]
+
     def columnas_tabla(self, cursor, tabla: str) -> List[str]:
         cursor.execute(f"PRAGMA table_info({tabla})")
         return [r[1] for r in cursor.fetchall()]
