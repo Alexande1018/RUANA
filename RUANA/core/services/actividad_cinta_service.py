@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from core.repositories.actividad_repo import ActividadRepo
@@ -1182,15 +1182,213 @@ def _recolectar_metricas(
     return items
 
 
+
+# --- Solicitudes semanales de la zona y altas de aliados (sin nombres) ---
+
+MAX_ALTAS_CINTA = 3
+MAX_SOL_SEM_ZONA_CINTA = 5
+
+# Oficio del catálogo RUANA → cómo se dice la persona («un carpintero»).
+_OFICIO_PERSONA_CINTA = {
+    "albañilería y obra": "albañil",
+    "electricidad": "electricista",
+    "fontanería y fontanería-gas": "fontanero",
+    "climatización y calefacción": "técnico de climatización",
+    "carpintería de madera e interior": "carpintero",
+    "carpintería de aluminio / pvc / metálica": "carpintero de aluminio",
+    "pintura y decoración": "pintor",
+    "cerrajería": "cerrajero",
+    "cristalería y espejos": "cristalero",
+    "jardinería y mantenimiento exterior": "jardinero",
+    "manitas / reparaciones generales": "manitas",
+    "mecánica ligera": "mecánico",
+    "peluquería y barbería (local o a domicilio)": "peluquero",
+    "clases particulares académicas": "profesor particular",
+    "idiomas": "profesor de idiomas",
+}
+
+
+def _en_frase(texto: Any) -> str:
+    t = str(texto or "").strip()
+    if not t:
+        return ""
+    return t[0].lower() + t[1:]
+
+
+def _persona_oficio(oficio: Any) -> Optional[str]:
+    """«Carpintería de madera e interior» → «carpintero»; None si no hay nombre corto."""
+    return _OFICIO_PERSONA_CINTA.get(str(oficio or "").strip().casefold())
+
+
+def _sujeto_oficio(oficio: Any) -> str:
+    persona = _persona_oficio(oficio)
+    if persona:
+        return f"Un {persona}"
+    texto = _en_frase(oficio)
+    if texto:
+        return f"Un profesional de {texto}"
+    return "Un aliado"
+
+
+def _buscado_oficio(oficio: Any, personalizado: bool) -> str:
+    texto = str(oficio or "").strip()
+    if not texto:
+        return "un profesional"
+    if personalizado:
+        return f"«{texto}»"
+    persona = _persona_oficio(texto)
+    if persona:
+        return f"un {persona}"
+    return f"un profesional de {_en_frase(texto)}"
+
+
+def _prefijo_provincia(cp: Any) -> str:
+    """Los dos primeros dígitos del CP español identifican la provincia."""
+    texto = str(cp or "").strip()
+    if len(texto) == 5 and texto.isdigit():
+        return texto[:2]
+    return ""
+
+
+def _cp_fila(row: Dict[str, Any], key_aliado: str, key_grupo: str) -> str:
+    for key in (key_aliado, key_grupo):
+        cp = str(row.get(key) or "").strip()
+        if cp and cp != "__MADRE__":
+            return cp
+    return ""
+
+
+def _semana_inicio_actual(ref: Optional[date] = None) -> str:
+    d = ref or date.today()
+    return (d - timedelta(days=d.weekday())).isoformat()
+
+
+def texto_solicitud_semanal_cinta(
+    solicitante_oficio: Any,
+    oficio_buscado: Any,
+    personalizado: bool,
+    mismo_grupo: bool,
+) -> str:
+    """«Un carpintero de tu zona busca un electricista esta semana»."""
+    donde = "de tu grupo" if mismo_grupo else "de tu zona"
+    return (
+        f"{_sujeto_oficio(solicitante_oficio)} {donde} busca "
+        f"{_buscado_oficio(oficio_buscado, personalizado)} esta semana"
+    )
+
+
+def texto_alta_aliado_cinta(cp: str, oficio: Any) -> str:
+    return (
+        f"En el CP {cp} se acaba de registrar un nuevo aliado de {_en_frase(oficio)}"
+    )
+
+
+def _recolectar_solicitudes_semanales_zona(
+    cursor,
+    viewer_codigo: str,
+    grupo_id: Optional[int],
+    codigo_postal: str,
+    claves_existentes: Set[str],
+) -> List[Dict[str, Any]]:
+    """Solicitudes semanales activas de esta semana en el grupo o en la provincia del aliado.
+
+    Antes solo llegaban a la cinta por la notificación que se manda a los
+    aliados activos del MISMO grupo; si el grupo no tenía más aliados, no la
+    veía nadie. Aquí se leen de la tabla, sin nombre del solicitante.
+    """
+    if not _act_repo.columnas_tabla(cursor, "solicitudes_semanales"):
+        return []
+    provincia = _prefijo_provincia(codigo_postal)
+    gid_viewer = int(grupo_id) if grupo_id else None
+    if not provincia and gid_viewer is None:
+        return []
+    items: List[Dict[str, Any]] = []
+    for row in _act_repo.listar_solicitudes_semanales_activas(
+        cursor, _semana_inicio_actual(), viewer_codigo
+    ):
+        sid = row.get("id")
+        clave = f"sol-sem:{sid}"
+        if clave in claves_existentes:
+            continue
+        try:
+            gid = int(row.get("grupo_id")) if row.get("grupo_id") is not None else None
+        except (TypeError, ValueError):
+            gid = None
+        mismo_grupo = gid_viewer is not None and gid == gid_viewer
+        cp_sol = _cp_fila(row, "solicitante_cp", "grupo_cp")
+        misma_zona = bool(provincia) and _prefijo_provincia(cp_sol) == provincia
+        if not mismo_grupo and not misma_zona:
+            continue
+        items.append(
+            _item(
+                f"sol-sem-zona-{sid}",
+                texto_solicitud_semanal_cinta(
+                    row.get("solicitante_oficio"),
+                    row.get("oficio_buscado"),
+                    bool(int(row.get("es_oficio_personalizado") or 0)),
+                    mismo_grupo,
+                ),
+                row.get("creado_en"),
+                "solicitud_semanal_zona",
+                "solicitud_semanal",
+                _PRIORIDAD_ALTA,
+                clave,
+            )
+        )
+        if len(items) >= MAX_SOL_SEM_ZONA_CINTA:
+            break
+    return items
+
+
+def _recolectar_altas_aliados(
+    cursor,
+    viewer_codigo: str,
+    grupo_id: Optional[int],
+) -> List[Dict[str, Any]]:
+    """Altas reales de aliados (CP + oficio, sin nombre). Las del propio grupo ya
+    salen como «X acaba de entrar al grupo»."""
+    gid_viewer = int(grupo_id) if grupo_id else None
+    items: List[Dict[str, Any]] = []
+    for row in _act_repo.listar_altas_recientes(cursor, viewer_codigo, limite=15):
+        try:
+            gid = int(row.get("grupo_id")) if row.get("grupo_id") is not None else None
+        except (TypeError, ValueError):
+            gid = None
+        if gid_viewer is not None and gid == gid_viewer:
+            continue
+        cp = _cp_fila(row, "codigo_postal", "grupo_cp")
+        oficio = str(row.get("oficio") or "").strip()
+        if not cp or not oficio:
+            continue
+        cod = row.get("codigo")
+        items.append(
+            _item(
+                f"alta-{cod}",
+                texto_alta_aliado_cinta(cp, oficio),
+                row.get("creado_en"),
+                "aliado_alta_cp",
+                "aliado",
+                _PRIORIDAD_MEDIA,
+                f"alta:{cod}",
+            )
+        )
+        if len(items) >= MAX_ALTAS_CINTA:
+            break
+    return items
+
+
 def _seleccionar_items(
     items: List[Dict[str, Any]], limite: int
 ) -> List[Dict[str, Any]]:
     if not items:
         return []
 
+    # Las métricas llevan la hora actual: sin esto ocupaban siempre los primeros
+    # puestos y podían dejar fuera eventos reales (máx. 10).
     ordenados = sorted(
         items,
         key=lambda it: (
+            1 if it.get("fuente") == "metrica" else 0,
             -_parse_creado_en(it.get("creado_en")),
             -int(it.get("prioridad") or 0),
         ),
@@ -1259,6 +1457,14 @@ def _listar_notificaciones(db, codigo: str, limite: int = 50) -> List[Dict[str, 
             conn.close()
 
 
+def _rollback_silencioso(conn) -> None:
+    """En Postgres un error deja la transacción abortada; la cinta solo lee."""
+    try:
+        conn.rollback()
+    except Exception:
+        pass
+
+
 def preparar_actividad_cinta(
     db,
     aliado_codigo: str,
@@ -1316,6 +1522,27 @@ def preparar_actividad_cinta(
             except Exception:
                 logging.getLogger(__name__).exception(
                     "Error tablas actividad cinta para %s", codigo_norm
+                )
+
+            claves = {str(it.get("clave") or "") for it in items}
+            try:
+                items.extend(
+                    _recolectar_solicitudes_semanales_zona(
+                        cursor, codigo_norm, grupo_id, cp, claves
+                    )
+                )
+            except Exception:
+                _rollback_silencioso(conn)
+                logging.getLogger(__name__).exception(
+                    "Error solicitudes semanales cinta para %s", codigo_norm
+                )
+
+            try:
+                items.extend(_recolectar_altas_aliados(cursor, codigo_norm, grupo_id))
+            except Exception:
+                _rollback_silencioso(conn)
+                logging.getLogger(__name__).exception(
+                    "Error altas aliados cinta para %s", codigo_norm
                 )
         except Exception:
             logging.getLogger(__name__).exception(
