@@ -67,6 +67,7 @@ STATIC_CSS_JS = (
     "js/admin-stripe-module.js",
     "js/admin-territorio-module.js",
     "js/admin-encargos-externos-module.js",
+    "js/admin-solicitudes-detalle-module.js",
     "js/aliado-acuerdos-module.js",
     "js/aliado-alertas-module.js",
     "js/aliado-catalogo-module.js",

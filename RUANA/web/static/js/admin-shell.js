@@ -36,7 +36,7 @@
             kicker: 'Demanda',
             subtitle: 'Solicitudes de conexión y atención.',
             icon: 'inbox',
-            targets: ['#solicitudes-semanales-admin-wrap', '#solicitudes-admin-wrap', '#pendientes-validacion-wrap']
+            targets: ['#solicitudes-semanales-admin-wrap', '#solicitudes-admin-wrap', '#solicitudes-todas-admin-wrap', '#pendientes-validacion-wrap']
         },
         {
             id: 'trabajos',
@@ -151,6 +151,7 @@
         { id: 'pendientes', label: 'Pendientes validación', group: 'Solicitudes', module: 'solicitudes', target: '#pendientes-validacion-wrap', icon: 'user-check', badge: '#pendientes-validacion-count' },
         { id: 'solicitudes-semanales', label: 'Solicitudes de esta semana', group: 'Solicitudes', module: 'solicitudes', target: '#solicitudes-semanales-admin-wrap', icon: 'inbox' },
         { id: 'solicitudes-list', label: 'Lista solicitudes', group: 'Solicitudes', module: 'solicitudes', target: '#solicitudes-admin-wrap', icon: 'inbox' },
+        { id: 'solicitudes-todas', label: 'Todas las solicitudes', group: 'Solicitudes', module: 'solicitudes', target: '#solicitudes-todas-admin-wrap', icon: 'inbox' },
         { id: 'finanzas-resumen', label: 'Resumen financiero', group: 'Finanzas', module: 'finanzas', target: '#finanzas-resumen', icon: 'credit' },
         { id: 'finanzas-alertas', label: 'Acciones pendientes', group: 'Finanzas', module: 'finanzas', target: '#finanzas-acciones', icon: 'alert' },
         { id: 'conflictos', label: 'Conflictos de pago', group: 'Pagos', module: 'pagos', target: '#conflictos-pago-wrap', icon: 'alert' },
