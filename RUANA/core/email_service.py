@@ -27,6 +27,8 @@ def _construir_cuerpo_bienvenida(nombre: str, codigo: str) -> str:
         "En tu primer acceso deberás crear un PIN personal de 4 a 6 dígitos.\n"
         "A partir de entonces entrarás con código + PIN.\n\n"
         "Si alguna vez olvidas tu PIN o tu código, podrás recuperarlos desde la pantalla de acceso.\n\n"
+        "Aprende cómo funciona RUANA con esta guía interactiva de 4 minutos:\n"
+        f"{(get_settings().public_app_url or 'https://ruana.app').rstrip('/')}/guia-aliado\n\n"
         "Bienvenido a la Red Unida de Apoyo para Negocios entre Aliados.\n\n"
         "Equipo RUANA."
     )
