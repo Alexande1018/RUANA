@@ -280,6 +280,13 @@ def register():
     return send_from_directory(str(web_dir), 'register.html')
 
 
+@app.route('/guia-aliado')
+@app.route('/guia-aliado.html')
+def guia_aliado():
+    """Sirve la guía interactiva de bienvenida para nuevos aliados."""
+    return send_from_directory(str(web_dir), 'guia-aliado.html')
+
+
 @app.route('/dashboard')
 def dashboard():
     """Sirve el dashboard principal (requiere invitaci?n v?lida)"""
