@@ -508,3 +508,140 @@ def test_una_cifra_grande_inventada_sigue_bloqueada():
     permitido = copiloto_service.cifras_permitidas(conocimiento.ficha_producto())
     fuera = copiloto_service.cifras_no_permitidas("Vas a ganar 180 puntos.", permitido)
     assert fuera == ["180"]
+
+
+# ---------------------------------------------------------------------------
+# Copiloto del administrador
+# ---------------------------------------------------------------------------
+
+from RUANA.core.services import copiloto_admin  # noqa: E402
+
+
+def _contexto_admin(**cambios):
+    base = {
+        "ok": True,
+        "red": {
+            "total_users": 40,
+            "active_users": 32,
+            "en_riesgo": 6,
+            "suplentes": 3,
+            "en_espera": 3,
+            "grupos": 9,
+            "grupos_activos": 8,
+            "grupos_en_competencia": 1,
+            "aliados_sin_grupo_territorial": 2,
+            "estado_sistema": "estable",
+        },
+        "pendientes": {
+            "pendientes_validacion": 4,
+            "soporte_sin_leer": 2,
+            "soporte_abiertas": 7,
+            "conflictos_pago": 1,
+            "nombres_pendientes": ["Lucía", "Marc"],
+        },
+        "contactos": {"contactos_abiertos": 5, "contactos_en_disputa": 1},
+        "trafico_24h": {
+            "solicitudes": {"nuevas": 3, "atendidas": 2, "sin_respuesta": 1},
+            "invitaciones": {"generadas": 8, "usadas": 5, "expiradas": 12},
+            "top_invitadores": [{"nombre": "Marta", "total": 3}],
+        },
+        "salud": {
+            "ratio_solicitud_invitacion": 0.4,
+            "ratio_invitacion_registro": 0.6,
+            "tasa_retencion": 55.0,
+            "zona_mayor_demanda": "03001",
+        },
+    }
+    for clave, valor in cambios.items():
+        if isinstance(valor, dict) and isinstance(base.get(clave), dict):
+            base[clave] = {**base[clave], **valor}
+        else:
+            base[clave] = valor
+    return base
+
+
+@pytest.mark.parametrize(
+    "texto,intencion",
+    [
+        ("¿cómo va la red?", "resumen"),
+        ("¿qué mensajes tengo sin responder?", "soporte"),
+        ("¿cuántos conflictos de pago hay?", "conflictos"),
+        ("¿qué altas esperan validación?", "altas"),
+        ("¿cómo va el crecimiento?", "crecimiento"),
+        ("¿cuántos grupos hay por zona?", "territorio"),
+        ("¿cuál es la tasa de retención?", "salud"),
+    ],
+)
+def test_clasificar_admin(texto, intencion):
+    assert copiloto_admin.clasificar(texto) == intencion
+
+
+def test_jugadas_admin_priorizan_soporte_y_conflictos():
+    jugadas = copiloto_admin.calcular_jugadas(_contexto_admin())
+    ids = [j["id"] for j in jugadas]
+    assert "soporte_sin_leer" in ids
+    assert "conflictos_pago" in ids
+    assert len(jugadas) <= 3
+
+
+def test_jugadas_admin_sin_pendientes_no_inventa():
+    contexto = _contexto_admin(
+        pendientes={"pendientes_validacion": 0, "soporte_sin_leer": 0, "conflictos_pago": 0},
+        red={"en_riesgo": 0, "suplentes": 0},
+    )
+    jugadas = copiloto_admin.calcular_jugadas(contexto)
+    assert not [j for j in jugadas if j["id"] in {"soporte_sin_leer", "conflictos_pago"}]
+
+
+def test_respuesta_admin_de_resumen_usa_las_cifras_reales():
+    texto, accion = copiloto_admin.responder_determinista(_contexto_admin(), "resumen", "")
+    assert "32" in texto  # aliados activos
+    assert accion["tipo"] == "nav_admin"
+
+
+def test_respuesta_admin_de_soporte_cuenta_conversaciones():
+    texto, _ = copiloto_admin.responder_determinista(_contexto_admin(), "soporte", "")
+    assert "2" in texto
+
+
+def test_contexto_admin_sin_datos_no_rompe_las_jugadas():
+    assert copiloto_admin.calcular_jugadas({"ok": True}) == []
+    assert copiloto_admin.calcular_jugadas(None) == []
+
+
+# ---------------------------------------------------------------------------
+# Endpoints del admin
+# ---------------------------------------------------------------------------
+
+def test_endpoint_admin_sin_sesion_da_401(copiloto_client):
+    respuesta = copiloto_client.get("/api/admin/copiloto/estado")
+    assert respuesta.status_code == 401
+
+
+def test_endpoint_admin_estado_devuelve_jugadas(monkeypatch, copiloto_client, session_headers):
+    monkeypatch.setattr(
+        copiloto_admin, "construir_contexto", lambda db: _contexto_admin()
+    )
+    cabeceras = session_headers("admin", "ADMIN1")
+    respuesta = copiloto_client.get("/api/admin/copiloto/estado", headers=cabeceras)
+    assert respuesta.status_code == 200
+    datos = respuesta.get_json()
+    assert datos["status"] == "success"
+    assert datos["saludo"]
+    assert isinstance(datos["jugadas"], list)
+
+
+def test_endpoint_admin_mensaje_responde(monkeypatch, copiloto_client, session_headers):
+    monkeypatch.setattr(
+        copiloto_admin, "construir_contexto", lambda db: _contexto_admin()
+    )
+    cabeceras = session_headers("admin", "ADMIN1")
+    respuesta = copiloto_client.post(
+        "/api/admin/copiloto/mensaje",
+        json={"mensaje": "¿cómo va la red?"},
+        headers=cabeceras,
+    )
+    assert respuesta.status_code == 200
+    datos = respuesta.get_json()
+    assert datos["fuente"] == "reglas"
+    assert datos["intencion"] == "resumen"

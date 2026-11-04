@@ -53,6 +53,7 @@ STATIC_CSS_JS = (
     "css/ruana-score-callout.css",
     "css/styles.css",
     "js/admin-charts.js",
+    "js/admin-copiloto.js",
     "js/admin-command-center-module.js",
     "js/admin-errores-module.js",
     "js/admin-financial-module.js",

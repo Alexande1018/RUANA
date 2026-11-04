@@ -1,12 +1,16 @@
-"""Blueprint del Copiloto RUANA (asistente del aliado).
+"""Blueprint del Copiloto RUANA (asistente del aliado y del admin).
 
-Rutas:
+Rutas del aliado:
   GET  /api/aliado/copiloto/estado     → saludo, jugadas y capacidad de IA
   GET  /api/aliado/copiloto/jugadas    → solo las jugadas (para tarjetas)
   POST /api/aliado/copiloto/mensaje    → un turno de conversación
   POST /api/aliado/copiloto/redactar   → invitación / derivación lista para enviar
 
-Todas exigen sesión de aliado; el código sale de la sesión, nunca del body.
+Rutas del administrador:
+  GET  /api/admin/copiloto/estado      → saludo, jugadas de la red y modo IA
+  POST /api/admin/copiloto/mensaje     → un turno de conversación
+
+Todas exigen sesión; el código de aliado sale de la sesión, nunca del body.
 """
 
 from __future__ import annotations
@@ -16,8 +20,8 @@ import logging
 from flask import Blueprint, jsonify, request
 
 from core import db_manager as db_manager_mod
-from core.services import copiloto_llm, copiloto_service
-from web.auth_decorators import _aliado_codigo, require_aliado
+from core.services import copiloto_admin, copiloto_llm, copiloto_service
+from web.auth_decorators import _aliado_codigo, require_admin, require_aliado
 
 logger = logging.getLogger(__name__)
 
@@ -119,3 +123,33 @@ def copiloto_redactar():
 def copiloto_capacidades():
     """Modo del copiloto para esta sesión: IA o asistente determinista."""
     return jsonify({"status": "success", **copiloto_llm.estado_publico()}), 200
+
+
+# ---------------------------------------------------------------------------
+# Copiloto del administrador
+# ---------------------------------------------------------------------------
+
+@copiloto_bp.route("/api/admin/copiloto/estado", methods=["GET"])
+@require_admin
+def copiloto_admin_estado():
+    try:
+        datos = copiloto_admin.estado(get_db())
+    except Exception as exc:  # pragma: no cover - red de seguridad
+        logger.exception("Copiloto admin: fallo construyendo el estado")
+        return jsonify({"status": "error", "message": str(exc)}), 500
+    return jsonify({"status": "success", **datos}), 200
+
+
+@copiloto_bp.route("/api/admin/copiloto/mensaje", methods=["POST"])
+@require_admin
+def copiloto_admin_mensaje():
+    payload = request.get_json(silent=True) or {}
+    mensaje = payload.get("mensaje") or payload.get("texto") or ""
+    historial = payload.get("historial")
+    try:
+        datos = copiloto_admin.conversar(get_db(), mensaje, historial)
+    except Exception as exc:  # pragma: no cover
+        logger.exception("Copiloto admin: fallo en la conversación")
+        return jsonify({"status": "error", "message": str(exc)}), 500
+    codigo_http = 200 if datos.get("status") == "success" else 400
+    return jsonify(datos), codigo_http

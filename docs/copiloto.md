@@ -6,9 +6,9 @@ cierre de encargos. Habla con datos de la cuenta, no con generalidades.
 
 | Campo | Valor |
 |-------|-------|
-| Punto de entrada | Botón flotante «Copiloto», encima del botón de soporte |
+| Punto de entrada | Botón flotante «Copiloto», en `/aliado` (encima del de soporte) y en `/admin` |
 | Backend | `core/services/copiloto_*.py` + `web/blueprints/copiloto_bp.py` |
-| Frontend | `web/static/js/aliado-copiloto.js` + `web/static/css/aliado-copiloto.css` |
+| Frontend | `web/static/js/aliado-copiloto.js` y `admin-copiloto.js` + `web/static/css/aliado-copiloto.css` |
 | Tests | `RUANA/tests/test_copiloto.py` |
 | Estado | Operativo. La IA generativa es opcional y está apagada por defecto |
 
@@ -44,6 +44,8 @@ inventado.
 | `POST /api/aliado/copiloto/mensaje` | Un turno de conversación |
 | `POST /api/aliado/copiloto/redactar` | Invitación o derivación lista para copiar |
 | `GET /api/aliado/copiloto/capacidades` | Modo IA o asistente para la sesión |
+| `GET /api/admin/copiloto/estado` | Red: saludo, jugadas del admin y modo IA |
+| `POST /api/admin/copiloto/mensaje` | Un turno de conversación con el administrador |
 
 Todas exigen sesión de aliado (`@require_aliado`). El código sale de la sesión,
 nunca del cuerpo de la petición.
@@ -133,3 +135,43 @@ no como contabilidad exacta.
 
 Las respuestas deterministas son la red de seguridad del producto: el copiloto
 tiene que ser útil con el modelo apagado.
+
+
+---
+
+# Copiloto del administrador
+
+El mismo panel, con otro contexto. En `/admin` las preguntas son sobre la red,
+no sobre el score de una persona.
+
+## Qué mira
+
+| Bloque | Fuente |
+|--------|--------|
+| Red | `admin_dashboard_service.build_dashboard_summary` (aliados, grupos, riesgo, espera) |
+| Tráfico 24 h | `admin_service.obtener_stats_24h_panel` (solicitudes, invitaciones, top invitadores) |
+| Salud | `admin_service.obtener_metricas_salud` (ratios, retención, zona con más demanda) |
+| Encargos | `admin_service.obtener_metricas_contactos` (abiertos, en disputa) |
+| Altas | `aliado_service.listar_aliados_pendiente_validacion` |
+| Soporte | `admin_service.listar_conversaciones_soporte_admin` (sin leer / abiertas) |
+| Conflictos | `pago_service.listar_payment_conflicts_admin` |
+
+Cada bloque va en su propio `try`. Si uno falla (por ejemplo, una métrica escrita
+contra SQLite que no corre en Postgres), ese bloque queda en `None` y **no se
+muestra un 0**: el copiloto dice que no tiene el dato. Un cero inventado es peor
+que un «no lo sé».
+
+## Qué ofrece
+
+- **Jugadas del admin**: soporte sin responder, conflictos de pago abiertos,
+  altas por validar, aliados en riesgo, red parada 24 h, plazas en espera.
+- **Navegación**: cada jugada lleva a la sección real del panel
+  (`data-nav-target`, p. ej. `centro-comunicacion`, `pendientes`, `conflictos`).
+- **Respuestas** sobre resumen, soporte, conflictos, altas, riesgo, encargos,
+  crecimiento, territorio y salud.
+
+## Añadir una respuesta
+
+Igual que en el del aliado: intención en `_INTENCIONES`, texto en
+`responder_determinista`, acción `{"tipo": "nav_admin", "destino": "<sección>"}`
+y su test en `RUANA/tests/test_copiloto.py`.
