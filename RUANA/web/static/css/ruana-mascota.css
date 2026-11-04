@@ -1,7 +1,7 @@
 /* ==========================================================================
    Nodi — mascota de RUANA
    Un nodo de la red con cara. Vive en el botón del copiloto, en la cabecera
-   del panel del copiloto y en el consejo ocasional.
+   del panel del copiloto y en una nubecita de chat cuando tiene algo que decir.
    ========================================================================== */
 
 .ruana-mascota {
@@ -75,126 +75,141 @@
     height: 22px;
 }
 
-/* --------------------------------------------------------------- consejo */
+/* ==========================================================================
+   La nubecita: Nodi asoma y dice una frase corta, con su rabillo.
+   Nada de tarjetón con botonera: parece que te habla, no que el sistema
+   te avisa. Se va sola a los pocos segundos.
+   ========================================================================== */
 
-.ruana-mascota-consejo {
+.ruana-nube {
     position: fixed;
-    left: 22px;
+    left: 24px;
     bottom: 22px;
     z-index: 1215;
-    width: min(344px, calc(100vw - 32px));
-    display: grid;
-    grid-template-columns: 54px 1fr;
-    grid-template-areas:
-        "cara texto"
-        "cara acciones";
-    align-items: center;
-    gap: 2px 12px;
-    padding: 12px 14px 12px 12px;
-    border: 1px solid rgba(162, 255, 0, 0.28);
-    border-radius: 20px;
-    background: linear-gradient(155deg, rgba(14, 24, 20, 0.97), rgba(8, 13, 20, 0.98));
-    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
-    color: #e6f0e8;
-    font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex;
+    align-items: flex-end;
+    gap: 7px;
+    max-width: min(340px, calc(100vw - 32px));
     opacity: 0;
-    transform: translateY(10px) scale(0.98);
-    transition: opacity 0.24s ease, transform 0.24s ease;
+    transform: translateY(8px);
+    transition: opacity 0.28s ease, transform 0.28s ease;
     pointer-events: none;
 }
 
-.ruana-mascota-consejo[hidden] {
+.ruana-nube[hidden] {
     display: none;
 }
 
-.ruana-mascota-consejo.is-visible {
+.ruana-nube.is-visible {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
+}
+
+.ruana-nube-nodi {
+    width: 42px;
+    height: 42px;
+    flex: none;
+    margin-bottom: 1px;
+    filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.45));
+}
+
+.ruana-nube-globo {
+    position: relative;
+    flex: 0 0 auto;
+    width: 248px;
+    max-width: calc(100vw - 110px);
+    padding: 10px 26px 11px 13px;
+    border-radius: 16px 16px 16px 5px;
+    background: rgba(16, 24, 21, 0.93);
+    border: 1px solid rgba(162, 255, 0, 0.18);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.42);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     pointer-events: auto;
+    cursor: default;
 }
 
-.ruana-mascota-consejo-cara {
-    grid-area: cara;
-    width: 54px;
-    height: 54px;
-    display: grid;
-    place-items: center;
-    border-radius: 16px;
-    background: radial-gradient(circle at 34% 28%, rgba(162, 255, 0, 0.22), rgba(162, 255, 0, 0.05));
-    border: 1px solid rgba(162, 255, 0, 0.22);
-    padding: 4px;
+/* rabillo hacia Nodi */
+.ruana-nube-globo::after {
+    content: "";
+    position: absolute;
+    left: -5px;
+    bottom: 10px;
+    width: 10px;
+    height: 10px;
+    background: rgba(16, 24, 21, 0.93);
+    border-left: 1px solid rgba(162, 255, 0, 0.18);
+    border-bottom: 1px solid rgba(162, 255, 0, 0.18);
+    transform: rotate(45deg);
+    border-radius: 0 0 0 2px;
 }
 
-.ruana-mascota-consejo-texto {
-    grid-area: texto;
-    min-width: 0;
-}
-
-.ruana-mascota-consejo-linea {
+.ruana-nube-texto {
     margin: 0;
-    font-size: 12.8px;
-    line-height: 1.45;
-    color: #dbe9de;
+    font: 500 12.4px/1.45 "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: #dfeee2;
+    overflow-wrap: anywhere;
 }
 
-.ruana-mascota-consejo-acciones {
-    grid-area: acciones;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 7px;
-}
-
-.ruana-mascota-btn {
+.ruana-nube-accion {
     appearance: none;
-    border: 1px solid rgba(162, 255, 0, 0.45);
-    background: rgba(162, 255, 0, 0.16);
-    color: #dcffb8;
-    font: 800 11.5px/1 "Plus Jakarta Sans", system-ui, sans-serif;
-    padding: 6px 12px;
-    border-radius: 999px;
-    cursor: pointer;
-    transition: background 0.15s ease, transform 0.15s ease;
-}
-
-.ruana-mascota-btn:hover {
-    background: rgba(162, 255, 0, 0.26);
-    transform: translateY(-1px);
-}
-
-.ruana-mascota-apartar {
-    appearance: none;
+    margin-top: 5px;
+    padding: 0;
     border: 0;
     background: none;
-    color: #8ea296;
-    font: 600 11.5px/1 "Plus Jakarta Sans", system-ui, sans-serif;
+    color: #b8ff73;
+    font: 700 12px/1.3 "Plus Jakarta Sans", system-ui, sans-serif;
     cursor: pointer;
-    padding: 4px 2px;
     text-decoration: underline;
     text-underline-offset: 2px;
 }
 
-.ruana-mascota-apartar:hover {
-    color: #c8dbc9;
+.ruana-nube-accion:hover {
+    color: #e2ffbc;
+}
+
+.ruana-nube-cerrar {
+    position: absolute;
+    top: 4px;
+    right: 5px;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: #7d9184;
+    font: 400 13px/1 "Plus Jakarta Sans", system-ui, sans-serif;
+    cursor: pointer;
+    opacity: 0.65;
+}
+
+.ruana-nube-cerrar:hover {
+    opacity: 1;
+    color: #cfe0d2;
+    background: rgba(255, 255, 255, 0.06);
 }
 
 /* ------------------------------------------------------------ responsive */
 
 @media (max-width: 720px) {
-    /* En móvil el pie está lleno (navegación, pastilla de solicitud y dos
-       botones flotantes). Nodi asoma arriba, bajo la barra, donde no pelea. */
-    .ruana-mascota-consejo {
+    /* En móvil el pie está lleno; Nodi asoma arriba, bajo la barra. */
+    .ruana-nube {
         left: 10px;
         right: 10px;
-        top: 74px;
+        top: 70px;
         bottom: auto;
-        width: auto;
-        grid-template-columns: 46px 1fr;
+        align-items: flex-start;
+        max-width: none;
     }
 
-    .ruana-mascota-consejo-cara {
-        width: 46px;
-        height: 46px;
+    .ruana-nube-globo {
+        border-radius: 16px 16px 16px 5px;
+    }
+
+    .ruana-nube-nodi {
+        width: 40px;
+        height: 40px;
     }
 }
 
@@ -206,7 +221,7 @@
         animation: none !important;
     }
 
-    .ruana-mascota-consejo {
+    .ruana-nube {
         transition: none;
     }
 }

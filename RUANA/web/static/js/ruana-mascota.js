@@ -153,101 +153,110 @@
         } catch (e) { /* ignore */ }
     }
 
-    // ------------------------------------------------------------- burbuja
+    // --------------------------------------------------------------- nube
 
     var dom = {};
 
-    function crearBurbuja() {
+    function crearNube() {
         var caja = document.createElement('aside');
-        caja.className = 'ruana-mascota-consejo';
-        caja.id = 'ruana-mascota-consejo';
+        caja.className = 'ruana-nube';
+        caja.id = 'ruana-mascota-nube';
         caja.setAttribute('role', 'status');
         caja.setAttribute('aria-live', 'polite');
         caja.innerHTML =
-            '<div class="ruana-mascota-consejo-cara" aria-hidden="true">' + svg({ animado: true }) + '</div>' +
-            '<div class="ruana-mascota-consejo-texto">' +
-            '  <p class="ruana-mascota-consejo-linea" id="ruana-mascota-linea"></p>' +
-            '</div>' +
-            '<div class="ruana-mascota-consejo-acciones">' +
-            '  <button type="button" class="ruana-mascota-btn" id="ruana-mascota-ver">Ver</button>' +
-            '  <button type="button" class="ruana-mascota-apartar" id="ruana-mascota-apartar" ' +
-            '    aria-label="Ahora no">Ahora no</button>' +
+            '<div class="ruana-nube-nodi" aria-hidden="true">' + svg({}) + '</div>' +
+            '<div class="ruana-nube-globo">' +
+            '  <button type="button" class="ruana-nube-cerrar" id="ruana-nube-cerrar" ' +
+            '    aria-label="Ahora no">\u00d7</button>' +
+            '  <p class="ruana-nube-texto" id="ruana-nube-texto"></p>' +
+            '  <button type="button" class="ruana-nube-accion" id="ruana-nube-accion"></button>' +
             '</div>';
         document.body.appendChild(caja);
-        dom.burbuja = caja;
-        dom.linea = caja.querySelector('#ruana-mascota-linea');
-        dom.ver = caja.querySelector('#ruana-mascota-ver');
-        dom.apartar = caja.querySelector('#ruana-mascota-apartar');
+        dom.nube = caja;
+        dom.texto = caja.querySelector('#ruana-nube-texto');
+        dom.accion = caja.querySelector('#ruana-nube-accion');
+        dom.cerrar = caja.querySelector('#ruana-nube-cerrar');
     }
 
-    function cerrarBurbuja() {
-        if (!dom.burbuja) return;
-        dom.burbuja.classList.remove('is-visible');
+    /** Crea la nube si no existe o si el panel ha reconstruido el body. */
+    function asegurarNube() {
+        if (!dom.nube || !document.body.contains(dom.nube)) {
+            crearNube();
+        }
+        return dom.nube;
+    }
+
+    function cerrarNube() {
+        if (!dom.nube) return;
+        clearTimeout(dom.temporizador);
+        dom.nube.classList.remove('is-visible');
         setTimeout(function () {
-            if (dom.burbuja) dom.burbuja.hidden = true;
-        }, 260);
+            if (dom.nube) dom.nube.hidden = true;
+        }, 300);
     }
 
     /**
-     * Coloca la burbuja al lado del menú lateral, no encima. La barra es fija y
-     * en el panel del aliado ocupa 232 px: sin esto, Nodi tapaba el pie legal.
+     * Coloca la nube al lado del menú lateral, no encima. La barra es fija y en
+     * el panel del aliado ocupa 232 px: sin esto, Nodi tapaba el pie legal.
      */
-    function colocarBurbuja() {
-        if (!dom.burbuja) return;
+    function colocarNube() {
+        if (!dom.nube) return;
         if (global.innerWidth <= 720) {
-            dom.burbuja.style.left = '';
+            dom.nube.style.left = '';
             return;
         }
         var carriles = ['.aliado-shell-nav', '.admin-sidebar', '.admin-shell-nav', '.ruana-sidebar'];
-        var izquierda = 22;
+        var izquierda = 24;
         for (var i = 0; i < carriles.length; i++) {
             var el = document.querySelector(carriles[i]);
             if (!el) continue;
             var r = el.getBoundingClientRect();
             if (getComputedStyle(el).position === 'fixed' && r.left < 40 && r.width > 120) {
-                izquierda = Math.round(r.right + 16);
+                izquierda = Math.round(r.right + 14);
                 break;
             }
         }
-        dom.burbuja.style.left = izquierda + 'px';
+        dom.nube.style.left = izquierda + 'px';
     }
 
     function mostrarConsejo(jugada, alPulsarVer) {
-        if (!dom.burbuja) return;
-        colocarBurbuja();
-        dom.linea.textContent = jugada.titulo || '¿Le echamos un ojo a tu panel?';
-        dom.ver.textContent = jugada.cta || 'Ver';
-        dom.ver.onclick = function () {
-            marcarVisto(jugada.id);
-            cerrarBurbuja();
+        if (!asegurarNube()) return;
+        colocarNube();
+
+        dom.texto.textContent = jugada.titulo || '\u00bfLe echamos un ojo a tu panel?';
+        dom.accion.textContent = (jugada.cta || 'Ver') + ' \u2192';
+
+        dom.accion.onclick = function () {
+            cerrarNube();
             if (typeof alPulsarVer === 'function') alPulsarVer(jugada);
         };
-        dom.apartar.onclick = function () {
+        dom.cerrar.onclick = function () {
             escribir('localStorage', CLAVE_APARTADO, hoy());
-            cerrarBurbuja();
+            cerrarNube();
         };
-        dom.burbuja.hidden = false;
-        if (!dom.escuchaResize) {
-            dom.escuchaResize = true;
-            global.addEventListener('resize', colocarBurbuja);
-        }
-        // dos frames para que la transición se note
+
+        dom.nube.hidden = false;
         requestAnimationFrame(function () {
             requestAnimationFrame(function () {
-                dom.burbuja.classList.add('is-visible');
+                if (dom.nube) dom.nube.classList.add('is-visible');
             });
         });
+
         marcarVisto(jugada.id);
+
+        // La nube no se queda: es un comentario al pasar, no una tarea pendiente.
+        clearTimeout(dom.temporizador);
+        dom.temporizador = setTimeout(cerrarNube, 16000);
+
+        if (!dom.escuchaResize) {
+            dom.escuchaResize = true;
+            global.addEventListener('resize', colocarNube);
+        }
     }
 
-    /**
-     * Arranca el acompañante. Pide las jugadas al copiloto una sola vez, tarde
-     * y sin bloquear nada: si falla, Nodi simplemente no dice nada.
-     */
     function arrancarConsejos(opciones) {
         var o = opciones || {};
         if (!puedeMostrar()) return;
-        crearBurbuja();
 
         setTimeout(function () {
             if (document.hidden) return;
@@ -273,6 +282,6 @@
         svg: svg,
         pintarEn: pintarEn,
         arrancarConsejos: arrancarConsejos,
-        cerrar: cerrarBurbuja
+        cerrar: cerrarNube
     };
 })(typeof window !== 'undefined' ? window : globalThis);
