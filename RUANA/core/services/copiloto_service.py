@@ -385,13 +385,18 @@ def redactar_invitacion(contexto: Dict[str, Any], oficio: str = "") -> str:
 
 _NUMERO = re.compile(r"\d+(?:[.,]\d+)?")
 
+# Los números del 1 al 12 son enumeraciones ("2 o 3 profesionales", "1 encargo"):
+# no son una afirmación sobre la cuenta del aliado, así que no se validan. Lo
+# que sí se valida son las cifras con peso: score, puntos, importes y plazos.
+_ENUMERACIONES = {str(n) for n in range(1, 13)}
+
 
 def numeros_de(texto: str) -> List[str]:
     return [m.group(0).replace(",", ".") for m in _NUMERO.finditer(texto or "")]
 
 
 def cifras_permitidas(*fuentes: str) -> set:
-    permitido = set()
+    permitido = set(_ENUMERACIONES)
     for fuente in fuentes:
         for numero in numeros_de(fuente):
             permitido.add(numero)
@@ -400,16 +405,23 @@ def cifras_permitidas(*fuentes: str) -> set:
     return permitido
 
 
-def validar_cifras(texto: str, permitido: set) -> bool:
-    """True si todas las cifras del texto aparecen en las fuentes."""
+def cifras_no_permitidas(texto: str, permitido: set) -> List[str]:
+    """Cifras del texto que no están respaldadas por ninguna fuente.
+
+    Un decimal se compara entero («7,5 %» no pasa por tener un 7 permitido):
+    el porcentaje es una afirmación, no una enumeración.
+    """
+    fuera: List[str] = []
     for numero in numeros_de(texto):
         if numero in permitido:
             continue
-        base = numero.split(".")[0]
-        if base in permitido:
-            continue
-        return False
-    return True
+        fuera.append(numero)
+    return fuera
+
+
+def validar_cifras(texto: str, permitido: set) -> bool:
+    """True si todas las cifras del texto aparecen en las fuentes."""
+    return not cifras_no_permitidas(texto, permitido)
 
 
 # ---------------------------------------------------------------------------
@@ -540,6 +552,7 @@ def conversar(
             conocimiento.tabla_puntos_texto(),
             conocimiento.ficha_producto(),
             respuesta,
+            texto,
         )
         candidata = copiloto_llm.responder(
             _SYSTEM,
@@ -551,7 +564,11 @@ def conversar(
         elif candidata:
             logger.info(
                 "Copiloto: respuesta del modelo descartada por cifras no verificadas",
-                extra={"aliado_codigo": codigo, "intencion": intencion},
+                extra={
+                    "aliado_codigo": codigo,
+                    "intencion": intencion,
+                    "cifras_fuera": cifras_no_permitidas(candidata, permitido)[:6],
+                },
             )
 
     return {

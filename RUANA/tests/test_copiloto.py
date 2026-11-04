@@ -493,3 +493,18 @@ def test_el_prompt_del_modelo_lleva_los_datos_del_aliado_y_la_ficha():
     assert "DATOS DEL ALIADO" in prompt
     assert "FICHA DEL PRODUCTO" in prompt
     assert "48" in prompt  # el score real del aliado
+
+
+def test_los_numeros_pequenos_no_invalidan_una_respuesta():
+    """Regresión: «1 encargo» o «2 o 3 profesionales» no son cifras de cuenta."""
+    permitido = copiloto_service.cifras_permitidas(conocimiento.ficha_producto())
+    assert copiloto_service.validar_cifras(
+        "Si tienes 1 encargo abierto, responde en menos de 1 hora a 2 o 3 clientes.",
+        permitido,
+    ) is True
+
+
+def test_una_cifra_grande_inventada_sigue_bloqueada():
+    permitido = copiloto_service.cifras_permitidas(conocimiento.ficha_producto())
+    fuera = copiloto_service.cifras_no_permitidas("Vas a ganar 180 puntos.", permitido)
+    assert fuera == ["180"]
