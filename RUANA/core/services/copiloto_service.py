@@ -424,6 +424,29 @@ def validar_cifras(texto: str, permitido: set) -> bool:
     return not cifras_no_permitidas(texto, permitido)
 
 
+_PALABRA = re.compile(r"[a-záéíóúñü]{5,}")
+
+
+def _palabras_relevantes(texto: str) -> set:
+    return set(_PALABRA.findall((texto or "").lower()))
+
+
+def cubre_la_base(candidata: str, base: str, umbral: float = 0.45) -> bool:
+    """True si la respuesta del modelo conserva lo esencial de la base.
+
+    El modelo tiende a responder con generalidades («estás en ESTABLE…») cuando
+    la pregunta tiene una respuesta concreta (el 5 %, los pasos para invitar).
+    Si no recoge al menos el `umbral` de las palabras significativas de la base,
+    se descarta: mejor una respuesta seca y correcta que una florida y vacía.
+    """
+    base_palabras = _palabras_relevantes(base)
+    if not base_palabras:
+        return True
+    candidata_palabras = _palabras_relevantes(candidata)
+    cubiertas = base_palabras & candidata_palabras
+    return (len(cubiertas) / len(base_palabras)) >= umbral
+
+
 # ---------------------------------------------------------------------------
 # Prompt del LLM
 # ---------------------------------------------------------------------------
@@ -433,7 +456,13 @@ Hablas dentro del panel del aliado, en español de España, tuteando, con frases
 cortas y sin jerga. Eres como un compañero de la red que conoce las reglas.
 
 Lo que sabes hacer:
-- Explicar cómo funciona RUANA y cómo se usa la app.
+- Explicar qué es RUANA y cómo se usa la app. Si te preguntan qué es, usa la
+  DEFINICIÓN OFICIAL que viene en el mensaje y no omitas estas tres ideas:
+  (1) es una red de apoyo entre profesionales de la misma zona;
+  (2) tú invitas de forma exclusiva, con tu código, a profesionales que
+      conoces y en los que confías, y cada oficio tiene su plaza;
+  (3) os pasáis los encargos entre vosotros, para que ninguno pierda un
+      trabajo que no puede atender.
 - Decir qué le conviene hacer ahora para cuidar su score.
 - Ayudar a invitar a un profesional de un oficio que falta.
 - Guiar el cierre de un encargo y el Apoyo RUANA.
@@ -451,18 +480,40 @@ Reglas que NO puedes saltarte:
 """
 
 
-def _prompt_usuario(contexto: Dict[str, Any], mensaje: str, intencion: str) -> str:
+def _prompt_usuario(
+    contexto: Dict[str, Any], mensaje: str, intencion: str, respuesta_base: str = ""
+) -> str:
+    """Orden del prompt: primero la pregunta y la respuesta correcta.
+
+    Con el bloque de datos delante, el modelo tendía a resumir el estado del
+    aliado («estás en ESTABLE con 50 puntos…») e ignoraba la pregunta. Poniendo
+    delante la pregunta y la base, la respeta y usa el resto como apoyo.
+    """
     datos = copiloto_contexto.contexto_para_llm(contexto)
-    return (
-        "DATOS DEL ALIADO (lo único que puedes dar por cierto):\n"
-        + json.dumps(datos, ensure_ascii=False, indent=1)
-        + "\n\nREGLAS VIGENTES:\n"
-        + conocimiento.tabla_puntos_texto()
-        + "\n\n"
-        + conocimiento.ficha_producto()
-        + f"\n\nINTENCIÓN DETECTADA: {intencion}"
-        + f"\n\nMENSAJE DEL ALIADO: {mensaje}"
+    bloques: List[str] = []
+
+    bloques.append(f"EL ALIADO PREGUNTA: {mensaje}")
+    bloques.append(f"INTENCIÓN DETECTADA: {intencion}")
+
+    if intencion == "que_es_ruana":
+        bloques.append(
+            "DEFINICIÓN OFICIAL DE RUANA (úsala tal cual en lo esencial; no la "
+            "sustituyas por otra):\n" + conocimiento.DEFINICION_RUANA
+        )
+
+    if respuesta_base:
+        bloques.append(
+            "RESPUESTA CORRECTA (está verificada; reescríbela con naturalidad, sin "
+            "contradecirla ni omitir sus datos):\n" + respuesta_base
+        )
+
+    bloques.append(
+        "DATOS DEL ALIADO (apóyate en ellos solo si vienen al caso; no los "
+        "recites de pasada):\n" + json.dumps(datos, ensure_ascii=False, indent=1)
     )
+    bloques.append("REGLAS VIGENTES:\n" + conocimiento.tabla_puntos_texto())
+    bloques.append(conocimiento.ficha_producto())
+    return "\n\n".join(bloques)
 
 
 # ---------------------------------------------------------------------------
@@ -546,6 +597,21 @@ def conversar(
     respuesta, accion = _respuesta_determinista(contexto, intencion, texto)
     fuente = "reglas"
 
+    # «Qué es RUANA» es copy de marca: se responde con la definición canónica y
+    # no se deja reescribir al modelo. Probado con DeepSeek: aunque la definición
+    # va la primera del prompt, la reformulaba a «red de profesionales por código
+    # postal» y perdía la invitación exclusiva y el pasarse encargos.
+    if intencion == "que_es_ruana":
+        return {
+            "status": "success",
+            "texto": respuesta,
+            "accion": None,
+            "fuente": fuente,
+            "intencion": intencion,
+            "ia": copiloto_llm.estado_publico(),
+            "mensajes_restantes_hoy": _cuota_restante(codigo),
+        }
+
     if copiloto_llm.disponible() and _cuota_permite(codigo):
         permitido = cifras_permitidas(
             json.dumps(copiloto_contexto.contexto_para_llm(contexto), ensure_ascii=False),
@@ -556,9 +622,19 @@ def conversar(
         )
         candidata = copiloto_llm.responder(
             _SYSTEM,
-            _limpiar_historial(historial) + [{"role": "user", "content": _prompt_usuario(contexto, texto, intencion)}],
+            _limpiar_historial(historial)
+            + [
+                {
+                    "role": "user",
+                    "content": _prompt_usuario(contexto, texto, intencion, respuesta),
+                }
+            ],
         )
-        if candidata and validar_cifras(candidata, permitido):
+        if (
+            candidata
+            and validar_cifras(candidata, permitido)
+            and cubre_la_base(candidata, respuesta)
+        ):
             respuesta = candidata
             fuente = "ia"
         elif candidata:
@@ -568,6 +644,7 @@ def conversar(
                     "aliado_codigo": codigo,
                     "intencion": intencion,
                     "cifras_fuera": cifras_no_permitidas(candidata, permitido)[:6],
+                    "cubre_base": cubre_la_base(candidata, respuesta),
                 },
             )
 

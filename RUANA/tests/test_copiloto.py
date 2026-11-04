@@ -718,3 +718,75 @@ def test_listar_aliados_usa_el_score_de_ruana_no_el_de_evaluacion(monkeypatch):
     assert por_codigo["A2"]["score_panel"] == 50
     assert por_codigo["A2"]["estado_panel"] == "activos"
     assert por_codigo["A3"]["estado_panel"] == "riesgo"
+
+
+# ---------------------------------------------------------------------------
+# Qué es RUANA: la definición del producto
+# ---------------------------------------------------------------------------
+
+def test_definicion_ruana_explica_red_de_apoyo_e_invitacion_exclusiva():
+    definicion = conocimiento.DEFINICION_RUANA.lower()
+    assert "red de apoyo" in definicion
+    assert "invitas" in definicion
+    assert "exclusiva" in definicion          # plaza por oficio, sin competencia
+    assert "os pasáis los encargos" in definicion
+    assert "no haces" in definicion            # el trabajo que tú no haces
+
+
+def test_la_faq_de_que_es_ruana_usa_la_definicion_canonica():
+    faq = conocimiento.faq_para("que_es_ruana")
+    assert faq["respuesta"] == conocimiento.DEFINICION_RUANA
+
+
+def test_la_ficha_del_modelo_incluye_la_definicion():
+    ficha = conocimiento.ficha_producto()
+    assert "Qué es RUANA" in ficha
+    assert "red de apoyo" in ficha.lower()
+
+
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "¿qué es RUANA?",
+        "¿de qué va esto?",
+        "explícame la red",
+        "para qué sirve",
+    ],
+)
+def test_preguntar_que_es_ruana_llega_a_la_definicion(texto):
+    assert conocimiento.clasificar(texto) == "que_es_ruana"
+
+
+def test_respuesta_determinista_de_que_es_ruana_trae_la_definicion():
+    texto, _ = copiloto_service._respuesta_determinista(_contexto(), "que_es_ruana", "")
+    assert "red de apoyo" in texto.lower()
+    assert "exclusiva" in texto.lower()
+
+
+# ---------------------------------------------------------------------------
+# El modelo no puede irse por las ramas
+# ---------------------------------------------------------------------------
+
+def test_cubre_la_base_acepta_una_reescritura_fiel():
+    base = "Si no subes el comprobante del Apoyo en 3 días, la regla resta 3 puntos."
+    candidata = "Si no subes el comprobante del Apoyo en tres días, restas 3 puntos."
+    assert copiloto_service.cubre_la_base(candidata, base) is True
+
+
+def test_cubre_la_base_rechaza_una_respuesta_generica():
+    """Regresión: el modelo contestaba con el estado del aliado y se olvidaba de la pregunta."""
+    base = "Si no subes el comprobante del Apoyo en 3 días, la regla resta 3 puntos."
+    candidata = "Hola, Alexander. Estás en ESTABLE con 50 puntos y te faltan 150 para DESTACADO."
+    assert copiloto_service.cubre_la_base(candidata, base) is False
+
+
+def test_el_prompt_empieza_por_la_pregunta_del_aliado():
+    prompt = copiloto_service._prompt_usuario(_contexto(), "¿qué pasa si no firma?", "general")
+    primera = prompt.splitlines()[0]
+    assert primera.startswith("EL ALIADO PREGUNTA:")
+    assert "¿qué pasa si no firma?" in primera
+
+
+def test_el_prompt_lleva_la_respuesta_base_antes_de_los_datos():
+    prompt = copiloto_service._prompt_usuario(_contexto(), "¿cuánto cuesta?", "general", "Cuesta 5 %.")
+    assert prompt.index("RESPUESTA CORRECTA") < prompt.index("DATOS DEL ALIADO")

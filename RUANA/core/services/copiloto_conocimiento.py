@@ -124,6 +124,25 @@ def banda_de_score(score: Any) -> Dict[str, Any]:
     }
 
 
+# ---------------------------------------------------------------------------
+# Qué es RUANA (definición canónica)
+# ---------------------------------------------------------------------------
+
+# Una sola definición para las dos vías: la respuesta determinista, la ficha que
+# recibe el modelo y el copiloto del admin. Si cambia el discurso del producto,
+# se cambia aquí y cambia en todas partes.
+DEFINICION_RUANA = (
+    "RUANA es una red de apoyo entre profesionales de la misma zona. "
+    "Funciona así: tú invitas con tu código a profesionales que conoces y en "
+    "los que confías; cada oficio tiene su plaza dentro del grupo, de forma "
+    "exclusiva, así que no te traes competencia; y os pasáis los encargos entre "
+    "vosotros. El trabajo que tú no haces se lo pasas a un compañero que sí "
+    "sabe hacerlo, y cuando a otro le sobra algo que es tuyo, te lo pasa a ti. "
+    "Así nadie pierde un encargo por no poder atenderlo. Todo queda registrado: "
+    "contactos, importes y cumplimiento."
+)
+
+
 def tabla_puntos_texto() -> str:
     lineas = ["Lo que suma puntos:"]
     for r in REGLAS_SUBEN:
@@ -153,6 +172,7 @@ def ficha_producto() -> str:
     return "\n".join(
         [
             "FICHA DEL PRODUCTO:",
+            "- Qué es RUANA: " + DEFINICION_RUANA,
             "- Recibir un contacto no cuesta nada.",
             f"- Solo al cerrar un encargo se aporta el Apoyo RUANA: {APOYO_PCT:g} % del "
             "importe acordado. La app muestra el importe antes de confirmar y el "
@@ -318,10 +338,12 @@ _INTENCIONES: List[Dict[str, Any]] = [
     {
         "id": "que_es_ruana",
         "patrones": [
-            r"\bqu[eé] es ruana\b",
-            r"\bc[oó]mo funciona (ruana|esto|la app)\b",
+            r"\bqu[eé] es (ruana|esto|la app|la red)\b",
+            r"\bc[oó]mo funciona (ruana|esto|la app|la red)\b",
             r"\bpara qu[eé] sirve\b",
-            r"\bno entiendo (ruana|esto|la app)\b",
+            r"\bde qu[eé] va\b",
+            r"\bexpl[ií]came (ruana|esto|la app|la red)\b",
+            r"\bno entiendo (ruana|esto|la app|la red|de qu[eé] va)\b",
         ],
     },
     {
@@ -365,13 +387,7 @@ FAQ: List[Dict[str, Any]] = [
     {
         "intencion": "que_es_ruana",
         "pregunta": "¿Qué es RUANA?",
-        "respuesta": (
-            "RUANA es una red de profesionales organizada por código postal. "
-            "La idea es simple: el encargo que tú no haces se lo pasas a alguien "
-            "de tu zona que sí sabe, y cuando a esa persona le sobra algo que es "
-            "tuyo, te lo pasa a ti. Todo queda registrado: contactos, importes y "
-            "cumplimiento."
-        ),
+        "respuesta": DEFINICION_RUANA,
     },
     {
         "intencion": "apoyo_economico",
