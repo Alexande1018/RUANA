@@ -778,18 +778,22 @@ def listar_aliados(db, filtro_postal: str = None) -> List[Dict[str, Any]]:
                     item['hijos_directos_count'] = 0
 
                 # Score de referencia para el panel (evaluación > aliado.score)
-                eval_score = item.get('eval_score')
-                if eval_score is not None:
-                    try:
-                        score_panel = float(eval_score)
-                    except Exception:
-                        score_panel = float(item.get('score') or 0)
-                else:
+                # Score de referencia para el panel: el de RUANA (`aliados.score`),
+                # que es el que gobierna estado, bandas y competencia
+                # (`score_service.score_a_estado`). El motor de evaluación guarda su
+                # propia puntuación en `eval_score`, otra escala: mezclarla hacía que
+                # un aliado con score 48 apareciera con 333 y como ÉLITE en el panel,
+                # mientras el KPI de riesgo lo contaba como 1.
+                try:
                     score_panel = float(item.get('score') or 0)
+                except (TypeError, ValueError):
+                    score_panel = 0.0
                 item['score_panel'] = score_panel
 
                 # Estado de panel: prioriza estado real de BD (activo / pendiente_validacion / en_espera).
-                # El score de evaluación solo reclasifica a observación/riesgo cuando existe evaluación.
+                # Estado de panel: manda el estado real de BD (activo / pendiente_validacion
+                # / en_espera). Para un aliado activo, la banda sale del score de RUANA,
+                # el mismo que usa el KPI de riesgo y la ficha del aliado.
                 # pendiente_completar no se lista (placeholders de invitación se excluyen arriba).
                 estado_bd = (item.get('estado') or 'activo').strip().lower()
                 estado_panel = 'activos'
@@ -799,21 +803,11 @@ def listar_aliados(db, filtro_postal: str = None) -> List[Dict[str, Any]]:
                     estado_panel = 'suplentes_espera'
                 elif estado_bd in ('expulsado', 'suspendido_temporal', 'rechazado'):
                     estado_panel = estado_bd
-                elif estado_bd == 'activo' and eval_score is None:
-                    estado_panel = 'activos'
                 else:
-                    if eval_score is not None:
-                        try:
-                            s = float(eval_score)
-                        except Exception:
-                            s = float(item.get('score') or 0)
-                    else:
-                        s = float(item.get('score') or 0)
-
-                    if s < 15:
-                        estado_panel = 'riesgo'
-                    elif s < 50:
+                    if 15 <= score_panel < 50:
                         estado_panel = 'observacion'
+                    elif score_panel < 15:
+                        estado_panel = 'riesgo'
                     else:
                         estado_panel = 'activos'
 

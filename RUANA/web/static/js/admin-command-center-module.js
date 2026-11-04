@@ -98,13 +98,17 @@
         });
     }
 
+    function plural(n, singular, plural_) {
+        return Number(n) === 1 ? singular : plural_;
+    }
+
     function buildAside(data) {
         var alerts = [];
         if ((data.indicadores.pendientesValidacion || 0) > 0) {
-            alerts.push({ level: 'warn', text: data.indicadores.pendientesValidacion + ' aliados pendientes de validación', nav: '#pendientes-validacion-wrap' });
+            alerts.push({ level: 'warn', text: data.indicadores.pendientesValidacion + ' ' + plural(data.indicadores.pendientesValidacion, 'aliado pendiente', 'aliados pendientes') + ' de validación', nav: '#pendientes-validacion-wrap' });
         }
         if ((data.indicadores.enRiesgo || 0) > 0) {
-            alerts.push({ level: 'danger', text: data.indicadores.enRiesgo + ' aliados en riesgo', nav: '#scores-evaluaciones-wrap' });
+            alerts.push({ level: 'danger', text: data.indicadores.enRiesgo + ' ' + plural(data.indicadores.enRiesgo, 'aliado en riesgo', 'aliados en riesgo'), nav: '#scores-evaluaciones-wrap' });
         }
         if ((data.conflictos || 0) > 0) {
             alerts.push({ level: 'danger', text: data.conflictos + ' conflictos de pago sin resolver', nav: '#conflictos-pago-wrap' });

@@ -645,3 +645,76 @@ def test_endpoint_admin_mensaje_responde(monkeypatch, copiloto_client, session_h
     datos = respuesta.get_json()
     assert datos["fuente"] == "reglas"
     assert datos["intencion"] == "resumen"
+
+
+# ---------------------------------------------------------------------------
+# Coherencia del panel: el score que se ve es el que gobierna
+# ---------------------------------------------------------------------------
+
+def test_listar_aliados_usa_el_score_de_ruana_no_el_de_evaluacion(monkeypatch):
+    """Regresión: el panel mostraba 333.33 (score del motor) con score real 48.
+
+    El KPI de riesgo contaba con `aliados.score`, así que la lista de "en riesgo"
+    salía vacía mientras el contador decía 1.
+    """
+    from RUANA.core.services import aliado_service
+
+    filas = [
+        # eval_score alto, score real en riesgo
+        {"codigo": "A1", "estado": "activo", "score": 48, "eval_score": 333.33},
+        # sin evaluación
+        {"codigo": "A2", "estado": "activo", "score": 50, "eval_score": None},
+        # score real bajo, eval_score bajo
+        {"codigo": "A3", "estado": "activo", "score": 10, "eval_score": 5},
+    ]
+
+    class _Repo:
+        def listar_admin(self, cursor, col, filtro):
+            return [dict(f) for f in filas]
+
+    class _Cursor:
+        def execute(self, *a, **k):
+            pass
+
+        def fetchall(self):
+            return []
+
+    class _Conn:
+        row_factory = None
+
+        def cursor(self):
+            return _Cursor()
+
+        def close(self):
+            pass
+
+    class _DB:
+        backend = "sqlite"
+
+        class _L:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        _lock = _L()
+
+        def _connect(self):
+            return _Conn()
+
+        def _columna_retador_competencia(self, cursor):
+            return "retador_codigo"
+
+        def etiqueta_origen_referido(self, origen):
+            return origen or ""
+
+    monkeypatch.setattr(aliado_service, "_repo", _Repo())
+    resultado = aliado_service.listar_aliados(_DB())
+    por_codigo = {a["codigo"]: a for a in resultado}
+
+    assert por_codigo["A1"]["score_panel"] == 48
+    assert por_codigo["A1"]["estado_panel"] == "observacion"
+    assert por_codigo["A2"]["score_panel"] == 50
+    assert por_codigo["A2"]["estado_panel"] == "activos"
+    assert por_codigo["A3"]["estado_panel"] == "riesgo"
