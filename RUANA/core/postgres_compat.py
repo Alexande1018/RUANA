@@ -46,6 +46,8 @@ def _pool_max_size() -> int:
 # primer uso real (motor semanal, ciclo financiero) recibe un 500.
 # psycopg_pool no tiene pool_pre_ping ni pool_recycle: `check` hace el ping y
 # max_lifetime / max_idle reciclan la conexión (equivalente a pool_recycle).
+_CHECK_LATIDO: dict = {}
+
 _POOL_MAX_LIFETIME_S = 300.0
 _POOL_MAX_IDLE_S = 280.0
 
@@ -404,6 +406,28 @@ class PostgresCompatCursor:
         self.close()
 
 
+def _check_con_ttl(conn, _ttl: float = 30.0) -> None:
+    """Valida la conexión como mucho una vez cada TTL.
+
+    `ConnectionPool.check_connection` lanza una consulta en **cada** checkout del
+    pool. Con la latencia de un pooler gestionado (cientos de ms por viaje) y
+    10-30 checkouts por pantalla, eso se come el presupuesto entero: el panel
+    del aliado pasaba de 5 a 14 s solo por las comprobaciones.
+
+    La validación no se quita, se espacia: una conexión que acaba de responder
+    no se vuelve a probar durante 30 s. Contra conexiones muertas seguimos
+    protegidos por `max_idle`/`max_lifetime` y por esta comprobación periódica.
+    """
+    import time as _time
+
+    ahora = _time.monotonic()
+    ultimo = _CHECK_LATIDO.get(id(conn))
+    if ultimo is not None and (ahora - ultimo) < _ttl:
+        return
+    ConnectionPool.check_connection(conn)
+    _CHECK_LATIDO[id(conn)] = ahora
+
+
 def get_connection_pool(
     database_url: str,
     *,
@@ -422,7 +446,7 @@ def get_connection_pool(
                 max_size=max_size,
                 kwargs={"row_factory": dict_row, "prepare_threshold": None},
                 open=True,
-                check=ConnectionPool.check_connection,
+                check=_check_con_ttl,
                 max_lifetime=_POOL_MAX_LIFETIME_S,
                 max_idle=_POOL_MAX_IDLE_S,
             )

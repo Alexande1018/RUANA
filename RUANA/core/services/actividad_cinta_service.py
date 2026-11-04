@@ -9,6 +9,8 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import threading
+import time
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -19,6 +21,23 @@ MAX_ACTIVIDAD_CINTA = 10
 
 _notif_repo = NotificacionRepo()
 _act_repo = ActividadRepo()
+
+# La cinta resuelve el nombre del protagonista de cada notificación. Sin caché
+# eso era una consulta por aviso (hasta 50) con TRIM(CAST(...)), que en Postgres
+# no usa índice: el panel tardaba ~5 s en cargar. La caché es de proceso, por
+# código de aliado, con TTL corto: un cambio de nombre se ve en un minuto.
+_CACHE_NOMBRES: Dict[str, Tuple[float, str]] = {}
+_CACHE_NOMBRES_LOCK = threading.Lock()
+_CACHE_NOMBRES_TTL_S = 60.0
+_CACHE_NOMBRES_MAX = 500
+
+# Claves de metadatos que pueden traer el código del protagonista de un aviso.
+_CODIGO_KEYS = (
+    "codigo", "solicitante_codigo", "profesional_codigo", "invitador_codigo",
+    "invitado_codigo", "origen_codigo", "destino_codigo", "retador_codigo",
+    "titular_codigo", "ganador_codigo", "perdedor_codigo", "proponente_codigo",
+    "propuesto_codigo", "respondiente_codigo",
+)
 
 _CINTA_TIPOS_EXCLUIDOS = frozenset({
     "apoyo_ruana",
@@ -109,18 +128,96 @@ def _lookup_nombre_aliado(cursor, codigo: Any) -> Optional[str]:
     cod = str(codigo or "").strip()
     if not cod or cursor is None:
         return None
+
+    ahora = time.monotonic()
+    with _CACHE_NOMBRES_LOCK:
+        cacheado = _CACHE_NOMBRES.get(cod)
+        if cacheado is not None and (ahora - cacheado[0]) < _CACHE_NOMBRES_TTL_S:
+            return cacheado[1] or None
+
+    nombre_resuelto: Optional[str] = None
     try:
         cursor.execute(
             "SELECT nombre FROM aliados WHERE TRIM(CAST(codigo AS TEXT)) = ?",
             (cod,),
         )
         row = cursor.fetchone()
-        if not row:
-            return None
-        nombre = row[0] if not hasattr(row, "keys") else row["nombre"]
-        return _nombre_requerido(nombre)
+        if row:
+            nombre = row[0] if not hasattr(row, "keys") else row["nombre"]
+            nombre_resuelto = _nombre_requerido(nombre)
     except Exception:
-        return None
+        nombre_resuelto = None
+
+    with _CACHE_NOMBRES_LOCK:
+        if len(_CACHE_NOMBRES) > _CACHE_NOMBRES_MAX:
+            _CACHE_NOMBRES.clear()
+        _CACHE_NOMBRES[cod] = (ahora, nombre_resuelto or "")
+    return nombre_resuelto
+
+
+def limpiar_cache_nombres_cinta() -> None:
+    """Vacía la caché de nombres (tests y cambios de nombre puntuales)."""
+    with _CACHE_NOMBRES_LOCK:
+        _CACHE_NOMBRES.clear()
+
+
+def _precargar_nombres(cursor, notificaciones: List[Dict[str, Any]]) -> None:
+    """Resuelve en UNA consulta todos los nombres que necesitan los avisos.
+
+    Sin esto, cada aviso resolvía su protagonista con su propia consulta: con
+    50 avisos eran 50 viajes a la base de datos solo para pintar la cinta.
+    """
+    if cursor is None or not notificaciones:
+        return
+    codigos: Set[str] = set()
+    for notif in notificaciones:
+        try:
+            meta = _metadata_dict(notif)
+        except Exception:
+            continue
+        if not isinstance(meta, dict):
+            continue
+        for clave in _CODIGO_KEYS:
+            valor = str(meta.get(clave) or "").strip()
+            if valor:
+                codigos.add(valor)
+    if not codigos:
+        return
+
+    ahora = time.monotonic()
+    with _CACHE_NOMBRES_LOCK:
+        pendientes = [c for c in codigos if c not in _CACHE_NOMBRES]
+    if not pendientes:
+        return
+
+    for inicio in range(0, len(pendientes), 100):
+        lote = pendientes[inicio:inicio + 100]
+        marcas = ",".join("?" for _ in lote)
+        try:
+            cursor.execute(
+                f"SELECT nombre, codigo FROM aliados WHERE TRIM(CAST(codigo AS TEXT)) IN ({marcas})",
+                tuple(lote),
+            )
+            filas = cursor.fetchall() or []
+        except Exception:
+            continue
+
+        encontrados: Dict[str, str] = {}
+        for fila in filas:
+            try:
+                if hasattr(fila, "keys"):
+                    nombre, codigo = fila["nombre"], fila["codigo"]
+                else:
+                    nombre, codigo = fila[0], fila[1]
+            except Exception:
+                continue
+            encontrados[str(codigo).strip()] = _nombre_requerido(nombre) or ""
+
+        with _CACHE_NOMBRES_LOCK:
+            if len(_CACHE_NOMBRES) > _CACHE_NOMBRES_MAX:
+                _CACHE_NOMBRES.clear()
+            for cod in lote:
+                _CACHE_NOMBRES[cod] = (ahora, encontrados.get(cod, ""))
 
 
 def _resolver_nombre(
@@ -1493,7 +1590,10 @@ def preparar_actividad_cinta(
             if ctx is None:
                 ctx = _act_repo.contexto_aliado(cursor, codigo_norm) or {}
 
-            for notif in _listar_notificaciones_cursor(cursor, codigo_norm, limite=50):
+            notificaciones = _listar_notificaciones_cursor(cursor, codigo_norm, limite=50)
+            _precargar_nombres(cursor, notificaciones)
+
+            for notif in notificaciones:
                 formateada = _formatear_notificacion_cinta(
                     notif, codigo_norm, cursor=cursor
                 )

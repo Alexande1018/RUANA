@@ -1,6 +1,7 @@
 """
 Tests de la cinta de actividad RUANA (notificacion_service.preparar_actividad_cinta).
 """
+import json
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
@@ -182,3 +183,77 @@ def test_preparar_actividad_cinta_para_aliado_con_aviso_grupo(sqlite_db):
     items = notificacion_service.preparar_actividad_cinta_para_aliado(sqlite_db, codigo)
     assert items == []
 
+
+
+class _CursorContador:
+    """Cursor mínimo que cuenta consultas y resuelve nombres."""
+
+    def __init__(self, nombres):
+        self.consultas = 0
+        self._nombres = nombres
+
+    def execute(self, sql, params=()):
+        self.consultas += 1
+        self._ultimo = params[0] if params else ""
+
+    def fetchone(self):
+        nombre = self._nombres.get(self._ultimo)
+        return {"nombre": nombre} if nombre else None
+
+
+def test_lookup_nombre_reutiliza_la_cache(monkeypatch):
+    """Regresión: la cinta hacía una consulta por notificación (~5 s de panel)."""
+    from core.services import actividad_cinta_service as servicio
+
+    servicio.limpiar_cache_nombres_cinta()
+    cursor = _CursorContador({"A1": "Marta", "A2": "Diego"})
+
+    for _ in range(6):
+        assert servicio._lookup_nombre_aliado(cursor, "A1") == "Marta"
+
+    assert cursor.consultas == 1, "el mismo código debe resolverse una sola vez"
+    assert servicio._lookup_nombre_aliado(cursor, "A2") == "Diego"
+    assert cursor.consultas == 2
+
+
+def test_lookup_nombre_cachea_tambien_los_fallos(monkeypatch):
+    from core.services import actividad_cinta_service as servicio
+
+    servicio.limpiar_cache_nombres_cinta()
+    cursor = _CursorContador({})
+
+    for _ in range(4):
+        assert servicio._lookup_nombre_aliado(cursor, "NADIE") is None
+
+    assert cursor.consultas == 1
+
+
+class _CursorPrecarga:
+    def __init__(self):
+        self.consultas = 0
+        self._filas = []
+
+    def execute(self, sql, params=()):
+        self.consultas += 1
+        self._filas = [{"nombre": "Nombre " + c, "codigo": c} for c in params]
+
+    def fetchall(self):
+        return self._filas
+
+
+def test_precarga_resuelve_todos_los_nombres_en_una_consulta():
+    """Regresión: 50 avisos = 50 consultas de nombre."""
+    from core.services import actividad_cinta_service as servicio
+
+    servicio.limpiar_cache_nombres_cinta()
+    cursor = _CursorPrecarga()
+    avisos = [
+        {"metadata": json.dumps({"solicitante_codigo": f"A{i}", "profesional_codigo": "P1"})}
+        for i in range(20)
+    ]
+
+    servicio._precargar_nombres(cursor, avisos)
+
+    assert cursor.consultas == 1
+    assert servicio._lookup_nombre_aliado(cursor, "A7") == "Nombre A7"
+    assert cursor.consultas == 1, "ya precargado, no debe volver a consultar"
