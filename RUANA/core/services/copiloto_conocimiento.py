@@ -127,13 +127,19 @@ def banda_de_score(score: Any) -> Dict[str, Any]:
 def tabla_puntos_texto() -> str:
     lineas = ["Lo que suma puntos:"]
     for r in REGLAS_SUBEN:
-        lineas.append(f"  +{r['puntos']} · {r['titulo']}")
+        detalle = f" ({r['detalle']})" if r.get("detalle") else ""
+        lineas.append(f"  +{r['puntos']} · {r['titulo']}{detalle}")
     lineas.append("Lo que resta:")
     for r in REGLAS_BAJAN:
         lineas.append(f"  {r['puntos']} · {r['titulo']}")
     lineas.append(
         f"El score va de {SCORE_MIN} a {SCORE_MAX} y solo puede moverse "
         f"{LIMITE_DIARIO} puntos al día."
+    )
+    lineas.append(
+        "No confundirlas: la invitación POR OFICIO da +5 al invitar y otros +5 "
+        "cuando esa persona se registra con ella. La invitación normal (ampliar "
+        "red) da +3 al registrarse. No son intercambiables."
     )
     return "\n".join(lineas)
 
