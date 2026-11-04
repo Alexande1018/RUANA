@@ -94,6 +94,16 @@
 
     // ------------------------------------------------------------------ DOM
 
+    // Nodi: la mascota. Si no está cargada, cae al icono de siempre.
+    function iconoMascota() {
+        try {
+            if (global.RuanaMascota && typeof global.RuanaMascota.svg === 'function') {
+                return global.RuanaMascota.svg({ clase: 'es-fab', titulo: false });
+            }
+        } catch (e) { /* ignore */ }
+        return ICONO;
+    }
+
     var ICONO =
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" ' +
         'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
@@ -112,7 +122,7 @@
         fab.id = 'ruana-copiloto-admin-fab';
         fab.setAttribute('aria-label', 'Abrir el copiloto de RUANA');
         fab.setAttribute('aria-expanded', 'false');
-        fab.innerHTML = ICONO + '<span>Copiloto</span>' +
+        fab.innerHTML = iconoMascota() + '<span>Copiloto</span>' +
             '<span class="ruana-copiloto-fab-dot" id="ruana-copiloto-admin-dot" hidden></span>';
 
         var panel = document.createElement('section');
@@ -123,7 +133,7 @@
         panel.setAttribute('aria-hidden', 'true');
         panel.innerHTML = [
             '<div class="ruana-copiloto-head">',
-            '  <div class="ruana-copiloto-avatar">', ICONO, '</div>',
+            '  <div class="ruana-copiloto-avatar">', iconoMascota(), '</div>',
             '  <div class="ruana-copiloto-titulos">',
             '    <h2 class="ruana-copiloto-titulo" id="ruana-copiloto-admin-titulo">Copiloto · Admin</h2>',
             '    <p class="ruana-copiloto-sub">',
@@ -428,6 +438,22 @@
         );
     }
 
+    /** Nodi asoma con un pendiente real de la red. */
+    function arrancarMascota() {
+        if (!global.RuanaMascota || typeof global.RuanaMascota.arrancarConsejos !== 'function') {
+            return;
+        }
+        global.RuanaMascota.arrancarConsejos({
+            obtenerJugadas: function () {
+                return pedir('/api/admin/copiloto/estado', { method: 'GET' })
+                    .then(function (d) { return (d && d.jugadas) || []; });
+            },
+            alPulsarVer: function (jugada) {
+                ejecutarAccion((jugada && jugada.accion) || { tipo: 'nav_admin', destino: 'overview' });
+            }
+        });
+    }
+
     function iniciar() {
         if (estado.montado) return;
         if (!esPanelAdmin()) return;
@@ -435,6 +461,7 @@
         crearEstructura();
         enlazar();
         estado.montado = true;
+        arrancarMascota();
     }
 
     if (document.readyState === 'loading') {

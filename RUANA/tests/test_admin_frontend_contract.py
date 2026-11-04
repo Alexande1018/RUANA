@@ -394,7 +394,8 @@ def test_admin_score_bands_match_motor_ruana():
     red_ex = (root / "static" / "js" / "admin-red-explorer-module.js").read_text(encoding="utf-8")
     cc = (root / "static" / "js" / "admin-command-center-module.js").read_text(encoding="utf-8")
 
-    assert 'src="/static/js/admin-score-bands-module.js"' in admin
+    # La página carga el módulo; se admite el ?v= de cache-busting.
+    assert '/static/js/admin-score-bands-module.js' in admin
     assert "RuanaAdminScoreBands" in bands_js
     assert "if (s >= 350) return 'elite';" in bands_js
     assert "if (s >= 200) return 'destacado';" in bands_js
