@@ -519,6 +519,10 @@
         dom.fab.setAttribute('aria-expanded', 'true');
         if (dom.dot) dom.dot.hidden = true;
 
+        try {
+            global.localStorage && localStorage.setItem('ruana_copiloto_abierto', '1');
+        } catch (e) { /* ignore */ }
+
         if (!estado.cargado) {
             mostrarEscribiendo();
             cargarEstado(true)
@@ -562,18 +566,64 @@
         );
     }
 
-    /** Nodi asoma con un consejo real cuando el panel ya está cargado. */
+    // Nodi también pregunta si hay dudas: así el aliado sabe que puede hablarle.
+    var INVITACIONES = [
+        '¿Tienes alguna duda de RUANA? Pregúntame lo que quieras.',
+        '¿Aún no sabes cómo funciona algo? Te lo explico en un momento.',
+        'Aquí estoy si te surge una duda de la app. Pregúntame.'
+    ];
+
+    function invitacionDelDia() {
+        var hoy = new Date();
+        var indice = (hoy.getDate() + hoy.getMonth() * 31) % INVITACIONES.length;
+        return {
+            id: 'invitacion_' + indice,
+            texto: INVITACIONES[indice],
+            accion: 'Preguntar →'
+        };
+    }
+
+    function yaHabloConCopiloto() {
+        try {
+            return !!global.localStorage && localStorage.getItem('ruana_copiloto_abierto') === '1';
+        } catch (e) {
+            return false;
+        }
+    }
+
+    /** Nodi asoma cuando el panel ya está cargado: primero invita, luego avisa. */
     function arrancarMascota() {
         if (!global.RuanaMascota || typeof global.RuanaMascota.arrancarConsejos !== 'function') {
             return;
         }
         global.RuanaMascota.arrancarConsejos({
-            obtenerJugadas: function () {
+            obtenerMensajes: function () {
+                var invitacion = invitacionDelDia();
+                // Si nunca ha abierto el copiloto, primero se presenta.
+                if (!yaHabloConCopiloto()) return [invitacion];
                 return pedir('/api/aliado/copiloto/jugadas', { method: 'GET' })
-                    .then(function (d) { return (d && d.jugadas) || []; });
+                    .then(function (d) {
+                        var lista = ((d && d.jugadas) || [])
+                            .filter(function (j) { return j && j.urgencia !== 'baja'; })
+                            .map(function (j) {
+                                return {
+                                    id: j.id,
+                                    texto: j.titulo,
+                                    accion: (j.cta || 'Ver') + ' →',
+                                    jugada: j
+                                };
+                            });
+                        lista.push(invitacion);
+                        return lista;
+                    })
+                    .catch(function () { return [invitacion]; });
             },
-            alPulsarVer: function (jugada) {
-                ejecutarAccion((jugada && jugada.accion) || { tipo: 'nav', destino: 'inicio' });
+            alPulsar: function (mensaje) {
+                if (mensaje && mensaje.jugada) {
+                    ejecutarAccion(mensaje.jugada.accion || { tipo: 'nav', destino: 'inicio' });
+                    return;
+                }
+                abrir();
             }
         });
     }

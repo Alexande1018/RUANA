@@ -219,16 +219,16 @@
         dom.nube.style.left = izquierda + 'px';
     }
 
-    function mostrarConsejo(jugada, alPulsarVer) {
+    function mostrarMensaje(mensaje, alPulsar) {
         if (!asegurarNube()) return;
         colocarNube();
 
-        dom.texto.textContent = jugada.titulo || '\u00bfLe echamos un ojo a tu panel?';
-        dom.accion.textContent = (jugada.cta || 'Ver') + ' \u2192';
+        dom.texto.textContent = mensaje.texto || '\u00bfLe echamos un ojo a tu panel?';
+        dom.accion.textContent = mensaje.accion || 'Ver \u2192';
 
         dom.accion.onclick = function () {
             cerrarNube();
-            if (typeof alPulsarVer === 'function') alPulsarVer(jugada);
+            if (typeof alPulsar === 'function') alPulsar(mensaje);
         };
         dom.cerrar.onclick = function () {
             escribir('localStorage', CLAVE_APARTADO, hoy());
@@ -242,7 +242,7 @@
             });
         });
 
-        marcarVisto(jugada.id);
+        marcarVisto(mensaje.id);
 
         // La nube no se queda: es un comentario al pasar, no una tarea pendiente.
         clearTimeout(dom.temporizador);
@@ -262,18 +262,18 @@
             if (document.hidden) return;
             if (document.querySelector('#ruana-copiloto-panel.is-open')) return;
 
-            var pedir = o.obtenerJugadas;
+            var pedir = o.obtenerMensajes;
             if (typeof pedir !== 'function') return;
 
-            Promise.resolve(pedir()).then(function (jugadas) {
-                if (!Array.isArray(jugadas) || !jugadas.length) return;
+            Promise.resolve(pedir()).then(function (mensajes) {
+                if (!Array.isArray(mensajes) || !mensajes.length) return;
                 var vistas = estadoDiario().ids;
-                var candidata = jugadas.filter(function (j) {
-                    return j && j.id && vistas.indexOf(j.id) === -1 && j.urgencia !== 'baja';
+                var elegido = mensajes.filter(function (m) {
+                    return m && m.id && m.texto && vistas.indexOf(m.id) === -1;
                 })[0];
-                if (!candidata) return;
+                if (!elegido) return;
                 if (!puedeMostrar()) return;
-                mostrarConsejo(candidata, o.alPulsarVer);
+                mostrarMensaje(elegido, o.alPulsar);
             }).catch(function () { /* silencio: es un adorno, no una función */ });
         }, RETRASO_CONSEJO_MS);
     }

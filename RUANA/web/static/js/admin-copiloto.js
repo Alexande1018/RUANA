@@ -444,12 +444,25 @@
             return;
         }
         global.RuanaMascota.arrancarConsejos({
-            obtenerJugadas: function () {
+            obtenerMensajes: function () {
                 return pedir('/api/admin/copiloto/estado', { method: 'GET' })
-                    .then(function (d) { return (d && d.jugadas) || []; });
+                    .then(function (d) {
+                        return ((d && d.jugadas) || [])
+                            .filter(function (j) { return j && j.urgencia !== 'baja'; })
+                            .map(function (j) {
+                                return {
+                                    id: j.id,
+                                    texto: j.titulo,
+                                    accion: (j.cta || 'Abrir') + ' \u2192',
+                                    jugada: j
+                                };
+                            });
+                    });
             },
-            alPulsarVer: function (jugada) {
-                ejecutarAccion((jugada && jugada.accion) || { tipo: 'nav_admin', destino: 'overview' });
+            alPulsar: function (mensaje) {
+                if (mensaje && mensaje.jugada) {
+                    ejecutarAccion(mensaje.jugada.accion || { tipo: 'nav_admin', destino: 'overview' });
+                }
             }
         });
     }
