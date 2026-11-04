@@ -82,6 +82,11 @@ jobs:
           SMTP_PASSWORD: ${{ secrets.RUANA_SMTP_PASSWORD }}
         run: bash .github/scripts/sync-smtp-password-gcp.sh
 
+      - name: Sync DeepSeek API key to Secret Manager
+        env:
+          RUANA_DEEPSEEK_API_KEY: ${{ secrets.RUANA_DEEPSEEK_API_KEY }}
+        run: bash .github/scripts/sync-deepseek-key-gcp.sh
+
       - name: Sync Stripe secrets to Secret Manager
         env:
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
@@ -119,6 +124,18 @@ jobs:
 
       - name: Deploy Cloud Run
         run: |
+          # El Copiloto se activa solo si el secreto de DeepSeek existe. Si no,
+          # el despliegue es idéntico y el asistente queda en modo determinista.
+          EXTRA_ENV=""
+          EXTRA_SECRETS=""
+          if gcloud secrets describe ruana-deepseek-api-key --project "$PROJECT_ID" >/dev/null 2>&1; then
+            EXTRA_ENV=",RUANA_AI_ENABLED=1,RUANA_AI_PROVIDER=deepseek,RUANA_AI_MODEL=deepseek-chat"
+            EXTRA_SECRETS=",RUANA_AI_API_KEY=ruana-deepseek-api-key:latest"
+            echo "Copiloto: IA activada (deepseek)."
+          else
+            echo "Copiloto: modo determinista (sin secreto ruana-deepseek-api-key)."
+          fi
+
           gcloud run deploy "$SERVICE" \
             --image "$IMAGE" \
             --region "$REGION" \
@@ -127,8 +144,8 @@ jobs:
             --cpu-boost \
             --max-instances 3 \
             --service-account "$RUNTIME_SERVICE_ACCOUNT" \
-            --set-env-vars "FIREBASE_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_REGION=$REGION,SUPABASE_URL=$SUPABASE_URL,RUANA_PUBLIC_APP_URL=$FIREBASE_HOSTING_URL,RUANA_STRIPE_PAYMENTS_ENABLED=1,STRIPE_API_VERSION=2024-11-20.acacia,RUANA_ENV=production,RUANA_STRIPE_MODE=${{ steps.stripe_mode.outputs.mode }},RUANA_SESSION_COOKIE_SECURE=true,RUANA_SCHEDULER_SA=ruana-scheduler-invoker@ruana-4293f.iam.gserviceaccount.com,RUANA_CORS_ALLOWED_ORIGINS=https://ruana-4293f.web.app" \
-            --set-secrets "DATABASE_URL=ruana-database-url:latest,SUPABASE_SERVICE_ROLE_KEY=ruana-supabase-service-role-key:latest,SUPABASE_ANON_KEY=ruana-supabase-anon-key:latest,FLASK_SECRET_KEY=ruana-flask-secret-key:latest,RUANA_ADMIN_CREDENTIALS_JSON=ruana-admin-credentials:latest,RUANA_SMTP_PASSWORD=ruana-smtp-password:latest,STRIPE_SECRET_KEY=ruana-stripe-secret-key:latest,STRIPE_PUBLISHABLE_KEY=ruana-stripe-publishable-key:latest,STRIPE_WEBHOOK_SECRET=ruana-stripe-webhook-secret:latest,RUANA_CRON_SECRET=ruana-cron-secret:latest"
+            --set-env-vars "FIREBASE_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_REGION=$REGION,SUPABASE_URL=$SUPABASE_URL,RUANA_PUBLIC_APP_URL=$FIREBASE_HOSTING_URL,RUANA_STRIPE_PAYMENTS_ENABLED=1,STRIPE_API_VERSION=2024-11-20.acacia,RUANA_ENV=production,RUANA_STRIPE_MODE=${{ steps.stripe_mode.outputs.mode }},RUANA_SESSION_COOKIE_SECURE=true,RUANA_SCHEDULER_SA=ruana-scheduler-invoker@ruana-4293f.iam.gserviceaccount.com,RUANA_CORS_ALLOWED_ORIGINS=https://ruana-4293f.web.app${EXTRA_ENV}" \
+            --set-secrets "DATABASE_URL=ruana-database-url:latest,SUPABASE_SERVICE_ROLE_KEY=ruana-supabase-service-role-key:latest,SUPABASE_ANON_KEY=ruana-supabase-anon-key:latest,FLASK_SECRET_KEY=ruana-flask-secret-key:latest,RUANA_ADMIN_CREDENTIALS_JSON=ruana-admin-credentials:latest,RUANA_SMTP_PASSWORD=ruana-smtp-password:latest,STRIPE_SECRET_KEY=ruana-stripe-secret-key:latest,STRIPE_PUBLISHABLE_KEY=ruana-stripe-publishable-key:latest,STRIPE_WEBHOOK_SECRET=ruana-stripe-webhook-secret:latest,RUANA_CRON_SECRET=ruana-cron-secret:latest${EXTRA_SECRETS}"
 
       - name: Reparar SERIAL financial_transfers en Supabase
         continue-on-error: true
