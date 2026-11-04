@@ -1,0 +1,212 @@
+/* ==========================================================================
+   Nodi — mascota de RUANA
+   Un nodo de la red con cara. Vive en el botón del copiloto, en la cabecera
+   del panel del copiloto y en el consejo ocasional.
+   ========================================================================== */
+
+.ruana-mascota {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+/* Flotación suave: viva, pero sin llamar la atención */
+.ruana-mascota:not(.sin-animo) {
+    animation: ruana-mascota-flota 3.6s ease-in-out infinite;
+}
+
+@keyframes ruana-mascota-flota {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-2.5%); }
+}
+
+/* Parpadeo: cada ~5 s, muy rápido. Es lo que la hace "mirarte". */
+.ruana-mascota-ojos {
+    transform-origin: 23.5px 25.4px;
+    animation: ruana-mascota-parpadeo 5.4s infinite;
+}
+
+@keyframes ruana-mascota-parpadeo {
+    0%, 92%, 100% { transform: scaleY(1); }
+    94%, 96% { transform: scaleY(0.12); }
+}
+
+/* La antena respira */
+.ruana-mascota-luz {
+    animation: ruana-mascota-luz 4.2s ease-in-out infinite;
+    transform-origin: 23.5px 7.6px;
+}
+
+@keyframes ruana-mascota-luz {
+    0%, 100% { opacity: 0.75; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.12); }
+}
+
+/* El amigo lejano parpadea más despacio, como un latido de red */
+.ruana-mascota-amigo {
+    animation: ruana-mascota-amigo 6.5s ease-in-out infinite;
+}
+
+@keyframes ruana-mascota-amigo {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 0.85; }
+}
+
+/* Al pasar el ratón por el botón, Nodi saluda */
+.ruana-copiloto-fab:hover .ruana-mascota {
+    animation: ruana-mascota-saluda 0.9s ease-in-out;
+}
+
+@keyframes ruana-mascota-saluda {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-7deg); }
+    60% { transform: rotate(6deg); }
+}
+
+/* Tamaños por contexto */
+.ruana-copiloto-fab .ruana-mascota {
+    width: 26px;
+    height: 26px;
+}
+
+.ruana-copiloto-avatar .ruana-mascota {
+    width: 22px;
+    height: 22px;
+}
+
+/* --------------------------------------------------------------- consejo */
+
+.ruana-mascota-consejo {
+    position: fixed;
+    left: 22px;
+    bottom: 22px;
+    z-index: 1215;
+    width: min(344px, calc(100vw - 32px));
+    display: grid;
+    grid-template-columns: 54px 1fr;
+    grid-template-areas:
+        "cara texto"
+        "cara acciones";
+    align-items: center;
+    gap: 2px 12px;
+    padding: 12px 14px 12px 12px;
+    border: 1px solid rgba(162, 255, 0, 0.28);
+    border-radius: 20px;
+    background: linear-gradient(155deg, rgba(14, 24, 20, 0.97), rgba(8, 13, 20, 0.98));
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+    color: #e6f0e8;
+    font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+    transition: opacity 0.24s ease, transform 0.24s ease;
+    pointer-events: none;
+}
+
+.ruana-mascota-consejo[hidden] {
+    display: none;
+}
+
+.ruana-mascota-consejo.is-visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+}
+
+.ruana-mascota-consejo-cara {
+    grid-area: cara;
+    width: 54px;
+    height: 54px;
+    display: grid;
+    place-items: center;
+    border-radius: 16px;
+    background: radial-gradient(circle at 34% 28%, rgba(162, 255, 0, 0.22), rgba(162, 255, 0, 0.05));
+    border: 1px solid rgba(162, 255, 0, 0.22);
+    padding: 4px;
+}
+
+.ruana-mascota-consejo-texto {
+    grid-area: texto;
+    min-width: 0;
+}
+
+.ruana-mascota-consejo-linea {
+    margin: 0;
+    font-size: 12.8px;
+    line-height: 1.45;
+    color: #dbe9de;
+}
+
+.ruana-mascota-consejo-acciones {
+    grid-area: acciones;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 7px;
+}
+
+.ruana-mascota-btn {
+    appearance: none;
+    border: 1px solid rgba(162, 255, 0, 0.45);
+    background: rgba(162, 255, 0, 0.16);
+    color: #dcffb8;
+    font: 800 11.5px/1 "Plus Jakarta Sans", system-ui, sans-serif;
+    padding: 6px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.ruana-mascota-btn:hover {
+    background: rgba(162, 255, 0, 0.26);
+    transform: translateY(-1px);
+}
+
+.ruana-mascota-apartar {
+    appearance: none;
+    border: 0;
+    background: none;
+    color: #8ea296;
+    font: 600 11.5px/1 "Plus Jakarta Sans", system-ui, sans-serif;
+    cursor: pointer;
+    padding: 4px 2px;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.ruana-mascota-apartar:hover {
+    color: #c8dbc9;
+}
+
+/* ------------------------------------------------------------ responsive */
+
+@media (max-width: 720px) {
+    /* En móvil el pie está lleno (navegación, pastilla de solicitud y dos
+       botones flotantes). Nodi asoma arriba, bajo la barra, donde no pelea. */
+    .ruana-mascota-consejo {
+        left: 10px;
+        right: 10px;
+        top: 74px;
+        bottom: auto;
+        width: auto;
+        grid-template-columns: 46px 1fr;
+    }
+
+    .ruana-mascota-consejo-cara {
+        width: 46px;
+        height: 46px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ruana-mascota,
+    .ruana-mascota-ojos,
+    .ruana-mascota-luz,
+    .ruana-mascota-amigo {
+        animation: none !important;
+    }
+
+    .ruana-mascota-consejo {
+        transition: none;
+    }
+}

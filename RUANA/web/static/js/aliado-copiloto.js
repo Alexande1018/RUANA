@@ -105,6 +105,16 @@
 
     // ------------------------------------------------------------------ DOM
 
+    // Nodi: la mascota. Si no está cargada, cae al icono de siempre.
+    function iconoMascota() {
+        try {
+            if (global.RuanaMascota && typeof global.RuanaMascota.svg === 'function') {
+                return global.RuanaMascota.svg({ clase: 'es-fab', titulo: false });
+            }
+        } catch (e) { /* ignore */ }
+        return ICONO_CHISPA;
+    }
+
     var ICONO_CHISPA =
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" ' +
         'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
@@ -124,7 +134,7 @@
         fab.setAttribute('aria-label', 'Abrir el copiloto de RUANA');
         fab.setAttribute('aria-expanded', 'false');
         fab.innerHTML =
-            ICONO_CHISPA +
+            iconoMascota() +
             '<span>Copiloto</span>' +
             '<span class="ruana-copiloto-fab-dot" id="ruana-copiloto-dot" hidden></span>';
 
@@ -137,7 +147,7 @@
         panel.setAttribute('aria-hidden', 'true');
         panel.innerHTML = [
             '<div class="ruana-copiloto-head">',
-            '  <div class="ruana-copiloto-avatar">', ICONO_CHISPA, '</div>',
+            '  <div class="ruana-copiloto-avatar">', iconoMascota(), '</div>',
             '  <div class="ruana-copiloto-titulos">',
             '    <h2 class="ruana-copiloto-titulo" id="ruana-copiloto-titulo">Copiloto RUANA</h2>',
             '    <p class="ruana-copiloto-sub">',
@@ -552,6 +562,22 @@
         );
     }
 
+    /** Nodi asoma con un consejo real cuando el panel ya está cargado. */
+    function arrancarMascota() {
+        if (!global.RuanaMascota || typeof global.RuanaMascota.arrancarConsejos !== 'function') {
+            return;
+        }
+        global.RuanaMascota.arrancarConsejos({
+            obtenerJugadas: function () {
+                return pedir('/api/aliado/copiloto/jugadas', { method: 'GET' })
+                    .then(function (d) { return (d && d.jugadas) || []; });
+            },
+            alPulsarVer: function (jugada) {
+                ejecutarAccion((jugada && jugada.accion) || { tipo: 'nav', destino: 'inicio' });
+            }
+        });
+    }
+
     function iniciar() {
         if (estado.montado) return;
         if (!esPanelAliado()) return;
@@ -561,6 +587,7 @@
         crearEstructura();
         enlazar();
         estado.montado = true;
+        arrancarMascota();
     }
 
     if (document.readyState === 'loading') {
