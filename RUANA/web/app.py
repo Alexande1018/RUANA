@@ -70,6 +70,7 @@ from web.blueprints.invitacion_bp import (
 )
 from web.blueprints.evaluacion_bp import evaluacion_bp
 from web.blueprints.soporte_bp import soporte_bp
+from web.blueprints.copiloto_bp import copiloto_bp
 from web.blueprints.financial_conflicts_bp import financial_conflicts_bp
 from web.blueprints.financial_refunds_bp import financial_refunds_bp
 from web.blueprints.financial_disputes_bp import financial_disputes_bp
@@ -174,6 +175,7 @@ app.register_blueprint(aliado_bp)
 app.register_blueprint(invitacion_bp)
 app.register_blueprint(evaluacion_bp)
 app.register_blueprint(soporte_bp)
+app.register_blueprint(copiloto_bp)
 app.register_blueprint(financial_conflicts_bp)
 app.register_blueprint(financial_refunds_bp)
 app.register_blueprint(financial_disputes_bp)

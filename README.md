@@ -99,6 +99,7 @@ Leyenda: 🟢 operativo · 🟡 parcial / requiere revisión · 🔴 no implemen
 | Pagos / Apoyo RUANA | 🟢 | Manual (Bizum/IBAN/QR) + revisión admin + impugnación |
 | Stripe Connect (pagos encargo) | 🟡 | Implementado (`pagos_bp`, webhook); requiere `RUANA_STRIPE_PAYMENTS_ENABLED=1` y secretos |
 | Notificaciones | 🟢 | Inbox aliado + centro de comunicación / soporte |
+| Copiloto del aliado | 🟢 | `copiloto_bp` + `copiloto_service`: guía, jugadas de score, invitación por oficio y cierre de encargos. IA opcional (`RUANA_AI_ENABLED`); ver [`docs/copiloto.md`](docs/copiloto.md) |
 | Administración | 🟢 | Panel amplio vía `admin_service` + rutas admin |
 | Competencia por score | 🟢 | `competencia_service`; umbral config; UI/E2E parcial |
 | Purga mensual | 🟡 | Lógica/endpoint existen; operación en producción `NO VERIFICADO` |
