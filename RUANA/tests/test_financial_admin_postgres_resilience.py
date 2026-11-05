@@ -189,7 +189,7 @@ def test_postgres_init_includes_financial_migrations_through_fase11():
     import inspect
     from core.services import schema_service
 
-    source = inspect.getsource(schema_service._init_postgres_schema)
+    source = inspect.getsource(schema_service._init_postgres_schema_unlocked)
     for mig in (
         "_migrar_payment_conflicts",
         "_migrar_financial_fase04_conflicts",

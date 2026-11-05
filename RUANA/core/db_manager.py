@@ -2080,10 +2080,13 @@ class DBManager:
 
 # Instancia global (singleton)
 _db_instance: Optional[DBManager] = None
+_db_instance_lock = threading.RLock()
 
 def get_db() -> DBManager:
-    """Obtiene la instancia global del gestor de BD"""
+    """Obtiene la instancia global del gestor de BD (thread-safe: un solo init por proceso)."""
     global _db_instance
     if _db_instance is None:
-        _db_instance = DBManager()
+        with _db_instance_lock:
+            if _db_instance is None:
+                _db_instance = DBManager()
     return _db_instance

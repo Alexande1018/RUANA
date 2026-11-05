@@ -194,3 +194,18 @@ def make_session_headers(tipo, codigo, permisos=None):
 @pytest.fixture
 def session_headers():
     return make_session_headers
+
+
+@pytest.fixture(autouse=True)
+def _sin_conexion_real_para_schema_lock(monkeypatch):
+    """Los tests nunca abren una conexión Postgres real para el advisory lock de esquema.
+
+    Sin conexión de lock, run_with_schema_lock ejecuta la migración igualmente
+    (comportamiento anterior); los tests del lock pasan un ``connect`` falso explícito.
+    """
+    import core.schema_lock as schema_lock_mod
+
+    def _no_connect(_url):
+        raise ConnectionError("tests: sin Postgres real para el schema lock")
+
+    monkeypatch.setattr(schema_lock_mod, "_default_connect", _no_connect)

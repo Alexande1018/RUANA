@@ -178,7 +178,7 @@ def test_financial_tables_id_serial_includes_transfers():
 def test_init_postgres_schema_aplica_serial_antes_de_otras_migraciones():
     """El commit aislado de SERIAL va al inicio del init, no solo al final."""
     src = Path(schema_service.__file__).read_text(encoding="utf-8")
-    idx = src.index("def _init_postgres_schema")
+    idx = src.index("def _init_postgres_schema_unlocked")
     block = src[idx : idx + 1400]
     serial_idx = block.index("_asegurar_ids_serial_tablas_financieras")
     campanas_idx = block.index("invitacion_campanas")

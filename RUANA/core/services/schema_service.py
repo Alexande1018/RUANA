@@ -3163,7 +3163,21 @@ def _asegurar_tabla_migraciones(db, cursor) -> None:
 
 
 def _init_postgres_schema(db):
-    """Crea tablas/migraciones pendientes en Supabase/Postgres al arrancar."""
+    """Crea tablas/migraciones pendientes en Supabase/Postgres al arrancar.
+
+    Serializado entre instancias/workers con un advisory lock de Postgres
+    (core.schema_lock): evita los deadlocks de migraciones concurrentes.
+    """
+    from core.schema_lock import run_with_schema_lock
+
+    database_url = getattr(getattr(db, "settings", None), "database_url", None)
+    if not database_url:
+        return _init_postgres_schema_unlocked(db)
+    return run_with_schema_lock(database_url, lambda: _init_postgres_schema_unlocked(db))
+
+
+def _init_postgres_schema_unlocked(db) -> bool:
+    """Cuerpo original del init de esquema Postgres (sin lock). True si terminó bien."""
     conn = None
     try:
         conn = db._connect()
@@ -3287,8 +3301,10 @@ def _init_postgres_schema(db):
         _asegurar_ids_serial_tablas_financieras(db, cursor)
         conn.commit()
         print("[RUANA][DB] Esquema Postgres verificado (core + triggers ledger FASE 13A)")
+        return True
     except Exception as e:
         _log_schema_init_failed(e)
+        return False
     finally:
         if conn:
             conn.close()

@@ -479,7 +479,7 @@ def test_init_postgres_schema_incluye_solicitudes_semanales():
     import inspect
     from core.services import schema_service
 
-    source = inspect.getsource(schema_service._init_postgres_schema)
+    source = inspect.getsource(schema_service._init_postgres_schema_unlocked)
     assert "_migrar_solicitudes_semanales" in source
 
 
