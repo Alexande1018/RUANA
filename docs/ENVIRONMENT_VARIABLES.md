@@ -27,7 +27,7 @@ Referencia consolidada de variables usadas por RUANA. Origen: grep sobre `RUANA/
 
 | Variable | Default | Descripción |
 |----------|---------|-------------|
-| `WEB_CONCURRENCY` | `(2×CPU)+1` o `2` | Workers gunicorn |
+| `WEB_CONCURRENCY` | `2` | Workers gunicorn (antes `(2×CPU)+1`; fijado a 2 por memoria 512 MiB) |
 | `GUNICORN_THREADS` | `4` | Threads por worker |
 | `GUNICORN_TIMEOUT` | `30` | Timeout worker (seg) |
 
