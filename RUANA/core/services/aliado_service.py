@@ -103,10 +103,10 @@ def crear_aliado(db, codigo: str, nombre: str, marca: str = "",
                 return {'status': 'error', 'message': f'Código {codigo} ya existe'}
 
             if _repo.select_id_por_email_ocupado(cursor, email) is not None:
-                return {'status': 'error', 'message': f'El email {email} ya está registrado'}
+                return {'status': 'error', 'message': 'Este email ya está registrado'}
 
             if _repo.select_id_por_telefono_ocupado(cursor, telefono) is not None:
-                return {'status': 'error', 'message': f'El teléfono {telefono} ya está registrado'}
+                return {'status': 'error', 'message': 'Este teléfono ya está registrado'}
 
             if not codigo or len(codigo) != 5 or not codigo.isdigit():
                 return {'status': 'error', 'message': 'El código debe ser un número de 5 dígitos (error de validación backend)'}

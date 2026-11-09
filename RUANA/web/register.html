@@ -638,6 +638,20 @@
             display: block;
         }
 
+        .register-input.is-invalid,
+        .register-select.is-invalid,
+        .oficio-picker-trigger.is-invalid,
+        .phone-national-input.is-invalid,
+        .checkbox-group.is-invalid {
+            border-color: #ef4444 !important;
+            box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.35);
+        }
+
+        .checkbox-group.is-invalid {
+            border-radius: 8px;
+            padding: 4px;
+        }
+
         .form-success {
             font-size: 0.85rem;
             color: #22c55e;
@@ -1482,53 +1496,53 @@
                 const mayoriaEdad = document.getElementById('mayoria_edad').checked;
 
                 // Validaciones básicas
-                if (!nombre || nombre.length < 2) {
-                    this.showError('El nombre debe tener al menos 2 caracteres');
+                if (!nombre || nombre.length < 3) {
+                    this.showError('El nombre debe tener al menos 3 caracteres', 'nombre');
                     return;
                 }
 
                 const oficioPrincipalVal = this.oficioPrincipalSelect ? this.oficioPrincipalSelect.value : '';
                 if (!oficioPrincipalVal) {
-                    this.showError('Debes elegir un oficio principal');
+                    this.showError('Debes elegir un oficio principal', 'oficio');
                     return;
                 }
                 let oficioEnviar = oficioPrincipalVal;
                 if (oficioPrincipalVal === '__otro__') {
                     const otroTexto = this.oficioOtroTexto ? this.oficioOtroTexto.value.trim() : '';
                     if (!otroTexto) {
-                        this.showError('Indica tu oficio (pendiente de validación)');
+                        this.showError('Indica tu oficio (pendiente de validación)', 'oficio');
                         return;
                     }
                     oficioEnviar = otroTexto;
                 }
 
                 if (!codigoPostal) {
-                    this.showError('Por favor ingresa tu código postal');
+                    this.showError('Por favor ingresa tu código postal', 'codigo_postal');
                     return;
                 }
 
                 if (!/^\d+$/.test(codigoPostal)) {
-                    this.showError('El código postal debe contener solo números');
+                    this.showError('El código postal debe contener solo números', 'codigo_postal');
                     return;
                 }
 
                 if (!this.isValidEmail(email)) {
-                    this.showError('Por favor ingresa un email válido');
+                    this.showError('Por favor ingresa un email válido', 'email');
                     return;
                 }
 
                 if (!this.phoneInput || !this.phoneInput.isValid()) {
-                    this.showError('Por favor ingresa un teléfono válido (al menos 7 dígitos)');
+                    this.showError('Por favor ingresa un teléfono válido (al menos 7 dígitos)', 'telefono');
                     return;
                 }
 
                 if (!condiciones) {
-                    this.showError('Debes aceptar la Política de Privacidad y los Términos de Uso para continuar');
+                    this.showError('Debes aceptar la Política de Privacidad y los Términos de Uso para continuar', 'consentimiento');
                     return;
                 }
 
                 if (!mayoriaEdad) {
-                    this.showError('Debes declarar que eres mayor de 18 años para continuar');
+                    this.showError('Debes declarar que eres mayor de 18 años para continuar', 'mayoria_edad');
                     return;
                 }
 
@@ -1609,16 +1623,19 @@
                         const mensajePendiente = result.mensaje_pendiente_validacion || null;
                         this.mostrarModalCodigoAliado(codigoAliado, mensajePendiente, mensajeEspera);
                     } else {
-                        this.showError(result.message || 'Error al registrar');
+                        this.showError(
+                            result.message || 'Error al registrar',
+                            result.field || null
+                        );
                         this.submitBtn.disabled = false;
-                        this.submitBtn.textContent = 'Registrarse';
+                        this.submitBtn.textContent = 'Solicitar registro';
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
                     this.showError('Error de conexión. Por favor intenta de nuevo.');
                     this.submitBtn.disabled = false;
-                    this.submitBtn.textContent = 'Registrarse';
+                    this.submitBtn.textContent = 'Solicitar registro';
                 });
             }
                     
@@ -1832,10 +1849,44 @@
                 return emailRegex.test(email);
             }
 
-            showError(message) {
+            fieldElement(field) {
+                const map = {
+                    nombre: 'nombre',
+                    email: 'email',
+                    telefono: 'telefono-nacional',
+                    oficio: 'oficio-picker-trigger',
+                    codigo_postal: 'codigo-postal',
+                    consentimiento: 'condiciones',
+                    mayoria_edad: 'mayoria_edad',
+                    origen: 'como-nos-conociste',
+                    codigo_invitacion: 'gate-codigo'
+                };
+                const id = map[field] || field;
+                return id ? document.getElementById(id) : null;
+            }
+
+            clearFieldErrors() {
+                document.querySelectorAll('.is-invalid').forEach((el) => el.classList.remove('is-invalid'));
+            }
+
+            showError(message, field) {
+                this.clearFieldErrors();
                 this.errorMsg.textContent = message;
                 this.errorMsg.classList.add('show');
                 this.successMsg.classList.remove('show');
+                const el = this.fieldElement(field);
+                if (el) {
+                    const target = el.classList.contains('checkbox-group')
+                        ? el
+                        : (el.closest('.checkbox-group') || el);
+                    target.classList.add('is-invalid');
+                    try {
+                        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        if (typeof target.focus === 'function') target.focus({ preventScroll: true });
+                    } catch (_) {}
+                } else if (this.errorMsg && typeof this.errorMsg.scrollIntoView === 'function') {
+                    try { this.errorMsg.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (_) {}
+                }
             }
 
             showSuccess(message) {
@@ -1845,6 +1896,7 @@
             }
 
             clearMessages() {
+                this.clearFieldErrors();
                 this.errorMsg.classList.remove('show');
                 this.successMsg.classList.remove('show');
             }
