@@ -119,15 +119,15 @@ def test_registrar_sin_mayoria_edad_devuelve_400(client, tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "campo,fragmento",
+    "campo,field,code,fragmento",
     [
-        ("nombre", "Campo requerido: nombre"),
-        ("email", "Campo requerido: email"),
-        ("telefono", "Campo requerido: telefono"),
-        ("oficio", "oficio principal es obligatorio"),
+        ("nombre", "nombre", "nombre_requerido", "El nombre es obligatorio"),
+        ("email", "email", "email_requerido", "El email es obligatorio"),
+        ("telefono", "telefono", "telefono_requerido", "El teléfono es obligatorio"),
+        ("oficio", "oficio", "oficio_requerido", "oficio principal es obligatorio"),
     ],
 )
-def test_registrar_rechaza_sin_campo_obligatorio(client, tmp_path, monkeypatch, campo, fragmento):
+def test_registrar_rechaza_sin_campo_obligatorio(client, tmp_path, monkeypatch, campo, field, code, fragmento):
     sqlite_db = _sqlite(tmp_path, monkeypatch)
     monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
     payload = _payload(email=f"sin.{campo}@example.com", telefono="+34600111399")
@@ -139,3 +139,68 @@ def test_registrar_rechaza_sin_campo_obligatorio(client, tmp_path, monkeypatch, 
     data = resp.get_json()
     assert data["status"] == "error"
     assert fragmento in data["message"]
+    assert data.get("field") == field
+    assert data.get("code") == code
+
+def test_registrar_nombre_corto_devuelve_400_con_field(client, tmp_path, monkeypatch):
+    sqlite_db = _sqlite(tmp_path, monkeypatch)
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    resp = client.post("/api/aliados/registrar", json=_payload(nombre="Al"))
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data["status"] == "error"
+    assert data.get("field") == "nombre"
+    assert data.get("code") == "nombre_corto"
+    assert "3 caracteres" in data["message"]
+
+
+def test_registrar_email_invalido_mensaje_legible(client, tmp_path, monkeypatch):
+    sqlite_db = _sqlite(tmp_path, monkeypatch)
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    resp = client.post("/api/aliados/registrar", json=_payload(email="no-es-email"))
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data.get("field") == "email"
+    assert data.get("code") == "email_invalido"
+    assert "?" not in data["message"]
+    assert "email válido" in data["message"]
+
+
+def test_registrar_origen_invalido_devuelve_400(client, tmp_path, monkeypatch):
+    sqlite_db = _sqlite(tmp_path, monkeypatch)
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    resp = client.post(
+        "/api/aliados/registrar",
+        json=_payload(como_nos_conociste="Publicidad en radio"),
+    )
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data.get("field") == "origen"
+    assert data.get("code") == "origen_invalido"
+
+
+def test_register_html_alinea_nombre_minimo_con_backend():
+    html = (WEB / "register.html").read_text(encoding="utf-8")
+    assert "nombre.length < 3" in html
+    assert "result.field" in html
+    assert "scrollIntoView" in html
+    assert "nombre.length < 2" not in html
+
+
+def test_registrar_email_duplicado_sin_pii(client, tmp_path, monkeypatch):
+    sqlite_db = _sqlite(tmp_path, monkeypatch)
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    monkeypatch.setattr(app_module, "_generar_codigo_unico", lambda: "73111")
+    first = client.post("/api/aliados/registrar", json=_payload(email="dup@example.com", telefono="+34600111401"))
+    assert first.status_code == 201, first.get_json()
+    monkeypatch.setattr(app_module, "_generar_codigo_unico", lambda: "73112")
+    second = client.post(
+        "/api/aliados/registrar",
+        json=_payload(nombre="Otra Persona", email="dup@example.com", telefono="+34600111402"),
+    )
+    assert second.status_code == 400
+    data = second.get_json()
+    assert data.get("field") == "email"
+    assert data.get("code") == "email_duplicado"
+    assert "dup@example.com" not in data["message"]
+

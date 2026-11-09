@@ -11,6 +11,8 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+import logging
+
 from flask import Blueprint, jsonify, request
 
 from core import db_manager as db_manager_mod
@@ -27,6 +29,43 @@ from web.auth_decorators import (
 )
 
 aliado_bp = Blueprint("aliado", __name__)
+logger = logging.getLogger(__name__)
+
+
+def _registro_reject(field: str, code: str, message: str, status_code: int = 400):
+    """Respuesta 4xx de registro con campo/código para UI y logs sin PII."""
+    logger.info(
+        "registro_rechazado field=%s code=%s http=%s",
+        field,
+        code,
+        status_code,
+    )
+    return jsonify({
+        'status': 'error',
+        'message': message,
+        'field': field,
+        'code': code,
+    }), status_code
+
+
+def _map_error_crear_aliado(message: str):
+    """Traduce errores de crear_aliado a (field, code, mensaje público sin PII)."""
+    msg = (message or '').strip()
+    low = msg.lower()
+    if 'email' in low and 'registrad' in low:
+        return 'email', 'email_duplicado', 'Este email ya está registrado. Si ya tienes cuenta, entra con tu código.'
+    if ('teléfono' in low or 'telefono' in low) and 'registrad' in low:
+        return 'telefono', 'telefono_duplicado', 'Este teléfono ya está registrado. Si ya tienes cuenta, entra con tu código.'
+    if 'integridad' in low:
+        return 'general', 'integridad', 'No hemos podido completar el registro. Revisa los datos e inténtalo de nuevo.'
+    if 'nombre' in low and '3' in low:
+        return 'nombre', 'nombre_corto', 'El nombre debe tener al menos 3 caracteres'
+    if 'email' in low and 'válid' in low:
+        return 'email', 'email_invalido', 'Introduce un email válido (con @ y dominio)'
+    if ('teléfono' in low or 'telefono' in low) and ('dígitos' in low or 'digitos' in low):
+        return 'telefono', 'telefono_corto', 'Introduce un teléfono válido (al menos 7 dígitos)'
+    return 'general', 'crear_aliado', msg or 'No se pudo completar el registro'
+
 
 _ALIADO_SELF_EDITABLE_FIELDS = frozenset({
     'nombre', 'marca', 'oficio', 'codigo_postal', 'email',
@@ -411,13 +450,13 @@ def get_aliado(aliado_id):
 def registrar_aliado():
     """
     POST /api/aliados/registrar
-    
+
     Registra un nuevo aliado en SQLite
-    
+
     Body JSON:
     {
-        "nombre": "Juan P?rez",
-        "marca": "JP Construcci?n",
+        "nombre": "Juan Pérez",
+        "marca": "JP Construcción",
         "oficio": "Constructor",
         "codigo_postal": "080001",
         "email": "juan@example.com",
@@ -427,68 +466,69 @@ def registrar_aliado():
     try:
         data = request.get_json() or {}
         if not aliado_service.consentimiento_registro_aceptado(data):
-            return jsonify({
-                'status': 'error',
-                'message': 'Debes aceptar la Política de Privacidad y los Términos de Uso para registrarte.'
-            }), 400
+            return _registro_reject(
+                'consentimiento',
+                'consentimiento_requerido',
+                'Debes aceptar la Política de Privacidad y los Términos de Uso para registrarte.',
+            )
         if not aliado_service.declara_mayoria_edad_aceptada(data):
-            return jsonify({
-                'status': 'error',
-                'message': 'Debes declarar que eres mayor de 18 años para registrarte.'
-            }), 400
+            return _registro_reject(
+                'mayoria_edad',
+                'mayoria_edad_requerida',
+                'Debes declarar que eres mayor de 18 años para registrarte.',
+            )
         db = get_db()
-        
+
         # Validar campos requeridos
-        # F07: Validaci?n coherente - Opci?n A: Email y tel?fono OBLIGATORIOS
-        # Una ?nica fuente de verdad: frontend debe cumplir esto, backend lo valida
-        required = ['nombre', 'email', 'telefono']
-        for field in required:
-            if not data.get(field, '').strip():
-                return jsonify({
-                    'status': 'error',
-                    'message': f'Campo requerido: {field}'
-                }), 400
-        
-        # F07: Validaci?n de formato ANTES de DB (una ?nica fuente de verdad en app.py)
-        nombre = data.get('nombre', '').strip()
-        email = data.get('email', '').strip()
-        telefono = normalize_phone(data.get('telefono', '').strip())
-        
-        # Validar nombre
+        # F07: Validación coherente - Opción A: Email y teléfono OBLIGATORIOS
+        required_labels = {
+            'nombre': ('nombre', 'nombre_requerido', 'El nombre es obligatorio'),
+            'email': ('email', 'email_requerido', 'El email es obligatorio'),
+            'telefono': ('telefono', 'telefono_requerido', 'El teléfono es obligatorio'),
+        }
+        for field, (field_id, code, message) in required_labels.items():
+            raw = data.get(field, '')
+            if raw is None or not str(raw).strip():
+                return _registro_reject(field_id, code, message)
+
+        # F07: Validación de formato ANTES de DB
+        nombre = str(data.get('nombre', '') or '').strip()
+        email = str(data.get('email', '') or '').strip()
+        telefono = normalize_phone(str(data.get('telefono', '') or '').strip())
+
         if len(nombre) < 3:
-            return jsonify({
-                'status': 'error',
-                'message': 'El nombre debe tener al menos 3 caracteres'
-            }), 400
-        
-        # F07: Validar email
+            return _registro_reject(
+                'nombre',
+                'nombre_corto',
+                'El nombre debe tener al menos 3 caracteres',
+            )
+
         if '@' not in email or '.' not in email.split('@')[1]:
-            return jsonify({
-                'status': 'error',
-                'message': 'Email inv?lido (debe contener @ y dominio v?lido)'
-            }), 400
-        
-        # F07: Validar tel?fono (solo d?gitos, al menos 7; se ignoran espacios y s?mbolos)
-        import re
+            return _registro_reject(
+                'email',
+                'email_invalido',
+                'Introduce un email válido (con @ y dominio)',
+            )
+
         digitos = re.sub(r'\D', '', telefono)
         if len(digitos) < 7:
-            return jsonify({
-                'status': 'error',
-                'message': 'Tel?fono inv?lido (debe tener al menos 7 d?gitos)'
-            }), 400
-        
-        # Oficio principal obligatorio (catálogo oficial)
+            return _registro_reject(
+                'telefono',
+                'telefono_corto',
+                'Introduce un teléfono válido (al menos 7 dígitos)',
+            )
+
         oficio = (data.get('oficio') or data.get('oficio_principal') or '').strip()
         if not oficio:
-            return jsonify({
-                'status': 'error',
-                'message': 'El oficio principal es obligatorio. Elige uno del catálogo.'
-            }), 400
+            return _registro_reject(
+                'oficio',
+                'oficio_requerido',
+                'El oficio principal es obligatorio. Elige uno del catálogo.',
+            )
 
         # Suboficios/especializaciones ignorados: plaza solo por oficio principal
         especializacion_plaza = oficio
         especializaciones = []
-
 
         # Si viene con código de invitación "Conozco a alguien", intentar asignar al grupo del invitador si cumple reglas
         grupo_id_invitacion = None
@@ -512,10 +552,12 @@ def registrar_aliado():
                     and (aliado_placeholder.get('estado') or '').strip() == 'pendiente_completar'
                 )
                 if not invitacion_pendiente and not es_placeholder:
-                    return jsonify({
-                        'status': 'error',
-                        'message': f'Codigo de invitacion {codigo_invitacion_raw} no encontrado o ya usado.'
-                    }), 404
+                    return _registro_reject(
+                        'codigo_invitacion',
+                        'invitacion_no_encontrada',
+                        f'Código de invitación {codigo_invitacion_raw} no encontrado o ya usado.',
+                        status_code=404,
+                    )
                 codigo_invitacion_simple = (
                     (invitacion_pendiente.get('codigo') if invitacion_pendiente else None)
                     or (aliado_placeholder.get('codigo') if aliado_placeholder else None)
@@ -533,7 +575,11 @@ def registrar_aliado():
         marca = (data.get('marca') or '').strip()
         origen = aliado_service.normalizar_origen_registro(data)
         if origen.get('error'):
-            return jsonify({'status': 'error', 'message': origen['error']}), 400
+            return _registro_reject(
+                'origen',
+                'origen_invalido',
+                origen['error'],
+            )
         codigo = _generar_codigo_unico()
         result = db.crear_aliado(
             codigo=codigo,
@@ -548,9 +594,10 @@ def registrar_aliado():
             descripcion_servicio=descripcion_servicio,
             grupo_id_invitacion=grupo_id_invitacion
         )
-        
+
         if result['status'] == 'error':
-            return jsonify(result), 400
+            field, code, message = _map_error_crear_aliado(result.get('message') or '')
+            return _registro_reject(field, code, message)
 
         codigo_aliado = (result.get('codigo') or codigo or '').strip()
         consentimiento_guardado = False
@@ -574,13 +621,15 @@ def registrar_aliado():
                 aliado_service.deshacer_alta_sin_consentimiento(db, codigo_aliado)
             except Exception as undo_err:
                 print(f"[RUANA][LEGAL] No se pudo deshacer el alta de {codigo_aliado}: {undo_err}")
-            return jsonify({
-                'status': 'error',
-                'message': (
+            return _registro_reject(
+                'general',
+                'consentimiento_no_guardado',
+                (
                     'No hemos podido guardar tu aceptación de las condiciones. '
                     'Inténtalo de nuevo en un momento.'
                 ),
-            }), 503
+                status_code=503,
+            )
 
         try:
             db.guardar_origen_registro(result.get('codigo') or codigo, origen)
@@ -598,11 +647,11 @@ def registrar_aliado():
         # CP lleno, oficio ocupado → en_espera (lista de Suplentes)
         # mensaje_lista_espera viene del db_manager si aplica
 
-        # Si registr? con c?digo de invitaci?n v?lido
+        # Si registró con código de invitación válido
         codigo_invitacion = codigo_invitacion_raw
         if codigo_invitacion:
             codigo_inv_upper = codigo_invitacion.upper()
-            # C?digo RUANA-XXX-OFICIO-XXXX: invitaci?n por oficio (una sola vez)
+            # Código RUANA-XXX-OFICIO-XXXX: invitación por oficio (una sola vez)
             if re.match(RUANA_CODIGO_INVITACION_REGEX, codigo_inv_upper):
                 db.consumir_invitacion_oficio(codigo_inv_upper, result['codigo'])
             elif codigo_campana_invitacion:
@@ -638,11 +687,14 @@ def registrar_aliado():
                 print(f"[RUANA][EMAIL] Error inesperado al enviar correo de bienvenida: {email_err}")
 
         return jsonify(result), 201
-        
+
     except Exception as e:
+        logger.exception("registro_fallo_inesperado")
         return jsonify({
             'status': 'error',
-            'message': str(e)
+            'message': str(e),
+            'field': 'general',
+            'code': 'error_interno',
         }), 500
 
 
