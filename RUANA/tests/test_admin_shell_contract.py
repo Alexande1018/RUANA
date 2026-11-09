@@ -2,14 +2,17 @@ from pathlib import Path
 
 
 def test_admin_shell_assets_linked():
+    """Los assets del shell admin siguen enlazados (acepta ?v= de cache-bust)."""
     admin_html = Path(__file__).resolve().parents[1] / "web" / "admin.html"
     text = admin_html.read_text(encoding="utf-8")
     assert 'url("/static/css/admin-shell.css")' in text
     assert 'url("/static/css/admin-command-center.css")' in text
     assert 'href="/static/css/admin-ops-identity.css' in text
+    # Prefijo (sin comilla final) para permitir ?v=2026… en el src.
     assert 'src="/static/js/admin-shell.js' in text
-    assert 'src="/static/js/admin-command-center-module.js"' in text
-    assert 'src="/static/js/admin-score-bands-module.js"' in text
+    assert 'src="/static/js/admin-command-center-module.js' in text
+    assert 'src="/static/js/admin-score-bands-module.js' in text
+    assert 'src="/static/js/admin-copiloto.js' in text
 
 
 def test_admin_shell_js_exports_api():
