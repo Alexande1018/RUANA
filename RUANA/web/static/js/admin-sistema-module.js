@@ -652,6 +652,14 @@
     });
   }
 
+  // Fila clicable: admin-solicitudes-detalle-module.js abre el detalle completo (solo lectura).
+  function marcarFilaDetalle(tr, tipo, id) {
+    tr.setAttribute('data-detalle-tipo', tipo);
+    tr.setAttribute('data-detalle-id', String(id));
+    tr.setAttribute('tabindex', '0');
+    tr.setAttribute('title', 'Pincha para ver la solicitud completa');
+  }
+
   function renderSolicitudesAdmin(host, solicitudes) {
     const tbody = document.getElementById('tbody-solicitudes-admin');
     const emptyEl = document.getElementById('solicitudes-admin-empty');
@@ -665,6 +673,7 @@
     }
     list.forEach(s => {
         const tr = document.createElement('tr');
+        if (s.id != null) marcarFilaDetalle(tr, 'conexion', s.id);
         const descCorta = (s.descripcion || '').substring(0, 60) + ((s.descripcion || '').length > 60 ? '…' : '');
         let tiempoResp = '—';
         if (s.created_at && s.atendido_at) {
@@ -732,6 +741,7 @@
     list.forEach((s) => {
       const tr = document.createElement('tr');
       if (s.es_semana_actual) tr.classList.add('is-semana-actual');
+      if (s.id != null) marcarFilaDetalle(tr, 'semanal', s.id);
       const desc = s.descripcion || '';
       const descCorta = desc.substring(0, 60) + (desc.length > 60 ? '…' : '');
       tr.innerHTML = `

@@ -5,6 +5,8 @@ SQL de solicitudes vía SolicitudRepo.
 """
 from __future__ import annotations
 
+import logging
+
 import os
 import sqlite3
 from datetime import date, datetime, timedelta, timezone
@@ -1034,9 +1036,15 @@ def listar_solicitudes_admin_todas(db) -> List[Dict[str, Any]]:
             cursor = conn.cursor()
             cols = _repo.columnas_solicitudes(cursor)
             if 'solicitante_codigo' not in cols:
+                logging.getLogger(__name__).warning(
+                    "listar_solicitudes_admin_todas: tabla solicitudes sin solicitante_codigo (columnas=%s)",
+                    cols,
+                )
                 return []
             return _json_safe_rows(_repo.listar_admin_todas(cursor))
         except Exception as e:
+            # Antes se tragaba el error y el admin veía [] sin saber por qué.
+            logging.getLogger(__name__).exception("listar_solicitudes_admin_todas falló")
             return []
         finally:
             conn.close()
