@@ -675,6 +675,14 @@ def registrar_aliado():
         # Asegurar red completa: invitaciones pendientes de sync y huérfanos bajo admin
         db.sincronizar_referidos_completo()
 
+        # Piloto Red Centro: alta automática si es elegible (no-op con el flag apagado)
+        if codigo_aliado:
+            try:
+                from core.services import red_centro_service
+                red_centro_service.incorporar_tras_alta(db, codigo_aliado)
+            except Exception as rc_err:
+                print(f"[RUANA][RED_CENTRO] Aviso incorporando tras alta: {rc_err}")
+
         # Envío de correo de bienvenida (no bloquea el registro si falla)
         if codigo_aliado:
             try:

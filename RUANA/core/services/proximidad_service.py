@@ -51,7 +51,22 @@ def _escanear_candidatos(
             item["etiqueta_proximidad"] = "Cercano"
         candidatos.append(item)
     if not candidatos:
-        return None
+        # Piloto Red Centro (apagado por defecto): solo si la lógica actual no
+        # encuentra a nadie, el mejor del oficio dentro de la red Madrid–Toledo.
+        try:
+            from core.services import red_centro_service
+
+            red = red_centro_service.candidatos_red(
+                db,
+                cursor,
+                codigo,
+                oficio,
+                solicitante={"grupo_id": grupo_id, "codigo_postal": cp_viewer},
+                limite=1,
+            )
+        except Exception:
+            red = []
+        return red[0] if red else None
     candidatos.sort(key=lambda x: (x.get("nivel_proximidad", 9), x.get("orden_proximidad", 9999)))
     best = candidatos[0]
     return {
