@@ -74,14 +74,76 @@
     return String(valor || '').replace(/\s+/g, ' ').trim();
   }
 
-  function oficioInvitacion(aliado) {
-    var oficio = textoLimpioInvitacion(aliado && aliado.oficio);
-    if (!oficio) return '';
+  function enMinusculasEs(valor) {
+    var s = textoLimpioInvitacion(valor);
     try {
-      return oficio.toLocaleLowerCase('es-ES');
+      return s.toLocaleLowerCase('es-ES');
     } catch (_) {
-      return oficio.toLowerCase();
+      return s.toLowerCase();
     }
+  }
+
+  function normalizarClaveOficio(valor) {
+    var s = enMinusculasEs(valor);
+    try {
+      s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    } catch (_) {}
+    return s;
+  }
+
+  // Empieza por la clave y, si sigue texto, el siguiente carácter no es letra ni dígito
+  // («carpintería de madera e interior» sí; «riegos» no).
+  function encajeLimpioOficio(textoNorm, claveNorm) {
+    if (!textoNorm || !claveNorm) return false;
+    if (textoNorm === claveNorm) return true;
+    if (textoNorm.indexOf(claveNorm) !== 0) return false;
+    var siguiente = textoNorm.charAt(claveNorm.length);
+    return !!siguiente && !/[a-z0-9]/.test(siguiente);
+  }
+
+  // Actividad (normalizada, sin acentos) → profesión. Orden: claves más largas primero.
+  var OFICIO_ACTIVIDAD_A_PROFESION = [
+    ['climatizacion', 'técnico de climatización'],
+    ['electricidad', 'electricista'],
+    ['albanileria', 'albañil'],
+    ['carpinteria', 'carpintero'],
+    ['fontaneria', 'fontanero'],
+    ['estetica', 'esteticista'],
+    ['pintura', 'pintor'],
+    ['manitas', 'manitas'],
+    ['riego', 'jardinero de riego']
+  ];
+
+  // Profesiones canónicas (normalizadas). Si el oficio ya es una de estas, se deja.
+  var OFICIO_YA_PROFESION = [
+    'tecnico de climatizacion',
+    'jardinero de riego',
+    'esteticista',
+    'electricista',
+    'carpintero',
+    'fontanero',
+    'albanil',
+    'pintor',
+    'manitas'
+  ];
+
+  function resolverOficioInvitacion(aliado) {
+    var original = textoLimpioInvitacion(aliado && aliado.oficio);
+    if (!original) return { tipo: '', texto: '' };
+    var minusculas = enMinusculasEs(original);
+    var norma = normalizarClaveOficio(original);
+    var i;
+    for (i = 0; i < OFICIO_YA_PROFESION.length; i++) {
+      if (encajeLimpioOficio(norma, OFICIO_YA_PROFESION[i])) {
+        return { tipo: 'profesion', texto: minusculas };
+      }
+    }
+    for (i = 0; i < OFICIO_ACTIVIDAD_A_PROFESION.length; i++) {
+      if (encajeLimpioOficio(norma, OFICIO_ACTIVIDAD_A_PROFESION[i][0])) {
+        return { tipo: 'profesion', texto: OFICIO_ACTIVIDAD_A_PROFESION[i][1] };
+      }
+    }
+    return { tipo: 'actividad', texto: minusculas };
   }
 
   function zonaInvitacion(aliado) {
@@ -104,13 +166,23 @@
   function presentacionInvitacion(aliado) {
     aliado = aliado || {};
     var nombre = textoLimpioInvitacion(aliado.nombre);
-    var oficio = oficioInvitacion(aliado);
+    var resuelto = resolverOficioInvitacion(aliado);
     var zona = zonaInvitacion(aliado);
-    var quien = nombre ? ('Soy ' + nombre) : 'Soy un profesional';
-    if (oficio && zona) return quien + ', ' + oficio + ' en ' + zona + '.';
-    if (oficio) return quien + ', ' + oficio + ' de tu zona.';
-    if (zona) return quien + ' en ' + zona + '.';
-    return quien + ' de tu zona.';
+    var quien = nombre ? ('Soy ' + nombre) : '';
+    var enZona = zona ? ('en ' + zona + '.') : 'de tu zona.';
+    if (resuelto.tipo === 'profesion') {
+      if (quien) return quien + ', ' + resuelto.texto + ' ' + enZona;
+      return 'Soy ' + resuelto.texto + ' ' + enZona;
+    }
+    if (resuelto.tipo === 'actividad') {
+      // Forma natural en español de España: «profesional de <actividad>».
+      // Evita «Soy Ana, de cerrajería en Toledo», que se lee mal.
+      if (quien) return quien + ', profesional de ' + resuelto.texto + ' ' + enZona;
+      return 'Soy un profesional de ' + resuelto.texto + ' ' + enZona;
+    }
+    if (quien) return quien + (zona ? (' en ' + zona + '.') : ' de tu zona.');
+    if (zona) return 'Soy un profesional en ' + zona + '.';
+    return 'Soy un profesional de tu zona.';
   }
 
   function mensajeWhatsappInvitacion(codigo, aliado) {

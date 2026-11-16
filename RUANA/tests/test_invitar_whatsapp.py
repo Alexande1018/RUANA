@@ -78,7 +78,7 @@ def test_mensaje_usa_invite_html_y_los_puntos_reales():
     assert "mostrarModalCodigoInvitacion(data.codigo, false, SCORE_CRECIMIENTO_GRUPO)" in js
     assert "Con este código son +3 cuando se registra." in js
     assert "Con este código son +5 cuando se registra (hasta " in js
-    assert "aliado-invitaciones-module.js?v=20261116a" in html
+    assert "aliado-invitaciones-module.js?v=20261116b" in html
 
     # Los números del modal son los que ya aplica el backend. No se toca la regla.
     assert "aplicar_cambio_score(codigo_invitador, 3, 'aliado_referido_registro_valido')" in score
@@ -102,7 +102,7 @@ def test_mensaje_whatsapp_usa_zona_oficio_y_enlace():
         "ALC-IG",
         {"nombre": "Lucía", "oficio": "Fontanería", "codigo_postal": "28001"},
     )
-    assert por_cp.startswith("Soy Lucía, fontanería en Madrid.")
+    assert por_cp.startswith("Soy Lucía, fontanero en Madrid.")
     assert por_cp.endswith(enlace)
 
     sin_zona = _generar_mensaje(
@@ -110,7 +110,7 @@ def test_mensaje_whatsapp_usa_zona_oficio_y_enlace():
         {"nombre": "Elder", "oficio": "Albañilería"},
     )
     assert sin_zona == (
-        "Soy Elder, albañilería de tu zona. "
+        "Soy Elder, albañil de tu zona. "
         "Estoy en RUANA: los profesionales de la zona nos pasamos los trabajos que no son de lo nuestro. "
         "Me falta alguien de confianza de tu oficio, ¿te apuntas? " + enlace
     )
@@ -122,6 +122,54 @@ def test_mensaje_whatsapp_usa_zona_oficio_y_enlace():
     assert sin_oficio.startswith("Soy Ana en Valencia.")
     assert "undefined" not in sin_oficio
     assert enlace in sin_oficio
+
+
+def test_mensaje_whatsapp_traduce_actividad_a_profesion():
+    """Tabla actividad→profesión; si no está, «profesional de <actividad>»."""
+    enlace = "https://ruana-4293f.web.app/invite.html?codigo=ALC-IG"
+    cola = (
+        "Estoy en RUANA: los profesionales de la zona nos pasamos los trabajos que no son de lo nuestro. "
+        "Me falta alguien de confianza de tu oficio, ¿te apuntas? " + enlace
+    )
+
+    # Oficio de la tabla + zona.
+    en_tabla = _generar_mensaje(
+        "ALC-IG",
+        {"nombre": "Elder", "oficio": "Albañilería", "grupo_info": {"ciudad": "Sevilla"}},
+    )
+    assert en_tabla == "Soy Elder, albañil en Sevilla. " + cola
+
+    # Prefijo limpio, sin importar mayúsculas ni acentos.
+    prefijo = _generar_mensaje(
+        "ALC-IG",
+        {
+            "nombre": "Marta",
+            "oficio": "CARPINTERIA de madera e interior",
+            "ciudad": "Valencia",
+        },
+    )
+    assert prefijo.startswith("Soy Marta, carpintero en Valencia.")
+
+    # Ya es una profesión: se deja.
+    ya_profesion = _generar_mensaje(
+        "ALC-IG",
+        {"nombre": "Daniel", "oficio": "Electricista", "ciudad": "Sevilla"},
+    )
+    assert ya_profesion.startswith("Soy Daniel, electricista en Sevilla.")
+
+    # Oficio que no está en la tabla + zona.
+    fuera = _generar_mensaje(
+        "ALC-IG",
+        {"nombre": "Ana", "oficio": "Cerrajería", "ciudad": "Toledo"},
+    )
+    assert fuera == "Soy Ana, profesional de cerrajería en Toledo. " + cola
+
+    # Oficio que no está en la tabla + fallback de zona.
+    fuera_sin_zona = _generar_mensaje(
+        "ALC-IG",
+        {"nombre": "Ana", "oficio": "Cerrajería"},
+    )
+    assert fuera_sin_zona == "Soy Ana, profesional de cerrajería de tu zona. " + cola
 
 
 def test_el_front_no_repite_el_texto_viejo_de_curro():
