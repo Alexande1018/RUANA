@@ -52,12 +52,147 @@
     return basePublicaInvitacion() + '/invite.html?codigo=' + encodeURIComponent(code);
   }
 
-  function mensajeWhatsappInvitacion(codigo) {
-    return 'Oye, me he apuntado a RUANA, una red de oficios de Alicante para pasarnos encargos por zona: lo que tú no haces me lo pasas y al revés. Entra con mi código: ' + enlaceInvitacion(codigo);
+  // Prefijo (2 dígitos) del CP español → provincia. Solo si no hay ciudad/localidad.
+  var PROVINCIA_POR_PREFIJO_CP = {
+    '01': 'Álava', '02': 'Albacete', '03': 'Alicante', '04': 'Almería',
+    '05': 'Ávila', '06': 'Badajoz', '07': 'Illes Balears', '08': 'Barcelona',
+    '09': 'Burgos', '10': 'Cáceres', '11': 'Cádiz', '12': 'Castellón',
+    '13': 'Ciudad Real', '14': 'Córdoba', '15': 'A Coruña', '16': 'Cuenca',
+    '17': 'Girona', '18': 'Granada', '19': 'Guadalajara', '20': 'Gipuzkoa',
+    '21': 'Huelva', '22': 'Huesca', '23': 'Jaén', '24': 'León',
+    '25': 'Lleida', '26': 'La Rioja', '27': 'Lugo', '28': 'Madrid',
+    '29': 'Málaga', '30': 'Murcia', '31': 'Navarra', '32': 'Ourense',
+    '33': 'Asturias', '34': 'Palencia', '35': 'Las Palmas', '36': 'Pontevedra',
+    '37': 'Salamanca', '38': 'Santa Cruz de Tenerife', '39': 'Cantabria',
+    '40': 'Segovia', '41': 'Sevilla', '42': 'Soria', '43': 'Tarragona',
+    '44': 'Teruel', '45': 'Toledo', '46': 'Valencia', '47': 'Valladolid',
+    '48': 'Bizkaia', '49': 'Zamora', '50': 'Zaragoza', '51': 'Ceuta',
+    '52': 'Melilla'
+  };
+
+  function textoLimpioInvitacion(valor) {
+    return String(valor || '').replace(/\s+/g, ' ').trim();
   }
 
-  function urlWhatsappInvitacion(codigo) {
-    return 'https://wa.me/?text=' + encodeURIComponent(mensajeWhatsappInvitacion(codigo));
+  function enMinusculasEs(valor) {
+    var s = textoLimpioInvitacion(valor);
+    try {
+      return s.toLocaleLowerCase('es-ES');
+    } catch (_) {
+      return s.toLowerCase();
+    }
+  }
+
+  function normalizarClaveOficio(valor) {
+    var s = enMinusculasEs(valor);
+    try {
+      s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    } catch (_) {}
+    return s;
+  }
+
+  // Empieza por la clave y, si sigue texto, el siguiente carácter no es letra ni dígito
+  // («carpintería de madera e interior» sí; «riegos» no).
+  function encajeLimpioOficio(textoNorm, claveNorm) {
+    if (!textoNorm || !claveNorm) return false;
+    if (textoNorm === claveNorm) return true;
+    if (textoNorm.indexOf(claveNorm) !== 0) return false;
+    var siguiente = textoNorm.charAt(claveNorm.length);
+    return !!siguiente && !/[a-z0-9]/.test(siguiente);
+  }
+
+  // Actividad (normalizada, sin acentos) → profesión. Orden: claves más largas primero.
+  var OFICIO_ACTIVIDAD_A_PROFESION = [
+    ['climatizacion', 'técnico de climatización'],
+    ['electricidad', 'electricista'],
+    ['albanileria', 'albañil'],
+    ['carpinteria', 'carpintero'],
+    ['fontaneria', 'fontanero'],
+    ['estetica', 'esteticista'],
+    ['pintura', 'pintor'],
+    ['manitas', 'manitas'],
+    ['riego', 'jardinero de riego']
+  ];
+
+  // Profesiones canónicas (normalizadas). Si el oficio ya es una de estas, se deja.
+  var OFICIO_YA_PROFESION = [
+    'tecnico de climatizacion',
+    'jardinero de riego',
+    'esteticista',
+    'electricista',
+    'carpintero',
+    'fontanero',
+    'albanil',
+    'pintor',
+    'manitas'
+  ];
+
+  function resolverOficioInvitacion(aliado) {
+    var original = textoLimpioInvitacion(aliado && aliado.oficio);
+    if (!original) return { tipo: '', texto: '' };
+    var minusculas = enMinusculasEs(original);
+    var norma = normalizarClaveOficio(original);
+    var i;
+    for (i = 0; i < OFICIO_YA_PROFESION.length; i++) {
+      if (encajeLimpioOficio(norma, OFICIO_YA_PROFESION[i])) {
+        return { tipo: 'profesion', texto: minusculas };
+      }
+    }
+    for (i = 0; i < OFICIO_ACTIVIDAD_A_PROFESION.length; i++) {
+      if (encajeLimpioOficio(norma, OFICIO_ACTIVIDAD_A_PROFESION[i][0])) {
+        return { tipo: 'profesion', texto: OFICIO_ACTIVIDAD_A_PROFESION[i][1] };
+      }
+    }
+    return { tipo: 'actividad', texto: minusculas };
+  }
+
+  function zonaInvitacion(aliado) {
+    aliado = aliado || {};
+    var grupo = aliado.grupo_info || {};
+    var ciudad = textoLimpioInvitacion(
+      aliado.ciudad || aliado.localidad || aliado.poblacion || grupo.ciudad
+    );
+    if (ciudad) return ciudad;
+    var provincia = textoLimpioInvitacion(aliado.provincia || grupo.provincia);
+    if (provincia) return provincia;
+    var cp = textoLimpioInvitacion(aliado.codigo_postal || aliado.cp).replace(/\s+/g, '');
+    var prefijo = cp.slice(0, 2);
+    if (/^\d{2}$/.test(prefijo) && PROVINCIA_POR_PREFIJO_CP[prefijo]) {
+      return PROVINCIA_POR_PREFIJO_CP[prefijo];
+    }
+    return '';
+  }
+
+  function presentacionInvitacion(aliado) {
+    aliado = aliado || {};
+    var nombre = textoLimpioInvitacion(aliado.nombre);
+    var resuelto = resolverOficioInvitacion(aliado);
+    var zona = zonaInvitacion(aliado);
+    var quien = nombre ? ('Soy ' + nombre) : '';
+    var enZona = zona ? ('en ' + zona + '.') : 'de tu zona.';
+    if (resuelto.tipo === 'profesion') {
+      if (quien) return quien + ', ' + resuelto.texto + ' ' + enZona;
+      return 'Soy ' + resuelto.texto + ' ' + enZona;
+    }
+    if (resuelto.tipo === 'actividad') {
+      // Forma natural en español de España: «profesional de <actividad>».
+      // Evita «Soy Ana, de cerrajería en Toledo», que se lee mal.
+      if (quien) return quien + ', profesional de ' + resuelto.texto + ' ' + enZona;
+      return 'Soy un profesional de ' + resuelto.texto + ' ' + enZona;
+    }
+    if (quien) return quien + (zona ? (' en ' + zona + '.') : ' de tu zona.');
+    if (zona) return 'Soy un profesional en ' + zona + '.';
+    return 'Soy un profesional de tu zona.';
+  }
+
+  function mensajeWhatsappInvitacion(codigo, aliado) {
+    return presentacionInvitacion(aliado)
+      + ' Estoy en RUANA: los profesionales de la zona nos pasamos los trabajos que no son de lo nuestro. Me falta alguien de confianza de tu oficio, ¿te apuntas? '
+      + enlaceInvitacion(codigo);
+  }
+
+  function urlWhatsappInvitacion(codigo, aliado) {
+    return 'https://wa.me/?text=' + encodeURIComponent(mensajeWhatsappInvitacion(codigo, aliado));
   }
 
   function textoScoreInvitacion(puntos) {
@@ -283,7 +418,7 @@
       var data = await r.json().catch(function () { return {}; });
       if (r.ok && data.status === 'success' && data.codigo) {
         host.currentCode = data.codigo;
-        var url = urlWhatsappInvitacion(data.codigo);
+        var url = urlWhatsappInvitacion(data.codigo, host && host.aliado);
         var opened = global.open(url, '_blank', 'noopener,noreferrer');
         if (!opened) global.location.href = url;
       } else {
@@ -302,7 +437,7 @@
       alert('Error: No hay código disponible');
       return;
     }
-    var url = urlWhatsappInvitacion(codigo);
+    var url = urlWhatsappInvitacion(codigo, host && host.aliado);
     var opened = global.open(url, '_blank', 'noopener,noreferrer');
     if (!opened) {
       global.location.href = url;
