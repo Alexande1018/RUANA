@@ -52,12 +52,75 @@
     return basePublicaInvitacion() + '/invite.html?codigo=' + encodeURIComponent(code);
   }
 
-  function mensajeWhatsappInvitacion(codigo) {
-    return 'Oye, me he apuntado a RUANA, una red de oficios de Alicante para pasarnos encargos por zona: lo que tú no haces me lo pasas y al revés. Entra con mi código: ' + enlaceInvitacion(codigo);
+  // Prefijo (2 dígitos) del CP español → provincia. Solo si no hay ciudad/localidad.
+  var PROVINCIA_POR_PREFIJO_CP = {
+    '01': 'Álava', '02': 'Albacete', '03': 'Alicante', '04': 'Almería',
+    '05': 'Ávila', '06': 'Badajoz', '07': 'Illes Balears', '08': 'Barcelona',
+    '09': 'Burgos', '10': 'Cáceres', '11': 'Cádiz', '12': 'Castellón',
+    '13': 'Ciudad Real', '14': 'Córdoba', '15': 'A Coruña', '16': 'Cuenca',
+    '17': 'Girona', '18': 'Granada', '19': 'Guadalajara', '20': 'Gipuzkoa',
+    '21': 'Huelva', '22': 'Huesca', '23': 'Jaén', '24': 'León',
+    '25': 'Lleida', '26': 'La Rioja', '27': 'Lugo', '28': 'Madrid',
+    '29': 'Málaga', '30': 'Murcia', '31': 'Navarra', '32': 'Ourense',
+    '33': 'Asturias', '34': 'Palencia', '35': 'Las Palmas', '36': 'Pontevedra',
+    '37': 'Salamanca', '38': 'Santa Cruz de Tenerife', '39': 'Cantabria',
+    '40': 'Segovia', '41': 'Sevilla', '42': 'Soria', '43': 'Tarragona',
+    '44': 'Teruel', '45': 'Toledo', '46': 'Valencia', '47': 'Valladolid',
+    '48': 'Bizkaia', '49': 'Zamora', '50': 'Zaragoza', '51': 'Ceuta',
+    '52': 'Melilla'
+  };
+
+  function textoLimpioInvitacion(valor) {
+    return String(valor || '').replace(/\s+/g, ' ').trim();
   }
 
-  function urlWhatsappInvitacion(codigo) {
-    return 'https://wa.me/?text=' + encodeURIComponent(mensajeWhatsappInvitacion(codigo));
+  function oficioInvitacion(aliado) {
+    var oficio = textoLimpioInvitacion(aliado && aliado.oficio);
+    if (!oficio) return '';
+    try {
+      return oficio.toLocaleLowerCase('es-ES');
+    } catch (_) {
+      return oficio.toLowerCase();
+    }
+  }
+
+  function zonaInvitacion(aliado) {
+    aliado = aliado || {};
+    var grupo = aliado.grupo_info || {};
+    var ciudad = textoLimpioInvitacion(
+      aliado.ciudad || aliado.localidad || aliado.poblacion || grupo.ciudad
+    );
+    if (ciudad) return ciudad;
+    var provincia = textoLimpioInvitacion(aliado.provincia || grupo.provincia);
+    if (provincia) return provincia;
+    var cp = textoLimpioInvitacion(aliado.codigo_postal || aliado.cp).replace(/\s+/g, '');
+    var prefijo = cp.slice(0, 2);
+    if (/^\d{2}$/.test(prefijo) && PROVINCIA_POR_PREFIJO_CP[prefijo]) {
+      return PROVINCIA_POR_PREFIJO_CP[prefijo];
+    }
+    return '';
+  }
+
+  function presentacionInvitacion(aliado) {
+    aliado = aliado || {};
+    var nombre = textoLimpioInvitacion(aliado.nombre);
+    var oficio = oficioInvitacion(aliado);
+    var zona = zonaInvitacion(aliado);
+    var quien = nombre ? ('Soy ' + nombre) : 'Soy un profesional';
+    if (oficio && zona) return quien + ', ' + oficio + ' en ' + zona + '.';
+    if (oficio) return quien + ', ' + oficio + ' de tu zona.';
+    if (zona) return quien + ' en ' + zona + '.';
+    return quien + ' de tu zona.';
+  }
+
+  function mensajeWhatsappInvitacion(codigo, aliado) {
+    return presentacionInvitacion(aliado)
+      + ' Estoy en RUANA: los profesionales de la zona nos pasamos los trabajos que no son de lo nuestro. Me falta alguien de confianza de tu oficio, ¿te apuntas? '
+      + enlaceInvitacion(codigo);
+  }
+
+  function urlWhatsappInvitacion(codigo, aliado) {
+    return 'https://wa.me/?text=' + encodeURIComponent(mensajeWhatsappInvitacion(codigo, aliado));
   }
 
   function textoScoreInvitacion(puntos) {
@@ -283,7 +346,7 @@
       var data = await r.json().catch(function () { return {}; });
       if (r.ok && data.status === 'success' && data.codigo) {
         host.currentCode = data.codigo;
-        var url = urlWhatsappInvitacion(data.codigo);
+        var url = urlWhatsappInvitacion(data.codigo, host && host.aliado);
         var opened = global.open(url, '_blank', 'noopener,noreferrer');
         if (!opened) global.location.href = url;
       } else {
@@ -302,7 +365,7 @@
       alert('Error: No hay código disponible');
       return;
     }
-    var url = urlWhatsappInvitacion(codigo);
+    var url = urlWhatsappInvitacion(codigo, host && host.aliado);
     var opened = global.open(url, '_blank', 'noopener,noreferrer');
     if (!opened) {
       global.location.href = url;
