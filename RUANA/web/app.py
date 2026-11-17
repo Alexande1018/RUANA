@@ -60,6 +60,7 @@ from web.blueprints.solicitudes_bp import solicitudes_bp
 from web.blueprints.solicitudes_semanales_bp import solicitudes_semanales_bp
 from web.blueprints.encargos_externos_bp import encargos_externos_bp
 from web.blueprints.red_centro_bp import red_centro_bp
+from web.blueprints.red_regional_bp import red_regional_bp
 from web.blueprints.aliado_bp import (
     aliado_bp,
     _generar_codigo_unico_impl as _generar_codigo_unico,
@@ -173,6 +174,7 @@ app.register_blueprint(solicitudes_bp)
 app.register_blueprint(solicitudes_semanales_bp)
 app.register_blueprint(encargos_externos_bp)
 app.register_blueprint(red_centro_bp)
+app.register_blueprint(red_regional_bp)
 app.register_blueprint(aliado_bp)
 app.register_blueprint(invitacion_bp)
 app.register_blueprint(evaluacion_bp)

@@ -92,6 +92,7 @@ STATIC_CSS_JS = (
     "js/aliado-solicitudes-semanales-module.js",
     "js/aliado-encargos-externos-module.js",
     "js/aliado-red-centro-module.js",
+    "js/aliado-red-regional-module.js",
     "js/aliado-stripe-pagos-module.js",
     "js/aliado-sync-module.js",
     "js/apelar-expulsion.js",

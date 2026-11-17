@@ -66,6 +66,22 @@ def _escanear_candidatos(
             )
         except Exception:
             red = []
+        if not red:
+            # Redes regionales (hoy Red Huesca, flag apagado por defecto).
+            # Solo si la lógica actual y Red Centro no encuentran a nadie.
+            try:
+                from core.services import red_regional_service
+
+                red = red_regional_service.candidatos_cualquier_red(
+                    db,
+                    cursor,
+                    codigo,
+                    oficio,
+                    solicitante={"grupo_id": grupo_id, "codigo_postal": cp_viewer},
+                    limite=1,
+                )
+            except Exception:
+                red = []
         return red[0] if red else None
     candidatos.sort(key=lambda x: (x.get("nivel_proximidad", 9), x.get("orden_proximidad", 9999)))
     best = candidatos[0]
