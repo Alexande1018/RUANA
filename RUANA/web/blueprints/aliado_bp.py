@@ -682,6 +682,11 @@ def registrar_aliado():
                 red_centro_service.incorporar_tras_alta(db, codigo_aliado)
             except Exception as rc_err:
                 print(f"[RUANA][RED_CENTRO] Aviso incorporando tras alta: {rc_err}")
+            try:
+                from core.services import red_regional_service
+                red_regional_service.incorporar_tras_alta(db, codigo_aliado)
+            except Exception as rr_err:
+                print(f"[RUANA][RED_REGIONAL] Aviso incorporando tras alta: {rr_err}")
 
         # Envío de correo de bienvenida (no bloquea el registro si falla)
         if codigo_aliado:
