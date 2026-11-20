@@ -138,10 +138,13 @@ def obtener_panel_por_codigo(db, codigo: str) -> Dict[str, Any]:
             _expirar_vencidas(db, cursor)
             conn.commit()
 
-            aliado = _repo.select_aliado_grupo_nombre(cursor, codigo)
+            aliado = _repo.select_aliado_contexto(cursor, codigo)
             if not aliado:
                 return {"status": "error", "message": "Aliado no encontrado"}
-            grupo_id, nombre, _oficio = aliado
+            grupo_id = aliado.get("grupo_id")
+            oficio_aliado = aliado.get("oficio") or ""
+            cp_aliado = (aliado.get("codigo_postal") or "").strip()
+            estado_aliado = (aliado.get("estado") or "").strip()
             oficios_catalogo = db.get_catalogo_oficios_ruana() or []
             if grupo_id is None:
                 return {
@@ -175,6 +178,27 @@ def obtener_panel_por_codigo(db, codigo: str) -> Dict[str, Any]:
             activas = _json_safe_rows(
                 _repo.listar_activas_grupo(cursor, grupo_id, semana, codigo)
             )
+            for item in activas:
+                item["de_grupo_cercano"] = False
+            if estado_aliado.lower() == "activo":
+                if not cp_aliado:
+                    cp_aliado = _repo.select_grupo_codigo_postal(cursor, grupo_id)
+                extra = _listar_descubiertas_provincia(
+                    db,
+                    cursor,
+                    codigo,
+                    grupo_id,
+                    oficio_aliado,
+                    cp_aliado,
+                    semana,
+                )
+                vistos = {int(x["id"]) for x in activas if x.get("id") is not None}
+                for item in extra:
+                    sid = item.get("id")
+                    if sid is None or int(sid) in vistos:
+                        continue
+                    activas.append(item)
+                    vistos.add(int(sid))
             activas = _enriquecer_con_respuestas(db, cursor, activas, codigo)
 
             historial = _json_safe_rows(_repo.listar_historial_grupo(cursor, grupo_id, 30))
@@ -344,8 +368,123 @@ def actualizar_solicitud_semanal(
             conn.close()
 
 
+ETIQUETA_GRUPO_CERCANO = "De un grupo cercano"
+
+
+def _prefijo_provincia(codigo_postal: str) -> str:
+    """Provincia = los 2 primeros dígitos del CP (solo dígitos)."""
+    digitos = "".join(ch for ch in str(codigo_postal or "") if ch.isdigit())
+    return digitos[:2] if len(digitos) >= 2 else ""
+
+
+def _mismo_grupo(a: Any, b: Any) -> bool:
+    if a is None or b is None:
+        return False
+    return str(a) == str(b)
+
+
+def _grupo_cubre_oficio(
+    db,
+    cursor,
+    grupo_id: Any,
+    oficio: str,
+    excluir_codigo: str,
+    cache: Optional[Dict[Any, bool]] = None,
+) -> bool:
+    """True si hay otro aliado activo del grupo cuyo oficio cubre el pedido."""
+    clave = (grupo_id, oficio, excluir_codigo)
+    if cache is not None and clave in cache:
+        return cache[clave]
+    oficios = _repo.listar_oficios_activos_grupo_excepto(
+        cursor, grupo_id, excluir_codigo
+    )
+    cubre = any(
+        catalogo_service.oficios_equivalentes(db, oficio, cand) for cand in oficios
+    )
+    if cache is not None:
+        cache[clave] = cubre
+    return cubre
+
+
+def _cp_de_solicitud(sol: Dict[str, Any]) -> str:
+    return (
+        (sol.get("solicitante_cp") or "").strip()
+        or (sol.get("grupo_cp") or "").strip()
+    )
+
+
+def _cumple_acceso_provincia_descubierta(
+    db,
+    cursor,
+    sol: Dict[str, Any],
+    oficio_aliado: str,
+    prefijo_aliado: str,
+    estado_aliado: str,
+    codigo_aliado: str,
+    cache: Optional[Dict[Any, bool]] = None,
+) -> bool:
+    """Visibilidad extra: mismo oficio pedido, misma provincia, grupo sin cobertura."""
+    if (estado_aliado or "").strip().lower() != "activo":
+        return False
+    if not prefijo_aliado:
+        return False
+    if (sol.get("solicitante_codigo") or "") == codigo_aliado:
+        return False
+    oficio_pedido = (sol.get("oficio") or "").strip()
+    if not catalogo_service.oficios_equivalentes(db, oficio_pedido, oficio_aliado):
+        return False
+    if _prefijo_provincia(_cp_de_solicitud(sol)) != prefijo_aliado:
+        return False
+    if _grupo_cubre_oficio(
+        db, cursor, sol.get("grupo_id"), oficio_pedido,
+        sol.get("solicitante_codigo") or "", cache,
+    ):
+        return False
+    return True
+
+
+def _listar_descubiertas_provincia(
+    db,
+    cursor,
+    codigo: str,
+    grupo_id: Any,
+    oficio_aliado: str,
+    cp_aliado: str,
+    semana: str,
+) -> List[Dict[str, Any]]:
+    prefijo = _prefijo_provincia(cp_aliado)
+    if not prefijo or not (oficio_aliado or "").strip():
+        return []
+    rows = _repo.listar_activas_fuera_grupo(cursor, semana, grupo_id, codigo)
+    cache: Dict[Any, bool] = {}
+    out: List[Dict[str, Any]] = []
+    for row in rows:
+        item = dict(row)
+        if not _cumple_acceso_provincia_descubierta(
+            db,
+            cursor,
+            item,
+            oficio_aliado,
+            prefijo,
+            "activo",
+            codigo,
+            cache,
+        ):
+            continue
+        item.pop("solicitante_cp", None)
+        item.pop("grupo_cp", None)
+        item["de_grupo_cercano"] = True
+        item["etiqueta"] = ETIQUETA_GRUPO_CERCANO
+        out.append(item)
+    return out
+
+
 def _validar_acceso_solicitud(
-    cursor, solicitud_id: int, codigo: str, permitir_solicitante: bool = False
+    db,
+    cursor,
+    solicitud_id: int,
+    codigo: str,
+    permitir_solicitante: bool = False,
 ) -> Optional[Dict[str, Any]]:
     sol = _repo.select_solicitud(cursor, int(solicitud_id))
     if not sol:
@@ -354,15 +493,39 @@ def _validar_acceso_solicitud(
         return None
     if sol["semana_inicio"] != _semana_inicio_str():
         return None
-    aliado = _repo.select_aliado_grupo_nombre(cursor, codigo)
+    aliado = _repo.select_aliado_contexto(cursor, codigo)
     if not aliado:
         return None
-    grupo_id = aliado[0]
-    if grupo_id != sol["grupo_id"]:
-        return None
-    if not permitir_solicitante and sol["solicitante_codigo"] == codigo:
-        return None
-    return sol
+    if _mismo_grupo(aliado.get("grupo_id"), sol["grupo_id"]):
+        if not permitir_solicitante and sol["solicitante_codigo"] == codigo:
+            return None
+        return sol
+    # Solo el caso provincial: oficio pedido (campo oficio) + misma provincia
+    # + nadie activo del grupo puede cubrir ese oficio.
+    solicitante = _repo.select_aliado_contexto(cursor, sol["solicitante_codigo"])
+    item = dict(sol)
+    item["solicitante_cp"] = (
+        ((solicitante or {}).get("codigo_postal") or "").strip()
+    )
+    if not item["solicitante_cp"]:
+        item["grupo_cp"] = _repo.select_grupo_codigo_postal(
+            cursor, sol.get("grupo_id")
+        )
+    prefijo = _prefijo_provincia(
+        (aliado.get("codigo_postal") or "").strip()
+        or _repo.select_grupo_codigo_postal(cursor, aliado.get("grupo_id"))
+    )
+    if _cumple_acceso_provincia_descubierta(
+        db,
+        cursor,
+        item,
+        aliado.get("oficio") or "",
+        prefijo,
+        aliado.get("estado") or "",
+        codigo,
+    ):
+        return sol
+    return None
 
 
 def responder_puedo_ayudar(
@@ -374,7 +537,7 @@ def responder_puedo_ayudar(
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            sol = _validar_acceso_solicitud(cursor, solicitud_id, codigo)
+            sol = _validar_acceso_solicitud(db, cursor, solicitud_id, codigo)
             if not sol:
                 return {
                     "status": "error",
@@ -456,7 +619,7 @@ def responder_no_puedo_ayudar(
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            sol = _validar_acceso_solicitud(cursor, solicitud_id, codigo)
+            sol = _validar_acceso_solicitud(db, cursor, solicitud_id, codigo)
             if not sol:
                 return {
                     "status": "error",
@@ -503,7 +666,7 @@ def responder_conozco_alguien(
             conn = db._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            sol = _validar_acceso_solicitud(cursor, solicitud_id, codigo)
+            sol = _validar_acceso_solicitud(db, cursor, solicitud_id, codigo)
             if not sol:
                 return {
                     "status": "error",

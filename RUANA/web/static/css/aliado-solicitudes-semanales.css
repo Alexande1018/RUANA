@@ -284,6 +284,19 @@
   line-height: 1;
 }
 
+.sol-sem-etiqueta-cercano {
+  display: inline-block;
+  margin: 8px 0 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: rgba(255, 220, 160, 0.95);
+  background: rgba(210, 150, 60, 0.18);
+  border: 1px solid rgba(210, 150, 60, 0.35);
+}
+
 .sol-sem-card-desc,
 .sol-sem-card-meta {
   font-size: 0.85rem;
