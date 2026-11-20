@@ -235,3 +235,51 @@ def enviar_correo_apelacion_expulsion(
     except Exception as exc:
         logger.exception("[RUANA][EMAIL] Error al enviar correo de apelación: %s", exc)
         return False
+
+def enviar_correo_aliado(
+    email: str,
+    asunto: str,
+    cuerpo: str,
+    contexto: str = "transaccional",
+) -> bool:
+    """Canal SMTP transaccional ya usado (bienvenida, recuperación, apelación, encargos).
+
+    No hay opt-out ni límite de ritmo en este canal; se respetan las mismas
+    reglas: no envía si falta email o si SMTP no está configurado, y no lanza.
+    """
+    email_limpio = (email or "").strip()
+    asunto_limpio = (asunto or "").strip()
+    cuerpo_limpio = cuerpo or ""
+    if not email_limpio or not asunto_limpio or not cuerpo_limpio.strip():
+        return False
+    if not _smtp_configurado():
+        logger.warning(
+            "[RUANA][EMAIL] SMTP no configurado; omitiendo correo %s",
+            contexto or "transaccional",
+        )
+        return False
+
+    settings = get_settings()
+    from_email = settings.smtp_from_email or settings.smtp_user
+    msg = EmailMessage()
+    msg["Subject"] = asunto_limpio
+    msg["From"] = from_email
+    msg["To"] = email_limpio
+    msg.set_content(cuerpo_limpio)
+
+    try:
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(settings.smtp_user, settings.smtp_password)
+            server.send_message(msg)
+        logger.info("[RUANA][EMAIL] Correo %s enviado", contexto or "transaccional")
+        return True
+    except Exception as exc:
+        logger.exception(
+            "[RUANA][EMAIL] Error al enviar correo %s: %s",
+            contexto or "transaccional",
+            exc,
+        )
+        return False

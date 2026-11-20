@@ -21,7 +21,19 @@ class NotificacionRepo:
         titulo: str,
         mensaje: str,
         metadata_json: str,
+        clave_unica: Optional[str] = None,
     ) -> None:
+        if clave_unica:
+            cursor.execute(
+                """
+                INSERT INTO notificaciones_aliado (
+                    aliado_codigo, tipo, titulo, mensaje, metadata, leida, clave_unica
+                )
+                VALUES (?, ?, ?, ?, ?, 0, ?)
+                """,
+                (aliado_codigo, tipo, titulo, mensaje, metadata_json, clave_unica),
+            )
+            return
         cursor.execute(
             """
             INSERT INTO notificaciones_aliado (aliado_codigo, tipo, titulo, mensaje, metadata, leida)

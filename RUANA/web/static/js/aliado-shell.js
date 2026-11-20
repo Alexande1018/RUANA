@@ -559,10 +559,38 @@
         }
 
         setInterval(refreshInicioSurface, 8000);
+        abrirEnlaceContactoDesdeUrl();
+        if (typeof MutationObserver !== 'undefined') {
+            const readyObs = new MutationObserver(() => {
+                if (!document.body.classList.contains('panel-loading')) {
+                    abrirEnlaceContactoDesdeUrl();
+                }
+            });
+            readyObs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        }
+    }
+
+    function abrirEnlaceContactoDesdeUrl() {
+        try {
+            if (!global.location || !global.location.search) return;
+            const params = new URLSearchParams(global.location.search);
+            if (params.get('stripe_pago')) return;
+            const raw = params.get('contacto_id');
+            if (!raw) return;
+            const id = parseInt(raw, 10);
+            if (!id) return;
+            if (document.body.classList.contains('panel-loading')) return;
+            params.delete('contacto_id');
+            const clean = params.toString();
+            const newUrl = global.location.pathname + (clean ? '?' + clean : '') + (global.location.hash || '');
+            try { global.history.replaceState({}, '', newUrl); } catch (_) {}
+            abrirNegociacionDesdeShell(id);
+        } catch (_) { /* ignore */ }
     }
 
     const api = {
         show: showModule,
+        abrirNegociacion: abrirNegociacionDesdeShell,
         current: () => current,
         modules: MODULES.slice(),
         ensureModuleForSelector: ensureModuleForSelector,

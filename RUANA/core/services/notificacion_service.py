@@ -6,6 +6,7 @@ SQL de notificaciones vía NotificacionRepo.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from typing import Any, Dict, List, Optional
 
@@ -13,6 +14,7 @@ from core.repositories.notificacion_repo import NotificacionRepo
 from core.services import actividad_cinta_service
 
 _repo = NotificacionRepo()
+logger = logging.getLogger(__name__)
 
 MAX_ACTIVIDAD_CINTA = actividad_cinta_service.MAX_ACTIVIDAD_CINTA
 
@@ -63,6 +65,17 @@ def notificar_grupo_actividad(
     )
 
 
+def _es_conflicto_unico(exc: BaseException) -> bool:
+    if isinstance(exc, sqlite3.IntegrityError):
+        msg = str(exc).lower()
+        return "unique" in msg or "clave_unica" in msg or "constraint" in msg
+    name = type(exc).__name__.lower()
+    if "uniqueviolation" in name or "integrityerror" in name:
+        return True
+    msg = str(exc).lower()
+    return "unique" in msg or "duplicate" in msg or "clave_unica" in msg
+
+
 def crear_notificacion_aliado(
     db,
     aliado_codigo: str,
@@ -71,6 +84,7 @@ def crear_notificacion_aliado(
     mensaje: str,
     metadata: Optional[Dict[str, Any]] = None,
     cursor=None,
+    clave_unica: Optional[str] = None,
 ) -> None:
     """Inserta una notificación persistente para un aliado."""
     codigo = (aliado_codigo or "").strip()
@@ -79,18 +93,64 @@ def crear_notificacion_aliado(
     meta_json = json.dumps(metadata or {}, ensure_ascii=False)
     try:
         if cursor is not None:
-            _repo.insertar(cursor, codigo, tipo, titulo, mensaje, meta_json)
+            _repo.insertar(
+                cursor, codigo, tipo, titulo, mensaje, meta_json, clave_unica
+            )
             return
         with db._lock:
             conn = db._connect()
             try:
                 cur = conn.cursor()
-                _repo.insertar(cur, codigo, tipo, titulo, mensaje, meta_json)
+                _repo.insertar(
+                    cur, codigo, tipo, titulo, mensaje, meta_json, clave_unica
+                )
                 conn.commit()
             finally:
                 conn.close()
     except Exception:
         return
+
+
+def crear_notificacion_aliado_unica(
+    db,
+    aliado_codigo: str,
+    tipo: str,
+    titulo: str,
+    mensaje: str,
+    metadata: Optional[Dict[str, Any]] = None,
+    clave_unica: str = "",
+    cursor=None,
+) -> str:
+    """Inserta con clave única. Devuelve 'created', 'duplicate' o 'error'.
+
+    El índice único en clave_unica evita duplicados concurrentes; no basta
+    un chequeo en memoria.
+    """
+    codigo = (aliado_codigo or "").strip()
+    clave = (clave_unica or "").strip()
+    if not codigo or not clave:
+        return "error"
+    meta_json = json.dumps(metadata or {}, ensure_ascii=False)
+    try:
+        if cursor is not None:
+            _repo.insertar(cursor, codigo, tipo, titulo, mensaje, meta_json, clave)
+            return "created"
+        with db._lock:
+            conn = db._connect()
+            try:
+                cur = conn.cursor()
+                _repo.insertar(cur, codigo, tipo, titulo, mensaje, meta_json, clave)
+                conn.commit()
+                return "created"
+            finally:
+                conn.close()
+    except Exception as exc:
+        if _es_conflicto_unico(exc):
+            return "duplicate"
+        logger.exception(
+            "[RUANA][NOTIF] Fallo insertando notificación única (clave=%s)", clave
+        )
+        return "error"
 
 
 def listar_notificaciones_aliado(
