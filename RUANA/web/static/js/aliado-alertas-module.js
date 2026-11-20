@@ -286,12 +286,26 @@
             const fecha = (n.creado_en ? new Date(n.creado_en).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '');
             const div = document.createElement('div');
             div.className = 'ruana-alert-notif is-unread';
+            const meta = n.metadata && typeof n.metadata === 'object' ? n.metadata : {};
+            const tieneEnlace = !!(meta.contacto_id || meta.enlace || n.tipo === 'solicitud_semanal_respuesta');
+            const etiquetaEnlace = meta.contacto_id ? 'Abrir el chat guiado' : 'Ver tu solicitud';
             div.innerHTML =
                 '<div class="ruana-alert-notif__head">' +
                     '<span class="ruana-alert-notif__title">' + host.escapeHtml(n.titulo || 'Mensaje de RUANA') + '</span>' +
                     (fecha ? '<span class="ruana-alert-notif__date">' + fecha + '</span>' : '') +
                 '</div>' +
-                '<div class="ruana-alert-notif__body">' + host.escapeHtml(n.mensaje || '') + '</div>';
+                '<div class="ruana-alert-notif__body">' + host.escapeHtml(n.mensaje || '') + '</div>' +
+                (tieneEnlace
+                    ? '<button type="button" class="ruana-alert-detail-btn ruana-alert-notif__link">' + host.escapeHtml(etiquetaEnlace) + '</button>'
+                    : '');
+            const btnEnlace = div.querySelector('.ruana-alert-notif__link');
+            if (btnEnlace) {
+                btnEnlace.addEventListener('click', function (ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    abrirAvisoSolicitudSemanal(host, n);
+                });
+            }
             body.appendChild(div);
         });
         const footer = document.createElement('div');
@@ -316,6 +330,29 @@
                 '<br><span style="opacity:0.75">Rol: ' + host.escapeHtml(rolLabel) + '</span>' +
             '</div>';
         body.appendChild(div);
+    }
+  }
+
+
+  function abrirAvisoSolicitudSemanal(host, notif) {
+    const meta = (notif && notif.metadata && typeof notif.metadata === 'object') ? notif.metadata : {};
+    const contactoId = meta.contacto_id != null ? parseInt(meta.contacto_id, 10) : 0;
+    if (contactoId && global.AliadoShell && typeof global.AliadoShell.abrirNegociacion === 'function') {
+      global.AliadoShell.abrirNegociacion(contactoId);
+    } else if (contactoId && host && typeof host.abrirNegociacionContacto === 'function') {
+      host.abrirNegociacionContacto(contactoId, null);
+    } else if (global.AliadoShell && typeof global.AliadoShell.show === 'function') {
+      global.AliadoShell.show('solicitudes');
+    }
+    if (notif && notif.id && host) {
+      const codigo = (host.codigoAliado || (host.aliado && host.aliado.codigo) || '').toString().trim();
+      if (codigo) {
+        fetch(
+          getApiBaseSafe() + '/api/aliados/' + encodeURIComponent(codigo) + '/notificaciones/' + encodeURIComponent(notif.id) + '/leida',
+          { method: 'POST', credentials: 'same-origin', headers: getAuthHeadersSafe() }
+        ).catch(function () {});
+      }
+      notif.leida = 1;
     }
   }
 

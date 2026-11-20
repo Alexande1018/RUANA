@@ -853,6 +853,35 @@ def _migrar_notificaciones_aliado(db, conn, cursor) -> None:
     _repo.execute(cursor, 
         "CREATE INDEX IF NOT EXISTS idx_notificaciones_aliado_creado ON notificaciones_aliado(creado_en DESC)"
     )
+    _migrar_notificaciones_clave_unica(db, conn, cursor)
+
+
+def _migrar_notificaciones_clave_unica(db, conn, cursor) -> None:
+    """Columna clave_unica + índice único (SQLite y Postgres). NULL se admite en filas antiguas."""
+    backend = getattr(db, "backend", "sqlite")
+    try:
+        if backend == "postgres":
+            cursor.execute(
+                "ALTER TABLE notificaciones_aliado ADD COLUMN IF NOT EXISTS clave_unica TEXT"
+            )
+            cursor.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_notificaciones_aliado_clave_unica "
+                "ON notificaciones_aliado(clave_unica)"
+            )
+            return
+        cols = [row[1] for row in _repo.pragma_table_info(cursor, "notificaciones_aliado")]
+        if not cols:
+            return
+        if "clave_unica" not in cols:
+            _repo.execute(cursor, "ALTER TABLE notificaciones_aliado ADD COLUMN clave_unica TEXT")
+        _repo.execute(
+            cursor,
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_notificaciones_aliado_clave_unica "
+            "ON notificaciones_aliado(clave_unica)",
+        )
+    except Exception:
+        # Si la tabla aún no existe, el caller la creará y reintentará.
+        return
 
 def _migrar_centro_comunicacion_ruana(db, conn, cursor) -> None:
     """Centro de comunicación entre aliados y equipo RUANA."""
@@ -3234,6 +3263,7 @@ def _init_postgres_schema_unlocked(db) -> bool:
         db._migrar_solicitudes_candidato(conn, cursor)
         db._migrar_solicitudes_proximidad(conn, cursor)
         db._migrar_solicitudes_semanales(conn, cursor)
+        _migrar_notificaciones_clave_unica(db, conn, cursor)
         db._migrar_contactos_es_urgente(conn, cursor)
         db._migrar_negociacion_guiada(conn, cursor)
         db._migrar_acuerdo_cierre_bilateral(conn, cursor)

@@ -182,6 +182,10 @@ class DBManager:
         """Fachada Campamento Base → schema_service._migrar_notificaciones_aliado."""
         return schema_service._migrar_notificaciones_aliado(self, conn, cursor)
 
+    def _migrar_notificaciones_clave_unica(self, conn, cursor) -> None:
+        """Fachada Campamento Base → schema_service._migrar_notificaciones_clave_unica."""
+        return schema_service._migrar_notificaciones_clave_unica(self, conn, cursor)
+
     def _migrar_centro_comunicacion_ruana(self, conn, cursor) -> None:
         """Fachada Campamento Base → schema_service._migrar_centro_comunicacion_ruana."""
         return schema_service._migrar_centro_comunicacion_ruana(self, conn, cursor)

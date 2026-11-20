@@ -411,7 +411,7 @@ def test_aliado_alertas_module_is_wired():
     alertas_js = (root / "static" / "js" / "aliado-alertas-module.js").read_text(encoding="utf-8")
     modules_js = (root / "static" / "js" / "aliado-modules.js").read_text(encoding="utf-8")
 
-    assert 'src="/static/js/aliado-alertas-module.js"' in aliado
+    assert 'src="/static/js/aliado-alertas-module.js' in aliado  # admite ?v= de cache-bust
     assert "alertas: null" in modules_js
     assert "modules.alertas" in alertas_js or "RuanaAliadoModules.alertas" in alertas_js
     assert "renderAlertHub" in alertas_js

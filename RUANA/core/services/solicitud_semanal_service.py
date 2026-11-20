@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
@@ -10,6 +11,7 @@ from core.repositories.solicitud_semanal_repo import SolicitudSemanalRepo
 from core.services import catalogo_service, contacto_service, invitacion_service, notificacion_service
 
 _repo = SolicitudSemanalRepo()
+logger = logging.getLogger(__name__)
 
 
 def _json_safe_value(value: Any) -> Any:
@@ -528,10 +530,156 @@ def _validar_acceso_solicitud(
     return None
 
 
+
+TIPO_AVISO_RESPUESTA = "solicitud_semanal_respuesta"
+CLAVE_AVISO_RESPUESTA = "sol_sem_resp:{solicitud_id}:{respondente}"
+
+
+def _nombre_visible(nombre: str) -> str:
+    """Nombre de pantalla, como en el resto de avisos; nunca teléfono ni email."""
+    return (nombre or "").strip() or "Un aliado"
+
+
+def _url_publica_aliado(query: str = "", fragmento: str = "") -> str:
+    from core.settings import get_settings
+
+    base = (get_settings().public_app_url or "https://ruana-4293f.web.app").rstrip("/")
+    url = f"{base}/aliado"
+    if query:
+        url += "?" + query.lstrip("?")
+    if fragmento:
+        url += fragmento if fragmento.startswith("#") else "#" + fragmento
+    return url
+
+
+def _enlace_aviso_respuesta(tipo_respuesta: str, contacto_id: Any) -> str:
+    if tipo_respuesta == "puedo_ayudar" and contacto_id:
+        return _url_publica_aliado(query=f"contacto_id={int(contacto_id)}")
+    return _url_publica_aliado(fragmento="solicitudes")
+
+
+def _textos_aviso_respuesta(
+    nombre_respondente: str, oficio: str, tipo_respuesta: str, enlace: str
+) -> Dict[str, str]:
+    nombre = _nombre_visible(nombre_respondente)
+    oficio_txt = (oficio or "profesional").strip() or "profesional"
+    if tipo_respuesta == "conozco_alguien":
+        mensaje = f"{nombre} conoce a alguien para tu solicitud de {oficio_txt}"
+        titulo = "Alguien conoce a alguien para tu solicitud"
+        asunto = "Alguien conoce a alguien para tu solicitud en RUANA"
+        cuerpo = (
+            f"{mensaje}.\n\n"
+            "Entra en RUANA para ver tu solicitud de esta semana:\n"
+            f"{enlace}\n\n"
+            "El contacto se queda dentro de RUANA.\n\n"
+            "Equipo RUANA."
+        )
+    else:
+        mensaje = f"{nombre} puede ayudarte con tu solicitud de {oficio_txt}"
+        titulo = "Alguien puede ayudarte con tu solicitud"
+        asunto = "Alguien puede ayudarte con tu solicitud en RUANA"
+        cuerpo = (
+            f"{mensaje}.\n\n"
+            "Abre el chat guiado en RUANA (el contacto se queda dentro de la app):\n"
+            f"{enlace}\n\n"
+            "Equipo RUANA."
+        )
+    return {
+        "nombre": nombre,
+        "oficio": oficio_txt,
+        "mensaje": mensaje,
+        "titulo": titulo,
+        "asunto": asunto,
+        "cuerpo": cuerpo,
+    }
+
+
+def _avisar_solicitante_respuesta(
+    db,
+    sol: Dict[str, Any],
+    respondente_codigo: str,
+    respondente_nombre: str,
+    tipo_respuesta: str,
+    contacto_id: Any = None,
+) -> None:
+    """Aviso in-app + email al autor. Un fallo no debe romper la respuesta."""
+    try:
+        if tipo_respuesta not in ("puedo_ayudar", "conozco_alguien"):
+            return
+        solicitante = (sol.get("solicitante_codigo") or "").strip()
+        if not solicitante or solicitante == (respondente_codigo or "").strip():
+            return
+        try:
+            schema_ok = getattr(db, "_migrar_notificaciones_clave_unica", None)
+            if schema_ok:
+                with db._lock:
+                    conn = db._connect()
+                    try:
+                        db._migrar_notificaciones_clave_unica(conn, conn.cursor())
+                        conn.commit()
+                    finally:
+                        conn.close()
+        except Exception:
+            logger.exception("[RUANA][SOL_SEM] No se pudo asegurar clave_unica")
+
+        enlace = _enlace_aviso_respuesta(tipo_respuesta, contacto_id)
+        textos = _textos_aviso_respuesta(
+            respondente_nombre, sol.get("oficio") or "", tipo_respuesta, enlace
+        )
+        metadata = {
+            "solicitud_semanal_id": int(sol["id"]),
+            "tipo_respuesta": tipo_respuesta,
+            "oficio": textos["oficio"],
+            "respondente_nombre": textos["nombre"],
+            "origen": "solicitud_semanal_respuesta",
+            "enlace": enlace,
+        }
+        if contacto_id:
+            metadata["contacto_id"] = int(contacto_id)
+        clave = CLAVE_AVISO_RESPUESTA.format(
+            solicitud_id=int(sol["id"]),
+            respondente=(respondente_codigo or "").strip(),
+        )
+        estado = notificacion_service.crear_notificacion_aliado_unica(
+            db,
+            solicitante,
+            TIPO_AVISO_RESPUESTA,
+            textos["titulo"],
+            textos["mensaje"],
+            metadata=metadata,
+            clave_unica=clave,
+        )
+        if estado != "created":
+            return
+        destinatario = db.obtener_aliado_por_codigo(solicitante) or {}
+        email = (destinatario.get("email") or "").strip()
+        if not email:
+            return
+        saludo = _nombre_visible(destinatario.get("nombre") or sol.get("solicitante_nombre") or "")
+        cuerpo = f"Hola, {saludo}.\n\n" + textos["cuerpo"]
+        from core import email_service
+
+        email_service.enviar_correo_aliado(
+            email,
+            textos["asunto"],
+            cuerpo,
+            contexto="solicitud_semanal_respuesta",
+        )
+    except Exception:
+        logger.exception(
+            "[RUANA][SOL_SEM] Fallo avisando al solicitante (solicitud=%s, tipo=%s)",
+            sol.get("id") if sol else None,
+            tipo_respuesta,
+        )
+
+
 def responder_puedo_ayudar(
     db, solicitud_id: int, codigo: str
 ) -> Dict[str, Any]:
     codigo = (codigo or "").strip()
+    resultado: Optional[Dict[str, Any]] = None
+    aviso: Optional[Dict[str, Any]] = None
+    conn = None
     with db._lock:
         try:
             conn = db._connect()
@@ -539,75 +687,94 @@ def responder_puedo_ayudar(
             cursor = conn.cursor()
             sol = _validar_acceso_solicitud(db, cursor, solicitud_id, codigo)
             if not sol:
-                return {
+                resultado = {
                     "status": "error",
                     "message": "Solicitud no disponible o sin permiso",
                 }
-
-            existente = _repo.select_respuesta(cursor, int(solicitud_id), codigo)
-            if existente and existente.get("tipo_respuesta") == "puedo_ayudar":
-                cid = existente.get("contacto_id")
-                return {
-                    "status": "success",
-                    "ok": True,
-                    "contacto_id": cid,
-                    "ya_registrado": True,
-                }
-
-            aliado = _repo.select_aliado_grupo_nombre(cursor, codigo)
-            nombre_resp = aliado[1] if aliado else ""
-            solicitante = sol["solicitante_codigo"]
-            oficio_txt = sol["oficio"] or "profesional"
-            motivo = f"Solicitud semanal: necesita {oficio_txt}"
-
-            contacto_result = contacto_service.crear_contacto_ruana(
-                db,
-                solicitante_codigo=solicitante,
-                profesional_codigo=codigo,
-                servicio=oficio_txt,
-                motivo_contacto=motivo,
-                es_urgente=False,
-            )
-            if contacto_result.get("status") != "success":
-                return {
-                    "status": "error",
-                    "message": contacto_result.get(
-                        "message", "No se pudo abrir la negociación"
-                    ),
-                }
-            contacto_id = int(contacto_result["id"])
-
-            if existente:
-                cursor.execute(
-                    """
-                    UPDATE solicitudes_semanales_respuestas
-                    SET tipo_respuesta = 'puedo_ayudar', contacto_id = ?
-                    WHERE id = ?
-                    """,
-                    (contacto_id, existente["id"]),
-                )
             else:
-                _repo.insertar_respuesta(
-                    cursor,
-                    int(solicitud_id),
-                    codigo,
-                    nombre_resp,
-                    "puedo_ayudar",
-                    contacto_id=contacto_id,
-                )
-            conn.commit()
-            return {
-                "status": "success",
-                "ok": True,
-                "contacto_id": contacto_id,
-                "solicitante_codigo": solicitante,
-                "solicitante_nombre": sol["solicitante_nombre"],
-                "oficio": oficio_txt,
-            }
+                existente = _repo.select_respuesta(cursor, int(solicitud_id), codigo)
+                aliado = _repo.select_aliado_grupo_nombre(cursor, codigo)
+                nombre_resp = aliado[1] if aliado else ""
+                if existente and existente.get("tipo_respuesta") == "puedo_ayudar":
+                    cid = existente.get("contacto_id")
+                    resultado = {
+                        "status": "success",
+                        "ok": True,
+                        "contacto_id": cid,
+                        "ya_registrado": True,
+                    }
+                    aviso = {
+                        "sol": dict(sol),
+                        "respondente_codigo": codigo,
+                        "respondente_nombre": nombre_resp,
+                        "tipo_respuesta": "puedo_ayudar",
+                        "contacto_id": cid,
+                    }
+                else:
+                    solicitante = sol["solicitante_codigo"]
+                    oficio_txt = sol["oficio"] or "profesional"
+                    motivo = f"Solicitud semanal: necesita {oficio_txt}"
+
+                    contacto_result = contacto_service.crear_contacto_ruana(
+                        db,
+                        solicitante_codigo=solicitante,
+                        profesional_codigo=codigo,
+                        servicio=oficio_txt,
+                        motivo_contacto=motivo,
+                        es_urgente=False,
+                    )
+                    if contacto_result.get("status") != "success":
+                        resultado = {
+                            "status": "error",
+                            "message": contacto_result.get(
+                                "message", "No se pudo abrir la negociación"
+                            ),
+                        }
+                    else:
+                        contacto_id = int(contacto_result["id"])
+
+                        if existente:
+                            cursor.execute(
+                                """
+                                UPDATE solicitudes_semanales_respuestas
+                                SET tipo_respuesta = 'puedo_ayudar', contacto_id = ?
+                                WHERE id = ?
+                                """,
+                                (contacto_id, existente["id"]),
+                            )
+                        else:
+                            _repo.insertar_respuesta(
+                                cursor,
+                                int(solicitud_id),
+                                codigo,
+                                nombre_resp,
+                                "puedo_ayudar",
+                                contacto_id=contacto_id,
+                            )
+                        conn.commit()
+                        resultado = {
+                            "status": "success",
+                            "ok": True,
+                            "contacto_id": contacto_id,
+                            "solicitante_codigo": solicitante,
+                            "solicitante_nombre": sol["solicitante_nombre"],
+                            "oficio": oficio_txt,
+                        }
+                        aviso = {
+                            "sol": dict(sol),
+                            "respondente_codigo": codigo,
+                            "respondente_nombre": nombre_resp,
+                            "tipo_respuesta": "puedo_ayudar",
+                            "contacto_id": contacto_id,
+                        }
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            resultado = {"status": "error", "message": str(e)}
         finally:
-            conn.close()
+            if conn is not None:
+                conn.close()
+    if aviso:
+        _avisar_solicitante_respuesta(db, **aviso)
+    return resultado or {"status": "error", "message": "No se pudo registrar la respuesta"}
 
 
 def responder_no_puedo_ayudar(
@@ -661,6 +828,9 @@ def responder_conozco_alguien(
 ) -> Dict[str, Any]:
     """generar_codigo_fn(db) -> str único de invitación."""
     codigo = (codigo or "").strip()
+    resultado: Optional[Dict[str, Any]] = None
+    aviso: Optional[Dict[str, Any]] = None
+    conn = None
     with db._lock:
         try:
             conn = db._connect()
@@ -668,67 +838,77 @@ def responder_conozco_alguien(
             cursor = conn.cursor()
             sol = _validar_acceso_solicitud(db, cursor, solicitud_id, codigo)
             if not sol:
-                return {
+                resultado = {
                     "status": "error",
                     "message": "Solicitud no disponible o sin permiso",
                 }
-
-            oficio_buscar = (sol["oficio"] or "").strip()
-            grupo_id = sol["grupo_id"]
-            aliado_row = db.obtener_aliado_por_codigo(codigo)
-            cp_aliado = (aliado_row.get("codigo_postal") or "") if aliado_row else ""
-            from core.services import grupo_service
-            if grupo_service.plaza_ocupada_contexto(
-                db, grupo_id, oficio_buscar, cp_aliado, cursor=cursor
-            ):
-                return {
-                    "status": "error",
-                    "message": "Este profesional ya pertenece al grupo.",
-                    "codigo": None,
-                    "ya_en_grupo": True,
-                }
-
-            aliado_row = db.obtener_aliado_por_codigo(codigo)
-            if not aliado_row:
-                return {"status": "error", "message": "Aliado no encontrado"}
-            aliado_id = aliado_row.get("id")
-            if not aliado_id:
-                return {"status": "error", "message": "Aliado inválido"}
-
-            codigo_inv = generar_codigo_fn(db)
-            invitacion_service._registrar_invitacion(db, codigo_inv, int(aliado_id))
-
-            nombre = aliado_row.get("nombre") or ""
-            existente = _repo.select_respuesta(cursor, int(solicitud_id), codigo)
-            if existente:
-                cursor.execute(
-                    """
-                    UPDATE solicitudes_semanales_respuestas
-                    SET tipo_respuesta = 'conozco_alguien', invitacion_codigo = ?,
-                        contacto_id = NULL
-                    WHERE id = ?
-                    """,
-                    (codigo_inv, existente["id"]),
-                )
             else:
-                _repo.insertar_respuesta(
-                    cursor,
-                    int(solicitud_id),
-                    codigo,
-                    nombre,
-                    "conozco_alguien",
-                    invitacion_codigo=codigo_inv,
-                )
-            conn.commit()
-            return {
-                "status": "success",
-                "ok": True,
-                "codigo": codigo_inv,
-            }
+                oficio_buscar = (sol["oficio"] or "").strip()
+                grupo_id = sol["grupo_id"]
+                aliado_row = db.obtener_aliado_por_codigo(codigo)
+                cp_aliado = (aliado_row.get("codigo_postal") or "") if aliado_row else ""
+                from core.services import grupo_service
+                if grupo_service.plaza_ocupada_contexto(
+                    db, grupo_id, oficio_buscar, cp_aliado, cursor=cursor
+                ):
+                    resultado = {
+                        "status": "error",
+                        "message": "Este profesional ya pertenece al grupo.",
+                        "codigo": None,
+                        "ya_en_grupo": True,
+                    }
+                elif not aliado_row:
+                    resultado = {"status": "error", "message": "Aliado no encontrado"}
+                elif not aliado_row.get("id"):
+                    resultado = {"status": "error", "message": "Aliado inválido"}
+                else:
+                    codigo_inv = generar_codigo_fn(db)
+                    invitacion_service._registrar_invitacion(
+                        db, codigo_inv, int(aliado_row["id"])
+                    )
+
+                    nombre = aliado_row.get("nombre") or ""
+                    existente = _repo.select_respuesta(cursor, int(solicitud_id), codigo)
+                    if existente:
+                        cursor.execute(
+                            """
+                            UPDATE solicitudes_semanales_respuestas
+                            SET tipo_respuesta = 'conozco_alguien', invitacion_codigo = ?,
+                                contacto_id = NULL
+                            WHERE id = ?
+                            """,
+                            (codigo_inv, existente["id"]),
+                        )
+                    else:
+                        _repo.insertar_respuesta(
+                            cursor,
+                            int(solicitud_id),
+                            codigo,
+                            nombre,
+                            "conozco_alguien",
+                            invitacion_codigo=codigo_inv,
+                        )
+                    conn.commit()
+                    resultado = {
+                        "status": "success",
+                        "ok": True,
+                        "codigo": codigo_inv,
+                    }
+                    aviso = {
+                        "sol": dict(sol),
+                        "respondente_codigo": codigo,
+                        "respondente_nombre": nombre,
+                        "tipo_respuesta": "conozco_alguien",
+                        "contacto_id": None,
+                    }
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            resultado = {"status": "error", "message": str(e)}
         finally:
-            conn.close()
+            if conn is not None:
+                conn.close()
+    if aviso:
+        _avisar_solicitante_respuesta(db, **aviso)
+    return resultado or {"status": "error", "message": "No se pudo registrar la respuesta"}
 
 
 def listar_interesados(
