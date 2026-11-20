@@ -105,7 +105,7 @@ def test_admin_shell_operaciones_module_aligned_with_module_defs():
     assert "#conflictos-pago-wrap" in shell_js
     assert "#pagos-apoyo-wrap" in shell_js
     assert "#pagos-en-revision-wrap" in shell_js
-    assert 'src="/static/js/admin-operaciones-module.js"' in admin
+    assert 'src="/static/js/admin-operaciones-module.js?v=20261120a"' in admin
     assert "renderConflictosPago" in ops_js
     assert "renderPagosApoyo" in ops_js
     assert "renderPagosEnRevision" in ops_js

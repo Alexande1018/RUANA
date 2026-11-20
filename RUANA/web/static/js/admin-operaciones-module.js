@@ -412,6 +412,7 @@ async function confirmarResolverConflicto(host) {
 }
 
 async function cargarCentroComunicacionAdmin(host) {
+      asegurarBindDifusionCentro(host);
       const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
       const status = (document.getElementById('cc-admin-status')?.value || '').trim();
       const tipo = (document.getElementById('cc-admin-tipo')?.value || '').trim();
@@ -433,6 +434,7 @@ async function cargarCentroComunicacionAdmin(host) {
 }
 
 function renderCentroComunicacionAdmin(host, conversaciones) {
+      asegurarBindDifusionCentro(host);
       const tbody = document.getElementById('tbody-centro-comunicacion-admin');
       const empty = document.getElementById('centro-comunicacion-admin-empty');
       if (!tbody) return;
@@ -674,6 +676,125 @@ async function eliminarNegociacion(host, contactoId) {
       }
 }
 
+
+function cuerpoDifusionCentro() {
+      const texto = (document.getElementById('cc-admin-difundir-texto')?.value || '').trim();
+      const tipo = (document.getElementById('cc-admin-difundir-filtro')?.value || 'todos').trim();
+      const valor = (document.getElementById('cc-admin-difundir-valor')?.value || '').trim();
+      const body = { texto: texto };
+      if (tipo === 'codigos') {
+          body.codigos = valor.split(/[,;\s]+/).map((c) => c.trim()).filter(Boolean);
+      } else if (tipo === 'grupo') {
+          body.grupo_id = valor;
+      } else if (tipo === 'cp') {
+          body.prefijo_cp = valor;
+      }
+      return body;
+}
+
+function pintarResultadoDifusion(data, dryRun) {
+      const out = document.getElementById('cc-admin-difundir-resultado');
+      if (!out) return;
+      out.hidden = false;
+      if (!data || data.status !== 'success') {
+          const espera = data && data.reintentar_en_segundos ? ` (${data.reintentar_en_segundos}s)` : '';
+          out.textContent = ((data && (data.message || data.error)) || 'No se pudo completar.') + espera;
+          out.style.color = '#f87171';
+          return;
+      }
+      const n = Number(data.destinatarios || 0);
+      const sample = (data.codigos || []).slice(0, 12).join(', ');
+      const extra = (data.codigos || []).length > 12 ? '…' : '';
+      const omit = (data.omitidos || []).length ? ` Omitidos: ${(data.omitidos || []).length}.` : '';
+      out.style.color = '#cbd5e1';
+      if (dryRun) {
+          out.textContent = n ? `Previsualización: ${n} aliado${n === 1 ? '' : 's'} activo${n === 1 ? '' : 's'}. ${sample}${extra}.${omit}` : `Nadie recibiría este aviso.${omit}`;
+      } else {
+          out.textContent = `Aviso enviado a ${n} aliado${n === 1 ? '' : 's'}. ${sample}${extra}.${omit}`;
+      }
+}
+
+async function previsualizarDifusionCentro(host) {
+      const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+      const body = cuerpoDifusionCentro();
+      body.dry_run = true;
+      const out = document.getElementById('cc-admin-difundir-resultado');
+      if (out) { out.hidden = false; out.style.color = '#94a3b8'; out.textContent = 'Calculando destinatarios…'; }
+      try {
+          const r = await fetch('/api/admin/centro-comunicacion/difundir', {
+              method: 'POST', credentials: 'same-origin',
+              headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders),
+              body: JSON.stringify(body)
+          });
+          if (r.status === 401) { host._adminSessionExpired(); return null; }
+          const data = await r.json().catch(() => ({}));
+          pintarResultadoDifusion(data, true);
+          return data && data.status === 'success' ? data : null;
+      } catch (_) {
+          pintarResultadoDifusion({ status: 'error', message: 'Error de conexión.' }, true);
+          return null;
+      }
+}
+
+async function enviarDifusionCentro(host) {
+      const preview = await previsualizarDifusionCentro(host);
+      if (!preview) return;
+      const n = Number(preview.destinatarios || 0);
+      if (!n) {
+          host.showToast('No hay destinatarios activos para ese filtro.', 'error');
+          return;
+      }
+      const ok = window.confirm('¿Enviar este aviso a ' + n + ' aliado' + (n === 1 ? '' : 's') + '? Se verá como no leído en su centro de comunicación. No se puede deshacer.');
+      if (!ok) return;
+      const authHeaders = AdminAuthenticator.getAdminAuthHeaders();
+      const body = cuerpoDifusionCentro();
+      body.dry_run = false;
+      try {
+          const r = await fetch('/api/admin/centro-comunicacion/difundir', {
+              method: 'POST', credentials: 'same-origin',
+              headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders),
+              body: JSON.stringify(body)
+          });
+          if (r.status === 401) { host._adminSessionExpired(); return; }
+          const data = await r.json().catch(() => ({}));
+          pintarResultadoDifusion(data, false);
+          if (data && data.status === 'success') {
+              host.showToast('Aviso enviado a ' + data.destinatarios + ' aliados.', 'success');
+              await host.cargarCentroComunicacionAdmin();
+          } else if (r.status === 429) {
+              host.showToast((data && data.message) || 'Espera una hora entre avisos.', 'error');
+          } else {
+              host.showToast((data && (data.message || data.error)) || 'No se pudo enviar.', 'error');
+          }
+      } catch (_) {
+          host.showToast('Error de conexión.', 'error');
+      }
+}
+
+function asegurarBindDifusionCentro(host) {
+      if (host._difusionCentroBindOk) return;
+      const box = document.getElementById('cc-admin-difundir-box');
+      if (!box) return;
+      host._difusionCentroBindOk = true;
+      const filtro = document.getElementById('cc-admin-difundir-filtro');
+      const valor = document.getElementById('cc-admin-difundir-valor');
+      const syncValor = function () {
+          const t = (filtro && filtro.value) || 'todos';
+          if (valor) {
+              valor.style.display = t === 'todos' ? 'none' : '';
+              if (t === 'codigos') valor.placeholder = 'Códigos separados por coma, espacio o punto y coma';
+              else if (t === 'grupo') valor.placeholder = 'ID del grupo, p. ej. 21';
+              else if (t === 'cp') valor.placeholder = 'Prefijo de CP, p. ej. 22 o 22260';
+          }
+      };
+      if (filtro) filtro.addEventListener('change', syncValor);
+      syncValor();
+      const previewBtn = document.getElementById('cc-admin-difundir-preview');
+      const enviarBtn = document.getElementById('cc-admin-difundir-enviar');
+      if (previewBtn) previewBtn.addEventListener('click', function () { previsualizarDifusionCentro(host); });
+      if (enviarBtn) enviarBtn.addEventListener('click', function () { enviarDifusionCentro(host); });
+}
+
 modules.operaciones = {
     renderConflictosPago: renderConflictosPago,
     renderPagosApoyo: renderPagosApoyo,
@@ -689,6 +810,9 @@ modules.operaciones = {
     abrirModalResolverConflicto: abrirModalResolverConflicto,
     confirmarResolverConflicto: confirmarResolverConflicto,
     cargarCentroComunicacionAdmin: cargarCentroComunicacionAdmin,
+    previsualizarDifusionCentro: previsualizarDifusionCentro,
+    enviarDifusionCentro: enviarDifusionCentro,
+
     renderCentroComunicacionAdmin: renderCentroComunicacionAdmin,
     abrirModalCentroComunicacionAdmin: abrirModalCentroComunicacionAdmin,
     cerrarModalCentroComunicacionAdmin: cerrarModalCentroComunicacionAdmin,
