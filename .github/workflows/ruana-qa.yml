@@ -56,7 +56,7 @@ jobs:
     # E2E completo en push/manual; en PR basta el job pytest como gate Campamento Base.
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     needs: pytest
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     env:
