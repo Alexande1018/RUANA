@@ -36,7 +36,7 @@
     <script src="/static/js/ruana-api-client.js" defer></script>
     <script src="/static/js/admin-modules.js" defer></script>
     <script src="/static/js/admin-resumen-module.js?v=20260913b" defer></script>
-    <script src="/static/js/admin-operaciones-module.js" defer></script>
+    <script src="/static/js/admin-operaciones-module.js?v=20261120a" defer></script>
     <script src="/static/js/admin-red-module.js" defer></script>
     <script src="/static/js/admin-sistema-module.js" defer></script>
     <script src="/static/js/admin-stripe-module.js" defer></script>
@@ -944,7 +944,26 @@
 
         <div class="conversaciones-ruana-wrap" id="centro-comunicacion-admin-wrap">
             <h2 class="seccion-titulo">Centro de comunicación RUANA</h2>
-            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Mensajes directos de aliados al equipo RUANA. Filtra por estado, tipo o código postal, busca por aliado y responde desde aquí.</p>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Mensajes directos de aliados al equipo RUANA. Filtra por estado, tipo o código postal, busca por aliado y responde desde aquí. También puedes enviar un aviso nuevo a todos, a un grupo o a un CP.</p>
+            <div id="cc-admin-difundir-box" style="margin-bottom:16px; padding:14px; border-radius:12px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.22);">
+                <h3 style="margin:0 0 6px; font-size:1rem; color:#e5e7eb;">Enviar un aviso a los aliados</h3>
+                <p style="margin:0 0 10px; font-size:0.85rem; color:#94a3b8;">Llega al centro de comunicación de cada aliado activo, como no leído. Previsualiza antes de enviar. Como máximo un envío real por hora. No se manda email ni push.</p>
+                <textarea id="cc-admin-difundir-texto" rows="4" maxlength="2000" placeholder="Escribe el aviso…" style="width:100%; padding:9px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.18); background:rgba(0,0,0,0.3); color:#e5e7eb; margin-bottom:10px;"></textarea>
+                <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+                    <select id="cc-admin-difundir-filtro" style="min-width:220px;">
+                        <option value="todos">Todos los aliados activos</option>
+                        <option value="codigos">Códigos concretos</option>
+                        <option value="grupo">Un grupo (ID)</option>
+                        <option value="cp">Prefijo de CP</option>
+                    </select>
+                    <input id="cc-admin-difundir-valor" type="text" placeholder="Códigos, ID de grupo o prefijo de CP" style="display:none; min-width:240px; flex:1; padding:9px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.18); background:rgba(0,0,0,0.25); color:#e5e7eb;">
+                </div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                    <button type="button" class="btn-admin-action" id="cc-admin-difundir-preview">Previsualizar</button>
+                    <button type="button" class="btn-admin-action" id="cc-admin-difundir-enviar">Enviar</button>
+                </div>
+                <p id="cc-admin-difundir-resultado" style="margin:10px 0 0; font-size:0.85rem; color:#cbd5e1;" hidden></p>
+            </div>
             <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
                 <input id="cc-admin-search" type="text" placeholder="Buscar por aliado o asunto" style="min-width:240px; flex:1; padding:9px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.18); background:rgba(0,0,0,0.25); color:#e5e7eb;">
                 <input id="cc-admin-cp" type="text" inputmode="numeric" maxlength="10" placeholder="CP" style="width:110px; padding:9px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.18); background:rgba(0,0,0,0.25); color:#e5e7eb;">
@@ -952,6 +971,7 @@
                     <option value="">Todos los tipos</option>
                     <option value="apelacion_expulsion">Apelaciones de expulsión</option>
                     <option value="activacion">Activación</option>
+                    <option value="aviso">Avisos enviados</option>
                 </select>
                 <select id="cc-admin-status" style="min-width:180px;">
                     <option value="">Todos los estados</option>

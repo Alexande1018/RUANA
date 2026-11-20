@@ -267,7 +267,7 @@ def test_admin_operaciones_module_is_wired():
     modules_js = (root / "static" / "js" / "admin-modules.js").read_text(encoding="utf-8")
 
     assert 'src="/static/js/admin-modules.js"' in admin
-    assert 'src="/static/js/admin-operaciones-module.js"' in admin
+    assert 'src="/static/js/admin-operaciones-module.js?v=20261120a"' in admin
     assert "RuanaAdminModules" in modules_js
     assert "operaciones: null" in modules_js
     assert "RuanaAdminModules.operaciones" in ops_js or "modules.operaciones" in ops_js

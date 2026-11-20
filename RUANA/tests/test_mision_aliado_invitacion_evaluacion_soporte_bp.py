@@ -93,6 +93,7 @@ def test_soporte_routes_exigen_sesion(client):
         ("post", "/api/aliados/72001/centro-comunicacion/1/marcar-leida"),
         ("get", "/api/admin/centro-comunicacion"),
         ("get", "/api/admin/centro-comunicacion/1/mensajes"),
+        ("post", "/api/admin/centro-comunicacion/difundir"),
         ("post", "/api/admin/centro-comunicacion/1/responder"),
         ("post", "/api/admin/centro-comunicacion/1/estado"),
         ("delete", "/api/admin/centro-comunicacion/1"),

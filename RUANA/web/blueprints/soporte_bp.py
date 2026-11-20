@@ -9,7 +9,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 from core import db_manager as db_manager_mod
-from core.services import activacion_soporte_service, admin_service, apelacion_service, chat_service
+from core.services import activacion_soporte_service, admin_service, apelacion_service, chat_service, difusion_soporte_service
 from web.auth_decorators import (
     _admin_codigo,
     _aliado_codigo,
@@ -153,6 +153,22 @@ def centro_comunicacion_aliado_marcar_leida(codigo, conversacion_id):
         return jsonify(result), status_code
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@soporte_bp.route('/api/admin/centro-comunicacion/difundir', methods=['POST'])
+@require_admin_escritura
+def admin_difundir_centro_comunicacion():
+    """Envía (o previsualiza) un aviso a aliados activos por el centro de comunicación."""
+    try:
+        data = request.get_json(silent=True) or {}
+        result = difusion_soporte_service.difundir(get_db(), _admin_codigo() or "", data)
+        if result.get("status") != "success":
+            code = int(result.pop("http", 400) or 400)
+            return jsonify(result), code
+        result.pop("http", None)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 
 @soporte_bp.route('/api/admin/centro-comunicacion/<int:conversacion_id>/responder', methods=['POST'])
 @require_admin_escritura
