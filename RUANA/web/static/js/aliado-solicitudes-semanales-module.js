@@ -137,11 +137,15 @@
     card.className = 'sol-sem-card' + (extraClass ? ' ' + extraClass : '');
     var yaResp = s.mi_respuesta === 'puedo_ayudar' || s.mi_respuesta === 'no_puedo_ayudar' || s.mi_respuesta === 'conozco_alguien';
     var acciones = debeMostrarBotonesResolver(s) ? htmlBotonesResolver(s) : '';
+    var etiquetaCercano = s.de_grupo_cercano
+      ? '<p class="sol-sem-etiqueta-cercano">' + escapeHtml(s.etiqueta || 'De un grupo cercano') + '</p>'
+      : '';
     card.innerHTML =
       '<div class="sol-sem-card-head">' +
       '<span class="sol-sem-icon">' + iconoOficio(s.oficio) + '</span>' +
       '<div class="sol-sem-card-text">' + textoNecesitaOficio(s.solicitante_nombre, s.oficio) +
       '</div></div>' +
+      etiquetaCercano +
       (s.descripcion ? '<p class="sol-sem-card-desc">' + escapeHtml(s.descripcion) + '</p>' : '') +
       '<p class="sol-sem-card-meta">Esta semana · ' + escapeHtml(formatoFecha(s.created_at)) + '</p>' +
       (yaResp ? '<p class="sol-sem-ya-respondido">Ya respondiste a esta solicitud.</p>' : '') +

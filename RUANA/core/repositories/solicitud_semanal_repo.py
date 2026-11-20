@@ -272,6 +272,76 @@ class SolicitudSemanalRepo:
         )
         return [r[0].strip() for r in cursor.fetchall() if r[0]]
 
+    def select_aliado_contexto(self, cursor, codigo: str) -> Optional[Dict[str, Any]]:
+        """grupo_id, nombre, oficio, codigo_postal y estado del aliado."""
+        cursor.execute(
+            """
+            SELECT grupo_id, nombre, oficio, codigo_postal, estado
+            FROM aliados
+            WHERE TRIM(CAST(codigo AS TEXT)) = ?
+            """,
+            (str(codigo or "").strip(),),
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def select_grupo_codigo_postal(self, cursor, grupo_id: Any) -> str:
+        if grupo_id is None:
+            return ""
+        cursor.execute(
+            "SELECT codigo_postal FROM grupos WHERE id = ?",
+            (grupo_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return ""
+        if hasattr(row, "keys") and "codigo_postal" in row.keys():
+            return (row["codigo_postal"] or "").strip()
+        return (row[0] or "").strip()
+
+    def listar_oficios_activos_grupo_excepto(
+        self, cursor, grupo_id: Any, excluir_codigo: str
+    ) -> List[str]:
+        cursor.execute(
+            """
+            SELECT oficio FROM aliados
+            WHERE grupo_id = ?
+              AND estado = 'activo'
+              AND TRIM(CAST(codigo AS TEXT)) != ?
+              AND oficio IS NOT NULL AND TRIM(oficio) != ''
+            """,
+            (grupo_id, str(excluir_codigo or "").strip()),
+        )
+        return [r[0].strip() for r in cursor.fetchall() if r[0]]
+
+    def listar_activas_fuera_grupo(
+        self,
+        cursor,
+        semana_inicio: str,
+        excluir_grupo_id: Any,
+        excluir_codigo: str,
+    ) -> List[Dict[str, Any]]:
+        """Solicitudes activas de la semana que no son del grupo ni del aliado."""
+        cursor.execute(
+            """
+            SELECT s.id, s.grupo_id, s.solicitante_codigo, s.solicitante_nombre,
+                   s.oficio, s.descripcion, s.es_oficio_personalizado,
+                   s.semana_inicio, s.estado, s.created_at, s.expira_at,
+                   a.codigo_postal AS solicitante_cp,
+                   g.codigo_postal AS grupo_cp
+            FROM solicitudes_semanales s
+            LEFT JOIN aliados a
+              ON TRIM(CAST(a.codigo AS TEXT)) = TRIM(CAST(s.solicitante_codigo AS TEXT))
+            LEFT JOIN grupos g ON g.id = s.grupo_id
+            WHERE s.semana_inicio = ? AND s.estado = 'activa'
+              AND TRIM(CAST(s.solicitante_codigo AS TEXT)) != ?
+              AND (s.grupo_id IS NULL OR s.grupo_id != ?)
+            ORDER BY s.created_at DESC
+            """,
+            (semana_inicio, str(excluir_codigo or "").strip(), excluir_grupo_id),
+        )
+        return [dict(r) for r in cursor.fetchall()]
+
     def listar_codigos_activos_grupo(
         self, cursor, grupo_id: Any, excluir_codigo: Optional[str] = None
     ) -> List[str]:
