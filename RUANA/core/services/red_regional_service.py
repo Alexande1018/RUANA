@@ -55,6 +55,11 @@ class RedRegional:
     tipo_notificacion: str
     titulo_notificacion: str
     mensaje_notificacion: str
+    # Si la variable de entorno del flag maestro no existe, ¿la red está encendida?
+    # Red Huesca: False (su flag va en el workflow). Redes provinciales: True, para
+    # no depender de editar el workflow; siguen sin hacer nada hasta que un admin
+    # llama a /activar, y /revertir las neutraliza aunque el flag siga a 1.
+    habilitada_por_defecto: bool = False
 
     def __post_init__(self) -> None:
         prefs = tuple(str(p).strip() for p in self.prefijos_cp)
@@ -103,6 +108,64 @@ RED_HUESCA = _registrar(RedRegional(
 ))
 
 
+# --- Redes provinciales (24 nov 2026) ------------------------------------------
+# Una red por provincia (prefijo de CP = código INE). Madrid (28) y Toledo (45)
+# siguen en Red Centro y Huesca (22) en RED_HUESCA: no se duplican aquí.
+# Flag maestro: RED_<SLUG>_ENABLED (encendido si no existe la variable).
+PROVINCIAS: Tuple[Tuple[str, str, str], ...] = (
+    ("01", "alava", "Álava"), ("02", "albacete", "Albacete"), ("03", "alicante", "Alicante"),
+    ("04", "almeria", "Almería"), ("05", "avila", "Ávila"), ("06", "badajoz", "Badajoz"),
+    ("07", "baleares", "Illes Balears"), ("08", "barcelona", "Barcelona"), ("09", "burgos", "Burgos"),
+    ("10", "caceres", "Cáceres"), ("11", "cadiz", "Cádiz"), ("12", "castellon", "Castellón"),
+    ("13", "ciudad_real", "Ciudad Real"), ("14", "cordoba", "Córdoba"), ("15", "a_coruna", "A Coruña"),
+    ("16", "cuenca", "Cuenca"), ("17", "girona", "Girona"), ("18", "granada", "Granada"),
+    ("19", "guadalajara", "Guadalajara"), ("20", "gipuzkoa", "Gipuzkoa"), ("21", "huelva", "Huelva"),
+    ("23", "jaen", "Jaén"), ("24", "leon", "León"), ("25", "lleida", "Lleida"),
+    ("26", "la_rioja", "La Rioja"), ("27", "lugo", "Lugo"), ("29", "malaga", "Málaga"),
+    ("30", "murcia", "Murcia"), ("31", "navarra", "Navarra"), ("32", "ourense", "Ourense"),
+    ("33", "asturias", "Asturias"), ("34", "palencia", "Palencia"), ("35", "las_palmas", "Las Palmas"),
+    ("36", "pontevedra", "Pontevedra"), ("37", "salamanca", "Salamanca"),
+    ("38", "tenerife", "Santa Cruz de Tenerife"), ("39", "cantabria", "Cantabria"),
+    ("40", "segovia", "Segovia"), ("41", "sevilla", "Sevilla"), ("42", "soria", "Soria"),
+    ("43", "tarragona", "Tarragona"), ("44", "teruel", "Teruel"), ("46", "valencia", "Valencia"),
+    ("47", "valladolid", "Valladolid"), ("48", "bizkaia", "Bizkaia"), ("49", "zamora", "Zamora"),
+    ("50", "zaragoza", "Zaragoza"), ("51", "ceuta", "Ceuta"), ("52", "melilla", "Melilla"),
+)
+
+for _pref, _slug, _zona in PROVINCIAS:
+    _env = "RED_" + _slug.upper()
+    _registrar(RedRegional(
+        slug=f"red_{_slug}",
+        nombre=f"Red {_zona}",
+        prefijos_cp=(_pref,),
+        zona_descriptiva=_zona,
+        env_enabled=f"{_env}_ENABLED",
+        env_aviso=f"{_env}_AVISO_ENABLED",
+        env_max=f"{_env}_MAX_CANDIDATOS",
+        etiqueta_proximidad=f"Red {_zona}",
+        tipo_notificacion=f"red_{_slug}_bienvenida",
+        titulo_notificacion=f"Red {_zona}: os pasáis los encargos entre oficios",
+        mensaje_notificacion=_plantilla_mensaje(_zona),
+        habilitada_por_defecto=True,
+    ))
+
+
+def redes_para_cp(codigo_postal: Any) -> List[RedRegional]:
+    """Redes cuyo prefijo encaja con el CP (normalmente 0 o 1). Evita recorrer
+    las ~50 redes, cada una con su conexión, en cada apertura del panel."""
+    return [cfg for cfg in REDES.values() if cp_elegible(codigo_postal, cfg)]
+
+
+def _cp_de_aliado(db, codigo: str) -> str:
+    def _q(conn, cursor):
+        cursor.execute(
+            "SELECT codigo_postal FROM aliados WHERE TRIM(CAST(codigo AS TEXT)) = ?",
+            ((codigo or "").strip(),),
+        )
+        return str(_dict(cursor.fetchone()).get("codigo_postal") or "").strip()
+    return _con_conexion(db, _q)
+
+
 def red_por_slug(slug: str) -> Optional[RedRegional]:
     return REDES.get((slug or "").strip())
 
@@ -128,7 +191,7 @@ def _env_bool(nombre: str, defecto: bool) -> bool:
 def piloto_habilitado(red: Union[str, RedRegional]) -> bool:
     """Flag maestro. Por defecto APAGADO."""
     cfg = resolver_red(red)
-    return _env_bool(cfg.env_enabled, False)
+    return _env_bool(cfg.env_enabled, cfg.habilitada_por_defecto)
 
 
 def aviso_habilitado(red: Union[str, RedRegional]) -> bool:
@@ -318,7 +381,14 @@ def incorporar_tras_alta(db, codigo: str, red: Optional[Union[str, RedRegional]]
     """
     if not (codigo or "").strip():
         return False
-    redes: Iterable[RedRegional] = (resolver_red(red),) if red is not None else tuple(REDES.values())
+    if red is not None:
+        redes: Iterable[RedRegional] = (resolver_red(red),)
+    else:
+        try:
+            redes = redes_para_cp(_cp_de_aliado(db, codigo))
+        except Exception:
+            logger.exception("[RUANA][RED_REGIONAL] No se pudo leer el CP tras alta")
+            redes = ()
     ok = False
     for cfg in redes:
         if not piloto_habilitado(cfg):
@@ -546,7 +616,9 @@ def candidatos_cualquier_red(
 ) -> List[Dict[str, Any]]:
     """Prueba las redes configuradas (hoy solo Huesca). La primera que devuelva
     candidatos gana. Red Centro se evalúa aparte, antes, en proximidad_service."""
-    for cfg in REDES.values():
+    cp_sol = str((solicitante or {}).get("codigo_postal") or "").strip()
+    redes: Iterable[RedRegional] = redes_para_cp(cp_sol) if cp_sol else REDES.values()
+    for cfg in redes:
         cands = candidatos_red(
             db, cursor, solicitante_codigo, oficio, cfg,
             solicitante=solicitante, limite=limite,
@@ -639,7 +711,7 @@ def aviso_para_aliado_cualquier_red(db, codigo: str) -> Dict[str, Any]:
     if not (codigo or "").strip():
         return base
     try:
-        for cfg in REDES.values():
+        for cfg in redes_para_cp(_cp_de_aliado(db, codigo)):
             r = aviso_para_aliado(db, codigo, cfg)
             if r.get("mostrar") is True:
                 return r
