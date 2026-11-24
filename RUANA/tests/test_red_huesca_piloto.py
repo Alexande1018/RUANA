@@ -126,7 +126,11 @@ def _grupo_id(db, codigo):
 # --- Configuración ----------------------------------------------------------------
 
 def test_registro_solo_tiene_huesca_con_prefijo_22():
-    assert list(rr.REDES) == ["red_huesca"]
+    assert list(rr.REDES)[0] == "red_huesca"
+    # Madrid (28) y Toledo (45) siguen en Red Centro; 22 solo en Huesca.
+    prefijos = [p for cfg in rr.REDES.values() for p in cfg.prefijos_cp]
+    assert len(prefijos) == len(set(prefijos))
+    assert "28" not in prefijos and "45" not in prefijos
     assert HUESCA.prefijos_cp == ("22",)
     assert rr.cp_elegible("22260", HUESCA) is True
     assert rr.cp_elegible("22200", HUESCA) is True

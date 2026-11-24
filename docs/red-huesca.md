@@ -82,3 +82,15 @@ otro servicio. **En este PR solo está habilitado el prefijo 22.**
 Red Centro no se ha migrado a este registro: está en producción y el
 refactor solo se haría si se puede garantizar cero cambio de comportamiento
 con la batería actual en verde.
+
+## Redes provinciales (24 nov 2026)
+
+`PROVINCIAS` en `red_regional_service.py` registra una red por provincia
+(prefijo de CP = código INE), salvo 28/45 (Red Centro) y 22 (Red Huesca).
+Slug `red_<provincia>` (p. ej. `red_sevilla`, rutas `/api/admin/red-sevilla/*`).
+Su flag `RED_<PROVINCIA>_ENABLED` está **encendido si la variable no existe**
+(`habilitada_por_defecto=True`), para no depender de editar el workflow; aun así
+no hacen nada hasta `POST /api/admin/red-<provincia>/activar`. `POST .../revertir`
+las neutraliza (sin red activa no hay reparto, ni alta, ni modal) aunque el flag
+siga a 1. Para apagar del todo: añadir `RED_<PROVINCIA>_ENABLED=0` al deploy.
+Los ganchos genéricos (alta, aviso, reparto) solo miran la red del CP del aliado.
