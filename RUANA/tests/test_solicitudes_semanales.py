@@ -145,8 +145,8 @@ def test_mismo_grupo_ve_solicitud_otro_grupo_no(sqlite_db):
     _crear_grupo(
         sqlite_db,
         "Grupo 26",
-        "03015",
-        # Mismo provincia, otro oficio: no debe ver la solicitud de Electricidad.
+        "46015",
+        # Otra provincia: no debe ver la solicitud (la visibilidad es provincial).
         [("PEDRO", "Pedro", "Carpintería de madera e interior")],
     )
     solicitud_semanal_service.crear_solicitud_semanal(
@@ -197,7 +197,7 @@ def test_mismo_oficio_misma_provincia_grupo_sin_cobertura_ve_solicitud(sqlite_db
     # El oficio pedido vive en solicitudes_semanales.oficio
     assert item["oficio"] == "Fontanería y fontanería-gas"
     assert item["de_grupo_cercano"] is True
-    assert item["etiqueta"] == "De un grupo cercano"
+    assert item["etiqueta"] == "De tu provincia"
 
     ayuda = solicitud_semanal_service.responder_puedo_ayudar(sqlite_db, sid, "75658")
     assert ayuda["status"] == "success"
@@ -205,8 +205,8 @@ def test_mismo_oficio_misma_provincia_grupo_sin_cobertura_ve_solicitud(sqlite_db
     assert ayuda["solicitante_codigo"] == "92979"
 
 
-def test_mismo_oficio_misma_provincia_grupo_con_cobertura_no_ve(sqlite_db):
-    """Si alguien del grupo ya cubre el oficio, no se abre a la provincia."""
+def test_misma_provincia_ve_aunque_el_grupo_cubra_el_oficio(sqlite_db):
+    """24 nov 2026: la solicitud llega a toda la provincia aunque el grupo cubra el oficio."""
     _crear_grupo(
         sqlite_db,
         "Grupo 2 cubierto",
@@ -231,13 +231,49 @@ def test_mismo_oficio_misma_provincia_grupo_con_cobertura_no_ve(sqlite_db):
 
     panel = solicitud_semanal_service.obtener_panel_por_codigo(sqlite_db, "75658")
     assert panel["status"] == "success"
-    assert panel["activas_grupo"] == []
+    assert [x["id"] for x in panel["activas_grupo"]] == [creada["id"]]
+    assert panel["activas_grupo"][0]["de_grupo_cercano"] is True
 
-    denegado = solicitud_semanal_service.responder_puedo_ayudar(
-        sqlite_db, creada["id"], "75658"
+    ok = solicitud_semanal_service.responder_puedo_ayudar(sqlite_db, creada["id"], "75658")
+    assert ok["status"] == "success"
+
+
+def test_misma_provincia_otro_oficio_ve_y_recibe_aviso(sqlite_db, monkeypatch):
+    """Todos los activos de la provincia (cualquier oficio, otro grupo) la ven y reciben aviso;
+    los de otra provincia y los no activos, no."""
+    from core.services import notificacion_service
+
+    avisados = []
+    monkeypatch.setattr(
+        notificacion_service, "crear_notificacion_aliado",
+        lambda db, codigo, tipo, *a, **k: avisados.append((codigo, tipo)),
     )
-    assert denegado["status"] == "error"
+    _crear_grupo(sqlite_db, "G Claudio", "28012", [("11048", "Claudio", "Pintura y decoración"),
+                                                    ("MISMO", "Del grupo", "Electricidad")])
+    _crear_grupo(sqlite_db, "G Mostafa", "28022", [("45415", "Mostafa", "Pintura y decoración")])
+    _crear_grupo(sqlite_db, "G Tudor", "28021", [("54234", "Tudor", "Albañilería y obra")])
+    _crear_grupo(sqlite_db, "G Toledo", "45007", [("86761", "Andres", "Electricidad")])
+    gid_val = _crear_grupo(sqlite_db, "G Val", "46009", [("88277", "Rafael", "Electricidad")])
+    conn = sqlite_db._connect()
+    conn.execute(
+        "INSERT INTO aliados (codigo, nombre, oficio, codigo_postal, grupo_id, estado) "
+        "VALUES ('BAJA1', 'Baja', 'Pintura y decoración', '28013', ?, 'baja')", (gid_val,))
+    conn.commit()
+    conn.close()
 
+    creada = solicitud_semanal_service.crear_solicitud_semanal(
+        sqlite_db, "11048", "Pintura y decoración", "Piso", False
+    )
+    assert creada["status"] == "success"
+    sid = creada["id"]
+    for cod in ("MISMO", "45415", "54234"):
+        panel = solicitud_semanal_service.obtener_panel_por_codigo(sqlite_db, cod)
+        assert sid in [x["id"] for x in panel["activas_grupo"]], cod
+    for cod in ("86761", "88277"):
+        panel = solicitud_semanal_service.obtener_panel_por_codigo(sqlite_db, cod)
+        assert sid not in [x["id"] for x in panel["activas_grupo"]], cod
+    cods = sorted(c for c, t in avisados if t == "solicitud_semanal_nueva")
+    assert cods == ["45415", "54234", "MISMO"]
 
 def test_mismo_oficio_otra_provincia_no_ve(sqlite_db):
     """Mismo oficio, pero otra provincia (otros 2 dígitos de CP), no la ve."""
@@ -397,7 +433,7 @@ def test_no_puedo_ayudar_otro_grupo_fallido(sqlite_db):
     _crear_grupo(
         sqlite_db,
         "Grupo 26",
-        "03015",
+        "46015",
         [("PEDRO", "Pedro", "Carpintería de madera e interior")],
     )
     creada = solicitud_semanal_service.crear_solicitud_semanal(
@@ -480,7 +516,7 @@ def test_api_crear_y_aislamiento(client, sqlite_db, monkeypatch, session_headers
     _crear_grupo(
         sqlite_db,
         "Grupo API 26",
-        "03015",
+        "46015",
         [("PEDRO", "Pedro", "Carpintería de madera e interior")],
     )
     monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
@@ -529,7 +565,7 @@ def test_manipulacion_id_otro_grupo(client, sqlite_db, monkeypatch, session_head
     _crear_grupo(
         sqlite_db,
         "G2",
-        "03015",
+        "46015",
         [("PEDRO", "Pedro", "Carpintería de madera e interior")],
     )
     monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
