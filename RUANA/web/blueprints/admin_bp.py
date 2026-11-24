@@ -969,6 +969,50 @@ def admin_users_activate(user_id):
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+@admin_bp.route('/api/admin/aliados/<codigo>/codigo-postal', methods=['POST'])
+@require_admin_escritura
+def admin_corregir_cp_aliado(codigo):
+    """POST /api/admin/aliados/<codigo>/codigo-postal Body: { codigo_postal }. Solo el CP."""
+    try:
+        from core.services import aliado_admin_estado_service as svc
+        data = request.get_json() or {}
+        result = svc.corregir_codigo_postal(
+            get_db(), codigo, data.get('codigo_postal') or '', admin_codigo=_admin_codigo() or None
+        )
+        return jsonify(result), (200 if result.get('status') == 'success' else 400)
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/admin/aliados/<codigo>/baja', methods=['POST'])
+@require_admin_escritura
+def admin_baja_aliado(codigo):
+    """POST /api/admin/aliados/<codigo>/baja Body: { motivo? }. No borra datos (estado inactivo)."""
+    try:
+        from core.services import aliado_admin_estado_service as svc
+        data = request.get_json() or {}
+        result = svc.dar_de_baja(
+            get_db(), codigo, data.get('motivo') or '', admin_codigo=_admin_codigo() or None
+        )
+        if result.get('status') == 'success':
+            _ruana_session_invalidate_for_codigo(codigo)
+        return jsonify(result), (200 if result.get('status') == 'success' else 400)
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/admin/aliados/<codigo>/reactivar', methods=['POST'])
+@require_admin_escritura
+def admin_reactivar_aliado(codigo):
+    """POST /api/admin/aliados/<codigo>/reactivar. Deshace /baja."""
+    try:
+        from core.services import aliado_admin_estado_service as svc
+        result = svc.reactivar(get_db(), codigo, admin_codigo=_admin_codigo() or None)
+        return jsonify(result), (200 if result.get('status') == 'success' else 400)
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
 @admin_bp.route('/api/admin/activar-aliado', methods=['POST'])
 @require_admin_escritura
 def admin_activar_aliado():

@@ -285,6 +285,35 @@ class SolicitudSemanalRepo:
         row = cursor.fetchone()
         return dict(row) if row else None
 
+    def select_cp_aliado(self, cursor, codigo: str) -> str:
+        cursor.execute(
+            "SELECT codigo_postal FROM aliados WHERE TRIM(CAST(codigo AS TEXT)) = ?",
+            ((codigo or "").strip(),),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return ""
+        if hasattr(row, "keys") and "codigo_postal" in row.keys():
+            return (row["codigo_postal"] or "").strip()
+        return (row[0] or "").strip()
+
+    def listar_codigos_activos_provincia(
+        self, cursor, prefijo: str, excluir_codigo: str = ""
+    ) -> List[str]:
+        """Aliados activos con grupo cuyo CP (solo dígitos) empieza por ``prefijo``."""
+        cursor.execute(
+            "SELECT codigo, codigo_postal FROM aliados "
+            "WHERE estado = 'activo' AND grupo_id IS NOT NULL ORDER BY nombre"
+        )
+        out: List[str] = []
+        excl = (excluir_codigo or "").strip()
+        for row in cursor.fetchall() or []:
+            cod = str(row[0] or "").strip()
+            cp = "".join(ch for ch in str(row[1] or "") if ch.isdigit())
+            if cod and cod != excl and len(cp) >= 2 and cp[:2] == prefijo:
+                out.append(cod)
+        return out
+
     def select_grupo_codigo_postal(self, cursor, grupo_id: Any) -> str:
         if grupo_id is None:
             return ""

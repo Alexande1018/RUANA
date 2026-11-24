@@ -67,8 +67,10 @@ def _notificar_grupo_nueva_solicitud(
     oficio: str,
     solicitud_id: int,
     semana_inicio: str,
+    alcance: str = "grupo",
 ) -> None:
-    """Avisa a aliados del grupo tras commit (transacción independiente por notificación)."""
+    """Avisa tras commit (transacción independiente por notificación).
+    ``alcance``: 'grupo' (su grupo) o 'provincia' (resto de activos de la provincia)."""
     if not codigos:
         return
     titulo = "Solicitud de esta semana"
@@ -80,6 +82,7 @@ def _notificar_grupo_nueva_solicitud(
         "solicitante_codigo": solicitante_codigo,
         "semana_inicio": semana_inicio,
         "origen": "solicitud_semanal",
+        "alcance": alcance,
     }
     for codigo in codigos:
         notificacion_service.crear_notificacion_aliado(
@@ -300,6 +303,22 @@ def crear_solicitud_semanal(
             codigos_notificar = _repo.listar_codigos_activos_grupo(
                 cursor, grupo_id, excluir_codigo=codigo
             )
+            codigos_provincia: List[str] = []
+            # Aviso provincial: todos los aliados activos (con grupo) de la
+            # misma provincia que el solicitante, además de su grupo.
+            try:
+                cp_sol = _repo.select_cp_aliado(cursor, codigo) or _repo.select_grupo_codigo_postal(
+                    cursor, grupo_id
+                )
+                prefijo = _prefijo_provincia(cp_sol or "")
+                if prefijo:
+                    vistos = set(codigos_notificar)
+                    for c in _repo.listar_codigos_activos_provincia(cursor, prefijo, codigo):
+                        if c not in vistos:
+                            codigos_provincia.append(c)
+                            vistos.add(c)
+            except Exception:
+                codigos_provincia = []
             conn.commit()
             _notificar_grupo_nueva_solicitud(
                 db,
@@ -309,6 +328,16 @@ def crear_solicitud_semanal(
                 oficio,
                 int(sid),
                 semana_str,
+            )
+            _notificar_grupo_nueva_solicitud(
+                db,
+                codigos_provincia,
+                codigo,
+                nombre,
+                oficio,
+                int(sid),
+                semana_str,
+                alcance="provincia",
             )
             return {"status": "success", "ok": True, "id": sid}
         except Exception as e:
@@ -370,7 +399,7 @@ def actualizar_solicitud_semanal(
             conn.close()
 
 
-ETIQUETA_GRUPO_CERCANO = "De un grupo cercano"
+ETIQUETA_GRUPO_CERCANO = "De tu provincia"
 
 
 def _prefijo_provincia(codigo_postal: str) -> str:
@@ -425,22 +454,18 @@ def _cumple_acceso_provincia_descubierta(
     codigo_aliado: str,
     cache: Optional[Dict[Any, bool]] = None,
 ) -> bool:
-    """Visibilidad extra: mismo oficio pedido, misma provincia, grupo sin cobertura."""
+    """Visibilidad provincial (24 nov 2026): cualquier aliado activo de la misma
+    provincia (prefijo de CP) ve la solicitud, sea cual sea su oficio y aunque el
+    grupo del solicitante cubra el oficio. Así puede ofrecerse o recomendar a
+    alguien («Conozco a alguien»). ``oficio_aliado`` y ``cache`` se mantienen
+    por compatibilidad de firma."""
     if (estado_aliado or "").strip().lower() != "activo":
         return False
     if not prefijo_aliado:
         return False
     if (sol.get("solicitante_codigo") or "") == codigo_aliado:
         return False
-    oficio_pedido = (sol.get("oficio") or "").strip()
-    if not catalogo_service.oficios_equivalentes(db, oficio_pedido, oficio_aliado):
-        return False
     if _prefijo_provincia(_cp_de_solicitud(sol)) != prefijo_aliado:
-        return False
-    if _grupo_cubre_oficio(
-        db, cursor, sol.get("grupo_id"), oficio_pedido,
-        sol.get("solicitante_codigo") or "", cache,
-    ):
         return False
     return True
 
@@ -455,7 +480,7 @@ def _listar_descubiertas_provincia(
     semana: str,
 ) -> List[Dict[str, Any]]:
     prefijo = _prefijo_provincia(cp_aliado)
-    if not prefijo or not (oficio_aliado or "").strip():
+    if not prefijo:
         return []
     rows = _repo.listar_activas_fuera_grupo(cursor, semana, grupo_id, codigo)
     cache: Dict[Any, bool] = {}

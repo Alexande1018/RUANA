@@ -259,6 +259,9 @@ def _formatear_notificacion_cinta(
     base_id = f"notif-{notif_id}" if notif_id is not None else f"notif-{tipo}"
 
     if tipo == "solicitud_semanal_nueva":
+        # Las de la provincia salen anónimas desde la tabla («… de tu zona busca …»).
+        if str(meta.get("alcance") or "grupo") == "provincia":
+            return None
         nombre = _resolver_nombre(meta, "solicitante_nombre", "solicitante_codigo", cursor)
         if not nombre:
             return None
