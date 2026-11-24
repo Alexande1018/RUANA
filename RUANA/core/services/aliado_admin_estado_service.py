@@ -103,29 +103,19 @@ def dar_de_baja(db, codigo: str, motivo: str = "", admin_codigo: Optional[str] =
                 "UPDATE aliados SET estado = ? WHERE TRIM(CAST(codigo AS TEXT)) = ?",
                 (ESTADO_BAJA, codigo),
             )
-            redes_borradas = 0
-            try:
-                cursor.execute("SAVEPOINT baja_redes")
-                cursor.execute(
-                    "DELETE FROM red_piloto_miembros WHERE TRIM(CAST(aliado_codigo AS TEXT)) = ?", (codigo,)
-                )
-                redes_borradas = int(getattr(cursor, "rowcount", 0) or 0)
-                cursor.execute("RELEASE SAVEPOINT baja_redes")
-            except Exception:
-                cursor.execute("ROLLBACK TO SAVEPOINT baja_redes")
-            solicitudes = 0
-            try:
-                cursor.execute("SAVEPOINT baja_sol")
-                cursor.execute(
-                    "UPDATE solicitudes_baja_aliado SET estado = 'completada', "
-                    "actualizado_en = CURRENT_TIMESTAMP, admin_codigo = ? "
-                    "WHERE TRIM(CAST(codigo_aliado AS TEXT)) = ? AND estado IN ('pendiente', 'en_revision')",
-                    ((admin_codigo or None), codigo),
-                )
-                solicitudes = int(getattr(cursor, "rowcount", 0) or 0)
-                cursor.execute("RELEASE SAVEPOINT baja_sol")
-            except Exception:
-                cursor.execute("ROLLBACK TO SAVEPOINT baja_sol")
+            # Sin SAVEPOINT: en producción el adaptador Postgres no los admite aquí.
+            # Ambas tablas existen siempre (esquema de Red Centro y de bajas).
+            cursor.execute(
+                "DELETE FROM red_piloto_miembros WHERE TRIM(CAST(aliado_codigo AS TEXT)) = ?", (codigo,)
+            )
+            redes_borradas = int(getattr(cursor, "rowcount", 0) or 0)
+            cursor.execute(
+                "UPDATE solicitudes_baja_aliado SET estado = 'completada', "
+                "actualizado_en = CURRENT_TIMESTAMP, admin_codigo = ? "
+                "WHERE TRIM(CAST(codigo_aliado AS TEXT)) = ? AND estado IN ('pendiente', 'en_revision')",
+                ((admin_codigo or None), codigo),
+            )
+            solicitudes = int(getattr(cursor, "rowcount", 0) or 0)
             _evento(db, cursor, "aliado_baja",
                     f"Aliado {codigo} dado de baja por admin", admin_codigo,
                     {"codigo_aliado": codigo, "estado_anterior": estado, "motivo": (motivo or "").strip()})
