@@ -50,6 +50,7 @@
     <script src="/static/js/admin-red-explorer-module.js?v=20260909e" defer></script>
     <script src="/static/js/admin-territorio-module.js" defer></script>
     <script src="/static/js/admin-encargos-externos-module.js?v=20261028a" defer></script>
+    <script src="/static/js/admin-solicitudes-detalle-module.js?v=20261102a" defer></script>
     <script src="/static/js/admin-shell.js?v=20261028a" defer></script>
     <script src="/static/js/ruana-mascota.js?v=20261104f" defer></script>
     <script src="/static/js/admin-copiloto.js?v=20261104c" defer></script>
@@ -708,6 +709,58 @@
                 </div>
             </div>
             <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="solicitudes-admin-empty">No hay solicitudes.</p>
+        </div>
+
+        <!-- Todas las solicitudes (semanales + conexión), solo lectura, con detalle completo -->
+        <div class="solicitudes-admin-wrap" id="solicitudes-todas-admin-wrap">
+            <style>
+                tr[data-detalle-tipo] { cursor: pointer; }
+                tr[data-detalle-tipo]:hover td, tr[data-detalle-tipo]:focus td { background: rgba(255,255,255,0.06); }
+                tr[data-detalle-tipo]:focus { outline: 2px solid rgba(96,165,250,0.6); outline-offset: -2px; }
+            </style>
+            <h2 class="seccion-titulo">Todas las solicitudes</h2>
+            <p class="admin-subtitle" style="margin-bottom: 12px; color: #999;">Semanales y de conexión, de todas las semanas y estados. Pincha una fila para leer el texto completo, las respuestas y los candidatos.</p>
+            <div class="filtros-solicitudes-admin admin-filter-row">
+                <select id="filtro-sol-todas-tipo" aria-label="Tipo">
+                    <option value="">Todos los tipos</option>
+                    <option value="semanal">Semanales</option>
+                    <option value="conexion">De conexión</option>
+                </select>
+                <select id="filtro-sol-todas-estado" aria-label="Estado">
+                    <option value="">Todos los estados</option>
+                </select>
+                <input type="date" id="filtro-sol-todas-semana" aria-label="Semana" title="Semana (cualquier día de esa semana)" />
+                <input type="text" id="filtro-sol-todas-grupo" class="admin-filter-small" placeholder="Grupo (ID o nombre)" aria-label="Grupo" />
+                <input type="search" id="filtro-sol-todas-q" placeholder="Buscar texto, nombre u oficio" aria-label="Buscar" />
+                <button type="button" class="btn-admin-action" id="btn-filtrar-solicitudes-todas">Filtrar</button>
+            </div>
+            <p class="admin-subtitle" id="solicitudes-todas-avisos" style="display: none; color: #f87171; margin: 8px 0;"></p>
+            <div class="movimiento-24h-tabla-wrap">
+                <div class="movimiento-24h-tabla-scroll">
+                    <table class="movimiento-24h-tabla" id="tabla-solicitudes-todas">
+                        <thead>
+                            <tr>
+                                <th>Tipo</th>
+                                <th>Fecha</th>
+                                <th>Semana</th>
+                                <th>Grupo</th>
+                                <th>Solicitante</th>
+                                <th>Oficio</th>
+                                <th>Texto</th>
+                                <th>Estado</th>
+                                <th>Respuestas</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-solicitudes-todas"></tbody>
+                    </table>
+                </div>
+            </div>
+            <p class="admin-subtitle" style="margin-top: 8px; color: #666; display: none;" id="solicitudes-todas-empty">No hay solicitudes con esos filtros.</p>
+            <div class="admin-filter-row" style="margin-top: 8px; align-items: center;">
+                <button type="button" class="btn-admin-action" id="btn-sol-todas-prev" disabled>← Anteriores</button>
+                <span class="admin-subtitle" id="solicitudes-todas-paginacion-info" style="color: #999;">0–0 de 0</span>
+                <button type="button" class="btn-admin-action" id="btn-sol-todas-next" disabled>Siguientes →</button>
+            </div>
         </div>
 
         <!-- CAPA 3.6b: Competencias activas -->
