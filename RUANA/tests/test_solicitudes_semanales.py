@@ -699,3 +699,13 @@ def test_api_admin_solicitudes_semanales(client, sqlite_db, monkeypatch, session
     assert data["status"] == "success"
     assert data["activas_semana_count"] == 1
     assert data["solicitudes"][0]["solicitante_codigo"] == "JAIME"
+
+
+def test_mensaje_solicitud_semanal_grupo_usa_profesional_de():
+    """El aviso evita «necesita un Pintura y decoración»; usa «profesional de»."""
+    texto = solicitud_semanal_service._mensaje_solicitud_semanal_grupo(
+        "Nico", "Pintura y decoración"
+    )
+    assert texto == "Esta semana Nico necesita un profesional de Pintura y decoración."
+    vacio = solicitud_semanal_service._mensaje_solicitud_semanal_grupo("Ana", "")
+    assert vacio == "Esta semana Ana necesita un profesional de profesional."

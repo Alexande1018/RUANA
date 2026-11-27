@@ -56,7 +56,7 @@ def _expira_at_str(semana_inicio: date) -> str:
 def _mensaje_solicitud_semanal_grupo(nombre_solicitante: str, oficio: str) -> str:
     nombre = (nombre_solicitante or "Un aliado").strip()
     oficio_txt = (oficio or "profesional").strip()
-    return f"Esta semana {nombre} necesita un {oficio_txt}."
+    return f"Esta semana {nombre} necesita un profesional de {oficio_txt}."
 
 
 def _notificar_grupo_nueva_solicitud(
