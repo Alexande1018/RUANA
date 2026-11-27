@@ -464,7 +464,19 @@ def registrar_aliado():
     }
     """
     try:
-        data = request.get_json() or {}
+        if not request.is_json:
+            return _registro_reject(
+                'general',
+                'json_requerido',
+                'Envía los datos de registro en formato JSON.',
+            )
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return _registro_reject(
+                'general',
+                'json_requerido',
+                'Envía los datos de registro en formato JSON.',
+            )
         if not aliado_service.consentimiento_registro_aceptado(data):
             return _registro_reject(
                 'consentimiento',
@@ -701,11 +713,11 @@ def registrar_aliado():
 
         return jsonify(result), 201
 
-    except Exception as e:
+    except Exception:
         logger.exception("registro_fallo_inesperado")
         return jsonify({
             'status': 'error',
-            'message': str(e),
+            'message': 'No hemos podido completar el registro. Inténtalo de nuevo en un momento.',
             'field': 'general',
             'code': 'error_interno',
         }), 500

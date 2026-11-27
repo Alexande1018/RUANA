@@ -204,3 +204,72 @@ def test_registrar_email_duplicado_sin_pii(client, tmp_path, monkeypatch):
     assert data.get("code") == "email_duplicado"
     assert "dup@example.com" not in data["message"]
 
+
+def _assert_registro_error(data, *, field, code, status="error"):
+    assert data["status"] == status
+    assert data.get("field") == field
+    assert data.get("code") == code
+    assert isinstance(data.get("message"), str) and data["message"].strip()
+
+
+def test_registrar_sin_json_devuelve_400_json_requerido(client, caplog):
+    import logging
+    caplog.set_level(logging.INFO)
+    resp = client.post("/api/aliados/registrar", data="nombre=Ana", content_type="text/plain")
+    assert resp.status_code == 400
+    data = resp.get_json()
+    _assert_registro_error(data, field="general", code="json_requerido")
+    assert "415" not in data["message"]
+    assert "Unsupported Media Type" not in data["message"]
+    assert "registro_rechazado" in caplog.text
+    assert "json_requerido" in caplog.text
+    # El log de rechazo no incluye el cuerpo ni el texto interno de Werkzeug.
+    assert "nombre=Ana" not in caplog.text
+    assert "Unsupported Media Type" not in caplog.text
+
+
+def test_registrar_json_malformado_devuelve_400_json_requerido(client, caplog):
+    import logging
+    caplog.set_level(logging.INFO)
+    resp = client.post(
+        "/api/aliados/registrar",
+        data="{esto no es json",
+        content_type="application/json",
+    )
+    assert resp.status_code == 400
+    data = resp.get_json()
+    _assert_registro_error(data, field="general", code="json_requerido")
+    assert "415" not in data["message"]
+    assert "JSON" in data["message"] or "json" in data["message"].lower()
+    assert "registro_rechazado" in caplog.text
+    assert "json_requerido" in caplog.text
+    assert "{esto no es json" not in caplog.text
+
+
+def test_registrar_error_inesperado_500_sin_texto_interno(client, monkeypatch, caplog):
+    import logging
+    caplog.set_level(logging.ERROR)
+    secreto = "SECRETO_INTERNO_NO_FILTRAR_xyz123"
+
+    def _boom(_data):
+        raise RuntimeError(secreto)
+
+    monkeypatch.setattr(
+        "core.services.aliado_service.consentimiento_registro_aceptado",
+        _boom,
+    )
+    resp = client.post(
+        "/api/aliados/registrar",
+        json={
+            "acepta_privacidad_y_terminos": True,
+            "declara_mayoria_edad": True,
+        },
+    )
+    assert resp.status_code == 500
+    data = resp.get_json()
+    _assert_registro_error(data, field="general", code="error_interno")
+    assert secreto not in data["message"]
+    assert "RuntimeError" not in data["message"]
+    assert "Traceback" not in data["message"]
+    assert "registro_fallo_inesperado" in caplog.text
+    assert secreto in caplog.text
