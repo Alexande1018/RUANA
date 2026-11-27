@@ -6,6 +6,8 @@ Contratos y paths idénticos.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import re
 from datetime import datetime
@@ -19,6 +21,7 @@ from core import db_manager as db_manager_mod
 from core.db_manager import RUANA_CODIGO_INVITACION_REGEX
 from core.phone_utils import normalize_phone
 from core.services import aliado_service, invitacion_service, notificacion_service
+from core.settings import get_settings
 from web.auth_decorators import (
     _admin_codigo,
     _aliado_codigo,
@@ -32,13 +35,51 @@ aliado_bp = Blueprint("aliado", __name__)
 logger = logging.getLogger(__name__)
 
 
+_REGISTRO_HASH_LEN = 10
+
+
+def _normalizar_email_registro(email) -> str:
+    return str(email or "").strip().lower()
+
+
+def _normalizar_tel_registro(telefono) -> str:
+    return re.sub(r"\D", "", str(telefono or ""))
+
+
+def _pseudonimo_registro(valor: str) -> str:
+    """HMAC-SHA256 truncado; '-' si no hay valor. Clave: FLASK_SECRET_KEY."""
+    if not valor:
+        return "-"
+    clave = (get_settings().flask_secret_key or "").encode("utf-8")
+    return hmac.new(clave, valor.encode("utf-8"), hashlib.sha256).hexdigest()[:_REGISTRO_HASH_LEN]
+
+
+def _email_h_registro(email) -> str:
+    return _pseudonimo_registro(_normalizar_email_registro(email))
+
+
+def _tel_h_registro(telefono) -> str:
+    return _pseudonimo_registro(_normalizar_tel_registro(telefono))
+
+
+def _payload_registro_actual() -> dict:
+    try:
+        parsed = request.get_json(silent=True)
+    except Exception:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
 def _registro_reject(field: str, code: str, message: str, status_code: int = 400):
     """Respuesta 4xx de registro con campo/código para UI y logs sin PII."""
-    logger.info(
-        "registro_rechazado field=%s code=%s http=%s",
+    payload = _payload_registro_actual()
+    logger.warning(
+        "registro_rechazado field=%s code=%s http=%s email_h=%s tel_h=%s",
         field,
         code,
         status_code,
+        _email_h_registro(payload.get("email")),
+        _tel_h_registro(payload.get("telefono")),
     )
     return jsonify({
         'status': 'error',
@@ -464,7 +505,19 @@ def registrar_aliado():
     }
     """
     try:
-        data = request.get_json() or {}
+        if not request.is_json:
+            return _registro_reject(
+                'general',
+                'json_requerido',
+                'Envía los datos de registro en formato JSON.',
+            )
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return _registro_reject(
+                'general',
+                'json_requerido',
+                'Envía los datos de registro en formato JSON.',
+            )
         if not aliado_service.consentimiento_registro_aceptado(data):
             return _registro_reject(
                 'consentimiento',
@@ -701,11 +754,11 @@ def registrar_aliado():
 
         return jsonify(result), 201
 
-    except Exception as e:
+    except Exception:
         logger.exception("registro_fallo_inesperado")
         return jsonify({
             'status': 'error',
-            'message': str(e),
+            'message': 'No hemos podido completar el registro. Inténtalo de nuevo en un momento.',
             'field': 'general',
             'code': 'error_interno',
         }), 500
