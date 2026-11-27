@@ -81,8 +81,14 @@
     return null;
   }
 
+  function fraseNecesitaProfesional(oficio) {
+    var oficioTxt = String(oficio || '').trim();
+    if (!oficioTxt) return 'necesita un profesional';
+    return 'necesita un profesional de ' + escapeHtml(oficioTxt);
+  }
+
   function textoNecesitaOficio(solicitanteNombre, oficio) {
-    return '<strong>' + escapeHtml(solicitanteNombre) + '</strong> necesita un profesional de ' + escapeHtml(oficio);
+    return '<strong>' + escapeHtml(solicitanteNombre) + '</strong> ' + fraseNecesitaProfesional(oficio);
   }
 
   function solicitudSigueSinAyuda(s) {
@@ -614,8 +620,8 @@
     var texto = document.getElementById('sol-sem-respuesta-texto');
     if (texto) {
       texto.innerHTML =
-        '<strong>' + escapeHtml(sol.solicitante_nombre) + '</strong> necesita un profesional de ' +
-        escapeHtml(sol.oficio) + '.<br>¿Puedes ayudarlo?';
+        '<strong>' + escapeHtml(sol.solicitante_nombre) + '</strong> ' +
+        fraseNecesitaProfesional(sol.oficio) + '.<br>¿Puedes ayudarlo?';
     }
     mostrarOverlay('sol-sem-respuesta-overlay');
   }
@@ -777,7 +783,7 @@
     if (titulo) titulo.textContent = 'SOLICITUD PARA ESTA SEMANA';
     if (texto) {
       texto.innerHTML =
-        escapeHtml(sol.solicitante_nombre) + ' necesita un profesional de ' + escapeHtml(sol.oficio) + '.<br>¿Puedes ayudarlo?';
+        escapeHtml(sol.solicitante_nombre) + ' ' + fraseNecesitaProfesional(sol.oficio) + '.<br>¿Puedes ayudarlo?';
     }
     mostrarOverlay('sol-sem-entrante-overlay');
   }

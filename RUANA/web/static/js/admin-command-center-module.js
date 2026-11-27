@@ -187,7 +187,7 @@
             }).join('') || '<p class="cc-aside-empty">Sin solicitudes</p>') + '</div>' +
             '<div class="cc-card"><h3>Solicitudes de esta semana</h3>' +
             ((data.solicitudesSemanales || []).slice(0, 4).map(function (s) {
-                return '<div class="cc-feed-item"><span class="cc-feed-tag">Semana</span><p>' + esc(s.solicitante_nombre || s.solicitante_codigo || '') + ' necesita un profesional de ' + esc(s.oficio || '') + '</p></div>';
+                return '<div class="cc-feed-item"><span class="cc-feed-tag">Semana</span><p>' + (esc(s.oficio || '').trim() ? (esc(s.solicitante_nombre || s.solicitante_codigo || '') + ' necesita un profesional de ' + esc(s.oficio)) : (esc(s.solicitante_nombre || s.solicitante_codigo || '') + ' necesita un profesional')) + '</p></div>';
             }).join('') || '<p class="cc-aside-empty">Ninguna esta semana</p>') + '</div>' +
             '<div class="cc-card"><h3>Cambios del sistema</h3>' + eventos + '</div></div>';
     }

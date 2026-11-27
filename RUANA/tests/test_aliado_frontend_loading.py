@@ -576,17 +576,22 @@ def test_solicitudes_semanales_botones_activos_si_sigue_sin_ayuda():
 
 
 def test_solicitudes_semanales_texto_necesita_profesional_de():
-    """Las tarjetas y modales dicen «necesita un profesional de {oficio}»."""
+    """Las tarjetas y modales dicen «necesita un profesional de {oficio}»;
+    si no hay oficio, «necesita un profesional» (sin «de profesional»)."""
     root = Path(__file__).resolve().parents[1] / "web"
     sem_js = (
         root / "static" / "js" / "aliado-solicitudes-semanales-module.js"
     ).read_text(encoding="utf-8")
     aliado = (root / "aliado.html").read_text(encoding="utf-8")
 
-    assert sem_js.count("necesita un profesional de ") == 3
+    assert "function fraseNecesitaProfesional(oficio)" in sem_js
+    assert "if (!oficioTxt) return 'necesita un profesional';" in sem_js
+    assert "necesita un profesional de " in sem_js
+    assert "de profesional" not in sem_js
     assert "necesita un ' +" not in sem_js
+    assert sem_js.count("fraseNecesitaProfesional(") >= 4
     assert "textoNecesitaOficio" in sem_js
-    assert 'aliado-solicitudes-semanales-module.js?v=20261127a' in aliado
+    assert 'aliado-solicitudes-semanales-module.js?v=20261127b' in aliado
 
 
 def test_panel_quita_loader_antes_del_sync_secundario():

@@ -434,6 +434,8 @@ def test_admin_muestra_solicitudes_semanales():
     assert "#solicitudes-semanales-admin-wrap" in shell_js
     assert "Solicitudes de esta semana" in cc_js
     assert "necesita un profesional de " in cc_js
+    assert "' necesita un profesional'" in cc_js or '" necesita un profesional"' in cc_js
+    assert "de profesional" not in cc_js
     assert "' necesita ' + esc(s.oficio" not in cc_js
 
 

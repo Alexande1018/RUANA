@@ -708,4 +708,9 @@ def test_mensaje_solicitud_semanal_grupo_usa_profesional_de():
     )
     assert texto == "Esta semana Nico necesita un profesional de Pintura y decoración."
     vacio = solicitud_semanal_service._mensaje_solicitud_semanal_grupo("Ana", "")
-    assert vacio == "Esta semana Ana necesita un profesional de profesional."
+    assert vacio == "Esta semana Ana necesita un profesional."
+    assert "de profesional" not in vacio
+    ausente = solicitud_semanal_service._mensaje_solicitud_semanal_grupo("Ana", None)
+    assert ausente == "Esta semana Ana necesita un profesional."
+    blanco = solicitud_semanal_service._mensaje_solicitud_semanal_grupo("Ana", "   ")
+    assert blanco == "Esta semana Ana necesita un profesional."
