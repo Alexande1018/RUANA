@@ -1,5 +1,7 @@
 """Alta del paso 1: solo obligatorios. Marca y descripción no se exigen."""
 
+import logging
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -7,6 +9,7 @@ import pytest
 
 from core import db_manager as db_module
 from RUANA.web import app as app_module
+from RUANA.web.blueprints import aliado_bp as aliado_bp_mod
 
 WEB = Path(__file__).resolve().parents[1] / "web"
 
@@ -212,25 +215,97 @@ def _assert_registro_error(data, *, field, code, status="error"):
     assert isinstance(data.get("message"), str) and data["message"].strip()
 
 
+def _ultimo_registro_rechazado(caplog):
+    recs = [r for r in caplog.records if "registro_rechazado" in r.getMessage()]
+    assert recs, caplog.text
+    return recs[-1]
+
+
+def _campos_log_rechazo(mensaje: str):
+    hallados = dict(re.findall(r"\b(field|code|http|email_h|tel_h)=(\S+)", mensaje))
+    return hallados
+
+
+def test_pseudonimo_registro_estable_tras_normalizar_y_sin_valor_es_guion():
+    assert aliado_bp_mod._email_h_registro("  Foo.Bar@Example.COM ") == aliado_bp_mod._email_h_registro("foo.bar@example.com")
+    assert aliado_bp_mod._tel_h_registro("+34 611 99 88 77") == aliado_bp_mod._tel_h_registro("34611998877")
+    assert aliado_bp_mod._email_h_registro("") == "-"
+    assert aliado_bp_mod._email_h_registro(None) == "-"
+    assert aliado_bp_mod._tel_h_registro("") == "-"
+    assert aliado_bp_mod._tel_h_registro(None) == "-"
+    email_h = aliado_bp_mod._email_h_registro("foo.bar@example.com")
+    tel_h = aliado_bp_mod._tel_h_registro("34611998877")
+    assert re.fullmatch(r"[0-9a-f]{10}", email_h)
+    assert re.fullmatch(r"[0-9a-f]{10}", tel_h)
+    assert email_h != aliado_bp_mod._email_h_registro("otra@example.com")
+    assert tel_h != aliado_bp_mod._tel_h_registro("34600000000")
+
+
+def test_registrar_rechazo_es_warning_hash_estable_y_sin_pii(client, tmp_path, monkeypatch, caplog):
+    sqlite_db = _sqlite(tmp_path, monkeypatch)
+    monkeypatch.setattr(app_module, "get_db", lambda: sqlite_db)
+    caplog.set_level(logging.WARNING)
+    email_claro = "  Uniq.Probe.9f3a@Example.COM "
+    tel_claro = "+34 611 99 88 77"
+    email_norm = "uniq.probe.9f3a@example.com"
+    tel_norm = "34611998877"
+
+    resp1 = client.post(
+        "/api/aliados/registrar",
+        json=_payload(nombre="Al", email=email_claro, telefono=tel_claro),
+    )
+    assert resp1.status_code == 400
+    body = resp1.get_json()
+    _assert_registro_error(body, field="nombre", code="nombre_corto")
+    assert email_norm not in str(body)
+    assert "uniq.probe.9f3a" not in str(body).lower()
+    assert "611998877" not in str(body)
+    rec1 = _ultimo_registro_rechazado(caplog)
+    assert rec1.levelno == logging.WARNING
+    campos1 = _campos_log_rechazo(rec1.getMessage())
+    assert campos1["field"] == "nombre"
+    assert campos1["code"] == "nombre_corto"
+    assert campos1["email_h"] == aliado_bp_mod._email_h_registro(email_norm)
+    assert campos1["tel_h"] == aliado_bp_mod._tel_h_registro(tel_norm)
+    assert campos1["email_h"] != "-"
+    mensaje = rec1.getMessage()
+    for fragmento in (email_claro, email_norm, "Uniq.Probe.9f3a", tel_claro, tel_norm, "611998877"):
+        assert fragmento not in mensaje
+        assert fragmento.lower() not in mensaje.lower()
+
+    caplog.clear()
+    resp2 = client.post(
+        "/api/aliados/registrar",
+        json=_payload(nombre="Al", email=email_norm, telefono=tel_norm),
+    )
+    assert resp2.status_code == 400
+    rec2 = _ultimo_registro_rechazado(caplog)
+    campos2 = _campos_log_rechazo(rec2.getMessage())
+    assert campos2["email_h"] == campos1["email_h"]
+    assert campos2["tel_h"] == campos1["tel_h"]
+    assert email_norm not in rec2.getMessage()
+    assert tel_norm not in rec2.getMessage()
+
+
 def test_registrar_sin_json_devuelve_400_json_requerido(client, caplog):
-    import logging
-    caplog.set_level(logging.INFO)
+    caplog.set_level(logging.WARNING)
     resp = client.post("/api/aliados/registrar", data="nombre=Ana", content_type="text/plain")
     assert resp.status_code == 400
     data = resp.get_json()
     _assert_registro_error(data, field="general", code="json_requerido")
     assert "415" not in data["message"]
     assert "Unsupported Media Type" not in data["message"]
-    assert "registro_rechazado" in caplog.text
-    assert "json_requerido" in caplog.text
-    # El log de rechazo no incluye el cuerpo ni el texto interno de Werkzeug.
+    rec = _ultimo_registro_rechazado(caplog)
+    assert rec.levelno == logging.WARNING
+    assert "json_requerido" in rec.getMessage()
+    assert "email_h=-" in rec.getMessage()
+    assert "tel_h=-" in rec.getMessage()
     assert "nombre=Ana" not in caplog.text
     assert "Unsupported Media Type" not in caplog.text
 
 
 def test_registrar_json_malformado_devuelve_400_json_requerido(client, caplog):
-    import logging
-    caplog.set_level(logging.INFO)
+    caplog.set_level(logging.WARNING)
     resp = client.post(
         "/api/aliados/registrar",
         data="{esto no es json",
@@ -241,13 +316,15 @@ def test_registrar_json_malformado_devuelve_400_json_requerido(client, caplog):
     _assert_registro_error(data, field="general", code="json_requerido")
     assert "415" not in data["message"]
     assert "JSON" in data["message"] or "json" in data["message"].lower()
-    assert "registro_rechazado" in caplog.text
-    assert "json_requerido" in caplog.text
+    rec = _ultimo_registro_rechazado(caplog)
+    assert rec.levelno == logging.WARNING
+    assert "json_requerido" in rec.getMessage()
+    assert "email_h=-" in rec.getMessage()
+    assert "tel_h=-" in rec.getMessage()
     assert "{esto no es json" not in caplog.text
 
 
 def test_registrar_error_inesperado_500_sin_texto_interno(client, monkeypatch, caplog):
-    import logging
     caplog.set_level(logging.ERROR)
     secreto = "SECRETO_INTERNO_NO_FILTRAR_xyz123"
 
