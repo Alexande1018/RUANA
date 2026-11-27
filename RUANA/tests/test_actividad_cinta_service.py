@@ -87,7 +87,7 @@ def test_preparar_actividad_cinta_formatea_solicitud_semanal(sqlite_db):
         codigo,
         "solicitud_semanal_nueva",
         "Solicitud de esta semana",
-        "Esta semana Ana necesita un Fontanero.",
+        "Esta semana Ana necesita un profesional de Fontanero.",
         metadata={"solicitante_nombre": "Ana", "oficio": "Fontanero"},
     )
     items = notificacion_service.preparar_actividad_cinta(sqlite_db, codigo)
